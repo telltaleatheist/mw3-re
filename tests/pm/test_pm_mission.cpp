@@ -25,6 +25,7 @@
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zclass/light.h"
 #include "mech3/zainet_inout.h"
+#include "mech3/zainet_inout_view.h"
 #include "mech3/zai_repair.h"
 #include "crt/msvc_rand.h"
 #include "gamez/ztwod/twod_weather.h"
@@ -478,6 +479,7 @@ struct LightSeen {
 static LightSeen g_light;
 static struct { bool found[2] = {}, restored[2] = {}; const char* name[2] = {}; } g_animsave;  // PM_ANIMSAVE
 static struct { bool made = false; int counted = -1, listed = -1, damaged = -1, tried = 0; } g_splash;  // PM_SPLASH
+static struct { bool built = false, freed = false; int models = 0, polygons = 0, refs = 0, back = 0; } g_inout;  // PM_INOUT
 // PM_ANHUR (pm-tests 37): anhur04 shot down near the bridge; its root boxed while alive, what a shot and a walk meet after.
 static struct {
   bool killed = false, boxed_alive = false, boxed_dead = true;
@@ -840,6 +842,28 @@ static void kill_run(const char* which, bool quick) {
       float at[3] = {};
       if (++t == 2 || t == 60) std::printf("  headlight: %d at %.0f %.0f %.0f\n", pm_headlight(player, true, at), at[0], at[1], at[2]);
       if (t < 60) return;
+    }
+    // The vehicle editor's Show InOut (docs/editor.md, Pirate's Moon's inout drawing): the boundary's walls built
+    // as PM's models on the world at frame 30, then taken down.
+    if (std::getenv("PM_INOUT")) {
+      static int t = 0;
+      if (++t < 30) return;
+      mech3::ai::inout_view_build();
+      if (zcls::Node* root = mech3::ai::inout_view()) {
+        g_inout.built = true;
+        for (int32_t i = 0; i < root->child_count(); ++i) {
+          const pm::zmod::Model* m = root->children[i] ? root->children[i]->pm_model : nullptr;
+          if (!m) continue;
+          ++g_inout.models;
+          g_inout.polygons += m->count(0x10);
+          g_inout.refs += m->count(0x5c);
+          for (int32_t k = 0; k < m->count(0x10); ++k) g_inout.back += (m->polygons[k].flags & 0x400) != 0;
+        }
+      }
+      mech3::ai::inout_view_show(nullptr);
+      g_inout.freed = mech3::ai::inout_view_empty();
+      done = true;
+      return;
     }
     // A mod's splash on AC5 (200 m), hit where the query fills 32: the player's spot, else each one found within 2 km.
     if (std::getenv("PM_SPLASH")) {
@@ -1869,7 +1893,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -1908,6 +1932,29 @@ TEST(pm_c3m6_dead_anhur_leaves_no_wall) {
     waitpid(child, &status, 0);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
+#endif
+}
+
+// Show InOut in a mission (kill_run 1,1,3): PM's walls on PM's models (pm_model), each model's material refs rebuilt, the second
+// triangle of each pair back-faced as PM adds them; then nothing left.
+TEST(pm_show_inout_builds_pm_models) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_INOUT", "1", 1);
+    kill_run("1,1,3", true);
+    std::printf("  %d models, %d polygons (%d back-faced), %d material refs; taken down %d\n", g_inout.models,
+                g_inout.polygons, g_inout.back, g_inout.refs, g_inout.freed);
+    EXPECT(g_inout.built && g_inout.models > 0 && g_inout.polygons > 0 && g_inout.refs >= g_inout.models);
+    EXPECT(g_inout.back == 0);  // PM's 0x0060b996 on: its back flag (== 0) never set, the side's [0x0062fa58] 0
+    EXPECT(g_inout.freed);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
 

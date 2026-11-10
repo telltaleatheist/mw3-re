@@ -6,6 +6,7 @@
 #include "gamez/zgeometry/zgeo_model.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_cull.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 #include "mech3/game_editor.h"
 #include "mech3/zainet_inout.h"
 
@@ -14,34 +15,40 @@ namespace mech3::ai {
 namespace {
 zcls::Node* g_view = nullptr;  // [0x0060b334]
 
-constexpr float kHeight = 10.0f;      // 0x005e8a68
-constexpr uint32_t kVertices = 1024;  // 0x005e8a6c: a model's most
-constexpr bool kTwoSided = true;      // 0x005e8a64: each triangle again, the other way round
-constexpr bool kKeepAdding = true;    // 0x005e8a60: on after an add fails
-constexpr bool kSideFlag = false;     // [0x0060b3a0]: never set
+// Pirate's Moon's (MW3's at 0x005e8a60..0x005e8a6c and [0x0060b3a0], the same values).
+constexpr float kHeight = 10.0f;      // 0x0060b998
+constexpr uint32_t kVertices = 1024;  // 0x0060b99c: a model's most
+constexpr bool kTwoSided = true;      // 0x0060b996: each triangle again, the other way round
+constexpr bool kKeepAdding = true;    // 0x0060b995: on after an add fails
+constexpr bool kSideFlag = false;     // [0x0062fa58]: never set
+constexpr bool kOuter = true;         // [0x0060b8d0]: never set otherwise
 InOutWallsCalls g_calls;
 
 zmod::Material* color(float r, float g, float b) {
-  return g_calls.color ? g_calls.color(r, g, b) : zgeo::color_material(r, g, b);  // 0x0050de00
+  return g_calls.color ? g_calls.color(r, g, b) : zgeo::color_material(r, g, b);  // 0x005275d0
 }
 }  // namespace
 
 InOutWallsCalls& inout_walls_calls() { return g_calls; }
 
-// Mech3.exe 1.2 @ 0x004c42e0
-InOutWalls::InOutWalls(zmod::Model* m) : model(m) {
+// Pirate's Moon 1.0 @ 0x004ce970 (MW3's 0x004c42e0 with +0x40)
+InOutWalls::InOutWalls(pm::zmod::Model* m) : model(m), outer(kOuter ? 1 : 0) {
   front = color(255.0f, 0.0f, 0.0f);
   side = color(0.0f, 0.0f, 255.0f);
-  zmod::zone_reset(zone);  // 0x0053cc40; the points the zero vector 0x0063d870
+  zmod::zone_reset(zone);  // 0x0055d100; the points the zero vector 0x0066f5e0
 }
 
-// Mech3.exe 1.2 @ 0x004c4520 (`front`, flag (0x005e8a64 == 0)) and
-// 0x004c4590 (`side`, flag [0x0060b3a0]): the triangle a, b, c added.
+// Pirate's Moon 1.0 @ 0x004cecc0 (`front`, back (0x0060b996 == 0)) and
+// 0x004ced50 (`side`, back [0x0062fa58]): the triangle a, b, c added with
+// its one material, then the model's refs rebuilt, added or not.
 void InOutWalls::triangle(zmod::Material* m, bool flag) {
-  if (!kKeepAdding && last != 0) return;
-  zmod::PolygonAdd a;
-  a.points = pts, a.material = m, a.flag = flag ? 1u : 0u, a.zone = zone;
-  last = g_calls.add ? g_calls.add(model, 3, a) : zmod::model_add_polygon(model, 3, a);  // 0x0053c6c0
+  if (kKeepAdding || last == 0) {
+    pm::zmod::PolygonAdd a;
+    a.points = pts, a.material_count = 1, a.materials = &m, a.back = flag ? 1u : 0u, a.zone = zone;
+    last = g_calls.add ? g_calls.add(model, 3, a) : pm::zmod::model_add_polygon(model, 3, a);  // 0x0055cb70
+  }
+  if (g_calls.sort) g_calls.sort(model);
+  else if (model) pm::zmod::sort_by_material(*model);  // 0x0055c470
 }
 
 namespace {
@@ -54,14 +61,15 @@ void swap3(float* a, float* b) {  // 0x004c5500
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004c45f0: the wall from the last corner (a, b its top)
-// to this one, two triangles, each again the other way round in the
-// polygon's colour; a and b move on to this corner.
+// Pirate's Moon 1.0 @ 0x004cedd0 (MW3's 0x004c45f0, the corner by +0x40):
+// the wall from the last corner (a, b its top) to this one, two triangles,
+// each again the other way round in the polygon's colour; a and b move on to
+// this corner.
 void InOutWalls::corner(const InOutVertex& v) {
   float* a = pts;
   float* b = pts + 3;
   float* c = pts + 6;
-  copy3(c, v.pos);
+  copy3(c, outer ? v.offset : v.pos);
   if (kTwoSided) {
     triangle(front, !kTwoSided);
     swap3(a, c);
@@ -84,14 +92,14 @@ void InOutWalls::corner(const InOutVertex& v) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x004c43b0: a tested polygon's walls, its colour first;
-// true (and nothing added) when its corners would take the model past 1024
-// vertices.
+// Pirate's Moon 1.0 @ 0x004cea50 (MW3's 0x004c43b0, the last corner by
+// +0x40): a tested polygon's walls, its colour first; true (and nothing
+// added) when its corners would take the model past 1024 vertices.
 bool InOutWalls::add(const InOutPolygon& p) {
   if (!p.tested) return false;
   const uint32_t n = static_cast<uint32_t>(p.verts.size());  // 0x004c4d60
   if (vertices + n * 3 >= kVertices) return true;
-  copy3(pts, p.verts[n - 1].pos);  // 0x004c4d90(n - 1)
+  copy3(pts, outer ? p.verts[n - 1].offset : p.verts[n - 1].pos);
   copy3(pts + 3, pts);
   pts[4] += kHeight;
   switch (p.kind) {
@@ -141,10 +149,10 @@ void inout_view_build() {
   while (it != end) {
     node = zcls::object3d_create();
     if (!node) break;
-    zmod::Model* m = zmod::model_alloc();  // 0x00538fe0
+    pm::zmod::Model* m = pm::zmod::model_alloc();  // 0x00558f50
     if (!m) break;
     InOutWalls w(m);
-    zcls::node_set_model(node, m);    // 0x004eb370
+    zcls::node_set_pm_model(node, m);  // 0x004fcc60
     zcls::node_add_child(root, node);  // 0x004eb9b0
     const auto from = it;
     while (it != end && !w.add(**it)) ++it;  // 0x004c5530

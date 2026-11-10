@@ -107,12 +107,13 @@ void nets_fill() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x004bc860: "default" (-1) and the 19 chassis by name.
+// Pirate's Moon 1.0 @ 0x004c2d00: "default" (-1) and the 25 chassis by name
+// (MW3's 0x004bc860 had its 19), PM's mechs with them.
 void chassis_fill() {
   DlgCombo& c = combo(1274);
   c.reset();
   c.set_data(c.add("default"), -1);
-  for (int32_t i = 0; i < 19; ++i) c.set_data(c.add(mech_name(i)), i);  // 0x00484650
+  for (int32_t i = 0; i < 25; ++i) c.set_data(c.add(mech_name(i)), i);  // 0x00486790
 }
 
 // Mech3.exe 1.2 @ 0x004bc640: the vehicle's mech's loadouts but the

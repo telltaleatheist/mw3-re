@@ -1623,6 +1623,42 @@ its radius alone, a head's point moved. The test takes PM's three zTwoD
 vtables from its ctors: the address map gives the arrow's 4 off (0x5f16e0 for
 0x5f16dc).
 
+### Pirate's Moon's inout drawing and the rest (pm, P4, 2026-11-10)
+
+**Show InOut drew nothing on pm.** The walls (merged from main) were MW3
+models on `node->model`. PM's renderer draws only `node->pm_model` (the game
+table's draw_model is PM's 0x00543b10), so the boundary never showed. PM's
+own code is a port of MW3's onto its models, now ported on pm
+(`zainet_inout_view.cpp`):
+- The walls ctor 0x4ce970 is MW3's 0x4c42e0 plus a byte at +0x40, set from
+  [0x0060b8d0] (1, never written). The polygon step 0x4cea50 and the corner
+  0x4cedd0 then take each corner's offset (+0x00, the place pushed out by
+  the polygon's width), not its place (+0x0c).
+- The adds 0x4cecc0 / 0x4ced50 call PM's model add 0x55cb70 (cdecl: the
+  model, the count, the points, one material by pointer, the back flag, the
+  zone). After every add they rebuild the model's material refs (0x55c470),
+  added or not.
+- The build 0x4cefc0 takes PM's model alloc 0x558f50 and node_set_pm_model
+  0x4fcc60.
+- The constants are MW3's (10 m, 1024 vertices, two-sided, keep adding, the
+  side flag 0), at PM's addresses.
+
+**The vehicle editor's chassis list** (0x4c2d00) runs to 25, PM's mechs
+with MW3's, where MW3's 0x4bc860 stopped at 19; the port on pm had kept 19.
+
+Checked:
+- test_inout_view.py with MW3_EXE=pm: PM's polygons (tested +0x46, kind
+  +0x48, corners 0x54 bytes), every corner's place 100 m from its offset,
+  the rebuilds counted. 400 runs the same (42,132 triangles). Breaks caught:
+  the place for the offset, the rebuild left out, the back flag the other
+  way.
+- `pm_show_inout_builds_pm_models` (mw3pmtests, a whole mission in a child):
+  the walls as PM models (2 models, 2,588 polygons, 4 material refs), none
+  back-faced, then taken down. Leaving out node_set_pm_model fails it.
+- test_editor.cpp now runs in mw3pmtests. On PM, the pick and trace commands
+  are 0xa3 / 0xa4 (MW3's 0x9b / 0x9c), the Mad Cat is mech 13, and the
+  chassis list holds 26 rows. A list cut back to 19 fails it.
+
 ## The editor's help (ours, 2026-11-09)
 
 Owen asked (through the lead) for help in the game and on GitHub, from one
