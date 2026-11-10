@@ -25216,6 +25216,173 @@ WideMenus wide_menus_run(bool wide) {
 }
 }  // namespace
 
+// A mode picked in the menus takes hold in them at once (playtest 1.1.0
+// item 3, Owen: "I changed the resolution to 1920x1080 but it didn't change
+// the aspect ratio"; resolution.md section 12). From a saved 4:3 mode:
+// GRAPHICS' ACCEPT with the same mode goes back to OPTIONS as the exe does;
+// with 1920x1080 the menus are made again wide and the main menu is up;
+// 2560x1440 changes the frame alone; UPGRADES' WIDE MENUS off and on; then
+// 640x480 again. OPTIONS opens after each, laid out for the canvas.
+namespace {
+struct ReshapeStep {
+  char kind;      // 'R': GRAPHICS' resolution; 'W': UPGRADES' wide menus
+  int32_t value;
+};
+struct ReshapeSeen {
+  bool to_main = false;  // ACCEPT ended on the main menu (made again), not back in OPTIONS
+  int32_t width = 0, mode = 0, credits = 0, options_accept = 0, saved_mode = 0;
+};
+std::vector<ReshapeSeen> menu_reshape_run(const std::vector<ReshapeStep>& steps, int32_t* width0, int32_t* credits0,
+                                          int32_t* accept0) {
+  std::vector<ReshapeSeen> seen;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::mount(std::string(MW3_GAME_DIR) + "/zbd");
+  const std::string dir = temp_dir("menu_reshape_write");
+  zutl::set_write_dir(dir);
+  {  // a saved InGameVMode of 5 (640x480), as regedit writes it
+    const char text[] =
+        "Windows Registry Editor Version 5.00\r\n\r\n"
+        "[HKEY_CURRENT_USER\\Software\\MicroProse\\MechWarrior 3\\1.0]\r\n"
+        "\"InGameVMode\"=dword:00000005\r\n";
+    std::FILE* f = std::fopen((dir + "/settings.reg").c_str(), "wb");
+    std::fputc(0xff, f), std::fputc(0xfe, f);
+    for (const char* c = text; *c; ++c) std::fputc(*c, f), std::fputc(0, f);
+    std::fclose(f);
+  }
+  platform::RegFile settings(dir + "/settings.reg");
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const zfix::Options saved_fix = zfix::options();
+  zfix::options().any_resolution = true;
+  zfix::options().wide_menus = true;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.settings = &settings;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    struct ImageHost : BoxHost {  // the shipped images: the buttons' sizes and the backgrounds to widen
+      zimg::Texture* image_get(const char* n) override { return n && *n ? zimg::fetch_image(n) : nullptr; }
+      zimg::Texture* image_release(zimg::Texture*) override { return nullptr; }
+      void image_path(const char*) override {}
+      void texture_free(zimg::Texture*) override {}
+      zimg::Texture* image_new(int32_t w, int32_t h) override {
+        auto* t = static_cast<zimg::Texture*>(std::calloc(1, sizeof(zimg::Texture)));
+        t->flags = 1, t->width = static_cast<int16_t>(w), t->height = static_cast<int16_t>(h), t->width_again = t->width;
+        t->pixel_count = w * h;
+        t->pixels = std::calloc(static_cast<size_t>(w) * h, 2);
+        return t;
+      }
+    } host;
+    host.e = &engine;
+    ztwod::set_host(&host);
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    EXPECT(mech3::options().in_game_vmode == 5);
+    mech3::States& st = mech3::states();
+    enum { kMain, kOptions, kPage, kAfter, kDone } stage = kMain;
+    size_t k = 0;
+    int wait = 0;
+    ReshapeSeen cur;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      auto* mm = const_cast<mech3::MainMenu*>(mech3::main_menu());
+      auto* os = dynamic_cast<mech3::OptionsState*>(now);
+      auto* game = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+      if (app.pending()) return;
+      if (stage == kMain && now == &st.main && mm) {
+        cur.width = engine.buffer_width(), cur.mode = engine.vmode(), cur.saved_mode = mech3::options().in_game_vmode;
+        cur.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
+        mm->buttons[mech3::MainMenuButton::kOptions].on_left_up();
+        stage = kOptions;
+      } else if (stage == kOptions && game) {
+        cur.options_accept = game->accept.get_rect()->left;
+        if (k == 0 && seen.empty() && !*width0) *width0 = cur.width, *credits0 = cur.credits, *accept0 = cur.options_accept;
+        else seen.push_back(cur);
+        if (seen.size() == steps.size()) return void(stage = kDone);
+        cur = ReshapeSeen{};
+        if (steps[k].kind == 'R') game->gfx_audio.on_left_up();
+        else game->upgrades.on_left_up();
+        stage = kPage;
+      } else if (stage == kPage && os && !game) {
+        if (auto* g = dynamic_cast<mech3::GfxAudioScreen*>(engine.screen_of(os->screen_)); g && steps[k].kind == 'R') {
+          g->resolution.select_each_value(steps[k].value);
+          EXPECT(g->resolution.selected_value() == steps[k].value);
+          g->accept.on_left_up();
+        } else if (auto* u = dynamic_cast<mech3::UpgradesScreen*>(engine.screen_of(os->screen_)); u && steps[k].kind == 'W') {
+          u->wide_menus.select(steps[k].value != 0);
+          u->accept.on_left_up();
+        } else {
+          return;
+        }
+        ++k, wait = 0, stage = kAfter;
+      } else if (stage == kAfter && ++wait > 3) {
+        if (now == &st.main && mm) {
+          cur.to_main = true, stage = kMain;
+        } else if (game) {  // back in OPTIONS (nothing changed): its BACK to the main menu
+          game->back.on_left_up();
+          stage = kMain;
+        }
+      }
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == kDone; };
+    app.run(pump);
+    EXPECT(stage == kDone);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+    ztwod::set_host(nullptr);
+  }
+  zfix::options() = saved_fix;
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  return seen;
+}
+}  // namespace
+
+TEST(menus_take_a_picked_mode_at_once_headless) {
+  if (!have_game()) return;
+  int32_t width0 = 0, credits0 = 0, accept0 = 0;
+  const std::vector<ReshapeStep> steps = {{'R', 5}, {'R', 13}, {'R', 14}, {'W', 0}, {'W', 1}, {'R', 5}};
+  const std::vector<ReshapeSeen> s = menu_reshape_run(steps, &width0, &credits0, &accept0);
+  std::printf("menus at the start: canvas %d, CREDITS %d, OPTIONS' ACCEPT %d\n", width0, credits0, accept0);
+  for (size_t i = 0; i < s.size(); ++i)
+    std::printf("  after %c %d: %s, canvas %d, mode %d (saved %d), CREDITS %d, OPTIONS' ACCEPT %d\n", steps[i].kind, steps[i].value,
+                s[i].to_main ? "the main menu made again" : "back in OPTIONS", s[i].width, s[i].mode, s[i].saved_mode, s[i].credits,
+                s[i].options_accept);
+  EXPECT(width0 == 640 && credits0 > 0 && accept0 > 0);
+  EXPECT(s.size() == steps.size());
+  if (s.size() != steps.size()) return;
+  const int32_t extra = 853 - 640;
+  auto plain = [&](const ReshapeSeen& r) { return r.width == 640 && r.mode == 5 && r.credits == credits0 && r.options_accept == accept0; };
+  auto wide = [&](const ReshapeSeen& r, int32_t mode) {
+    return r.width == 853 && r.mode == mode && r.credits == credits0 + extra && r.options_accept == accept0 + extra;
+  };
+  EXPECT(!s[0].to_main && plain(s[0]) && s[0].saved_mode == 5);    // the same mode: the exe's way back
+  EXPECT(s[1].to_main && wide(s[1], 13) && s[1].saved_mode == 13);  // 4:3 to 16:9
+  EXPECT(s[2].to_main && wide(s[2], 14) && s[2].saved_mode == 14);  // another 16:9 size: the frame's
+  EXPECT(s[3].to_main && plain(s[3]) && s[3].saved_mode == 14);     // wide menus off: 4:3 menus, the mission's mode kept
+  EXPECT(s[4].to_main && wide(s[4], 14));                           // and on again
+  EXPECT(s[5].to_main && plain(s[5]) && s[5].saved_mode == 5);      // 16:9 to 4:3
+}
+
 // 16:9 menus are on by default (Owen, 2026-10-31): with nothing set, the
 // menus take a wide in-mission mode (13: 853x480), and stay 640x480 (mode 5)
 // when that mode is 4:3 (5, or 10: 1600x1200); widemenus=0 or

@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "mech3/lance_armor.h"
@@ -60,6 +61,15 @@ class Engine : public zgame::AppHooks {
   // picked in the menus applies to them at the next start.
   int32_t menu_vmode();
   int32_t menu_vmode_ = -1;
+  // Ours: an ACCEPT that may change the menus' mode (GRAPHICS' resolution,
+  // UPGRADES' wide menus). From the main menu the menus are made again in the
+  // new shape at once (replace_state(2), as after a game; MainState::enter
+  // takes the flag and sets the mode between the old screens and the new).
+  // From a mission's pause the screens stay as made: the menus after the
+  // mission take it (resolution.md section 12).
+  void menu_mode_picked();
+  bool take_menu_reshape() { return std::exchange(menu_reshape_, false); }
+  bool menu_reshape_ = false;
   virtual float mouse_accel_x();
   virtual float mouse_accel_y();
 
