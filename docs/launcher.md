@@ -339,33 +339,19 @@ comes back with a line saying how it closed. Built 2026-10-31;
 `--launcher-mw1` presses it at once (checks);
 `sdl_program_launcher_starts_mechwarrior_1989` (a stand-in script).
 
-## Mods (2026-11-08, modding item 5)
+## Mods (2026-11-08, removed 2026-11-10)
 
-**On the game last clicked (2026-11-10, the combined package):** after a click
-on PIRATE'S MOON, MODS lists and writes Pirate's Moon's own settings folder
-(its `mods\` and mw3.cfg; `mods_target(o, true)`), takes `for=mw3pm` mods and
-refuses `for=mw3` ones in words (`mech3::mods_game`, "mw3" here, set to "mw3pm"
-around each operation; branch `pm`'s own default is "mw3pm"), adds and exports
-there, and checks against PM's install. CHECK stays MechWarrior 3's: this
-program's readers cannot read PM's version-2 archives, so for PM it points to
-`mw3pm --check-mod`. MW3's folder and mw3.cfg are untouched.
-`sdl_program_launcher_mods_on_pirates_moon` (breaks: MODS always MW3's, the
-for= left "mw3": each caught); `MW3_LAUNCHER_MODS=pm` opens it for checks.
-
-MODS on the main screen (beside GAME FILES and QUIT) opens the list of the
-settings folder's `mods\` (`mech3::mods_list`, docs/modding.md, The
-launcher's MODS list): six rows a page, the enabled mods first in the order
-they win, the rest by name. A row's second line says ON or OFF and the
-folder, why a folder is no usable mod (the row greyed), what it shares with
-a mod above it, and after CHECK what the game would refuse in it. Clicking a
-row turns it on (last, below the others) or off; UP and DOWN move the
-selected enabled mod; each change rewrites mw3.cfg's `mod=` lines at once
-(written beside it and renamed over it) and counts from the game's next
-start. The game is chosen in one place, `mods_target` (its settings folder
-and the game `for=` must name): MechWarrior 3's here, Pirate's Moon's own
-folder when the modding work crosses to its branch. Below the banner, as
-the other screens: the rows, the status under them, and the mods folder's
-path in the footer.
+The launcher had a MODS button and screen (the list, on and off, UP and
+DOWN, IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, CHECK and a mod's report,
+on the game last clicked). Removed (Owen, 2026-11-10: "we don't need it
+there anymore... if we're doing mods directly in the games"): each game's
+own MODS screen does all of it, and more (REPORT, TEST, custom campaigns,
+the editor; docs/modding.md). The shared code those screens use
+(`mods_list`, `mod_report`, `mod_needs`, `mod_install`, `mod_export`) and
+its tests stay. What stays in the launcher is the neutral note on each
+game's line, "N mods on" (`versions_words`, from `mech3::mods_enabled` on
+that game's settings folder): it says what the game will start with, and
+needs no button.
 
 ## Built (2026-10-30, mac5/launcher-ui)
 
@@ -552,7 +538,7 @@ program files are replaced.
    `sdlfe::curl_get` / `check_for_updates` (`frontend/sdl/sdl_update`; curl
    found at Windows' System32\curl.exe or /usr/bin/curl, never through
    PATH; `--proto =https`, `file://` only for `MW3_UPDATE_API`). UPDATES on
-   the main screen (GAME FILES, MODS, UPDATES, QUIT) asks on the worker and
+   the main screen (GAME FILES, UPDATES, QUIT; MODS was there until 2026-11-10) asks on the worker and
    says the verdict on the status line. Checked once against GitHub's real
    list: v1.0.5 the newest package, this build up to date. Tests:
    `update_reads_the_releases_list` (escapes, \u, a surrogate pair, four broken
