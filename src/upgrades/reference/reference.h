@@ -67,6 +67,13 @@ FreeObserver& free_observer();
 inline void freed(const void* node) {
   if (FreeObserver o = free_observer()) o(node);
 }
+// And each argument a script command reads ('s' text, 'i' int, 'f' float,
+// 'b' on/off), as the command reads it.
+using ArgObserver = void (*)(char kind);
+ArgObserver& arg_observer();
+inline void arg_read(char kind) {
+  if (ArgObserver o = arg_observer()) o(kind);
+}
 // Our parsers' key test: `key == lit`, reported.
 inline bool key_is(const std::string& key, const char* lit) {
   seen(lit);
@@ -84,5 +91,6 @@ File nets();
 File regions();
 File valves();
 File objectives();
+File interp();
 
 }  // namespace upgrades::reference

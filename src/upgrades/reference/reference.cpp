@@ -6,6 +6,10 @@ Observer& observer() {
   static Observer o = nullptr;
   return o;
 }
+ArgObserver& arg_observer() {
+  static ArgObserver o = nullptr;
+  return o;
+}
 FreeObserver& free_observer() {
   static FreeObserver o = nullptr;
   return o;
@@ -20,7 +24,7 @@ const char*& context() {
 }
 
 const std::vector<File>& files() {
-  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn(), aiv(), targets(), nets(), regions(), valves(), objectives()};
+  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn(), aiv(), targets(), nets(), regions(), valves(), objectives(), interp()};
   return all;
 }
 

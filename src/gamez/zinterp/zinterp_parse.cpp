@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "crt/msvc_math.h"
+#include "upgrades/reference/reference.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zmodel/gmod_const.h"
@@ -70,8 +71,15 @@ struct Args {
 
 // argv[0] against a name: the exe's strncmp with its own length, so some
 // names match any longer word that starts with them (docs/interp.md).
-bool is(const char* argv0, const char* name, size_t n) { return std::strncmp(argv0, name, n) == 0; }
-bool exact(const char* argv0, const char* name) { return std::strcmp(argv0, name) == 0; }
+// Ours: each name tested is reported to the modding reference's test (null in play).
+bool is(const char* argv0, const char* name, size_t n) {
+  upgrades::reference::seen(name);
+  return std::strncmp(argv0, name, n) == 0;
+}
+bool exact(const char* argv0, const char* name) {
+  upgrades::reference::seen(name);
+  return std::strcmp(argv0, name) == 0;
+}
 
 enum Result { kKnown, kMiss };
 
@@ -1099,36 +1107,36 @@ bool condition(Interp& in) {
 // While a block is skipped only `endif` is looked at, so an ifdef nested in
 // a skipped block is not counted and its endif closes the outer one.
 bool preprocess(Interp& in, const char* argv0) {
-  if (std::strncmp(argv0, "endif", 5) == 0) {
+  if (is(argv0, "endif", 5)) {
     if (in.skip_depth != 0) --in.skip_depth;
     return false;
   }
   if (in.skip_depth != 0) return false;
-  if (std::strncmp(argv0, "ifdef", 5) == 0) {
+  if (is(argv0, "ifdef", 5)) {
     if (!condition(in)) ++in.skip_depth;
     return false;
   }
-  if (std::strncmp(argv0, "ifndef", 6) == 0) {
+  if (is(argv0, "ifndef", 6)) {
     if (condition(in)) ++in.skip_depth;
     return false;
   }
-  if (std::strncmp(argv0, "mkdir", 5) == 0) {
+  if (is(argv0, "mkdir", 5)) {
     const char* path = next_arg(in);
     const int err = call(engine().make_dir, path);
     if (err != 0 && err != EEXIST) error(in, "%s %s FAILED (errno == %d)", argv0, path, err);
     return false;
   }
-  if (std::strcmp(argv0, "Quit") == 0) {
+  if (exact(argv0, "Quit")) {
     in.quit = 1;
     return false;
   }
-  if (std::strncmp(argv0, "set", 3) == 0) {
+  if (is(argv0, "set", 3)) {
     const char* name = next_arg(in);
     const char* value = next_arg(in);
     macro_set(in, name, value);
     return false;
   }
-  if (std::strncmp(argv0, "source", 6) == 0) {
+  if (is(argv0, "source", 6)) {
     if (const char* arg = next_arg(in)) {
       char* name = static_cast<char*>(std::malloc(std::strlen(arg) + 1));
       std::strcpy(name, arg);
@@ -1141,14 +1149,14 @@ bool preprocess(Interp& in, const char* argv0) {
     in.quit = 0;  // a Quit in the sourced file ends that file only
     return false;
   }
-  if (std::strncmp(argv0, "who", 3) == 0) {
+  if (is(argv0, "who", 3)) {
     log(in, "%d Macros", static_cast<int>(in.macros.size()));
     for (const Macro& m : in.macros) log(in, "%12s: %s", m.name.c_str(), m.value.c_str());
     log(in, "%d Variables", static_cast<int>(in.vars.size()));
     for (const Variable& v : in.vars) var_print(in, &v);
     return false;
   }
-  if (std::strncmp(argv0, "var", 3) != 0) return true;
+  if (!is(argv0, "var", 3)) return true;
   const char* name = next_arg(in);
   Variable* v = var_find(in, name ? name : "");
   if (!v) {

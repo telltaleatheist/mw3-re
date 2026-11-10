@@ -4,6 +4,7 @@
 // readers' observer while they read the shipped files.
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -13,9 +14,12 @@
 
 #include "check.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zinterp/zinterp.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zweapon/zwep_init.h"
+#include "mech3/mech3_interp.h"
 #include "mech3/mech_names.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mods.h"
@@ -170,4 +174,117 @@ TEST(reference_observers_see_load_lookup_and_free) {
   std::printf("  %zu nodes, %zu reported freed, %d lookups\n", nodes.size(), seen.freed.size(), seen.lookups);
   // Every node of the tree (free_contents visits each list's count slot too).
   EXPECT(std::includes(seen.freed.begin(), seen.freed.end(), nodes.begin(), nodes.end()));
+}
+
+// The interp script commands (interp.zbd's scripts; docs/interp.md): every
+// name the preprocessor, the dispatcher and MW3's pre hook test (an unknown
+// word for each first letter makes each letter test all of its own), and
+// each dispatcher command's arguments in the order it reads them, run once
+// with numbers for arguments and no engine (every engine call null).
+namespace {
+std::vector<std::string>& interp_names() {
+  static std::vector<std::string> v;
+  return v;
+}
+std::string& interp_args() {
+  static std::string s;
+  return s;
+}
+bool& interp_typed() {
+  static bool t = false;
+  return t;
+}
+void interp_line(zint::Interp& in, const std::string& text) {
+  std::vector<char> buf(text.begin(), text.end());
+  buf.push_back('\n');
+  buf.resize(buf.size() + 0x400, 0);
+  zint::exec_line(in, buf.data());
+}
+// The names, then each command's arguments: name -> "sfi..." ("-" none).
+std::map<std::string, std::string> interp_record() {
+  const zint::Engine keep = zint::engine();
+  zint::engine() = zint::Engine{};  // no engine: every call skipped
+  const int32_t hardware = zrndr::device_fog().active;
+  zrndr::device_fog().active = 1;  // ModelDoShadows: hardware only
+  zint::Interp in;
+  mech3::interp_create(in);
+  interp_names().clear();
+  ref::observer() = [](const char*, const char* key, const void* node) {
+    if (!node) interp_names().push_back(key);
+  };
+  std::set<std::string> names;
+  for (char c = 'A'; c <= 'z'; ++c) {
+    if (!std::isalpha(static_cast<unsigned char>(c))) continue;
+    interp_line(in, std::string(1, c) + "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+  }
+  interp_line(in, "SEQzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+  for (const std::string& n : interp_names()) names.insert(n);
+  ref::observer() = nullptr;
+  std::map<std::string, std::string> out;
+  static const std::set<std::string> kPre = {"endif", "ifdef", "ifndef", "mkdir", "Quit", "set", "source", "who", "var"};
+  ref::arg_observer() = [](char k) {
+    if (k == 's' && interp_typed()) {  // the string a typed read fetched
+      interp_typed() = false;
+      return;
+    }
+    interp_typed() = k != 's';
+    interp_args() += k;
+  };
+  for (const std::string& n : names) {
+    if (kPre.count(n)) {
+      out[n] = "";
+      continue;
+    }
+    // A current node (zeroed stand-in: the engine is null, so nothing
+    // reaches into it but the commands' own null checks), and the command
+    // run with 0 to 12 arguments (some take an exact count): the longest
+    // read is its arguments.
+    alignas(16) static uint8_t node[0x4000];
+    std::string best;
+    // check_args wants the node's class (+0x34): the others tried only when
+    // class 0 reads nothing, never for the commands that walk the node
+    // itself (dumps, prints, counts: none takes an argument).
+    const bool walks = n.rfind("Print", 0) == 0 || n.rfind("Count", 0) == 0 || n == "NodeDump";
+    for (int32_t cls : {0, 1, 2, 3, 4, 5, 6})
+      for (int count = 0; count <= 12 && (cls == 0 || (best.empty() && !walks)); ++count) {  // some take an exact count only
+        std::string line = n;
+        for (int k = 1; k <= count; ++k) line += " " + std::to_string(k);
+        interp_args().clear(), interp_typed() = false;
+        std::memset(node, 0, sizeof node);
+        std::memcpy(node + 0x34, &cls, 4);
+        in.current = reinterpret_cast<zcls::Node*>(node);
+        interp_line(in, line);
+        if (interp_args().size() > best.size()) best = interp_args();
+      }
+    in.current = nullptr;
+    out[n] = best.empty() ? "-" : best;
+  }
+  ref::arg_observer() = nullptr;
+  zint::engine() = keep;
+  zrndr::device_fog().active = hardware;
+  return out;
+}
+}  // namespace
+
+TEST(reference_interp_commands_are_the_dispatchers) {
+  const std::map<std::string, std::string> got = interp_record();
+  std::map<std::string, std::string> reg;
+  std::set<std::string> pre;
+  for (const ref::File& f : ref::files())
+    if (std::string(f.id) == "interp")
+      for (const ref::Key& k : f.keys) {
+        reg[k.key] = k.type;
+        if (std::string(k.path) == "preprocessor") pre.insert(k.key);
+      }
+  std::string missing, dead, typed;
+  for (const auto& [n, a] : got) {
+    const auto it = reg.find(n);
+    if (it == reg.end()) missing += n + " ";
+    else if (!pre.count(n) && it->second != a) typed += n + " (reads " + a + ", listed " + it->second + ") ";
+  }
+  for (const auto& [n, a] : reg)
+    if (!got.count(n)) dead += n + " ";
+  std::printf("  %zu names; not in the registry: %s; never tested: %s; arguments differ: %s\n", got.size(),
+              missing.empty() ? "none" : missing.c_str(), dead.empty() ? "none" : dead.c_str(), typed.empty() ? "none" : typed.c_str());
+  EXPECT(got.size() > 150 && missing.empty() && dead.empty() && typed.empty());
 }
