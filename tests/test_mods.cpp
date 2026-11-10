@@ -18,6 +18,7 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/zutil/zutl_zip.h"
 #include "gamez/zutil/zutl_json.h"
@@ -47,6 +48,8 @@
 #include "mech3/pilot.h"
 #include "mech3/mech_reader.h"
 #include "upgrades/mods/mod_test.h"
+#include "upgrades/mods/mod_report.h"
+#include "upgrades/mods/starter_mods.h"
 #include "upgrades/mods/save_mods.h"
 
 namespace {
@@ -2616,4 +2619,89 @@ TEST(mods_saved_game_records_its_mods) {
   EXPECT(mech3::save_mods_parse("junk\n").hash == 0);
   if (!had) zsave::shutdown();
   mech3::mods_identity() = keep;
+}
+
+// The starter mods (modding.md, Starter mods): each made from the install, --check-mod and the report clean, then
+// loaded as the game loads it: Thor B a mech row whose loadouts turn and speed up faster than the Thor's, ER PPC B
+// a definition hitting harder than ERPPC, the German menu the main menu's messages, the one-mission campaign c1 1.
+// Made again, each is refused and the folder left as it was, a stray file in it too.
+TEST(mods_starter_mods_made_checked_and_loaded) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
+  SavedMounts keep;
+  const zwep::InitHooks hooks = zwep::init_hooks();
+  zwep::init_hooks() = zwep::InitHooks{};
+  const std::string wd = tmp("mods_starters"), mods = wd + "/mods";
+  for (const std::string& k : mech3::starter_kinds()) {
+    const mech3::StarterMade m = mech3::starter_make(k, install, mods);
+    EXPECT(m.ok && fs::is_directory(m.path, ec));
+    int errors = -1, refused = -1;
+    std::string notes;
+    for (const std::string& l : mech3::mod_check(m.path, install, &errors))
+      if (l.rfind("warning", 0) == 0 || l.rfind("error", 0) == 0) notes += l + "\n";
+    for (const std::string& l : mech3::mod_report(m.path, install, "", &refused))
+      if (l.rfind("Note", 0) == 0 || l.find("replaces") != std::string::npos) notes += l + "\n";
+    std::printf("  %s: %s", k.c_str(), notes.empty() ? "clean\n" : notes.c_str());
+    EXPECT(errors == 0 && refused == 0 && notes.empty());
+  }
+  // Loaded, all four on.
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mech_rows_clear();
+  std::string log;
+  for (const std::string& l : mech3::mods_mount(wd, {"starter_mech", "starter_weapon", "starter_translation", "starter_mission"},
+                                                 {install}))
+    log += l + "\n";
+  zutl::mount(install);
+  zrdr::init();
+  EXPECT(zrdr::open_archive("zbd\\reader.zbd", true));
+  const int32_t thor_b = mech3::mech_index("thor_b"), thor = mech3::mech_index("thor");
+  const auto accel = [](int32_t mech) {
+    mech3::MechDfn* d = mech3::mech_dfn(mech);
+    return d && mech3::read_dfn(*d) && d->configs && !d->configs->configs.empty() ? d->configs->configs[0]->accel_rate : -1.0f;
+  };
+  const float a_b = accel(thor_b), a = accel(thor);
+  zwep::init(nullptr, "weapons.zrd", 0, nullptr);
+  const zwep::WeaponDef* b = zwep::find_def("ERPPC_B");
+  const zwep::WeaponDef* e = zwep::find_def("ERPPC");
+  const float dmg_b = b ? b->damage : -1, dmg = e ? e->damage : -1;
+  zwep::shutdown(nullptr);
+  zutl::MessageDll dll;
+  EXPECT(zutl::read_message_dll(install + "/Mech3Msg.dll", dll));
+  std::map<int32_t, std::string> text = dll.text;
+  mech3::mods_apply_strings(text, dll.ids);
+  const std::string campaign = text[dll.ids["MSG_CAMPAIGN_BTN"]], quit = text[dll.ids["MSG_QUIT_BTN"]];
+  const mech3::ModCampaign* one = nullptr;
+  for (const mech3::ModCampaign& c : mech3::mod_campaigns())
+    if (c.mod == "starter_mission") one = &c;
+  std::printf("  Thor B %d accel %.3f (the Thor's %.3f); ER PPC B damage %.3f (ERPPC %.3f); \"%s\", \"%s\"; campaign %s\n",
+              thor_b, a_b, a, dmg_b, dmg, campaign.c_str(), quit.c_str(), one ? one->name.c_str() : "none");
+  EXPECT(thor_b >= 20 && std::fabs(a_b - a * 1.5f) < 1e-4f);
+  EXPECT(b && e && std::fabs(dmg_b - dmg * 1.25f) < 1e-4f && b->index > e->index);
+  EXPECT(campaign == "K A M P A G N E" && quit == "B E E N D E N");
+  EXPECT(one && one->error.empty() && one->missions.size() == 1 && one->missions[0].world == "c1" && one->missions[0].number == 1);
+  zrdr::close_archives(true);
+  mech3::free_dfns();
+  // Never over a folder that is there: refused by name, nothing in it touched.
+  put(mods + "/starter_mech/mine.txt", "a modder's own file");
+  const std::string before = [&] {
+    std::ifstream f(mods + "/starter_mech/mod.txt");
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  }();
+  put(mods + "/starter_weapon_x/keep.txt", "x");
+  fs::remove_all(mods + "/starter_weapon", ec);  // the test's own, made above
+  fs::create_directories(mods, ec);
+  std::ofstream(mods + "/starter_weapon") << "a file where the folder would go";
+  for (const std::string& k : {std::string("mech"), std::string("weapon")}) {
+    const mech3::StarterMade m = mech3::starter_make(k, install, mods);
+    std::printf("  again %s: %s\n", k.c_str(), m.message.c_str());
+    EXPECT(!m.ok && m.message.find("is there already") != std::string::npos && m.message.find("starter_" + k) != std::string::npos);
+  }
+  std::ifstream f(mods + "/starter_mech/mod.txt");
+  EXPECT(std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>()) == before);
+  EXPECT(fs::exists(mods + "/starter_mech/mine.txt", ec) && fs::is_regular_file(mods + "/starter_weapon", ec));
+  EXPECT(!mech3::starter_make("tank", install, mods).ok && !fs::exists(mods + "/starter_tank", ec));
+  mech3::mech_rows_clear();
+  zwep::init_hooks() = hooks;
 }
