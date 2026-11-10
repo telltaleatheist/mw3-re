@@ -27,7 +27,6 @@
 #include "mech3/menu_ripple.h"
 #include "gamez/zrender/zrndr_tint.h"
 #include "mech3/game_setup.h"
-#include "mech3/mods.h"
 #include "frontend/sdl/sdl_update.h"
 #include "mech3/source_map.h"
 #include "gamez/zutil/zutl_path.h"
@@ -607,12 +606,12 @@ std::string package_words() {
   return v.empty() ? "MechWarrior 3 Rebuild" : "MechWarrior 3 Rebuild " + v;
 }
 
-// A game's line's versions: its data's, then its program's, then the mods on ("data 1.2, program v1.1.0,
-// 2 mods on, "); a program that did not say is left out.
-std::string versions_words(const std::string& data, const std::string& program, size_t mods) {
+// A game's line's versions: its data's, then its program's ("data 1.2, program v1.1.0, "); a program
+// that did not say is left out. No word of mods: a game started here is the original, and mods are
+// played from its own MODS screen, each campaign with its own (docs/mods-campaigns-plan.md).
+std::string versions_words(const std::string& data, const std::string& program) {
   std::string s = data.empty() ? std::string() : data == "unknown" ? "data unknown (a mod?), " : "data " + data + ", ";
   if (!program.empty()) s += "program " + program + ", ";
-  if (mods) s += (mods == 1 ? std::string("a mod") : std::to_string(mods) + " mods") + " on, ";
   return s;
 }
 
@@ -939,7 +938,7 @@ void Launcher::layout() {
       // A long folder is shortened to the plate when drawn (Text::fit), the
       // words before it kept.
       const std::string ready = "Ready, " + official_words(install_.version, mw3_program_, false) + ": " +
-                                versions_words(install_.version, mw3_program_, mech3::mods_enabled(o_.write_dir).size());
+                                versions_words(install_.version, mw3_program_);
       std::string sub = install_.ok ? ready + install_.dir : "Not found yet: click to find your game";
       // The games as round badges (Owen: the ripple belongs to a circle),
       // each name and line beside its badge, the ripple from its centre.
@@ -955,7 +954,7 @@ void Launcher::layout() {
         game(kPm, 1, 1, "PIRATE'S MOON", "Coming later", false);
       } else {
         const std::string pm_ready = "Ready, " + official_words(pm_data_, pm_program_, true) + ": " +
-                                     versions_words(pm_data_, pm_program_, mech3::mods_enabled(pm_wd()).size());
+                                     versions_words(pm_data_, pm_program_);
         game(kPm, 1, 1, "PIRATE'S MOON", pm_dir_.empty() ? "Not found yet: click to find your game" : pm_ready + pm_dir_, true);
         if (!pm_dir_.empty()) buttons_.back().sub_keep = pm_ready.size();
         if (!entries_logged_) std::printf("mw3: launcher: entry PIRATE'S MOON: %s\n", buttons_.back().sub.c_str());
