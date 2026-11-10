@@ -12,17 +12,13 @@ namespace mech3 {
 
 namespace {
 TreeWindow* g_tree = nullptr;
-std::vector<std::string> g_texts;
-std::vector<EditorEntry> g_rows;
-std::vector<TreeItem*> g_items;  // the item each shown row is, null for the rest
-EditorMenu g_menu{0, nullptr};
-constexpr int32_t kRows = 20;  // ours: a page of items
+EditorForm g_form;
 
 // Mech3.exe 1.2 @ 0x004b57d0: the node, then its children (+0x60, count
 // +0x5c), each under it, last after last.
 TreeItem item_of(const zcls::Node* n, int depth = 0) {
   TreeItem t;
-  t.node = n;
+  t.data = n;
   t.text = n->name();
   if (depth < 64)
     for (int32_t i = 0; i < n->child_count(); ++i)
@@ -41,43 +37,15 @@ std::vector<std::pair<TreeItem*, int>> shown_items() {
   return v;
 }
 
-void fill();
-void up(int32_t) { g_tree->first = std::max(0, g_tree->first - kRows), fill(); }
-void down(int32_t) { g_tree->first += kRows, fill(); }
-void press(int32_t y);
-void close_rows(int32_t) {
-  tree_close();
-  net_editor_menu();
-}
+void close_form() { tree_close(); }
 
-void fill() {
-  g_texts.clear(), g_rows.clear(), g_items.clear();
-  const auto add = [](const std::string& t, void (*h)(int32_t), TreeItem* it) {
-    g_texts.push_back(t), g_rows.push_back({nullptr, h}), g_items.push_back(it);
-  };
-  add("Tree", nullptr, nullptr);
-  const auto items = shown_items();
-  const int32_t n = static_cast<int32_t>(items.size()), to = std::min(n, g_tree->first + kRows);
-  if (g_tree->first > 0) add("   (up)", up, nullptr);
-  for (int32_t i = g_tree->first; i < to; ++i) {
-    TreeItem* t = items[size_t(i)].first;
-    const std::string mark = t->kids.empty() ? "  " : t->open ? "- " : "+ ";
-    add(" " + std::string(size_t(items[size_t(i)].second) * 2, ' ') + mark + t->text, press, t);
-  }
-  if (to < n) add("   (down)", down, nullptr);
-  add(" OK", close_rows, nullptr);
-  add(" Cancel", close_rows, nullptr);
-  for (size_t i = 0; i < g_rows.size(); ++i) g_rows[i].text = g_texts[i].c_str();
-  g_menu = EditorMenu{static_cast<int32_t>(g_rows.size()), g_rows.data()};
-  editor_install(1, g_menu);
-}
-
-void press(int32_t y) {
-  const int32_t r = (y - 0x5f) / 12;
-  if (r < 0 || r >= static_cast<int32_t>(g_items.size()) || !g_items[size_t(r)]) return;
-  TreeItem* t = g_items[size_t(r)];
-  if (!t->kids.empty()) t->open = !t->open;
-  fill();
+void build() {
+  g_form = EditorForm{};
+  g_form.title = "Tree";
+  FormField tree{"##tree", FormField::kTree};
+  tree.tree = &g_tree->root;
+  g_form.fields = {tree};
+  g_form.buttons = {{"OK", close_form}, {"Cancel", close_form}};
 }
 }  // namespace
 
@@ -118,20 +86,34 @@ void tree_view(int32_t) {
     }
     g_tree = new TreeWindow;
     g_tree->root = tree_of_world(world);
+    build();
   }
-  fill();
+  form_show(&g_form);
 }
 
 // Mech3.exe 1.2 @ 0x004b5830 (PostNcDestroy): the window deleted and its
 // global cleared.
 void tree_close() {
+  form_hide(&g_form);
   delete g_tree;
   g_tree = nullptr;
 }
 
-std::vector<std::string> tree_rows() { return g_texts; }
+EditorForm& tree_form() { return g_form; }
+
+std::vector<std::string> tree_rows() {
+  std::vector<std::string> out;
+  for (const auto& [t, depth] : shown_items()) {
+    const std::string mark = t->kids.empty() ? "  " : t->open ? "- " : "+ ";
+    out.push_back(std::string(size_t(depth) * 2, ' ') + mark + t->text);
+  }
+  return out;
+}
 void tree_press(int32_t row) {
-  if (row >= 0 && row < g_menu.count && g_rows[size_t(row)].handler) g_rows[size_t(row)].handler(0x5f + 12 * row + 2);
+  const auto items = shown_items();
+  if (row < 0 || row >= static_cast<int32_t>(items.size())) return;
+  TreeItem* t = items[size_t(row)].first;
+  if (!t->kids.empty()) t->open = !t->open;
 }
 
 }  // namespace mech3

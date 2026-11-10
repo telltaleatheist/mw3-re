@@ -12,12 +12,14 @@
 // Here OK makes the vehicle at the node on the edited net (create_vehicle,
 // 0x0049fce0, as a mission's start does from aiv.zrd) and writes its aiv.zrd
 // record into the editor's mod, so it is there from the next start too.
+// The dialog is a form (form.h), drawn by ImGui.
 namespace mech3 {
+
+struct EditorForm;
 
 void add_vehicle_open(int32_t y);  // the Add veh to node row
 bool add_vehicle_open_now();
-void add_vehicle_char(int32_t ch, int32_t key);  // a typed character (the tests)
-void add_vehicle_press(int32_t row);             // row `row` pressed (the tests)
+EditorForm& add_vehicle_form();    // the form (form.h; the tests set its fields and press its buttons)
 // What OK did last: the record's name, "" when nothing.
 const std::string& add_vehicle_last();
 

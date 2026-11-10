@@ -6,6 +6,7 @@
 #include "gamez/zutil/ztimer.h"
 #include "mech3/game_editor_net.h"
 #include "mech3/game_editor_tree.h"
+#include "upgrades/editor/form.h"
 
 namespace mech3 {
 
@@ -155,6 +156,7 @@ std::function<void()>& editor_after_exit() {
 void editor_frame() {
   EditorHooks& h = *g_hooks;
   if (g_state.active) {
+    form_run_posted();  // ours: the ImGui dialogs' presses (form.h)
     EditorPanel& p = editor_panel();
     const zin::MouseInfo m = h.mouse();
     int32_t r = (m.y - 0x5f) / 12;

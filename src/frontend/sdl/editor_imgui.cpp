@@ -2,12 +2,150 @@
 #include "frontend/sdl/editor_imgui.h"
 
 #include <cstdio>
+#include <map>
+#include <string>
+#include <vector>
 
 #include "imgui.h"
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlgpu3.h"
+#include "upgrades/editor/form.h"
 
 namespace sdlfe {
+
+namespace {
+// Where the last frame drew each form's items, by label (the tests' clicks).
+std::map<std::pair<const mech3::EditorForm*, std::string>, ImVec4> g_rects;
+void note_rect(const mech3::EditorForm* f, const std::string& label) {
+  const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+  g_rects[{f, label}] = ImVec4(a.x, a.y, b.x, b.y);
+}
+
+// One form, as ImGui widgets over its fields (form.h). A change writes the
+// field at once (the form's own copy); its `changed` and the buttons' presses
+// are posted to the game's next editor frame.
+void tree_items(mech3::FormTree& t) {
+  ImGui::SetNextItemOpen(t.open);
+  const ImGuiTreeNodeFlags flags = t.kids.empty() ? ImGuiTreeNodeFlags_Leaf : 0;
+  t.open = ImGui::TreeNodeEx(&t, flags, "%s", t.text.c_str());
+  if (!t.open) return;
+  for (mech3::FormTree& k : t.kids) tree_items(k);
+  ImGui::TreePop();
+}
+
+void field(mech3::EditorForm& form, mech3::FormField& f) {
+  bool changed = false;
+  switch (f.kind) {
+    case mech3::FormField::kLabel:
+      ImGui::TextUnformatted(f.label.c_str());
+      break;
+    case mech3::FormField::kInt:
+      changed = ImGui::InputInt(f.label.c_str(), f.i);
+      break;
+    case mech3::FormField::kFloat: {
+      bool on = !f.on || *f.on;
+      if (f.on) {
+        ImGui::PushID(f.label.c_str());
+        if (ImGui::Checkbox("##on", &on)) *f.on = on ? 1 : 0, changed = true;
+        ImGui::PopID();
+        ImGui::SameLine();
+      }
+      ImGui::BeginDisabled(!on);
+      changed |= ImGui::InputFloat(f.label.c_str(), f.f, 0.0f, 0.0f, "%.3f");
+      ImGui::EndDisabled();
+      break;
+    }
+    case mech3::FormField::kFlag: {
+      bool v = *f.flag != 0;
+      if (ImGui::Checkbox(f.label.c_str(), &v)) *f.flag = v ? 1 : 0, changed = true;
+      break;
+    }
+    case mech3::FormField::kTri: {
+      int v = !*f.set ? 0 : *f.flag ? 1 : 2;
+      if (ImGui::Combo(f.label.c_str(), &v, "as the default\0yes\0no\0")) {
+        *f.set = v != 0, *f.flag = v == 1;
+        changed = true;
+      }
+      break;
+    }
+    case mech3::FormField::kText: {
+      char buf[256];
+      std::snprintf(buf, sizeof buf, "%s", f.text->c_str());
+      if (ImGui::InputText(f.label.c_str(), buf, sizeof buf)) *f.text = buf, changed = true;
+      break;
+    }
+    case mech3::FormField::kChoice: {
+      std::vector<const char*> items;
+      for (const std::string& c : f.choices) items.push_back(c.c_str());
+      if (items.size() > 8)
+        changed = ImGui::ListBox(f.label.c_str(), f.i, items.data(), static_cast<int>(items.size()), 12);
+      else
+        changed = ImGui::Combo(f.label.c_str(), f.i, items.data(), static_cast<int>(items.size()));
+      break;
+    }
+    case mech3::FormField::kTree:
+      if (f.tree) tree_items(*f.tree);
+      break;
+  }
+  if (f.kind != mech3::FormField::kTree) note_rect(&form, f.label);
+  if (changed && f.changed) {
+    mech3::FormField* p = &f;
+    mech3::EditorForm* fp = &form;
+    mech3::form_post([fp, p] {
+      if (mech3::form_shown(fp)) fp->changed(*p);
+    });
+  }
+}
+
+void form(mech3::EditorForm& f, int n) {
+  ImGui::PushID(&f);
+  if (f.modal) {
+    ImGui::OpenPopup(f.title.c_str());
+    if (!ImGui::BeginPopupModal(f.title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::PopID();
+      return;
+    }
+  } else {
+    ImGui::SetNextWindowPos(ImVec2(260.0f + 24 * n, 40.0f + 24 * n), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin(f.title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::End();
+      ImGui::PopID();
+      return;
+    }
+  }
+  for (mech3::FormField& x : f.fields) field(f, x);
+  for (size_t i = 0; i < f.buttons.size(); ++i) {
+    if (i) ImGui::SameLine();
+    const bool pressed = ImGui::Button(f.buttons[i].label.c_str());
+    note_rect(&f, f.buttons[i].label);
+    if (pressed) {
+      mech3::EditorForm* fp = &f;
+      const std::string label = f.buttons[i].label;
+      mech3::form_post([fp, label] {
+        if (mech3::form_shown(fp)) fp->press(label);
+      });
+    }
+  }
+  if (f.modal)
+    ImGui::EndPopup();
+  else
+    ImGui::End();
+  ImGui::PopID();
+}
+}  // namespace
+
+bool editor_item_rect(const mech3::EditorForm* f, const std::string& label, float r[4]) {
+  const auto it = g_rects.find({f, label});
+  if (it == g_rects.end()) return false;
+  r[0] = it->second.x, r[1] = it->second.y, r[2] = it->second.z, r[3] = it->second.w;
+  return true;
+}
+
+void draw_editor_forms() {
+  const std::vector<mech3::EditorForm*> forms = mech3::editor_forms();  // a copy: a press may change the list
+  int n = 0;
+  for (mech3::EditorForm* f : forms) form(*f, n++);
+}
 
 bool editor_event_to_game(const SDL_Event& e, bool want_mouse, bool want_keyboard, bool want_text) {
   switch (e.type) {
@@ -28,12 +166,7 @@ bool editor_event_to_game(const SDL_Event& e, bool want_mouse, bool want_keyboar
 
 EditorUi::EditorUi(SDL_Window* window, SDL_GPUDevice* device, std::function<bool()> up)
     : window_(window), device_(device), up_(std::move(up)) {
-  draw = [] {
-    ImGui::SetNextWindowPos(ImVec2(400, 20), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(240, 80), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Game editor");
-    ImGui::End();
-  };
+  draw = draw_editor_forms;
 }
 
 EditorUi::~EditorUi() {
