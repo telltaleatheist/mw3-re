@@ -20,6 +20,17 @@ namespace zeff {
 bool anim_from_json(const std::function<std::string(const std::string&)>& file, std::vector<uint8_t>* zbd,
                     std::vector<std::pair<size_t, size_t>>* names, std::string* why);
 
+// Ours (docs/modding.md, Animations a def at a time): one def's JSON, the
+// file unzbd writes for it, as its bytes in the file (its record, lists,
+// reset state and sequences), and its key, unzbd's file name for it (the
+// node, anim and root names less ".flt": node-anim, or node-anim-root when
+// the root is another node). An ObjectMotionSiScript event may name its
+// script's file ("script": "si-script-<name>.zan"), read by `file` as
+// "<name>.json"; with an "index" there is no script list here to index.
+bool anim_def_from_json(const std::string& text, const std::function<std::string(const std::string&)>& file,
+                        std::vector<uint8_t>* out, std::string* key, std::string* why);
+std::string anim_def_key(const std::string& name, const std::string& anim_name, const std::string& root_name);
+
 // A world's anim.zbd (its game path, zbd\\c1\\anim.zbd) as an enabled mod's
 // JSON, first mod first, up to the first with its own anim.zbd: the folder
 // zbd\\c1\\anim\\ (unzbd's files, metadata.json first), else unzbd's

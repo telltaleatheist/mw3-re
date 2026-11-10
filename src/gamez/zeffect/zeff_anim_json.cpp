@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <tuple>
 
@@ -160,6 +161,8 @@ struct Def {
   std::vector<std::string> nodes, lights, puffers, dyn_sounds, static_sounds, effects;
   size_t anim_refs = 0;
   const std::vector<Value>* scripts = nullptr;  // metadata's script_names, read
+  // Ours (a def file, modding.md, Animations a def at a time): a script by its file's name, "script" in the event.
+  std::function<const Value*(const std::string& name)> script_named;
   static int16_t find(const std::vector<std::string>& v, const std::string& n) {
     for (size_t i = 0; i < v.size(); ++i)
       if (v[i] == n) return static_cast<int16_t>(i + 1);
@@ -658,11 +661,19 @@ bool event_data(Json& j, const Def& def, const std::string& type, const Value& d
   }
   if (type == "ObjectMotionSiScript") {
     int16_t n;
-    uint32_t index;
-    if (!(node("name", 0, &n) && j.u32(d, at, "index", &index))) return false;
-    if (!def.scripts || index >= def.scripts->size()) return j.r.fail(d, at + ".index", "no script " + std::to_string(index));
-    const Value& sc = (*def.scripts)[index];
-    const std::string sa = "(script " + std::to_string(index) + ") $";
+    uint32_t index = 0;
+    const Value* by_name = d.get("script");
+    const Value* named = nullptr;
+    if (by_name && def.script_named) {  // ours: a def file's script, its own file
+      if (by_name->kind != Value::String) return j.r.fail(*by_name, at + ".script", "not a script's file name");
+      if (!(named = def.script_named(by_name->text))) return j.r.fail(*by_name, at + ".script", "no " + by_name->text + ".json beside it");
+      if (!node("name", 0, &n)) return false;
+    } else {
+      if (!(node("name", 0, &n) && j.u32(d, at, "index", &index))) return false;
+      if (!def.scripts || index >= def.scripts->size()) return j.r.fail(d, at + ".index", "no script " + std::to_string(index));
+    }
+    const Value& sc = named ? *named : (*def.scripts)[index];
+    const std::string sa = named ? "(" + by_name->text + ") $" : "(script " + std::to_string(index) + ") $";
     const Value* frames = j.get(sc, sa, "frames");
     if (!frames || !j.r.array(*frames, sa + ".frames")) return false;
     o.i32(n), o.u32(static_cast<uint32_t>(frames->items.size())), o.f32(0), o.f32(0), o.u32(0), o.u32(0);
@@ -1197,7 +1208,8 @@ uint32_t ptr_of(Json& j, const Value* ptrs, const char* key, bool present, bool*
   return v;
 }
 
-bool anim_def(Json& j, const Value& d, const std::string& at, Out& o, const std::vector<Value>* scripts) {
+bool anim_def(Json& j, const Value& d, const std::string& at, Out& o, const std::vector<Value>* scripts,
+              const std::function<const Value*(const std::string&)>& script_named = nullptr) {
   std::string name, anim_name, root_name;
   bool callbacks, auto_reset, local_only, proximity, active;
   int activation = 0;
@@ -1242,7 +1254,7 @@ bool anim_def(Json& j, const Value& d, const std::string& at, Out& o, const std:
   if (auto_reset) flags |= 0x10000;
   if (proximity) flags |= 0x100000;
   Def def;
-  def.name = name, def.anim_name = anim_name, def.scripts = scripts;
+  def.name = name, def.anim_name = anim_name, def.scripts = scripts, def.script_named = script_named;
   bool has[8] = {};
   const char* const kLists[] = {"objects", "nodes", "lights", "puffers", "dynamic_sounds", "static_sounds", "activ_prereqs", "anim_refs"};
   const Value* lists[8];
@@ -1530,6 +1542,44 @@ bool anim_from_json(const std::function<std::string(const std::string&)>& file, 
       for (const auto& [a, b] : local) names->emplace_back(base + a, base + b);
   }
   *zbd = std::move(o.b);
+  return true;
+}
+
+std::string anim_def_key(const std::string& name, const std::string& anim_name, const std::string& root_name) {
+  const auto bare = [](const std::string& s) {
+    return s.size() > 4 && s.compare(s.size() - 4, 4, ".flt") == 0 ? s.substr(0, s.size() - 4) : s;
+  };
+  const std::string n = bare(name), a = bare(anim_name), r = bare(root_name);
+  return n != r ? n + "-" + a + "-" + r : n + "-" + a;
+}
+
+bool anim_def_from_json(const std::string& text, const std::function<std::string(const std::string&)>& file,
+                        std::vector<uint8_t>* out, std::string* key, std::string* why) {
+  Value d;
+  if (!zutl_json::parse(text, &d, why)) return false;
+  std::map<std::string, Value> scripts;  // each named script read once
+  bool bad = false;
+  std::string script_why;
+  const auto named = [&](const std::string& n) -> const Value* {
+    auto it = scripts.find(n);
+    if (it != scripts.end()) return &it->second;
+    const std::string t = file(n + ".json");
+    if (t.empty()) return nullptr;
+    Value v;
+    if (!zutl_json::parse(t, &v, &script_why)) return bad = true, nullptr;
+    return &(scripts[n] = std::move(v));
+  };
+  Json j;
+  Out o;
+  std::vector<std::pair<size_t, size_t>> local;
+  o.masks = &local;
+  if (!anim_def(j, d, "$", o, nullptr, named)) return *why = bad ? script_why : j.r.why, false;
+  std::string n, a, r;
+  if (const Value* v = d.get("name")) n = v->text;
+  if (const Value* v = d.get("anim_name")) a = v->text;
+  if (const Value* v = d.get("anim_root_name")) r = v->text;
+  *key = anim_def_key(n, a, r);
+  *out = std::move(o.b);
   return true;
 }
 

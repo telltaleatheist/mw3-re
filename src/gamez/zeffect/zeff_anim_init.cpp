@@ -1,5 +1,6 @@
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_json.h"
+#include "upgrades/mods/anim_defs.h"
 #include "gamez/zutil/zutl_zip.h"
 
 #include <cstdio>
@@ -245,6 +246,34 @@ int anim_read_zbd() {
   }
   if (!f) f = zutl::open(file, "rb");  // FIX (A): the mounts (zutl_path.h)
   if (!f) return -1;
+  // Ours (docs/modding.md, Animations a def at a time): the enabled mods' def
+  // files merged into the file chosen, as a file of its own.
+  std::unique_ptr<zutl_zip::ScratchFile> merged;
+  if (a.host_path.empty() && !zutl::mounts().mods.empty()) {
+    std::vector<uint8_t> base;
+    char buf[1 << 15];
+    for (size_t got; (got = std::fread(buf, 1, sizeof buf, f)) > 0;) base.insert(base.end(), buf, buf + got);
+    std::fseek(f, 0, SEEK_SET);
+    static std::set<std::string> said;
+    std::vector<std::string> notes;
+    const std::vector<mech3::anim_defs::DefFile> defs = mech3::anim_defs::mod_def_files(a.path, base, &notes);
+    for (const std::string& n : notes)
+      if (said.insert(n).second) std::printf("mw3: mod: %s\n", n.c_str());
+    if (!defs.empty()) {
+      std::string why;
+      const std::vector<uint8_t> out = mech3::anim_defs::with_defs(base, defs, &why);
+      if (!out.empty()) merged = std::make_unique<zutl_zip::ScratchFile>(out.data(), out.size());
+      if (merged && merged->file) {
+        std::fclose(f);
+        f = std::fopen(merged->path.string().c_str(), "rb");
+        const std::string line = std::to_string(defs.size()) + " animation def files into " + a.path;
+        if (said.insert(line).second) std::printf("mw3: mod: %s\n", line.c_str());
+        if (!f) return -1;
+      } else if (said.insert(std::string(a.path) + why).second) {
+        std::printf("mw3: mod: the animation def files for %s not merged: %s\n", a.path, why.c_str());
+      }
+    }
+  }
   std::fseek(f, 0, SEEK_END);
   g_file_end = std::ftell(f);
   std::fseek(f, 0, SEEK_SET);
