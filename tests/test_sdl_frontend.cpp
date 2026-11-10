@@ -5715,7 +5715,8 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
   const bool release = real.find('-') == std::string::npos;
   EXPECT(!real.empty() && text.find(std::string("entry MECHWARRIOR 3: Ready, ") + (release ? "official" : "modified (program)") +
                                     ": data 1.2, program " + real + ", ") != std::string::npos);
-  // Mods on (two in mw3.cfg), and Pirate's Moon's data with a file changed: each named, nothing refused.
+  // mod= lines left in mw3.cfg are not spoken of (a start from here is the original: mods by campaign);
+  // Pirate's Moon's data with a file changed is named, nothing refused.
   std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "mod=one\nmod=two\n";
   setenv("MW3_GAME_BIN", program("mw3", tag + "v9.9.9" + std::string(1, '\0')).c_str(), 1);
   const fs::path changed = fs::path(dir) / "pm changed";
@@ -5728,7 +5729,8 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
   std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "pm_install=" << changed.string() << "\n";
   setenv("MW3_PM_BIN", program("mw3pm", tag + "pm-v8.8.8" + std::string(1, '\0')).c_str(), 1);
   text = run("mods");
-  EXPECT(text.find("entry MECHWARRIOR 3: Ready, official: data 1.2, program v9.9.9, 2 mods on, ") != std::string::npos);  // mods: a note
+  EXPECT(text.find("entry MECHWARRIOR 3: Ready, official: data 1.2, program v9.9.9, " + std::string(MW3_GAME_DIR)) != std::string::npos);
+  EXPECT(text.find("mods on") == std::string::npos && text.find("mod on") == std::string::npos);
   EXPECT(text.find("entry PIRATE'S MOON: Ready, modified (data): data unknown (a mod?), program pm-v8.8.8, " + changed.string()) !=
          std::string::npos);
   for (const char* k : {"MW3_GAME_BIN", "MW3_PM_BIN", "MW3_PM_WRITE_DIR", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);
