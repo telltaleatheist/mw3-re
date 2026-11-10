@@ -954,6 +954,28 @@ TEST(mods_list_for_the_launcher) {
   fs::remove(wd + "/mw3.cfg.new", ec);
   EXPECT(mech3::mods_save_enabled(wd, {"z"}) && (mech3::mods_enabled(wd) == std::vector<std::string>{"z"}) &&
          !fs::exists(wd + "/mw3.cfg.new", ec));
+  // A Notepad-edited mw3.cfg (CRLF, the last line without an ending): every
+  // line kept byte for byte, the mod= lines in the file's own ending.
+  {
+    std::ofstream o(wd + "/mw3.cfg", std::ios::binary);
+    o << "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=old\r\n# a note  \r\nlast=1";
+  }
+  EXPECT(mech3::mods_save_enabled(wd, {"a", "b"}));
+  std::ifstream crlf(wd + "/mw3.cfg", std::ios::binary);
+  std::stringstream cs;
+  cs << crlf.rdbuf();
+  EXPECT(cs.str() == "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=a\r\nmod=b\r\n# a note  \r\nlast=1\r\n");
+  EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"a", "b"}));
+  // And a plain one stays plain.
+  {
+    std::ofstream o(wd + "/mw3.cfg", std::ios::binary);
+    o << "install=/x\nkeep=me\n";
+  }
+  EXPECT(mech3::mods_save_enabled(wd, {"a"}));
+  std::ifstream lf(wd + "/mw3.cfg", std::ios::binary);
+  std::stringstream ls;
+  ls << lf.rdbuf();
+  EXPECT(ls.str() == "install=/x\nkeep=me\nmod=a\n");
 }
 
 TEST(mods_strings_over_the_message_table) {
