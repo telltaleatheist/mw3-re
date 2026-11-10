@@ -1077,8 +1077,9 @@ readers), on `pm` after pm-v1.0.0.
 
 Pirate's Moon (branch pm) reads a world's animations from its anim.zbd only
 (its own reader, 0x00523140): a mod's anim.zbd, yes; unzbd's JSON
-(`anim.zip`, `anim/`), def files and node files, no. `--check-mod` says so
-for each such file, and the MODS list counts them on the mod's line
+(`anim.zip`, `anim/`), def files and node files, no. For a Pirate's Moon mod
+(`for=mw3pm`: mw3pm's own check, and the launcher's MODS for Pirate's Moon)
+`--check-mod` says so for each such file, and the MODS list counts them on the mod's line
 ("N animation files Pirate's Moon does not read") instead of reporting
 shared animations (`anim_file_unread`, mods.cpp).
 
