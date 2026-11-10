@@ -107,8 +107,11 @@ else, so Bob's copy leaves Bob2's saves) and each one's `.rows`, into the
 entry's `pilots/`, and the saved loadouts `configs/*.mw3` into the entry's
 loadouts folder (given by the caller). The originals are only read. Nothing
 in the entry is replaced: a pilot or a saved game of that name already there
-refuses the whole copy, and a loadout file the entry already has is kept
-(counted in `configs_kept`). The entry's folder must carry our marker. A
+refuses the whole copy. The loadouts are not so strict: a loadout file the
+entry already has is kept (counted in `configs_kept`), and one whose place is
+taken by a stray file (its `.rows` without it, a folder of its name) is
+skipped (`configs_skipped`), so one stray file among the saved mechs never
+costs the pilot's copy. The entry's folder must carry our marker. A
 copy that fails part-way removes the files it made and the folders it made
 if they are empty again, nothing else. `main_menu_pilots` lists the names
 to offer. Tests: `entry_pilot_copy_*` (tests/test_entry_pilot_copy.cpp).
