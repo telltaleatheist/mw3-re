@@ -403,6 +403,8 @@ int probe_pilotscreen_run(const char* reader, const char* dir, uint32_t state, c
         if (k == mech3::GameMenuState::kCampaign) game->leave();
       } else if (what == "escape") {
         if (k == mech3::GameMenuState::kAction || k == mech3::GameMenuState::kTraining) game->escape();
+      } else if (what == "delete") {
+        game.reset();  // 0x0049ca00 for the multiplayer state; the others' is the shell's own (silent here)
       }
     } else if (op == "E" && !s) {
       std::ostringstream o;
