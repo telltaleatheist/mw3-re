@@ -4,6 +4,7 @@
 // ship curl.exe, so no HTTP library is linked and HTTPS is the system's own.
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "upgrades/update/update.h"
 
@@ -41,5 +42,8 @@ struct Installed {
 Installed install_update(const std::string& download);
 // The new launcher started on its own (no stdio of ours); false when it could not be.
 bool start_detached(const std::string& program);
+// A program run to its end, its arguments as an array: its exit code (-1 not
+// started or past `seconds`), its output and errors in `said`.
+int run_program(const std::vector<std::string>& args, int seconds, std::string* said);
 
 }  // namespace sdlfe

@@ -508,7 +508,14 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   off is never started half-mounted: ENTER turns the mod on for the next
   start and says so ("its mod is turned on; restart to play it").
 - EDITOR: EDIT (editor.md, The way in from MODS): the selected campaign's or mod's missions in the campaigns' box, ENTER opening one in the game editor, saves going into the mod itself.
+- TEST (Quick testing, below): the same list with the game's own missions after the mod's, ENTER playing one with the mods on.
 - BACK: the main menu.
+- ENTER and BACK hit where they are drawn (`ModsSlideButton`, lead 2026-11-10):
+  the ring and knob of their 82x82 image (alpha 64 and up) and their label's
+  box. SlideButton's own test (0x004855f0) takes the whole image with the
+  label's height added below and the label's end beside, which reached over
+  the tab row: a click on MODS FOLDER's right edge, or a tab placed past
+  x 452, left the screen too. `sdl_program_mods_back_hits_where_drawn`.
 
 Tests: `mods_screen_tables_order_and_conflicts` (the tables from five mods:
 the campaign rows with a broken file, the rows' marks and notes, UP moving
@@ -518,6 +525,40 @@ campaign's folder, the first mission, the pause's options and QUIT, the main
 menu, MODS, BACK: the stack at each step, nothing under the mission, the
 pilots kept until the main menu). The button's place: the bottom left, as
 shown (Owen, 2026-11-09). Left: a live remount.
+
+### Plain errors on the MODS screen (modder step 3, 2026-11-10)
+
+Ours (`upgrades/mods/mod_report`): a mod's `--check-mod` and what this
+start's mount left out of it, as sentences for a player.
+- `mod_check` fills a `ModFindings` when asked: the files it replaces and
+  adds (counted only against an install), the mechs, weapons, worlds,
+  Instant Action worlds and campaigns mod.txt adds, the player's own files
+  ignored, the animation files Pirate's Moon does not read, each error
+  (refused) and warning (a note) as `<what>: <why>`.
+- `mods_mount` records what it left out per mod folder (`mods_left_out`):
+  a mod not found or unusable, a world, campaign, mech, weapon or Instant
+  Action world, with why.
+- `mod_sentences` says them in order: "It replaces 2 of the game's files and
+  adds 1 new file.", "It adds the mech Thor B and the campaign "Long
+  Night".", what is ignored or unread, "The mech Scout is refused: there is
+  a mech Scout already.", "Note: ...", "At this start the game left out the
+  world x: ...", else "Nothing in it is refused."
+- In the game: REPORT, a tab under CAMPAIGNS' box (28,336; the bottom row
+  past x 452 is inside BACK's hit box, so a tab there also leaves the
+  screen), shows the chosen mod's or campaign's mod's sentences in that box,
+  wrapped to 34 characters, with the count refused under DETAILS; REPORT or
+  BACK goes back to the tables, ENTER does nothing there.
+- In the launcher: CHECK with a mod chosen opens its report on a page of its
+  own (`<`, `>`, BACK to MODS). A Pirate's Moon mod's comes from
+  `mw3pm --mod-report <folder> --install <PM's install>`, PM's own readers;
+  `--mod-report` is a file-only flag (no SDL, no write dir, no log), so the
+  player's folder and log are untouched.
+
+Tests: `mods_report_says_what_a_mod_does_in_sentences` (the sentences, the
+wrap, a mod checked and mounted), `mods_screen_report_shows_a_mods_sentences_headless`
+(REPORT, ENTER ignored, BACK to the tables, then out) and
+`sdl_program_launcher_mod_report_in_sentences` (MW3's from the check, PM's
+from mw3pm's answer, BACK to MODS).
 
 ### ADD MOD (2026-11-09; IMPORT since the evening)
 
@@ -853,6 +894,64 @@ The other archives hold 0 there and are never checked. It doesn't matter
 for our port: the check is a protection trap we leave out (FIX (trap)), and
 a mod's archive loads with any CRC. MechWarrior 3's archives (version 1)
 have none.
+
+## Quick testing (modder-friendly step 4, begun 2026-11-10)
+
+**TEST on the MODS screen** (`ModsScreen::test`, `mods_test_rows`,
+`mods_menu_test_start`): a tab under the CAMPAIGNS box, at (108 336) beside
+REPORT (BACK's hit box covers the bottom row from x 452, so neither fits
+there). With a mod or a custom campaign chosen:
+- The campaigns' box lists missions, as EDITOR's does: the mod's own first
+  (its campaigns' lines, else its worlds' `readerm<N>.zbd`), then every
+  campaign mission of the install's nine worlds (`zbd\<world>\readerm<N>.zbd`
+  in the game's world order: c1 1..4, c2 1..4, c3 1..6, c4 1..3, c4b 4..6, t1
+  1..4 on MW3 1.2), each world and number once. So a mod of weapons or mechs
+  alone, which has no missions, is tested on the game's.
+- ENTER plays the chosen one with the mods on in this run, started as EDIT's
+  is (a debug start: a stand-in pilot in the Mad Cat, no briefing), the editor
+  left closed (Shift+F12 and the pause's EDITOR still reach it, saving into
+  the mod, as in any mission MODS starts). When the main menu comes back
+  (the pause's QUIT is the tested way), MODS is on top again and the chosen
+  pilot and the launch are put back (`mods_edit_begin` with `editor`
+  false).
+- A mod not on in this run is turned on for the next start instead, as EDIT
+  and ENTER do. TEST again leaves the list; EDITOR while it is up shows
+  EDIT's list of the same mod (and TEST while EDIT's is up, TEST's); BACK
+  leaves the list first.
+
+Test: `mods_screen_test_plays_a_mission_and_comes_back_headless` (a mod with
+no missions: TEST's 24 rows from c1 1 to t1 4; EDITOR then says it has none
+to edit; ENTER on c2 mission 1 plays it with the editor closed; the pause's
+QUIT lands on MODS, the pilot back). Breaks caught: the game's missions left
+out, the editor opened, MODS not reopened. A `--click-at` shot (MODS, the
+mod, the tab at 130,344) shows TEST's list with only TEST fired.
+
+**Values read again between TESTs** (part 2, 2026-11-10): edit a mod's
+files, QUIT to MODS, TEST again; no restart.
+- Weapons: weapons.zrd (a mod's loose text or its archive) is read with the
+  world (0x00583880 from the world load 0x0048faf0), which keeps a world
+  already up and loads any other afresh. The pause's QUIT unloads the world
+  (0x00490480: its `current` is -1 back on MODS, checked in the headless
+  test's run), so every TEST loads it, and the file as it is then, again.
+- Mechs: a mech's dfn is read once per run (0x004846a0's cache). TEST's
+  start lets every cached definition go (`mod_test_reload`, 0x004844b0's
+  loop: each one's saved loadouts written first, as at the game's exit), so
+  the mission reads them again. Nothing keeps a definition across a mission:
+  every user asks `mech_dfn` (or its handle) when it needs one, and the
+  `Config`s that come from a definition's list (a mission's mechs, the
+  launch's first loadout) live only in that mission; a pilot's slots hold
+  copies.
+- Not reloaded: mod.txt's `mech=` and `weapon=` rows (the row tables are
+  made at the start), models, textures and sounds. In a running mission
+  nothing is reloaded: the weapons' definitions are held by pointer with
+  their effects and shots in flight (one ported reader makes both).
+
+Test: `mods_test_reads_edited_weapons_and_mechs_again` (a mod's loose
+weapons.zrd and dfn_madcat.zrd: the first TEST reads 1234.5 and 0.77; after
+the edit a load without TEST's reload has the new velocity and the old
+accel_rate; TEST again has both new), and the headless TEST test checks the
+start calls it. Breaks caught: the definitions not let go, the start not
+calling it.
 
 ## Readable files read directly (modder-friendly step 1, begun 2026-11-09)
 
@@ -1495,7 +1594,7 @@ animations come from point 2 of "Animations a def at a time".
      with its type, default and limits, built from the code so it stays right.
   3. **Plain errors on the MODS screen**: `--check-mod`'s findings and the mount log as
      sentences per mod (what it replaces or adds, what is refused and why), instead of
-     a crash or silence.
+     a crash or silence. Built 2026-11-10 (above, Plain errors on the MODS screen).
   4. **Quick testing**: a "test this mod" start straight into a chosen mission with the
      mod on; later, weapon and mech values reloaded while the game runs.
   5. **Starter mods and guides**: one small example of each kind (a mech variant, a

@@ -265,6 +265,8 @@ bool is_our_app(const fs::path& app) {
 }
 }  // namespace
 
+int run_program(const std::vector<std::string>& args, int seconds, std::string* said) { return run_tool(args, seconds, said); }
+
 bool start_detached(const std::string& program) {
   const char* args[] = {program.c_str(), nullptr};
   const SDL_PropertiesID props = SDL_CreateProperties();

@@ -67,7 +67,9 @@ std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text
 // the player's own kind ignored), every archive's table, every reader
 // archive's entries and loose .zrd through the bounded reader, strings.txt.
 // The report's lines; `errors` counts what the game would refuse.
-std::vector<std::string> mod_check(const std::string& dir, const std::string& install, int* errors);
+struct ModFindings;  // upgrades/mods/mod_report.h
+// `facts` (ours, mod_report.h): what it found, for the MODS screens' sentences.
+std::vector<std::string> mod_check(const std::string& dir, const std::string& install, int* errors, ModFindings* facts = nullptr);
 
 // For the multiplayer lobby (a game needs every player's gameplay data the
 // same): whether a mod's file is gameplay data, which is anything but
@@ -111,6 +113,7 @@ struct ModsListEntry {
   int anims_unread = 0;  // ours: its animation files the game does not read (Pirate's Moon: unzbd's JSON, def and node files)
   std::vector<std::string> conflicts_with;  // those mods' folders
   int check_errors = -1;
+  std::vector<std::string> report;  // ours (mod_report.h), with `check`: the check and this start's mount as sentences
 };
 std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::vector<std::string>& enabled, bool check = false,
                                      const std::string& install = "");

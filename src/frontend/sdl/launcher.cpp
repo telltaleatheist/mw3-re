@@ -364,6 +364,7 @@ enum Id {
   kModExport,
   kModRow = 60,  // kModRow + i: the page's i-th mod (kModsPerPage)
   kUpdateGo = 80, kUpdateNotNow, kUpdatePrev, kUpdateNext,
+  kReportPrev, kReportNext,  // the mod report's pages (ours, upgrades/mods/mod_report.h)
 };
 constexpr int kModsPerPage = 5;
 
@@ -483,7 +484,7 @@ class Launcher {
   SDL_Surface* canvas_ = nullptr;
   Art art_;
   Text text_;
-  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kModsScreen, kUpdateScreen } screen_ = kMain;
+  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kModsScreen, kUpdateScreen, kModReportScreen } screen_ = kMain;
   // The MODS screen (docs/launcher.md, Mods): the list as mech3::mods_list
   // gives it, the one selected (UP, DOWN), the page, whether CHECK ran.
   std::vector<mech3::ModsListEntry> mods_;
@@ -534,6 +535,11 @@ class Launcher {
     return mods_target(o_, mods_pm_);
   }
   std::string mods_install() const { return mods_pm_ ? pm_dir_ : install_.dir; }
+  // CHECK on a chosen mod (modding.md, Plain errors on the MODS screen): its sentences wrapped, a page at a time.
+  void show_mod_report(const mech3::ModsListEntry& e);
+  std::vector<std::string> report_lines_;
+  std::string report_title_;
+  size_t report_page_ = 0;
   std::string pm_data_;                  // ... its data's version ("1.0", "unknown", "incomplete")
   std::vector<std::string> mw3_check_notes_;  // start_check's for MW3, part of notes_ (notes_refresh)
   std::string mw3_program_, pm_program_;  // each game's program's version (--version), once at the start
@@ -1045,6 +1051,13 @@ void Launcher::layout() {
       add(kUpdateNotNow, {438, 384, 132, 34}, "NOT NOW");
       break;
     }
+    case kModReportScreen: {
+      const size_t pages = (report_lines_.size() + update_per_page() - 1) / update_per_page();
+      add(kReportPrev, {70, 384, 50, 34}, "<", {}, report_page_ > 0);
+      add(kReportNext, {126, 384, 50, 34}, ">", {}, report_page_ + 1 < pages);
+      add(kBack, {440, 384, 130, 34}, "BACK");
+      break;
+    }
     case kNotes:
       if (files_pm_ ? pm_lacks_music_ || pm_lacks_sounds_ : lacks_music_ || lacks_movies_)  // what the install lacks, from the disc (lead, 2026-11-02)
         add(kAddDisc, {130, 318, 380, 46}, "ADD FROM MY DISC", "A disc in a drive first, else its image or any file of the disc");
@@ -1052,7 +1065,8 @@ void Launcher::layout() {
       break;
     case kModsScreen: {
       // A row a mod (click: on or off), UP and DOWN for the selected one,
-      // CHECK (what the game would refuse in each), the pages, BACK.
+      // CHECK (what the game would refuse in each; with a mod chosen, its
+      // report), the pages, BACK.
       const int first = mod_page_ * kModsPerPage;
       for (int i = 0; i < kModsPerPage && first + i < static_cast<int>(mods_.size()); ++i) {
         const mech3::ModsListEntry& e = mods_[first + i];
@@ -1079,7 +1093,7 @@ void Launcher::layout() {
     }
   }
   {  // the screen and its plates (the checks follow them)
-    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "mods", "update"};
+    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "mods", "update", "report"};
     std::string labels;
     for (const Button& b : buttons_) labels += (labels.empty() ? "" : ", ") + b.label;
     std::printf("mw3: launcher: screen %s: %s\n", kNames[screen_], labels.c_str());
@@ -1216,6 +1230,14 @@ void Launcher::draw(float dt) {
         text_.draw(canvas_, update_lines_[i], 13, kWhite, kX + 70, kUpdateTop + static_cast<int>(i - first) * lh, -1);
       const std::string ask = !status_.empty() ? status_ : "Download and install MechWarrior 3 Rebuild " + version + "? Your mods, pilots, saves and settings are kept.";
       text_.draw_wrapped(canvas_, ask, 13, status_.empty() || status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 338, 500);
+      break;
+    }
+    case kModReportScreen: {  // the chosen mod's report, a page at a time
+      text_.draw(canvas_, text_.fit(report_title_, 22, W - 64), 22, kAmber, W / 2, 124);
+      const int lh = text_.line_skip(13);
+      const size_t per = update_per_page(), first = report_page_ * per;
+      for (size_t i = first; i < report_lines_.size() && i < first + per; ++i)
+        text_.draw(canvas_, report_lines_[i], 13, kWhite, kX + 70, kUpdateTop + static_cast<int>(i - first) * lh, -1);
       break;
     }
     case kModsScreen: {
@@ -1879,6 +1901,36 @@ void Launcher::mods_refresh() {
   if (mod_page_ * kModsPerPage >= static_cast<int>(mods_.size())) mod_page_ = 0;
 }
 
+// CHECK with a mod chosen: its report (upgrades/mods/mod_report.h), the check
+// and this start's mount as sentences. A Pirate's Moon mod's from mw3pm's own
+// readers (mw3pm --mod-report, which touches no write dir), else this program's.
+void Launcher::show_mod_report(const mech3::ModsListEntry& e) {
+  std::vector<std::string> sentences = e.report;
+  if (mods_pm_) {
+    sentences.clear();
+    std::string said;
+    std::vector<std::string> args = {o_.pm_bin, "--mod-report", e.info.path};
+    if (!mods_install().empty()) args.push_back("--install"), args.push_back(mods_install());
+    const int code = o_.pm_bin.empty() ? -1 : sdlfe::run_program(args, 60, &said);
+    for (size_t at = 0; at < said.size();) {
+      size_t end = said.find('\n', at);
+      if (end == std::string::npos) end = said.size();
+      std::string line = said.substr(at, end - at);
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (!line.empty()) sentences.push_back(line);
+      at = end + 1;
+    }
+    if (code < 0 || sentences.empty()) sentences = {"Pirate's Moon could not check this mod (its program did not answer)."};
+  }
+  report_lines_.clear();
+  for (const std::string& s : sentences)
+    for (const std::string& w : text_.wrap(s, 13, kUpdateWidth)) report_lines_.push_back(w);
+  report_title_ = "REPORT: " + (e.info.name.empty() ? e.info.folder : e.info.name);
+  for (const std::string& l : report_lines_) std::printf("mw3: launcher: mod report: %s\n", l.c_str());
+  report_page_ = 0, status_.clear();
+  screen_ = kModReportScreen, layout();
+}
+
 // The new order (the enabled, as they win) written to mw3.cfg; the list read again.
 void Launcher::mods_save(std::vector<std::string> enabled, const std::string& said) {
   const bool ok = mech3::mods_save_enabled(mods_here().write_dir, enabled);
@@ -1995,6 +2047,12 @@ void Launcher::activate(int id) {
       status_ = "The old copy stays in " + move_from_ + ".", status_good_ = true;
       from_files_ = false, screen_ = kMain, layout();
       break;
+    case kReportPrev:
+    case kReportNext:
+      if (id == kReportPrev && report_page_ > 0) --report_page_;
+      if (id == kReportNext && (report_page_ + 1) * update_per_page() < report_lines_.size()) ++report_page_;
+      layout();
+      break;
     case kUpdatePrev:
     case kUpdateNext:
       if (id == kUpdatePrev && update_page_ > 0) --update_page_;
@@ -2092,8 +2150,12 @@ void Launcher::activate(int id) {
     case kModCheck:
       mods_checked_ = true;
       mods_refresh();
-      status_ = mods_pm_ ? "Pirate's Moon checks its own mods: start it with --check-mod and the mod's folder (docs/modding.md)"
-                         : "Checked: each mod read as the game would read it";
+      if (mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size())) {  // a mod chosen: its report
+        show_mod_report(mods_[static_cast<size_t>(mod_sel_)]);
+        break;
+      }
+      status_ = mods_pm_ ? "Choose a mod, then CHECK: Pirate's Moon reads it and says what it does"
+                         : "Checked: each mod read as the game would read it. Choose one, then CHECK, for its report";
       status_good_ = true;
       layout();
       break;
@@ -2133,6 +2195,7 @@ void Launcher::activate(int id) {
       else if (screen_ == kConfirm && confirm_go_ == 2) screen_ = kDataScreen, layout();
       else if (screen_ == kConfirm) screen_ = kSetupScreen, layout();
       else if (screen_ == kDataScreen) screen_ = kSetupScreen, status_.clear(), layout();
+      else if (screen_ == kModReportScreen) screen_ = kModsScreen, layout();
       else screen_ = kMain, from_files_ = false, status_.clear(), layout();
       break;
     case kNotesOk:

@@ -37,6 +37,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "upgrades/mods/mod_report.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mods_tables.h"
 #include "mech3/patch12.h"
@@ -45,6 +46,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/pilot.h"
 #include "mech3/mech_reader.h"
+#include "upgrades/mods/mod_test.h"
 #include "upgrades/mods/save_mods.h"
 
 namespace {
@@ -150,6 +152,63 @@ TEST(mods_mount_in_order_and_game_data_only) {
   // Writes go to the write dir, never into a mod or the install.
   EXPECT(zutl::write_path("zbd\\a.zbd") == wd + "/zbd/a.zbd");
   EXPECT(mech3::mods_found(wd).size() == 3);
+}
+
+// Modder step 3 (modding.md, Plain errors on the MODS screen): a mod's check
+// and this start's mount as sentences, what it replaces and adds, what it adds
+// by mod.txt, what is ignored, each thing refused and why.
+TEST(mods_report_says_what_a_mod_does_in_sentences) {
+  mech3::ModFindings f;
+  f.against_install = true, f.replaces = 2, f.adds = 1, f.ignored = 1;
+  f.mechs = {"Thor B"}, f.weapons = {"Rail", "Gauss2"}, f.campaigns = {"Long Night"};
+  f.refused = {"zbd/weapons.zrd: line 3: a '(' never closed", "mech Scout: there is a mech Scout already"};
+  f.warnings = {"campaign c.txt: line 4: no world zz in the mod or the game: it plays only with a mod that adds it"};
+  f.left_out = {"world x: there is no zbd/x/gamez.zbd in the mod"};
+  const std::vector<std::string> s = mech3::mod_sentences(f);
+  for (const std::string& l : s) std::printf("  %s\n", l.c_str());
+  const std::vector<std::string> want = {
+      "It replaces 2 of the game's files and adds 1 new file.",
+      "It adds the mech Thor B, the weapons Rail and Gauss2 and the campaign \"Long Night\".",
+      "1 of its files is the player's own kind (settings, pilots, saved games), which a mod cannot replace: it is ignored.",
+      "The file zbd/weapons.zrd is refused: line 3: a '(' never closed.",
+      "The mech Scout is refused: there is a mech Scout already.",
+      "Note: the campaign file c.txt: line 4: no world zz in the mod or the game: it plays only with a mod that adds it.",
+      "At this start the game left out the world x: there is no zbd/x/gamez.zbd in the mod."};
+  EXPECT(s == want);
+  EXPECT((mech3::mod_sentences(mech3::ModFindings{}) == std::vector<std::string>{"It changes nothing in the game.", "Nothing in it is refused."}));
+  EXPECT((mech3::mod_report_wrap("the file zbd/weapons.zrd is refused", 12) ==
+          std::vector<std::string>{"the file", "zbd/weapons.", "zrd is", "refused"}));
+  // A mod checked against an install, and mounted: the sentences from both.
+  SavedMounts keep;
+  const std::string root = tmp("mods_report");
+  const std::string wd = root + "/wd", install = root + "/install";
+  put(install + "/zbd/a.bin", "install");
+  put(wd + "/mods/one/mod.txt", "name=One\nmech=bad\nworld=x\n");
+  put(wd + "/mods/one/zbd/a.bin", "one");
+  put(wd + "/mods/one/zbd/new.bin", "one");
+  put(wd + "/mods/one/pilots/me.pil", "one");
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"one", "none"}, {install});
+  zutl::mount(install);
+  EXPECT(mech3::mods_left_out().count("none") && mech3::mods_left_out()["none"].size() == 1 &&
+         mech3::mods_left_out()["none"][0].rfind("the mod: it is not in ", 0) == 0);
+  int refused = -1;
+  std::string said;
+  for (const std::string& l : mech3::mod_report(wd + "/mods/one", install, "one", &refused)) said += l + "\n";
+  std::printf("%s", said.c_str());
+  EXPECT(refused == 2);
+  EXPECT(said.find("It replaces 1 of the game's files and adds 1 new file.") != std::string::npos);
+  EXPECT(said.find("1 of its files is the player's own kind") != std::string::npos);
+  EXPECT(said.find("The world x is refused: no zbd/x/gamez.zbd.") != std::string::npos);
+  EXPECT(said.find("The mech bad is refused: ") != std::string::npos);
+  EXPECT(said.find("At this start the game left out the world x: there is no zbd/x/gamez.zbd in the mod.") != std::string::npos);
+  EXPECT(said.find("At this start the game left out the mech bad: ") != std::string::npos);
+  EXPECT(said.find("Nothing in it is refused.") == std::string::npos);
+  // The launcher's list carries them with CHECK.
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"one"}, true, install))
+    EXPECT(e.check_errors == 2 && !e.report.empty() && e.report[0] == "It replaces 1 of the game's files and adds 1 new file.");
+  mech3::mods_left_out().clear();
 }
 
 TEST(mods_loose_zrd_beats_the_archives_entry) {
@@ -286,6 +345,91 @@ TEST(mods_loose_weapons_zrd_read_directly) {
   EXPECT(why("(A \"x\n\ny)\n") == "line 1: a quote never closed");
   EXPECT(why("(A 1\n(B 2\n") == "line 1: a '(' never closed");  // the outer one
   EXPECT(why("; (not counted\n(A 1) ; ) nor this\n") == "");
+  zwep::init_hooks() = hooks;
+}
+
+// Quick testing (modding.md): between two TESTs a modder edits a mod's loose weapons.zrd and a mech's dfn; the
+// next TEST reads both: weapons.zrd at every mission load (zwep's init), the dfn once TEST's start has let the
+// cached definitions go (mod_test_reload). Without it the mech keeps the value read first.
+TEST(mods_test_reads_edited_weapons_and_mechs_again) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
+  SavedMounts keep;
+  const zwep::InitHooks hooks = zwep::init_hooks();
+  zwep::init_hooks() = zwep::InitHooks{};
+  const std::string wd = tmp("mods_test_reload");
+  const std::string mech = mech3::mech_name(9), dfn_file = "dfn_" + mech + ".zrd";
+  // The shipped texts, to edit.
+  zrdr::init();
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  zutl::mount(install);
+  EXPECT(zrdr::open_archive("zbd\\reader.zbd", true));
+  zrdr::Node* weapons = zrdr::load("weapons.zrd");
+  zrdr::Node* dfn = zrdr::load(dfn_file.c_str());
+  EXPECT(weapons && dfn);
+  const auto edited = [&](float velocity, float accel) {
+    if (zrdr::Node* v = weapons ? zrdr::find(zrdr::find(weapons, "PPC"), "VELOCITY") : nullptr)
+      if (v->type == zrdr::List && v->list[0].i > 1) v->list[1].f = velocity;
+    if (zrdr::Node* a = dfn ? zrdr::find(dfn, "accel_rate") : nullptr) {
+      if (a->type == zrdr::List && a->list[0].i > 1) a = &a->list[1];
+      a->type = zrdr::Float, a->f = accel;
+    }
+    std::string w, d;
+    for (int i = 1; weapons && i < weapons->list[0].i; ++i) w += zrd_text(weapons->list[i]) + "\n";
+    for (int i = 1; dfn && i < dfn->list[0].i; ++i) d += zrd_text(dfn->list[i]) + "\n";
+    put(wd + "/mods/tune/zbd/weapons.zrd", w);
+    put(wd + "/mods/tune/zbd/" + dfn_file, d);
+  };
+  put(wd + "/mods/tune/mod.txt", "name=Tune\n");
+  edited(1234.5f, 0.77f);
+  zrdr::close_archives(true);
+  // One run's mounts; each "mission load" the weapons read as the mission does.
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"tune"}, {install});
+  zutl::mount(install);
+  zrdr::init();
+  zrdr::open_archive("zbd\\reader.zbd", true);
+  const auto mission = [&](float* velocity, float* accel) {
+    *velocity = -1, *accel = -1;
+    zwep::init(nullptr, "weapons.zrd", 0, nullptr);
+    if (const zwep::WeaponDef* d = zwep::find_def("PPC")) *velocity = d->velocity;
+    zwep::shutdown(nullptr);
+    if (mech3::MechDfn* m = mech3::mech_dfn(9); m && mech3::read_dfn(*m) && m->configs && !m->configs->configs.empty())
+      *accel = m->configs->configs[0]->accel_rate;  // the head's accel_rate, in each loadout
+  };
+  float v1, a1, v2, a2, v3, a3;
+  mech3::mod_test_reload();  // TEST
+  mission(&v1, &a1);
+  // The modder's second edit (the trees are the shipped ones, edited again).
+  zrdr::close_archives(true);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(install);
+  zrdr::init();
+  zrdr::open_archive("zbd\\reader.zbd", true);
+  zrdr::free_node(weapons), zrdr::free_node(dfn);
+  weapons = zrdr::load("weapons.zrd"), dfn = zrdr::load(dfn_file.c_str());
+  edited(2345.5f, 0.88f);
+  zrdr::close_archives(true);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"tune"}, {install});
+  zutl::mount(install);
+  zrdr::init();
+  zrdr::open_archive("zbd\\reader.zbd", true);
+  mission(&v2, &a2);           // a mission without TEST's reload: the mech as first read
+  mech3::mod_test_reload();    // TEST again
+  mission(&v3, &a3);
+  std::printf("  first TEST: PPC velocity %.1f, %s accel %.2f; edited, no reload: %.1f, %.2f; TEST again: %.1f, %.2f\n", v1,
+              mech.c_str(), a1, v2, a2, v3, a3);
+  EXPECT(v1 == 1234.5f && a1 == 0.77f);
+  EXPECT(v2 == 2345.5f && a2 == 0.77f);  // the weapons read at the load, the mech cached
+  EXPECT(v3 == 2345.5f && a3 == 0.88f);
+  zrdr::free_node(weapons), zrdr::free_node(dfn);
+  mech3::mod_test_reload();  // the edited mech let go
+  zrdr::close_archives(true);
   zwep::init_hooks() = hooks;
 }
 
