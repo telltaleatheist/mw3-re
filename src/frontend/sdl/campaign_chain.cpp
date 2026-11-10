@@ -21,6 +21,7 @@
 #include "mech3/credits.h"
 #include "mech3/debriefing.h"
 #include "mech3/lab_screen.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mainmenu.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_salvage.h"
@@ -437,13 +438,14 @@ void CampaignChain::shoot_hostiles() {
       const Counts got = minus(now, salvage_seen_);
       add(salvage_kills_, got);
       salvage_seen_ = now;
-      // Its salvage's weapons are the ones it carried, but TAG (32), which
-      // comes in no tech; a vehicle's all or none (a coin, 0x00472ec0).
+      // Its salvage's weapons are the ones it carried, but TAG (kTag: MW3's 32,
+      // Pirate's Moon's 44), which comes in no tech; a vehicle's all or none (a
+      // coin, 0x00472ec0).
       std::vector<int32_t> salvaged;
       for (const auto& [k, v] : got)
         if (k.rfind("1/", 0) == 0)
           for (int32_t i = 0; i < v; ++i) salvaged.push_back(std::stoi(k.substr(2)));
-      carried.erase(std::remove(carried.begin(), carried.end(), 32), carried.end());
+      carried.erase(std::remove(carried.begin(), carried.end(), mech3::kTag), carried.end());
       std::sort(carried.begin(), carried.end());
       std::sort(salvaged.begin(), salvaged.end());
       const bool vehicle = std::string(t.kind) == "vehicle";
@@ -456,8 +458,10 @@ void CampaignChain::shoot_hostiles() {
       // none, or none to carry (a truck).
       const char* what = std::string(t.kind) == "mech" || vehicle ? (same ? ", its weapons" : ", NOT its weapons") : "";
       if (vehicle && same) what = carried.empty() ? ", unarmed" : salvaged.empty() ? ", none (the coin)" : ", its weapons";
-      std::printf("mw3: chain killed %s %s (core frame %d): salvage {%s}%s\n", t.kind, t.name.c_str(), core_frames_,
-                  line(got).c_str(), what);
+      std::string had;
+      for (int32_t w : carried) had += (had.empty() ? "" : " ") + std::to_string(w);
+      std::printf("mw3: chain killed %s %s (core frame %d): carried [%s], salvage {%s}%s\n", t.kind, t.name.c_str(),
+                  core_frames_, had.c_str(), line(got).c_str(), what);
     }
   }
   // A hit that does not kill leaves the salvage alone; anything else this
