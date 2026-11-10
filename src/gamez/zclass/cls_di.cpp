@@ -1165,13 +1165,14 @@ void line_cells(Node* world) {
         }
       }
     }
+    // The next edge's t on the x87, stored once (tools/analysis/x87.py 4eefe0 4ef563).
     if (step_x != 0) {
       const int32_t edge = step_x == 1 ? cx + 1 : cx;
-      tx = ((static_cast<float>(edge) * w->get<float>(0x64) + w->get<float>(0x34)) - g_lq.a[0]) * inv_x;
+      tx = (((zgeo::X(static_cast<float>(edge)) * w->get<float>(0x64) + w->get<float>(0x34)) - g_lq.a[0]) * inv_x).f();
     }
     if (step_z != 0) {
       const int32_t edge = step_z == 1 ? cz + 1 : cz;
-      tz = ((static_cast<float>(edge) * w->get<float>(0x68) + w->get<float>(0x38)) - g_lq.a[2]) * inv_z;
+      tz = (((zgeo::X(static_cast<float>(edge)) * w->get<float>(0x68) + w->get<float>(0x38)) - g_lq.a[2]) * inv_z).f();
     }
     // FIX (bug): a NaN end (an entity at a NaN place) never passes 1, so the
     // exe walks on forever (x87: NaN is "not past", and it steps both ways);
