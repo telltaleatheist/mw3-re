@@ -10,6 +10,11 @@ rem MW3-Rebuild-Setup-<git describe>.exe (Inno Setup, tools\windows\installer.is
 rem Nothing from the game. Its own build tree, build-win-pkg,
 rem configured with MW3_PACKAGE (no development copy of the game in the exes).
 rem Usage: tools\windows\package.cmd
+rem For the combined package (tools\package\combined.cmd, docs/release.md):
+rem   MW3_PKG_PM_BIN=<mw3pm.exe built on pm>  adds Pirate's Moon beside mw3.exe (its DLLs checked as mw3's)
+rem   MW3_PKG_STEM=<stem>   names <stem>-<version>-win64 (folder, zip) and <stem>-Setup-<version>.exe
+rem                         (default MW3-Rebuild; MW3 alone is MW3-alone, which the launcher's updater never takes)
+rem   MW3_PKG_KEEP_BUILD=1  reuse build-win-pkg (a second package from the same build)
 setlocal
 cd /d "%~dp0\..\.."
 for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set VS=%%i
@@ -23,18 +28,21 @@ rem SETUP's archives (docs/setup-sources.md): a package always reads them.
 if not exist deps\archive\lib\archive.lib (echo No deps\archive: run tools\windows\build_deps_archive.cmd first. & exit /b 1)
 if not exist deps\archive\share\licenses\libarchive-3.7.9\COPYING (echo deps\archive has no licences: run tools\windows\build_deps_archive.cmd again. & exit /b 1)
 
+if not defined MW3_PKG_STEM set MW3_PKG_STEM=MW3-Rebuild
+if defined MW3_PKG_PM_BIN if not exist "%MW3_PKG_PM_BIN%" (echo MW3_PKG_PM_BIN: no program at %MW3_PKG_PM_BIN% & exit /b 1)
+
 rem The build, from scratch each time so the version and the switches are this checkout's.
-if exist build-win-pkg rmdir /s /q build-win-pkg
+if not defined MW3_PKG_KEEP_BUILD if exist build-win-pkg rmdir /s /q build-win-pkg
 cmake -S . -B build-win-pkg -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl ^
   -DMW3_PACKAGE=ON "-DSDL3_DIR=%SDL3_DIR%" "-DSDL3_ttf_DIR=%SDL3_ttf_DIR%" || exit /b 1
 cmake --build build-win-pkg --target mw3 mw3launcher mw3import || exit /b 1
 if not exist build-win-pkg\mw3import.exe (echo mw3import.exe was not built: FFmpeg's shared build is missing from deps\ ^(docs/windows.md^). & exit /b 1)
 rem The helper, 32-bit (its own vcvarsall x86, in a child shell).
-cmd /c tools\windows\build_indeo.cmd build-win-pkg || exit /b 1
+if not exist build-win-pkg\mw3indeo.exe cmd /c tools\windows\build_indeo.cmd build-win-pkg || exit /b 1
 
 for /f "usebackq delims=" %%v in (`git describe --tags --match "v[0-9]*" --always --dirty 2^>nul`) do set VER=%%v
 if not defined VER set VER=dev
-set NAME=mw3-%VER%-win64
+set NAME=%MW3_PKG_STEM%-%VER%-win64
 set DIST=build-win\dist\%NAME%
 if exist "%DIST%" rmdir /s /q "%DIST%"
 if exist "build-win\dist\%NAME%.zip" del "build-win\dist\%NAME%.zip"
@@ -45,6 +53,8 @@ copy /y build-win-pkg\mw3.exe "%DIST%\" >nul || exit /b 1
 copy /y build-win-pkg\mw3launcher.exe "%DIST%\" >nul || exit /b 1
 copy /y build-win-pkg\mw3indeo.exe "%DIST%\" >nul || exit /b 1
 copy /y build-win-pkg\mw3import.exe "%DIST%\" >nul || exit /b 1
+rem The combined package: Pirate's Moon beside it (the launcher finds it there, launcher.md).
+if defined MW3_PKG_PM_BIN copy /y "%MW3_PKG_PM_BIN%" "%DIST%\mw3pm.exe" >nul || exit /b 1
 copy /y build-win-pkg\*.dll "%DIST%\" >nul || exit /b 1
 rem The Visual C++ runtime, app-local (a player may not have the redistributable).
 for /d %%d in ("%VCToolsRedistDir%x64\Microsoft.VC*.CRT") do (
@@ -92,7 +102,9 @@ mkdir "%DIST%\licenses\miniz"
 copy /y third_party\miniz\LICENSE "%DIST%\licenses\miniz\" >nul || exit /b 1
 
 rem Every DLL the programs load is in the folder or part of Windows; no game file is.
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\windows\check_dist.ps1 "%DIST%" || exit /b 1
+set PMCHECK=
+if defined MW3_PKG_PM_BIN set PMCHECK=-Pm
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\windows\check_dist.ps1 "%DIST%" %PMCHECK% || exit /b 1
 
 tar -a -c -f "build-win\dist\%NAME%.zip" -C build-win\dist "%NAME%" || exit /b 1
 
@@ -107,8 +119,8 @@ if not defined ISCC (
   echo Warning: Inno Setup's ISCC.exe not found, so no installer was made ^(docs/windows.md, Packaging^).
   goto :done
 )
-"%ISCC%" /Qp "/DAppVersion=%VER%" "/DDist=%CD%\%DIST%" "/O%CD%\build-win\dist" tools\windows\installer.iss || exit /b 1
-echo Setup:   build-win\dist\MW3-Rebuild-Setup-%VER%.exe
+"%ISCC%" /Qp "/DAppVersion=%VER%" "/DDist=%CD%\%DIST%" "/DStem=%MW3_PKG_STEM%" "/O%CD%\build-win\dist" tools\windows\installer.iss || exit /b 1
+echo Setup:   build-win\dist\%MW3_PKG_STEM%-Setup-%VER%.exe
 
 :done
 echo Package: %DIST%
