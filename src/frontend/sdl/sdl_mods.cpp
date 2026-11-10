@@ -10,6 +10,10 @@
 namespace sdlfe {
 
 bool open_folder(const std::string& dir) {
+  if (SDL_getenv("MW3_NO_OPEN_FOLDER")) {  // checks: said, not opened (no window on the machine running them)
+    std::printf("mw3: open folder %s\n", dir.c_str());
+    return true;
+  }
   std::string url = "file://";
   for (const char ch : std::filesystem::absolute(std::filesystem::path(dir)).generic_string()) {
     const unsigned char c = static_cast<unsigned char>(ch);

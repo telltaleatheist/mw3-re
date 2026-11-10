@@ -35,11 +35,17 @@
 #include "mech3/mech_ids.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mission.h"
+#include "mech3/game_editor.h"
+#include "mech3/mainmenu.h"
 #include "mech3/mods.h"
+#include "mech3/mods_menu.h"
+#include "mech3/pause_menu.h"
 #include "mech3/options.h"
 #include "mech3/player.h"
 #include "platform/silent_sound.h"
 #include "pm/pm_game.h"
+#include "upgrades/editor/mods_edit.h"
+#include "upgrades/mods/mod_test.h"
 #include "upgrades/mods/save_mods.h"
 
 namespace mech3 {  // mech_names.h (its Engine clashes with the app's)
@@ -491,4 +497,135 @@ TEST(pm_saved_game_records_its_mods) {
   if (!had) zsave::shutdown();
   zgame::set_game(zgame::mw3_table());
   mech3::mods_identity() = keep;
+}
+
+// MODS's TEST on PM (docs/modding.md, Quick testing): the game's missions in PM's play order (numbered across
+// its four worlds), after the mod's own (none here).
+TEST(pm_mods_test_rows_in_play_order) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  mech3::ModInfo m;
+  m.folder = "wpn";
+  std::string listed;
+  for (const mech3::ModsEditRow& r : mech3::mods_test_rows(m, MW3PM_GAME_DIR)) listed += r.world + " " + std::to_string(r.number) + "; ";
+  std::printf("  %s\n", listed.c_str());
+  EXPECT(listed == "c1 1; c1 2; c2 3; c2 4; c1 5; c3 6; c3 7; c2 8; c4 9; c4 10; ");
+}
+
+// MODS, a mod with no missions, TEST, ENTER on c2 mission 3: PM's mission played with the editor closed and the
+// mechs' definitions let go first; the pause's QUIT lands on MODS again, the stand-in pilot let go.
+TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  in_child("pm_mods_screen_test_plays_c2_mission_3_headless", [] {
+    MountsBack back;
+    zgame::set_game(pm::table());
+    const std::string install = MW3PM_GAME_DIR, wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_mods_test";
+    std::error_code ec;
+    fs::remove_all(wd, ec);
+    fs::create_directories(wd + "/mods/wpn", ec);
+    std::ofstream(wd + "/mods/wpn/mod.txt") << "name=Weapon Test\nfor=mw3pm\n";
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd.c_str());
+    mech3::mods_mount(wd, {"wpn"}, {install});
+    zutl::mount(install);
+    mech3::mods_save_enabled(wd, {"wpn"});
+    mech3::mods_menu_write_dir() = wd;
+    mech3::mods_menu_mounted() = {"wpn"};
+    mech3::mods_menu_install() = install;
+    mech3::reset_states();
+    if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+    mech3::missions() = mech3::Missions{};
+    mech3::options() = mech3::Options{};
+    struct Keys : platform::Input {
+      std::vector<platform::KeyEvent> queue;
+      uint32_t t = 0;
+      void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+      bool open(Device) override { return true; }
+      void close(Device) override {}
+      int32_t acquire(Device) override { return 0; }
+      int32_t unacquire(Device) override { return 0; }
+      int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+        const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+        std::copy(queue.begin(), queue.begin() + n, o);
+        queue.erase(queue.begin(), queue.begin() + n);
+        *count = n;
+        return 0;
+      }
+      int32_t mouse_state(platform::MouseState* m) override { return *m = platform::MouseState{}, 0; }
+      int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+    } keys;
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files, p.input = &keys;
+    int stage = 0, core = 0, rows = 0;
+    bool played = false, editor_closed = false, reloaded = false, mods_again = false;
+    uint32_t real_pilot = 0, pilot_after = 0;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::States& st = mech3::states();
+      engine.on_present = [&](int) {
+        zgame::State* now = app.current();
+        if (stage == 0 && now == &st.main && mech3::main_menu()) {
+          real_pilot = engine.peek32(0x60861c);
+          const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
+          stage = 1;
+        } else if (stage == 1) {
+          auto* ms = dynamic_cast<mech3::ModsState*>(now);
+          auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+          if (!scr) return;
+          scr->mod_list.FileList::select(0);
+          scr->on_button(mech3::ModsScreen::kMods, 0, 0);
+          scr->on_button(mech3::ModsScreen::kTest, 0, 0);  // TEST
+          rows = int(scr->edit_rows.size());
+          for (size_t i = 0; i < scr->edit_rows.size(); ++i)
+            if (scr->edit_rows[i].world == "c2" && scr->edit_rows[i].number == 3) scr->campaign_list.FileList::select(int32_t(i));
+          const int32_t reloads = mech3::mod_test_reloads();
+          scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+          reloaded = mech3::mod_test_reloads() == reloads + 1;
+          stage = 2;
+        } else if (stage == 2 && now == &st.core) {
+          ++core;
+          if (core == 5) {
+            played = mech3::mods_edit_session().active && !mech3::mods_edit_session().editor;
+            editor_closed = mech3::editor_state().active == 0;
+            keys.key(1, true);  // Escape: the pause
+          }
+          if (core == 6) keys.key(1, false);
+        } else if (stage == 2 && now == &st.pause) {
+          auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+          if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), stage = 3;
+        } else if (stage == 3 && dynamic_cast<mech3::ModsState*>(now)) {
+          mods_again = true;
+          pilot_after = engine.peek32(0x60861c);
+          stage = 4;
+        }
+      };
+      Pump pump;
+      pump.limit = 8000;
+      pump.stop = [&] { return stage == 4; };
+      app.run(pump);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    std::printf("  stage %d, %d rows; played %d, the editor closed %d, reloaded %d, MODS again %d, the pilot back %d\n", stage,
+                rows, played, editor_closed, reloaded, mods_again, pilot_after == real_pilot);
+    EXPECT(rows == 10 && played && editor_closed && reloaded);
+    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    mech3::mods_menu_write_dir().clear();
+    mech3::mods_menu_mounted().clear();
+    mech3::mods_menu_install().clear();
+    zgame::set_game(zgame::mw3_table());
+  });
 }

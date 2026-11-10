@@ -14,13 +14,16 @@ struct ModsEditSession {
   bool active = false;   // a mission entered by EDIT is loading or running
   bool entered = false;  // the editor opened on it
   bool leave = false;    // EXIT GAME EDIT pressed: back to MODS on the Core state's next update
+  bool editor = true;    // false: MODS's TEST (modding.md, Quick testing), played without the editor up
   std::string mod;       // the mod's folder (saves go there)
   std::function<void()> finish;  // the program's part of the end: its stand-in pilot and launch let go
 };
 ModsEditSession& mods_edit_session();
 
 // The session begun (the program has set its launch): saves into `mod`.
-void mods_edit_begin(const std::string& mod, std::function<void()> finish);
+// Without `editor` (TEST's) the editor is not opened on the first frame and
+// MODS comes back however the mission ends.
+void mods_edit_begin(const std::string& mod, std::function<void()> finish, bool editor = true);
 // From the HUD's frame (0x0040e4b0's caller): the editor opened (0x0040e430,
 // as Shift+F12 opens it) on the mission's first frame.
 void mods_edit_frame();

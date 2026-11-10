@@ -33,6 +33,7 @@
 #include "mech3/options.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/mods/mod_test.h"
 #include "mech3/options_menu.h"
 #include "mech3/pocket_panel.h"
 
@@ -230,6 +231,26 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
       poke32(0x60861c, real);
     });
     replace_state(6);  // the Load state: the mission, then Core
+    return true;
+  };
+  // Ours: MODS's TEST (docs/modding.md, Quick testing): the same start, the
+  // editor left closed; MODS again when the main menu comes back.
+  mods_menu_test_start() = [this](const std::string& mod, const std::string& world, int32_t number, std::string* why) {
+    const int32_t index = mission_dir_index(world.c_str());
+    if (index < 0) return *why = "no world " + world, false;
+    mod_test_reload();  // the mechs' definitions read again (upgrades/mods/mod_test.h)
+    Launch l;
+    l.index = index, l.number = number, l.type = 1, l.op = 0;
+    const Handle real = peek32(0x60861c);
+    set_launch(l);
+    mods_edit_begin(
+        mod,
+        [this, real] {
+          launch_.active = false;
+          poke32(0x60861c, real);
+        },
+        false);
+    replace_state(6);
     return true;
   };
   patch12::provide_files();  // and 1.2's added maps beside it, in the write dir

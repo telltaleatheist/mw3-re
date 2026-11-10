@@ -15,10 +15,11 @@ ModsEditSession& mods_edit_session() {
   return s;
 }
 
-void mods_edit_begin(const std::string& mod, std::function<void()> finish) {
+void mods_edit_begin(const std::string& mod, std::function<void()> finish, bool editor) {
   ModsEditSession& s = mods_edit_session();
   s = ModsEditSession{};
-  s.active = true, s.mod = mod, s.finish = std::move(finish);
+  s.active = true, s.mod = mod, s.finish = std::move(finish), s.editor = editor;
+  if (!editor) mods_menu_reopen() = true;  // TEST's: back to MODS at the main menu
   ai::net_save_into_mod() = mod;
   editor_after_exit() = [] {
     if (mods_edit_session().active) mods_edit_session().leave = true;
@@ -27,7 +28,7 @@ void mods_edit_begin(const std::string& mod, std::function<void()> finish) {
 
 void mods_edit_frame() {
   ModsEditSession& s = mods_edit_session();
-  if (!s.active || s.entered || s.leave) return;
+  if (!s.active || s.entered || s.leave || !s.editor) return;
   s.entered = true;
   if (!editor_state().active) editor_enter();
 }
