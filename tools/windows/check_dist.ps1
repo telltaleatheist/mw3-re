@@ -36,7 +36,8 @@ foreach ($lib in 'libarchive-*', 'zlib-*', 'xz-*', 'imgui') {
   if (-not $dir -or -not (Get-ChildItem -LiteralPath $dir[0].FullName -File)) { $missing += "licenses\$lib (its licence)" }
 }
 # No local path or user name in any file (release.md, Privacy; tools/deps/check_paths.py
-# on the Mac and Linux): every byte, as ASCII and UTF-16; github.com/<user> is allowed.
+# on the Mac and Linux): every byte, as ASCII and UTF-16; github.com/<user> and the updater's
+# api.github.com/repos/<user> are allowed.
 $words = @('/Volumes/', '/Users/', '/home/', 'C:\Users\', 'C:/Users/') +
   @($env:USERNAME, (Split-Path -Leaf $env:USERPROFILE)) | Where-Object { $_ -and $_.Length -ge 4 } | Select-Object -Unique
 $rx = [regex](($words | ForEach-Object { [regex]::Escape($_) }) -join '|')
@@ -45,7 +46,8 @@ $leaks = @()
 foreach ($f in Get-ChildItem -LiteralPath $Dist -Recurse -File) {
   $bytes = [IO.File]::ReadAllBytes($f.FullName)
   foreach ($text in $latin.GetString($bytes), [Text.Encoding]::Unicode.GetString($bytes)) {
-    $hit = $rx.Matches($text) | Where-Object { $_.Index -lt 11 -or $text.Substring($_.Index - 11, 11) -ine 'github.com/' } | Select-Object -First 1
+    $hit = $rx.Matches($text) | Where-Object { -not (($_.Index -ge 11 -and $text.Substring($_.Index - 11, 11) -ieq 'github.com/') -or
+      ($_.Index -ge 17 -and $text.Substring($_.Index - 17, 17) -ieq 'github.com/repos/')) } | Select-Object -First 1
     if ($hit) { $leaks += "$($f.FullName.Substring($Dist.Length)): $($hit.Value)"; break }
   }
 }
