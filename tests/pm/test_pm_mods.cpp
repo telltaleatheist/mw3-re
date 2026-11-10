@@ -23,6 +23,8 @@
 #include "crt/msvc_string.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zutl_msgdll.h"
+#include "gamez/zweapon/zwep_init.h"
 #include "gamez/zsave/zsave.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
@@ -33,7 +35,9 @@
 #include "mech3/app_states.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_ids.h"
+#include "mech3/mech_config.h"
 #include "mech3/mech_reader.h"
+#include "mech3/mod_campaign.h"
 #include "mech3/mission.h"
 #include "mech3/game_editor.h"
 #include "mech3/mainmenu.h"
@@ -46,11 +50,14 @@
 #include "pm/pm_game.h"
 #include "upgrades/editor/mods_edit.h"
 #include "upgrades/mods/mod_test.h"
+#include "upgrades/mods/mod_report.h"
 #include "upgrades/mods/save_mods.h"
+#include "upgrades/mods/starter_mods.h"
 
 namespace mech3 {  // mech_names.h (its Engine clashes with the app's)
 int32_t mech_count();
 const char* mech_title(int32_t mech);
+int32_t mech_index(const char* name);
 }  // namespace mech3
 
 namespace {
@@ -628,4 +635,67 @@ TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
     mech3::mods_menu_install().clear();
     zgame::set_game(zgame::mw3_table());
   });
+}
+
+// The starter mods on PM (docs/modding.md, Starter mods): each made from PM's install (for=mw3pm, its own message
+// numbers), --check-mod and the report clean, then loaded: Thor B's loadouts with 1.5 times the Thor's accel_rate,
+// ERPPC_B 1.25 times ERPPC's damage, the menu's messages in German, the one-mission campaign of PM's c1 1.
+TEST(pm_starter_mods_made_checked_and_loaded) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const zwep::InitHooks hooks = zwep::init_hooks();
+  zwep::init_hooks() = zwep::InitHooks{};
+  const std::string install = MW3PM_GAME_DIR, wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_starters", mods = wd + "/mods";
+  std::error_code ec;
+  fs::remove_all(wd, ec);
+  for (const std::string& k : mech3::starter_kinds()) {
+    const mech3::StarterMade m = mech3::starter_make(k, install, mods);
+    int errors = -1, refused = -1;
+    std::string notes;
+    for (const std::string& l : mech3::mod_check(m.path, install, &errors))
+      if (l.rfind("warning", 0) == 0 || l.rfind("error", 0) == 0) notes += l + "\n";
+    for (const std::string& l : mech3::mod_report(m.path, install, "", &refused))
+      if (l.rfind("Note", 0) == 0 || l.find("replaces") != std::string::npos) notes += l + "\n";
+    std::printf("  %s: %s%s", k.c_str(), m.ok ? "" : (m.message + " ").c_str(), notes.empty() ? "clean\n" : notes.c_str());
+    EXPECT(m.ok && errors == 0 && refused == 0 && notes.empty());
+  }
+  std::ifstream head(mods + "/starter_mech/mod.txt");
+  const std::string mod_txt((std::istreambuf_iterator<char>(head)), std::istreambuf_iterator<char>());
+  EXPECT(mod_txt.find("for=mw3pm\n") != std::string::npos);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd.c_str());
+  mech3::mods_mount(wd, {"starter_mech", "starter_weapon", "starter_translation", "starter_mission"}, {install});
+  zutl::mount(install);
+  zrdr::init();
+  EXPECT(zrdr::open_archive("zbd\\reader.zbd", true));
+  const int32_t thor_b = mech3::mech_index("thor_b"), thor = mech3::mech_index("thor");
+  const auto accel = [](int32_t mech) {
+    mech3::MechDfn* d = mech3::mech_dfn(mech);
+    return d && mech3::read_dfn(*d) && d->configs && !d->configs->configs.empty() ? d->configs->configs[0]->accel_rate : -1.0f;
+  };
+  const float a_b = accel(thor_b), a = accel(thor);
+  zwep::init(nullptr, "weapons.zrd", 0, nullptr);
+  const zwep::WeaponDef* b = zwep::find_def("ERPPC_B");
+  const zwep::WeaponDef* e = zwep::find_def("ERPPC");
+  const float dmg_b = b ? b->damage : -1, dmg = e ? e->damage : -1;
+  zwep::shutdown(nullptr);
+  zutl::MessageDll dll;
+  EXPECT(zutl::read_message_dll(install + "/Mech3Msg.dll", dll));
+  std::map<int32_t, std::string> text = dll.text;
+  mech3::mods_apply_strings(text, dll.ids);
+  const std::string campaign = text[dll.ids["MSG_CAMPAIGN_BTN"]];
+  const mech3::ModCampaign* one = nullptr;
+  for (const mech3::ModCampaign& c : mech3::mod_campaigns())
+    if (c.mod == "starter_mission") one = &c;
+  std::printf("  Thor B %d accel %.3f (the Thor's %.3f); ER PPC B damage %.3f (ERPPC %.3f); \"%s\"; campaign %s\n", thor_b,
+              a_b, a, dmg_b, dmg, campaign.c_str(), one ? one->name.c_str() : "none");
+  EXPECT(thor_b > thor && thor >= 0 && std::fabs(a_b - a * 1.5f) < 1e-4f);
+  EXPECT(b && e && std::fabs(dmg_b - dmg * 1.25f) < 1e-4f);
+  EXPECT(campaign == "K A M P A G N E");
+  EXPECT(one && one->error.empty() && one->missions.size() == 1 && one->missions[0].world == "c1");
+  zrdr::close_archives(true);
+  mech3::free_dfns();
+  zwep::init_hooks() = hooks;
+  zgame::set_game(zgame::mw3_table());
 }
