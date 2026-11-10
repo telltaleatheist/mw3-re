@@ -79,6 +79,7 @@
 #include "frontend/sdl/sdl_install.h"
 #include "upgrades/editor/help.h"
 #include "upgrades/mods/anim_defs.h"
+#include "upgrades/mods/mod_report.h"
 #include "upgrades/reference/reference.h"
 #include "mech3/game_editor.h"
 #include "mech3/options_menu.h"
@@ -169,6 +170,7 @@ struct Args {
   std::vector<std::string> mods, cfg_mods;
   bool mods_given = false, no_mods = false, list_mods = false;
   std::string check_mod;  // --check-mod DIR
+  std::string mod_report;  // --mod-report DIR (ours, upgrades/mods/mod_report.h): the check as sentences
   std::string build_anim;  // --build-anim DIR: its def files merged for the original game (upgrades/mods/anim_defs)
   std::string reference;  // --reference FILE: the modding reference written (upgrades/reference)
   std::string editor_guide;  // --editor-guide FILE: the editor's guide written (upgrades/editor/help)
@@ -256,7 +258,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--build-anim DIR] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -277,6 +279,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-mods") a.no_mods = true;
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
+    else if (s == "--mod-report" && next(1)) a.mod_report = argv[++i];
     else if (s == "--build-anim" && next(1)) a.build_anim = argv[++i];
     else if (s == "--reference" && next(1)) a.reference = argv[++i];
     else if (s == "--editor-guide" && next(1)) a.editor_guide = argv[++i];
@@ -647,6 +650,14 @@ int main(int argc, char** argv) {
     f << mech3::editor_guide_markdown();
     std::printf("mw3: the editor's guide written to %s\n", a.editor_guide.c_str());
     return f ? 0 : 1;
+  }
+  // --mod-report DIR: --check-mod's findings as sentences, a line each, against
+  // --install (none: the files only counted); the same: no SDL, no write dir,
+  // no log (the launcher's MODS reads Pirate's Moon's mods' reports so).
+  if (!a.mod_report.empty()) {
+    int refused = 0;
+    for (const std::string& line : mech3::mod_report(a.mod_report, a.install, "", &refused)) std::printf("%s\n", line.c_str());
+    return refused ? 1 : 0;
   }
   if (!a.shot.empty()) a.hidden = true;
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK)) {

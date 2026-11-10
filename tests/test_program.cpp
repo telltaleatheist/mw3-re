@@ -120,6 +120,7 @@
 #include "mech3/mp_connect.h"
 #include "mech3/mp_lobby.h"
 #include "mech3/mods.h"
+#include "upgrades/mods/mod_report.h"
 #include "mech3/mods_menu.h"
 #include "mech3/mod_campaign.h"
 #include "gamez/zutil/zutl_zar.h"
@@ -1647,6 +1648,107 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
   mech3::mod_campaigns().clear();
   mech3::mods_menu_write_dir().clear();
   mech3::mods_menu_mounted().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// Ours (modding.md, Plain errors on the MODS screen): REPORT on the chosen
+// campaign's mod shows its check and this start's mount as sentences in the
+// campaigns' box, wrapped to it; ENTER does nothing there; REPORT goes back
+// to the tables, and BACK from the report back to them too, not out.
+TEST(mods_screen_report_shows_a_mods_sentences_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_report_write");
+  zutl::set_write_dir(wd);
+  std::filesystem::create_directories(wd + "/mods/lost/zbd");
+  std::ofstream(wd + "/mods/lost/mod.txt") << "name=Lost\ncampaign=lost.txt\nmech=bad\n";
+  std::ofstream(wd + "/mods/lost/lost.txt") << "name=Lost Frontier\nmission=c1 1\n";
+  std::ofstream(wd + "/mods/lost/zbd/notes.bin") << "x";
+  mech3::ModCampaign mc;
+  EXPECT(mech3::campaign_load(wd + "/mods/lost", "lost", "lost.txt", &mc));
+  mech3::mod_campaigns() = {mc};
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_install() = MW3_GAME_DIR;
+  mech3::mods_menu_mounted() = {"lost"};
+  mech3::mods_left_out()["lost"] = {"mech bad: tech= must be clan, sphere or any"};
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0;
+    std::vector<std::string> lines;
+    std::string detail;
+    int campaigns_after = -1;
+    bool still_mods = false;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();
+        stage = 1;
+        return;
+      }
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+      if (stage == 1 && scr) {
+        scr->campaign_list.FileList::select(0);
+        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
+        scr->on_button(mech3::ModsScreen::kReport, 0, 0);
+        for (const auto* i : scr->campaign_list.items) lines.push_back(i->text);
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // nothing while reporting
+        still_mods = app.current() == now && scr->reporting;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);    // back to the tables
+        campaigns_after = scr->reporting ? -1 : scr->campaign_list.item_count();
+        still_mods = still_mods && app.current() == now;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);    // out
+        stage = 2;
+      } else if (stage == 2 && now == &st.main && app.depth() == 0) {
+        stage = 3;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    std::string all;
+    size_t widest = 0;
+    for (const std::string& l : lines) all += (all.empty() ? "" : " ") + l, widest = std::max(widest, l.size());
+    std::printf("  stage %d, %zu lines (widest %zu), campaigns after %d:\n", stage, lines.size(), widest, campaigns_after);
+    for (const std::string& l : lines) std::printf("    %s\n", l.c_str());
+    EXPECT(stage == 3 && still_mods && campaigns_after == 1);
+    EXPECT(!lines.empty() && widest <= 34);
+    EXPECT(all.find("It adds 2 new files.") != std::string::npos);  // notes.bin and the campaign's lost.txt
+    EXPECT(all.find("It adds the campaign \"Lost Frontier\".") != std::string::npos);
+    EXPECT(all.find("The mech bad is refused: tech= must be clan, sphere or any.") != std::string::npos);
+    EXPECT(all.find("At this start the game left out the mech bad:") != std::string::npos);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mod_campaigns().clear();
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_install().clear();
+  mech3::mods_menu_mounted().clear();
+  mech3::mods_left_out().clear();
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();

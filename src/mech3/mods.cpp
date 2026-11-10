@@ -18,6 +18,7 @@
 #include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "upgrades/mods/anim_defs.h"
+#include "upgrades/mods/mod_report.h"
 #include "upgrades/json/gamez_json.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
@@ -178,6 +179,9 @@ std::vector<ModIaWorld>& mod_ia_worlds() {
 std::vector<std::string> mods_mount(const std::string& write_dir, const std::vector<std::string>& enabled,
                                     const std::vector<std::string>& later) {
   std::vector<std::string> log;
+  // Ours (mod_report.h): what each mod has left out, for the MODS screens' sentences.
+  mods_left_out().clear();
+  const auto left = [](const std::string& mod, const std::string& what_why) { mods_left_out()[mod].push_back(what_why); };
   std::vector<std::pair<std::string, ModIaWorld>> ia;  // the mod's name, the entry
   const std::vector<ModInfo> found = mods_found(write_dir);
   // A remount starts from the exe's tables (the mods' rows and their cached definitions gone).
@@ -193,10 +197,12 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     const auto it = std::find_if(found.begin(), found.end(), [&](const ModInfo& m) { return m.folder == want; });
     if (it == found.end()) {
       log.push_back("mod " + want + ": not in " + (fs::path(write_dir) / "mods").generic_string() + ", left out");
+      left(want, "the mod: it is not in " + (fs::path(write_dir) / "mods").generic_string());
       continue;
     }
     if (!it->error.empty()) {
       log.push_back("mod " + want + ": " + it->error + ", left out");
+      left(want, "the mod: " + it->error);
       continue;
     }
     zutl::mount_mod(it->path);
@@ -206,8 +212,10 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       std::error_code wec;
       if (mission_dir_index(w.c_str()) >= 0) {
         log.push_back("  world " + w + ": there is a world " + w + " already, left out");
+        left(want, "world " + w + ": there is a world " + w + " already");
       } else if (w.find_first_of("/\\. ") != std::string::npos || !mod_world_file(it->path, w)) {
         log.push_back("  world " + w + ": no zbd/" + w + "/gamez.zbd in the mod, left out");
+        left(want, "world " + w + ": there is no zbd/" + w + "/gamez.zbd in the mod");
       } else {
         mod_worlds().push_back(w);
         log.push_back("  world " + w + " added (world " + std::to_string(mission_dir_count() - 1) + ")");
@@ -217,8 +225,10 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     for (const std::string& file : it->campaigns) {
       ModCampaign c;
       const bool ok = campaign_load(it->path, want, file, &c);  // a folder's pilots: one id per mod, whatever its case
-      if (!ok) log.push_back("  campaign " + file + ": " + c.error + ", left out");
-      else if (std::any_of(campaigns.begin(), campaigns.end(), [&](const ModCampaign& o) { return o.mod == want && lower(o.id) == lower(c.id); })) log.push_back("  campaign " + file + ": the mod has a campaign " + c.id + " already, left out");
+      if (!ok) log.push_back("  campaign " + file + ": " + c.error + ", left out"), left(want, "campaign " + file + ": " + c.error);
+      else if (std::any_of(campaigns.begin(), campaigns.end(), [&](const ModCampaign& o) { return o.mod == want && lower(o.id) == lower(c.id); }))
+        log.push_back("  campaign " + file + ": the mod has a campaign " + c.id + " already, left out"),
+            left(want, "campaign " + file + ": the mod has a campaign " + c.id + " already");
       else campaigns.push_back(c);
     }
     // Its new mechs, after the exe's and any earlier mod's; each one's
@@ -237,7 +247,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       if (ok && mech_index(row.name.c_str()) >= 0) ok = false, why = "there is a mech " + row.name + " already";  // said before its files
       if (ok && !(why = mech_row_missing(row, roots)).empty()) ok = false;
       if (!ok || !mech_row_add(row, &why))
-        log.push_back("  mech " + line + ": " + why + ", left out");
+        log.push_back("  mech " + line + ": " + why + ", left out"), left(want, "mech " + (row.name.empty() ? line : row.name) + ": " + why);
       else
         log.push_back("  mech " + row.name + " added (mech " + std::to_string(mech_count() - 1) + ", " + std::to_string(row.mass) +
                       " t, the models of " + row.model + ")");
@@ -246,7 +256,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       ModWeapon row;
       std::string why;
       if (!weapon_row_parse(line, &row, &why) || !weapon_row_add(row, &why))
-        log.push_back("  weapon " + line + ": " + why + ", left out");
+        log.push_back("  weapon " + line + ": " + why + ", left out"), left(want, "weapon " + (row.name.empty() ? line : row.name) + ": " + why);
       else
         log.push_back("  weapon " + row.name + " added (weapon " + std::to_string(weapon_count() - 1) + ")");
     }
@@ -276,6 +286,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
   for (const auto& [mod, w] : ia) {
     if (mission_dir_index(w.folder.c_str()) < 0) {
       log.push_back("mod " + mod + ": Instant Action world " + w.folder + " is no world, left out");
+      left(mod, "ia_world " + w.folder + ": there is no such world");
       continue;
     }
     mod_ia_worlds().push_back(w);
@@ -299,6 +310,8 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     if (const CampaignMission* m = campaign_missing_world(c, known)) {
       log.push_back("mod " + c.mod + ": campaign " + c.file + ": line " + std::to_string(m->line) + ": no world " + m->world +
                     " in an enabled mod or the game, the campaign left out");
+      left(c.mod, "campaign " + c.file + ": line " + std::to_string(m->line) + " needs the world " + m->world +
+                      ", which no enabled mod or the game has");
       continue;
     }
     mod_campaigns().push_back(c);
@@ -500,7 +513,7 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
   if (check)
     for (ModsListEntry& e : out) {
       int errors = 0;
-      mod_check(e.info.path, install, &errors);
+      e.report = mod_report(e.info.path, install, e.info.folder, &errors);
       e.check_errors = errors;
     }
   return out;
@@ -672,10 +685,14 @@ void check_interp(const std::string& host, const std::string& rel, int* entries,
 }
 }  // namespace
 
-std::vector<std::string> mod_check(const std::string& dir, const std::string& install, int* errors) {
+std::vector<std::string> mod_check(const std::string& dir, const std::string& install, int* errors, ModFindings* facts) {
   std::vector<std::string> out;
   *errors = 0;
-  auto error = [&](const std::string& what) { out.push_back("error: " + what), ++*errors; };
+  ModFindings ignored_facts;
+  ModFindings& fx = facts ? *facts : ignored_facts;
+  fx = ModFindings{};
+  fx.against_install = !install.empty();
+  auto error = [&](const std::string& what) { out.push_back("error: " + what), ++*errors, fx.refused.push_back(what); };
   std::error_code ec;
   if (!fs::is_directory(dir, ec)) {
     error(dir + " is no folder");
@@ -687,6 +704,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     // Files laid over the game's folder with no mod.txt play as an install,
     // so the folder is checked all the same (Freako's PM mods ship so).
     out.push_back("no mod.txt: checked as an install overlay");
+    fx.overlay = true;
   } else {
     std::stringstream ss;
     ss << f.rdbuf();
@@ -699,12 +717,12 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       error("world " + w + ": no zbd/" + w + "/gamez.zbd");
     else if (!fs::is_regular_file(fs::path(dir) / (w + ".gs"), ec))
       error("world " + w + ": no " + w + ".gs (its build script) at the mod's root");
-    else out.push_back("world " + w + ": ok");
+    else out.push_back("world " + w + ": ok"), fx.worlds.push_back(w);
   }
   for (const auto& [folder, name] : m.ia_worlds) {
     const bool own = std::find(m.worlds.begin(), m.worlds.end(), folder) != m.worlds.end();
     if (!own && mission_dir_index(folder.c_str()) < 0) error("ia_world " + folder + ": no such world");
-    else out.push_back("ia_world " + folder + " \"" + (name.empty() ? folder : name) + "\": ok");
+    else out.push_back("ia_world " + folder + " \"" + (name.empty() ? folder : name) + "\": ok"), fx.ia_worlds.push_back(name.empty() ? folder : name);
   }
   std::vector<std::string> ids;
   for (const std::string& file : m.campaigns) {
@@ -719,6 +737,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     }
     ids.push_back(lower(c.id));
     out.push_back("campaign " + file + " \"" + c.name + "\": " + std::to_string(c.missions.size()) + " missions");
+    fx.campaigns.push_back(c.name);
     // Each world the mod's own or the game's; another mod's is known only when mounted.
     for (const CampaignMission& cm : c.missions) {
       const bool own = std::find(m.worlds.begin(), m.worlds.end(), cm.world) != m.worlds.end() &&
@@ -738,7 +757,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     else if (const std::string miss = install.empty() ? "" : mech_row_missing(r, {dir, install}); !miss.empty())
       error("mech " + r.name + ": " + miss + " (the mod's, else the install's)");
     else
-      out.push_back("mech " + r.name + ": ok, " + std::to_string(r.mass) + " t, the models of " + r.model +
+      fx.mechs.push_back(r.name), out.push_back("mech " + r.name + ": ok, " + std::to_string(r.mass) + " t, the models of " + r.model +
                     (fs::is_regular_file(fs::path(dir) / "zbd" / ("dfn_" + r.name + ".zrd"), ec) ? ", its zbd/dfn_" + r.name + ".zrd"
                                                                                                   : ", its dfn_" + r.name + ".zrd from a reader archive"));
   }
@@ -748,7 +767,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     if (!weapon_row_parse(line, &r, &why)) error("weapon " + line + ": " + why);
     else if (weapon_index(r.name.c_str()) >= 0 || crt::msvc_stricmp(r.name.c_str(), "PPC") == 0)
       error("weapon " + r.name + ": there is a weapon " + r.name + " already");
-    else out.push_back("weapon " + r.name + ": ok, its definition from the mod's weapons.zrd");
+    else out.push_back("weapon " + r.name + ": ok, its definition from the mod's weapons.zrd"), fx.weapons.push_back(r.name);
   }
   // Every file.
   std::vector<std::string> files;
@@ -761,10 +780,12 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     if (mod_own_file(low)) continue;
     if (!zutl::mod_may_serve(rel)) {
       out.push_back(rel + ": the player's own kind of file, which a mod cannot replace (ignored)");
+      ++fx.ignored;
       continue;
     }
     const bool over = !install.empty() && fs::is_regular_file(zutl::any_case(install, rel), ec);
     out.push_back(rel + (install.empty() ? "" : over ? ": replaces the game's" : ": added"));
+    ++fx.files, ++(over ? fx.replaces : fx.adds);
     const std::string host = (fs::path(dir) / rel).generic_string();
     const std::string name = low.substr(low.rfind('/') == std::string::npos ? 0 : low.rfind('/') + 1);
     // Not zar archives (M3): the texture and image libraries, the scripts.
@@ -1059,6 +1080,8 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     for (const std::string& l : mods_apply_strings(text, {})) out.push_back(l.rfind("  ", 0) == 0 ? "warning:" + l.substr(1) : l);
     zutl::mounts() = saved;
   }
+  for (const std::string& l : out)
+    if (l.rfind("warning: ", 0) == 0) fx.warnings.push_back(l.substr(9));
   out.push_back(std::to_string(files.size()) + " files, " + std::to_string(archives) + " archives, " + std::to_string(entries) +
                 " reader entries checked; " + std::to_string(*errors) + " errors");
   return out;
