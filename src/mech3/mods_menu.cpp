@@ -268,6 +268,23 @@ void say(ztwod::Text& t, const std::string& s) {
 }
 }  // namespace
 
+int32_t ModsSlideButton::hit(int32_t px, int32_t py) {
+  if (!get_rect()) return 0;  // off, or being read, as SlideButton's
+  const zimg::Texture* img = stashed ? stashed : image;  // baked: the image it had
+  if (img && px >= x && px < x + img->width && py >= y && py < y + img->height) {
+    // circlebtn_small is 82x82, the ring and knob in its middle and a faint halo
+    // (alpha under 64) filling the rest: the ring and knob are the button.
+    if (!img->alpha) return 1;
+    if (img->alpha[(py - y) * img->width + (px - x)] >= 64) return 1;
+  }
+  for (ztwod::Text* t : labels) {  // its label's own box, as Control::hit
+    if (t->needs_render) t->render();
+    const int32_t left = t->align == 1 ? t->get_x() - t->width / 2 : t->align == 2 ? t->get_x() - t->width : t->get_x();
+    if (px >= left && px <= left + t->width && py >= t->get_y() && py <= t->get_y() + t->text_height()) return 1;
+  }
+  return 0;
+}
+
 ModsScreen::ModsScreen(Engine& e, Handle s)
     : MenuScreen(e, s),
       enter(e, kEnter),
