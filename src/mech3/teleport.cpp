@@ -182,6 +182,8 @@ void teleport_dialog_begin(TeleportDialog& d, std::vector<TeleportSpot>* spots, 
 
 // Mech3.exe 1.2 @ 0x0040dfe0 (from DoModal's IDOK: CDialog::OnOK's
 // UpdateData(TRUE) first, which keeps the dialog up when a field fails).
+// The exe takes any non-zero result, IDCANCEL too (0x0040e05f); ours calls
+// this on OK only (upgrades/editor/teleport.cpp, FIX (bug)).
 bool teleport_dialog_ok(TeleportDialog& d, float pos[3], float* yaw, int32_t* changed) {
   if (!d.update(true)) return false;
   pos[0] = d.x, pos[1] = d.y, pos[2] = d.z;

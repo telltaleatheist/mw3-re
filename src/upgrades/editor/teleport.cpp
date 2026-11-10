@@ -92,6 +92,8 @@ std::string location_world() {
   return {};
 }
 
+// FIX (bug): Cancel only closes. The exe moved and saved on Cancel too
+// (DoModal tested non-zero); Pirate's Moon's twin tests IDOK.
 void close() {
   form_hide(&g.confirm);
   form_hide(&g.form);
