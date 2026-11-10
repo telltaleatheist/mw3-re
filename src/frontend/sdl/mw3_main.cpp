@@ -66,6 +66,7 @@
 #include <vector>
 
 #include "frontend/sdl/campaign_chain.h"
+#include "frontend/sdl/editor_imgui.h"
 #include "frontend/sdl/modes_chain.h"
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/first_run_import.h"
@@ -76,6 +77,7 @@
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
 #include "upgrades/reference/reference.h"
+#include "mech3/game_editor.h"
 #include "mech3/options_menu.h"
 #include "mech3/game_setup.h"
 #include "frontend/sdl/sdl_force.h"
@@ -1642,7 +1644,19 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         auto_clicks = {{40, 70, 60}, {80, 150, 135}, {100, 470, 320, 2}};  // CAMPAIGN, the pilot, ACCEPT
       }
 
+      // Ours: the game editor's dialogs in Dear ImGui, over the game while the
+      // editor is up only (docs/editor.md); the overlay is let go with it.
+      sdlfe::EditorUi editor_ui(window.sdl(), window.device(), [] { return mech3::editor_state().active != 0; });
+      struct OverlayOff {
+        sdlfe::SdlRender3D* r;
+        ~OverlayOff() {
+          if (r) r->overlay = nullptr;
+        }
+      } overlay_off{window.render()};
+      if (window.render())
+        window.render()->overlay = [&](SDL_GPUCommandBuffer* c, SDL_GPUTexture* t, Uint32 w, Uint32 h) { editor_ui.overlay(c, t, w, h); };
       sdlfe::SdlPump pump(&input, &app);
+      pump.overlay_event = [&](const SDL_Event& e) { return editor_ui.event(e); };
       if (clock.frame_ms || g_net_pass)
         pump.each_pass = [&] {
           if (clock.frame_ms) clock.frame();
@@ -1671,6 +1685,20 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
           ev.window.windowID = SDL_GetWindowID(window.sdl());
           SDL_PushEvent(&ev);
           std::printf("mw3: focus lost (MW3_FOCUS_LOST_AT)\n");
+        };
+      }
+      // MW3_EDITOR_AT=N (checks, with --debug-camera): the game editor brought up
+      // at the pump's Nth pass in a mission, as Shift+F12 does.
+      int editor_at = 0, editor_passes = 0;
+      if (const char* f = SDL_getenv("MW3_EDITOR_AT")) editor_at = a.debug_camera ? std::atoi(f) : 0;
+      if (editor_at > 0) {
+        auto before = pump.each_pass;
+        pump.each_pass = [&, before] {
+          if (before) before();
+          if (editor_passes < 0 || ++editor_passes < editor_at || !mech3::mission_player_mech()) return;
+          editor_passes = -1;
+          if (!mech3::editor_state().active) mech3::editor_enter();
+          std::printf("mw3: editor up (MW3_EDITOR_AT)\n");
         };
       }
       // A quit outside the Exit state returns through ExitInstance, as the exe's WM_QUIT does,

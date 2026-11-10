@@ -621,8 +621,23 @@ if(SDL3_FOUND)
     src/frontend/sdl/net_enet.cpp
     src/frontend/sdl/net_upnp.cpp
     src/frontend/sdl/sdl_child.cpp
+    src/frontend/sdl/editor_imgui.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3 enet miniupnpc)
+  # Dear ImGui (third_party/imgui, VERSION.txt): the game editor's dialogs only
+  # (docs/editor.md); in the programs through mw3sdl, never in mw3core or the probes.
+  add_library(mw3imgui STATIC
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/backends/imgui_impl_sdl3.cpp
+    third_party/imgui/backends/imgui_impl_sdlgpu3.cpp
+  )
+  target_include_directories(mw3imgui PUBLIC third_party/imgui)
+  target_link_libraries(mw3imgui PUBLIC SDL3::SDL3)
+  target_compile_options(mw3imgui PRIVATE "$<IF:$<CXX_COMPILER_ID:MSVC>,/w,-w>")
+  target_link_libraries(mw3sdl PUBLIC mw3imgui)
   # Windows: the Direct3D 12 shaders (sdl_render3d.hlsl), DXIL by the
   # Windows SDK's dxc, as headers the renderer includes.
   if(WIN32)

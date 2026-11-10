@@ -541,6 +541,7 @@ void SdlRender3D::present() {
     }
     bi.filter = SDL_GPU_FILTER_LINEAR;
     SDL_BlitGPUTexture(cmd, &bi);
+    if (overlay) overlay(cmd, sc, w, h);
     SDL_SubmitGPUCommandBuffer(cmd);
     mark_ready();  // a frame on the screen: the launcher may hide (sdl_child.h)
     return;

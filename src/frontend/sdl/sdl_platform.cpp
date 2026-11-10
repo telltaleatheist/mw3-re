@@ -292,7 +292,8 @@ void SdlPump::handle(const SDL_Event& e) {
     if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat && toggle_fullscreen) toggle_fullscreen();
     return;
   }
-  if (input_) input_->on_event(e);
+  const bool overlay_took = overlay_event && overlay_event(e);
+  if (input_ && !overlay_took) input_->on_event(e);
   switch (e.type) {
     case SDL_EVENT_QUIT:
       quit_ = true;

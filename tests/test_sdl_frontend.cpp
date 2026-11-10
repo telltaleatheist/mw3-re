@@ -26,6 +26,8 @@
 #include "check.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
+#include "frontend/sdl/editor_imgui.h"
+#include "imgui.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/font_search.h"
@@ -5262,3 +5264,92 @@ TEST(sdl_first_start_takes_the_desktop) {
   EXPECT(fw > 0 && fh > 0 && fw * 3 != fh * 4);  // the desktop's shape, not the 4:3 of a check
 }
 #endif
+
+// Ours (docs/editor.md, Dear ImGui for the editor's dialogs): while the game
+// editor is up, its ImGui sees each event first. A mouse event goes on to
+// zInput only when ImGui does not want the mouse, a key only when it wants
+// neither the keyboard nor text. With the editor down, ImGui is never made and
+// every event is the game's.
+TEST(sdl_editor_imgui_routes_input) {
+  SDL_Event m{};
+  m.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+  SDL_Event k{};
+  k.type = SDL_EVENT_KEY_DOWN;
+  SDL_Event q{};
+  q.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+  EXPECT(sdlfe::editor_event_to_game(m, false, true, true) && !sdlfe::editor_event_to_game(m, true, false, false));
+  EXPECT(sdlfe::editor_event_to_game(k, true, false, false) && !sdlfe::editor_event_to_game(k, false, true, false) &&
+         !sdlfe::editor_event_to_game(k, false, false, true));
+  EXPECT(sdlfe::editor_event_to_game(q, true, true, true));
+
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 editor ui test", 640, 480);
+  bool up = false;
+  sdlfe::EditorUi ui(w.sdl(), w.device(), [&] { return up; });
+  bool field = false;
+  ui.draw = [&] {
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(200, 100));
+    ImGui::Begin("test");
+    static char text[32];
+    if (field) {
+      ImGui::SetKeyboardFocusHere();
+      ImGui::InputText("name", text, sizeof text);
+    }
+    ImGui::End();
+  };
+  sdlfe::SdlInput in;
+  in.set_cooperative_level(platform::Input::kKeyboard, 10);
+  EXPECT(in.open(platform::Input::kKeyboard) && in.acquire(platform::Input::kKeyboard) == 0);
+  sdlfe::SdlPump pump(&in, nullptr);
+  pump.overlay_event = [&](const SDL_Event& e) { return ui.event(e); };
+  const Uint32 id = SDL_GetWindowID(w.sdl());
+  const auto move = [&](float x, float y) {
+    SDL_Event e{};
+    e.type = SDL_EVENT_MOUSE_MOTION, e.motion.windowID = id, e.motion.x = x, e.motion.y = y;
+    return ui.event(e);
+  };
+  const auto press = [&](SDL_Scancode sc) {
+    SDL_Event e{};
+    e.key.windowID = id, e.key.scancode = sc, e.key.key = SDL_GetKeyFromScancode(sc, SDL_KMOD_NONE, false);
+    e.type = SDL_EVENT_KEY_DOWN, e.key.down = true;
+    pump.handle(e);
+    e.type = SDL_EVENT_KEY_UP, e.key.down = false;
+    pump.handle(e);
+    platform::KeyEvent got[8];
+    uint32_t n = 8;
+    in.keyboard_data(got, &n);
+    return n;
+  };
+  const auto frames = [&](int n) {
+    for (int i = 0; i < n; ++i) ui.step();
+  };
+  // Down: nothing of ImGui, the key is the game's.
+  EXPECT(!move(50, 50) && press(SDL_SCANCODE_W) == 2 && !ui.started());
+  up = true;
+  move(50, 50);
+  frames(2);
+  SDL_Event b{};
+  b.type = SDL_EVENT_MOUSE_BUTTON_DOWN, b.button.windowID = id, b.button.button = SDL_BUTTON_LEFT, b.button.down = true;
+  b.button.x = 50, b.button.y = 50;
+  const bool over = ui.event(b);  // over the window: ImGui's
+  b.type = SDL_EVENT_MOUSE_BUTTON_UP, b.button.down = false;
+  ui.event(b);
+  frames(2);
+  move(500, 400);
+  frames(2);
+  b.type = SDL_EVENT_MOUSE_BUTTON_DOWN, b.button.down = true, b.button.x = 500, b.button.y = 400;
+  const bool away = ui.event(b);  // off every window: the game's (the reticle's pick)
+  b.type = SDL_EVENT_MOUSE_BUTTON_UP, b.button.down = false;
+  ui.event(b);
+  frames(2);
+  const uint32_t keys_no_field = press(SDL_SCANCODE_W);
+  field = true;
+  frames(3);
+  const uint32_t keys_field = press(SDL_SCANCODE_W);  // typed into the field, not flying the stealth
+  std::printf("editor ui: click over %d, away %d; keys to the game %u without a field, %u with one\n", over, away,
+              keys_no_field, keys_field);
+  EXPECT(ui.started() && over && !away && keys_no_field == 2 && keys_field == 0);
+}
