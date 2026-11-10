@@ -1599,6 +1599,75 @@ The exe keeps Apply only in aiv.zrd's record cache and in the running brain
     vehicle editor's Save under MODS EDIT goes into the mod itself, the net's
     save kept as the .bak.
 
+## Teleport (2026-11-10)
+
+**The original's.** The developers' teleport, command 0x95. It is a case of
+app_key's switch 0x0040dba0 (0x0040dd17 calls 0x004a37a0), but 0x0040db60
+registers no callback for it, so no key reaches it in the release.
+- 0x004a37a0 lists the places (0x50-byte records):
+  - "Current Location", the player's place (0x005a85e0), not saved;
+  - the mission's nav points ([0x00609980], the nav waynet: vt+0x24 the
+    label, vt+0x18 the place), yaw 0, saved;
+  - location.zrd's `name ((x y z) yaw)` pairs (zrdr::load). Every world's
+    reader.zbd ships one (discoveries.md lists the spots). Without one it
+    stops with an error box.
+- It then runs dialog 132 (0x0040dfe0: the fields at the player's place,
+  the yaw passed as 0, shown in degrees).
+- On OK the player's vehicle is put there (vt+0xdc, yaw in radians).
+- With the dialog's changed flag, location.zrd is renamed and rewritten as
+  text: `(`, two `;;` lines ("Last updated Sep 20 1999 at 16:29:38", the
+  build's __DATE__ and __TIME__ whenever it is saved), then
+  `"name" ( ( %8.1f %8.1f %8.1f ) %8.1f )  ;; position/yaw` for every saved
+  place, then `)`. The decompiler drops the name and time arguments; the
+  asm passes them.
+
+**Dialog 132** (0x00404630; the template: x, y, z, yaw edits 1009..1012,
+"Deg.", OK, Cancel, Delete (3), the list 1073 CBS_DROPDOWN | CBS_SORT):
+- 0x00404720 exchanges x, y, z and yaw (DDV ±360).
+- 0x004047b0 lists the places, each one's data its record, and selects
+  "Current Location".
+- 0x004049b0 (CBN_SELCHANGE) fills the fields from the pick.
+- 0x00404860 (CBN_KILLFOCUS) adds a typed name the list lacks (any case) as
+  a place at the fields. An empty one gets message 0x1de.
+- 0x00404a20 (Delete) asks with message 0x1df and the list's text; on Yes
+  it marks the pick unsaved and deletes it from the list.
+- 0x00404ab0 (CBN_EDITCHANGE, the edits' EN_CHANGE) sets the changed flag.
+  Windows sends EN_CHANGE for the dialog's own SetWindowText too, so
+  OnInitDialog's UpdateData(FALSE) sets it: in effect every OK saved.
+- 0x00404aa0: OnDestroy, the cursor hidden again.
+
+**Ported** (`mech3/teleport`: teleport_spots, location_zrd_text,
+TeleportDialog, the hooks) **and ours** (`upgrades/editor/teleport`):
+- A TELEPORT row in the editor's main menu (its last blank row), so it is
+  reached as the editor is (MODS only).
+- The dialog is a form: the place list with its typed name, the four
+  fields, OK, Cancel, Delete; Delete's question is a Yes/No form.
+- OK writes into the mission's mod as a loose `zbd\<world>\location.zrd`
+  (the folder of the archive location.zrd came from), read ahead of the
+  archive's entry. Its earlier copy is kept as location.zrd.bak.
+
+Fixes, each FIX (bug) in the code:
+- a nav point without a label is left out (the exe copies from null);
+- Delete with nothing picked does nothing (the exe writes through CB_ERR,
+  at 0x4b);
+- the .bak goes beside the file (the exe's rename named no folder, so it
+  went to the working directory);
+- a location.zrd pair of another shape is left out (unchecked in the exe);
+- without a location.zrd the list is the player's place and the nav points
+  (the exe stopped).
+
+Tests:
+- `teleport_spots_from_c1_and_the_saved_text`: c1's shipped file (four
+  places after the player and a nav point); the saved text exactly as the
+  exe's format, read back by the text reader to the same places.
+- `teleport_dialog_handlers`: the init's flag, the sorted list, a pick, a
+  typed name added in its place, an empty name, Delete asked, done and
+  refused, nothing picked, OK in radians, a yaw past 360.
+- `mission_c1m1_teleport_moves_the_player_headless`: the row's form lists
+  c1m1's nav points (Able, Baker, Start) and c1's places; Mission 2 Start
+  and OK puts the player at (-1408.7, -10.0, -845.3) and saves into the mod.
+- The help coverage (12 forms).
+
 ## The editor's help (ours, 2026-11-09)
 
 Owen asked (through the lead) for help in the game and on GitHub, from one

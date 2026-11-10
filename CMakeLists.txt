@@ -210,6 +210,7 @@ add_library(mw3core STATIC
   src/mech3/mech_shade.cpp
   src/mech3/veh_basic.cpp
   src/mech3/turret.cpp
+  src/mech3/teleport.cpp
   src/mech3/veh_basic_object.cpp
   src/mech3/mech_fieldbase.cpp
   src/mech3/mech_fieldbase_dock.cpp
@@ -233,6 +234,7 @@ add_library(mw3core STATIC
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp
   src/upgrades/editor/new_weapon.cpp
+  src/upgrades/editor/teleport.cpp
   src/upgrades/editor/aiv_save.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
@@ -607,6 +609,7 @@ add_executable(mw3tests
   tests/test_mod_campaign_pilots.cpp
   tests/test_net_save.cpp
   tests/test_new_weapon.cpp
+  tests/test_teleport.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp
   tests/test_bounded_media.cpp
