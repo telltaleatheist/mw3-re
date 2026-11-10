@@ -35,12 +35,19 @@ Pirate Missions), MechWarrior 3 one.
   on top of the campaign it came from. The official entry is never written; a
   copy can be deleted (only folders we made and marked), and its original is
   still there.
-- **IMPORT / EXPORT, REPORT, TEST:** as now. IMPORT puts an asset mod in the
-  right-hand list and a campaign mod in CAMPAIGNS. A mod made for the original
-  game that replaces its campaign's files (Freako's campaign rewrite) becomes a
-  campaign entry of its own, on top of the official one. REPORT on a copy says
-  what it changed from the campaign it was saved from. TEST plays one mission
-  of the chosen campaign with its ticks.
+- **IMPORT / EXPORT, REPORT, TEST:** IMPORT puts an asset mod in the
+  right-hand list, unticked, and a mod that brings a campaign of its own in
+  CAMPAIGNS. **A mod made for the original game that is laid over its files**
+  (new weapons, harder missions, changed scenarios, in any of the game's
+  worlds) **is an asset mod** (Owen, 2026-11-10, after a real one was tried):
+  a tick for each campaign and for Instant Action, since one such mod often
+  changes the campaign, the Pirate Missions and Instant Action at once. Only
+  a mod with a campaign of its own gets a row at the left. **IMPORT also
+  takes a modded game folder**: a mod that ships as an installer is installed
+  onto a copy of the game, and IMPORT keeps the files that differ from the
+  player's own install as the mod. REPORT on a copy says what it changed
+  from the campaign it was saved from. TEST plays one mission of the chosen
+  campaign with its ticks.
 - **Pilots and saves:** each campaign entry keeps its own, so modded progress
   never mixes with the main menu's campaign. **The player picks their own
   pilot** (Owen, 2026-11-10): an entry's pilot screen lists its own pilots and
