@@ -42,6 +42,11 @@ File mod_txt() {
                                                        "when both are on; neither is stopped."},
               {"", "game_version", "a version (`1.1.0`)", "none", "", "The least MechWarrior 3 Rebuild version it needs; an older "
                                                                        "program warns on the MODS screens and still loads it."},
+              {"", "kind", "`campaign` or `assets`", "by its contents", "",
+               "Where MODS lists it: a campaign of its own, or an asset mod ticked per campaign. Without it, a mod with "
+               "`campaign=` or `world=` lines or files of the game's own worlds (`zbd\\c1\\` to `zbd\\t1\\`) is a campaign."},
+              {"", "base", "an entry's id", "none", "written by the game",
+               "A copy's: the campaign it was saved from (`mw3`, or `<mod>~<campaign>`), mounted under it."},
           }};
 }
 

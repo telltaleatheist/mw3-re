@@ -119,6 +119,8 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     }
     else if (upgrades::reference::key_is(key, "conflicts") && !value.empty()) out->conflicts.push_back(value);
     else if (upgrades::reference::key_is(key, "game_version")) out->game_version = value;
+    else if (upgrades::reference::key_is(key, "kind")) out->kind = value;
+    else if (upgrades::reference::key_is(key, "base")) out->base = value;
     else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
