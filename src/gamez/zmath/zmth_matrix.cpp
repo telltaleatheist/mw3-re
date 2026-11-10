@@ -710,7 +710,14 @@ void rotate_points_to(const Vec3* src, Vec3* dst, uint32_t count) {
 // Mech3.exe 1.2 @ 0x005227a0
 void transform_points(Vec3* v, uint32_t count) {
   if (g_stack.is_identity()) return;
-  for (; count != 0; --count, ++v) *v = transform(*v, g_stack.matrix().m);
+  using zgeo::X;  // each word's sums on the x87, stored once
+  const float* t = g_stack.matrix().m;
+  for (; count != 0; --count, ++v) {
+    const Vec3 p = *v;
+    *v = {((((X(p.x) * t[0] + X(p.y) * t[3]) + X(p.z) * t[6]) + t[9])).f(),
+          ((((X(p.x) * t[1] + X(p.y) * t[4]) + X(p.z) * t[7]) + t[10])).f(),
+          ((((X(p.x) * t[2] + X(p.y) * t[5]) + X(p.z) * t[8]) + t[11])).f()};
+  }
 }
 
 namespace {
