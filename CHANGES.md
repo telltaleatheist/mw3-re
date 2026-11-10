@@ -708,5 +708,6 @@ Known quirks the rebuild deliberately keeps:
 - The launcher's GAME FILES works for Pirate's Moon as for MechWarrior 3: find or install it (into its own settings folder), add its music and sounds from the disc, and move its data folder. MechWarrior 3's files and settings are never touched by it.
 - A mission whose files are missing (an operation's world, or the mission scripts) no longer crashes or drops you back at the briefing without a word: the load stops and a box says what is missing and to install the game files again.
 - Before MechWarrior 3 starts, the launcher checks its files too and says, once, which missions are missing (an operation, training) or that its sounds file is empty, as it does for Pirate's Moon.
+- The launcher's MODS works on the game last clicked, so Pirate's Moon's mods (in its own settings folder) are turned on, ordered, imported and exported there too. The launcher also shows the package's version at the bottom of its main screen.
 - Each game in the launcher is labelled "official" or "modified", saying what is changed (its data, its program), and how many mods are on. It is only a label: modified games start as before.
 - Each game in the launcher shows its data's version and its program's version (read from the program's file, without starting it).

@@ -341,6 +341,17 @@ comes back with a line saying how it closed. Built 2026-10-31;
 
 ## Mods (2026-11-08, modding item 5)
 
+**On the game last clicked (2026-11-10, the combined package):** after a click
+on PIRATE'S MOON, MODS lists and writes Pirate's Moon's own settings folder
+(its `mods\` and mw3.cfg; `mods_target(o, true)`), takes `for=mw3pm` mods and
+refuses `for=mw3` ones in words (`mech3::mods_game`, "mw3" here, set to "mw3pm"
+around each operation; branch `pm`'s own default is "mw3pm"), adds and exports
+there, and checks against PM's install. CHECK stays MechWarrior 3's: this
+program's readers cannot read PM's version-2 archives, so for PM it points to
+`mw3pm --check-mod`. MW3's folder and mw3.cfg are untouched.
+`sdl_program_launcher_mods_on_pirates_moon` (breaks: MODS always MW3's, the
+for= left "mw3": each caught); `MW3_LAUNCHER_MODS=pm` opens it for checks.
+
 MODS on the main screen (beside GAME FILES and QUIT) opens the list of the
 settings folder's `mods\` (`mech3::mods_list`, docs/modding.md, The
 launcher's MODS list): six rows a page, the enabled mods first in the order

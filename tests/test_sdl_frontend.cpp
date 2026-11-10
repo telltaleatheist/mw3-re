@@ -4823,6 +4823,64 @@ TEST(sdl_program_launcher_mods_by_keys) {
   EXPECT(text == std::string("install=") + MW3_GAME_DIR + "\nwidemenus=1\nmod=beta\n");
 }
 
+// MODS on the game last clicked (lead, 2026-11-10, the combined package): on Pirate's Moon it lists PM's own settings
+// folder's mods, a for=mw3pm mod usable and a for=mw3 one refused in words, its row's press switching it in PM's
+// mw3.cfg; MechWarrior 3's folder and mw3.cfg untouched, and MW3's MODS still MW3's.
+TEST(sdl_program_launcher_mods_on_pirates_moon) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path pm_game = fs::path(MW3_GAME_DIR).parent_path() / "pm";
+  if (!fs::is_regular_file(pm_game / "Mech3.exe", ec)) return;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "launcher pm mods";
+  fs::remove_all(root, ec);
+  const auto put = [&](const fs::path& p, const std::string& t) {
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream(p) << t;
+  };
+  const std::string mw3_cfg = "install=" + std::string(MW3_GAME_DIR) + "\npm_install=" + pm_game.string() + "\nmod=one\n";
+  put(root / "wd" / "mw3.cfg", mw3_cfg);
+  put(root / "wd" / "mods" / "one" / "mod.txt", "name=One\nfor=mw3\n");
+  put(root / "pmwd" / "mw3.cfg", "mod=pmmod\nsound=0.8\n");
+  put(root / "pmwd" / "mods" / "pmmod" / "mod.txt", "name=Corsair Pack\nfor=mw3pm\n");
+  put(root / "pmwd" / "mods" / "zz" / "mod.txt", "name=MW3 Only\nfor=mw3\n");
+  const std::string pm = (root / "mw3pm").string();
+  put(pm, "#!/bin/sh\nexit 0\n");
+  fs::permissions(pm, fs::perms::owner_all, ec);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  setenv("MW3_PM_WRITE_DIR", (root / "pmwd").c_str(), 1);
+  setenv("MW3_LAUNCHER_FRAMES", "30", 1);
+  auto run = [&](const char* name, const char* mods, const char* nav) {
+    if (mods) setenv("MW3_LAUNCHER_MODS", mods, 1);
+    if (nav) setenv("MW3_LAUNCHER_NAV", nav, 1);
+    const std::string log = (root / (std::string(name) + ".log")).string();
+    const pid_t pid = spawn_launcher({"--write-dir", (root / "wd").string(), "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    unsetenv("MW3_LAUNCHER_MODS");
+    unsetenv("MW3_LAUNCHER_NAV");
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const auto text_of = [&](const fs::path& p) {
+    std::ifstream f(p);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  // PM's: its two mods, the MW3 one refused; the first row pressed: off in PM's mw3.cfg only.
+  std::string log = run("pm", "pm", "next,press");
+  std::printf("  %s", log.substr(log.find("screen mods:"), log.find('\n', log.find("screen mods:")) - log.find("screen mods:") + 1).c_str());
+  EXPECT(log.find("screen mods: > Corsair Pack, MW3 Only, IMPORT") != std::string::npos ||
+         log.find("screen mods: Corsair Pack, MW3 Only, IMPORT") != std::string::npos);
+  EXPECT(log.find("launcher: mods: pmmod off") != std::string::npos);
+  EXPECT(text_of(root / "pmwd" / "mw3.cfg").find("mod=pmmod") == std::string::npos &&
+         text_of(root / "pmwd" / "mw3.cfg").find("sound=0.8") != std::string::npos);
+  EXPECT(text_of(root / "wd" / "mw3.cfg").find("mod=one\n") != std::string::npos);
+  // MW3's MODS (MECHWARRIOR 3 last, the default): its own mod, PM's not listed.
+  log = run("mw3", nullptr, "next,next,next,next,press");  // MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS
+  EXPECT(log.find("screen mods: One, IMPORT") != std::string::npos);
+  for (const char* k : {"MW3_PM_BIN", "MW3_PM_WRITE_DIR", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);
+  fs::remove_all(root, ec);
+}
+
 // GAME FILES (Owen, 2026-11-02): the find screen at any time, by keys or a
 // pad as by the mouse (MW3_LAUNCHER_NAV); with the install in use lacking
 // its music, ADD FROM MY DISC there too. A repick to a copy used where it

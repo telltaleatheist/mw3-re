@@ -508,6 +508,12 @@ class Launcher {
   bool pm_last_ = false;  // the game last clicked: GAME FILES acts on it
   bool files_pm_ = false;  // GAME FILES' screens are Pirate's Moon's (pm_last_ when they opened)
   bool pm_lacks_music_ = false, pm_lacks_sounds_ = false;  // pm_refresh
+  bool mods_pm_ = false;  // MODS works on Pirate's Moon's mods (the game last clicked)
+  ModsTarget mods_here() {
+    if (mods_pm_) pm_wd();
+    return mods_target(o_, mods_pm_);
+  }
+  std::string mods_install() const { return mods_pm_ ? pm_dir_ : install_.dir; }
   std::string pm_data_;                  // ... its data's version ("1.0", "unknown", "incomplete")
   std::vector<std::string> mw3_check_notes_;  // start_check's for MW3, part of notes_ (notes_refresh)
   std::string mw3_program_, pm_program_;  // each game's program's version (--version), once at the start
@@ -612,6 +618,13 @@ std::string versions_words(const std::string& data, const std::string& program, 
   if (mods) s += (mods == 1 ? std::string("a mod") : std::to_string(mods) + " mods") + " on, ";
   return s;
 }
+
+// The game a mod's for= must name, for one MODS operation (mech3::mods_game), put back after it.
+struct GameOfMods {
+  std::string was;
+  explicit GameOfMods(const std::string& g) : was(mech3::mods_game()) { mech3::mods_game() = g; }
+  ~GameOfMods() { mech3::mods_game() = was; }
+};
 
 // A program's version as its file holds it ("MW3-PROGRAM-VERSION:v1.1.0",
 // mw3_main.cpp's mw3_version_tag), read, never run: a game started only to
@@ -1167,8 +1180,9 @@ void Launcher::draw(float dt) {
     case kModsScreen: {
       // Below the banner, as the other screens: the rows, the status under
       // them, the folder in the footer.
-      const std::string where = mods_target(o_, false).write_dir + "/mods";
-      text_.draw(canvas_, text_.fit("Mods in " + where + ", in the order they win", 12, W - 32), 12, kDim, 16, H - 24, -1);
+      const std::string where = mods_here().write_dir + "/mods";
+      text_.draw(canvas_, text_.fit(std::string(mods_pm_ ? "Pirate's Moon's mods in " : "Mods in ") + where + ", in the order they win", 12, W - 32),
+                 12, kDim, 16, H - 24, -1);
       if (mods_.empty())
         text_.draw_wrapped(canvas_, "No mods yet. A mod is a folder in the mods folder below with a mod.txt (docs/modding.md).", 14,
                            kWhite, W / 2, 180, 460);
@@ -1781,15 +1795,17 @@ void Launcher::finish_work() {
 }
 
 void Launcher::mods_refresh() {
-  const ModsTarget t = mods_target(o_, false);
-  mods_ = mech3::mods_list(t.write_dir, mech3::mods_enabled(t.write_dir), mods_checked_, install_.dir);
+  const ModsTarget t = mods_here();
+  const GameOfMods as(t.game);
+  // CHECK reads the install with this program's readers: MechWarrior 3's only (mw3pm --check-mod checks PM's).
+  mods_ = mech3::mods_list(t.write_dir, mech3::mods_enabled(t.write_dir), mods_checked_ && !mods_pm_, mods_install());
   if (mod_sel_ >= static_cast<int>(mods_.size())) mod_sel_ = static_cast<int>(mods_.size()) - 1;
   if (mod_page_ * kModsPerPage >= static_cast<int>(mods_.size())) mod_page_ = 0;
 }
 
 // The new order (the enabled, as they win) written to mw3.cfg; the list read again.
 void Launcher::mods_save(std::vector<std::string> enabled, const std::string& said) {
-  const bool ok = mech3::mods_save_enabled(mods_target(o_, false).write_dir, enabled);
+  const bool ok = mech3::mods_save_enabled(mods_here().write_dir, enabled);
   std::printf("mw3: launcher: mods: %s\n", ok ? said.c_str() : "mw3.cfg could not be written");
   status_ = ok ? said + ". It counts from the next start of the game." : "Could not write mw3.cfg: nothing changed.";
   status_good_ = ok;
@@ -1803,10 +1819,11 @@ void Launcher::mods_save(std::vector<std::string> enabled, const std::string& sa
 void Launcher::mods_add_pending() {
   const std::string path = pending_add_;
   pending_add_.clear();
-  const ModsTarget t = mods_target(o_, false);
+  const ModsTarget t = mods_here();
+  const GameOfMods as(t.game);
   std::vector<std::string> on = mech3::mods_enabled(t.write_dir);
   const mech3::ModAddDone d =
-      mech3::mod_add_run(t.write_dir, path, install_.dir,
+      mech3::mod_add_run(t.write_dir, path, mods_install(),
                          [this](const std::string& n) { return o_.shot.empty() ? ask_mod_game(win_, n) : 1; },  // a scripted run: no box
                          &on);
   std::printf("mw3: launcher: mods: %s\n", d.message.c_str());
@@ -1822,7 +1839,8 @@ void Launcher::mods_add_pending() {
 void Launcher::mods_export_pending() {
   const std::string zip = pending_export_;
   pending_export_.clear();
-  const ModsTarget t = mods_target(o_, false);
+  const ModsTarget t = mods_here();
+  const GameOfMods as(t.game);
   const mech3::ModExportResult r = mech3::mod_export((fs::path(t.write_dir) / "mods" / export_folder_).string(), zip);
   export_folder_.clear();
   std::printf("mw3: launcher: mods: %s\n", r.message.c_str());
@@ -1899,6 +1917,7 @@ void Launcher::activate(int id) {
       from_files_ = false, screen_ = kMain, layout();
       break;
     case kMods:
+      mods_pm_ = pm_last_ && !o_.pm_bin.empty() && !pm_dir_.empty();  // the game last clicked
       screen_ = kModsScreen, status_.clear(), mods_checked_ = false, mod_sel_ = -1, mod_page_ = 0;
       mods_refresh();
       layout();
@@ -1936,7 +1955,7 @@ void Launcher::activate(int id) {
       ask_save(kModExport, mech3::mod_export_file_name(mods_[mod_sel_].info));
       break;
     case kModFolder: {
-      const std::string where = mods_target(o_, false).write_dir + "/mods";
+      const std::string where = mods_here().write_dir + "/mods";
       std::error_code ec;
       fs::create_directories(where, ec);
       if (!open_folder(where)) status_ = "The mods folder: " + where, status_good_ = true, layout();
@@ -1945,7 +1964,9 @@ void Launcher::activate(int id) {
     case kModCheck:
       mods_checked_ = true;
       mods_refresh();
-      status_ = "Checked: each mod read as the game would read it", status_good_ = true;
+      status_ = mods_pm_ ? "Pirate's Moon checks its own mods: start it with --check-mod and the mod's folder (docs/modding.md)"
+                         : "Checked: each mod read as the game would read it";
+      status_good_ = true;
       layout();
       break;
     case kModPrev:
@@ -2136,6 +2157,8 @@ LauncherChoice Launcher::run() {
   Uint64 last = SDL_GetTicks();
   SDL_InitSubSystem(SDL_INIT_GAMEPAD);  // a pad steps through the plates too (nav)
   if (o_.play) auto_ok_ = true, activate(kMw3);  // its notes' OK pressed too
+  // Checks: MODS opened on Pirate's Moon, as after a click on it (then the NAV steps act there).
+  if (const char* g = SDL_getenv("MW3_LAUNCHER_MODS"); g && std::strcmp(g, "pm") == 0) pm_last_ = true, activate(kMods);
   // Checks: keys or a pad as a list ("next,next,press"), each step logged.
   if (const char* steps = SDL_getenv("MW3_LAUNCHER_NAV")) {
     std::string all = steps;
@@ -2303,7 +2326,7 @@ LauncherChoice run_launcher(const LauncherOptions& o) {
 }
 
 ModsTarget mods_target(const LauncherOptions& o, bool pm) {
-  if (pm) return {};  // Pirate's Moon's own folder and for=pm: with its branch
+  if (pm) return {o.pm_write_dir, "mw3pm"};  // Pirate's Moon's own settings folder (Launcher::pm_wd fills it)
   return {o.write_dir, "mw3"};
 }
 

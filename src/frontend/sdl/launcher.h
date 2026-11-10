@@ -66,8 +66,8 @@ LauncherChoice run_launcher(const LauncherOptions& o);
 
 // The MODS screen's game (docs/launcher.md, Mods): the settings folder whose
 // mods\ and mw3.cfg it lists and writes, and the game a mod.txt's for= must
-// name. MechWarrior 3's here; Pirate's Moon's (its own folder, for=pm) comes
-// with its branch, so `pm` gives none on main.
+// name. MechWarrior 3's, or with `pm` Pirate's Moon's (its own settings
+// folder, `pm_write_dir` once found; for=mw3pm).
 struct ModsTarget {
   std::string write_dir, game;
 };
