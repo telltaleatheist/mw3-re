@@ -410,6 +410,8 @@ float pm_kill_leg_armor(void* mech);
 void pm_kill_ground_line(float x0, float z0, float x1, float z1);
 void pm_kill_weapons(void* mech);
 void pm_kill_scales(void* mech);
+float pm_mech_height(void* mech);
+void pm_water_survey(void* player, const char* label, float low, float high, float step);
 // Pirate's Moon 1.0 @ 0x004a4490, 0x004a4440: the box window opens before the player's update and the walk and closes after both.
 struct TickOrder : mech3::PlayerHooks {
   std::string calls;
@@ -918,6 +920,21 @@ static void kill_run(const char* which, bool quick) {
     }
     // The editor's TELEPORT (docs/editor.md, Pirate's Moon's teleport) at frame 30: the last of the world's places
     // picked, OK moves the player there and saves into the mod; then another picked and Cancel, nothing moved or saved.
+    // The water survey (pm_kill.cpp's pm_water_survey): PM_WATER the label, PM_WATER_HEIGHTS "low,high" the shortest and
+    // tallest mech's heights; PM_HEIGHT prints the player's mech's height instead (PM_MECH picks the mech).
+    if (std::getenv("PM_WATER") || std::getenv("PM_HEIGHT")) {
+      static int t = 0;
+      if (++t < 30) return;
+      done = true;
+      if (std::getenv("PM_HEIGHT")) {
+        std::printf("HEIGHT mech %s: %.2f\n", std::getenv("PM_MECH") ? std::getenv("PM_MECH") : "-", pm_mech_height(player));
+        return;
+      }
+      float low = 8.0f, high = 16.0f;
+      if (const char* h = std::getenv("PM_WATER_HEIGHTS")) std::sscanf(h, "%f,%f", &low, &high);
+      pm_water_survey(player, std::getenv("PM_WATER"), low, high, 20.0f);
+      return;
+    }
     if (std::getenv("PM_TELEPORT")) {
       static int t = 0;
       if (++t < 30) return;
@@ -2015,7 +2032,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -2105,6 +2122,43 @@ TEST(pm_teleport_moves_the_player_and_saves_pms_text) {
   int status = 1;
   waitpid(child, &status, 0);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// PM_WATER_SURVEY=1: each of the ten missions' water (pm_water_survey), a line each; first the 26 mechs' heights on
+// c1 mission 1 (PM_WATER_SURVEY=heights prints only those). Nothing is checked: a survey, for docs/pm-tests.md.
+TEST(pm_water_survey_env) {
+#if !defined(_WIN32)
+  const char* mode = std::getenv("PM_WATER_SURVEY");
+  if (!mode || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  auto child_run = [](const char* which) {
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      kill_run(which, true);
+      std::fflush(nullptr);
+      _exit(0);
+    }
+    int st = 0;
+    waitpid(child, &st, 0);
+  };
+  if (std::strcmp(mode, "heights") == 0) {
+    setenv("PM_HEIGHT", "1", 1);
+    for (int m = 0; m < 26; ++m) {
+      setenv("PM_MECH", std::to_string(m).c_str(), 1);
+      child_run("0,1,1");
+    }
+    unsetenv("PM_HEIGHT"), unsetenv("PM_MECH");
+    return;
+  }
+  struct M { const char* which; const char* label; };
+  for (const M& m : {M{"0,1,1", "c1 mission 1"}, M{"0,1,2", "c1 mission 2"}, M{"0,1,5", "c1 mission 5"}, M{"1,1,3", "c2 mission 3"},
+                     M{"1,1,4", "c2 mission 4"}, M{"1,1,8", "c2 mission 8"}, M{"2,1,6", "c3 mission 6"}, M{"2,1,7", "c3 mission 7"},
+                     M{"3,1,9", "c4 mission 9"}, M{"3,1,10", "c4 mission 10"}}) {
+    setenv("PM_WATER", m.label, 1);
+    child_run(m.which);
+  }
+  unsetenv("PM_WATER");
 #endif
 }
 
