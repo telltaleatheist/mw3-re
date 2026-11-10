@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "mech3/mods_menu.h"
 #include "upgrades/mods/ia_mods.h"
 #include "upgrades/mods/mods_tick_list.h"
 

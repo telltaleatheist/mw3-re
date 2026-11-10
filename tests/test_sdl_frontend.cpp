@@ -4708,8 +4708,8 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   };
   auto has = [](const std::string& text, const char* what, size_t from = 0) { return text.find(what, from); };
   const size_t none = std::string::npos;
-  // MODS (the main menu), then ENTER on the campaign (the list's first row, chosen as the screen opens).
-  const std::string a = run({"--click-at", "135,435@130", "--click-at", "420,320@200"}, "a");
+  // MODS (the main menu), the campaign's row (CAMPAIGNS' second: the game's own is first), then PLAY.
+  const std::string a = run({"--click-at", "135,435@130", "--click-at", "90,141@170", "--click-at", "420,320@200"}, "a");
   const size_t asked = has(a, "mw3: MODS: starting again into entry camp~night"), entered = has(a, "mw3: entry camp~night (Long Night): 1 mods");
   std::printf("  moved %d, ENTER asked %d, entered %d\n", has(a, "mods: moved to their campaigns") != none, asked != none, entered != none);
   EXPECT(has(a, "mods: mw3 takes the 1 mods mw3.cfg had on") != none && has(a, "mods: moved to their campaigns") != none);
@@ -4745,6 +4745,18 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   }
   EXPECT(fs::is_regular_file(pilot) && fs::file_size(pilot) > 0);
   std::printf("  left %d, on MODS %d, the pilot kept %d\n", left != none, mods != none, fs::is_regular_file(pilot));
+  // The game's own campaign with a mod ticked on the screen: MODS, the second row of its mods (Green HUD; Weps,
+  // moved from mw3.cfg, is the first), ON/OFF, PLAY: its mods.txt written, the entry's run mounts both.
+  put("wd/mods/hud/mod.txt", "name=Green HUD\n");
+  const std::string c = run({"--click-at", "135,435@130", "--click-at", "470,62@170", "--click-at", "425,255@190", "--click-at", "420,320@220"}, "c");
+  const size_t own = has(c, "mw3: MODS: starting again into entry mw3"), in = has(c, "mw3: entry mw3 (MechWarrior 3): 2 mods");
+  std::printf("  the game's own with a tick: asked %d, entered with both %d\n", own != none, in != none);
+  EXPECT(own != none && in != none && own < in && has(c, "mod hud (Green HUD) mounted", in) != none && has(c, "mod weps (Weps) mounted", in) != none);
+  {
+    std::ifstream t(dir + "/wd/campaigns/mw3/mods.txt");
+    const std::string ticks((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+    EXPECT(ticks == "mod=weps\nmod=hud\n");
+  }
   fs::remove_all(dir, ec);
 }
 
