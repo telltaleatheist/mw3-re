@@ -47,7 +47,7 @@ analyzeHeadless analysis-output/ghidra-project mech3 \
 | `../ghidra/DumpFunctions.java <outdir> <label> [decompile]` | Ghidra headless post-script for another exe (Pirate's Moon): after the analysis, functions at the data sections' code pointers (as `vtscan.py`), then each function's facts to `<outdir>/functions.jsonl` and, with `decompile`, its pseudocode (`pirates-moon.md`, The function diff). |
 | `pmdiff.py` | Pairs every PM function with its MW3 1.2 twin (bytes, strings, calls, link order, structure) and sorts them identical / changed / new / MW3 only, into `analysis-output/pm-diff/` (`pairs.json`, `report.txt`) and `pm-func2file.json`. |
 | `pmdata.py [mw3_dir] [pm_dir] [-v]` | PM's `zbd/` against MW3 1.2's, file by file and zArchive entry by entry. |
-| `x87.py <start> <end> [reg=name ...]` | Traces a straight-line asm range's x87 code into C expressions in the exe's evaluation order (Ghidra's printed sums are not; a port that must match bit for bit needs the real order). Run from the repo root. |
+| `x87.py <start> <end> [<start> <end> ...] [reg=name ...]` | Traces asm ranges' x87 code into C expressions in the exe's evaluation order (Ghidra's printed sums are not; a port that must match bit for bit needs the real order), each store marked `f(...)` where it rounds to a float, and a stored slot read back as stored: what is outside an `f()` stays on the x87, a double at the reference runtime's 53 bits (docs/ai.md 17.4b). Several ranges are one path through branches, the stack carried over. Run from the repo root. |
 
 `objdump -d --x86-asm-syntax=intel Mech3.exe` (Apple's, from Xcode) gives the
 whole disassembly in a few seconds; the analysis keeps it as `mech3.asm`.

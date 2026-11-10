@@ -11,6 +11,7 @@
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/sound.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_const.h"
 
@@ -25,19 +26,22 @@ const float kZeros[3] = {};                 // 0x0060b940
 
 zmth::Mat34* mat(void* p) { return static_cast<zmth::Mat34*>(p); }
 
-// 0x004ebf72..: local * top. The x87 sums the 3x3 terms as (0 + 2) + 1 and
-// the translation in order.
+// 0x004ebf72..: local * top, each entry's products and sums on the x87,
+// stored once. The 3x3 terms sum as (0 + 2) + 1 or (0 + 1) + 2 entry by entry
+// (tools/analysis/x87.py 4ebf72 4ec112), the translation in order.
 void product(const float* l, const float* t, float* r) {
+  using zgeo::X;
+  static const bool kTwoFirst[9] = {true, true, false, true, false, true, true, false, false};
   for (int row = 0; row < 3; ++row) {
     const float* a = l + 3 * row;
     for (int c = 0; c < 3; ++c) {
-      const float p0 = a[0] * t[c], p1 = a[1] * t[3 + c], p2 = a[2] * t[6 + c];
-      r[3 * row + c] = (p0 + p2) + p1;
+      const X p0 = X(a[0]) * t[c], p1 = X(a[1]) * t[3 + c], p2 = X(a[2]) * t[6 + c];
+      r[3 * row + c] = (kTwoFirst[3 * row + c] ? (p0 + p2) + p1 : (p0 + p1) + p2).f();
     }
   }
   for (int c = 0; c < 3; ++c) {
-    const float p0 = l[9] * t[c], p1 = l[10] * t[3 + c], p2 = l[11] * t[6 + c];
-    r[9 + c] = ((p0 + p1) + p2) + t[9 + c];
+    const X p0 = X(l[9]) * t[c], p1 = X(l[10]) * t[3 + c], p2 = X(l[11]) * t[6 + c];
+    r[9 + c] = (((p0 + p1) + p2) + t[9 + c]).f();
   }
 }
 
@@ -330,14 +334,15 @@ int node_box_xz(Node* node, float out[8][2]) {
   if (!top_identity && !local_identity) {
     const float* l = local;
     const float* t = s.matrix().m;
-    c[0] = (l[1] * t[3] + l[2] * t[6]) + l[0] * t[0];
-    c[3] = (l[3] * t[0] + l[4] * t[3]) + l[5] * t[6];
-    c[6] = (l[6] * t[0] + l[7] * t[3]) + l[8] * t[6];
-    c[2] = (l[0] * t[2] + l[2] * t[8]) + l[1] * t[5];
-    c[5] = (l[5] * t[8] + l[3] * t[2]) + l[4] * t[5];
-    c[8] = (l[6] * t[2] + l[7] * t[5]) + l[8] * t[8];
-    c[9] = ((l[9] * t[0] + l[11] * t[6]) + l[10] * t[3]) + t[9];
-    c[11] = ((l[9] * t[2] + l[10] * t[5]) + l[11] * t[8]) + t[11];
+    using zgeo::X;  // each entry's sums on the x87, stored once
+    c[0] = ((X(l[1]) * t[3] + X(l[2]) * t[6]) + X(l[0]) * t[0]).f();
+    c[3] = ((X(l[3]) * t[0] + X(l[4]) * t[3]) + X(l[5]) * t[6]).f();
+    c[6] = ((X(l[6]) * t[0] + X(l[7]) * t[3]) + X(l[8]) * t[6]).f();
+    c[2] = ((X(l[0]) * t[2] + X(l[2]) * t[8]) + X(l[1]) * t[5]).f();
+    c[5] = ((X(l[5]) * t[8] + X(l[3]) * t[2]) + X(l[4]) * t[5]).f();
+    c[8] = ((X(l[6]) * t[2] + X(l[7]) * t[5]) + X(l[8]) * t[8]).f();
+    c[9] = (((X(l[9]) * t[0] + X(l[11]) * t[6]) + X(l[10]) * t[3]) + t[9]).f();
+    c[11] = (((X(l[9]) * t[2] + X(l[10]) * t[5]) + X(l[11]) * t[8]) + t[11]).f();
     m = c;
   }
   zmth::box_corners_xz(m, box, out);
