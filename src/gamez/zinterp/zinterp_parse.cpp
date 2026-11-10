@@ -9,6 +9,7 @@
 #include "upgrades/reference/reference.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zinterp/zinterp.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zrender/zrndr_fog.h"
@@ -230,7 +231,7 @@ Result letter_c(Interp& in, const char* argv0) {
     const int32_t on = a.i();
     if (!in.current) {
       report(0x1ac, "No current node to enable cycle textures.  Take note of preceding \"FindNode\" Error");
-      g.cycle_model = nullptr;  // FIX (bug): the exe keeps the last one, maybe a freed mission's, for the setters after
+      if (zfix::options().fixed) g.cycle_model = nullptr;  // FIX (bug): the exe keeps the last one, maybe a freed mission's, for the setters after
       return kKnown;
     }
     call(e.get_model, in.current, &g.model_out);
