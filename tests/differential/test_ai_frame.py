@@ -17,8 +17,7 @@ answered from the trace. Each case runs frames from one order with random
 settings, flags, timers, contacts, the AI switch [0x60b938], the intensity
 [0x608e54] and the time; after each frame the answer, the awake count
 [0x6099c0], the fields the frame writes (+0x3c, +0xcc, +0xdc, +0xe8, +0xf4,
-+0x100, +0x230, +0x22c, +0x104), every call and the stack must match, at
-24-bit x87. Not made: a NaN attack range with no target vehicle (the exe
++0x100, +0x230, +0x22c, +0x104), every call and the stack must match, at the reference's 53-bit x87. Not made: a NaN attack range with no target vehicle (the exe
 calls through null there; the port's FIX (bug) attacks no one).
 """
 import ctypes
@@ -28,7 +27,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_gates as tg  # noqa: E402
 import test_ai_orders as to  # noqa: E402

@@ -19,8 +19,7 @@ target set), in reach (vt+0x150) answered from the trace; the clear line
 answered from the trace; the firing's range, obstacle and the brain's aiv
 +0x30. Each case picks, then asks the plan's slots; after each call the
 calls, the plan (its slot, score, flags, kind, bearer), the ranges, the
-obstacle, the vehicle's target and the contacts' distances must match, at
-24-bit x87.
+obstacle, the vehicle's target and the contacts' distances must match, at the reference's 53-bit x87.
 """
 import ctypes
 import math
@@ -30,7 +29,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_frame as tf  # noqa: E402
 import test_ai_orders as to  # noqa: E402

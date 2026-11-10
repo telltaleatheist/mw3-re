@@ -282,7 +282,7 @@ void vehicle_place(BasicVehicle& v, const float pos[3], float yaw);
 float vehicle_move_speed(const BasicVehicle& v);                  // vt+0x114 0x004acfa0: the throttle's
 float vehicle_speed_at(const BasicVehicle& v, float share);       // vt+0x118 0x004acf70
 float vehicle_share_for(const BasicVehicle& v, float speed);      // vt+0x11c 0x004acfe0
-float vehicle_stopping_distance(const BasicVehicle& v, float speed);  // vt+0x120 0x004ad020
+double vehicle_stopping_distance(const BasicVehicle& v, float speed);  // vt+0x120 0x004ad020: in the register
 float vehicle_stopping_now(const BasicVehicle& v);                // vt+0x124 0x004ad050
 float vehicle_stopping_at(const BasicVehicle& v, float share);    // vt+0x128 0x004ad0b0
 float vehicle_stop_share(const BasicVehicle& v, float d);         // vt+0x12c 0x004ad100, 0..1

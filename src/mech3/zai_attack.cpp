@@ -6,6 +6,7 @@
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/zai_target.h"
+#include "mech3/zai_x87.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -13,27 +14,27 @@ namespace mech3::ai {
 
 // Mech3.exe 1.2 @ 0x004ce250
 void flat_way(const float from[3], const float to[3], FlatWay* w) {
-  w->dir[0] = to[0] - from[0], w->dir[1] = to[1] - from[1], w->dir[2] = to[2] - from[2];
+  w->dir[0] = stored(double{to[0]} - from[0]), w->dir[1] = stored(double{to[1]} - from[1]);
+  w->dir[2] = stored(double{to[2]} - from[2]);
   w->dir[1] = 0;
-  zmth::Vec3 d{w->dir[0], w->dir[1], w->dir[2]};
-  w->dist = zmth::normalize(d);  // 0x004020d0
-  w->dir[0] = d.x, w->dir[1] = d.y, w->dir[2] = d.z;
+  w->dist = normalize_x87(w->dir);  // 0x004020d0, as the exe runs it (zai_x87.h)
 }
 
 // Mech3.exe 1.2 @ 0x004c8d10. A NaN side is a side to the left (-1 behind,
 // the left branch ahead); a NaN past the dead zone takes `least`.
 float turn_past(float cross, float sin_dead, float gain, float least, float dot) {
   if (!(dot >= 0.0f)) return cross >= 0.0f ? 1.0f : -1.0f;
+  // v stays in the register for its compares and is returned so; every caller stores it.
   if (!(cross >= -sin_dead)) {
-    const float v = (cross + sin_dead) * gain;
-    if (!(v >= -1.0f)) return -1.0f;
+    const double v = (double{cross} + sin_dead) * gain;
+    if (!(v >= -1.0)) return -1.0f;
     const float nl = -least;
-    return v > nl ? nl : v;
+    return v > nl ? nl : stored(v);
   }
   if (!(cross > sin_dead)) return 0.0f;
-  const float v = (cross - sin_dead) * gain;
-  if (v > 1.0f) return 1.0f;
-  return v >= least ? v : least;
+  const double v = (double{cross} - sin_dead) * gain;
+  if (v > 1.0) return 1.0f;
+  return v >= least ? stored(v) : least;
 }
 
 // Mech3.exe 1.2 @ 0x004c8df0 (ECX fwd, EDX dir)
@@ -42,7 +43,7 @@ float turn_hold(const float fwd[3], const float dir[3], const float* dot, float*
   *cross = 0;
   if (*dot < -p.cos_dead) return keep == 0.0f || std::isnan(keep) ? 1.0f : keep;  // x87 C3: equal or unordered
   if (*dot >= p.cos_dead) return 0.0f;
-  const float c = fwd[2] * dir[0] - dir[2] * fwd[0];
+  const float c = stored(double{fwd[2]} * dir[0] - double{dir[2]} * fwd[0]);  // stored, then used as stored
   *cross = c;
   return turn_past(c, p.sin_dead, p.gain, p.least, *dot);
 }
@@ -162,7 +163,7 @@ void AttackReturnState::run(float) {
   if (h.inout_clamp(v, way, pulled)) {  // 0x004c3000 on the way point
     FlatWay w;
     flat_way(pos, pulled, &w);
-    const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
+    const float dot = wide_sum(fwd[0], w.dir[0], fwd[2], w.dir[2]);  // stored from the register
     float cross;
     turn = turn_hold(fwd, w.dir, &dot, &cross, turn, turn_params());
     throttle = dot >= 0.9f ? cap : 0.0f;  // 0x005cb0d8
@@ -170,13 +171,13 @@ void AttackReturnState::run(float) {
   } else {
     FlatWay w;
     flat_way(pos, way, &w);
-    const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
+    const float dot = wide_sum(fwd[0], w.dir[0], fwd[2], w.dir[2]);  // stored from the register
     const TurnParams& p = turn_params();
     float t;
     if (dot < -p.cos_dead) {  // behind
       t = turn == 0.0f || std::isnan(turn) ? 1.0f : turn;
     } else if (!(dot >= p.cos_dead)) {  // past the dead zone (a NaN dot too)
-      const float cross = fwd[2] * w.dir[0] - fwd[0] * w.dir[2];
+      const float cross = stored(double{fwd[2]} * w.dir[0] - double{fwd[0]} * w.dir[2]);
       t = turn_past(cross, p.sin_dead, p.gain, p.least, dot);
     } else {
       t = 0.0f;
@@ -186,7 +187,7 @@ void AttackReturnState::run(float) {
       throttle = 0;
       done = true;
     } else {
-      throttle = h.stop_share(v, w.dist - (b.params.get<float>(0x2c) + b.params.get<float>(0x28)) * 0.5f);
+      throttle = h.stop_share(v, stored(w.dist - (double{b.params.get<float>(0x2c)} + b.params.get<float>(0x28)) * 0.5f));
       if (c.throttle_now() > throttle) throttle = 0;  // the smoothed throttle above it: let it fall
       if (throttle > cap) throttle = cap;
     }
@@ -210,7 +211,7 @@ bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3],
   if (h.inout_clamp(v, to, pulled)) {  // 0x004c3000
     FlatWay w;
     flat_way(from, pulled, &w);
-    const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
+    const float dot = wide_sum(fwd[0], w.dir[0], fwd[2], w.dir[2]);  // stored from the register
     float cross;
     *turn = turn_hold(fwd, w.dir, &dot, &cross, *turn, turn_params());
     *throttle = dot >= 0.9f ? cap : 0.0f;  // 0x005cb0d8
@@ -218,13 +219,13 @@ bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3],
   } else {
     FlatWay w;
     flat_way(from, to, &w);
-    const float dot = fwd[0] * w.dir[0] + fwd[2] * w.dir[2];
+    const float dot = wide_sum(fwd[0], w.dir[0], fwd[2], w.dir[2]);  // stored from the register
     const TurnParams& p = turn_params();
     float t;
     if (dot < -p.cos_dead) {  // behind
       t = *turn == 0.0f || std::isnan(*turn) ? 1.0f : *turn;
     } else if (!(dot >= p.cos_dead)) {  // past the dead zone (a NaN dot too)
-      const float cross = fwd[2] * w.dir[0] - w.dir[2] * fwd[0];
+      const float cross = stored(double{fwd[2]} * w.dir[0] - double{w.dir[2]} * fwd[0]);
       t = turn_past(cross, p.sin_dead, p.gain, p.least, dot);
     } else {
       t = 0.0f;
@@ -236,7 +237,7 @@ bool drive_to(Brain& b, zgame::Handle v, const float from[3], const float to[3],
       *throttle = 0;
       done = true;
     } else {
-      *throttle = h.stop_share(v, w.dist - (b.params.get<float>(0x2c) + b.params.get<float>(0x28)) * 0.5f);
+      *throttle = h.stop_share(v, stored(w.dist - (double{b.params.get<float>(0x2c)} + b.params.get<float>(0x28)) * 0.5f));
       if (c.throttle_now() > *throttle) *throttle = 0;
       if (*throttle > cap) *throttle = cap;
     }
@@ -633,10 +634,9 @@ CircleState::CircleState(Order* o, Behaviour* b) : BehaviourState(o, b), made_by
   h.position(v, pos);                     // 0x005a85e0
   share = br.params.get<float>(0x94);
   flip = 0;
-  zmth::Vec3 r{to[0] - pos[0], 0.0f, to[2] - pos[2]};
-  zmth::normalize(r);  // 0x004020d0
-  radial[0] = r.x, radial[1] = r.y, radial[2] = r.z;
-  tangent[0] = r.z, tangent[1] = 0, tangent[2] = -r.x;
+  radial[0] = stored(double{to[0]} - pos[0]), radial[1] = 0.0f, radial[2] = stored(double{to[2]} - pos[2]);
+  normalize_x87(radial);  // 0x004020d0
+  tangent[0] = radial[2], tangent[1] = 0, tangent[2] = -radial[0];
 }
 
 // Mech3.exe 1.2 @ 0x004c9880 (docs/ai.md 17.2). The radius is the brain's
@@ -665,10 +665,11 @@ void CircleState::run(float dt) {
   FlatWay w;
   flat_way(from, to, &w);  // 0x004ce230
   const float R = b.params.get<float>(0x44);
-  const float r = (w.dir[0] * radial[0] + w.dir[1] * radial[1]) + w.dir[2] * radial[2];
-  const float e = (r * w.dist - R) / R;
-  const float t = (w.dir[0] * tangent[0] + w.dir[1] * tangent[1]) + w.dir[2] * tangent[2];
-  const float along = t * w.dist;
+  // The sums as the exe runs them (zai_x87.h): each dot and e stored, along compared unrounded.
+  const float r = stored((double{w.dir[0]} * radial[0] + double{w.dir[1]} * radial[1]) + double{w.dir[2]} * radial[2]);
+  const float e = stored((double{r} * w.dist - R) / R);
+  const float t = stored((double{w.dir[0]} * tangent[0] + double{w.dir[1]} * tangent[1]) + double{w.dir[2]} * tangent[2]);
+  const double along = double{t} * w.dist;
   const float P = b.params.get<float>(0x48);
   if (flip) {
     if (along > P) flip = 0;
@@ -682,19 +683,18 @@ void CircleState::run(float dt) {
   } else if (!(thr > -0.1)) {   // 0x005cb0f8
     s = -e;
   }
-  zmth::Vec3 d{s * radial[0] + tangent[0], 0.0f, radial[2] * s + tangent[2]};
-  zmth::normalize(d);  // 0x004020d0
-  const float dir[3] = {d.x, d.y, d.z};
+  float dir[3] = {stored(double{s} * radial[0] + tangent[0]), 0.0f, stored(double{radial[2]} * s + tangent[2])};
+  normalize_x87(dir);  // 0x004020d0
   float fwd[3] = {0, 0, 0};
   h.forward(v, &fwd[0], &fwd[2]);  // +0x24
   float dot, cross;
   turn = turn_toward(fwd, dir, &dot, &cross, turn, turn_params());  // 0x004cdd40, inline
   c.set_turn(turn);  // IControls vt+0x28
-  float ahead = h.stopping_distance(v, h.speed_at(v, share)) * 3.0f;  // vt+0x128
+  double ahead = h.stopping_distance(v, h.speed_at(v, share)) * 3.0f;  // vt+0x128, in the register
   if (!(10.0f >= ahead)) ahead = 10.0f;
   if (flip) ahead = -ahead;
-  const float step[3] = {ahead * dir[0], ahead * dir[1], ahead * dir[2]};
-  float look[3] = {from[0] + step[0], from[1] + step[1], from[2] + step[2]};
+  const float step[3] = {stored(ahead * dir[0]), stored(ahead * dir[1]), stored(ahead * dir[2])};
+  float look[3] = {stored(double{from[0]} + step[0]), stored(double{from[1]} + step[1]), stored(double{from[2]} + step[2])};
   if (h.inout_clamp(v, look, look)) flip = flip == 0;  // 0x004c3000
   if (!(dot >= 0.5)) {  // 0x005cb108
     c.set_throttle(0.0f);
@@ -731,17 +731,17 @@ void OrbitState::run(float dt) {
     order->pop();  // order vt+0x08
     return;
   }
-  zmth::Vec3 u{to[0] - from[0], 0.0f, to[2] - from[2]};
-  const float dist = zmth::normalize(u);  // 0x004020d0
+  // The sums as the exe runs them (zai_x87.h): f and ahead stay in the register, each word stored.
+  float u[3] = {stored(double{to[0]} - from[0]), 0.0f, stored(double{to[2]} - from[2])};
+  const float dist = normalize_x87(u);  // 0x004020d0
   const float R = b.params.get<float>(0x44);
-  const float f = (dist - R) / R;
-  zmth::Vec3 d{u.z * way + f * u.x, 0.0f, f * u.z - u.x * way};
-  zmth::normalize(d);
-  const float dir[3] = {d.x, d.y, d.z};
-  float ahead = h.stopping_distance(v, h.speed_at(v, share)) * 3.0f;  // vt+0x128, 0x005cc5ac
+  const double f = (double{dist} - R) / R;
+  float dir[3] = {stored(double{u[2]} * way + f * u[0]), 0.0f, stored(f * u[2] - double{u[0]} * way)};
+  normalize_x87(dir);
+  double ahead = h.stopping_distance(v, h.speed_at(v, share)) * 3.0f;  // vt+0x128, 0x005cc5ac
   if (!(ahead >= 10.0f)) ahead = 10.0f;  // 0x005cc5b0: at least
-  const float step[3] = {ahead * dir[0], ahead * dir[1], ahead * dir[2]};
-  float look[3] = {from[0] + step[0], from[1] + step[1], from[2] + step[2]};
+  const float step[3] = {stored(ahead * dir[0]), stored(ahead * dir[1]), stored(ahead * dir[2])};
+  float look[3] = {stored(double{from[0]} + step[0]), stored(double{from[1]} + step[1]), stored(double{from[2]} + step[2])};
   const bool pulled = h.inout_clamp(v, look, look);  // 0x004c3000
   if (pulled) way = -way;
   float fwd[3] = {0, 0, 0};
@@ -783,10 +783,9 @@ void VeerState::run(float dt) {
   FlatWay w;
   flat_way(from, to, &w);  // 0x004ce230
   const float R = b.params.get<float>(0x44);
-  const float f = (w.dist - R) / R;
-  zmth::Vec3 d{f * w.dir[0] + w.dir[2] * way, 0.0f, f * w.dir[2] - w.dir[0] * way};
-  zmth::normalize(d);
-  const float dir[3] = {d.x, d.y, d.z};
+  const double f = (double{w.dist} - R) / R;  // in the register; each word stored once
+  float dir[3] = {stored(f * w.dir[0] + double{w.dir[2]} * way), 0.0f, stored(f * w.dir[2] - double{w.dir[0]} * way)};
+  normalize_x87(dir);  // 0x004020d0
   float fwd[3] = {0, 0, 0};
   h.forward(v, &fwd[0], &fwd[2]);  // the vehicle's +0x24
   float dot, cross;
@@ -906,7 +905,7 @@ void StationState::take_params() {
   Brain& br = *order->owner;
   way = br.controls->reversing() ? -1.0f : 1.0f;  // IControls vt+0x18
   close = br.params.get<float>(0x78) * 0.9f;  // 0x005cb0d8
-  range = std::sqrt(br.params.get<float>(0x74)) * 1.1f;  // 0x005cb140, 1.1f as a double
+  range = stored(std::sqrt(double{br.params.get<float>(0x74)}) * double{1.1f});  // 0x005cb140, 1.1f as a double; the root in the register
 }
 
 // Mech3.exe 1.2 @ 0x004cc380
@@ -920,7 +919,7 @@ float turn_onto(const float fwd[3], const float to_x, const float to_z, float do
   const TurnParams& p = turn_params();
   if (dot < -p.cos_dead) return keep == 0.0f || std::isnan(keep) ? 1.0f : keep;
   if (dot >= p.cos_dead) return 0.0f;  // a NaN turns
-  const float cross = fwd[2] * to_x - fwd[0] * to_z;
+  const float cross = stored(double{fwd[2]} * to_x - double{fwd[0]} * to_z);  // stored from the register
   return turn_past(cross, p.sin_dead, p.gain, p.least, dot);
 }
 }  // namespace
@@ -956,13 +955,15 @@ void StationState::run(float) {
   } else {
     tv[0] = tv[1] = tv[2] = 0;
   }
-  zmth::Vec3 rel{ov[0] - tv[0], ov[1] - tv[1], ov[2] - tv[2]};
-  const float rel_speed = zmth::normalize(rel);  // 0x004020d0
+  // The sums as the exe runs them (zai_x87.h): each dot summed in the register and stored.
+  float relv[3] = {stored(double{ov[0]} - tv[0]), stored(double{ov[1]} - tv[1]), stored(double{ov[2]} - tv[2])};
+  const float rel_speed = normalize_x87(relv);  // 0x004020d0
+  const zmth::Vec3 rel{relv[0], relv[1], relv[2]};
   const float* d = w.dir;
   const float dist = w.dist;
-  const float closing = (rel.x * d[0] + rel.y * d[1]) + rel.z * d[2];
-  const float side = d[0] * rel.z - d[2] * rel.x;
-  const float ahead = (fwd[0] * d[0] + fwd[1] * d[1]) + fwd[2] * d[2];
+  const float closing = stored((double{rel.x} * d[0] + double{rel.y} * d[1]) + double{rel.z} * d[2]);
+  const float side = stored(double{d[0]} * rel.z - double{d[2]} * rel.x);
+  const float ahead = stored((double{fwd[0]} * d[0] + double{fwd[1]} * d[1]) + double{fwd[2]} * d[2]);
   const float p78 = br.params.get<float>(0x78);
   bool again;
   int zeros = 0;
@@ -983,7 +984,7 @@ void StationState::run(float) {
           else phase = 3, way = !(way >= 0.0f) ? -1.0f : 1.0f;
           again = true;
           count = 0;
-        } else if (rel_speed > 0.2f && closing > 0.0f && !(closing * dist > p78)) {  // 0x005cb138
+        } else if (rel_speed > 0.2f && closing > 0.0f && !(double{closing} * dist > p78)) {  // 0x005cb138; the product unrounded
           turn = 0;  // closing in: swerve, 8 frames
           if (side < -0.17f) turn = 1.0f;       // -[0x005e8b9c], 0x005e8ba0
           else if (side > 0.17f) turn = -1.0f;
@@ -1002,7 +1003,7 @@ void StationState::run(float) {
           phase = 0, again = true;
           break;
         }
-        turn = turn_onto(fwd, d[0], d[2], fwd[0] * d[0] + fwd[2] * d[2], turn);
+        turn = turn_onto(fwd, d[0], d[2], wide_sum(fwd[0], d[0], fwd[2], d[2]), turn);
         break;
       case 2: {  // behind: on, its back to it
         if (ahead > 0.0f || dist > p78) {
@@ -1010,7 +1011,7 @@ void StationState::run(float) {
           break;
         }
         const float back[3] = {-fwd[0], -fwd[1], -fwd[2]};
-        turn = turn_onto(back, d[0], d[2], back[0] * d[0] + back[2] * d[2], turn);
+        turn = turn_onto(back, d[0], d[2], wide_sum(back[0], d[0], back[2], d[2]), turn);
         break;
       }
       case 3: {  // beside: alongside, across the way to it
@@ -1019,7 +1020,7 @@ void StationState::run(float) {
           break;
         }
         float px = d[2], pz = -d[0];
-        const float g = fwd[0] * d[0] + fwd[2] * d[2];
+        const float g = wide_sum(fwd[0], d[0], fwd[2], d[2]);
         float g2 = g;
         if (!(g >= 0.0f)) px = -px, pz = -pz, g2 = -g;
         turn = turn_onto(fwd, px, pz, g2, turn);
@@ -1096,7 +1097,7 @@ ManoeuvreState::ManoeuvreState(Order* o, Behaviour* b, bool given) : BehaviourSt
   jump = none ? 0.0f : 1.0f;
   br.controls->stop();  // IControls vt+0x14
   const float now = h.now(), lo = br.params.get<float>(0x6c), hi = br.params.get<float>(0x70);
-  until = (hi - lo) * 3.051851e-05f * static_cast<float>(h.rand()) + lo + now;  // 0x005cb128
+  until = stored((double{hi} - lo) * 3.051851e-05f * double(h.rand()) + lo + now);  // 0x005cb128, in the register
 }
 
 // Mech3.exe 1.2 @ 0x004ca570
@@ -1118,21 +1119,21 @@ namespace {
 // test, so the turn is full to a side.
 float manoeuvre_turn(const float fwd[3], const float dir[3], float keep) {
   const TurnParams& p = turn_params();
-  const float dot = fwd[0] * dir[0] + fwd[2] * dir[2];
+  const float dot = wide_sum(fwd[0], dir[0], fwd[2], dir[2]);  // stored from the register (zai_x87.h)
   if (dot < -p.cos_dead) return keep == 0.0f || std::isnan(keep) ? 1.0f : keep;  // C3: equal or unordered
   if (dot >= p.cos_dead) return 0.0f;
-  const float cross = fwd[2] * dir[0] - dir[2] * fwd[0];
+  const float cross = stored(double{fwd[2]} * dir[0] - double{dir[2]} * fwd[0]);
   if (!(dot >= 0.0f)) return !(cross >= 0.0f) ? -1.0f : 1.0f;
   if (cross < -p.sin_dead) {
-    const float k = (p.sin_dead + cross) * p.gain;
+    const double k = (double{p.sin_dead} + cross) * p.gain;  // in the register for its compares
     if (k < -1.0) return -1.0f;
     const float nl = -p.least;
-    return k > nl ? nl : k;
+    return k > nl ? nl : stored(k);
   }
   if (!(cross > p.sin_dead)) return 0.0f;
-  const float k = (cross - p.sin_dead) * p.gain;
+  const double k = (double{cross} - p.sin_dead) * p.gain;
   if (k > 1.0) return 1.0f;
-  return k < p.least ? p.least : k;
+  return k < p.least ? p.least : stored(k);
 }
 }  // namespace
 

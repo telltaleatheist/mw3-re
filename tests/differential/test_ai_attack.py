@@ -16,7 +16,7 @@ boundary (0x4c3000), the nearest step (0x4d51d0) and its position (vt+0x18),
 znet's registry (0x4c7b80). Each case builds a stack, attacks on one of its
 nets, then runs, pops and changes the world at random; after each step the
 calls, the stack (the attack's parts and states with their home points,
-nets, waypoints and turns) and the brain's fields must match, at 24-bit x87.
+nets, waypoints and turns) and the brain's fields must match, at the reference's 53-bit x87.
 """
 import ctypes
 import math
@@ -26,7 +26,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_orders as to  # noqa: E402
 from calltrace import Trace  # noqa: E402

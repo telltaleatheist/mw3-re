@@ -17091,7 +17091,8 @@ TEST(mission_c1m4_dominic_aims_at_a_near_enemy_unordered_headless) {
         // W34: before, 764 / 764, aiming 43, firing 658, moved 69.1506.
         EXPECT(seen.targeted == 702 && seen.on_enemy == 702 && seen.aiming == 639 && seen.firing == 0);
         EXPECT(seen.follows == 765 && seen.follows_player == 765 && seen.enemy_contacts == 765);
-        EXPECT(std::fabs(seen.moved - 69.3653f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
+        // The AI at the reference's 53 bits (ai.md 17.4b): moved 69.3653 before.
+        EXPECT(std::fabs(seen.moved - 69.3756f) < 1e-3f && std::fabs(seen.closest - 60.0f) < 1e-3f);
       }
     }
     mech3::missions().cleanup(false);

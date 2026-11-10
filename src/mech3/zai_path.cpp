@@ -1,4 +1,5 @@
 #include "mech3/zai_path.h"
+#include "mech3/zai_x87.h"
 
 #include <cfloat>
 #include <cmath>
@@ -8,12 +9,15 @@
 namespace mech3::ai {
 namespace {
 
-// 0x0051dfa0 / 0x0051e000 (per frame: floats, the exe's order).
-float dist_sq(const float* a, const float* b) {
-  const float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
-  return (dx * dx + dy * dy) + dz * dz;
+// 0x0051dfa0 / 0x0051e000 as the reference runs them at 53 bits (zai_x87.h):
+// the differences stored, the squares summed (and the root taken) in the
+// register, the result stored.
+double sum_sq(const float* a, const float* b) {
+  const float dx = stored(double{a[0]} - b[0]), dy = stored(double{a[1]} - b[1]), dz = stored(double{a[2]} - b[2]);
+  return (double{dx} * dx + double{dy} * dy) + double{dz} * dz;
 }
-float dist(const float* a, const float* b) { return std::sqrt(dist_sq(a, b)); }
+float dist_sq(const float* a, const float* b) { return stored(sum_sq(a, b)); }
+float dist(const float* a, const float* b) { return stored(std::sqrt(sum_sq(a, b))); }
 
 }  // namespace
 
@@ -86,7 +90,7 @@ bool PathFinder::walk(Behaviour* s) {
     nx = nx ? nx->as_behaviour() : nullptr;
     if (!nx || !nx->passable(pilot, s)) continue;
     if (const float* q = nx->position()) {
-      length = dist(at_pos, q) + length;
+      length = stored(double{dist(at_pos, q)} + length);
       at_pos = q;
     }
     go = walk(nx);

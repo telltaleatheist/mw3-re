@@ -14,7 +14,7 @@ nothing). Added: the brain's vtable with the exe's slots +0x20..+0x48
 (+0x2a8) with its slots numbered, 0x4e6d50 stubbed. Each case: random
 orders 0..12 (but 2, the command mode, item L4c) on a contact or none, the
 teams sharing bits or not, the radio on or off; the answers, the calls, the
-order stacks and the steering must match, at 24-bit x87.
+order stacks and the steering must match, at the reference's 53-bit x87.
 """
 import ctypes
 import os
@@ -23,7 +23,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_attack as ta  # noqa: E402
 import test_ai_orders as to  # noqa: E402

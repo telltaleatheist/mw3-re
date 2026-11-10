@@ -302,7 +302,7 @@ gives 0 or 1).
 twice, every net file and a missing name as regions, then 93 made-up files
 (versions, names, loops broken every way, holes before the start,
 duplicates, a side of no length, arrangenodes round a loop); the lookups at
-53 bits, then a few dozen points per region tested in turn at 24 bits. Streams
+53 bits, then a few dozen points per region tested in turn, at 53 bits too (17.4b). Streams
 (each region's id, name, edges and where its test stopped; the registry's
 ids and kinds; the region list) and zerr logs match: 140 of 140. Breaks
 caught: the test's start kept after a pass, the plane counting as outside,
@@ -584,7 +584,7 @@ speed 452, wait_interval 363, deploy 288, valve_assign 120, arrangenodes
 ## 10. Finding the way
 
 Ported 2026-10-20 (`mech3/zai_path`, the steps' tests in `zai_steps`);
-test `tests/differential/test_ai_paths.py`. Per-frame code, at 24 bits.
+test `tests/differential/test_ai_paths.py`. Per-frame code, at the reference's 53 bits (17.4b).
 
 **Nearest step** (0x4d51d0, a method of every net; eight callers: the
 behaviours 0x4c8860, 0x4cae32, 0x4cbfb9, the waynet 0x479b58 / 0x47a8a5,
@@ -2252,6 +2252,56 @@ the test's NaNs caught.
 
 In the program the Owens' brain runs the steering each frame; the node
 state (17.4a) sets its segments, and it walks.
+
+### 17.4b At 53 bits (2026-11-10)
+
+The reference runtime runs the x87 at 53 bits (CLAUDE.md, FPU precision). The
+steering and its callers were first ported at 24, where a float port matches
+the exe; at 53 they flipped now and then on a last bit (a steering sign in
+the repair, a turn, a link picked, a jump's times). They are now the exe's at
+53 (`zai_x87.h`): what the exe keeps in the register stays a double until it
+stores it. As PM's AI (pm-map.md, PM's AI at 53 bits), so the tests run at 53
+only: `test_ai_steer`, `_node`, `_attack`, `_lance`, `_repair`, `_manoeuvre`,
+`_aim`, `_firing`, `_plan` and `_frame` match the exe to the bit there.
+
+What stays in the register, by function (each read from the disassembly):
+- 0x4ce530, 0x51e210 (`unit_flat`, root stored) and 0x4020d0 (`normalize_x87`,
+  root not stored): the squares, their sum and the root; 1 over the root.
+  Of no length 0x4ce530 and 0x51e210 multiply by 0, 0x4020d0 leaves the vector.
+- `set` (0x4cea30): the differences stored, then 0x4ce530. `project`
+  (0x4ceb00): both differences unrounded, x's also stored for the across.
+  `carrot` (0x4ce6f0): the side offset's product and sum. `near` and
+  `measure` (0x4ce6a0, 0x4ceb50): the distance off, the room and the over.
+  `update` (0x4cec80): the eased side offset and the fallen carrot, compared
+  unrounded. The contacts' push (0x4ce780, 0x4ce860): the band's a, the side
+  difference (compared and taken off unrounded, stored for its sign), the
+  facing dot (`wide_sum`), f, w and `_copysign`'s answer.
+- The turns (0x4c8d10, 0x4c8df0, 0x4cdd40, 0x4cdee0 and their inlined copies in
+  the station, manoeuvre and circle states): the dot and cross stored, v
+  (the gain's product) unrounded for its compares and returned so.
+- The walk (0x4cee80): the side's slack and the throttle. The drives
+  (0x4c8a70, 0x4cae90): the dots, the cross, the stopping distance's
+  argument. The station (0x4cc3e0): the three-term dots, `closing * dist`,
+  the range's root. The orbit, veer and circle (0x4d13c0, 0x4d16f0, 0x4c9880):
+  f, the look-ahead, each direction word; the circle's along.
+- The pick (0x4ccf20): each weight unrounded, added to the stored sum, tested
+  for 0 unrounded; the random point. The link's measure (0x4c79f0).
+- The jump (0x4cb120, 0x4cb250, 0x4cb330): `_hypot`'s answer (the root of the
+  squares at 53), the ratio, k, t3 and the total; the end times a running sum.
+  The node state's and the repair's 1 over the stopping distance, which
+  vt+0x120 (0x41d210, 0x4ad020) returns unrounded: `stopping_distance` is a
+  double now down to the mech and the vehicle. The repair's approach angle
+  (0x4d0a10): the angle, floor and cosine.
+- The firing: the aim (0x4b70b0..0x4b77e0; the error's size is a double, as
+  PM's), the scorer (0x4b6b30), the lead (0x4d6de0: a, the discriminant and
+  1/a stored, the roots and t not), the torso's aim (0x4b6e30), the contacts'
+  distance (0x4e7030). The brain's random wait (0x4e9710's +0xf4) and the
+  manoeuvre's (0x4caae0).
+
+- The path finder's lengths (0x4c7fa0 over 0x51dfa0 and 0x51e000: the
+  differences stored, the squares and root in the register) and the
+  regions' inside test (0x4c5a30: the dot stored): `test_ai_paths` and
+  `test_ai_regions` run their queries at 53 now.
 
 ### 17.4a Walking to a node: the node state (0x4ced40, ported)
 

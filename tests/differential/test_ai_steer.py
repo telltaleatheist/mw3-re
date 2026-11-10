@@ -15,7 +15,7 @@ places a segment, the vehicle near it and up to six contacts around it
 reach), then runs sets, updates with random times and rates, near tests
 and carrot points; the steering block (0x48 bytes) loaded at random now
 and then, NaNs among the numbers. After each call the answer, every call
-out and the 0x48 bytes must match, at 24-bit x87.
+out and the 0x48 bytes must match, at the reference's 53-bit x87.
 """
 import ctypes
 import math
@@ -25,7 +25,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_frame as tf  # noqa: E402
 import test_ai_gates as tg  # noqa: E402

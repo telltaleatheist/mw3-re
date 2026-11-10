@@ -23,7 +23,7 @@ and vt+0x80. Each case loads a random firing state (every phase, plans and
 sources present or not, times around now) and runs it, stands it down or
 asks scan_aim; after each the calls, the firing's words, its sources, the
 look-around, the brain's +0xf8 / +0xfc, the answer and the contacts'
-distances must match, at 24-bit x87.
+distances must match, at the reference's 53-bit x87.
 """
 import ctypes
 import os
@@ -32,7 +32,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_frame as tf  # noqa: E402
 import test_ai_orders as to  # noqa: E402

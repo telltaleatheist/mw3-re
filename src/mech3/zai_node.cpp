@@ -1,4 +1,5 @@
 #include "mech3/zai_node.h"
+#include "mech3/zai_x87.h"
 
 #include <cfloat>
 #include <cmath>
@@ -18,18 +19,10 @@ namespace mech3::ai {
 namespace {
 bool unordered_or_less(float a, float b) { return !(a >= b); }  // x87 C0 after fcomp a, b
 
-// 0x004020d0 and 0x0051e210 (zmath) on a float[3].
-float normalize3(float v[3]) {
-  zmth::Vec3 w{v[0], v[1], v[2]};
-  const float len = zmth::normalize(w);
-  v[0] = w.x, v[1] = w.y, v[2] = w.z;
-  return len;
-}
-void normalize_flat(float v[3]) {
-  zmth::Vec3 w{v[0], v[1], v[2]};
-  zmth::flat_normalize(w, w);
-  v[0] = w.x, v[2] = w.z;
-}
+// 0x004020d0 (zmath's normalize) on a float[3], as the exe runs it (zai_x87.h).
+float normalize3(float v[3]) { return normalize_x87(v); }
+// 0x0051e210 as the exe runs it (zai_x87.h; zmth::flat_normalize stays for its other callers).
+void normalize_flat(float v[3]) { unit_flat(&v[0], &v[2], true); }
 
 // What the steps' passable tests (vt+0xac) see of the pilot.
 Pilot pilot_of(Brain& b) {
@@ -43,19 +36,20 @@ float turn_rest(float f0, float f2, const float to[3], float d, float* cross, fl
   *cross = 0;
   if (-p.cos_dead > d) return (keep == 0 || std::isnan(keep)) ? 1.0f : keep;
   if (d >= p.cos_dead) return 0;
-  const float cr = f2 * to[0] - to[2] * f0;
+  const float cr = stored(double{f2} * to[0] - double{to[2]} * f0);  // stored, then used as stored
   *cross = cr;
   if (unordered_or_less(d, 0)) return unordered_or_less(cr, 0) ? -1.0f : 1.0f;
+  // v stays in the register for its compares and is returned so (the callers store it).
   if (-p.sin_dead > cr) {
-    const float v = (cr + p.sin_dead) * p.gain;
-    if (unordered_or_less(v, -1.0f)) return -1.0f;
+    const double v = (double{cr} + p.sin_dead) * p.gain;
+    if (!(v >= -1.0)) return -1.0f;
     const float m = -p.least;
-    return v > m ? m : v;
+    return v > m ? m : stored(v);
   }
   if (!(cr > p.sin_dead)) return 0;
-  const float v = (cr - p.sin_dead) * p.gain;
-  if (v > 1.0f) return 1.0f;
-  return unordered_or_less(v, p.least) ? p.least : v;
+  const double v = (double{cr} - p.sin_dead) * p.gain;
+  if (v > 1.0) return 1.0f;
+  return !(v >= p.least) ? p.least : stored(v);
 }
 }  // namespace
 
@@ -63,15 +57,15 @@ float turn_rest(float f0, float f2, const float to[3], float d, float* cross, fl
 // 0x005e8b90 and the double 0x005cb0b0, then 1.2 and 0.1.
 const TurnParams& turn_params() {
   static const TurnParams p = [] {
-    const float a = static_cast<float>(5.0f * 0.017453292519943295);
-    return TurnParams{std::cos(a), std::sin(a), 1.2f, 0.1f};
+    const double a = 5.0f * 0.017453292519943295;  // in the register (53 bits), not stored
+    return TurnParams{static_cast<float>(std::cos(a)), static_cast<float>(std::sin(a)), 1.2f, 0.1f};
   }();
   return p;
 }
 
 // Mech3.exe 1.2 @ 0x004cdd40
 float turn_toward(const float fwd[3], const float to[3], float* dot, float* cross, float keep, const TurnParams& p) {
-  *dot = fwd[0] * to[0] + fwd[2] * to[2];
+  *dot = wide_sum(fwd[0], to[0], fwd[2], to[2]);  // stored from the register
   return turn_rest(fwd[0], fwd[2], to, *dot, cross, keep, p);
 }
 
@@ -79,7 +73,7 @@ float turn_toward(const float fwd[3], const float to[3], float* dot, float* cros
 // faces away and the rest is measured from its back.
 float turn_or_back(const float fwd[3], const float to[3], float* dot, float* cross, float keep, bool* reverse,
                    const TurnParams& p) {
-  const float d = fwd[0] * to[0] + fwd[2] * to[2];
+  const float d = wide_sum(fwd[0], to[0], fwd[2], to[2]);
   *dot = d;
   *reverse = unordered_or_less(d, -0.70710677f);
   if (!*reverse) return turn_rest(fwd[0], fwd[2], to, d, cross, keep, p);
@@ -91,7 +85,7 @@ float turn_or_back(const float fwd[3], const float to[3], float* dot, float* cro
 // nearer than 1 is measured along the vehicle's facing instead, at least
 // 0.1 off, and `from` moved back to make it so.
 void LinkWay::measure(const float to[3], const float fwd[3]) {
-  dir[0] = to[0] - from[0], dir[1] = to[1] - from[1], dir[2] = to[2] - from[2];
+  dir[0] = stored(double{to[0]} - from[0]), dir[1] = stored(double{to[1]} - from[1]), dir[2] = stored(double{to[2]} - from[2]);
   dir[1] = 0;
   dist = normalize3(dir);
   x00 = 0;
@@ -172,23 +166,21 @@ Behaviour* pick_link(Brain& b, Behaviour* at, const float heading[3], std::vecto
   int32_t counted = 0;
   for (int32_t i = 0; i < n; ++i) {
     Behaviour* l = at->link(i);
-    float f = 0;
+    double f = 0;  // in the register (zai_x87.h, at the reference's 53 bits)
     if (l && l != miss) {
       const float w = l->weight(b, at, &way);
       if (w > 0) {
-        const float d = heading[0] * way.dir[0] + heading[2] * way.dir[2];
-        // 0x005cb0e4, the doubles 0x005cb160 (-0.495) and 0x005cb168 (0.01),
-        // each step rounded once to a float as the x87 does in play
-        const float s = crt::x87_mul_f24(d - -1.0f, -0.495);
-        f = crt::x87_add_f24(0.01, -static_cast<double>(s)) * w;
+        const float d = wide_sum(heading[0], way.dir[0], heading[2], way.dir[2]);  // stored
+        // 0x005cb0e4, the doubles 0x005cb160 (-0.495) and 0x005cb168 (0.01)
+        f = (0.01 - (double{d} - -1.0f) * -0.495) * w;
       }
     }
-    total = total + f;
+    total = stored(double{total} + f);
     sums[static_cast<size_t>(i)] = total;
-    if (f != 0 && !std::isnan(f)) ++counted, picked = l;
+    if (f != 0 && !std::isnan(f)) ++counted, picked = l;  // the unrounded f (C3: a NaN as 0)
   }
   if (counted > 1) {
-    const float r = static_cast<float>(h.rand()) * total * 3.0518509e-05f;  // 0x005cb170
+    const float r = stored(double(h.rand()) * total * 3.0518509e-05f);  // 0x005cb170
     size_t first = 0, len = sums.size();
     while (len > 0) {  // the first whose sum is not below r
       const size_t half = len / 2;
@@ -212,8 +204,9 @@ NodeState::NodeState(Order* o, Behaviour* node) : BehaviourState(o, node), retry
   h.position(v, pos);
   const float speed = h.speed_at(v, b.xec);
   b.steer.set(b.x298, node->position(), speed, v);
-  slow = h.stopping_distance(v, speed);
-  inv_slow = 1.0f / slow;
+  const double sd = h.stopping_distance(v, speed);  // vt+0x120's register value
+  slow = stored(sd);
+  inv_slow = stored(1.0 / sd);
 }
 
 // Mech3.exe 1.2 @ 0x004c9700
@@ -523,7 +516,7 @@ void walk_drive(Brain& b, zgame::Handle v, const float pos[3], const float fwd[3
   bool reverse = unordered_or_less(s.along, 0);
   bool aimed = false;
   if (!s.near() && h.inout_clamp(v, to, to)) {  // 0x004c3000: kept inside the mission's boundary
-    to[0] = to[0] - pos[0], to[1] = to[1] - pos[1], to[2] = to[2] - pos[2];
+    to[0] = stored(double{to[0]} - pos[0]), to[1] = stored(double{to[1]} - pos[1]), to[2] = stored(double{to[2]} - pos[2]);
     to[1] = 0;
     normalize_flat(to);
     reverse = false;
@@ -536,7 +529,7 @@ void walk_drive(Brain& b, zgame::Handle v, const float pos[3], const float fwd[3
       to[1] = 0;
       to[2] = back ? s.dir[1] : -s.dir[1];
     } else {
-      to[0] = to[0] - pos[0], to[1] = to[1] - pos[1], to[2] = to[2] - pos[2];
+      to[0] = stored(double{to[0]} - pos[0]), to[1] = stored(double{to[1]} - pos[1]), to[2] = stored(double{to[2]} - pos[2]);
       to[1] = 0;
       normalize_flat(to);
     }
@@ -545,7 +538,8 @@ void walk_drive(Brain& b, zgame::Handle v, const float pos[3], const float fwd[3
   float dot, cross;
   *turn = reverse ? turn_or_back(fwd, to, &dot, &cross, keep, &reverse, turn_params())
                   : turn_toward(fwd, to, &dot, &cross, keep, turn_params());
-  float a = away[0] - slack_along, sd = away[1] - slack_side;
+  float a = stored(double{away[0]} - slack_along);
+  double sd = double{away[1]} - slack_side;  // kept in the register for its compares and the throttle
   if (!(dot > s.x38)) {  // more than 45 degrees off: turn on the spot
     *throttle = 0;
     return;
@@ -555,9 +549,9 @@ void walk_drive(Brain& b, zgame::Handle v, const float pos[3], const float fwd[3
     return;
   }
   if (unordered_or_less(a, 0)) a = 0;
-  if (unordered_or_less(sd, 0)) sd = 0;
-  const float t = (sd + a * 4.0f) * inv_slow;  // 0x005e8bbc
-  *throttle = reverse ? -t : t;
+  if (!(sd >= 0)) sd = 0;  // unrounded
+  const double t = (double{a} * 4.0f + sd) * inv_slow;  // 0x005e8bbc
+  *throttle = stored(reverse ? -t : t);
   const float lim = b.xec;
   if (!(lim >= *throttle)) *throttle = lim;
   else if (-lim > *throttle) *throttle = -lim;

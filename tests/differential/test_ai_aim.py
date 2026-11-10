@@ -13,7 +13,7 @@ control (+0x3b8) counts, the pilot's +0xb8 and +0xc0, the manager's aim
 start-up's [0x60b2ec] (0x4b7030). Each round sets a world and an aim (the
 constructor's or a random one, kept across rounds otherwise), then tracks
 and leads at a contact with random steps; after each call the calls, the
-aim's nine words and the manager's +0x88 must match, at 24-bit x87.
+aim's nine words and the manager's +0x88 must match, at the reference's 53-bit x87.
 """
 import ctypes
 import os
@@ -22,7 +22,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_plan as tp  # noqa: E402
 from calltrace import Trace  # noqa: E402

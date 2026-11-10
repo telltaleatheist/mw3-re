@@ -17,7 +17,7 @@ manoeuvre on the current order or pushes one through the brain, then runs,
 resumes, suspends, pushes and pops orders over it and changes the world
 (the clock, the speed, the fuel, airborne, the height, the targets); after
 each call the calls, the state (its +0x08..+0x2c and behaviour) and the
-brain's +0xf0, +0xf8, +0x104 and orders must match, at 24-bit x87.
+brain's +0xf0, +0xf8, +0x104 and orders must match, at the reference's 53-bit x87.
 """
 import ctypes
 import math
@@ -27,7 +27,7 @@ import struct
 import sys
 from pathlib import Path
 
-os.environ.setdefault('MW3_X87', '24')
+os.environ['MW3_X87'] = '53'  # the reference's precision, only (docs/pm-tests.md, MW3's AI at 53 bits)
 sys.path.insert(0, str(Path(__file__).parent))
 import test_ai_node as tn  # noqa: E402
 import test_ai_orders as to  # noqa: E402
