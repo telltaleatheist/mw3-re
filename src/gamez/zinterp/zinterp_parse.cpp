@@ -7,6 +7,7 @@
 
 #include "crt/msvc_math.h"
 #include "upgrades/reference/reference.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zutil/zfix.h"
@@ -701,7 +702,10 @@ Result letter_o(Interp& in, const char* argv0) {
     call(e.model_set_priority, g.object_model, p);
     return kKnown;
   }
-  if (is(argv0, "Object3DSetScrollAlways", 0x17)) {
+  // FIX (bug): c1's script misspells it once, after FindNode ocean52, so that
+  // water alone never scrolled; read as the command it means (fixes.md).
+  if (is(argv0, "Object3DSetScrollAlways", 0x17) ||
+      (zfix::options().fixed && std::strncmp(argv0, "Object3DSetScrllAlways", 0x16) == 0)) {
     const bool on = a.b();
     const float u = a.f(), v = a.f();
     if (!on) scroll_off(in.current);

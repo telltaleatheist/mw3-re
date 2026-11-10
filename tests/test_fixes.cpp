@@ -6,6 +6,7 @@
 #include <cstring>
 #include <string>
 #include <tuple>
+#include <vector>
 #if !defined(_WIN32)
 #include <unistd.h>
 #endif
@@ -27,6 +28,8 @@
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "mech3/hud.h"
+#include "mech3/mech_config.h"
+#include "mech3/mech_reader.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_hud.h"
 #include "mech3/lance_orders.h"
@@ -105,6 +108,67 @@ TEST(fix_smoke_drag_per_second) {
   EXPECT(std::fabs(smoke_speed(30, true) - want) < 0.05f);
   EXPECT(std::fabs(smoke_speed(144, true) - want) < 0.05f);
   EXPECT(smoke_speed(144, false) == 10.0f);  // the exe's table: no drag at all
+}
+
+// Four data typos read as meant (fixes.md; upgrades-sort.md): the Firefly's
+// fifth skin's label (always on), the Sunder Alternate B's LRM 20 extras and
+// the Strider's recoil slide (Small fixes). Off, each reads as the exe does.
+TEST(mech_data_typos_read_as_meant) {
+  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/reader.zbd";
+  if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+    std::fclose(f);
+  } else {
+    std::printf("  (skipped: no %s)\n", path.c_str());
+    return;
+  }
+  const zfix::Options saved = zfix::options();
+  mech3::set_load_saved(nullptr), mech3::set_save_all(nullptr);  // no player's loadouts read or written
+  zrdr::init();
+  EXPECT(zrdr::open_archive(path.c_str(), true));
+  const int32_t lrm20 = mech3::weapon_index("LRM20");
+  for (const int mode : {0, 1, 2}) {  // all on; the small fixes off; the always-on ones off too
+    zfix::set_all(true);
+    if (mode >= 1) zfix::options().small_fixes = false;
+    if (mode == 2) zfix::options().fixed = false;
+    mech3::SkinSet* set = mech3::read_skins(zrdr::load("dfn_firefly.zrd"));
+    EXPECT(set && set->skins.size() == 8);  // primary, _b to _h
+    if (set && set->skins.size() == 8) {
+      const bool two_the_same = std::strcmp(set->skins[3]->name, set->skins[4]->name) == 0;
+      EXPECT(two_the_same == (mode == 2));
+    }
+    delete set;
+    int missiles = 0;
+    {
+      mech3::MechDfn d(mech3::mech_index("sunder"), zrdr::load("dfn_sunder.zrd"));
+      EXPECT(mech3::read_dfn(d) && d.configs);
+      for (mech3::Config* c : d.configs ? d.configs->configs : std::vector<mech3::Config*>{}) {
+        double items = 0;  // every item's weight: with the extras Alternate B weighs what the others do
+        for (const mech3::ConfigItem* it : c->items) items += it->weight(-1);
+        c->recount();
+        std::printf("    %s: items %.2f t, armour %.1f t, free slots %d\n", c->name ? c->name : "?", items, c->armor_tons, c->free_slots);
+        if (c->name && std::strstr(c->name, "ALTERNATE_B"))
+          for (const mech3::ConfigItem* it : c->items)
+            if (it->kind() == 2 && it->id() == lrm20) missiles += it->count;
+      }
+    }
+    float slide = -1, cauldron = -1;
+    {
+      mech3::MechDfn d(mech3::mech_index("strider"), zrdr::load("dfn_strider.zrd"));
+      EXPECT(mech3::read_dfn(d));
+      slide = d.get<float>(0x184);
+      mech3::MechDfn c(mech3::mech_index("cauldron"), zrdr::load("dfn_cauldron.zrd"));
+      EXPECT(mech3::read_dfn(c));
+      cauldron = c.get<float>(0x184);
+    }
+    std::printf("  mode %d: Sunder Alternate B's LRM 20 missiles %d; the Strider's recoil slide %g (the Cauldron's %g)\n", mode,
+                missiles, slide, cauldron);
+    EXPECT(missiles == (mode == 0 ? 360 : 120));
+    EXPECT(cauldron == 1.5f && slide == (mode == 0 ? 1.5f : 0.0f));
+  }
+  zrdr::close_archives(true);
+  mech3::set_load_saved([](mech3::ConfigList* c) { c->load_saved(); });
+  mech3::set_save_all([](mech3::ConfigList* c) { c->save_all(); });
+  zfix::options() = saved;
 }
 
 // The Mad Cat's and Supernova's damage masks land on their damage textures

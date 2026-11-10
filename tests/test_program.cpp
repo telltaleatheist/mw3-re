@@ -10038,6 +10038,20 @@ TEST(mission_c1m1_horizon_scrolls_headless) {
                          "v %g -> %g\n", m ? "found" : "missing", (flags & 0x10) != 0, speed_u, dt_sum, u0, u1, du,
                  0.015f * dt_sum, v0, v1);
     EXPECT(m != nullptr && (flags & 0x10) && speed_u == 0.015f);
+    // c1's script misspells the command once, for ocean52 (fixes.md): read as
+    // meant, that water scrolls as ocean51 beside it (0.05 u a second).
+    {
+      auto scroll_of = [](const char* name, float* speed) {
+        zcls::Node* n = zcls::list_find_by_name(6, name);
+        uint32_t f = 0;
+        if (n && n->model) std::memcpy(&f, n->model->header + 8, 4), std::memcpy(speed, n->model->header + 0x28, 4);
+        return n && n->model && (f & 0x10);
+      };
+      float s51 = 0, s52 = 0;
+      const bool on51 = scroll_of("ocean51", &s51), on52 = scroll_of("ocean52", &s52);
+      std::fprintf(stderr, "  scroll: ocean51 %d at %g, ocean52 %d at %g\n", on51, s51, on52, s52);
+      EXPECT(on51 && on52 && s51 == 0.05f && s52 == 0.05f);
+    }
     EXPECT(std::fabs(du - 0.015f * dt_sum) < 1e-4f || std::fabs(std::fabs(du - 0.015f * dt_sum) - 1.0f) < 1e-4f);  // or wrapped
     EXPECT(v1 == v0 && du != 0.0f);
     app.stop_game();

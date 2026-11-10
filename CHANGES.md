@@ -24,6 +24,10 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **The Sunder's Alternate B loadout carries all its LRM 20 missiles.** A misplaced word in its file left 240 of the 360 unloaded. Under SMALL FIXES.
+- **The Strider has its recoil slide.** Its file gave the number as text ("1.5.0"), so it had none; it now has the 1.5 of the mechs beside it. Under SMALL FIXES.
+- **The Firefly's fifth camo is named SLATE.** It was labelled WASP like the fourth. Always on.
+- **All of mission 1's ocean scrolls.** One water surface was left still by a misspelt word in the world's script. Always on.
 - **The Small Pulse Laser has its muzzle flash.** Its weapon data named a flash no mission has, so it fired with none; it now shows the Small Laser's blue flash, as every other laser uses its size's colour.
 - **Typing in the cheat box or the chat no longer moves your view.** A key you type into a box still counted for the game when you let it go after pressing Enter, as you do when typing fast; L is the hold-to-look key, so "operation cwal" left the mouse turning the torso instead of moving the reticle. Keys typed into a box are the box's now.
 - **Artemis works in a side torso.** The rebuild looked for Artemis on the torso as one piece, so a launcher and its Artemis in the same side torso (some stock mechs have them there) never got it. Now, as in the original, a locked shot from that launcher tracks at double rate and hugs the ground.
