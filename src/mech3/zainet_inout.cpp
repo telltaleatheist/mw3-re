@@ -1,5 +1,6 @@
 #include "mech3/zainet_inout.h"
 #include "mech3/zainet_inout_view.h"
+#include "mech3/zai_x87.h"
 
 #include <cfloat>
 #include <cmath>
@@ -32,13 +33,14 @@ constexpr bool kReverse[4] = {false, false, true, true};
 InOutHooks g_hooks;
 InOut g_inout;
 
+// The boundary's sums as the reference runs them at 53 bits (zai_x87.h; docs/ai.md 17.4b).
 // 0x004c1030 on (x, -, z): normalized in x and z unless of no length; the length.
 float normalize_xz(float v[3]) {
-  const float len = std::sqrt(v[0] * v[0] + v[2] * v[2]);  // 0x004c10e0
+  const float len = stored(std::sqrt(double{v[0]} * v[0] + double{v[2]} * v[2]));  // 0x004c10e0, stored
   if (len != 0.0f) {
-    const float k = 1.0f / len;
-    v[0] = v[0] * k;
-    v[2] = v[2] * k;
+    const float k = stored(1.0 / len);  // stored too
+    v[0] = stored(double{v[0]} * k);
+    v[2] = stored(double{v[2]} * k);
   }
   return len;
 }
@@ -77,33 +79,28 @@ void make_sides(InOutPolygon& p) {
 // x87 compares: true when below or unordered (C0).
 bool lt(float a, float b) { return !(a >= b); }
 
-float dist_xz(const float* a, const float* b) {  // 0x004c1090
-  const float dx = b[0] - a[0], dz = b[2] - a[2];
-  return std::sqrt(dx * dx + dz * dz);
+double dist_xz(const float* a, const float* b) {  // 0x004c1090: the differences stored, the root left in the register
+  const float dx = stored(double{b[0]} - a[0]), dz = stored(double{b[2]} - a[2]);
+  return std::sqrt(double{dx} * dx + double{dz} * dz);
 }
-float dist3(const float* a, const float* b) {  // 0x0051e000
-  const float dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
-  return std::sqrt((dx * dx + dy * dy) + dz * dz);
+float dist3(const float* a, const float* b) {  // 0x0051e000: the root stored
+  const float dx = stored(double{a[0]} - b[0]), dy = stored(double{a[1]} - b[1]), dz = stored(double{a[2]} - b[2]);
+  return stored(std::sqrt((double{dx} * dx + double{dy} * dy) + double{dz} * dz));
 }
-float dot3(const float* a, const float* b) { return (a[0] * b[0] + a[1] * b[1]) + a[2] * b[2]; }  // 0x004c2430
+float dot3(const float* a, const float* b) {  // 0x004c2430
+  return stored((double{a[0]} * b[0] + double{a[1]} * b[1]) + double{a[2]} * b[2]);
+}
 // 0x004c0fe0 (ECX out, EDX a): a + (b - a) t in x and z, a's height.
 void lerp(float out[3], const float* a, float t, const float* b) {
-  out[0] = (b[0] - a[0]) * t + a[0];
+  out[0] = stored((double{b[0]} - a[0]) * t + a[0]);
   out[1] = a[1];
-  out[2] = (b[2] - a[2]) * t + a[2];
+  out[2] = stored((double{b[2]} - a[2]) * t + a[2]);
 }
-// 0x004020d0 in play: floats.
-float normalize3(float v[3]) {
-  const float len = std::sqrt((v[0] * v[0] + v[2] * v[2]) + v[1] * v[1]);
-  if (len != 0.0f) {
-    const float k = 1.0f / len;
-    v[0] = k * v[0], v[1] = k * v[1], v[2] = k * v[2];
-  }
-  return len;
-}
-// The side of `p` from the line a -> b (0x004c1410 / 0x004c1770's sums).
+float normalize3(float v[3]) { return normalize_x87(v); }  // 0x004020d0
+// The side of `p` from the line a -> b (0x004c1410 / 0x004c1770's sums): the differences stored.
 float side(const float* a, const float* b, const float* p) {
-  return (((a[2] - b[2]) * p[0] - (a[0] - b[0]) * p[2]) + b[2] * a[0]) - b[0] * a[2];
+  const float dz = stored(double{a[2]} - b[2]), dx = stored(double{a[0]} - b[0]);
+  return stored(((double{dz} * p[0] - double{dx} * p[2]) + double{b[2]} * a[0]) - double{b[0]} * a[2]);
 }
 bool opposite(float s1, float s2) { return (lt(s1, 0.0f) && lt(0.0f, s2)) || (s1 > 0.0f && 0.0f > s2); }
 // From the side line p -> v: whether the ray from `a` through `b` meets it,
@@ -131,7 +128,7 @@ void edge_count(InOutQuery& c, const InOutVertex* prev, const InOutVertex* v) {
   if (rb) ++c.to_rays;
   if (!(ra && rb)) return;
   ++c.crossings;
-  const float t = -sa / (sb - sa);
+  const float t = stored(-double{sa} / (double{sb} - sa));
   if (lt(t, c.t_near)) c.t_near = t, c.near_a = prev, c.near_b = v;
   if (lt(c.t_far, t)) c.t_far = t, c.far_a = prev, c.far_b = v;
 }
@@ -165,9 +162,9 @@ void read_model(InOutArea& area, zcls::Node* node) {
     for (int32_t i = 0; i < nv; ++i) {
       const float* s = m->vertices + 3 * i;
       float* d = buf.data() + 3 * i;
-      d[0] = ((s[0] * t[0] + s[1] * t[3]) + s[2] * t[6]) + t[9];
-      d[1] = ((s[0] * t[1] + s[1] * t[4]) + s[2] * t[7]) + t[10];
-      d[2] = ((s[0] * t[2] + s[1] * t[5]) + s[2] * t[8]) + t[11];
+      d[0] = stored(((double{s[0]} * t[0] + double{s[1]} * t[3]) + double{s[2]} * t[6]) + t[9]);  // in the register
+      d[1] = stored(((double{s[0]} * t[1] + double{s[1]} * t[4]) + double{s[2]} * t[7]) + t[10]);
+      d[2] = stored(((double{s[0]} * t[2] + double{s[1]} * t[5]) + double{s[2]} * t[8]) + t[11]);
     }
   }
   if (kGroundCorners && g_hooks.ground)
@@ -316,11 +313,11 @@ const InOutVertex* InOutPolygon::way_round(const InOutQuery& q) const {
     if (&v == q.far_a) rest = v.length;
     else if (rest < 0.0f || rest > 0.0f) rest = rest + v.length;
   }
-  if (lt(arc, rest)) arc = (perimeter - rest) + arc;
-  else arc = arc - rest;
-  const float d1 = dist_xz(q.near_point, q.near_b->pos);  // 0x004c1090
-  const float d2 = dist_xz(q.far_point, q.far_a->pos);
-  arc = (d2 + d1) + arc;
+  if (lt(arc, rest)) arc = stored((double{perimeter} - rest) + arc);
+  else arc = stored(double{arc} - rest);
+  const float d1 = stored(dist_xz(q.near_point, q.near_b->pos));  // 0x004c1090, stored
+  const double d2 = dist_xz(q.far_point, q.far_a->pos);         // the second from the register
+  arc = stored((d2 + d1) + arc);
   if (lt(2.0f * arc, perimeter)) got = q.near_b;  // 0x005cac60
   return got;
 }
@@ -333,14 +330,14 @@ void InOutPolygon::nearest(const float* from, float out[3], const InOutVertex** 
   float best = FLT_MAX;
   const InOutVertex* p = &verts.back();
   for (const InOutVertex& v : verts) {
-    const float e[3] = {v.offset[0] - p->offset[0], 0.0f, v.offset[2] - p->offset[2]};  // 0x0041fb30, y 0
-    const float u[3] = {p->offset[0] - from[0], 0.0f, p->offset[2] - from[2]};
-    const float w[3] = {v.offset[0] - from[0], 0.0f, v.offset[2] - from[2]};
+    const float e[3] = {stored(double{v.offset[0]} - p->offset[0]), 0.0f, stored(double{v.offset[2]} - p->offset[2])};  // 0x0041fb30, y 0
+    const float u[3] = {stored(double{p->offset[0]} - from[0]), 0.0f, stored(double{p->offset[2]} - from[2])};
+    const float w[3] = {stored(double{v.offset[0]} - from[0]), 0.0f, stored(double{v.offset[2]} - from[2])};
     const float d1 = dot3(e, u), d2 = dot3(e, w);  // 0x004c2430
     float at[3];
     const float* q = p->offset;
     if ((!(d1 > 0.0f) && lt(0.0f, d2)) || (lt(d2, 0.0f) && !(0.0f > d1))) {
-      lerp(at, p->offset, d1 / (d1 - d2), v.offset);
+      lerp(at, p->offset, stored(double{d1} / (double{d1} - d2)), v.offset);
       q = at;
     }
     const float d = dist3(q, from);
@@ -375,8 +372,8 @@ const float* InOutArea::query(const float* from, const float* to) {
   from_in = to_in = 0;
   for (const auto& poly : polygons) poly->cross(*this);  // 0x004c53a0 over 0x004c2920
   if (!(q.crossings > 0 || (from_in && to_in))) return got;
-  const float d[2] = {to[0] - from[0], to[2] - from[2]};
-  q.length = std::sqrt(d[0] * d[0] + d[1] * d[1]);  // 0x004c2e00
+  const float d[2] = {stored(double{to[0]} - from[0]), stored(double{to[2]} - from[2])};
+  q.length = stored(std::sqrt(double{d[0]} * d[0] + double{d[1]} * d[1]));  // 0x004c2e00: the root in the register
   if (from_in) {
     const InOutVertex *a = nullptr, *b = nullptr;
     q.poly->nearest(from, q.near_point, &a, &b);
@@ -384,17 +381,17 @@ const float* InOutArea::query(const float* from, const float* to) {
     // FIX (bug): with every distance NaN no side is kept and the exe reads
     // the stack's leftovers; the normal is left as it was.
     if (a && b) {
-      normal[0] = a->pos[2] - b->pos[2];
+      normal[0] = stored(double{a->pos[2]} - b->pos[2]);
       normal[1] = 0.0f;
-      normal[2] = b->pos[0] - a->pos[0];
+      normal[2] = stored(double{b->pos[0]} - a->pos[0]);
       normalize3(normal);  // 0x004020d0
     }
   } else if (to_in && q.crossings == 1) {
     got = q.far_point;
-    lerp(q.far_point, from, q.t_far - q.poly->width / q.length, to);
+    lerp(q.far_point, from, stored(q.t_far - double{q.poly->width} / q.length), to);
   } else if (q.near_a && q.far_a) {
-    lerp(q.near_point, from, q.t_near - q.poly->width / q.length, to);
-    lerp(q.far_point, from, q.poly->width / q.length + q.t_far, to);
+    lerp(q.near_point, from, stored(q.t_near - double{q.poly->width} / q.length), to);
+    lerp(q.far_point, from, stored(double{q.poly->width} / q.length + q.t_far), to);
     const InOutVertex* cur = q.poly->way_round(q);
     if (cur) {
       got = q.near_point;

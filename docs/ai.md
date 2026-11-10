@@ -2302,6 +2302,19 @@ What stays in the register, by function (each read from the disassembly):
   differences stored, the squares and root in the register) and the
   regions' inside test (0x4c5a30: the dot stored): `test_ai_paths` and
   `test_ai_regions` run their queries at 53 now.
+- The mission boundary (`zainet_inout.cpp`): the side's normalize (0x4c1030,
+  the length and 1 over it stored), the distances (0x4c1090 the root left in
+  the register, 0x51e000 stored), the dot 0x4c2430, the lerp 0x4c0fe0, the
+  side sums of 0x4c1410 / 0x4c1770 and the crossing's t, the nearest point's
+  t (0x4c22c0), the way round's arc (0x4c2f20, the far gap from the
+  register) and the query's length, normal and its points' t (0x4c2b00).
+  `test_inout` and `test_inout_query` match at 53 with the ground off.
+  **Waits on cls_di at 53:** the corners go on the ground through the
+  engine's ground query (0x4c4240 over 0x41eb90, zcls::ground_point), still
+  its 24-bit form (`test_di` differs at 53), so both tests leave the ground
+  off until it is done. **And on zmath's matrices at 53:** a moved `inout`
+  goes through 0x4c3ed0's push and multiply (zmth_matrix, `test_matrix`
+  compares within a tolerance), so `test_inout` leaves the moved cases out.
 
 ### 17.4a Walking to a node: the node state (0x4ced40, ported)
 
