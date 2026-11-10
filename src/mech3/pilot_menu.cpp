@@ -1,5 +1,8 @@
 #include "mech3/pilot_menu.h"
 
+#include <cstdio>
+#include "upgrades/mods/entry_pilots.h"
+
 #include <cstring>
 #include <string>
 
@@ -48,6 +51,12 @@ void PilotList::select(int32_t index) {
   FileList::select(index);
   Pilot* p = nullptr;
   if (index >= 0 && index < item_count()) p = find_pilot(items[static_cast<size_t>(index)]->text);
+  // Ours (upgrades/mods/entry_pilots.h): a main-menu pilot's row picked by the player is brought across now,
+  // so its games are listed; the list's own first selection brings nothing.
+  if (!p && s && !s->listing && index >= 0 && index < item_count() && entry_is_main_pilot(items[static_cast<size_t>(index)]->text)) {
+    const std::string name = items[static_cast<size_t>(index)]->text;
+    if (s->bring(name)) return;  // listed again with it chosen
+  }
   if (s) s->choose(p);
 }
 
@@ -220,6 +229,7 @@ void PilotScreen::on_button(int32_t id, int32_t a, int32_t b) {
       break;
     case 0x18:  // ACCEPT: the chosen pilot goes on (2)
       finish_edits();
+      if (!chosen && main_row_chosen()) bring(pilots.items[static_cast<size_t>(pilots.selected)]->text);  // ours: picked
       if (chosen) {
         set_current(engine(), chosen);
         engine().pop_state(2);
@@ -230,6 +240,11 @@ void PilotScreen::on_button(int32_t id, int32_t a, int32_t b) {
       delete_chosen();
       break;
     case 0x1a:  // RENAME
+      if (!editing() && main_row_chosen()) {  // ours: not this entry's to rename
+        engine().message_box_words(0, "Pilots", std::string(pilots.items[static_cast<size_t>(pilots.selected)]->text) +
+                                                    " is the main game's pilot. It can be deleted or renamed from the main menu.");
+        break;
+      }
       if (!editing()) rename(true, false);
       break;
     default: break;
@@ -290,6 +305,9 @@ void PilotScreen::rename(bool start, bool cancel) {
 void PilotScreen::delete_chosen() {
   Pilot* p = chosen;
   cursor_obj.erase();
+  if (!p && main_row_chosen())  // ours: not this entry's to delete
+    engine().message_box_words(0, "Pilots", std::string(pilots.items[static_cast<size_t>(pilots.selected)]->text) +
+                                                " is the main game's pilot. It can be deleted or renamed from the main menu.");
   if (!p) return;
   if (engine().message_box1(1, 0x1e0, 0xf26, p->name) != 1) return;
   delete_pilot(p->name);
@@ -312,8 +330,31 @@ void PilotScreen::choose(Pilot* p) {
   if (chosen) {
     chosen->select_game(mode);
     fill_games();
+  } else if (main_row_chosen()) {  // ours: nothing of it is read until it is picked
+    games.show_for(-1.0f);
+    games.add_item("From the main game", 0);
+    games.layout();
   }
   new_bar.set_text("");
+}
+
+// Ours (upgrades/mods/entry_pilots.h).
+bool PilotScreen::main_row_chosen() const {
+  const int32_t i = pilots.selected;
+  return i >= 0 && i < pilots.item_count() && !find_pilot(pilots.items[static_cast<size_t>(i)]->text) &&
+         entry_is_main_pilot(pilots.items[static_cast<size_t>(i)]->text);
+}
+
+Pilot* PilotScreen::bring(const std::string& name) {
+  std::string why;
+  Pilot* p = entry_bring_pilot(name, &why);
+  if (!p) {
+    std::printf("mw3: pilot %s could not be brought from the main game: %s\n", name.c_str(), why.c_str());
+    engine().message_box_words(0, "Pilots", name + " could not be brought from the main game: " + why + ".");
+    return nullptr;
+  }
+  refresh(false, p);
+  return p;
 }
 
 // Mech3.exe 1.2 @ 0x004882b0. The campaign's saves (the newest chosen), the
@@ -392,7 +433,10 @@ void PilotScreen::refresh(bool focus_new, Pilot* p) {
     const int32_t i = pilots.add_item(q->name, 0);  // FIX (A): the exe's value is the pilot's address (unread)
     if (q == p) row = i;
   }
+  for (const std::string& name : entry_main_pilots()) pilots.add_item(name.c_str(), 0);  // ours: the main menu's, by name only
+  listing = true;  // the list's own selection picks nothing (entry_pilots.h)
   pilots.select(row);
+  listing = false;
   if (chosen && mode == kTraining) {
     games.hide();
     show_lists();

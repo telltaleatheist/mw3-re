@@ -1,12 +1,8 @@
 #include "upgrades/mods/ia_mods_menu.h"
 
 #include <algorithm>
-#include <cctype>
-#include <filesystem>
-#include <fstream>
 
 #include "mech3/pilot.h"
-#include "upgrades/mods/entry_pilot_copy.h"
 
 #include "upgrades/mods/campaign_entries.h"
 #include "upgrades/mods/entry_run.h"
@@ -51,39 +47,6 @@ std::vector<std::string> ia_mods_missing(const std::string& write_dir) {
 
 bool ia_straight_in(const std::string& write_dir) {
   return !write_dir.empty() && !entry_ticks(write_dir, kIaEntry).empty() && ia_mods_missing(write_dir).empty();
-}
-
-namespace {
-namespace fs = std::filesystem;
-const char* const kDeclinedFile = "pilots-not-copied.txt";  // in the entry's folder: a name a line
-std::string lower(std::string s) {
-  for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  return s;
-}
-bool has_pilot(const fs::path& pilots, const std::string& name) {
-  std::error_code ec;
-  for (fs::directory_iterator it(pilots, ec), end; !ec && it != end; it.increment(ec))
-    if (it->is_regular_file(ec) && lower(it->path().filename().string()) == lower(name) + ".mw3") return true;
-  return false;
-}
-}  // namespace
-
-IaPilot ia_pilot_state(const std::string& write_dir, const std::string& name) {
-  if (name.empty() || write_dir.empty()) return IaPilot::kNone;
-  const fs::path entry(entry_dir(write_dir, kIaEntry));
-  if (has_pilot(entry / "pilots", name)) return IaPilot::kThere;
-  if (!has_pilot(fs::path(write_dir) / "pilots", name)) return IaPilot::kNone;
-  std::ifstream in(entry / kDeclinedFile);
-  for (std::string line; std::getline(in, line);)
-    if (lower(line) == lower(name)) return IaPilot::kDeclined;
-  return IaPilot::kOffer;
-}
-
-void ia_pilot_declined(const std::string& write_dir, const std::string& name) {
-  const std::vector<CampaignEntry> all = campaign_entries(write_dir);
-  const CampaignEntry* e = find_entry(all, kIaEntry);
-  if (!e || !entry_ensure(write_dir, *e, nullptr)) return;
-  std::ofstream(fs::path(entry_dir(write_dir, kIaEntry)) / kDeclinedFile, std::ios::app) << name << "\n";
 }
 
 IaModsStep ia_mods_step(const std::vector<std::string>& before, const std::vector<std::string>& now, bool inside) {
@@ -212,31 +175,10 @@ void IaModsScreen::accept() {
     tell("Not started: " + why);
     return;
   }
-  // The pilot goes along so the start lands on Instant Action again. Into
-  // the entry for the first time: the one offer to copy it and the saved
-  // mechs there (entry_pilot_copy.h; the originals are only read). No: a new
-  // pilot is made there, and this pilot is not asked about again.
-  std::string pilot = current_pilot() ? current_pilot()->name : "";
+  // The pilot's name goes along so the start lands on Instant Action again: the entry's own of that name is
+  // picked there, or the main menu's brought across quietly (entry_pilots.h); going out, the main menu's.
   if (current_pilot()) current_pilot()->save();  // on disk as the player sees it (a new pilot has no file until then)
-  if (step == IaModsStep::kIntoEntry) {
-    const IaPilot state = ia_pilot_state(dir, pilot);
-    if (state == IaPilot::kOffer) {
-      const std::string text = "Instant Action with mods keeps its own pilots and saved mechs. Copy " + pilot +
-                               " and your saved mechs there? Your pilot here is not changed.";
-      if (engine().message_box_words(1, "Instant Action", text) == 1) {
-        const PilotCopy c = entry_copy_pilot(dir, pilot, entry_dir(dir, kIaEntry), entry_dir(dir, kIaEntry) + "/configs");
-        if (!c.ok) {
-          tell("The pilot was not copied: " + c.why);
-          return;
-        }
-      } else {
-        ia_pilot_declined(dir, pilot);
-        pilot.clear();
-      }
-    } else if (state != IaPilot::kThere) {
-      pilot.clear();
-    }
-  }
+  const std::string pilot = current_pilot() ? current_pilot()->name : "";
   if (!ia_mods_restart()(step == IaModsStep::kIntoEntry, pilot, &why)) tell("Not started: " + why);
 }
 

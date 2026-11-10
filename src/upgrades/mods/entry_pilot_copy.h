@@ -32,7 +32,9 @@ std::vector<std::string> main_menu_pilots(const std::string& write_dir);
 // a mech's file the entry has is kept, and one whose place is taken by a stray
 // file (its .rows without it, a folder of its name) is skipped; the pilot's
 // copy goes on without it.
+// `saves` false: the pilot's file and the loadouts only, none of its saved
+// games (a different campaign's entry: entry_pilots.h).
 PilotCopy entry_copy_pilot(const std::string& write_dir, const std::string& name, const std::string& entry_dir,
-                           const std::string& configs_dir);
+                           const std::string& configs_dir, bool saves = true);
 
 }  // namespace mech3

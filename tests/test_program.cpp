@@ -1800,6 +1800,209 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Ours (docs/mods-campaigns-plan.md, Pilots; upgrades/mods/entry_pilots.h):
+// inside a campaign entry the pilot screen lists the entry's own pilots and,
+// after them, the main menu's it lacks, by name only (never loaded). The
+// row the screen chooses by itself brings nothing; DELETE and RENAME on a
+// main-menu row are refused, said, and leave its file; the player's pick
+// brings it across once, the main menu's files unchanged to the byte and the
+// time. In the game's own campaign it comes with its saved games and carries
+// on (two games listed); deleting the entry's copy leaves the main menu's,
+// listed again. In a different campaign no saved game comes and the pilot
+// has one game, that campaign's first mission, and after it is let go its
+// file holds no saved campaign.
+namespace {
+struct EntryPilotsRun {
+  std::string rows_at_open, rows_after_pick, rows_after_delete, refused_delete, refused_rename, said;
+  bool auto_chose_nothing = false, picked = false, main_untouched = false, saves_came = false, no_saves_came = false;
+  bool deleted_copy_only = false, accepted = false;
+  int games_listed = -1, campaigns_after_reload = -1, first_op = -1, first_mission = -1;
+  bool mod_game = false;
+};
+EntryPilotsRun entry_pilots_run(const std::string& wd, bool own_campaign) {
+  namespace fs = std::filesystem;
+  EntryPilotsRun out;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  auto snapshot = [&] {
+    std::string t;
+    std::error_code ec;
+    std::vector<fs::path> all;
+    for (fs::recursive_directory_iterator it(wd + "/pilots", ec), end; !ec && it != end; it.increment(ec)) all.push_back(it->path());
+    std::sort(all.begin(), all.end());
+    for (const fs::path& f : all) {
+      if (!fs::is_regular_file(f, ec)) continue;
+      std::ifstream in(f, std::ios::binary);
+      t += f.string() + ":" + std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()) + ":" +
+           std::to_string(static_cast<long long>(fs::last_write_time(f, ec).time_since_epoch().count())) + "\n";
+    }
+    return t;
+  };
+  const std::string id = own_campaign ? "mw3" : "lost~lost";
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    auto drop = [] {
+      mech3::current_pilot() = nullptr;
+      for (mech3::Pilot* q : mech3::pilots()) delete q;
+      mech3::pilots().clear();
+    };
+    // The main menu's pilot Ace, at Op 1 Mission 2 with its saved game (the file's presence keeps the record: pilot.md).
+    if (mech3::Pilot* ace = mech3::create_pilot("Ace")) {
+      auto* c = ace->campaigns.empty() ? nullptr : dynamic_cast<mech3::CampaignGame*>(ace->campaigns.front());
+      mech3::CampaignGame* n = c ? c->next_mission(true, false) : nullptr;
+      EXPECT(n != nullptr);
+      if (n) ace->campaigns.push_back(n), ace->current = n;
+      ace->save();
+      fs::create_directories(wd + "/pilots/games");
+      std::ofstream(wd + "/pilots/games/Ace0102.mw3") << "ace's saved game";
+      EXPECT(fs::is_regular_file(wd + "/pilots/games/Ace0102.mw3") && fs::is_regular_file(wd + "/pilots/Ace.mw3"));
+    }
+    drop();
+    // Into the entry, as the program does for --entry <id> --entry-play; the entry has no pilot of its own yet.
+    const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd);
+    const mech3::CampaignEntry* e = mech3::find_entry(all, id);
+    EXPECT(e && mech3::entry_ensure(wd, *e, nullptr));
+    mech3::set_pilots_folder(mech3::entry_pilots_folder(id));
+    mech3::set_configs_folder(mech3::entry_configs_folder(id));
+    mech3::EntryRun& run = mech3::entry_run();
+    run = mech3::EntryRun{};
+    run.screen = mech3::EntryRun::kPlay, run.id = id;
+    if (!own_campaign) run.mod = "lost", run.campaign = "lost";
+    int left = 0;
+    run.leave = [&] { ++left; };
+    const std::string before = snapshot();
+    std::vector<std::string> boxes;
+    engine.on_message_box = [&](int32_t, int32_t, int32_t) { return boxes.push_back(engine.last_box_text), 1u; };
+    int stage = 0;
+    engine.on_present = [&](int) {
+      auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+      if (stage != 0 || !ps || !ps->screen) return;
+      mech3::PilotScreen* s = ps->screen;
+      auto rows = [&] {
+        std::string t;
+        for (const auto* i : s->pilots.items) t += std::string(i->text) + "|";
+        return t;
+      };
+      out.rows_at_open = rows();
+      // The row the screen chose by itself is the main menu's Ace: nothing brought, nothing of it loaded.
+      out.auto_chose_nothing = s->chosen == nullptr && s->main_row_chosen() && !mech3::find_pilot("Ace") &&
+                               !fs::exists(wd + "/campaigns/" + id + "/pilots/Ace.mw3") && s->games.item_count() == 1 &&
+                               std::string(s->games.items[0]->text) == "From the main game";
+      s->on_button(0x19, 0, 0);  // DELETE
+      out.refused_delete = boxes.empty() ? "" : boxes.back();
+      s->on_button(0x1a, 0, 0);  // RENAME
+      out.refused_rename = boxes.size() < 2 ? "" : boxes.back();
+      const bool still = snapshot() == before && !s->editing();
+      // The pick.
+      s->pilots.select(0);
+      out.rows_after_pick = rows();
+      mech3::Pilot* ace = mech3::find_pilot("ace");
+      out.picked = ace && s->chosen == ace && fs::is_regular_file(wd + "/campaigns/" + id + "/pilots/Ace.mw3");
+      out.main_untouched = still && snapshot() == before;
+      const bool save_there = fs::exists(wd + "/campaigns/" + id + "/pilots/games/Ace0102.mw3");
+      out.saves_came = save_there, out.no_saves_came = !save_there;
+      out.games_listed = ace ? ace->campaign_count() : -1;
+      if (ace && !ace->campaigns.empty()) {
+        auto* first = dynamic_cast<mech3::CampaignGame*>(ace->campaigns.front());
+        out.mod_game = dynamic_cast<mech3::ModCampaignGame*>(ace->campaigns.front()) != nullptr;
+        if (first) out.first_op = first->operation(), out.first_mission = first->mission_number();
+      }
+      if (own_campaign) {
+        // The entry's copy deleted (the box answered OK): the main menu's stays, and is listed again.
+        s->on_button(0x19, 0, 0);
+        out.deleted_copy_only = !fs::exists(wd + "/campaigns/mw3/pilots/Ace.mw3") && !fs::exists(wd + "/campaigns/mw3/pilots/games/Ace0102.mw3") &&
+                                snapshot() == before && !mech3::find_pilot("Ace");
+        out.rows_after_delete = rows();
+      }
+      for (const std::string& b : boxes) out.said += b + " / ";
+      stage = 1;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 1; };
+    app.run(pump);
+    EXPECT(stage == 1 && left == 0);
+    if (!own_campaign) {
+      // Let go and read again: the copy's file holds no saved campaign (the main campaign's records had no saved game here).
+      drop();
+      mech3::load_pilots();
+      mech3::Pilot* ace = mech3::find_pilot("Ace");
+      out.campaigns_after_reload = ace ? ace->campaign_count() : -1;
+      drop();
+      mech3::load_pilots();
+      ace = mech3::find_pilot("Ace");
+      out.campaigns_after_reload = ace && out.campaigns_after_reload == 1 ? ace->campaign_count() : -2;
+    }
+    out.main_untouched = out.main_untouched && snapshot() == before;
+    // Nothing of this run's pilots left for the next test: the campaign let go (it lists the main folder's again), then all dropped.
+    mech3::entry_run() = mech3::EntryRun{};
+    if (mech3::entered_campaign()) mech3::campaign_leave();
+    mech3::set_pilots_folder("");
+    mech3::set_configs_folder("");
+    drop();
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  return out;
+}
+}  // namespace
+
+TEST(entry_pilot_screen_lists_and_brings_the_main_menus_pilots_headless) {
+  if (!have_game()) return;
+  namespace fs = std::filesystem;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  for (const bool own : {true, false}) {
+    const std::string wd = temp_dir(own ? "entry_pilots_own_write" : "entry_pilots_other_write");
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(wd);
+    fs::create_directories(wd + "/mods/lost");
+    std::ofstream(wd + "/mods/lost/mod.txt") << "name=Lost\ncampaign=lost.txt\n";
+    std::ofstream(wd + "/mods/lost/lost.txt") << "name=Lost Frontier\nmission=c1 1\nmission=c1 2\n";
+    mech3::ModCampaign mc;
+    EXPECT(mech3::campaign_load(wd + "/mods/lost", "lost", "lost.txt", &mc));
+    mech3::mod_campaigns() = own ? std::vector<mech3::ModCampaign>{} : std::vector<mech3::ModCampaign>{mc};
+    mech3::mods_menu_write_dir() = wd;
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::options() = mech3::Options{};
+    const EntryPilotsRun r = entry_pilots_run(wd, own);
+    std::printf("  %s: open \"%s\", picked \"%s\", games %d (first: op %d mission %d, a mod's %d), reload %d; said: %s\n",
+                own ? "the game's own campaign" : "a different campaign", r.rows_at_open.c_str(), r.rows_after_pick.c_str(), r.games_listed,
+                r.first_op, r.first_mission, r.mod_game, r.campaigns_after_reload, r.said.c_str());
+    EXPECT(r.rows_at_open == "Ace|" && r.auto_chose_nothing);
+    EXPECT(r.refused_delete == "Ace is the main game's pilot. It can be deleted or renamed from the main menu." && r.refused_rename == r.refused_delete);
+    EXPECT(r.picked && r.rows_after_pick == "Ace|" && r.main_untouched);
+    if (own) {
+      EXPECT(r.saves_came && r.games_listed == 2 && !r.mod_game);                      // carries on: the new game and Op 1 Mission 2
+      EXPECT(r.deleted_copy_only && r.rows_after_delete == "Ace|");                    // the copy gone, the main menu's listed again
+    } else {
+      EXPECT(r.no_saves_came && r.games_listed == 1 && r.mod_game && r.first_mission == 1);  // that campaign's first mission
+      EXPECT(r.campaigns_after_reload == 1);
+    }
+    mech3::mod_campaigns().clear();
+    mech3::mods_menu_write_dir().clear();
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+}
+
 // Ours (modding.md, Plain errors on the MODS screen): REPORT on the chosen
 // campaign's mod shows its check and this start's mount as sentences in the
 // campaigns' box, wrapped to it; ENTER does nothing there; REPORT goes back

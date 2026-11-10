@@ -565,24 +565,72 @@ Action takes mods from its own screen, not from MODS's list.
   run's folder and sets the app's "back from a game" flags (0x0048a750), so
   Instant Action opens on its own screen, not the pilot screen. No pilot of
   that name: the pilot screen.
-- **The one offer** (`ia_pilot_state`, dev 3's `entry_copy_pilot`): going
-  into the entry with a pilot it does not have, the game's own message box
-  asks once whether to copy the pilot and the saved mechs there ("Your pilot
-  here is not changed."). OK copies (the originals only read; a failed copy
-  is said and nothing starts); CANCEL notes the name in
-  `campaigns\ia\pilots-not-copied.txt`, never asked again, and the entry
-  opens on its pilot screen for a new one.
+- **The pilot is brought quietly** (entry_pilots.h, below): when the entry
+  has no pilot of the name carried, the main menu's is copied across at that
+  moment, without saved games, and picked. Nothing is asked. (The offer box
+  and its note file `pilots-not-copied.txt` of the first version are gone.)
 - A list longer than its box (fourteen rows) scrolls by the list's own arrows.
 - Checks: `MW3_BOX_ANSWER=N` answers every message box N at once, said in
   the log with its text (a scripted click repeats while a box is up, so it
   cannot press the box's own buttons).
 
 Tests: `sdl_program_instant_action_mods` (three runs, each one process; the
-offer answered no), `sdl_program_instant_action_mods_pilot_and_straight_in`
-(the offer answered yes, the pilot picked after the restart; straight in
-from the main menu; a ticked mod gone), `ia_mods_accept_steps_and_line`,
-`ia_mods_straight_in_missing_and_the_pilot_offer`,
+pilot brought with no box), `sdl_program_instant_action_mods_pilot_and_straight_in`
+(the pilot and saved mechs brought, picked after the restart; straight in
+from the main menu; a ticked mod gone; a mod's own map; out again with the
+pilot), `ia_mods_accept_steps_and_line`, `ia_mods_straight_in_and_missing`,
 `sdl_restart_args_are_the_starts_own`.
+
+### Pilots inside an entry
+
+Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Pilots). Storage is as built:
+each entry has its own pilots, saves and saved mechs, and the main menu's are
+never written from inside one.
+
+- **The list** (`PilotScreen::refresh` 0x00488770, `entry_main_pilots`):
+  inside an entry the pilot screen lists the entry's own pilots and, after
+  them, the main menu's pilots the entry does not have. A name the entry has,
+  in any letter case, is the entry's; the main menu's of that name is not
+  shown twice. A main-menu row is a name from a directory listing and nothing
+  more: the pilot is never loaded there (loading opens the file for update,
+  0x00478ce0, and a loaded pilot is written when let go), so the games box
+  says only "From the main game".
+- **The pick** (`entry_bring_pilot`, `PilotScreen::bring`): clicking such a
+  row, or ACCEPT with it chosen, brings it across at that moment by
+  `entry_copy_pilot` (the pilot's file and the saved mechs; a mech's saved
+  loadouts the entry already has are kept), loads the entry's copy and goes
+  on with it; from then on it is the entry's own. The row the screen chooses
+  by itself when it opens brings nothing. A copy that fails is said in a box
+  and the row stays. Nothing is asked.
+- **Its progress** (`entry_plays_own_campaign`): into the game's own campaign,
+  or an entry built on it (a mod over the game's campaign files, a copy whose
+  `base=` chain ends there), the pilot's saved games come too, so it carries
+  on where it is: operation and mission, mechs, salvage, lancemates. Into a
+  different campaign (one with its own campaign file, a copy of one) and into
+  Instant Action no saved game comes; the original's own load rule then does
+  the rest (0x004790d0: a campaign record whose saved game is missing is
+  dropped), so the pilot has the new campaign only, which there is that
+  campaign's first mission with its starting state, and its file is written
+  without the old records when it is first let go. Its name, training,
+  Instant Action and multiplayer records and the lab's mech are kept.
+- **DELETE and RENAME** act on the entry's pilots only. On a main-menu row
+  they say "<name> is the main game's pilot. It can be deleted or renamed
+  from the main menu." Deleting the entry's copy leaves the main menu's
+  pilot, whose name is then listed again.
+- For players: a pilot brought into a campaign goes its own way from then on.
+  To take your newer main-game progress into it, delete the campaign's copy
+  of the pilot there and pick the name again.
+- A pilot made new inside an entry under a name the main menu also has is the
+  entry's own; the main menu's of that name is then not listed there.
+- A saved game that came from the main game, loaded with the entry's mods
+  ticked, gets the loading screen's note "Saved without mods; the campaign
+  <name> now has: <mods>" (save_mods.cpp); with no gameplay mod ticked
+  nothing is said.
+
+Tests: `entry_pilot_screen_lists_and_brings_the_main_menus_pilots_headless`
+(both kinds of campaign), `campaign_entry_plays_the_games_own_campaign_or_not`,
+`entry_pilot_copy_without_saves_brings_no_saved_game`, and the two Instant
+Action runs above.
 
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 
