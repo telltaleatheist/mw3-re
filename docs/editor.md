@@ -8,9 +8,11 @@ key is bound to (0x0040db60 registers only 0x61, 0x70, 0x7e and 0x6c to the
 debug handler 0x0040dba0). Mapped 2026-10-31 (dev 2); the entry, exit,
 panel, main menu and the view on the stealth ported 2026-11-01 (S4, below;
 the AI net and vehicle editors behind its rows come after v1.0). The
-port reaches it with Shift+F12 under `--debug-camera` (or `debugcamera=1`
-in mw3.cfg) only, as Owen asked: "exactly what they did", a developer's
-tool. (F11 is the lancemate command screen in the original's default keys,
+port first reached it with Shift+F12 under `--debug-camera` only, as Owen
+asked: "exactly what they did", a developer's tool. Since 2026-11-09 players
+reach it only from the MODS screen (The way in, below); `--debug-camera`
+stays a developer's command-line flag that no player reaches (mw3.cfg's
+`debugcamera=1` was dropped then). (F11 is the lancemate command screen in the original's default keys,
 Shift+F11 and Ctrl+F11 the awaiting orders; Shift+F12 is bound to nothing,
 on every keyboard. Agreed with the lead 2026-11-01.)
 
@@ -758,6 +760,35 @@ archive (53 with nets; unedited, every member the same JSON; re-encoded,
 every node's place and links the same; c1m1's edits as saved). Breaks: a
 property dropped, a table comment lost, a foreign folder reused, no .bak, the
 mod placed last, and (mech3ax) a re-encoded archive given as unedited.
+
+## The way in (Owen, 2026-11-09)
+
+The editor is reached only through the MODS screen:
+- **MODS -> EDITOR:** a mod's or custom campaign's mission, opened with the
+  editor up. Its saves go into that mod, one .bak kept (below).
+- **A custom campaign played from MODS (ENTER):** every mission of it has the
+  editor in the level, by Shift+F12 and the pause menu's EDITOR (ours: a
+  button under OPTIONS, patch12_edits.cpp, bound only there). Its saves go
+  into the campaign's mod, one .bak kept, as EDITOR's do (`editor_from_level`
+  sets `net_save_into_mod` from the campaign entered). EXIT GAME EDIT goes
+  back to the mission.
+- **Everywhere else** there is no editor: the original's campaign, Pirate
+  Missions, Instant Action, training and multiplayer. Shift+F12 is bound
+  but does nothing there, and the pause has no EDITOR (`editor_reachable`,
+  mods_edit.h).
+- **`--debug-camera`** is a developer's command-line flag and no player
+  reaches it. It opens the editor in any mission, saving into "editor
+  edits".
+- **A mod without a campaign** has no PLAY of its own: its missions are
+  opened through EDITOR, editor up.
+- **Tests:**
+  - `mods_campaign_mission_has_the_editor_headless`: MODS, ENTER on a
+    campaign, its first mission. Shift+F12 opens the editor and closes it
+    again; a net saved goes into mods\lost\; the pause offers EDITOR, which
+    resumes and opens it.
+  - `campaign_menus_to_c1m1_through_the_briefing_headless`: from the main
+    menu's CAMPAIGN, editor_reachable is false and Shift+F12's command opens
+    nothing.
 
 ## The way in from MODS (Owen, 2026-11-09; built 2026-11-09)
 

@@ -13,7 +13,7 @@ namespace mech3 {
 // The screen (vtable 0x005c6110), 0x11b20 bytes.
 class PauseScreen : public MenuScreen {
  public:
-  enum Id : int32_t { kResume = 0, kQuit = 1, kOptions = 2, kReplay = 3 };
+  enum Id : int32_t { kResume = 0, kQuit = 1, kOptions = 2, kReplay = 3, kEditor = 4 };  // kEditor: ours
 
   PauseScreen(Engine& e, Handle state);  // 0x00492750
   ~PauseScreen() override;               // 0x00492ae0
@@ -27,6 +27,10 @@ class PauseScreen : public MenuScreen {
   ztwod::Image backdrop{0};              // +0x11a5c  the grab of the frame behind
   Handle sounds = 0;                     // +0x11b18  the sounds paused (0x0056eb10)
   Handle groups = 0;                     // +0x11b1c  the sound groups taken away (0x005732f0)
+  // Ours (docs/editor.md, The way in): EDITOR, in a mission the MODS screen
+  // launched only (editor_reachable).
+  SlideButton editor;
+  bool has_editor = false;
 };
 
 }  // namespace mech3

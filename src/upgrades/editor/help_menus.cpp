@@ -18,8 +18,8 @@ void help_menus(std::vector<HelpForm>& out) {
                      {"EDIT WEAPONS", "", "Empty in the original game: it does nothing (yet)."},
                      {"HELP", "", "This quick start, in a window. Ours: the original had none."},
                      {"EXIT GAME EDIT", "",
-                      "Close the editor. From MODS it goes back to the MODS screen; after Shift+F12 the view goes "
-                      "back to your mech."},
+                      "Close the editor. From MODS's EDITOR it goes back to the MODS screen; in a custom campaign's "
+                      "mission the view goes back to your mech and the mission goes on."},
                  }});
   out.push_back({"net menu", "The net editor's menu",
                  "The net editor's own menu, shown once a net is picked. Click a node in the world to pick it; "

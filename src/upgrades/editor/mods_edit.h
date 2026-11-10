@@ -30,4 +30,16 @@ bool mods_edit_leave(Engine& en);
 // The session over, by whatever way the mission ended (the main menu's enter).
 void mods_edit_end();
 
+// Ours (Owen, 2026-11-09; docs/editor.md, The way in): the editor is reached
+// only from a mission the MODS screen launched, EDIT's or a custom campaign's
+// (ENTER), there by Shift+F12 and the pause's EDITOR. Elsewhere (the campaign,
+// Pirate Missions, Instant Action, training, multiplayer) neither does
+// anything. --debug-camera, a developer's command-line flag no player
+// reaches, opens it anywhere.
+bool editor_reachable();
+// Shift+F12 or the pause's EDITOR in such a mission: the editor opened
+// (Shift+F12 again closes it), its saves into the mission's mod (EDIT's, the
+// campaign's), or for --debug-camera elsewhere into "editor edits".
+void editor_from_level();
+
 }  // namespace mech3

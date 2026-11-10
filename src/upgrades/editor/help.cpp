@@ -49,9 +49,10 @@ const char* editor_row_tip() {
 
 const std::vector<std::string>& help_quick_start() {
   static const std::vector<std::string> v = {
-      "Open the editor: on the MODS screen pick a mod or custom campaign, then EDITOR and a mission (its saves go "
-      "into that mod). Or, started with --debug-camera, press Shift+F12 in any mission (its saves go into a mod of "
-      "its own, \"editor edits\").",
+      "Open the editor from the MODS screen: pick a mod or custom campaign, then EDITOR and a mission, and it opens "
+      "with the editor up. A custom campaign played from MODS (ENTER) has it in every mission too: EDITOR in the "
+      "pause menu, or Shift+F12. Its saves go into that mod. The game's own campaign, Pirate Missions, Instant "
+      "Action, training and multiplayer have no editor.",
       "The menu is on the left; point at a row and click (or press Space). The view is a free camera: fly it with "
       "the movement keys.",
       "EDIT AI NETS: pick a net. Its nodes and links are drawn in the world. Click a node to pick it; picking a "
