@@ -7,7 +7,6 @@
 #include <map>
 
 #include "crt/msvc_string.h"
-#include "gamez/zinput/zinput.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/game_editor_net.h"
@@ -17,6 +16,7 @@
 #include "mech3/zainet.h"
 #include "mech3/zainetedit.h"
 #include "mech3/zrdraiv.h"
+#include "upgrades/editor/form.h"
 
 namespace mech3 {
 
@@ -90,119 +90,46 @@ bool prefixed(const std::string& key, const std::string& type) {
 }
 
 // ---- the form ----
-enum Kind { kType, kFloat, kInt, kSide };
-struct Field {
-  const char* label;
-  Kind kind;
-  float* f = nullptr;
-  int32_t* i = nullptr;
-};
 struct Form {
-  bool open = false, choosing = false;
-  int32_t first = 0;
+  bool open = false;
   std::vector<std::string> types;
   int32_t type = 0;
   float pos[3] = {}, yaw = 0;
   int32_t team = 1, side = 0;  // 0 Friend (1052), 1 Foe, 2 Other
-  std::vector<Field> fields;
-  int32_t typing = -1;
-  std::string buffer;
-  std::vector<std::string> texts;
-  std::vector<EditorEntry> rows;
-  EditorMenu menu{0, nullptr};
+  EditorForm form;
 };
 Form g;
 std::string g_last;
 std::map<std::string, std::vector<uint8_t>> g_written;  // the aiv.zrd each archive was last saved with
-constexpr int32_t kTypeRows = 18;
-const char* const kSides[3] = {"Friend", "Foe", "Other"};
 const int32_t kSideTeam[3] = {1, 2, 0};  // the shipped records' teams: the player's 1, the enemy's 2
 
-void fill();
-void press(int32_t y);
-void ok(int32_t);
-void cancel(int32_t);
-void pick_type(int32_t y);
-void types_up(int32_t) { g.first = std::max(0, g.first - kTypeRows), fill(); }
-void types_down(int32_t) { g.first += kTypeRows, fill(); }
-
-std::string shown(const Field& f) {
-  char b[48];
-  switch (f.kind) {
-    case kType: return g.types.empty() ? "(none)" : g.types[size_t(g.type)];
-    case kFloat: std::snprintf(b, sizeof b, "%.2f", *f.f); return b;
-    case kInt: std::snprintf(b, sizeof b, "%d", *f.i); return b;
-    case kSide: return kSides[g.side];
-  }
-  return {};
-}
-
-void fill() {
-  g.texts.clear(), g.rows.clear();
-  const auto add = [](const std::string& t, void (*h)(int32_t)) { g.texts.push_back(t), g.rows.push_back({nullptr, h}); };
-  if (g.choosing) {
-    const int32_t n = static_cast<int32_t>(g.types.size()), to = std::min(n, g.first + kTypeRows);
-    add("Vehicle Type:", nullptr);
-    if (g.first > 0) add("   (up)", types_up);
-    for (int32_t i = g.first; i < to; ++i) add("   " + g.types[size_t(i)], pick_type);
-    if (to < n) add("   (down)", types_down);
-  } else {
-    add("Node Edit - Vehicle", nullptr);
-    for (size_t i = 0; i < g.fields.size(); ++i) {
-      const Field& f = g.fields[i];
-      const bool t = static_cast<int32_t>(i) == g.typing;
-      add(std::string(t ? " > " : "   ") + f.label + ": " + (t ? g.buffer + "_" : shown(f)), press);
-    }
-    add(" OK", ok);
-    add(" Cancel", cancel);
-  }
-  for (size_t i = 0; i < g.rows.size(); ++i) g.rows[i].text = g.texts[i].c_str();
-  g.menu = EditorMenu{static_cast<int32_t>(g.rows.size()), g.rows.data()};
-  editor_install(1, g.menu);
-}
-
-void take() {
-  if (g.typing < 0) return;
-  Field& f = g.fields[size_t(g.typing)];
-  char* end = nullptr;
-  if (f.kind == kFloat) {
-    const float v = std::strtof(g.buffer.c_str(), &end);
-    if (!g.buffer.empty() && end && !*end) *f.f = v;
-  } else if (f.kind == kInt) {
-    const long v = std::strtol(g.buffer.c_str(), &end, 10);
-    if (!g.buffer.empty() && end && !*end) *f.i = static_cast<int32_t>(v);
-  }
-  g.typing = -1, g.buffer.clear();
-}
-
-void on_char(int32_t ch, int32_t key, uintptr_t) { add_vehicle_char(ch, key); }
-
-void press(int32_t y) {
-  const int32_t i = (y - 0x5f) / 12 - 1;
-  if (i < 0 || i >= static_cast<int32_t>(g.fields.size())) return;
-  if (g.typing >= 0) take();
-  Field& f = g.fields[size_t(i)];
-  if (f.kind == kType) {
-    g.choosing = true, g.first = 0;
-  } else if (f.kind == kSide) {  // the radio buttons; the team follows (the edit stays the player's)
-    g.side = (g.side + 1) % 3, g.team = kSideTeam[g.side];
-  } else {
-    g.typing = i, g.buffer.clear();  // typed text replaces the value; Enter on none keeps it
-  }
-  fill();
-}
-
-void pick_type(int32_t y) {
-  const int32_t i = (y - 0x5f) / 12 - 1 - (g.first > 0 ? 1 : 0) + g.first;
-  if (i >= 0 && i < static_cast<int32_t>(g.types.size())) g.type = i;
-  g.choosing = false;
-  fill();
-}
+void ok();
+void cancel();
 
 void close_form() {
-  zin::set_char_callback(nullptr, 0);
-  g = Form{};
-  net_editor_menu();
+  form_hide(&g.form);
+  g.open = false;
+}
+
+void build() {
+  g.form = EditorForm{};
+  g.form.title = "Node Edit - Vehicle";
+  FormField type{"vehicle type", FormField::kChoice};
+  type.i = &g.type, type.choices = g.types;
+  const auto value = [](const char* label, float* v) {
+    FormField f{label, FormField::kFloat};
+    f.f = v;
+    return f;
+  };
+  FormField team{"team id", FormField::kInt};
+  team.i = &g.team;
+  FormField side{"side", FormField::kChoice};  // the radio buttons; the team follows (the edit stays the player's)
+  side.i = &g.side, side.choices = {"Friend", "Foe", "Other"};
+  side.changed = [] {
+    if (g.side >= 0 && g.side < 3) g.team = kSideTeam[g.side];
+  };
+  g.form.fields = {type, value("x", &g.pos[0]), value("y", &g.pos[1]), value("z", &g.pos[2]), value("yaw", &g.yaw), team, side};
+  g.form.buttons = {{"OK", ok}, {"Cancel", cancel}};
 }
 
 // The aiv.zrd entry of the first open archive holding one, and its path: as
@@ -251,8 +178,7 @@ bool spawn(const std::string& name, const std::vector<uint8_t>& value) {
 // The record: copied from one of its type in the entry (its tags as the
 // shipped ones are), its net, place, yaw and team ours; made now, and the
 // entry saved into the editor's mod.
-void ok(int32_t) {
-  if (g.typing >= 0) take();
+void ok() {
   NetEditor* e = net_editor();
   std::string archive;
   std::vector<uint8_t> aiv;
@@ -261,7 +187,7 @@ void ok(int32_t) {
     editor_status("no aiv.zrd in the open archives");
     return close_form();
   }
-  const std::string type = g.types[size_t(g.type)];
+  const std::string type = g.types[size_t(std::clamp(g.type, 0, static_cast<int32_t>(g.types.size()) - 1))];
   int32_t items = 0;
   const std::vector<uint8_t> tags = aiv_tags_of_type(aiv.data(), aiv.size(), type, &items);
   const std::vector<uint8_t> value = aiv_record(e->net->header.net, g.pos, g.yaw, g.team, tags, items);
@@ -282,7 +208,7 @@ void ok(int32_t) {
   editor_status(line);  // after the menu's refill
 }
 
-void cancel(int32_t) { close_form(); }
+void cancel() { close_form(); }
 }  // namespace
 
 std::vector<std::string> add_vehicle_types() {
@@ -368,31 +294,17 @@ void add_vehicle_open(int32_t) {
     editor_status("Select a node first");  // 0x00402f10(0x30): a box in the exe
     return;
   }
+  form_hide(&g.form);
   g = Form{};
   g.open = true;
   g.types = add_vehicle_types();
   for (int k = 0; k < 3; ++k) g.pos[k] = n->pos()[k];  // the node's place, yaw 0 (0x0049d350's)
-  g.fields = {{"vehicle type", kType},   {"x", kFloat, &g.pos[0]}, {"y", kFloat, &g.pos[1]}, {"z", kFloat, &g.pos[2]},
-              {"yaw", kFloat, &g.yaw},   {"team id", kInt, nullptr, &g.team}, {"side", kSide}};
-  zin::set_char_callback(on_char, 0);
-  fill();
+  build();
+  form_show(&g.form);
 }
 
 bool add_vehicle_open_now() { return g.open; }
 const std::string& add_vehicle_last() { return g_last; }
-
-void add_vehicle_char(int32_t ch, int32_t key) {
-  if (!g.open || g.typing < 0) return;
-  if (ch == '\r' || ch == '\n' || key == 0x1c) take();
-  else if (ch == 27 || key == 0x01) g.typing = -1, g.buffer.clear();
-  else if (ch == 8 || key == 0x0e) { if (!g.buffer.empty()) g.buffer.pop_back(); }
-  else if (ch >= 0x20 && ch < 0x7f && g.buffer.size() < 20) g.buffer += static_cast<char>(ch);
-  else return;
-  fill();
-}
-
-void add_vehicle_press(int32_t row) {
-  if (row >= 0 && row < g.menu.count && g.rows[size_t(row)].handler) g.rows[size_t(row)].handler(0x5f + 12 * row + 2);
-}
+EditorForm& add_vehicle_form() { return g.form; }
 
 }  // namespace mech3

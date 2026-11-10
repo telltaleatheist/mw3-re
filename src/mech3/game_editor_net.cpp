@@ -16,6 +16,7 @@
 #include "mech3/game_editor_tree.h"
 #include "mech3/zainetedit.h"
 #include "upgrades/editor/add_vehicle.h"
+#include "upgrades/editor/form.h"
 #include "upgrades/editor/node_params.h"
 
 namespace mech3 {
@@ -23,13 +24,8 @@ namespace mech3 {
 namespace {
 NetDialog g_dialog;
 NetEditor* g_editor = nullptr;  // [0x005f4c6c]
-// The dialog's rows as filled (their texts kept here).
-std::vector<std::string> g_texts;
-std::vector<EditorEntry> g_rows;
-EditorMenu g_dialog_menu{0, nullptr};
+EditorForm g_dialog_form;  // FIX (A): the dialog as a form (form.h), drawn by ImGui
 std::string g_status;
-
-constexpr int32_t kListRows = 18;  // ours: the list's rows the panel has room for
 
 void not_ported(const char* what) { editor_hooks().not_ported(what); }
 void none(int32_t) {}  // 0x004bf620
@@ -46,39 +42,17 @@ const EditorMenu kNetMenu = {13, kNetRows};
 
 int32_t row_of(int32_t y) { return (y - 0x5f) / 12; }  // the panel's rows, 12 apart from 0x5f
 
-void fill_dialog();
-// The dialog's rows: the title, the label, the list (a page of it), OK, Cancel.
-void list_pick(int32_t y) {
-  const int32_t i = row_of(y) - 2 + g_dialog.first - (g_dialog.first > 0 ? 1 : 0);
-  if (i >= 0 && i < static_cast<int32_t>(g_dialog.items.size())) g_dialog.selected = i;
-  fill_dialog();
-}
-void list_up(int32_t) {
-  g_dialog.first = std::max(0, g_dialog.first - kListRows);
-  fill_dialog();
-}
-void list_down(int32_t) {
-  g_dialog.first += kListRows;
-  fill_dialog();
-}
-void dialog_button(int32_t) { net_dialog_close(); }
-
-void fill_dialog() {
-  g_texts.clear(), g_rows.clear();
-  const auto add = [&](const std::string& t, void (*h)(int32_t)) { g_texts.push_back(t), g_rows.push_back({nullptr, h}); };
-  add("AI Network Editor", nullptr);
-  add(" Select a network to edit:", nullptr);
-  const int32_t n = static_cast<int32_t>(g_dialog.items.size());
-  if (g_dialog.first > 0) add("   (up)", list_up);
-  const int32_t last = std::min(n, g_dialog.first + kListRows);
-  for (int32_t i = g_dialog.first; i < last; ++i)
-    add(std::string(i == g_dialog.selected ? " > " : "   ") + g_dialog.items[size_t(i)].first, list_pick);
-  if (last < n) add("   (down)", list_down);
-  add(" OK", dialog_button);
-  add(" Cancel", dialog_button);
-  for (size_t i = 0; i < g_rows.size(); ++i) g_rows[i].text = g_texts[i].c_str();
-  g_dialog_menu = EditorMenu{static_cast<int32_t>(g_rows.size()), g_rows.data()};
-  editor_install(0, g_dialog_menu);
+// The dialog (template 139) as a form: the label, the list (selecting sets
+// +0x64), OK and Cancel, which both open the selection, as the exe's do.
+void build_dialog() {
+  g_dialog_form = EditorForm{};
+  g_dialog_form.title = "AI Network Editor";
+  FormField label{"Select a network to edit:", FormField::kLabel};
+  FormField list{"##nets", FormField::kChoice};
+  list.i = &g_dialog.selected;
+  for (const auto& it : g_dialog.items) list.choices.push_back(it.first);
+  g_dialog_form.fields = {label, list};
+  g_dialog_form.buttons = {{"OK", net_dialog_close}, {"Cancel", net_dialog_close}};
 }
 
 // The view's calls into the AI net's nodes (vtable 0x005cae60; the
@@ -141,7 +115,7 @@ std::string nets_archive() {
 NetDialog& net_dialog() { return g_dialog; }
 NetEditor*& net_editor() { return g_editor; }
 const EditorMenu& editor_net_menu_rows() { return kNetMenu; }
-const EditorMenu& editor_net_dialog_rows() { return g_dialog_menu; }
+EditorForm& net_dialog_form() { return g_dialog_form; }
 
 // Mech3.exe 1.2 @ 0x00402f40: the selection base (0x0058bf50) on the net
 // (the world, its other argument, unread), the camera's far clip kept
@@ -262,7 +236,8 @@ void edit_ai_nets(int32_t) {
   });
   g_dialog.items.insert(g_dialog.items.begin(), {"New Net", nullptr});  // 0x005e8340, CB_INSERTSTRING 0
   g_dialog.open = true;
-  fill_dialog();
+  build_dialog();
+  form_show(&g_dialog_form);
 }
 
 // The rest of 0x00402d60: a net that is not an edit (vt+0x48) edited through
@@ -271,6 +246,7 @@ void edit_ai_nets(int32_t) {
 // with its first node at the pick (0x00402c90).
 void net_dialog_close() {
   g_dialog.open = false;
+  form_hide(&g_dialog_form);
   ai::AiNet* pick = g_dialog.selected >= 0 && g_dialog.selected < static_cast<int32_t>(g_dialog.items.size())
                         ? g_dialog.items[size_t(g_dialog.selected)].second
                         : nullptr;
@@ -410,10 +386,42 @@ bool first_picked_link(znet::Mark** a, znet::Mark** b) {
 }
 }  // namespace
 
+namespace {
+EditorForm g_confirm;  // FIX (A): the exe's OK/Cancel box (0x00402ec0(0x21, ...)) as a modal form
+
+// What Delete Node takes now: the first pick, or else the first picked link's ends.
+const void* delete_target(znet::Mark** m, znet::Mark** a, znet::Mark** b) {
+  *m = net_editor_first_pick();
+  *a = *b = nullptr;
+  if (!*m && !first_picked_link(a, b)) return nullptr;
+  return *m ? static_cast<const void*>(*m) : static_cast<const void*>(g_editor->view->picked_links.front());
+}
+// OK: the asked-about node or line deleted, when it is still the one picked.
+void delete_confirmed() {
+  form_hide(&g_confirm);
+  if (!g_editor || !g_editor->net || !g_editor->armed) return;
+  znet::Mark *m, *a, *b;
+  const void* what = delete_target(&m, &a, &b);
+  const bool same = what && what == g_editor->armed;
+  g_editor->armed = nullptr;
+  if (!same) return;
+  g_editor->dirty = 1;
+  ai::CZAiNetEdit* net = g_editor->net;
+  const bool done = m ? net->delete_node(as_node(m->elem)) : net->delete_link(as_node(a->elem), as_node(b->elem));
+  g_editor->rebuild = done ? 1 : 0;
+}
+void delete_cancelled() {
+  form_hide(&g_confirm);
+  if (g_editor) g_editor->armed = nullptr;
+}
+}  // namespace
+
+EditorForm& net_delete_form() { return g_confirm; }
+
 // Mech3.exe 1.2 @ 0x00403ae0: the first pick deleted, or else the first
-// picked link's line; the editor made anew when it was. FIX (A): the exe
-// asks with an OK/Cancel box (0x00402ec0(0x21, ...)); here the status line
-// asks and a second Delete Node on the same one confirms.
+// picked link's line; the editor made anew when it was. The exe asks first
+// with an OK/Cancel box (0x00402ec0(0x21, ...)); FIX (A): here a modal form
+// with the same question and buttons.
 void net_editor_delete(int32_t) {
   if (!g_editor) return;
   ai::CZAiNetEdit* net = g_editor->net;  // vt+0x48
@@ -421,19 +429,16 @@ void net_editor_delete(int32_t) {
     editor_status("Select a node or line first");  // 0x005e03dc
     return;
   }
-  znet::Mark* m = net_editor_first_pick();
-  znet::Mark *a = nullptr, *b = nullptr;
-  if (!m && !first_picked_link(&a, &b)) return;
-  const void* what = m ? static_cast<const void*>(m) : static_cast<const void*>(g_editor->view->picked_links.front());
-  if (g_editor->armed != what) {
-    g_editor->armed = what;
-    editor_status(std::string(m ? "Confirm node deletion" : "Confirm line deletion") + ": Delete Node again");  // 0x005e0410 / 0x005e03f8
-    return;
-  }
-  g_editor->armed = nullptr;
-  g_editor->dirty = 1;
-  const bool done = m ? net->delete_node(as_node(m->elem)) : net->delete_link(as_node(a->elem), as_node(b->elem));
-  g_editor->rebuild = done ? 1 : 0;
+  znet::Mark *m, *a, *b;
+  const void* what = delete_target(&m, &a, &b);
+  if (!what) return;
+  g_editor->armed = what;
+  g_confirm = EditorForm{};
+  g_confirm.title = "Delete Node";
+  g_confirm.modal = true;
+  g_confirm.fields = {{m ? "Confirm node deletion" : "Confirm line deletion", FormField::kLabel}};  // 0x005e0410 / 0x005e03f8
+  g_confirm.buttons = {{"OK", delete_confirmed}, {"Cancel", delete_cancelled}};
+  form_show(&g_confirm);
 }
 
 // Mech3.exe 1.2 @ 0x00403080 (ECX the editor's slot)
@@ -459,20 +464,29 @@ void EditorHooks::net_step(float dt) { net_editor_step(dt); }  // 0x00403140
 
 namespace {
 NetWindow* g_window = nullptr;  // [0x0060b31c]
-std::vector<std::string> g_window_texts;
-std::vector<EditorEntry> g_window_rows;
-EditorMenu g_window_menu{0, nullptr};
 std::vector<std::string> g_open_names;  // Open's list: the open archives' net files
+int32_t g_open_pick = 0;
+EditorForm g_window_form;  // FIX (A): the window (template 181) as a form, drawn by ImGui
+EditorForm g_open_form;    // FIX (A): Open's CFileDialog as a form
 
-void window_fill();
-void window_button(int32_t y);
-void window_close(int32_t) {  // OK (0x004d5610), Cancel (0x004d55f0): DestroyWindow, then 0x004bf6f0
+void window_build();
+void window_close() {  // OK (0x004d5610), Cancel (0x004d55f0): DestroyWindow, then 0x004bf6f0
   net_window_free();
-  net_editor_menu();
+}
+void open_close() {
+  form_hide(&g_open_form);
+  if (g_window) g_window->choosing = false;
+}
+// Open's file: opened (0x004bf640 -> 0x00404570).
+void open_take() {
+  if (g_window && g_open_pick >= 0 && g_open_pick < static_cast<int32_t>(g_open_names.size()))
+    net_window_open(g_open_names[size_t(g_open_pick)].c_str());
+  open_close();
+  window_build();
 }
 // Open's list (FIX (A) for the CFileDialog "Zipper Files (*.zrd)", 0x004bf750):
 // every net file the open archives hold, by name, each once.
-void open_list(int32_t) {
+void open_list() {
   g_open_names.clear();
   for (zutl_zar::Archive* a : zrdr::state().archives) {
     if (!a) continue;
@@ -487,54 +501,30 @@ void open_list(int32_t) {
     }
   }
   std::sort(g_open_names.begin(), g_open_names.end());
-  if (g_window) g_window->choosing = true, g_window->first = 0;
-  window_fill();
-}
-constexpr int32_t kOpenRows = 18;  // ours: a page of Open's list
-void open_up(int32_t) {
-  if (g_window) g_window->first = std::max(0, g_window->first - kOpenRows);
-  window_fill();
-}
-void open_down(int32_t) {
-  if (g_window) g_window->first += kOpenRows;
-  window_fill();
-}
-void window_fill() {
-  g_window_texts.clear(), g_window_rows.clear();
-  const auto add = [](const std::string& t, void (*h)(int32_t)) { g_window_texts.push_back(t), g_window_rows.push_back({nullptr, h}); };
-  if (g_window && g_window->choosing) {
-    const int32_t n = static_cast<int32_t>(g_open_names.size()), from = g_window->first;
-    const int32_t to = std::min(n, from + kOpenRows);
-    add("Open a net file:", nullptr);
-    if (from > 0) add("   (up)", open_up);
-    for (int32_t i = from; i < to; ++i) add("   " + g_open_names[size_t(i)], window_button);
-    if (to < n) add("   (down)", open_down);
-    add(" Cancel", window_button);
-  } else {
-    add("Ai Network Editor", nullptr);
-    add(" OK", window_close);
-    add(" Cancel", window_close);
-    add(" Open", open_list);
-    const NetEditor* h = g_window ? g_window->hosted : nullptr;
-    add(h && h->net && h->net->ref && h->net->ref->file && h->net->ref->file->name
-            ? std::string("   showing ") + h->net->ref->file->name
-            : std::string(),
-        nullptr);  // ours: the net Open shows
-  }
-  for (size_t i = 0; i < g_window_rows.size(); ++i) g_window_rows[i].text = g_window_texts[i].c_str();
-  g_window_menu = EditorMenu{static_cast<int32_t>(g_window_rows.size()), g_window_rows.data()};
-  editor_install(1, g_window_menu);  // mode 1: the net editor's step goes on under it
-}
-// A row of Open's list: its file opened (0x004bf640 -> 0x00404570), or Cancel.
-void window_button(int32_t y) {
   if (!g_window) return;
-  const int32_t i = (y - 0x5f) / 12 - 1 - (g_window->first > 0 ? 1 : 0) + g_window->first;
-  const int32_t to = std::min(static_cast<int32_t>(g_open_names.size()), g_window->first + kOpenRows);
-  g_window->choosing = false;
-  if (i >= g_window->first && i < to) net_window_open(g_open_names[size_t(i)].c_str());
-  window_fill();
+  g_window->choosing = true;
+  g_open_pick = 0;
+  g_open_form = EditorForm{};
+  g_open_form.title = "Open a net file";
+  FormField list{"##files", FormField::kChoice};
+  list.i = &g_open_pick, list.choices = g_open_names;
+  g_open_form.fields = {list};
+  g_open_form.buttons = {{"Open", open_take}, {"Cancel", open_close}};
+  form_show(&g_open_form);
+}
+void window_build() {
+  g_window_form = EditorForm{};
+  g_window_form.title = "Ai Network Editor";
+  const NetEditor* h = g_window ? g_window->hosted : nullptr;
+  if (h && h->net && h->net->ref && h->net->ref->file && h->net->ref->file->name)
+    g_window_form.fields.push_back({std::string("showing ") + h->net->ref->file->name, FormField::kLabel});  // ours
+  g_window_form.buttons = {{"OK", window_close}, {"Cancel", window_close}, {"Open", open_list}};
+  form_show(&g_window_form);
 }
 }  // namespace
+
+EditorForm& net_window_form() { return g_window_form; }
+EditorForm& net_open_form() { return g_open_form; }
 
 NetWindow*& net_window() { return g_window; }
 
@@ -551,6 +541,8 @@ void net_window_open(const char* name) {
 // Mech3.exe 1.2 @ 0x00404420 (the window's dtor, 0x004bf5d0): its editor
 // freed (0x00404490(0)) and off the frame's list.
 void net_window_free() {
+  form_hide(&g_window_form);
+  form_hide(&g_open_form);
   if (!g_window) return;
   delete g_window->hosted;
   delete g_window;
@@ -560,14 +552,14 @@ void net_window_free() {
 // Mech3.exe 1.2 @ 0x004036f0 -> net vt+0x5c (0x004bd330) -> 0x004bf670: the
 // window made once and shown (Create(0xb5)), then 0x004bf650 with the
 // caller's ECX, which 0x004bd330 zeroed: no file, so 0x00404570 frees what
-// the window showed and opens nothing. FIX (A): the window's controls as the
-// panel's rows; OK and Cancel close it, as DestroyWindow on a modeless
-// dialog does (0x004d5610 / 0x004d55f0 -> 0x004bf6f0).
+// the window showed and opens nothing. FIX (A): the window as a form (ImGui);
+// OK and Cancel close it, as DestroyWindow on a modeless dialog does
+// (0x004d5610 / 0x004d55f0 -> 0x004bf6f0).
 void net_params_open(int32_t) {
   if (!g_editor) return;
   if (!g_window) g_window = new NetWindow;
   net_window_open(nullptr);
-  window_fill();
+  window_build();
 }
 
 // Mech3.exe 1.2 @ 0x00404290: every editor on the list, the window's too,

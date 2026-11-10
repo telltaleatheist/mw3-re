@@ -138,6 +138,7 @@
 #include "upgrades/editor/mods_edit.h"
 #include "mech3/mech_reader.h"
 #include "upgrades/reference/reference.h"
+#include "upgrades/editor/form.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
 #include "mech3/zainetedit.h"
@@ -26473,7 +26474,7 @@ TEST(mission_c1m1_new_net_saved_and_loaded_next_start_headless) {
 TEST(mission_c1m1_net_window_shows_a_second_net_headless) {
   if (!have_game()) return;
   int32_t step = 0, at = 0, listed = 0, nodes = -1, marks = -1, frames_run = 0;
-  bool has01 = false, closed = false, paged = false;
+  bool has01 = false, closed = false;
   std::string opened;
   mech3::app_key_calls().debug_camera = true;
   cheat_mission("net_window", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
@@ -26487,28 +26488,15 @@ TEST(mission_c1m1_net_window_shows_a_second_net_headless) {
       mech3::net_dialog_close();
       if (!mech3::net_editor()) return true;
       mech3::net_params_open(0);
-      // Open's list, as its row does.
-      mech3::EditorPanel& p = mech3::editor_panel();
-      (void)p;
-      const mech3::EditorMenu* m = mech3::editor_state().menu;
-      if (m && m->count > 3 && m->rows[3].handler) m->rows[3].handler(0x5f + 12 * 3 + 2);
-      for (int i = 1; i + 1 < mech3::editor_state().menu->count; ++i) {
-        if (std::string(mech3::editor_panel().rows[i]->text).find("(down)") != std::string::npos) continue;
-        ++listed;
-        const std::string t = mech3::editor_panel().rows[i]->text;
-        has01 = has01 || t.find("net_01.zrd") != std::string::npos;
-      }
-      {  // (down) to the next page, (up) back
-        const mech3::EditorMenu* o = mech3::editor_state().menu;
-        const int32_t down = o->count - 2;
-        if (std::string(mech3::editor_panel().rows[down]->text).find("(down)") != std::string::npos) {
-          o->rows[down].handler(0x5f + 12 * down + 2);
-          paged = std::string(mech3::editor_panel().rows[1]->text).find("(up)") != std::string::npos;
-          mech3::editor_state().menu->rows[1].handler(0x5f + 12 + 2);
-        }
-      }
-      opened = mech3::editor_panel().rows[2]->text;  // the second listed
-      mech3::editor_state().menu->rows[2].handler(0x5f + 12 * 2 + 2);
+      // Open's list, as its button does; the second file opened.
+      mech3::net_window_form().press("Open");
+      mech3::EditorForm& open = mech3::net_open_form();
+      const std::vector<std::string>& files = open.fields[0].choices;
+      listed = static_cast<int32_t>(files.size());
+      for (const std::string& t : files) has01 = has01 || t == "net_01.zrd";
+      opened = files.size() > 1 ? files[1] : std::string();
+      *open.fields[0].i = 1;
+      open.press("Open");
       mech3::NetWindow* w = mech3::net_window();
       if (!w || !w->hosted) return true;
       nodes = w->hosted->net->count();
@@ -26519,7 +26507,7 @@ TEST(mission_c1m1_net_window_shows_a_second_net_headless) {
     if (step == 1 && f > at + 3) {
       marks = w && w->hosted ? int32_t(w->hosted->view->marks.size()) : -1;
       frames_run = w && w->hosted && w->hosted->camera ? 1 : 0;  // its frame ran: it read the camera
-      mech3::editor_state().menu->rows[1].handler(0x5f + 12 + 2);  // OK
+      mech3::net_window_form().press("OK");
       closed = !mech3::net_window();
       mech3::net_editor_exit(0);
       mech3::editor_key(mech3::kEditorCommand);
@@ -26530,11 +26518,11 @@ TEST(mission_c1m1_net_window_shows_a_second_net_headless) {
   mech3::app_key_calls().debug_camera = false;
   std::printf("  Open listed %d net files on its first page (net_01.zrd %d); opened \"%s\": %d nodes, %d marks, stepped %d; closed %d\n", listed,
               has01, opened.c_str(), nodes, marks, frames_run, closed);
-  EXPECT(listed > 2 && has01 && nodes > 0 && marks == nodes && frames_run && closed && paged);
+  EXPECT(listed > 2 && has01 && nodes > 0 && marks == nodes && frames_run && closed);
 }
 
 // Node Params (ours, S5 sitting 4c) on c1m1: net_01's node_00 picked, its
-// speed typed as 0.25 and its gate named, OK, Save Changes; read back from
+// speed set to 0.25 and its gate named in its form, OK, Save Changes; read back from
 // the editor mod's archive through the reader, both there.
 TEST(mission_c1m1_node_params_saved_headless) {
   if (!have_game()) return;
@@ -26555,12 +26543,10 @@ TEST(mission_c1m1_node_params_saved_headless) {
     e->view->pick(&e->view->marks[0]);
     mech3::node_params_open(0);
     formed = mech3::node_params_open_now();
-    const auto type = [](const char* t) {
-      for (const char* c = t; *c; ++c) mech3::node_params_char(*c, 0);
-    };
-    mech3::node_params_press(5), type("0.25"), mech3::node_params_char('\r', 0x1c);  // speed
-    mech3::node_params_press(19), type("gate_x"), mech3::node_params_char('\r', 0x1c);  // gate
-    mech3::node_params_press(20);  // OK
+    mech3::EditorForm& form = mech3::node_params_form();
+    *form.field("speed")->on = 1, *form.field("speed")->f = 0.25f;
+    *form.field("gate")->text = "gate_x";
+    form.press("OK");
     mech3::net_editor_save(0);
     status = mech3::editor_panel().rows[24]->text;
     mech3::net_editor_exit(0);
@@ -26619,11 +26605,10 @@ TEST(mission_c1m1_add_vehicle_made_and_saved_headless) {
     mech3::add_vehicle_open(0);
     const std::vector<std::string> types = mech3::add_vehicle_types();
     const int32_t t = int32_t(std::find(types.begin(), types.end(), "ttruck") - types.begin());
-    mech3::add_vehicle_press(1);  // vehicle type: the list
-    if (t >= 18) mech3::add_vehicle_press(19);  // (down)
-    mech3::add_vehicle_press(1 + (t >= 18 ? 1 : 0) + t % 18);
-    mech3::add_vehicle_press(7);  // side: Friend -> Foe
-    mech3::add_vehicle_press(8);  // OK
+    mech3::EditorForm& form = mech3::add_vehicle_form();
+    *form.field("vehicle type")->i = t;
+    *form.field("side")->i = 1, form.changed(*form.field("side"));  // Friend -> Foe
+    form.press("OK");
     status = mech3::editor_panel().rows[24]->text;
     name = mech3::add_vehicle_last();
     after = mech3::program_vehicles().size();
@@ -26679,7 +26664,7 @@ TEST(mission_c1m1_tree_view_shows_the_world_headless) {
   if (!have_game()) return;
   std::string world_row, area_row, after_area;
   size_t kids = 0, areas = 0, cells = 0;
-  bool closed = false, paged = false, opened_area = false;
+  bool closed = false, shown = false, opened_area = false;
   mech3::app_key_calls().debug_camera = true;
   cheat_mission("tree_view", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
     if (f < 10) return false;
@@ -26693,44 +26678,32 @@ TEST(mission_c1m1_tree_view_shows_the_world_headless) {
     mech3::tree_view(0);
     mech3::TreeWindow* t = mech3::tree_window();
     if (!t) return true;
-    for (const mech3::TreeItem& k : t->root.kids) (k.node ? kids : areas)++;
+    for (const mech3::TreeItem& k : t->root.kids) (k.data ? kids : areas)++;
+    shown = mech3::form_shown(&mech3::tree_form());
     std::vector<std::string> rows = mech3::tree_rows();
-    world_row = rows.size() > 1 ? rows[1] : "";
-    mech3::tree_press(1);  // the world opened
+    world_row = rows.empty() ? "" : rows[0];
+    mech3::tree_press(0);  // the world opened
     rows = mech3::tree_rows();
-    paged = std::find(rows.begin(), rows.end(), "   (down)") != rows.end();
-    // Page down until an area row shows, then open it.
-    for (int page = 0; page < 200 && area_row.empty(); ++page) {
-      rows = mech3::tree_rows();
-      for (size_t i = 0; i < rows.size(); ++i)
-        if (rows[i].find("area ") != std::string::npos) {
-          for (const mech3::TreeItem& k : t->root.kids)
-            if (!k.node && !k.kids.empty() && rows[i].find(k.text) != std::string::npos && area_row.empty()) {
-              area_row = rows[i];
-              cells = k.kids.size();
-              mech3::tree_press(int32_t(i));
-              after_area = mech3::tree_rows()[i];
-              opened_area = after_area.find("- area") != std::string::npos;
-            }
-          if (!area_row.empty()) break;
+    for (size_t i = 0; i < rows.size() && area_row.empty(); ++i)
+      for (const mech3::TreeItem& k : t->root.kids)
+        if (!k.data && !k.kids.empty() && rows[i] == "  + " + k.text) {
+          area_row = rows[i];
+          cells = k.kids.size();
+          mech3::tree_press(int32_t(i));
+          after_area = mech3::tree_rows()[i];
+          opened_area = after_area == "  - " + k.text && mech3::tree_rows().size() == rows.size() + cells;
+          break;
         }
-      if (area_row.empty()) {
-        const auto down = std::find(rows.begin(), rows.end(), "   (down)");
-        if (down == rows.end()) break;
-        mech3::tree_press(int32_t(down - rows.begin()));
-      }
-    }
-    rows = mech3::tree_rows();
-    mech3::tree_press(int32_t(rows.size() - 2));  // OK
-    closed = !mech3::tree_window() && mech3::editor_state().menu == &mech3::editor_net_menu_rows();
+    mech3::tree_form().press("OK");
+    closed = !mech3::tree_window() && !mech3::form_shown(&mech3::tree_form());
     mech3::net_editor_exit(0);
     mech3::editor_key(mech3::kEditorCommand);
     return true;
   });
   mech3::app_key_calls().debug_camera = false;
-  std::printf("  \"%s\": %zu children, %zu areas; paged %d; \"%s\" -> \"%s\" (%zu nodes); closed %d\n", world_row.c_str(),
-              kids, areas, paged, area_row.c_str(), after_area.c_str(), cells, closed);
-  EXPECT(world_row.find(" + ") == 0 && kids > 0 && areas > 0 && paged);
+  std::printf("  \"%s\": %zu children, %zu areas; shown %d; \"%s\" -> \"%s\" (%zu nodes); closed %d\n", world_row.c_str(),
+              kids, areas, shown, area_row.c_str(), after_area.c_str(), cells, closed);
+  EXPECT(world_row.find("+ ") == 0 && kids > 0 && areas > 0 && shown);
   EXPECT(opened_area && cells > 0 && closed);
 }
 

@@ -18,8 +18,8 @@ class CZAiNetEdit;
 // sit at 0x00402ba0..0x00403b00, the exe's first, unnamed module.
 namespace mech3 {
 
-// The AI Network Editor dialog (template 139, 0x004a4c20; FIX (A): ours, in
-// the editor's panel, not an MFC dialog, and not modal: the mission runs on
+// The AI Network Editor dialog (template 139, 0x004a4c20; FIX (A): ours, a
+// form drawn by ImGui, not an MFC dialog, and not modal: the mission runs on
 // as it does under the editor's menus). Its controls as the template has
 // them: the title, "Select a network to edit:", the drop-down list (sorted,
 // "New Net" at the top and selected), OK and Cancel. The list is every net
@@ -29,7 +29,6 @@ namespace mech3 {
 struct NetDialog {
   std::vector<std::pair<std::string, ai::AiNet*>> items;  // "New Net" (none) first, then the nets
   int32_t selected = 0;   // +0x64
-  int32_t first = 0;      // ours: the list's first row shown, when it is longer than the panel
   bool open = false;
 };
 NetDialog& net_dialog();
@@ -51,13 +50,14 @@ struct NetEditor {
   znet::Mark* moving = nullptr;    // +0x134
   int32_t dirty = 0;               // +0x138  cleared by Save
   int32_t rebuild = 0;             // +0x13c  the editor made anew before its next frame
-  const void* armed = nullptr;     // ours: Delete Node's mark or link waiting for its second press
+  const void* armed = nullptr;     // ours: Delete Node's mark or link waiting for its answer
 };
 NetEditor*& net_editor();  // [0x005f4c6c]
 void net_editor_free();    // 0x00402ba0's first half; the program's end and the tests
 
 const EditorMenu& editor_net_menu_rows();  // 0x005e0f18: Pick CMD or Point .. Exit Net Editor
-const EditorMenu& editor_net_dialog_rows();  // the dialog's rows as last filled
+struct EditorForm;
+EditorForm& net_dialog_form();  // the dialog as a form (form.h; the tests press its buttons)
 
 void edit_ai_nets(int32_t y);      // 0x00402d60: the dialog
 void net_dialog_close();           // its close (OK or Cancel): the net opened, or New Net
@@ -77,14 +77,16 @@ void net_editor_step_slot(NetEditor*& slot, float dt);  // 0x00403080 on any edi
 // The Ai Network Editor window (template 181, 0x68 bytes, in [0x0060b31c];
 // Change Net Params opens it): OK, Cancel and Open, which shows another
 // net, read from a file, beside the edited one, its own editor at +0x64
-// stepped each frame (0x00404290); no parameters at all. FIX (A): as panel
-// rows; Open's file dialog a list of the open archives' net files.
+// stepped each frame (0x00404290); no parameters at all. FIX (A): a form
+// drawn by ImGui; Open's file dialog a list of the open archives' net files.
 struct NetWindow {
   NetEditor* hosted = nullptr;  // +0x64
   bool choosing = false;        // ours: Open's list up
-  int32_t first = 0;            // ours: its first row shown (the panel's 25 rows page it)
 };
 NetWindow*& net_window();
+EditorForm& net_window_form();  // the window (form.h)
+EditorForm& net_open_form();    // Open's list
+EditorForm& net_delete_form();  // Delete Node's question (modal)
 void net_params_open(int32_t y);      // 0x004036f0 -> 0x004bd330 -> 0x004bf670
 void net_window_open(const char* name);  // 0x00404570 on the window's slot
 void net_window_free();                  // 0x00404420

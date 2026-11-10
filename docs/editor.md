@@ -323,16 +323,14 @@ hook, or no vt+0x04, the mission crashes in the next brain frame.
 
 Ported in `mech3/game_editor_net` (EDIT AI NETS on the main menu calls it):
 
-- **The dialog** (template 139; FIX (A), ours): in the editor's panel, not an
-  MFC dialog, and not modal (the mission runs on, as under the editor's
-  menus). Its rows are the template's controls: the title, "Select a network
-  to edit:", the list, OK and Cancel. The list is znet's registry by name,
+- **The dialog** (template 139; FIX (A), ours): a form drawn by ImGui
+  (S7b), not an MFC dialog, and not modal (the mission runs on, as under the
+  editor's menus). Its controls are the template's: the title, "Select a
+  network to edit:", the list, OK and Cancel. The list is znet's registry by name,
   sorted case-insensitively (the drop-down's CBS_SORT; Windows sorts with
   CompareString, which may order punctuation otherwise, but no shipped net
-  name differs by it), "New Net" at the top and selected; the selected row
-  marked `>`; a longer list pages with "(up)" and "(down)" rows (ours: the
-  panel has 25 rows). A list row selects; OK and Cancel both open the
-  selection, as the exe's do.
+  name differs by it), "New Net" at the top and selected. A click in the
+  list selects; OK and Cancel both open the selection, as the exe's do.
 - **Opening** (the rest of 0x00402d60): a net that is not an edit (vt+0x48)
   is edited through a new one of its id (0x004bd360: `CZAiNetEdit(id, none,
   0)`, the editing side, which takes its own id from 400..499); the old
@@ -509,9 +507,11 @@ the install has it. Breaks: an undone edit kept, the place not folding.
 - **Delete Node** (0x00403ae0): the first pick ("Using first of N selected
   nodes"), or else the first picked line (0x004037b0: an arrow pressed;
   "Using first of N selected lines"; a cursor line's ends the other way
-  round). No net: "Select a node or line first". FIX (A): the exe asks with
-  an OK/Cancel box, "Confirm node deletion" / "Confirm line deletion"; here
-  the status line asks and a second Delete Node on the same one confirms.
+  round). No net: "Select a node or line first". The exe asks with an
+  OK/Cancel box, "Confirm node deletion" / "Confirm line deletion"; FIX (A):
+  the same question as a modal form with OK and Cancel (S7b; from 4b until
+  S7b the status line asked and a second Delete Node confirmed). OK deletes
+  the node or line only when it is still the one picked.
   Then dirty, and the editor made anew when something went.
   - A node (0x004bd290 with 0x00403c00): never the net's only node or the
     placeholder; its own links taken off (each to a real node), then every
@@ -568,8 +568,8 @@ the list 0x00404140 holds at [0x005f4c60], the main editor's slot first).
   "Zipper Files (*.zrd)"; the path picked goes to 0x004bf640 -> 0x00404570:
   the old editor freed, a net read from that file (0x004bd3d0:
   `CZAiNetEdit(-1, path, 0)`) and an editor on it. FIX (A): the file dialog
-  is a list of every net_ and reg_ file the open archives hold, paged 18 to
-  a page (ours: the panel's 25 rows), Cancel at the end.
+  is a form listing every net_ and reg_ file the open archives hold, with
+  Open and Cancel.
 - **Each frame** 0x00404290 steps every editor on the list (0x00403080) but
   the main one while the editor's menus are up (their own step runs it): so
   the window's net is drawn and picked like the edited one, beside it, with
@@ -578,14 +578,15 @@ the list 0x00404140 holds at [0x005f4c60], the main editor's slot first).
 - **OK and Cancel** close it (DestroyWindow on a modeless dialog,
   0x004d5610 / 0x004d55f0 -> 0x004bf6f0); its dtor (0x004bf5d0 ->
   0x00404420) frees its editor and takes the slot off the list.
-- FIX (A): the window's controls are the panel's rows (with ours, a line
-  naming the net it shows), the net editor's step going on under them.
+- FIX (A): the window is a form drawn by ImGui (S7b; until then the panel's
+  rows), with ours, a line naming the net it shows; the net editor's menu
+  stays on the panel under it.
 
-Tests: `net_window_open_and_hosted_editor` (the rows, Open's list and
+Tests: `net_window_open_and_hosted_editor` (the form, Open's list and
 Cancel, a file opened as a second editor that the frame steps apart from the
 main one, OK freeing it; with the menus down, the main one stepped);
 `mission_c1m1_net_window_shows_a_second_net_headless` (c1m1: Open lists the
-archives' net files, net_01.zrd among them, pages down and up, net_02.zrd
+archives' net files, net_01.zrd among them, the second listed
 opened with its 19 nodes as marks, stepped, OK closing). Breaks: the window's
 editor not stepped, Open opening nothing.
 
@@ -597,24 +598,23 @@ Cancel and nothing else, and never hands it the node: 0x004c7820 calls
 0x004bf620, an empty function. Owen's call (2026-11-09): build it as it was
 meant to work, as ours (`upgrades/editor/node_params`).
 
-The first pick's record is a form in the editor's panel, one row a field:
-placed (kind 0, its x y z given), x, y, z, speed, wait interval, wait time
-(each "off" until a value is typed), the two can-leave words, jump,
-arrange nodes' spacing, hidden, fixed, autonext and visible (each "as the
-default", yes or no, cycling on a press), backup and shunt (yes or no), name
-and gate. A press on a value row takes typed text through zInput's character
-callback, replacing the value (Enter keeps it, Esc drops it, Backspace;
-nothing typed or a number that does not read leaves the value; "off" turns
-a switchable value off, "-" clears a name). OK puts
+The first pick's record is a form (S7b: drawn by ImGui; until then the
+editor panel's rows, with typed text through zInput): placed (kind 0, its x
+y z given), x, y, z, speed, wait interval, wait time (each with a box for
+whether it is given), the two can-leave words, jump, arrange nodes' spacing,
+hidden, fixed, autonext and visible (each "as the default", yes or no),
+backup and shunt (check boxes), name and gate (text fields; empty clears
+them). OK puts
 the record on the node field by field (the node keeps its own auxname), its
 place through set_pos and the links stored again, so the fold
 (0x004befc0) takes it to the cache and Save Changes keeps it; the editor is
 made anew. Cancel leaves the node as it was. Without a pick: "Select a node
 first".
 
-Tests: `node_params_form_edits_the_picked_node` (no pick refused; a value
-typed and kept, another dropped by Esc, the tri-state cycle, a name; OK
-puts them on the node, Cancel does not); `mission_c1m1_node_params_saved_headless`
+Tests: `node_params_form_edits_the_picked_node` (no pick refused; the
+form's fields set as the view sets them: a value given, a tri-state, a
+place, a name; OK puts them on the node, Cancel does not, an empty name
+clears it); `mission_c1m1_node_params_saved_headless`
 (net_01's node_00: speed 0.25 and a gate, OK, Save, both read back from the
 editor mod's archive). Breaks: the speed not put on the node, the cycle
 skipping "no".
@@ -650,11 +650,11 @@ enemy's), then tags (params, p2, p6, p8, p10, vlist, pilot ...). So OK here:
   goes on from the last one its folder holds), so it is there from the next
   start too. The status line says what was made and where it was saved.
 
-The form: the type (a press lists them, paged), x, y, z, yaw and the team id
-typed, the side cycling Friend, Foe, Other (the team following it: 1, 2, 0).
+The form (S7b: drawn by ImGui): the type (a list), x, y, z, yaw, the team
+id, and the side, Friend, Foe or Other (the team following it: 1, 2, 0).
 
 Tests: `add_vehicle_form_and_record` (no pick refused; the form's fields
-from the node, the side cycling the team, a typed yaw, Cancel; the record
+from the node, the side setting the team, Cancel; the record
 helpers on an aiv.zrd of ours); `mission_c1m1_add_vehicle_made_and_saved_headless`
 (net_01's node_00, a ttruck as a foe: ttruck_03 made at the node, one
 vehicle more, and read back from the editor mod's archive through our aiv
@@ -677,15 +677,16 @@ only shows: nothing in it can be changed, and OK and Cancel close it
 Editor closes it too (0x00402ba0, the window's vt+0x60; it also closes
 [0x005f4c74], which nothing in the exe sets).
 
-FIX (A): the items are the editor panel's rows, one an item, two spaces a
-level, "+ " closed with children, "- " open (a press opens or closes it, as
-the control's expand), 20 to a page with up and down rows, OK and Cancel.
+FIX (A): a form drawn by ImGui with a tree control, OK and Cancel (S7b;
+until then the editor panel's rows, paged). `tree_rows` lists the items
+shown, two spaces a level, "+ " closed with children, "- " open, for the
+tests.
 Ported in `mech3/game_editor_tree`; the world comes through the editor's
 hooks (`world_node`).
 
 Test: `mission_c1m1_tree_view_shows_the_world_headless` (world1 first,
-closed; opened, its 16 children and 418 area items; the list pages; an area
-opened shows its node; OK closes it, the net menu back). Breaks: no area
+closed; opened, its 16 children and 418 area items; an area opened shows
+its node right under it; OK closes it). Breaks: no area
 items, a press not opening.
 
 ## The save (S5 sitting 2, 2026-11-09)
@@ -815,8 +816,8 @@ first frame, MODS not opened again.
 ## Our modding dialogs (planned; a sketch for Owen, 2026-11-09)
 
 Owen's direction: modders never have to edit a file. Each major modding
-feature gets a basic dialog in the Battlesport editor, in its style (the
-panel's rows, as the net editor's forms are), marked ours, in
+feature gets a basic dialog in the Battlesport editor (a form drawn by
+ImGui, as the net editor's dialogs are since S7b), marked ours, in
 `src/upgrades/editor/`. Each writes the same files a modder would write by
 hand (mod.txt rows, reader entries, per-def animation JSON, mech3ax JSON)
 into the mod being edited, so a file-edited mod and a dialog-made one are
@@ -1113,6 +1114,26 @@ frame hook, after the game's update and before present.
 - **Packages:** both THIRD-PARTY.txt lists carry the licence. The Windows
   package copies it to `licenses\imgui`, and `check_dist.ps1` requires it
   there.
+
+**Built (S7b, 2026-11-09).**
+- **The model:** `upgrades/editor/form.{h,cpp}`. An `EditorForm` has a
+  title, fields (a label, int, float with whether it is given, flag,
+  three-state, text, choice list, tree) bound to the dialog's own state, its
+  buttons, and whether it is modal. `form_show` and `form_hide` keep the
+  list of shown forms.
+- **The view:** `draw_editor_forms` in `frontend/sdl/editor_imgui.cpp`
+  draws every shown form as an ImGui window, or a modal popup. A list
+  longer than 8 is a list box, a shorter one a combo. A field's edit
+  writes the form's copy at once. Its `changed` and the buttons' presses
+  are posted and run at the editor's next frame (`form_run_posted`, from
+  `editor_frame`), in the game's update, not while the renderer presents.
+- **Moved to forms:** the net pick (139), the Ai Network Editor window (181)
+  with Open's file list, Node Params, Add veh to node, the tree view, and
+  Delete Node's question (modal, OK and Cancel, as the exe's box).
+- **The panel:** keeps the menus. The forms float over the mission, and the
+  panel's paging rows and typed-text rows are gone.
+- **Tests:** they drive the forms (fields set, `press("OK")`) where they
+  pressed rows; the logic under them is unchanged.
 
 ## The vehicle editor and ImGui, in sittings (planned 2026-11-09)
 

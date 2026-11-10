@@ -27,6 +27,7 @@
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
 #include "frontend/sdl/editor_imgui.h"
+#include "upgrades/editor/form.h"
 #include "imgui.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
@@ -5352,4 +5353,81 @@ TEST(sdl_editor_imgui_routes_input) {
   std::printf("editor ui: click over %d, away %d; keys to the game %u without a field, %u with one\n", over, away,
               keys_no_field, keys_field);
   EXPECT(ui.started() && over && !away && keys_no_field == 2 && keys_field == 0);
+}
+
+// Ours (docs/editor.md, S7b): the editor's forms (upgrades/editor/form.h) as
+// ImGui draws them, clicked through SDL's mouse events on a hidden window. A
+// check box writes its field at once and posts its `changed`; a button's
+// press is posted too, and both run only at the editor's next frame
+// (form_run_posted), not while the view draws. A modal form takes every
+// click until it is answered.
+TEST(sdl_editor_forms_click_through_imgui) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 editor forms test", 640, 480);
+  sdlfe::EditorUi ui(w.sdl(), w.device(), [] { return true; });
+  const Uint32 id = SDL_GetWindowID(w.sdl());
+  int applied = 0, changed = 0, asked = 0;
+  uint8_t on = 0;
+  int32_t pick = 0;
+  std::string name = "a";
+  mech3::EditorForm f;
+  f.title = "View test";
+  mech3::FormField flag{"on", mech3::FormField::kFlag};
+  flag.flag = &on, flag.changed = [&] { ++changed; };
+  mech3::FormField text{"name", mech3::FormField::kText};
+  text.text = &name;
+  mech3::FormField list{"list", mech3::FormField::kChoice};
+  list.i = &pick, list.choices = {"one", "two", "three"};
+  f.fields = {flag, text, list};
+  f.buttons = {{"Apply", [&] { ++applied; }}};
+  mech3::form_show(&f);
+  const auto frames = [&](int n) {
+    for (int i = 0; i < n; ++i) ui.step();
+  };
+  const auto click = [&](const mech3::EditorForm& form, const char* label) {
+    float r[4];
+    if (!sdlfe::editor_item_rect(&form, label, r)) return false;
+    const float x = (r[0] + r[2]) / 2, y = (r[1] + r[3]) / 2;
+    SDL_Event e{};
+    e.type = SDL_EVENT_MOUSE_MOTION, e.motion.windowID = id, e.motion.x = x, e.motion.y = y;
+    ui.event(e);
+    frames(1);
+    SDL_Event b{};
+    b.type = SDL_EVENT_MOUSE_BUTTON_DOWN, b.button.windowID = id, b.button.button = SDL_BUTTON_LEFT, b.button.down = true;
+    b.button.x = x, b.button.y = y;
+    ui.event(b);
+    frames(1);
+    b.type = SDL_EVENT_MOUSE_BUTTON_UP, b.button.down = false;
+    ui.event(b);
+    frames(1);
+    return true;
+  };
+  frames(2);
+  EXPECT(click(f, "Apply"));
+  const int before_run = applied;
+  mech3::form_run_posted();
+  EXPECT(before_run == 0 && applied == 1);
+  EXPECT(click(f, "on"));
+  const bool written = on == 1 && changed == 0;
+  mech3::form_run_posted();
+  EXPECT(written && changed == 1);
+  // A modal question: a click on the form under it does nothing; its OK answers.
+  mech3::EditorForm m;
+  m.title = "Question";
+  m.modal = true;
+  m.fields = {{"Sure?", mech3::FormField::kLabel}};
+  m.buttons = {{"OK", [&] { ++asked, mech3::form_hide(&m); }}};
+  mech3::form_show(&m);
+  frames(3);
+  click(f, "Apply");
+  mech3::form_run_posted();
+  const int applied_under_modal = applied;
+  EXPECT(click(m, "OK"));
+  mech3::form_run_posted();
+  std::printf("editor forms: applied %d (under the modal %d), changed %d, asked %d, shown %zu\n", applied,
+              applied_under_modal, changed, asked, mech3::editor_forms().size());
+  EXPECT(applied_under_modal == 1 && asked == 1 && !mech3::form_shown(&m));
+  mech3::form_hide(&f);
 }
