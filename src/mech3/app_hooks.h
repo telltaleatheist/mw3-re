@@ -63,8 +63,9 @@ class Engine : public zgame::AppHooks {
   int32_t menu_vmode_ = -1;
   // Ours: an ACCEPT that may change the menus' mode (GRAPHICS' resolution,
   // UPGRADES' wide menus). From the main menu the menus are made again in the
-  // new shape at once (replace_state(2), as after a game; MainState::enter
-  // takes the flag and sets the mode between the old screens and the new).
+  // new shape at once: the screens above the main menu's are popped and its
+  // state replaced by itself (as after a game; MainState::enter takes the flag
+  // and sets the mode between the old screens, freed by its leave, and the new).
   // From a mission's pause the screens stay as made: the menus after the
   // mission take it (resolution.md section 12).
   void menu_mode_picked();
