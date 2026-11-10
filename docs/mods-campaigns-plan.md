@@ -208,7 +208,21 @@ one ends:
   closes stdout and stderr, and only then lets the new process run
   (`ResumeThread`); the new one cannot reach the log while the old one holds
   it. `AllowSetForegroundWindow` lets its window come to the front. Then
-  `ExitProcess(0)`.
+  `ExitProcess(0)`;
+- the new process's own standard handles: without `STARTF_USESTDHANDLES`
+  Windows gives a console program copies of its parent's standard handles
+  even when no handles are inherited, so the new process started out holding
+  the old log as its stdout and its rename was refused (error 32, seen on
+  the PC with `restart_check`, 2026-11-10). When this run's stdout or stderr
+  is a file on disk (asked of Windows' standard handles and of the C
+  runtime's, which alone knows a windowed program's `freopen`), the new
+  process is started with `STARTF_USESTDHANDLES` and no handles: a fresh
+  program with nothing open. When they are a console or a pipe (a
+  developer's run, a test reading the output) they are left, so the output
+  still shows; neither holds a log. The game's own start rotates its log
+  with nothing closed first (`log_to_file`: `MoveFileExW`, its result not
+  looked at, then `_wfreopen` "w"), so a held log would have been
+  overwritten, not kept as mw3.old.log.
 
 Nothing waits on the old process: the launcher ends at the game's first
 frame on Windows (`Launcher::watch_game`; it stays, waiting on the process,
@@ -220,9 +234,12 @@ Tests: `win_cmdline_quotes_by_the_documented_rules` (a table, and a whole
 line) and `win_cmdline_round_trips_through_the_splitting_rules` (3,906
 arguments of the characters that matter split again by those rules), in
 tests/test_win_cmdline.cpp, run on every system. `tests/win/restart_check.cpp`
-is the Windows check without the game: `restart_check.exe DIR` starts itself
-again with arguments that are hard to quote and writes `DIR\check.log`,
-ending "restart check: OK" when the second run got the same arguments and
-working directory and could rename the first run's log. Build (the mingw
+is the Windows check without the game: `restart_check.exe DIR --watch` starts
+the check, waits for its end and prints both logs (0 when it passed). The
+first run takes `DIR\check.log` as its output and starts itself again with
+arguments that are hard to quote; the second renames that log before it
+opens anything, counting its tries, and writes a new `check.log` ending
+"restart check: OK" when the rename went through at the first try and it got
+the same arguments and working directory. Build (the mingw
 cross compiler, or any Windows one):
 `x86_64-w64-mingw32-g++ -std=c++17 -Isrc tests/win/restart_check.cpp src/frontend/sdl/sdl_restart.cpp src/frontend/sdl/win_cmdline.cpp -o restart_check.exe -static -luser32`.

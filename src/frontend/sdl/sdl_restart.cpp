@@ -14,6 +14,8 @@
 #endif
 #include <windows.h>
 
+#include <io.h>
+
 #include "frontend/sdl/win_cmdline.h"
 #else
 #include <fcntl.h>
@@ -91,6 +93,18 @@ std::wstring own_path_wide() {
     buf.assign(buf.size() * 2, L'\0');
   }
 }
+// Whether stdout or stderr is a file on disk (the log, with no console): by Windows' own standard handle and by
+// the C runtime's (a program without a console keeps its freopen'd stream in the runtime alone).
+bool output_is_a_file() {
+  auto disk = [](HANDLE h) { return h && h != INVALID_HANDLE_VALUE && GetFileType(h) == FILE_TYPE_DISK; };
+  for (DWORD which : {STD_OUTPUT_HANDLE, STD_ERROR_HANDLE})
+    if (disk(GetStdHandle(which))) return true;
+  for (std::FILE* f : {stdout, stderr}) {
+    const int fd = _fileno(f);
+    if (fd >= 0 && disk(reinterpret_cast<HANDLE>(_get_osfhandle(fd)))) return true;
+  }
+  return false;
+}
 std::string last_error_words() {
   const DWORD code = GetLastError();
   wchar_t* text = nullptr;
@@ -111,12 +125,20 @@ std::string restart_handle_name(int) { return {}; }
 // Windows has no exec: the program is started as a new process and this one
 // ends. The arguments are quoted as its own splitting reads them
 // (win_cmdline.h); the working directory and the environment are this
-// process's; no handle is inherited. The new process is made suspended, so
-// it cannot reach <write dir>/mw3.log (which it renames to mw3.old.log and
-// opens anew) while this one still holds it: with no console stdout and
-// stderr are that file (log_to_file), and they are closed here before the
-// new process runs a single instruction. The launcher has closed by then
-// (it ends at the game's first frame), so nothing waits on this PID.
+// process's; no handle is inherited. The log, <write dir>/mw3.log, is this
+// run's stdout and stderr when there is no console (log_to_file), and the
+// new start renames it to mw3.old.log and opens a new one, which fails while
+// anything holds the old file. Two things would hold it. This process: so
+// the new one is made suspended, and stdout and stderr are closed here
+// before it runs a single instruction. And the new process itself: without
+// STARTF_USESTDHANDLES Windows gives a console program copies of its
+// parent's standard handles even with no handles inherited, so it would
+// start holding our log as its own stdout (seen: the rename refused with
+// error 32). So when our output is a file on disk the new process is started
+// with no standard handles at all, as a fresh program; when it is a console
+// or a pipe (a developer's run, a test reading the output) they are left, so
+// the output still shows. The launcher has closed by then (it ends at the
+// game's first frame), so nothing waits on this PID.
 bool restart_into(const std::string&, const std::vector<std::string>& args, std::string* why) {
   const std::wstring exe = own_path_wide();
   if (exe.empty()) {
@@ -126,12 +148,15 @@ bool restart_into(const std::string&, const std::vector<std::string>& args, std:
   std::wstring line = wide(win_command_line(narrow(exe), args));  // CreateProcessW may write into it
   STARTUPINFOW si{};
   si.cb = sizeof si;
+  const bool fresh = output_is_a_file();
+  if (fresh) si.dwFlags |= STARTF_USESTDHANDLES;  // hStdInput, hStdOutput, hStdError stay null: none given
   PROCESS_INFORMATION pi{};
   if (!CreateProcessW(exe.c_str(), line.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi)) {
     if (why) *why = "cannot start " + narrow(exe) + ": " + last_error_words();
     return false;
   }
-  std::printf("mw3: starting again as process %lu: %s\n", static_cast<unsigned long>(pi.dwProcessId), narrow(line).c_str());
+  std::printf("mw3: starting again as process %lu%s: %s\n", static_cast<unsigned long>(pi.dwProcessId),
+              fresh ? " (with no standard handles: this log is a file)" : "", narrow(line).c_str());
   std::fflush(nullptr);
   std::fclose(stdout), std::fclose(stderr);    // the log let go before the new start renames it
   AllowSetForegroundWindow(pi.dwProcessId);     // its window may come to the front as ours did
