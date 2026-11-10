@@ -901,6 +901,30 @@ answers the picker for scripted runs and shots.
   (pilots, configs, saves) are left out. All the same: nothing to add.
 - An archive holding only a program (a mod shipped as its own installer):
   refused, saying to run it and add the folder it makes.
+- **A modded game folder** (Owen, 2026-11-10; `upgrades/mods/import_folder`,
+  `import_folder_run`): a mod that ships as an installer writes over a game
+  folder, so what the player has of it is a whole install, often too big to
+  copy whole. A picked folder with the game's exe and `zbd\` in it is compared
+  with the player's own install where it stands: both are only read, and
+  neither is ever changed. Taken, into a staging folder of ours
+  (`<write dir>\mod-import\import-<n>\<the folder's name>\`, the staging
+  marker beside it, removed when done): the files that differ (the same size:
+  by their bytes) or are new, under the folders the player's install has at its
+  top (zbd, video and the like). Left: the program, dlls and what runs with
+  them (dgVoodoo's and DDrawCompat's files, an uninstaller's, .ini/.conf/.cfg/
+  .reg); pilots, configs, saves, settings and logs (`zutl::mod_may_serve`);
+  files loose at the top or in a folder the install does not have; links (not
+  followed). What was taken is then added by the add above (its checks, its
+  mod.txt named after the folder, the game from the modded install's own
+  files, its marker, a name no mod has). The report line: "Took 14 files that
+  differ from your install; left 96 the same; the program and its dlls are not
+  part of a mod here (11); ...". Refused, and said: the player's own install;
+  the other game's install (by the files only one game ships, both sides);
+  a folder that holds, or is in, the write dir; no install to compare with;
+  nothing that differs. Tests: `import_folder_takes_what_differs_from_the_install`,
+  `import_folder_refusals`, `import_folder_other_picks_and_links`;
+  `MW3_IMPORT_FOLDER=<folder> MW3_TEST=import_folder_real build/mw3tests` runs a
+  real one (game/mw3-1.0 against 1.2: 14 files taken, 96 the same, under 2 s).
 - No mod.txt: one is written, its name the archive's or folder's and for=
   from the names only one game ships (MW3's c4b and t1 worlds and its own
   mission readers, Pirate's Moon's readersa and readeria4); when they cannot

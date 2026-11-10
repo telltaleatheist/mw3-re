@@ -330,6 +330,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/mod_export.cpp
   src/upgrades/mods/anim_defs.cpp
   src/upgrades/mods/save_mods.cpp
+  src/upgrades/mods/import_folder.cpp
   src/upgrades/settings/upgrades.cpp
   src/upgrades/mods/mod_report.cpp
   src/upgrades/mods/mod_test.cpp
@@ -619,6 +620,7 @@ add_executable(mw3tests
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
   tests/test_mod_install.cpp
+  tests/test_import_folder.cpp
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_campaign_entries.cpp
