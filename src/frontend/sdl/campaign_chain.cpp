@@ -197,6 +197,9 @@ void CampaignChain::briefing() {
       [[fallthrough]];
     case 2:
       brief_step_ = 3;
+      if (o_.standalone)
+        std::printf("mw3: chain buttons after the lab: lab %d salvage %d (the game's kind %d)\n", b->lab_btn.enabled,
+                    b->salvage_btn.enabled, e_.game_kind());
       if (o_.kills ? b->lab_btn.enabled : b->salvage_btn.enabled) {
         std::printf("mw3: chain %s\n", o_.kills ? "MECHLAB" : "SALVAGE");
         b->on_button(o_.kills ? mech3::BriefingScreen::kBtnMechLab : mech3::BriefingScreen::kBtnSalvage, 0, 0);

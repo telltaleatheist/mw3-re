@@ -94,6 +94,27 @@ def main():
         bad += check('each start has its lance', made, lance[:len(made)])
         bad += check('lances checked', len(made) == 11 and sum(made) > 0, True)
         whole_titles = len(titles(out))
+        # pm-tests 41: SALVAGE stays off in a Pirate Missions briefing, after the lab too.
+        # PM's 0x404650 returns at once for anything but a campaign; MW3's 0x404ae0 turned
+        # the six buttons back on, and SALVAGE listed the last mission's leftovers.
+        bad += check('SALVAGE off after the lab', set(re.findall(r'chain buttons after the lab: lab \d salvage (\d)', out)), {'0'})
+        bad += check('SALVAGE never opened', 'chain SALVAGE' in out, False)
+
+        # The two campaigns kept apart: a pilot with a campaign mission won and its salvage
+        # left (new:1), into Pirate Missions, then back to the campaign: its store and its
+        # salvage as they were.
+        sep = tmp / 'separate'
+        code, _ = run(exe, sep, 'new:1')
+        bad += check('the campaign mission', code, 0)
+        code, out = run(exe, sep, 'standalone-resume:1')
+        bad += check('Pirate Missions after it', code, 0)
+        before = re.findall(r'^mw3: chain newest game, loaded: (.*)$', out, re.M)
+        bad += check('its SALVAGE off', set(re.findall(r'chain buttons after the lab: lab \d salvage (\d)', out)), {'0'})
+        bad += check('its lab the Pirate Missions game', set(re.findall(r"chain lab store .*the pilot's game type (\d+)", out)), {'5'})
+        code, out = run(exe, sep, 'resume:0')
+        after = re.findall(r'^mw3: chain newest game, loaded: (.*)$', out, re.M)
+        bad += check('the campaign untouched', after[:1], before[:1])
+        bad += check('and it has salvage left', bool(before) and 'salvage {0 mechs 0 units' not in before[0], True)
 
         # Saved and read back partway, a reached mission replayed, the rest played from the file.
         d = tmp / 'part'
