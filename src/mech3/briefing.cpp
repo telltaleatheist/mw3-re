@@ -811,8 +811,13 @@ void BriefingScreen::refresh() {
 
 // Mech3.exe 1.2 @ 0x00404ae0: shown only with something left over; the six
 // buttons off while it is.
+// Pirate's Moon 1.0 @ 0x00404650: asked to show (the way back from the lab,
+// LoadState::resume), anything but a campaign's briefing returns at once, its
+// buttons left as the game's kind set them (a Pirate Missions briefing keeps
+// SALVAGE off; MW3's turned all six on again: pm-tests 41).
 void BriefingScreen::show_realloc(bool on) {
   Engine& e = engine();
+  if (on && e.game_kind() != kCampaign) return;  // the game's vt+0x28 (PM's type) != 1
   const bool show = on && realloc_store.count() != 0;  // 0x0040a0c0
   HelpButton* bs[] = {&abort_btn, &launch_btn, &lab_btn, &replay_btn, &salvage_btn, &loading};
   for (HelpButton* b : bs) b->enable(show ? 0 : 1);

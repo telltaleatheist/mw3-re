@@ -724,3 +724,4 @@ Known quirks the rebuild deliberately keeps:
 - An install without the game's fonts, on a system without them either, now shows its text in free stand-ins the package carries (Liberation Sans, Anton, Liberation Mono), sized to keep the original's line heights.
 - A mech can no longer be given more than 16 weapons by a mod or by another player's loadout in multiplayer: the extra one is left off and named in the log, where it used to overwrite memory.
 - Pirate Missions: your lancemates come with you into each mission. The rebuild had left them out (only the first campaign's lance was made at launch).
+- Pirate Missions: the briefing's SALVAGE stays off, as in the original, after the mech lab too. It could open after the lab and list the first campaign's leftover salvage.
