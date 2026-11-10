@@ -20,6 +20,7 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zinput/zinput.h"
 #include "check.h"
+#include "gamez/zeffect/zeff_anim_events.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zeffect/zeff_anim_run.h"
@@ -498,11 +499,49 @@ static bool t_everyone_once() {
   return ++n == 3;
 }
 
+// PM_MOTION_SURVEY: OBJECT_MOTION's ground under each falling node, with MW3's exclusion (its anim's node) and
+// PM's (the node moved, 0x0051cd60), as 0x0051d960 picks it: where the two differ.
+static int g_msurvey_calls = 0, g_msurvey_differ = 0, g_msurvey_self = 0, g_msurvey_turret_differ = 0;
+static void pm_motion_survey(zcls::Node* anim, zcls::Node* moved, zcls::Node* out, const float pos[3], float reach) {
+  auto* world = static_cast<zcls::Node*>(mech3::world_hooks().world);
+  if (!world || !anim || !moved) return;
+  const auto nearest = [&](zcls::Node* out, std::string* who) {
+    int32_t saved;
+    zcls::node_get_flag8(out, &saved);
+    zcls::node_set_flag8(out, 0);
+    static zcls::GroundHits g;
+    float best_y = -1e30f, best_d = 0;
+    int best = -1;
+    if (zcls::ground_point(world, pos[0], reach + pos[1], pos[2], &g) == 0)
+      for (int32_t i = 0; i < g.count; ++i) {
+        const float d = std::fabs(pos[1] - g.hit[i].height);
+        if (best < 0 || (d < best_d && g.hit[i].height - pos[1] < 10.0f)) best = i, best_d = d, best_y = g.hit[i].height;
+      }
+    *who = best >= 0 && g.hit[best].node ? g.hit[best].node->name() : "-";
+    zcls::node_set_flag8(out, saved);
+    return best_y;
+  };
+  std::string a, b;
+  const float mw3 = nearest(anim, &a), pm = nearest(moved, &b);
+  ++g_msurvey_calls;
+  g_msurvey_self += out == moved && out != anim;
+  if (mw3 != pm && std::strncmp(anim->name(), "tur", 3) == 0 && a == "-" && b == "g3") ++g_msurvey_turret_differ;
+  if (mw3 != pm && ++g_msurvey_differ <= 40)
+    std::printf("  motion survey: anim %s moves %s at %.0f %.0f %.0f: MW3's ground %.1f (%s), PM's %.1f (%s)\n", anim->name(), moved->name(),
+                pos[0], pos[1], pos[2], mw3, a.c_str(), pm, b.c_str());
+}
+
 static void kill_run(const char* which, bool quick) {
   EXPECT(zmth::matrix_stack().slot[0] == nullptr);  // a test's own local left there sends every box astray
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
   if (std::getenv("PM_BUGS_OFF")) zfix::options().bugs = false;
   zgame::set_game(pm::table());
+  if (std::getenv("PM_MOTION_SURVEY")) zeff::motion_survey() = &pm_motion_survey;
+  if (std::getenv("PM_MOTION_MW3")) {  // the test's MW3 way: the anim's node out of OBJECT_MOTION's ground query
+    static zgame::Table t = pm::table();
+    t.anim_motion_ground_self = false;
+    zgame::set_game(t);
+  }
   zutl::mounts() = zutl::Mounts{};
   zutl::mount(MW3PM_GAME_DIR);
   // PM_PILOT_DIR: a write dir to play from (a copy of a player's, with PM_PILOT the pilot to launch as).
@@ -1975,6 +2014,35 @@ TEST(pm_show_inout_builds_pm_models) {
   int status = 1;
   waitpid(child, &status, 0);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// PM's OBJECT_MOTION (0x0051cd60) takes the falling node out of its ground query, MW3's the whole anim's node: c1m2's
+// turrets stand on their own platform (g3, in the turret's tree), so at each part's queries from above it MW3's way
+// finds no ground (its debris fell through the world: pm-tests 37's open item, part01 to y -160) and PM's the platform.
+// Checked at the queries, not by where the parts end: their random directions follow the anim table's random index,
+// which earlier tests in the process move, and a part thrown off the platform's edge falls either way.
+TEST(pm_c1m2_turret_debris_lands_on_its_platform) {
+#if !defined(_WIN32)
+  for (const bool pm_way : {true, false}) {
+    std::fflush(nullptr);
+    const pid_t child = fork();
+    if (child == 0) {
+      setenv("PM_DEADROOTS", "1", 1);
+      setenv("PM_MOTION_SURVEY", "1", 1);
+      if (!pm_way) setenv("PM_MOTION_MW3", "1", 1);
+      kill_run("0,1,2", true);
+      std::printf("  %s's way: %d ground queries, %d with the moved node out; at %d of the turrets' MW3's way finds none and PM's the platform\n",
+                  pm_way ? "PM" : "MW3", g_msurvey_calls, g_msurvey_self, g_msurvey_turret_differ);
+      EXPECT(g_msurvey_calls > 50 && g_msurvey_turret_differ > 20);
+      EXPECT(pm_way ? g_msurvey_self == g_msurvey_calls : g_msurvey_self == 0);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    int status = 1;
+    waitpid(child, &status, 0);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
 #endif
 }
 
