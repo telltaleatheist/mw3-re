@@ -1934,6 +1934,8 @@ std::string Launcher::mod_line(const mech3::ModsListEntry& e) const {
     s += " - shares " + std::to_string(e.shadowed.size() + e.rows_taken.size() + e.anims_taken.size() + e.anim_bases.size()) +
          " with " + with + " (above wins)";
   }
+  if (e.anims_unread > 0)
+    s += " - " + std::to_string(e.anims_unread) + (e.anims_unread == 1 ? " animation file" : " animation files") + " Pirate's Moon does not read";
   if (e.check_errors == 0) s += " - check: fine";
   else if (e.check_errors > 0) s += " - check: " + std::to_string(e.check_errors) + " the game would refuse (mw3.log)";
   return s;

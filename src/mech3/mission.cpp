@@ -180,6 +180,7 @@ bool Missions::load_world(int32_t index) {
   h.progress_text(format("Loading [ %s ]", name.c_str()).c_str());
   h.fn_535ed0(!hw && h.object_lod() == 2 ? 2.0f : 0.5f);
   const std::string script = format("%s.gs", name.c_str());
+  const int32_t zbd_failures = h.zbd_read_failures();
   if (!h.interp_source(script.c_str())) {
     h.zerr(0x800, "C:\\zipper\\branchep1\\mech3ep1\\mission.cpp", 0x2a2, "Failed to Interpret: %s -- Mission Load Aborted",
            script.c_str());
@@ -206,7 +207,10 @@ bool Missions::load_world(int32_t index) {
   if (abort) return false;
   h.progress_text(h.message(0x104));
   const Handle world = h.find_node(0xd, "world1");
-  if (!world) {  // FIX (bug): the exe goes on and faults in the anim load's walk of a null node (docs/fixes.md)
+  // FIX (bug): the exe goes on and faults in the anim load's walk of a null node (docs/fixes.md). PM's
+  // scripts make an empty world1 when the read fails, so a failed read aborts too; but the mech lab's
+  // world ships no gamez.zbd and is built from lab.flt by design.
+  if (!world || (name != "lab" && h.zbd_read_failures() != zbd_failures)) {
     h.zerr(0x800, "C:\\zipper\\Mech3\\mission.cpp", 0x261, "No world in %s (its gamez.zbd missing or unread) -- Mission Load Aborted",
            script.c_str());
     failed_why = "its world (zbd\\" + name + "\\gamez.zbd) is missing or could not be read";

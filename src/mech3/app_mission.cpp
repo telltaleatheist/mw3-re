@@ -1953,6 +1953,7 @@ struct WiredMissionHooks : MissionHooks {
     zint::Interp* in = interp();
     return in && zint::source(*in, path) ? 1 : 0;
   }
+  int32_t zbd_read_failures() override { return zint::zbd_read_failures(); }
   int32_t hw_card_flag() override { return mech3::hw_card_flag(); }
   int32_t texture_memory() override { return mech3::texture_memory(); }
   uint32_t install_options(uint32_t mask) override { return e->install_options(mask); }

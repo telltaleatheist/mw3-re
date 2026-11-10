@@ -360,7 +360,7 @@ Result letter_g(Interp& in, const char* argv0) {
   Args a{in};
   if (is(argv0, "GameZReadZBDFile", 0x10)) {
     char* path = a.s();
-    if (call(e.read_zbd, static_cast<const char*>(path)) != 0) error(in, "%s %s FAILED", argv0, path);
+    if (call(e.read_zbd, static_cast<const char*>(path)) != 0) error(in, "%s %s FAILED", argv0, path), ++zbd_read_failures();
     return kKnown;
   }
   if (is(argv0, "GameZWriteZBDFile", 0x11)) {

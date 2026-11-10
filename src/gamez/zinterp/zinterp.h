@@ -361,6 +361,9 @@ struct Engine {
   void (*print)(const char* text);                                // printf, formatted
 };
 Engine& engine();
+// Ours: GameZReadZBDFile commands that failed since the start (the mission load
+// tells a world script's own NewWorld fallback from a read world; docs/fixes.md).
+int32_t& zbd_read_failures();
 // Ours: the engine entries a script reached while null (skipped), by field.
 std::map<std::string, uint32_t>& null_calls();
 

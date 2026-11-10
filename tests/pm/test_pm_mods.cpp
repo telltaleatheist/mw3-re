@@ -254,6 +254,161 @@ TEST(pm_mods_mech_row_launches_as_the_player_c1m1_headless) {
   });
 }
 
+// A mission whose world file is gone (lead, 2026-11-10): PM's c1 script makes an
+// empty world1 when its GameZReadZBDFile fails, so the load ends on the failed
+// read with the box, not in the anim load's walk of a def with no node (fixes.md).
+TEST(pm_mission_without_its_world_fails_headless) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const std::string copy = std::string(MW3_TEST_TMP_ROOT) + "/pm_no_world", wd = copy + "-write";
+  std::error_code ec;
+  fs::remove_all(copy, ec), fs::remove_all(wd, ec);
+  for (const auto& e : fs::recursive_directory_iterator(MW3PM_GAME_DIR)) {
+    const std::string rel = fs::relative(e.path(), MW3PM_GAME_DIR).generic_string();
+    if (rel == "zbd/c1/gamez.zbd") continue;
+    if (e.is_directory()) fs::create_directories(fs::path(copy) / rel, ec);
+    else fs::create_symlink(e.path(), fs::path(copy) / rel, ec);
+  }
+  fs::create_directories(wd, ec);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd.c_str());
+  zutl::mount(copy);
+  in_child("pm_mission_without_its_world_fails_headless", [] {
+    mech3::reset_states();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files;
+    std::vector<std::string> boxes;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      engine.on_message_box = [&](int32_t, int32_t, int32_t) {
+        boxes.push_back(engine.last_box_text);
+        return 1u;
+      };
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;
+      l.mech = 0;
+      engine.set_launch(l);
+      engine.missions_start(0x6098d0);
+      std::string said;
+      for (const std::string& b : boxes) said += "[" + b + "] ";
+      std::printf("  failed %d, boxes %s\n", mech3::missions().failed, said.c_str());
+      EXPECT(mech3::missions().failed && boxes.size() == 1 && said.find("c1\\gamez.zbd") != std::string::npos);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+  });
+}
+
+// The mech lab's world (mission world 6, "lab") ships no gamez.zbd: its
+// script's read fails and lab.gs builds it from lab.flt, by design. The
+// failed-read abort above leaves it alone.
+TEST(pm_lab_world_loads_without_a_gamez_headless) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_lab_world";
+  std::error_code ec;
+  fs::remove_all(wd, ec);
+  fs::create_directories(wd, ec);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd.c_str());
+  zutl::mount(MW3PM_GAME_DIR);
+  in_child("pm_lab_world_loads_without_a_gamez_headless", [] {
+    mech3::reset_states();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      const bool loaded = mech3::missions().load_world(6);
+      std::printf("  lab world loaded %d, failed %d\n", loaded, mech3::missions().failed);
+      EXPECT(loaded && !mech3::missions().failed);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+  });
+}
+
+// A mod's animation files Pirate's Moon does not read (unzbd's JSON, def and
+// node files) are said so by --check-mod and counted on its MODS line, not
+// shared; its whole anim.zbd is read (PM's reader takes the check's path).
+TEST(pm_mods_anim_files_pm_does_not_read_are_said) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_mods_anim_unread";
+  std::error_code ec;
+  fs::remove_all(wd, ec);
+  for (const char* m : {"a", "b"}) {
+    const std::string dir = wd + "/mods/" + m;
+    fs::create_directories(dir + "/zbd/c1/anim", ec);
+    fs::create_directories(dir + "/zbd/anim", ec);
+    std::ofstream(dir + "/mod.txt") << "name=" << m << "\nfor=mw3pm\n";
+    std::ofstream(dir + "/zbd/c1/anim/door-open.json") << "{}";
+    std::ofstream(dir + "/zbd/anim/door-open.json") << "{}";
+  }
+  fs::copy_file(fs::path(MW3PM_GAME_DIR) / "zbd/c1/anim.zbd", wd + "/mods/a/zbd/c1/anim.zbd", ec);
+  int errors = -1;
+  std::string report;
+  for (const std::string& l : mech3::mod_check(wd + "/mods/a", MW3PM_GAME_DIR, &errors)) report += l + "\n";
+  std::printf("%s", report.c_str());
+  EXPECT(errors == 0);
+  size_t said = 0;
+  for (size_t at = 0; (at = report.find("not read by Pirate's Moon", at)) != std::string::npos; ++at) ++said;
+  EXPECT(said == 2);
+  EXPECT(report.find("animations read (bound to the world in play)") != std::string::npos);
+  const std::vector<mech3::ModsListEntry> list = mech3::mods_list(wd, {"a", "b"});
+  EXPECT(list.size() == 2);
+  for (const mech3::ModsListEntry& e : list) {
+    std::printf("  %s: %d unread, %zu anims shared, %zu bases\n", e.info.folder.c_str(), e.anims_unread, e.anims_taken.size(), e.anim_bases.size());
+    EXPECT(e.anims_unread == 2 && e.anims_taken.empty() && e.anim_bases.empty());  // the same paths still shadow (files)
+  }
+  fs::remove_all(wd, ec);
+}
+
 // A real mod (private files, never in the repo): MW3_REAL_MOD names a folder
 // laid out as an install's (zbd\...). `--check-mod` against Pirate's Moon's
 // install finds nothing the game would refuse; mounted as a mod, PM's c1m1

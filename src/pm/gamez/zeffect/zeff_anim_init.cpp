@@ -319,19 +319,21 @@ Node* anim_find_node(AnimDef* def, const char* name, int local) {
 
 int anim_read_zbd() {
   AnimState& a = ::zeff::anim();
-  if (!a.loading || a.path[0] == 0) return -1;
-  std::FILE* f = zutl::open(a.path, "rb");  // FIX (A): the mounts (zutl_path.h)
+  // Ours, as MW3's reader: a host path (mw3 --check-mod's file) instead of the world's.
+  const char* file = a.host_path.empty() ? a.path : a.host_path.c_str();
+  if (!a.loading || file[0] == 0) return -1;
+  std::FILE* f = zutl::open(file, "rb");  // FIX (A): the mounts (zutl_path.h)
   if (!f) return -1;
   std::fseek(f, 0, SEEK_END);
   g_file_end = std::ftell(f);
   std::fseek(f, 0, SEEK_SET);
   // Ours, as MW3's reader: a broken copy is refused whole (the log names it).
   bool header_ok = false;
-  const auto fail = [f, &a, &header_ok] {
+  const auto fail = [f, &a, &header_ok, file] {
     std::fclose(f);
     g_file_end = -1;
     if (header_ok) {
-      std::printf("mw3: %s is broken (a count, size or name it cannot hold), its animations not read\n", a.path);
+      std::printf("mw3: %s is broken (a count, size or name it cannot hold), its animations not read\n", file);
       delete[] a.defs, a.defs = nullptr;
       a.block.put<int16_t>(0x0a, 0), a.block.put<int32_t>(0x10, 0);
       delete[] a.messages, a.messages = nullptr;
