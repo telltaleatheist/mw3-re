@@ -354,6 +354,7 @@ Pilot* PilotScreen::bring(const std::string& name) {
     return nullptr;
   }
   refresh(false, p);
+  std::printf("mw3: pilot %s picked on the pilot screen: %d games listed\n", p->name, games.item_count());
   return p;
 }
 
