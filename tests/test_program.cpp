@@ -4886,6 +4886,72 @@ TEST(mods_mech_row_with_a_file_missing_is_refused_c1m1_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// A mission whose files are gone (lead, 2026-11-10, from the PM launcher's checks): no c1 gamez.zbd crashed in the
+// anim load's walk of the missing world (the exe's too); no interp.zbd failed the script and went back to the
+// briefing without a word (the exe's report is empty). Each now fails the load cleanly with a box saying why.
+TEST(mission_with_its_files_gone_fails_with_a_box_headless) {
+  if (!have_game()) return;
+  namespace fs = std::filesystem;
+  for (const char* gone : {"zbd/c1/gamez.zbd", "zbd/interp.zbd"}) {
+    SavedMounts keep;
+    const std::string copy = temp_dir("mission_files_gone"), wd = temp_dir("mission_files_gone_write");
+    std::error_code ec;
+    for (const auto& e : fs::recursive_directory_iterator(MW3_GAME_DIR)) {
+      const std::string rel = fs::relative(e.path(), MW3_GAME_DIR).generic_string();
+      if (rel == gone) continue;
+      if (e.is_directory()) fs::create_directories(fs::path(copy) / rel, ec);
+      else fs::create_symlink(e.path(), fs::path(copy) / rel, ec);
+    }
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(copy);
+    zutl::set_write_dir(wd);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    std::vector<std::string> boxes;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      engine.on_message_box = [&](int32_t, int32_t, int32_t) {
+        boxes.push_back(engine.last_box_text);
+        return 1u;
+      };
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;
+      l.mech = 0;
+      engine.set_launch(l);
+      engine.missions_start(0x6098d0);
+      std::string said;
+      for (const std::string& b : boxes) said += "[" + b + "] ";
+      std::printf("  %s gone: failed %d, boxes %s\n", gone, mech3::missions().failed, said.c_str());
+      EXPECT(mech3::missions().failed && boxes.size() == 1 && said.find("This mission could not be loaded") != std::string::npos);
+      EXPECT(said.find(std::strcmp(gone, "zbd/interp.zbd") == 0 ? "its script" : "c1\\gamez.zbd") != std::string::npos);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+  }
+}
+
 TEST(net_mech_made_from_a_record_c1m1_headless) {
   if (!have_game()) return;
   SavedMounts keep;

@@ -303,6 +303,7 @@ struct Missions {
   uint8_t cheats = 0;            // +0xc4  [0x00609994]: a cheat was on as the mission started (0x00491d20); options().cheated is the one read
   uint8_t done = 0;              // the event +0x68 (set when the load ends)
   uint8_t failed = 0;            // the thread's exit code
+  std::string failed_why;        // ours: what the abort said, for the player (GameEngine::missions_start)
 
   bool load_world(int32_t index);          // 0x0048faf0
   bool setup();                            // 0x00490ab0
