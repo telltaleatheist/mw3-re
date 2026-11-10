@@ -96,7 +96,7 @@ struct AnimState {
   std::string host_path;           // ours: a file named by the mod check, any length; before `path`
   int32_t loading = 0;             // 0x005ebcbc
   int32_t copy_trees = 0;          // 0x0060c5f0  never set: the copy path is dead
-  bool fix_prerequisites = true;   // FIX (bug) on a missing prerequisite node, with zfix bugs (false: the exe)
+  bool fix_prerequisites = true;   // FIX (bug) on a missing prerequisite node, with zfix small_fixes (false: the exe)
   bool fix_instance_tree = true;   // FIX (bug): an instance at a node does not inherit +0x94 bit 17 (false: the exe)
   float random[200] = {};          // 0x0073f400  rand() / 32767, filled at init (0x00508fc0)
   int32_t random_index = 0;        // 0x0060c5f4

@@ -6,6 +6,7 @@
 
 #include "crt/msvc_math.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zutil/zfix.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -98,6 +99,10 @@ void read_effect(Node* parent, Effect* e, const char* key) {
   if (Node* n = zrdr::find(b, "SURFACE_ANIMATION"); n && count(n) > 1) e->surface_animation = anim(item(n, 1).s);
   if (Node* n = zrdr::find(b, "ANIMATION")) {
     if (count(n) > 1) e->animation = anim(item(n, 1).s);
+    // FIX (bug): the Small Pulse Laser's muzzle flash names an animation no
+    // world has; the Small Laser's blue one, as its beam is (fixes.md).
+    if (count(n) > 1 && !e->animation && zfix::options().fixed && std::strcmp(item(n, 1).s, "plaser_blue_muz.flt") == 0)
+      e->animation = anim("laser_blue_muz.flt");
     if (count(n) > 2) set_bit(e->flags, 1, item(n, 2).i);
   }
   if (Node* n = zrdr::find(b, "RANDOM_ROTATE")) set_bit(e->flags, 0, item(n, 1).i);

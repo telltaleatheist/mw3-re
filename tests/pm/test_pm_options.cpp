@@ -29,6 +29,7 @@
 #include "platform/silent_sound.h"
 #include "pm/pm_game.h"
 #include "upgrades/mods/entry_run.h"
+#include "upgrades/settings/upgrades.h"
 
 namespace {
 namespace fs = std::filesystem;
@@ -91,10 +92,10 @@ TEST(pm_options_our_records_go_into_pms_dialogs) {
     EXPECT(mech3::patch12::apply_ours("zbd/reader.zbd", "dlgoptions.zrd", r));
     zrdr::Node* game = zrdr::find(r, "GAME_OPTION_DIALOG");
     zrdr::Node* buttons = game ? zrdr::find(game, "BUTTONS") : nullptr;
-    std::printf("  UPGRADES %s, BUG_FIXES %s, slider %d, page %d\n", font_of(r, "UPGRADES").c_str(), font_of(r, "BUG_FIXES").c_str(),
+    std::printf("  UPGRADES %s, SMALL_FIXES %s, slider %d, page %d\n", font_of(r, "UPGRADES").c_str(), font_of(r, "SMALL_FIXES").c_str(),
                 buttons && zrdr::find(buttons, "MOUSE_SENSITIVITY") != nullptr, zrdr::find(r, "UPGRADES_DIALOG") != nullptr);
     EXPECT(buttons && zrdr::find(buttons, "MOUSE_SENSITIVITY") && zrdr::find(buttons, "UPGRADES"));
-    EXPECT(font_of(r, "UPGRADES") == "ia_small_amber" && font_of(r, "BUG_FIXES") == "ia_small_amber");
+    EXPECT(font_of(r, "UPGRADES") == "ia_small_amber" && font_of(r, "SMALL_FIXES") == "ia_small_amber");
     // The page beside the game's dialogs, inside the wrapper, not at its top.
     EXPECT(r->type == zrdr::List && zrdr::find(r, "UPGRADES_DIALOG") != nullptr);
     bool at_top = false;
@@ -477,4 +478,106 @@ TEST(pm_entry_mission_return_reopens_the_screen_and_one_back_leaves_headless) {
     fs::remove_all(wd, ec);
   }
   mech3::entry_run() = keep;
+}
+
+// Pirate's Moon's UPGRADES page has four switches, not MechWarrior 3's five (docs/fixes.md, The Upgrades
+// switches): MFB REGROUP, IMPROVED AI, ARTEMIS TRACKING and SMALL FIXES in the first four rows, WIDE MENUS in
+// the fifth, and no WATER MOVEMENT (Pirate's Moon's wading is its own code: the water change gates nothing
+// here). ACCEPT saves the four and wide menus and never the water key, so a line a player has for it stays as it
+// is; the Small fixes list is Pirate's Moon's own nine lines; a host's word of five bits sets the four and
+// carries the fifth without disturbing them.
+TEST(pm_upgrades_page_has_four_switches_headless) {
+  std::error_code ec;
+  if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_upgrades_page";
+  fs::remove_all(wd, ec);
+  fs::create_directories(wd, ec);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd.c_str());
+  zutl::mount(MW3PM_GAME_DIR);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  const zfix::Options fix_was = zfix::options();
+  const auto saver_was = mech3::options_upgrades_saver();
+  std::vector<std::string> saved;
+  mech3::options_upgrades_saver() = [&](const char* key, bool on) { saved.push_back(std::string(key) + (on ? "=1" : "=0")); };
+  zfix::set_all(true);
+  zfix::options().water = false;  // as a player's upgrade_water=0 left it
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files;
+  int stage = 0, rows[6] = {-1, -1, -1, -1, -1, -1}, lines = -1;
+  bool water_on_screen = true, water_after = true, small_after = true;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    engine.on_present = [&](int) {
+      auto* os = dynamic_cast<mech3::OptionsState*>(app.current());
+      auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+      auto* u = os ? dynamic_cast<mech3::UpgradesScreen*>(engine.screen_of(os->screen_)) : nullptr;
+      if (app.pending()) return;
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        mech3::main_menu()->buttons[mech3::MainMenuButton::kOptions].on_left_up();
+        stage = 1;
+      } else if (stage == 1 && g) {
+        g->upgrades.on_left_up();
+        stage = 2;
+      } else if (stage == 2 && u) {
+        ztwod::Object2D* const row[6] = {&u->mfb_regroup, &u->improved_ai, &u->artemis, &u->small_fixes, &u->wide_menus, &u->water};
+        for (int k = 0; k < 6; ++k) rows[k] = row[k]->get_y();
+        water_on_screen = false;
+        for (ztwod::Object2D* o = u->head; o; o = o->next) water_on_screen = water_on_screen || o == &u->water;
+        u->small_fixes.select(false);
+        u->accept.on_left_up();  // the four and wide menus saved, the water key not
+        water_after = zfix::options().water, small_after = zfix::options().small_fixes;
+        lines = u->small_list.add_item("(the count)", 0);
+        stage = 3;
+      }
+    };
+    Pump pump;
+    pump.limit = 1500;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  mech3::options_upgrades_saver() = saver_was;
+  std::string keys;
+  for (const std::string& s : saved) keys += s + " ";
+  std::printf("  rows at %d %d %d %d, wide menus %d, WATER %d (on the screen %d); the list %d lines; saved: %s\n", rows[0], rows[1], rows[2],
+              rows[3], rows[4], rows[5], water_on_screen, lines, keys.c_str());
+  EXPECT(stage == 3 && rows[0] == 64 && rows[1] == 94 && rows[2] == 124 && rows[3] == 154 && rows[4] == 184);
+  EXPECT(!water_on_screen && rows[5] == 0);
+  EXPECT(lines == 9 && upgrades::small_fixes_list().size() == 9);
+  EXPECT(keys == "upgrade_mfb_regroup=1 upgrade_improved_ai=1 upgrade_artemis=1 upgrade_small_fixes=0 widemenus=1 ");
+  EXPECT(!water_after && !small_after);  // the water setting as it was; a shown switch taken
+  // A host's word, MechWarrior 3's five bits (water the lowest): the four as it says, the fifth carried.
+  zfix::set_all(true);
+  upgrades::take_hosts(0x15);  // water, improved AI, small fixes
+  const zfix::Options a = zfix::options();
+  upgrades::give_back();
+  upgrades::take_hosts(0x14);  // the same without water
+  const zfix::Options b = zfix::options();
+  upgrades::give_back();
+  EXPECT(a.water && !a.mfb_regroup && a.improved_ai && !a.artemis && a.small_fixes);
+  EXPECT(!b.water && !b.mfb_regroup && b.improved_ai && !b.artemis && b.small_fixes);
+  EXPECT(zfix::all() && !upgrades::hosts());  // given back
+  zfix::options() = fix_was;
+  fs::remove_all(wd, ec);
 }

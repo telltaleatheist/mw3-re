@@ -120,8 +120,11 @@
 #include "mech3/mp_connect.h"
 #include "mech3/mp_lobby.h"
 #include "mech3/mods.h"
+#include "upgrades/settings/upgrades.h"
 #include "upgrades/mods/mod_report.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/mods/campaign_entries.h"
+#include "upgrades/mods/entry_run.h"
 #include "mech3/mod_campaign.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "gamez/znetwork/znet_session.h"
@@ -1116,7 +1119,7 @@ TEST(program_starts_like_the_game_to_the_main_state) {
       EXPECT(!ctl->commands.strings.empty() && ctl->commands.first == 0);
       EXPECT(ctl->key_a.strings.size() == ctl->commands.strings.size());
       EXPECT(ctl->commands.dialog == ctl && ctl->assign_axis.dialog == ctl);
-      EXPECT(ctl->axis_popup.popup != nullptr && ctl->axis_popup.popup->sources.count() == (zfix::options().bugs ? 11 : 9));  // W56: the sliders
+      EXPECT(ctl->axis_popup.popup != nullptr && ctl->axis_popup.popup->sources.count() == (zfix::all() ? 11 : 9));  // W56: the sliders
       EXPECT(engine.popup_state_of(cs + 0x16760) == &ctl->axis_popup);
       EXPECT(engine.popup_state_of(cs + 0x1677c) == &ctl->load_save_popup);
       EXPECT(engine.state_screen(cs + 0x16760) == ctl->axis_popup.screen_);
@@ -1394,7 +1397,7 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   const std::string before = bytes(own);
   mech3::mods_mount(wd, {"ed"}, {MW3_GAME_DIR});
   zutl::mount(MW3_GAME_DIR);
-  mech3::mods_save_enabled(wd, {"ed"});
+  mech3::entry_mods_save(wd, {"ed"});
   mech3::mods_menu_write_dir() = wd;
   mech3::mods_menu_mounted() = {"ed"};
   mech3::reset_states();
@@ -1519,7 +1522,7 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
   zutl::set_write_dir(wd);
   std::filesystem::create_directories(wd + "/mods/wpn");
   std::ofstream(wd + "/mods/wpn/mod.txt") << "name=Weapon Test\n";
-  mech3::mods_save_enabled(wd, {"wpn"});
+  mech3::entry_mods_save(wd, {"wpn"});
   mech3::mods_menu_write_dir() = wd;
   mech3::mods_menu_mounted() = {"wpn"};
   mech3::mods_menu_install() = MW3_GAME_DIR;
@@ -1633,11 +1636,13 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// Ours (modding.md, The MODS screen): MODS, ENTER a custom campaign, its
-// first mission, the pause's options and QUIT, back through the menus to
-// MODS, BACK. The campaign's pilots stay up until MODS is back on top, and
-// the MODS state under the mission is never let go (the pause's leave once
-// did: a use after free on the way back).
+// Ours (modding.md, Starting again into an entry): MODS's ENTER on a custom
+// campaign asks the program to start again into its entry, and with the MODS
+// table in focus into the game's own. Then the run inside the entry
+// (upgrades/mods/entry_run.h): the main menu opens the campaign's pilot
+// screen by itself, its first mission is played, the pause's options and
+// QUIT come back to the pilot screen (not the main menu), the campaign's
+// pilots up throughout, and CANCEL there leaves (the program's hook, once).
 TEST(mods_screen_enter_campaign_and_back_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1693,6 +1698,9 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
     mech3::States& st = mech3::states();
     int stage = 0, core = 0;
     bool entered = false, pilot_in_folder = false, left_early = false, back_at_main = false, mods_again = false;
+    std::vector<std::string> asked;
+    int left = 0;
+    mech3::mods_menu_play() = [&](const std::string& entry, std::string*) { return asked.push_back(entry), true; };
     int mission_depth = -2;
     std::string last, trace;
     engine.on_present = [&](int) {
@@ -1701,7 +1709,7 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
       for (int i = 0; i <= app.depth(); ++i)
         if (auto* s = dynamic_cast<mech3::State*>(app.stack(i))) names += std::string(names.empty() ? "" : " > ") + s->name();
       if (names != last) trace += "    " + names + (mech3::entered_campaign() ? "  [campaign pilots]" : "") + "\n", last = names;
-      if (stage >= 2 && stage < 7 && !mech3::entered_campaign()) left_early = true;
+      if (stage >= 3 && stage < 7 && !mech3::entered_campaign()) left_early = true;
       if (now == &st.core && mission_depth == -2) mission_depth = app.depth();
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
         const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
@@ -1712,12 +1720,21 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
         if (!scr) return;
         scr->campaign_list.FileList::select(0);
         scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
-        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
-        entered = mech3::entered_campaign() != nullptr;
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // asks for the campaign's entry; nothing entered in place
+        scr->on_button(mech3::ModsScreen::kMods, 0, 0);
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // the game's own campaign with its ticks
+        left_early = mech3::entered_campaign() != nullptr;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        // The run inside the entry, as the program sets it for --entry lost~lost --entry-play.
+        mech3::EntryRun& run = mech3::entry_run();
+        run = mech3::EntryRun{};
+        run.screen = mech3::EntryRun::kPlay, run.id = "lost~lost", run.mod = "lost", run.campaign = "lost";
+        run.leave = [&] { ++left; };
         stage = 2;
       } else if (stage == 2) {
         auto* ps = dynamic_cast<mech3::PilotState*>(now);
         if (!ps || !ps->screen) return;
+        entered = mech3::entered_campaign() != nullptr;  // opened by the main menu itself
         mech3::Pilot* pilot = mech3::create_pilot("Stepper");
         pilot_in_folder = std::filesystem::exists(wd + "/campaigns/lost~lost/" + mech3::kCampaignMarker);
         ps->screen->refresh(false, pilot);
@@ -1742,18 +1759,14 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
       } else if (stage == 6 && now == &st.pause) {
         auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
         if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), stage = 7;
-      } else if (stage == 7 && now == &st.main && mech3::main_menu()) {
-        back_at_main = !mech3::entered_campaign();
-        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS again
+      } else if (stage == 7) {  // the mission over: the entry's pilot screen again, its pilots still up
+        auto* ps = dynamic_cast<mech3::PilotState*>(now);
+        if (!ps || !ps->screen) return;
+        back_at_main = mech3::entered_campaign() != nullptr && left == 0;
+        ps->screen->on_button(0x17, 0, 0);  // CANCEL
         stage = 8;
-      } else if (stage == 8) {
-        auto* ms = dynamic_cast<mech3::ModsState*>(now);
-        auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
-        if (!scr) return;
-        mods_again = true;
-        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
-        stage = 9;
-      } else if (stage == 9 && now == &st.main && app.depth() == 0) {
+      } else if (stage == 8 && left) {
+        mods_again = left == 1 && now == &st.main;
         stage = 10;
       }
     };
@@ -1764,9 +1777,12 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
     std::printf("  stage %d; entered %d, pilots in the campaign's folder %d, let go early %d, the mission's depth %d, "
                 "back at the main menu with the original's pilots %d, MODS again %d; the stack:\n%s",
                 stage, entered, pilot_in_folder, left_early, mission_depth, back_at_main, mods_again, trace.c_str());
+    EXPECT((asked == std::vector<std::string>{"lost~lost", "mw3"}));
     EXPECT(entered && pilot_in_folder && !left_early);
     EXPECT(mission_depth == 0);  // nothing under the mission, as from CAMPAIGN
-    EXPECT(back_at_main && mods_again && stage == 10);
+    EXPECT(back_at_main && mods_again && stage == 10);  // the pilot screen again, then left once
+    mech3::entry_run() = mech3::EntryRun{};
+    mech3::mods_menu_play() = nullptr;
     mech3::missions().cleanup(false);
     app.stop_game();
     if (mech3::entered_campaign()) mech3::campaign_leave();
@@ -1946,9 +1962,9 @@ TEST(mods_screen_turning_on_warns_never_blocks_headless) {
     pump.limit = 3000;
     pump.stop = [&] { return stage == 3; };
     app.run(pump);
-    std::ifstream cfg(wd + "/mw3.cfg");
+    std::ifstream cfg(wd + "/campaigns/mw3/mods.txt");  // the game's own campaign entry's ticks
     const std::string text((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
-    std::printf("  stage %d; note \"%s\", row \"%s\", report's first line \"%s\"; mw3.cfg:\n%s", stage, note.c_str(), row.c_str(),
+    std::printf("  stage %d; note \"%s\", row \"%s\", report's first line \"%s\"; campaigns/mw3/mods.txt:\n%s", stage, note.c_str(), row.c_str(),
                 first.c_str(), text.c_str());
     EXPECT(stage == 3 && note.rfind("It needs the mod gone,", 0) == 0);
     EXPECT(row == "[x] X !" && first.rfind("It needs the mod gone,", 0) == 0);
@@ -2033,7 +2049,7 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
       for (int i = 0; i <= app.depth(); ++i)
         if (auto* s = dynamic_cast<mech3::State*>(app.stack(i))) names += std::string(names.empty() ? "" : " > ") + s->name();
       if (names != last) trace += "    " + names + (mech3::entered_campaign() ? "  [campaign pilots]" : "") + "\n", last = names;
-      if (stage >= 2 && stage < 6 && !mech3::entered_campaign()) left_early = true;
+      if (stage >= 3 && stage < 6 && !mech3::entered_campaign()) left_early = true;
       if (now == &st.core && mission_depth == -2) mission_depth = app.depth();
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
         const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
@@ -2042,14 +2058,17 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
         auto* ms = dynamic_cast<mech3::ModsState*>(now);
         auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
         if (!scr) return;
-        scr->campaign_list.FileList::select(0);
-        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
-        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
-        entered = mech3::entered_campaign() != nullptr;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        // Inside the campaign's entry, as --entry lost~lost --entry-play (upgrades/mods/entry_run.h).
+        mech3::EntryRun& run = mech3::entry_run();
+        run = mech3::EntryRun{};
+        run.screen = mech3::EntryRun::kPlay, run.id = "lost~lost", run.mod = "lost", run.campaign = "lost";
+        mech3::current_entry() = "lost~lost";
         stage = 2;
       } else if (stage == 2) {
         auto* ps = dynamic_cast<mech3::PilotState*>(now);
         if (!ps || !ps->screen) return;
+        entered = mech3::entered_campaign() != nullptr;
         mech3::Pilot* pilot = mech3::create_pilot("Stepper");
         pilot_in_folder = std::filesystem::exists(wd + "/campaigns/lost~lost/" + mech3::kCampaignMarker);
         ps->screen->refresh(false, pilot);
@@ -2092,7 +2111,7 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
       } else if (stage == 5 && now == &st.pause) {
         auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
         if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), stage = 6;
-      } else if (stage == 6 && now == &st.main) {
+      } else if (stage == 6 && (now == &st.main || dynamic_cast<mech3::PilotState*>(now))) {
         stage = 10;
       }
     };
@@ -2106,6 +2125,8 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
     EXPECT(entered && !left_early && stage == 10);
     EXPECT(shift_opened && shift_closed && status.find("mods\\lost\\") != std::string::npos);
     EXPECT(pause_offers && pause_opened);
+    mech3::entry_run() = mech3::EntryRun{};
+    mech3::current_entry() = mech3::official_entries().front().id;
     mech3::missions().cleanup(false);
     app.stop_game();
     if (mech3::entered_campaign()) mech3::campaign_leave();
@@ -2225,8 +2246,8 @@ TEST(mods_screen_add_mod_headless) {
                 asked, opened.c_str());
     EXPECT(stage == 4 && picked_folder == 2);
     EXPECT(adding_note == "Adding Desert Pack..." && adding_before);  // drawn a frame before the add
-    EXPECT(rows == "[x] Desert Pack|" && first_note.find("Added Desert Pack: on from the next start.") == 0);
-    EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"Desert Pack"}));
+    EXPECT(rows == "[x] Desert Pack|" && first_note.find("Added Desert Pack: on for MechWarrior 3: play it from MODS.") == 0);
+    EXPECT((mech3::entry_mods_on(wd) == std::vector<std::string>{"Desert Pack"}) && mech3::mods_enabled(wd).empty());
     EXPECT(std::filesystem::is_regular_file(wd + "/mods/Desert Pack/zbd/t1/notes.txt"));
     EXPECT(asked == 1 && second_note.find("Not added: no game chosen for Plain.") == 0 && !std::filesystem::exists(wd + "/mods/Plain"));
     EXPECT(std::filesystem::equivalent(opened, wd + "/mods"));
@@ -2641,14 +2662,14 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
           // Won (campaign.md section 1): Exit Mission brings the end screen's
           // fade to the debriefing's Win State.
           mech3::missions().ended = 1;
-          zfix::options().bugs = fix;  // the Win State's copy of the scores
+          zfix::set_all(fix);  // the Win State's copy of the scores
           mech3::missions().on_command(0x79);
           stage = 4;
         }
       } else if (stage == 4 && app.current() == &mech3::states().end_win) {
         auto* d = dynamic_cast<mech3::DebriefScreen*>(engine.screen_of(mech3::states().end_win.screen_));
         if (!d) return;
-        zfix::options().bugs = true;  // (the Win State has copied them)
+        zfix::set_all(true);  // (the Win State has copied them)
         debrief_seen = true;
         continue_help = !d->continue_btn.help.empty() && d->continue_btn.help[0]->text[0] != 0;
         debrief_handle = mech3::states().end_win.screen_;
@@ -2950,7 +2971,7 @@ TEST(campaign_menus_to_c1m1_through_the_briefing_headless) {
   reset_process_state();
   mech3::options() = mech3::Options{};
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 // The debug launch of c1 mission 1 without a window (docs/mission-start.md):
@@ -4673,6 +4694,14 @@ TEST(mission_start_reads_c1m1_vehicles_headless) {
     EXPECT(tick && tick->action && tick->get<int32_t>(0x44) == 2);  // the player's tick, priority 2
     // weapons.zrd's definitions, and the weapon_tick object (priority 3).
     EXPECT(zwep::state().defs.size() > 30 && zwep::find_def("ERPPC") != nullptr);
+    // The Small Pulse Laser's muzzle flash names no world's animation: the
+    // Small Laser's blue one in its place (fixes.md; zfix fixed, on here).
+    {
+      const zwep::WeaponDef* ps = zwep::find_def("PulseLaser_Small");
+      const zwep::WeaponDef* ls = zwep::find_def("Laser_Small");
+      EXPECT(ps && ls && ls->fire.animation && ps->fire.animation == ls->fire.animation);
+      EXPECT(zeff::anim_find("plaser_blue_muz.flt") == nullptr);  // the name the data gives is still in no world
+    }
     const auto* wt = static_cast<const zcls::Node*>(zwep::state().tick);
     EXPECT(wt && wt->action && wt->get<int32_t>(0x44) == 3);
     const auto& n = engine.unported_counts();
@@ -5497,11 +5526,13 @@ TEST(net_lobby_screen_headless) {
     // The worlds: UNAVAILABLE, the eight, then c3's two add-ons; ours in our data.
     EXPECT(l->worlds.count() == 11 && l->worlds.value_at(1) == 0x100 && l->worlds.value_at(8) == 0x203);
     EXPECT(l->worlds.value_at(9) == 0x302 && l->worlds.value_at(10) == 0x402 && l->worlds.selected_value() == 0x100);
-    // Then our mods block: "MODS", the hash (0 with none), no names.
+    // Then our mods block: "MODS", the hash (0 with none), no names; then the
+    // Upgrades page's word: "UPGR", the five (all on here).
     uint32_t mine[16] = {}, size = sizeof mine;
-    EXPECT(znet::get_player_data(1, mine, &size) && size == 0x28);
+    EXPECT(znet::get_player_data(1, mine, &size) && size == 0x30);
     EXPECT(mine[0] == 1 && mine[1] == 1 && mine[2] == 0 && mine[3] == 2 && mine[4] == 0x302 && mine[5] == 0x402);
     EXPECT(mine[6] == 0x53444f4d && mine[7] == 0 && mine[8] == 0 && mine[9] == 0);
+    EXPECT(mine[10] == 0x52475055 && mine[11] == upgrades::bits());
     // A step past the last world wraps over UNAVAILABLE (0x00496880).
     l->worlds.select(10);
     l->worlds.step(1);
@@ -5830,7 +5861,8 @@ TEST(net_lobby_rules_host_headless) {
 // joiner whose hash is not the host's is turned back with both sides' names.
 // The same hash, or 0 on both sides (string-only mods), changes nothing.
 namespace {
-std::vector<uint32_t> lobby_data_with_mods(uint64_t hash, std::initializer_list<const char*> names) {
+// `upgrades`: the Upgrades page's word after the block (1.1.0 on), -1 none (an older build).
+std::vector<uint32_t> lobby_data_with_mods(uint64_t hash, std::initializer_list<const char*> names, int64_t upgrades = -1) {
   std::vector<uint32_t> d = {1, 1, 2, 0, 0, 0x53444f4d, static_cast<uint32_t>(hash), static_cast<uint32_t>(hash >> 32),
                              static_cast<uint32_t>(names.size())};
   for (const char* n : names) {
@@ -5842,6 +5874,7 @@ std::vector<uint32_t> lobby_data_with_mods(uint64_t hash, std::initializer_list<
       d.push_back(w);
     }
   }
+  if (upgrades >= 0) d.push_back(0x52475055), d.push_back(static_cast<uint32_t>(upgrades));  // "UPGR"
   return d;
 }
 }  // namespace
@@ -5897,9 +5930,14 @@ TEST(net_lobby_mods_check_headless) {
     std::printf("  LOCK with string-only mods on both sides: locked %d\n", r.l->locked);
     EXPECT(r.l->locked == 1);
   }
-  // A joiner: the host Bob with other mods turns us back; the same lets us stay.
-  for (const bool differ : {true, false}) {
-    LobbyRig r(differ ? "net_mods_join_write" : "net_mods_join_same_write");
+  // A joiner: the host Bob with other mods turns us back; the same lets us stay,
+  // on the host's Upgrades switches (Small fixes off here), or each on its own
+  // with a warning when the host's build sends none (before 1.1.0).
+  const zfix::Options saved_fix = zfix::options();
+  for (const int kind : {0, 1, 2}) {
+    const bool differ = kind == 0, older = kind == 2;
+    zfix::set_upgrades(true);
+    LobbyRig r(differ ? "net_mods_join_write" : older ? "net_mods_join_older_write" : "net_mods_join_same_write");
     if (!r.l) return;
     mine = mech3::ModsIdentity{0x1111222233334444ull, {"Big Guns"}};
     znet::Transport* bob = r.hub.endpoint();
@@ -5907,7 +5945,7 @@ TEST(net_lobby_mods_check_headless) {
     d.name = "Bob's", d.max_players = 4, d.user[1] = mech3::kGameVersion;
     EXPECT(bob->host(d) && bob->create_player("Bob", "Bob") == 1);
     std::vector<uint32_t> hosts = differ ? lobby_data_with_mods(0x5555666677778888ull, {"Clan Pack", "Night Ops"})
-                                         : lobby_data_with_mods(0x1111222233334444ull, {"Big Guns"});
+                                         : lobby_data_with_mods(0x1111222233334444ull, {"Big Guns"}, older ? -1 : 0xf);
     bob->set_data(false, 1, hosts.data(), static_cast<uint32_t>(hosts.size() * 4));
     EXPECT(znet::join_session("loopback", "Ann") && znet::local_id() == 2);
     const uint8_t host_msg[4] = {0x0d, 0, 4, 0};
@@ -5921,9 +5959,16 @@ TEST(net_lobby_mods_check_headless) {
                 r.engine->last_box_text.c_str());
     if (differ)
       EXPECT(r.engine->last_box_text == "Your mods don't match the host's. The host uses: Clan Pack, Night Ops. You use: Big Guns.");
+    else if (older)
+      EXPECT(r.engine->last_box_text.find("older than 1.1.0") != std::string::npos && r.l->mods_checked == 1 &&
+             !upgrades::hosts() && upgrades::bits() == 0x1f);
     else
-      EXPECT(r.engine->last_box_text.empty() && r.l->mods_checked == 1);
+      EXPECT(r.engine->last_box_text.empty() && r.l->mods_checked == 1 && upgrades::hosts() && upgrades::bits() == 0xf);
+    // Leaving the network game gives the joiner's own back (the rig's end does it too).
+    r.engine->network_set(0);
+    EXPECT(!upgrades::hosts() && upgrades::bits() == 0x1f);
   }
+  zfix::options() = saved_fix;
   mine = mech3::ModsIdentity{};
 }
 
@@ -6033,14 +6078,14 @@ TEST(net_lobby_rules_join_headless) {
   if (!stock || stock->configs.size() < 2) return;
   r.game.slot.mech = fits;
   r.game.slot.set_config(stock->configs[1]);
-  zfix::options().bugs = false;  // the exe's
+  zfix::set_all(false);  // the exe's
   m = rules(1 | 4 | 0x20, 0x100, 5, 10, 40);
   bob->send(0, m.data(), m.size(), true, nullptr);
   znet::poll(-1);
   EXPECT(r.l->locked == 1 && r.game.slot.mech == fits && r.game.slot.config && stock->configs[0]->name &&
          std::string(r.game.slot.config->name) == stock->configs[0]->name);
   // FIX (bug) on: the chosen stock loadout kept.
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   r.game.slot.set_config(stock->configs[1]);
   r.l->lock_mech();
   EXPECT(r.game.slot.config && stock->configs[1]->name && std::string(r.game.slot.config->name) == stock->configs[1]->name);
@@ -8289,8 +8334,8 @@ ParkRun c2m1_park_run(bool bugs) {
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
-  const bool bugs_was = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool bugs_was = zfix::all();
+  zfix::set_all(bugs);
   FakeWindow window;
   FakeAlert alert;
   FastClock clock;
@@ -8423,7 +8468,7 @@ ParkRun c2m1_park_run(bool bugs) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
-  zfix::options().bugs = bugs_was;
+  zfix::set_all(bugs_was);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -8463,8 +8508,8 @@ RepairRun field_base_repair_run(bool bugs, int32_t armour = 40) {
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
-  const bool bugs_was = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool bugs_was = zfix::all();
+  zfix::set_all(bugs);
   FakeWindow window;
   FakeAlert alert;
   FastClock clock;
@@ -8571,7 +8616,7 @@ RepairRun field_base_repair_run(bool bugs, int32_t armour = 40) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
-  zfix::options().bugs = bugs_was;
+  zfix::set_all(bugs_was);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -8660,8 +8705,8 @@ HqRadar c3m1_hq_radar(bool bugs) {
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
-  const bool bugs_was = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool bugs_was = zfix::all();
+  zfix::set_all(bugs);
   FakeWindow window;
   FakeAlert alert;
   FastClock clock;
@@ -8718,7 +8763,7 @@ HqRadar c3m1_hq_radar(bool bugs) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
-  zfix::options().bugs = bugs_was;
+  zfix::set_all(bugs_was);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -12386,7 +12431,7 @@ JetRun jets_run(const JetCase& jc) {
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
   const zfix::Options saved_fix = zfix::options();
-  zfix::options().bugs = jc.fixes, zfix::options().per_second = jc.fixes;
+  zfix::set_all(jc.fixes), zfix::options().per_second = jc.fixes;
   struct Keys : platform::Input {
     std::vector<platform::KeyEvent> queue;
     uint32_t t = 0;
@@ -12546,7 +12591,7 @@ TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
     mech3::player_controls_instance() = nullptr;
     mech3::options() = mech3::Options{};
     const zfix::Options saved_fix = zfix::options();
-    zfix::options().bugs = fixes != 0;
+    zfix::set_all(fixes != 0);
     FakeWindow window;
     FakeAlert alert;
     FakeClock clock;
@@ -15339,8 +15384,8 @@ FollowRun c2_follow_run(int mission, bool wall, bool bugs, bool blocked = false,
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
-  const bool bugs_was = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool bugs_was = zfix::all();
+  zfix::set_all(bugs);
   mech3::ai::follow_detour_blocked() = blocked;
   struct NoInput : platform::Input {
     bool open(Device d) override { return d == kKeyboard; }
@@ -15440,7 +15485,7 @@ FollowRun c2_follow_run(int mission, bool wall, bool bugs, bool blocked = false,
     mech3::set_app(nullptr);
   }
   mech3::ai::follow_detour_blocked() = false;
-  zfix::options().bugs = bugs_was;
+  zfix::set_all(bugs_was);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -15580,8 +15625,8 @@ TrailRun c2_trail_run(int mission, bool bugs, bool corner = false, bool nav = fa
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
-  const bool bugs_was = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool bugs_was = zfix::all();
+  zfix::set_all(bugs);
   struct NoInput : platform::Input {
     bool open(Device d) override { return d == kKeyboard; }
     void close(Device) override {}
@@ -15846,7 +15891,7 @@ TrailRun c2_trail_run(int mission, bool bugs, bool corner = false, bool nav = fa
     app.exit_instance();
     mech3::set_app(nullptr);
   }
-  zfix::options().bugs = bugs_was;
+  zfix::set_all(bugs_was);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -15942,8 +15987,8 @@ AttackRun c2m1_attack_run(bool bugs, bool nav = false, float past = 80.0f) {
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
-  const bool bugs_was = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool bugs_was = zfix::all();
+  zfix::set_all(bugs);
   struct NoInput : platform::Input {
     bool open(Device d) override { return d == kKeyboard; }
     void close(Device) override {}
@@ -16065,7 +16110,7 @@ AttackRun c2m1_attack_run(bool bugs, bool nav = false, float past = 80.0f) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
-  zfix::options().bugs = bugs_was;
+  zfix::set_all(bugs_was);
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -19058,7 +19103,7 @@ struct W40Setup {
 TEST(playtest_w40_quit_box_at_exit_keeps_the_mouse_fire_headless) {
   if (!have_game()) return;
   W40Setup w("w40_quit_box_write");
-  zfix::options().bugs = false;  // where the box unbinds the button
+  zfix::set_all(false);  // where the box unbinds the button
   bool unbound = false, mended = false, rebound_kept = false;
   // The box up at the program's end.
   const std::vector<uint8_t> saved = w40_run(w.dir, nullptr, nullptr, [&](mech3::GameEngine& engine, mech3::Mech3App& app) {
@@ -19157,7 +19202,7 @@ TEST(options_mouse_sensitivity_slider_headless) {
   zutl::mount(MW3_GAME_DIR);
   zutl::set_write_dir(temp_dir("sensitivity_write"));
   const zfix::Options saved_fix = zfix::options();
-  zfix::options().bugs = false;  // the invert box keeps the slider's magnitude whatever the switch
+  zfix::set_all(false);  // the invert box keeps the slider's magnitude whatever the switch
   mech3::reset_states();
   reset_process_state();
   mech3::options() = mech3::Options{};
@@ -19210,11 +19255,15 @@ TEST(options_mouse_sensitivity_slider_headless) {
         g->upgrades.on_left_up();  // the UPGRADES page
         stage = 2;
       } else if (stage == 2 && u) {
-        u->apply(0);
-        page_read = u->bug_fixes.selected_value() == 0 && u->wide_menus.selected_value() == (zfix::options().wide_menus ? 1 : 0);
-        u->bug_fixes.select(1), u->wide_menus.select(0);
+        u->apply(0);  // the five off (set_all above), wide menus as they are
+        page_read = u->wide_menus.selected_value() == (zfix::options().wide_menus ? 1 : 0) &&
+                    u->small_list.item_count() == static_cast<int32_t>(upgrades::small_fixes_list().size());
+        for (mech3::OnOffCycle* c : u->five) page_read = page_read && c->selected_value() == 0;
+        u->water.select(1), u->small_fixes.select(1), u->wide_menus.select(0);
         u->apply(1);
-        page_applied = zfix::options().bugs && !zfix::options().wide_menus;
+        const zfix::Options& o = zfix::options();
+        page_applied = o.water && o.small_fixes && !o.mfb_regroup && !o.improved_ai && !o.artemis && !o.wide_menus &&
+                       !o.fixed;  // the page never touches the always-on fixes
         stage = 3;
       }
     };
@@ -19237,7 +19286,8 @@ TEST(options_mouse_sensitivity_slider_headless) {
   std::printf("  upgrades: page %d, read %d, applied %d, saved %zu\n", page, page_read, page_applied, saved.size());
   EXPECT(stage == 3 && bound && default_kept && set_both && invert_after && sens_after);
   EXPECT(page && page_read && page_applied);
-  EXPECT(saved == std::vector<std::string>({"bugfixes=1", "widemenus=0"}));
+  EXPECT(saved == std::vector<std::string>({"upgrade_water=1", "upgrade_mfb_regroup=0", "upgrade_improved_ai=0", "upgrade_artemis=0",
+                                            "upgrade_small_fixes=1", "widemenus=0"}));
   mech3::options_upgrades_saver() = nullptr;
   // The mission's step: zInput's read counts times the acceleration (cut toward zero).
   zin::State& st = zin::state();
@@ -19295,10 +19345,12 @@ TEST(options_our_records_take_the_dialogs_font) {
     }
     EXPECT(zrdr::find(r, "UPGRADES_DIALOG") == nullptr);
     EXPECT(mech3::patch12::apply_ours("zbd/reader.zbd", "dlgoptions.zrd", r));
-    std::printf("  CONTROLS_CFG %s: UPGRADES %s, BUG_FIXES %s, WIDE_MENUS %s, page %d, slider %d\n", font("CONTROLS_CFG").c_str(),
-                font("UPGRADES").c_str(), font("BUG_FIXES").c_str(), font("WIDE_MENUS").c_str(),
+    std::printf("  CONTROLS_CFG %s: UPGRADES %s, WATER %s, SMALL_FIXES %s, WIDE_MENUS %s, page %d, slider %d\n",
+                font("CONTROLS_CFG").c_str(), font("UPGRADES").c_str(), font("WATER").c_str(), font("SMALL_FIXES").c_str(),
+                font("WIDE_MENUS").c_str(),
                 zrdr::find(r, "UPGRADES_DIALOG") != nullptr, zrdr::find(r, "MOUSE_SENSITIVITY") != nullptr);
-    EXPECT(font("CONTROLS_CFG") == want && font("UPGRADES") == want && font("BUG_FIXES") == want && font("WIDE_MENUS") == want);
+    EXPECT(font("CONTROLS_CFG") == want && font("UPGRADES") == want && font("WIDE_MENUS") == want);
+    for (const char* k : {"WATER", "MFB_REGROUP", "IMPROVED_AI", "ARTEMIS", "SMALL_FIXES"}) EXPECT(font(k) == want);
     EXPECT(zrdr::find(r, "UPGRADES_DIALOG") != nullptr && zrdr::find(r, "MOUSE_SENSITIVITY") != nullptr);
     zrdr::free_node(r);
     zrdr::close_archives(true);
@@ -21999,7 +22051,7 @@ DockRun c2m2_dock_run(int mode, uint32_t seed) {
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   int core = 0, contact = 0, idle = 0, call = 0, prev_front = -1;
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   float held[3] = {};
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
@@ -22071,9 +22123,9 @@ DockRun c2m2_dock_run(int mode, uint32_t seed) {
 
 TEST(mission_c2m2_field_bases_answer_a_second_call_headless) {
   if (!have_game()) return;
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   for (uint32_t seed : {1u, 7u}) {
-    zfix::options().bugs = true;
+    zfix::set_all(true);
     const DockRun r = c2m2_dock_run(0, seed);
     std::printf("  seed %u: places done %d (first call), at rest in front %d, second call at %d, its places done %d, "
                 "back at rest %d, the player repaired %d\n",
@@ -22081,15 +22133,15 @@ TEST(mission_c2m2_field_bases_answer_a_second_call_headless) {
     EXPECT(r.first_places > 0 && r.second_call > 0 && r.second_places > 0 && r.second_places - r.second_call < 30);
     EXPECT(r.rest_front == 7 && r.second_rest > 0 && r.second_repaired);
   }
-  zfix::options().bugs = false;  // the original: the second call waits for good (W8)
+  zfix::set_all(false);  // the original: the second call waits for good (W8)
   const DockRun orig = c2m2_dock_run(0, 1);
   std::printf("  original: second call at %d, its places %s\n", orig.second_call, orig.second_places > 0 ? "done" : "never done (1500 frames)");
   EXPECT(orig.rest_front == 0 && orig.second_call > 0 && orig.second_places < 0);
-  zfix::options().bugs = true;  // base 02 held: given up on after 30 s
+  zfix::set_all(true);  // base 02 held: given up on after 30 s
   const DockRun held = c2m2_dock_run(1, 1);
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   const DockRun held_orig = c2m2_dock_run(1, 1);
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   std::printf("  base 02 held: places done %d (fixed), %s (original)\n", held.held_places,
               held_orig.held_places > 0 ? "done" : "never done by frame 6000");
   // (30 s of game time after the call: past the other two's arrival at 1730)
@@ -22451,9 +22503,9 @@ TEST(controls_saved_stick_axes_with_no_stick_do_not_walk_the_mech_headless) {
   EXPECT(mouse.frames == 150 && std::fabs(mouse.twist) < 0.01f && mouse.moved < 1.0f);
   EXPECT(slider.source == 7 && zone.source == 3);  // still bound: the stick works when it comes back
   // The original's path, bug fixes off: it walks.
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   const NoStick original = no_stick_run("nostick_original", "joystick(Slider0)\tslope(-0.000015)\tintercept(1.000000)\tdeadzone(0.000000)");
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   EXPECT(original.moved > 5.0f);
 }
 
@@ -22642,7 +22694,7 @@ TEST(controls_lever_direction_through_the_screens_and_a_mission_headless) {
   // The original's lever keeps its flag: Backspace with the lever ahead
   // flips it to the mission's end, bug fixes off and with the switch off.
   for (const bool bugs : {false, true}) {
-    zfix::options().bugs = bugs;
+    zfix::set_all(bugs);
     zfix::options().throttle_reverse = false;
     LeverStick k;
     W40Setup w("lever_write");
@@ -22720,9 +22772,9 @@ TEST(mission_c1m2_cheat_box_keys_stay_in_the_box_headless) {
     return 0;
   };
   zin::Host* const was = zin::g_host;
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   auto run = [&](bool fix) {
-    zfix::options().bugs = fix;
+    zfix::set_all(fix);
     zin::set_host(&host);
     int32_t before = -1, after = -1;
     uint32_t l_state = 99;
@@ -22758,7 +22810,7 @@ TEST(mission_c1m2_cheat_box_keys_stay_in_the_box_headless) {
   };
   EXPECT(run(true) == 2);   // the reticle kept
   EXPECT(run(false) == 3);  // the original's: L's free look
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
 }
 
 TEST(mission_c1m2_cheat_codes_headless) {
@@ -22926,7 +22978,7 @@ TEST(mission_c1m2_cheat_codes_headless) {
 TEST(mission_c1m1_selection_leaves_a_destroyed_weapon_headless) {
   if (!have_game()) return;
   for (const bool fix : {false, true}) {
-    zfix::options().bugs = fix;
+    zfix::set_all(fix);
     bool on_destroyed = true, picked = false;
     cheat_mission(fix ? "weapon_gone_fix_write" : "weapon_gone_write", 0, 1, 400, [&](int f, mech3::GameEngine&, CheatKeys&) {
       if (f != 30) return false;
@@ -22937,7 +22989,7 @@ TEST(mission_c1m1_selection_leaves_a_destroyed_weapon_headless) {
     EXPECT(picked);
     EXPECT(on_destroyed == !fix);
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 // A splash among more objects than zClass's query holds: its 32 hits all reach zWeapon's list. With 31 slots
@@ -24175,11 +24227,11 @@ struct RecordingForce : platform::ForceDevice {
 TEST(force_feedback_effects_and_the_games_calls_headless) {
   {
     // As the original: no "i_fall" in the file, so a fall plays nothing.
-    const bool bugs = zfix::options().bugs;
-    zfix::options().bugs = false;
+    const bool bugs = zfix::all();
+    zfix::set_all(false);
     RecordingForce rec;
     mech3::ForceFeedback ff(&rec);
-    zfix::options().bugs = bugs;
+    zfix::set_all(bugs);
     EXPECT(!ff.i_fall);
     ff.fall();
     EXPECT(rec.log.size() == 1);
@@ -26768,7 +26820,7 @@ TEST(mission_c1m2_triturret_aim_on_fast_frames_headless) {
       auto aim = [&](float dt, bool per_second, bool bugs) {
         std::memcpy(t->facing, f0, sizeof f0);
         zcls::object3d_set_matrix(tn, tm0);
-        zfix::options().per_second = per_second, zfix::options().bugs = bugs;
+        zfix::options().per_second = per_second, zfix::set_all(bugs);
         mech3::program_turret_dt(dt);
         t->aim(h);
         const float* m = zcls::object3d_matrix(tn);
@@ -26889,7 +26941,7 @@ TEST(controls_axis_popup_binds_a_slider_to_the_throttle_headless) {
   if (!have_game()) return;
   for (const bool bugs : {true, false}) {
     W40Setup w(bugs ? "popup_slider_write" : "popup_slider_off_write");
-    zfix::options().bugs = bugs;
+    zfix::set_all(bugs);
     int stage = 0, wait = 0;
     bool listed = false;
     mech3::AxisBinding bound;
@@ -26989,8 +27041,8 @@ FarRun lance_far_run(int32_t index, int32_t number, bool bugs, bool nav) {
   namespace nv = mech3::ai::nav;
   FarRun out;
   const NavAllies nav_on(nav);
-  const bool bugs_was = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool bugs_was = zfix::all();
+  zfix::set_all(bugs);
   g_cheat_mission_op = index >= 3 ? 4 : index + 1;  // c1 c2 c3, c4 and c4b
   void *mate = nullptr, *player = nullptr;
   mech3::ai::Brain* brain = nullptr;
@@ -27079,7 +27131,7 @@ FarRun lance_far_run(int32_t index, int32_t number, bool bugs, bool nav) {
     return f >= 5400;  // 90 s
   });
   g_cheat_mission_op = 0;
-  zfix::options().bugs = bugs_was;
+  zfix::set_all(bugs_was);
   return out;
 }
 }  // namespace
@@ -27120,8 +27172,8 @@ WorksRun c2m4_works_run(bool bugs, bool nav, const float spot[3], const float* m
   namespace nv = mech3::ai::nav;
   WorksRun out;
   const NavAllies nav_on(nav);
-  const bool bugs_was = zfix::options().bugs;
-  zfix::options().bugs = bugs;
+  const bool bugs_was = zfix::all();
+  zfix::set_all(bugs);
   g_cheat_mission_op = 2;
   void *mate = nullptr, *player = nullptr;
   mech3::ai::Brain* brain = nullptr;
@@ -27194,7 +27246,7 @@ WorksRun c2m4_works_run(bool bugs, bool nav, const float spot[3], const float* m
     return f >= 10800;  // 3 minutes
   });
   g_cheat_mission_op = 0;
-  zfix::options().bugs = bugs_was;
+  zfix::set_all(bugs_was);
   return out;
 }
 }  // namespace
@@ -27299,13 +27351,13 @@ TEST(mission_c1m1_net_editor_saves_into_its_own_mod_headless) {
   };
   saved = std::filesystem::exists(out);
   same = saved && bytes(out) == bytes(std::filesystem::path(MW3_GAME_DIR) / "zbd" / "c1" / "readerm1.zbd");
-  for (const std::string& m : mech3::mods_enabled(write_dir)) on = on || m == "editor edits";
+  for (const std::string& m : mech3::entry_mods_on(write_dir)) on = on || m == "editor edits";
   std::printf("  listed %d, opened %d, the stealth at %.1f %.1f %.1f for node_00 %.1f %.1f %.1f (%d); saved %d, the same "
               "bytes %d, on %d; the panel: \"%s\"\n", listed, opened, at[0], at[1], at[2], node[0], node[1], node[2], placed,
               saved, same, on, status.c_str());
   EXPECT(listed && opened && placed);
   EXPECT(saved && same && on);
-  EXPECT(status.find("editor edits") != std::string::npos && status.find("next start") != std::string::npos);
+  EXPECT(status.find("editor edits") != std::string::npos && status.find("play it from MODS") != std::string::npos);
   EXPECT(std::filesystem::exists(out.parent_path().parent_path().parent_path() / "mw3-editor.txt"));
 }
 
@@ -27468,10 +27520,10 @@ TEST(mission_c1m1_new_net_saved_and_loaded_next_start_headless) {
     }
     return f > at + 200;
   });
-  // The next start on the same folder (the editor mod on in its mw3.cfg).
+  // The next start on the same folder (the editor mod ticked for the game's own campaign entry).
   const char* keep = g_cheat_mission_dir;
   g_cheat_mission_dir = write_dir.c_str();
-  const std::vector<std::string> on = mech3::mods_enabled(write_dir);
+  const std::vector<std::string> on = mech3::entry_mods_on(write_dir);
   g_cheat_mission_mods = &on;
   cheat_mission("new_net_again", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
     if (f < 10) return false;
@@ -27539,10 +27591,10 @@ TEST(mission_c1m1_vehicle_editor_saved_and_read_next_start_headless) {
   });
   const std::filesystem::path out = std::filesystem::path(write_dir) / "mods" / "editor edits" / "zbd" / "c1" / "readerm1.zbd";
   bak = std::filesystem::exists(out.string() + ".bak");
-  // The next start on the same folder (the editor mod on in its mw3.cfg).
+  // The next start on the same folder (the editor mod ticked for the game's own campaign entry).
   const char* keep = g_cheat_mission_dir;
   g_cheat_mission_dir = write_dir.c_str();
-  const std::vector<std::string> on = mech3::mods_enabled(write_dir);
+  const std::vector<std::string> on = mech3::entry_mods_on(write_dir);
   const int32_t refs_between = mech3::ai::aiv_file().refs;  // nothing holds aiv.zrd: the next start reads it anew
   g_cheat_mission_mods = &on;
   cheat_mission("vehicle_save_again", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {

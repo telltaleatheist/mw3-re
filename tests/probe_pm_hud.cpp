@@ -105,7 +105,7 @@ void probe_pm_obj_msg(int id, const char* text) { g_msgs[id] = text; }
 // Returns the box's lines (text and font id), then the scores', then the
 // panel's height over the box's line height.
 const char* probe_pm_obj_fill(const char* spec) {
-  zfix::options().bugs = true;  // the 0x236 line (FIX (bug)): the test's stub passes the mission as %2 too
+  zfix::set_all(true);  // the 0x236 line (FIX (bug)): the test's stub passes the mission as %2 too
   zutl::messages().get_text = get_text;
   // PM's command numbers, as the exe pushes them (its table is not ported yet).
   mech3::controls_setup().names["CMD_MISSION_COMPLETE"] = 0x79;

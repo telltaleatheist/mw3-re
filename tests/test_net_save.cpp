@@ -20,6 +20,7 @@
 #include "check.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_path.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mods.h"
 #include "mech3/net_save.h"
@@ -251,7 +252,7 @@ TEST(net_save_every_shipped_net_round_trips) {
 }
 
 // The editor's own mod: the install's archive saved twice (its folder made
-// with the marker and mod.txt, last in mw3.cfg; the second save over it, the
+// with the marker and mod.txt, last among the run's entry's ticks; the second save over it, the
 // first kept as .bak), a folder of that name not ours passed over for " (2)",
 // a mod's archive saved into "<its name> edits" just before it, and an editor
 // mod's own copy saved over in place.
@@ -272,7 +273,8 @@ TEST(net_save_into_the_editors_own_mod) {
     zutl_zar::destroy(a);
   };
   archive(inst / "zbd" / "c1" / "readerm1.zbd", "install");
-  put(wd / "mw3.cfg", "width=640\nmod=a\nmod=foo\nmod=b\n");
+  put(wd / "mw3.cfg", "width=640\nmod=zzz\n");  // never read or written: the run's entry's ticks are (campaign_entries.h)
+  EXPECT(mech3::entry_mods_save(wd.string(), {"a", "foo", "b"}));
   const auto mount = [&](const std::vector<std::string>& mods) {
     zutl::mounts() = zutl::Mounts{};
     zutl::set_write_dir(wd.string());
@@ -297,14 +299,17 @@ TEST(net_save_into_the_editors_own_mod) {
   EXPECT(text_of(ours / "mod.txt") == "name=editor edits\nfor=mw3 1.2\n");
   EXPECT(entry(ours / "zbd" / "c1" / "readerm1.zbd") == "one");
   EXPECT(entry(inst / "zbd" / "c1" / "readerm1.zbd") == "install");  // the install untouched
-  EXPECT((mech3::mods_enabled(wd.string()) == std::vector<std::string>{"a", "foo", "b", "editor edits (2)"}));
-  EXPECT(s.message.find("editor edits (2)") != std::string::npos && s.message.find("next start") != std::string::npos);
+  EXPECT((mech3::entry_mods_on(wd.string()) == std::vector<std::string>{"a", "foo", "b", "editor edits (2)"}));
+  // The game's own entry by its name: "MechWarrior 3", and in Pirate's Moon its first, "Campaign".
+  const std::string on_for = "on for " + mech3::official_entries().front().name + ": play it from MODS";
+  EXPECT(on_for == "on for MechWarrior 3: play it from MODS" || on_for == "on for Campaign: play it from MODS");
+  EXPECT(s.message.find("editor edits (2)") != std::string::npos && s.message.find(on_for) != std::string::npos);
   // Saved again from the install: the same folder, the first save kept as .bak.
   s = mech3::ai::save_archive_edit(rel, "net_01.zrd", two);
   EXPECT(s.ok && s.folder == "editor edits (2)");
   EXPECT(entry(ours / "zbd" / "c1" / "readerm1.zbd") == "two");
   EXPECT(entry(ours / "zbd" / "c1" / "readerm1.zbd.bak") == "one");
-  EXPECT((mech3::mods_enabled(wd.string()) == std::vector<std::string>{"a", "foo", "b", "editor edits (2)"}));
+  EXPECT((mech3::entry_mods_on(wd.string()) == std::vector<std::string>{"a", "foo", "b", "editor edits (2)"}));
   // A mod's archive: "<its name> edits", just before it; the mod untouched.
   put(wd / "mods" / "foo" / "mod.txt", "name=Foo\nfor=mw3 1.2\n");
   archive(wd / "mods" / "foo" / "zbd" / "c1" / "readerm1.zbd", "foo's");
@@ -314,7 +319,7 @@ TEST(net_save_into_the_editors_own_mod) {
   EXPECT(entry(wd / "mods" / "Foo edits" / "zbd" / "c1" / "readerm1.zbd") == "one");
   EXPECT(entry(wd / "mods" / "foo" / "zbd" / "c1" / "readerm1.zbd") == "foo's");
   EXPECT(text_of(wd / "mods" / "Foo edits" / "mod.txt") == "name=Foo edits\nfor=mw3 1.2\n");
-  EXPECT((mech3::mods_enabled(wd.string()) ==
+  EXPECT((mech3::entry_mods_on(wd.string()) ==
           std::vector<std::string>{"a", "Foo edits", "foo", "b", "editor edits (2)"}));
   // Its own copy found first: saved over in place, the order kept.
   mount({"a", "Foo edits", "foo", "b"});
@@ -322,9 +327,9 @@ TEST(net_save_into_the_editors_own_mod) {
   EXPECT(s.ok && s.folder == "Foo edits");
   EXPECT(entry(wd / "mods" / "Foo edits" / "zbd" / "c1" / "readerm1.zbd") == "two");
   EXPECT(entry(wd / "mods" / "Foo edits" / "zbd" / "c1" / "readerm1.zbd.bak") == "one");
-  EXPECT((mech3::mods_enabled(wd.string()) ==
+  EXPECT((mech3::entry_mods_on(wd.string()) ==
           std::vector<std::string>{"a", "Foo edits", "foo", "b", "editor edits (2)"}));
-  EXPECT(text_of(wd / "mw3.cfg").find("width=640") != std::string::npos);
+  EXPECT(text_of(wd / "mw3.cfg") == "width=640\nmod=zzz\n");
   // No such entry, or no archive: refused, nothing written.
   s = mech3::ai::save_archive_edit(rel, "net_99.zrd", one);
   EXPECT(!s.ok && !s.error.empty());

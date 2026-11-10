@@ -10,6 +10,7 @@
 #include "crt/msvc_string.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "mech3/mods.h"
 
 namespace mech3::ai {
@@ -418,16 +419,16 @@ NetSave save_archive_edit(const char* rel, const char* name, const std::vector<u
   if (ec) return fs::remove(tmp, ec), r.error = "could not write " + to.string(), r;
   r.path = to.string();
   // On, just before its source (the install's: after every mod), so it wins.
-  std::vector<std::string> on = mods_enabled(write_dir);
+  std::vector<std::string> on = entry_mods_on(write_dir);  // the run's entry's ticks (campaign_entries.h)
   if (!into.empty()) {  // the mod itself: on where it stands
     if (std::find(on.begin(), on.end(), r.folder) == on.end()) on.push_back(r.folder);
   } else if (source != r.folder || std::find(on.begin(), on.end(), r.folder) == on.end()) {  // its own copy: where it is
     on.erase(std::remove(on.begin(), on.end(), r.folder), on.end());
     on.insert(source.empty() || source == r.folder ? on.end() : std::find(on.begin(), on.end(), source), r.folder);
   }
-  if (!mods_save_enabled(write_dir, on)) return r.error = "saved, but mw3.cfg could not be written to turn it on", r;
+  if (!entry_mods_save(write_dir, on)) return r.error = "saved, but its campaign's mods.txt could not be written to turn it on", r;
   r.ok = true;
-  r.message = "Saved to mods\\" + r.folder + "\\" + rel + (into.empty() ? ": on from the next start" : ": in the mod from the next start");
+  r.message = "Saved to mods\\" + r.folder + "\\" + rel + (into.empty() ? ": " + entry_on_words(write_dir) : ": in the mod, " + entry_on_words(write_dir));
   return r;
 }
 

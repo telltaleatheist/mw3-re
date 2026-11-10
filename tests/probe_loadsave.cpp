@@ -213,9 +213,9 @@ int probe_loadsave_run(const char* reader, uint32_t state, const char* plan, cha
   }
   mech3::set_app(app.get());
   const bool per_second = zfix::options().per_second;
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   zfix::options().per_second = false;  // the original's path (zfix.h)
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   zrdr::init();
   zrdr::close_archives(true);
   zrdr::open_archive(reader, true);
@@ -307,7 +307,7 @@ int probe_loadsave_run(const char* reader, uint32_t state, const char* plan, cha
   }
   zrdr::close_archives(true);
   zfix::options().per_second = per_second;
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   mech3::set_app(nullptr);
   ztwod::set_host(nullptr);
   if (static_cast<int>(dump.size()) >= size) return -1;

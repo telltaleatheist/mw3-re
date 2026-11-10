@@ -741,7 +741,7 @@ void service(float now, int steps, int search_steps) {
 
 bool on_for(bool ally) {
   const zfix::Options& o = zfix::options();
-  if (!o.bugs || options().multiplayer) return false;
+  if (!o.improved_ai || options().multiplayer) return false;
   return ally ? o.nav_allies : o.nav_enemies;
 }
 

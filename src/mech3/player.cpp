@@ -160,7 +160,7 @@ void player_setup(bool full) {
     uint8_t frame[0x14 + 0x1c + 0xd0];
     char* type = type_buf;
     char* full_name = name_buf;
-    const bool whole = zfix::options().bugs;
+    const bool whole = zfix::options().fixed;
     if (whole) {
       // FIX (bug): whole names. The exe's buffers are 20 and 28 bytes, then
       // this record (docs/mission-start.md, Quirks).
@@ -242,7 +242,7 @@ int32_t create_controlled_vehicle(Handle def, const char* type, const char* name
   Handle ctl = 0;
   if (net)
     ctl = make_vehicle_controls(net, rec);
-  else if (!zfix::options().bugs)
+  else if (!zfix::options().fixed)
     ctl = g_hooks->rec_handle(rec);
   Handle out = 0;
   const int32_t r = create_basic_vehicle(def, rec, type, name, ctl, &out);

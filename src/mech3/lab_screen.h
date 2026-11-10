@@ -454,7 +454,7 @@ float lab_chassis_tons(Engine& e, Handle config, int32_t row);    // Pirate's Mo
 // Pirate's Moon 0x00455930: the firepoint a weapon takes on a part, -1 none.
 int32_t lab_pick_firepoint(const std::vector<Engine::LabFirepoint>& fps, int32_t weapon, int32_t part);
 
-// 0x004496c0: CHASSIS_LIST's order, `by` 0 the name (FIX (bug), zfix bugs:
+// 0x004496c0: CHASSIS_LIST's order, `by` 0 the name (FIX (bug), zfix fixed:
 // the exe compares the mechs' numbers) or 1 the tonnage, then the number.
 bool chassis_before(Engine& e, int32_t by, int32_t ma, int32_t mb);
 

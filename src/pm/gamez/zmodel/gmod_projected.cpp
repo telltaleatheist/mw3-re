@@ -92,7 +92,7 @@ float centre_of(int32_t n) {
 // old colours at the centre and every split, whatever the last polygon left (fixes.md).
 bool mean_colour(const Record& r, int32_t s) {
   if (s < 1 || r.shadows->kind[s - 1] != 2) return false;
-  return s >= 2 || zfix::options().bugs;
+  return s >= 2 || zfix::options().fixed;
 }
 
 // Pirate's Moon 1.0 @ 0x00561fb0

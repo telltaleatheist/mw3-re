@@ -12,8 +12,11 @@
 // MODS button and its screen, MODSDIALOG (our record edits,
 // patch12::apply_ours) on the pilot screen's look. Two tables: CUSTOM
 // CAMPAIGNS (each campaign= of every mod) and MODS (every other mod, on or
-// off, in mw3.cfg's order, with its conflicts); ON/OFF, UP and DOWN write
-// mw3.cfg's mod= lines and take hold at the next start. EDITOR is a stub for
+// off, in winning order, with its conflicts). Mods by campaign, step 2 (until
+// step 3's CAMPAIGNS list): a plain run mounts no mods; ON/OFF, UP and DOWN
+// write the game's own campaign entry's ticks, ENTER on a custom campaign
+// starts the program again into its entry and ENTER on the MODS table into
+// the game's own campaign with its ticks (mods_menu_play). EDITOR is a stub for
 // the Battlesport editor. Bound only where the program turns it on
 // (mods_menu_page): the probes run the original's main menu.
 namespace mech3 {
@@ -46,6 +49,11 @@ ModsMenuPlatform& mods_menu_platform();
 // `why` when it cannot), and the flag that opens MODS again when the main
 // menu comes back (the editor's exit sets it).
 using ModsEditStart = std::function<bool(const std::string& mod, const std::string& world, int32_t number, std::string* why)>;
+// ENTER's (docs/mods-campaigns-plan.md, step 2): the program's start again
+// into a campaign entry (campaign_entries.h), on its pilot screen; false with
+// `why` when it cannot (unset: said). On true the game is closing.
+using ModsPlay = std::function<bool(const std::string& entry, std::string* why)>;
+ModsPlay& mods_menu_play();
 ModsEditStart& mods_menu_edit_start();
 bool& mods_menu_reopen();
 // A mod's missions for EDIT: its campaigns' lines when it has any (mounted:
@@ -66,6 +74,14 @@ std::vector<ModsEditRow> mods_test_rows(const ModInfo& m, const std::string& ins
 void mods_menu_picked(const std::string& path);  // "" cancelled; the screen takes it on its next update
 
 class ModsScreen;
+
+// The screen's pieces other screens of ours on its look use (upgrades/mods/
+// ia_mods_menu.h): the render target, a text placed and said, and the pilot
+// screen's lines with the pilots' box taken out and (`left_box`) a copy of the right box in its place.
+void mods_screen_target(Engine& e);
+void mods_text_put(ztwod::Text& t, const char* font, int32_t x, int32_t y);
+void mods_text_say(ztwod::Text& t, const std::string& s);
+zimg::Texture* mods_screen_lines(zimg::Texture* src, bool left_box = true);
 
 // Ours (lead, 2026-11-10): ENTER and BACK hit where they are drawn, their
 // ring and knob (the image's pixels of alpha 64 and up) and their label's own
@@ -112,7 +128,7 @@ class ModsScreen : public MenuScreen {
   zimg::Texture* own_lines = nullptr;  // LINES2 with the CAMPAIGNS box (ours, released with the screen)
   ztwod::Text detail_label, detail, detail2, note, restart;  // DETAILS: the row's name, its author and version
   ModsTables tables;
-  std::vector<std::string> enabled;  // mw3.cfg's, as the tabs change it
+  std::vector<std::string> enabled;  // the game's own campaign entry's ticks, as the tabs change them
   int32_t focus = kCampaigns;        // the table the details are of
   std::string adding;                // a pick said ("Adding ...") and added on the next update
   std::string export_folder;         // EXPORT's mod, while the save box is up

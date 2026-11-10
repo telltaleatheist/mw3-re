@@ -386,7 +386,7 @@ void HudObjectives::fill() {
     } else if (src.game_type != 2) {
       // FIX (bug): PM's text is "Mission %2!d! ..." and the exe passes only the
       // mission (vt+0x48), so %2 read what followed on the stack.
-      const int32_t m = zfix::options().bugs ? src.mission : 0;
+      const int32_t m = zfix::options().fixed ? src.mission : 0;
       put(zutl::format_message_ints(0x236, {m, m}));
       ++lines;
     }
@@ -1288,7 +1288,7 @@ void HudTarget::data_text() {
   }
   if (dist > 1000.0f) {  // [0x005c00ec]
     // FIX (bug): " (1.23km)" as " (500m)" below; the exe runs "1.23km" straight on (fixes.md).
-    std::snprintf(buf, sizeof buf, zfix::options().bugs ? " (%.2fkm)" : "%.2fkm",  // [0x005e401c]
+    std::snprintf(buf, sizeof buf, zfix::options().fixed ? " (%.2fkm)" : "%.2fkm",  // [0x005e401c]
                   static_cast<double>(dist * 0.001f));  // [0x005c0120]
   } else {
     std::snprintf(buf, sizeof buf, " (%dm)", crt::msvc_ftol(std::ceil(static_cast<double>(dist))));  // [0x005e4014]
@@ -1953,7 +1953,7 @@ void Hud::static_quad(float level, const ztwod::Rect& r) {
   // full strength however hurt. Drawn at the add's ceiling for the health
   // instead (the eased level settles near 0.375 at any health; MW3's sat at
   // its ceiling), it grades with damage as MW3's static did (fixes.md).
-  if (zfix::options().bugs) {
+  if (zfix::options().fixed) {
     level = static_top;
     if (level > 0.9f) level = 0.9f;  // 0x005dfcd4
     else if (level < 0.0f) level = 0.0f;
@@ -2466,7 +2466,7 @@ Hud::~Hud() {
 Hud::Hud(Mech* m) {
   ++g_huds;
   noise = static_noise_make();  // 0x0043dda0, after the static's channels are cleared
-  if (zfix::options().bugs) block = nullptr;
+  if (zfix::options().fixed) block = nullptr;
   load_damage_set();
   mech = nullptr;
   setup(m);
@@ -2774,7 +2774,7 @@ void HudRadar::update_contacts(float dt, float static_px) {
     // FIX (bug): a targets.zrd building's node sits at the world's origin, its
     // mesh in world co-ordinates, so the exe's place (0x005a85e0) put its
     // blip towards the origin; the record's centroid instead (fixes.md, W32).
-    if (zfix::options().bugs) h.object_radar_place(o, p);
+    if (zfix::options().fixed) h.object_radar_place(o, p);
     radar_jitter(p, static_px);
     float v[3] = {};
     if (!active) {

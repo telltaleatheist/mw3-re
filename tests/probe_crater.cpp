@@ -85,7 +85,7 @@ extern "C" {
 // zDEClient on the loaded world: one texture entry (the crater material at
 // `material`, a stand-in dust animation), the frame counter, fresh state.
 void crater_setup(int32_t material, uint32_t frame) {
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   zerr::set_sink(sink);
   zgeo::hooks() = zgeo::Hooks{};
   zgeo::hooks().world_node = zdec::world_node;

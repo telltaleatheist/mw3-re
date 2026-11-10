@@ -23,7 +23,7 @@ uint32_t raw(const zrdr::Node& n) { return static_cast<uint32_t>(n.i); }
 bool has(zrdr::Node* n, const char* key) { return zrdr::find(n, key) != nullptr; }
 
 // FIX (bug), as MW3's reader: the exe asks for "MED", which never matches the data's "MEDIUM".
-const char* med() { return zfix::options().bugs ? "MEDIUM" : "MED"; }
+const char* med() { return zfix::options().fixed ? "MEDIUM" : "MED"; }
 
 // Pirate's Moon 1.0 @ 0x00592060: a format entry, a file name or a list of
 // rate, bits and channels (at least three items); false leaves `f` as it was.

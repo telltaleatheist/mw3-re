@@ -3,6 +3,7 @@
 #include "mech3/mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
 #include "upgrades/mods/entry_run.h"
+#include "upgrades/mods/ia_mods_menu.h"
 #include "mech3/options_menu.h"
 #include "mech3/app_states.h"
 #include "mech3/mission.h"
@@ -978,6 +979,13 @@ bool MainState::enter() {
   Mech3App& ap = a();
   if (ap.multiplayer() || en.network_lobby_active()) en.vcall(screen_ + kButtonMulti, 0x30, {});
   entry_run().opened = false;  // ours (upgrades/mods/entry_run.h)
+  // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action was given, picked now the pilots are loaded.
+  if (!ia_start_pilot().empty()) {
+    Pilot* p = find_pilot(ia_start_pilot().c_str());
+    std::printf("mw3: Instant Action's pilot %s: %s\n", ia_start_pilot().c_str(), p ? "picked" : "not there, the pilot screen");
+    ia_start_pilot().clear();
+    if (p) current_pilot() = p, ap.set_reopen_instant_action(1, 1);
+  }
   if (ap.reopen_instant_action()) {
     entry_run().opened = entry_run().screen == EntryRun::kInstantAction;
     en.vcall(screen_ + kButtonInstantAction, 0x30, {});
@@ -1067,6 +1075,7 @@ void MainState::leave() {
   }
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
   if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
+  if (const Handle m = ia_mods_state()) en.vcall(m, 0x00, {1}), ia_mods_state() = 0;  // ours
   if (save_pilots_) en.pilot_delete("mechlab");
 }
 

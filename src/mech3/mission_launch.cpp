@@ -197,10 +197,10 @@ bool launch_player() {
   {
     const Handle player = h.h(h.field32(pilot, 0x14));
     const Handle screen = player == h.h(h.field32(h.view(), 0x64)) ? h.mech_screen(m->pilot) : nullptr;
-    // FIX (bug), behind `bugs`: with the view on another vehicle the exe
+    // FIX (bug), behind `fixed`: with the view on another vehicle the exe
     // passes 0x14 (the missing HUD + 0x14) and writes through it (a crash);
     // there is no HUD to reset.
-    if (screen || !zfix::options().bugs) h.hud_43d920(h.h(h.low(screen) + 0x14));
+    if (screen || !zfix::options().fixed) h.hud_43d920(h.h(h.low(screen) + 0x14));
   }
   // The list at +0xc0: every entry's object freed, then every entry.
   const Handle list = h.h(h.field32(missions, 0xc0));

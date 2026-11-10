@@ -273,7 +273,7 @@ Fix fix_def(int32_t index, AnimDef& d, Lookup& s) {
     if (type == 1) {
       p.def = nullptr;
       const char* want = reinterpret_cast<const char*>(p.raw + 8);
-      const int32_t defs = zfix::options().bugs ? a.def_count() : a.def_count() - 1;
+      const int32_t defs = zfix::options().small_fixes ? a.def_count() : a.def_count() - 1;
       for (int32_t j = 0; j < defs; ++j) {
         if (std::strcmp(a.defs[j].name(), want) == 0) {
           p.def = &a.defs[j];
@@ -289,7 +289,7 @@ Fix fix_def(int32_t index, AnimDef& d, Lookup& s) {
                       "ACTIVATION_PREREQUISITE error; couldn't find node.\n  Animation: %s; node: %s\n", d.name(),
                       want);
         zerr::report(0x400, kFile, 0x376f, msg);
-        if (!a.fix_prerequisites || !zfix::options().bugs) {
+        if (!a.fix_prerequisites || !zfix::options().small_fixes) {
           d.raw[0x110] = 0;
           break;
         }

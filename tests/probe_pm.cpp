@@ -89,7 +89,7 @@ float tether_height(int32_t roster);
 
 namespace {
 // The whole probe library tests the original's path, as tests/probe.cpp: the zfix fixes off.
-const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().bugs = false,
+const bool g_fixes_off = (zfix::options().per_second = false, zfix::set_all(false),
                           zfix::options().any_resolution = false, zfix::options().nested_lock = false,
                           zfix::options().fpu53 = std::getenv("MW3_PRECISION") && !std::strcmp(std::getenv("MW3_PRECISION"), "53"), true);
 struct UsePm {
@@ -1724,7 +1724,7 @@ void probe_pm_set_fpu53(int on) { zfix::options().fpu53 = on != 0; }
 int probe_pm_load_step(float* stress, float* load, float limit, float tons, float steps) {
   return mech3::ai::load_step(*stress, *load, limit, tons, steps) ? 1 : 0;
 }
-void probe_pm_set_bugs(int on) { zfix::options().bugs = on != 0; }
+void probe_pm_set_bugs(int on) { zfix::set_all(on != 0); }
 // test_pm_submit.py: the whole draw, every device call: kind, count, cull, primitive,
 // shade, fade, overlay, its TL vertices, then its sets' UVs and colours.
 float probe_pm_face(const float* p, float* n, int fpu53) {
@@ -2225,7 +2225,7 @@ int probe_pm_clip3d_fog_fix() {
   for (int v = 0; v < 4; ++v) rec[0][v * 8 + 4] = rec[1][v * 8 + 4] = 0.1f * static_cast<float>(v + 1);
   float out[2][4];
   pm::zmod::ClipShadows none;
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   for (int k = 0; k < 2; ++k) {
     float p[8 * 3];
     std::memcpy(p, pos, sizeof p);
@@ -2237,7 +2237,7 @@ int probe_pm_clip3d_fog_fix() {
     if (!(k ? pm::zmod::clip3d_textured_shadow(c) : pm::zmod::clip3d_textured(c)) || c.count != 4) return 0;
     for (int v = 0; v < 4; ++v) out[k][v] = c.rec[v * 8 + 4];
   }
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   return std::memcmp(out[0], out[1], sizeof out[0]) == 0;
 }
 
@@ -2537,14 +2537,14 @@ int probe_pm_anim(const char* world, const char* path, int fail_at, int full, ui
   ::zcls::list_walk() = ::zcls::ListWalk{};
   ::zeff::anim() = ::zeff::AnimState{};
   ::zeff::anim().fix_prerequisites = g_anim_fix != 0;
-  const bool bugs = zfix::options().bugs;
-  zfix::options().bugs = g_anim_fix != 0;
+  const bool bugs = zfix::all();
+  zfix::set_all(g_anim_fix != 0);
   ::zeff::anim_allow_loading(1);
   ::zeff::anim_set_zbd_path(path);
   install_anim_hooks();
   g_trace.clear(), g_calls = 0, g_fail_at = fail_at;
   const int32_t r = ::zeff::anim_read_zbd();
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   zerr::set_sink(nullptr);
   std::string b;
   auto i32 = [&](int32_t v) { b.append(reinterpret_cast<const char*>(&v), 4); };

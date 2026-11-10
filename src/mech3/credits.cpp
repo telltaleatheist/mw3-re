@@ -24,7 +24,7 @@ void CreditsScroll::update(float dt) {
 // same stack slot). FIX (bug): the one shipped line with one number, "Other
 // Voices" `(20)`, gets the headings' (20 20) it evidently meant (fixes.md).
 void credit_line_offset(zrdr::Node* line, int32_t off[2]) {
-  if (zrdr::get_ivec2(line, "offset", off) || !zfix::options().bugs) return;
+  if (zrdr::get_ivec2(line, "offset", off) || !zfix::options().fixed) return;
   if (zrdr::get_int(line, "offset", &off[0])) off[1] = 20;
 }
 

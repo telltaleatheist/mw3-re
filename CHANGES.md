@@ -7,12 +7,22 @@ original address, the evidence, how each fix is tested) is
 [`docs/fixes.md`](docs/fixes.md). In the code each change is marked `FIX`
 next to the function it touches.
 
-**To play with every bug fix off:** start `mw3 --original`, or put
-`bugfixes=0` in `mw3.cfg` in your settings folder. That puts back every
-change under "Bug fixes that change play" below except the frame-rate ones
-(the game still plays at the same pace on any computer), and keeps the
-fixes that let the game run at all and the crash fixes. `bugfixes=1`, or no
-line, keeps them on.
+**To play the game as it shipped:** the options' UPGRADES page has five
+switches, all on to start: WATER MOVEMENT, MFB REGROUP, IMPROVED AI, ARTEMIS
+TRACKING and SMALL FIXES (the page lists what the small fixes are). Turn one
+off and that part plays as in 1999; `mw3 --original` turns all five off for
+one run. Crash fixes, the fixes that let the game run today, and the
+restored sounds, pictures, voice lines and text stay on (Owen's rule,
+2026-11-10). In a network game everyone plays on the host's switches. Which
+change sits under which switch: [`docs/upgrades-sort.md`](docs/upgrades-sort.md).
+A 1.0 `mw3.cfg`'s `bugfixes=` line becomes the five switches the first time.
+
+Pirate's Moon's page has four: no WATER MOVEMENT, because the water change
+corrects something Pirate's Moon's own game no longer does, so there would be
+nothing to switch. Its SMALL FIXES list is its own, nine lines. A water
+setting already in your settings file is left as it is. A WATER MOVEMENT
+switch for Pirate's Moon follows: the gradual slowing in deep water with it
+on, the original's flat slowing with it off.
 
 The rule: keep everything as the original did it, quirks that players know
 and plan around included. Change only what stops the game running on today's
@@ -24,6 +34,7 @@ it is clear what the designers meant.
 - **Pirate's Moon's HUD static thickens the worse your mech is hurt.** The original works out how
   strong the static should be and then, on a 3D card, draws it at full strength however hurt you are;
   now it grades with your health, as MechWarrior 3's does: faint at 15% health, a full sheet near death.
+- **The Small Pulse Laser has its muzzle flash.** Its weapon data named a flash no mission has, so it fired with none; it now shows the Small Laser's blue flash, as every other laser uses its size's colour.
 - **Typing in the cheat box or the chat no longer moves your view.** A key you type into a box still counted for the game when you let it go after pressing Enter, as you do when typing fast; L is the hold-to-look key, so "operation cwal" left the mouse turning the torso instead of moving the reticle. Keys typed into a box are the box's now.
 - **Artemis works in a side torso.** The rebuild looked for Artemis on the torso as one piece, so a launcher and its Artemis in the same side torso (some stock mechs have them there) never got it. Now, as in the original, a locked shot from that launcher tracks at double rate and hugs the ground.
 
@@ -703,6 +714,7 @@ Known quirks the rebuild deliberately keeps:
 - A MOUSE SENSITIVITY slider on the Game Options screen, under Invert Mouse (0.5 to 3.0): it sets how far the mouse turns the mech in a mission. It starts at the original's 1.3, and Invert Mouse keeps it.
 - An UPGRADES page, one press from the options (in the menus and in a mission): the bug fixes and wide menus switches, saved with your settings.
 - Pirate's Moon's Game Options have MOUSE SENSITIVITY and UPGRADES too (they were missing: its options file is laid out differently).
+- Pirate's Moon's UPGRADES page: MFB REGROUP, IMPROVED AI, ARTEMIS TRACKING, SMALL FIXES and WIDE MENUS. The heading in the objectives box, the HUD static that thickens with damage, the fog and light fixes and the crash guards in the AI are always on; the destroyed weapon's selection is Pirate's Moon's own, which already moves on.
 - The music pauses while a movie plays and comes back after (the campaign's opening movie no longer has the menu music under it), as when the game read its movies off the CD.
 - On a wide screen the arm weapons reach the reticle across the whole width: an arm weapon still fires straight ahead when aimed far off to the side, but the limit now widens with the screen, so it starts at the same place on screen as on a 4:3 one (bug fixes on).
 - Cheat codes in single player (ours): Shift+Enter, Keypad * or Keypad − in a mission opens a box for six codes, from a radar that shows everything to an instant win (README, Cheat codes).
@@ -719,7 +731,7 @@ Known quirks the rebuild deliberately keeps:
 - A controls file whose first axis names no source, with no key list, gets no axis source; Pirate's Moon took the file name's address as one.
 - A mech under deep water drowns at the same speed at any frame rate.
 - Pirate's Moon: a campaign wreck flagged to thin out does so at the same speed at any frame rate (bug fixes on).
-- Pirate's Moon: a firepoint whose aim range runs past straight up or down keeps its real top limit (bug fixes on).
+- Pirate's Moon: a firepoint whose aim range runs past straight up or down aims as the original's does (any top limit becomes straight up). Earlier rebuilds corrected this with bug fixes on; it is a quirk that changes how far a weapon can aim, so it is the original's again (Owen, 2026-11-10).
 - Pirate's Moon: a mission trigger that sets an AI range on a vehicle with no pilot does nothing, where the original would crash. No shipped mission does this.
 - Pirate's Moon: a broken mission boundary with impossible numbers can't crash the AI's way finding.
 - Linux: the game no longer closes at the end of the intro movies. The launcher closed when the game appeared, which unmounted the AppImage the game was still running from; it now waits, out of sight, until the game ends.
@@ -757,3 +769,5 @@ Known quirks the rebuild deliberately keeps:
 - The launcher no longer says "N mods on" beside a game: a game started from the launcher is always the original, and mods are played from its own MODS screen.
 - The launcher says "Opening the file picker..." before it asks the system for the picker. The system can take a second to open it (far longer the first time on some Macs), and until now the launcher sat frozen on the old screen meanwhile.
 - A resolution picked in GRAPHICS & AUDIO changes the menus' shape as soon as you press ACCEPT (4:3 to 16:9 or back), and so does WIDE MENUS on the UPGRADES page: you are put on the main menu in the new shape. Before, the menus kept their old shape until the game was started again.
+- Mods by campaign: the main menu always plays the original game. Starting the game no longer applies any mod, so CAMPAIGN, INSTANT ACTION and multiplayer on the main menu use the game's own files, and nobody's campaign can be changed by a mod. Mods are played from MODS: ENTER on a custom campaign closes the game and starts it again inside that campaign, with its mods, its own pilots, saves and saved mech loadouts; ENTER with the mods list chosen does the same for the game's own campaign with the mods turned on in that list. CANCEL on the campaign's pilot screen brings you back to MODS, on the original again. The mods you had turned on are kept: they became the campaign's ticks. (The new CAMPAIGNS list with a checkbox per mod, Instant Action's own MODS button, and TEST and EDITOR from MODS follow; until then TEST and EDITOR say they are not available there.)
+- Instant Action has its own MODS button. It opens a list of every mod you have imported, each with a checkbox, in the order they win; ACCEPT closes the game and starts it again in Instant Action with the ticked mods (their maps, mechs and weapons), with its own pilots and saved mech loadouts kept apart from the main game's. The screen always says what is on ("MODS: 2 on"), and ALL OFF goes back to the original Instant Action. With nothing ticked, Instant Action is the original and nothing restarts. The ticks are remembered: with mods ticked, INSTANT ACTION on the main menu goes straight into the modded one. The first time, the game asks once whether to copy your pilot and saved mechs there (your own pilot is never changed); if a ticked mod has been removed, Instant Action opens as the original and says "MODS: 1 missing".

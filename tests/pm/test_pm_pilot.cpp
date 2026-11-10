@@ -33,7 +33,7 @@ TEST(pm_campaign_fresh_world_keeps_no_world) {
   FreshHooks h;
   mech3::set_pilot_hooks(&h);
   for (const bool fix : {true, false}) {
-    zfix::options().bugs = fix;
+    zfix::set_all(fix);
     mech3::Pilot* p = mech3::create_pilot("Fresh");
     EXPECT(p && p->select_campaign(0));
     h.saved.clear();
@@ -53,7 +53,7 @@ TEST(pm_campaign_fresh_world_keeps_no_world) {
     }
     while (!mech3::pilots().empty()) mech3::delete_pilot(mech3::pilots().front()->name);
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   mech3::set_pilot_hooks(nullptr);
   zgame::set_game(zgame::mw3_table());
 }

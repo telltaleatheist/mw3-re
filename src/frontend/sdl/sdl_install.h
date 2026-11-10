@@ -7,6 +7,7 @@
 
 #include <string>
 #include <vector>
+#include "upgrades/settings/upgrades.h"
 
 namespace sdlfe {
 
@@ -47,6 +48,12 @@ void set_install_candidates_hook(std::vector<std::string> (*fn)());
 bool save_install(const std::string& write_dir, const std::string& install);
 // mw3.cfg's KEY=VALUE line set (first, any other KEY= line dropped).
 bool save_config_value(const std::string& write_dir, const std::string& key, const std::string& value);
+// The key's line taken out of mw3.cfg (ours: 1.0.x's bugfixes= once migrated).
+bool remove_config_value(const std::string& write_dir, const std::string& key);
+// The Upgrades page's five from mw3.cfg's lines into zfix (ours): 1.0.x's
+// bugfixes= written as the five keys and dropped; --original all five off for
+// the run, nothing saved.
+void apply_upgrades_config(const std::string& write_dir, const upgrades::Config& c, bool original);
 
 // The search: the first valid of `configured` (mw3.cfg's) and the
 // candidates; with `may_ask`, else a message box and a file dialog until a

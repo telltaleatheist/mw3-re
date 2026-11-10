@@ -732,7 +732,7 @@ bool objectives_load(const char* file, const char* block, Objectives& o, Objecti
   Node* b = zrdr::find(root, block);
   const bool ok = read_objectives(b, o, h);
   h.free_tree(root);
-  if (dir && zfix::options().bugs) fix_objective_data(dir, block, o, h);
+  if (dir && zfix::options().small_fixes) fix_objective_data(dir, block, o, h);
   return ok;
 }
 

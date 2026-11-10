@@ -178,7 +178,7 @@ SkinSet* read_skins(zrdr::Node* dfn) {
       // FIX (bug): the Mad Cat's damage list has two zeros too many and the
       // Supernova's one, shifting every mask off its texture; leading empty
       // slots are dropped until the list is as long as the first skin's.
-      if (zfix::options().bugs && i != 0 && !set->skins.empty()) {
+      if (zfix::options().fixed && i != 0 && !set->skins.empty()) {
         const auto want = static_cast<int32_t>(set->skins[0]->entries.size());
         while (n > want && items[first].type == zrdr::Int) ++first, --n;
       }

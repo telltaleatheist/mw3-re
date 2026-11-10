@@ -546,7 +546,7 @@ static void pm_motion_survey(zcls::Node* anim, zcls::Node* moved, zcls::Node* ou
 static void kill_run(const char* which, bool quick) {
   EXPECT(zmth::matrix_stack().slot[0] == nullptr);  // a test's own local left there sends every box astray
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
-  if (std::getenv("PM_BUGS_OFF")) zfix::options().bugs = false;
+  if (std::getenv("PM_BUGS_OFF")) zfix::set_all(false);
   zgame::set_game(pm::table());
   if (std::getenv("PM_MOTION_SURVEY")) zeff::motion_survey() = &pm_motion_survey;
   if (std::getenv("PM_MOTION_MW3")) {  // the test's MW3 way: the anim's node out of OBJECT_MOTION's ground query

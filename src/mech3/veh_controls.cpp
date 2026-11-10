@@ -130,7 +130,7 @@ bool TurretLimits::clamp(const float d[3], float out[3]) const {
     return true;
   }
   // FIX (bug): hypot(x, y) in the exe; the heading's length is hypot(x, z).
-  const double len = zfix::options().bugs ? std::hypot(double{d[0]}, double{d[2]}) : std::hypot(double{d[0]}, double{d[1]});
+  const double len = zfix::options().small_fixes ? std::hypot(double{d[0]}, double{d[2]}) : std::hypot(double{d[0]}, double{d[1]});
   if (len == 0.0 || std::isnan(len)) {
     out[0] = 0.0f, out[1] = s, out[2] = -co;
     return false;
@@ -381,7 +381,7 @@ void vehicle_motion_read(VehicleControls& c, void* node, zrdr::Node* mode, const
   }
   if (zrdr::Node* n = h.reader_find(mode, "chas_roll")) {
     m.chas_roll = {item_f(n, 1), item_f(n, 2), std::fabs(item_f(n, 3))};
-  } else if (zfix::options().bugs) {
+  } else if (zfix::options().small_fixes) {
     m.chas_roll = Vec3c{};  // FIX (bug): the exe zeroes chas_pitch's here (a copy's slip; no shipped vehicle has either key)
   } else {
     m.chas_pitch = Vec3c{};

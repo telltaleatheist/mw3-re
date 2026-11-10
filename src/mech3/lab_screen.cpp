@@ -303,7 +303,7 @@ void LabChassisList::refill() {
   }
   // 0x004496c0: by the mech's number (0, the names are looked up and not
   // used) or its tonnage then number (1); anything else keeps no order.
-  // FIX (bug), zfix bugs: SORT_CHASSISNAME by the names it looks up, then the number.
+  // FIX (bug), zfix fixed: SORT_CHASSISNAME by the names it looks up, then the number.
   auto mech_of = [&](const Item* x) {
     const ConfigItem* it = e.item_of(static_cast<Handle>(x->value));
     return x->value && it ? it->id() : -1;
@@ -318,7 +318,7 @@ void LabChassisList::refill() {
 bool chassis_before(Engine& e, int32_t by, int32_t ma, int32_t mb) {
   const std::string na = display_name(e, ma), nb = display_name(e, mb);
   if (by == 0) {
-    if (zfix::options().bugs && na != nb) return na < nb;
+    if (zfix::options().fixed && na != nb) return na < nb;
     return ma < mb;
   }
   if (by != 1) return false;

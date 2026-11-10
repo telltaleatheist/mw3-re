@@ -735,7 +735,7 @@ extern "C" int32_t probe_mech_net_apply(const int32_t* in, int32_t* out, int32_t
 }
 extern "C" int32_t probe_mech_net_rx_count() { return rRxCount; }
 // The bug fixes on or off for the next calls (the library starts them off).
-extern "C" void probe_mech_net_bugs(int32_t on) { zfix::options().bugs = on != 0; }
+extern "C" void probe_mech_net_bugs(int32_t on) { zfix::set_all(on != 0); }
 
 // The events' receivers (piece 7a) for test_mech_net_events.py. in: the
 // handler (0 posture, 1 respawn, 2 kill, 3 scores in, 4 shove in, 5 part

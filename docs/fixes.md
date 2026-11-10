@@ -7,34 +7,73 @@ Windows without helpers such as DDrawCompat, plus real bugs that break play
 anti-tamper traps (Owen, 2026-10-20, `protection.md`), marked `FIX (trap)`.
 Each change is also marked `FIX` in the code next to the original address.
 
-## The bug fixes switch
+## The Upgrades switches (1.1.0; was the bug fixes switch)
 
-`zfix::options().bugs` holds every play-changing `FIX (bug)`: a player turns
-them all off with `bugfixes=0` in mw3.cfg or `mw3 --original` (which wins over
-mw3.cfg), and mw3 says so at the start (Owen, 2026-10-30; the probes run with
-it off, so the differential tests check the original's path). Off means the
-original's play: each fix that CHANGES.md lists under "Bug fixes that change
-play" goes back to the exe's way, except the frame-rate ones. What stays on
-either way:
-- the platform fixes the game needs to run at all, FIX (A) and FIX (B):
-  `nested_lock`, `any_resolution`, the 53-bit rounding (`fpu53`), and every
-  unflagged (A)/(B) row below;
-- the frame timings, `per_second` (Owen, 2026-10-20: per-frame steps go to
-  time at the 30 fps pace; not a bug fix and not switched);
-- the crash and memory fixes, where the exe would crash, read freed or stray
-  memory or loop for ever (a null checked, a buffer bounded, a freed record
-  kept: the vehicles' fire floor, the craters' overlap test, an animation
-  instance's borrowed tree), since the original's behaviour there is no
-  behaviour to restore.
+Owen's rule (2026-11-10; `docs/upgrades-sort.md` sorts every row): missing
+content restored, corrected graphics, and the sound, HUD and text fixes stay
+on for good, as do crash, memory and lost-data fixes and the port's (A) / (B);
+gameplay changes go behind a switch. So `zfix::options()` holds:
 
-Folded into `bugs` on 2026-10-30 (until then on always):
-the deep-water curve (its own `deep_water` until then), the heat-sink
-critical's callout, the particle fade-in typo, the animations' last-def
-search, and the animations' missing-prerequisite fix (its own
-`fix_prerequisites` remains as a test seam, acting only with `bugs`). The
-in-game options screen has no line for it: its dialog comes from the
-player's own data (reader.zbd's dlgGameOptions), which the rebuild does not
-change.
+- `fixed`: every always-on fix. The game never turns it off, not even
+  `--original`; only the probes and tests do, so the differential tests still
+  run the exe's own path;
+- the Upgrades page's five, each on by default and each saved in mw3.cfg:
+  `water` (`upgrade_water=`), `mfb_regroup` (`upgrade_mfb_regroup=`),
+  `improved_ai` (`upgrade_improved_ai=`, with W58's `nav_allies`), `artemis`
+  (`upgrade_artemis=`), and `small_fixes` (`upgrade_small_fixes=`), whose list
+  the page shows (`upgrades/settings/upgrades.cpp`, the sort's in-game list);
+- `per_second`, `nested_lock`, `any_resolution`, `fpu53` and the wide menus as
+  before (not upgrades).
+
+1.0.x's `bugfixes=0/1` is read once as all five and replaced by the five keys
+at that start. `mw3 --original` turns the five off for the run and saves
+nothing; mw3 says so at the start. In a network game the host's five carry to
+everyone (the lobby's player data, after the mods block: "UPGR" and the five
+as bits); a joiner's page shows them greyed with a line saying so, and the
+joiner's own come back as the network game ends (`GameEngine::network_set`).
+A host before 1.1.0 sends none: each side then plays on its own, and the
+joiner is told (multiplayer-port.md).
+
+The rows below say "behind `bugs`" where they were written before 1.1.0;
+upgrades-sort.md names the switch each now reads.
+
+### On Pirate's Moon (this branch)
+
+The page shows four switches, not five: no WATER. MW3's water change corrects
+a speed curve Pirate's Moon's exe no longer has (the row "Deep water, gait"
+below), so the switch would turn nothing on or off here. The `water` field
+and its `upgrade_water=` key stay (shared code, and a folder may hold one
+from MW3): the page never writes the key, so a player's line is left as it
+is, and a network host's five bits are taken whole with the water bit unused.
+The fifth follows (Owen, 2026-11-10): the gradual slowing made for MW3,
+ported to Pirate's Moon behind WATER, the original's flat 60% with it off;
+the bit's place in the settings, the page's order and the host's word are
+kept for it.
+
+What each Pirate's Moon-own change reads:
+
+- always on (`fixed`): the near clip's fog (0x0054a6f0), the projected lights
+  over a light map (0x00562840), the objectives box's "Mission N" heading
+  (0x004486e0), the HUD static's level (0x0043dfa0), and the three AI guards
+  (the backup node's unset aim 0x4ddab0, the deploy node's valves 0x4de0e0,
+  a range action on a vehicle with no brain 0x4f5050). The guards stop a
+  crash or the use of a value never set; there is no original behaviour to
+  give back, so they have no switch and are not on the page's list;
+- `small_fixes`: the mission's last animation and the animation whose object
+  is missing (pm/gamez/zeffect/zeff_anim_init), with the shared lines the
+  page lists (nine in all; `upgrades/settings/upgrades.cpp`). Not on the
+  list: MW3's lines for its own data (c4's two enemies, c4b's areas, c2
+  mission 3's Fireflies: shared code that finds nothing to change in Pirate's
+  Moon's files), the plain PPC (Pirate's Moon's table has it), and the
+  destroyed weapon's selection;
+- `improved_ai`: the allies' ground and collision queries (mech_skis);
+- `mfb_regroup`: the repair dock after a repair (mech_fieldbase_dock);
+- no switch, the exe's way always: a firepoint's aim cone (0x4a6ee0; Owen
+  2026-11-10: a quirk, left) and the aim re-pick (0x4bb290, never changed).
+
+`Weapon::destroy`'s selection fix is not on this branch: Pirate's Moon's exe
+(0x004b6f70) refreshes the list first and moves to the next weapon that can
+fire, and the port runs that.
 
 ## The changes
 
@@ -137,8 +176,8 @@ change.
 | Pirate's Moon's CULLMODE CW on a strip, 0x0059b870 (pm/gamez/zvideo/zvid_tl) | Direct3D culls a strip's back faces | (A) Each backend winds its own way | Culled by the draw, per triangle, handed over as a list |
 | Pirate's Moon's lobby lines, 0x0049bb70 (mech3/pilot_games `lobby_lines`) | A team's or player's skin tag reads the skin's name from the screen's array at +0x11cf0 + 4 skin; skin 0 reads the word before the array (the game object) as text | (bug) A team with no skin shows bytes of memory in its tag | Skins outside 1..8 have no name: "  {} ". `test_pm_lobby_lines.py` keeps the exe to skins 1..8 |
 | Pirate's Moon's player record from its data, 0x0049c650 (`LobbyPlayer::from_data`) | Kind 1's state (word 2) and, between rounds, the rounds won and place (words 4, 5) are read whatever the record's size | (bug) A short record (another version's, or damaged) reads past its buffer | The words it lacks give the defaults (state 4, 0 rounds, place 0); `test_pm_lobby_lines.py` compares the rest |
-| Pirate's Moon's near clip of a polygon with sets, 0x0054a6f0 (pm/gamez/zmodel/gmod_clip3d) | The clipper for a textured polygon with shadow or light map sets does not carry the fog value (+0x10), which its sibling without sets does: the corners of a polygon the camera's plane cut fog from whatever their memory held | (bug) The sibling shows the intent; the leftover is another polygon's fog, or nothing | Carried when the polygon is fogged, behind `zfix bugs` |
-| Pirate's Moon's projected lights over a light map, 0x00562840, 0x00562120 (pm/gamez/zmodel/gmod_projected) | A polygon's centre and split points take the mean of each light map set's colours, but the test on the set's kind starts one set late: a first set that is a light map keeps what the last polygon left | (bug) The colours are plainly meant to be averaged like the other sets'; the first is simply missed | Averaged like the others, behind `zfix bugs` |
+| Pirate's Moon's near clip of a polygon with sets, 0x0054a6f0 (pm/gamez/zmodel/gmod_clip3d) | The clipper for a textured polygon with shadow or light map sets does not carry the fog value (+0x10), which its sibling without sets does: the corners of a polygon the camera's plane cut fog from whatever their memory held | (bug) The sibling shows the intent; the leftover is another polygon's fog, or nothing | Carried when the polygon is fogged; always on (`fixed`), off only in the probes |
+| Pirate's Moon's projected lights over a light map, 0x00562840, 0x00562120 (pm/gamez/zmodel/gmod_projected) | A polygon's centre and split points take the mean of each light map set's colours, but the test on the set's kind starts one set late: a first set that is a light map keeps what the last polygon left | (bug) The colours are plainly meant to be averaged like the other sets'; the first is simply missed | Averaged like the others; always on (`fixed`), off only in the probes |
 | Pirate's Moon's projected lights' splits, 0x00562840 (pm/gamez/zmodel/gmod_projected) | Room for 2,048 triangles and 6,144 vertices, unchecked, as MW3's. A short light over a large polygon passes that in the emulator (2,202 triangles seen), overwriting the vertices | (bug) As MW3's row | A split that would not fit is not made |
 | Pirate's Moon's light maps' gate, 0x00543b10 (pm/gamez/zmodel/gmod_draw) | The device's texture and blend-stage counts decide whether light maps draw (at least 2 of each) | (A) One shader does them on any device | The counts are gone; the option stays, and LIGHT MAPS off still turns them off |
 | Pirate's Moon's text files, 0x00578410 / 0x00579440 / 0x00578750 (pm/gamez/zreader/zrdr_main) | As MW3's 0x556510 / 0x557550: a quoted part read with no length check and on past the files' end, an `#ifdef` or `#else` without its `#endif` scanning for `#` past the end; Win32 files found by `_access` and a search path. New: an `#include` past the 32nd file is opened and left open, and files a `)` ends early stay open (the load closes one) | (bug), as MW3's; (A) Win32 | As MW3's port: both stop at the end of the files, a quoted part keeps 255 characters, zutl::open and stdio; parse_text closes every file it included (ours, no change to what is read). Ours too, for mods: an included name that is absolute, has a drive or a `..` part opens nothing, so a data file reads only inside the mounts (none ships an `#include`). `test_pm_zreader_text.py`, `pm_text_files_take_include`, `pm_include_stays_inside_the_mounts` |
@@ -240,6 +279,7 @@ change.
 | Sound duplicates, 0x56e2d0 | A new duplicate voice is `malloc`ed and only two fields set | (bug) its position and has-position flag are whatever the heap held, which can place a later volume change in 3D | Zeroed (the test's emulator heap hands out zeroed memory, so both sides agree) |
 | Sound cue points, 0x56dfb0 | After the last cue the index steps past the array and is compared with the heap beyond it | (A) out of bounds in C++ | Read as 0, what the exe's heap most likely holds there (the next array's start): one more call with index = count, then the walk ends |
 | Weapon effect blocks, 0x584bb0 | `SOUND` and `BOUNCE_SOUND` lists are copied into four slots each with no bound | (bug) a fifth sound writes over the next fields | At most four are kept (no shipped weapon has more); the test keeps its variants within four |
+| The Small Pulse Laser's muzzle flash, weapons.zrd read by 0x584bb0 (fixes.md, Candidates: effects no world has) | PulseLaser_Small's ANIMATION is `plaser_blue_muz.flt`, an animation in none of the six worlds, so nothing plays at the barrel | (data) a graphic missing. Every other laser's muzzle goes by its size's colour, Large red, Medium green, Small blue: Laser_Small and ERLaser_Small use `laser_blue_muz.flt`, PulseLaser_Large and _Medium the red and green lasers' own (`laser_red_muz.flt`, `laser_green_muz.flt`), and PulseLaser_Small's beam is the Small Laser's `laser_blue.flt`; so the blue Small Laser's flash is the one meant (its impact, `plaser_impact_blue.flt`, does exist) | When the name finds no animation, `laser_blue_muz.flt` (zwep_init `read_effect`); `fixed`, always on (Owen 2026-11-10); a mod that adds `plaser_blue_muz.flt` keeps its own; `mission_start_reads_c1m1_vehicles_headless` |
 | Damage animations, 0x58459c | `DAMAGE_ANIM_ON_HEALTH` pairs are copied into room for four with no bound | (bug) more overwrite the destroy and kill animations | At most four are kept (no shipped weapon has any) |
 | Projectile pool size, 0x58468e | A def's shots in the air are counted from a local only `RANGE` sets | (bug) a def without RANGE uses the previous def's range, the first one stack garbage | The def's own range (500 by default); every shipped weapon has RANGE, so the pool is the same 164. The test patches the original the same way |
 | LOCK_ON_LEAD, 0x583fb9 | The second value is read when the first value's bits exceed 3, not when the list has two values | (bug) a typo: `[eax+0xc]` for `[eax+4]` | The count decides; no shipped weapon has LOCK_ON_LEAD. The test patches the original the same way |
@@ -256,7 +296,7 @@ change.
 | Ground probes landing, 0x00477940 (Skis::integrate) | A probe that ends a frame under the ground is given the speed that lifts it there in max(dt, 1/30 s), replacing the speed it had | (B) above 30 fps the catch-up lifts it only part way, so walking up even a gentle slope leaves every probe under the ground each frame, and the jets' climb is replaced by that small catch-up: the mech skims the ground with the jets burning (W31; c1m1, a Thor at 10 m/s: 0.2 m in 1.5 s at 60 fps, 0.1 m at 144, against 8 m at 30). The original does the same above 30 fps | Above 30 fps the speed that takes it there in the frame's own step, as the 30 fps game had it (the exe's at 30 fps and below); the hard landing (above 20) still judged by the 1/30 s speed, so a ledge does not count as hard at high rates; behind `zfix::options().per_second`; `mission_c1m1_jump_jets_lift_in_every_state_headless` checks both paths |
 | Movement steps per frame: a fall's carried momentum (x0.6) 0x416860, the ground probes' step-kick, slope-clamp and ledge pushes and the far mechs' push x3 0x4765b0, the jump jets' climb cap (6) 0x4173b0, the gait's 20-frame blend-in 0x417a80 | Each applied once a frame | (B) at 144 fps a fall's momentum dies in a fifth of the time, slopes and ledges shove nearly five times as hard, the walk blends in in 0.14 s | Each per 1/30 s (Owen 2026-10-20): 0.6^(30 dt), x3^(30 dt), pushes and the cap times 30 dt, the blend counted in 1/30 s steps; equal to the exe's step at dt = 1/30. `zfix::frame_steps`, off in the probes; `tests/test_fixes.cpp` |
 | Drowning (Pirate's Moon 0x41a100) | Under 25 m a mech's structure goes to 0.75 of its health each frame | (B) at 144 fps a mech drowns in about a fifth of the time | 0.75 per 1/30 s behind `per_second`; equal to the exe at dt = 1/30 |
-| A firepoint's aim cone (Pirate's Moon 0x4a6ee0) | A pitch range past straight up or down is clamped, but the top compares with -pi/2 (0x5ea7b4), so any top becomes pi/2 | (bug) a typo for 0x5ea7b0; the firepoint would aim higher than its limit | compared with pi/2 behind `bugs`; the exe's way with bugs off, which is what the test checks |
+| A firepoint's aim cone (Pirate's Moon 0x4a6ee0) | A pitch range past straight up or down is clamped, but the top compares with -pi/2 (0x5ea7b4), so any top becomes pi/2 | a typo for 0x5ea7b0; the firepoint can aim higher than its limit | **Not changed** (Owen 2026-11-10: a quirk that changes a firepoint's aim limit, a balance change as much as a bug; it was compared with pi/2 behind `bugs` until 1.1.0). The port runs the exe's compare, which the test checks |
 | A wreck thinning out (Pirate's Moon 0x41d730) | Its own opacity moves 0.1 a frame | (B) at 144 fps it thins in about a fifth of the time | 0.1 per 1/30 s behind `per_second`; equal to the exe at dt = 1/30 |
 | Deep water, gait (MW3 0x4181c0; Pirate's Moon 0x418fc0) | On `main`: a FIX for MW3's speed factor falling to a standstill near full depth. Pirate's Moon's exe no longer has that curve, so the FIX is gone from `pm` | Candidate for Owen, not changed: PM's line is `(0.6 - 1) / H * d + 0.6`, clamped to 0.6..1, which is 0.6 at every depth; `+ 1` at the end would make it fall from full speed to 60%, a guess at the intent | As the exe: a flat 60% past a tenth of the height |
 | Throttle keys, 0x427d60 (and the lance command mode's own, 0x46b0a0) | CMD_THROTTLE_UP / DOWN move the throttle target 0.025 each frame they are held | (B) at 144 fps the throttle opens almost five times as fast (full in 0.28 s instead of 1.3 s) | 0.025 per 1/30 s (`zfix::frame_steps`), equal to the exe's at 30 fps; off in the probes; `tests/test_fixes.cpp` |
@@ -491,11 +531,11 @@ change.
 | A lancemate's walk, the follow's 0x004d1980, the fight's 0x004d1d10 and the refit's 0x004d0ce0 (lancemate-pathing.md, W58) | Straight at the brain's point; the boundary's shapes pull it round or stop it; it arrives by flat distance, whatever the storey | (bug) Owen: "the pathing is a ridiculous joke": a lancemate stands at a river, a wall or a shape's edge for good, or over the player's head | Behind `bugs` and `nav_allies` (enemies `nav_enemies`, off), single player only: when that walk fails, a path on a grid of the world's floors (`zai_nav`); open ground is the exe's walk. `nav_*`, `mission_c2m4_lancemate_*`, `mission_lance_far_way_*`, `..attacks_from_a_spot_in_sight_headless` |
 | The player's axes with no stick, `read_axes` 0x00427d60 (controls.md, Quirks and bugs) | Only a controls file that is exactly the stick's defaults is moved off the stick (`t.stock`, 0x00480570). Any other keeps its stick axes, and each reads its offset every frame | (bug) with a saved slider or a changed deadzone on the throttle and no stick, the mech walks by itself; a slider on twist or pitch turns the torso to its limit | Behind `bugs`: with no stick, a stick-bound axis gives nothing (throttle, turn, twist, pitch, and the look in view 1); mouse axes are untouched. The binding stays, so the stick works when it is back. `controls_saved_stick_axes_with_no_stick_do_not_walk_the_mech_headless` |
 | A vehicle's support on the ground, 0x004a2820 (vehicles.md, High frame rates; W57) | Its vertical speed is the ground's step over the frame, (ground - y) / dt | (B) the same rise launches a vehicle harder the shorter the frame: at 5 to 8 ms an APC rolls up to 82 degrees and leaves at up to 67 m/s, against 12 to 40 degrees at 30 fps | Behind `per_second`: on frames under 1/30 s the step counts over 1/30 s; longer frames are the exe's. The jump off steep banks at 30 fps is the exe's and kept. `fix_vehicle_support_rise_per_second` |
-| Pirate's Moon's objectives box, 0x004486e0 (hud.md section 24) | Formats 0x236, "Mission %2!d! P R I M A R Y  O B J E C T I V E S", with the mission alone | (bug) %2 reads what follows on the stack: a random mission number | Behind `bugs`: the mission. `test_pm_hud_objectives.py` |
+| Pirate's Moon's objectives box, 0x004486e0 (hud.md section 24) | Formats 0x236, "Mission %2!d! P R I M A R Y  O B J E C T I V E S", with the mission alone | (bug) %2 reads what follows on the stack: a random mission number | The mission; always on (`fixed`, text), off only in the probes. `test_pm_hud_objectives.py` |
 | Pirate's Moon's HUD static, 0x0043e1f0 (hud.md section 21) | Adds 0.1 of static a frame under 0.2 health | (B) more static the higher the frame rate | Behind `per_second`: a 30 fps frame's. `test_pm_hud_static.py` (the exe's path with per_second off) |
-| Pirate's Moon's HUD static, 0x0043dfa0 (hud.md section 21) | With a device the level is clamped to 0..0.9 and not used: any static draws the whole noise at full strength | (bug, Owen 2026-11-04) the level is worked out and then ignored, where MW3's static thickened with damage | Behind `bugs`: the quad's alpha is the add's ceiling for the health, (0.2 - h) x 5 clamped to 0..0.9 (`Hud::static_quad`), so it grades with damage as MW3's does: 0.25 at 0.15 health to 0.9 from 0.02 down. Not the eased level, which settles near 0.375 at any health under 0.1 (+0.1 to one of four channels a frame against a fall of 2 x level a second; MW3's slow fall kept its level at its ceiling). Off, the original's on or off. `test_pm_hud_static.py` (the vertices, the exe's path) |
+| Pirate's Moon's HUD static, 0x0043dfa0 (hud.md section 21) | With a device the level is clamped to 0..0.9 and not used: any static draws the whole noise at full strength | (bug, Owen 2026-11-04) the level is worked out and then ignored, where MW3's static thickened with damage | Always on (`fixed`, a corrected graphic; off only in the probes): the quad's alpha is the add's ceiling for the health, (0.2 - h) x 5 clamped to 0..0.9 (`Hud::static_quad`), so it grades with damage as MW3's does: 0.25 at 0.15 health to 0.9 from 0.02 down. Not the eased level, which settles near 0.375 at any health under 0.1 (+0.1 to one of four channels a frame against a fall of 2 x level a second; MW3's slow fall kept its level at its ceiling). Off, the original's on or off. `test_pm_hud_static.py` (the vertices, the exe's path) |
 | Pirate's Moon's Progression waves: the slot accessors 0x0040c2c0 / 0x0040c300, the reader 0x0040c070, show_wave 0x0048f300 (pm-tests item 24) | The wave index is checked, the slot index not; a pair's two values read unchecked; show_wave fills one screen row per slot | (bug) a mod's wave asked past its slots, a short pair, or more than six slots read and write past the end | The slot checked (-1, 0 past it), a short pair skipped, no more than the six rows; `test_pm_ia_progression.py` compares the shipped file's slots |
-| Weapon::destroy, 0x004b3020 (pm-tests item 21) | The current weapon destroyed: the HUD's next line becomes current (its +0x1795c, the line after it, 0x00446540), destroyed or not; without the player's screen the group's next (0x004b0790), also unchecked | (bug) the selection stays on a destroyed weapon when the one after it is gone too | Behind `bugs`: when the current one is still destroyed after that, the first standing weapon after it in the list's order (`WeaponManager::standing_after`); `mission_c1m1_selection_leaves_a_destroyed_weapon_headless`. Pirate's Moon's own (0x004b6f70) refreshes the list first and picks the next that can fire, so it avoids most of this |
+| Weapon::destroy, 0x004b3020 (pm-tests item 21) | The current weapon destroyed: the HUD's next line becomes current (its +0x1795c, the line after it, 0x00446540), destroyed or not; without the player's screen the group's next (0x004b0790), also unchecked | (bug) the selection stays on a destroyed weapon when the one after it is gone too | Behind `bugs`: when the current one is still destroyed after that, the first standing weapon after it in the list's order (`WeaponManager::standing_after`); `mission_c1m1_selection_leaves_a_destroyed_weapon_headless`. Pirate's Moon's own (0x004b6f70) refreshes the list first and picks the next that can fire, so it avoids most of this: on `pm` the port runs that and this fix is not there |
 
 Notes on the fixes:
 
@@ -721,10 +761,9 @@ Kept:
   - `mine_turr`'s `laser_dummygreen.flt` and LANDMINE's `smokepuff_trail`
     (no shipped mission fires either).
 
-  Pointing the Small Pulse Laser at `laser_blue_muz.flt` (a reader-side
-  substitute behind the bug fixes, or a weapons.zrd edit in a mod) would
-  give it a muzzle flash like its siblings. Whether one was meant (a typo)
-  or left out is a guess, so it is not changed.
+  Done for the Small Pulse Laser (Owen, 2026-11-10: a corrected graphic,
+  always on): its row is in the table, "The Small Pulse Laser's muzzle flash".
+  The other three stay as they are.
 
 - **Weapon-destroyed voices missing from the data** (pm-tests item 22; data, not code): the autocannons', LB-X's and machine guns' NAMESOUND `wep_autocannon_name` is not in sounds.zrd (`wep_cannon_name` and `wep_mgun_name` are), `mech_part_destroy` (the "destroyed" word, 0x004b3020) is not there either, and TAG's names `wep_las_name`; the LB-X family is 0, no critical voice (0x004853c0). Both games. Options: leave it (the original's silence), or point the names at the sounds that exist (a data patch the importer could make), and give LB-X the autocannon family.
 

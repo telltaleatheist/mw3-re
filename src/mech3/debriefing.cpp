@@ -395,7 +395,7 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t mission, const uin
   const float m = t * 0.016666668f;
   const float hours = std::floor(m * 0.016666668f);
   const float minutes = std::floor(m - hours * 60.0f);
-  const float seconds = zfix::options().bugs ? std::floor(t - hours * 3600.0f - minutes * 60.0f)
+  const float seconds = zfix::options().fixed ? std::floor(t - hours * 3600.0f - minutes * 60.0f)
                                              : std::floor(t - minutes * 60.0f);
   char time[32];
   std::snprintf(time, sizeof time, "%02d:%02d:%02d", static_cast<int32_t>(hours), static_cast<int32_t>(minutes),

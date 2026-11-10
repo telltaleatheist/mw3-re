@@ -16,7 +16,7 @@ TEST(fix_pilot_names_without_case) {
   zutl::mounts().read.clear();
   zutl::set_write_dir(std::string(MW3_TEST_TMP) + "/test_pilot_names");
   for (const bool fix : {true, false}) {
-    zfix::options().bugs = fix;
+    zfix::set_all(fix);
     mech3::Pilot* bob = mech3::create_pilot("bob");
     mech3::Pilot* alice = mech3::create_pilot("alice");
     EXPECT(bob && alice && bob != alice);
@@ -27,7 +27,7 @@ TEST(fix_pilot_names_without_case) {
     EXPECT(std::strcmp(bob->name, "Bob") == 0);
     while (!mech3::pilots().empty()) mech3::delete_pilot(mech3::pilots().front()->name);
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 namespace {
@@ -57,7 +57,7 @@ TEST(fix_campaign_save_after_the_question) {
   SaveHooks h;
   mech3::set_pilot_hooks(&h);
   for (const bool fix : {true, false}) {
-    zfix::options().bugs = fix;
+    zfix::set_all(fix);
     for (const int32_t answer : {1, 2}) {
       mech3::Pilot* p = mech3::create_pilot("Saver");
       EXPECT(p && p->select_campaign(0));
@@ -75,7 +75,7 @@ TEST(fix_campaign_save_after_the_question) {
       while (!mech3::pilots().empty()) mech3::delete_pilot(mech3::pilots().front()->name);
     }
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
   mech3::set_pilot_hooks(nullptr);
 }
 
@@ -91,12 +91,12 @@ struct NameEngine : mech3::Engine {
 TEST(fix_lab_sort_by_name) {
   NameEngine e;
   for (const bool fix : {true, false}) {
-    zfix::options().bugs = fix;
+    zfix::set_all(fix);
     EXPECT(mech3::chassis_before(e, 0, 3, 1) == fix);   // Avatar (3) before Zeus (1) by name
     EXPECT(mech3::chassis_before(e, 0, 1, 3) == !fix);  // the exe: 1 before 3
     EXPECT(!mech3::chassis_before(e, 2, 1, 3));         // no other order
   }
-  zfix::options().bugs = true;
+  zfix::set_all(true);
 }
 
 // FIX (A) for the mech lab's Ctrl+X / Ctrl+I (docs/fixes.md): a loadout

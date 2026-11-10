@@ -183,7 +183,7 @@ void Mech::pose_toes(MechAnim& a, float blend) {
       float q[4];
       if (!a.toe(leg, static_cast<int>(i), q)) continue;
       Foot& f = *legs[leg]->foot;
-      if (zfix::options().bugs ? i >= f.toe_count : i > f.toe_count) continue;  // off: the exe's, for the tests
+      if (zfix::options().fixed ? i >= f.toe_count : i > f.toe_count) continue;  // off: the exe's, for the tests
       if (blend != 1.0f) slerp_into(f.toe_q[i], q, blend);
       for (int k = 0; k < 4; ++k) f.toe_q[i][k] = q[k];
       float* m = node_matrix(f.toe_nodes[i]);
@@ -217,7 +217,7 @@ void Mech::pose_gait(MechAnim& a, int jets, const Vec3& saved) {
       lerp_into(*f.translation, i == 0 ? lp : rp, b, crouch == 0.0f);
       // FIX (bug): each foot from its own last rotation (Owen, 2026-10-20);
       // the exe writes both into the left's, so the right foot snaps.
-      slerp_into(f.rot, zfix::options().bugs && i == 1 ? rq : lq, b);
+      slerp_into(f.rot, zfix::options().fixed && i == 1 ? rq : lq, b);
     }
     slerp_into(hip->rot, hq, b);
     lerp_into(*hip->translation, hp, b, crouch == 0.0f);

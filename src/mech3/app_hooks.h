@@ -229,6 +229,11 @@ class Engine : public zgame::AppHooks {
     (void)a, (void)caption, (void)text;
     return 1;
   }
+  // Ours: the same with a caption of our own words (Instant Action's pilot offer, upgrades/mods/ia_mods_menu.h).
+  virtual uint32_t message_box_words(int32_t a, const std::string& caption, const std::string& text) {
+    (void)a, (void)caption, (void)text;
+    return 1;
+  }
   // Ours: the program's log lines off (tests that run quiet).
   virtual bool quiet_log() { return false; }
   // Pirate's Moon 1.0 @ 0x004afa20: the same box with its caption and text

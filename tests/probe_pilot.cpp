@@ -588,8 +588,8 @@ int probe_pilot_run(const char* dir, const char* plan, char* out, int size) {
 // (Store::fill_all), dumped as "full count" then "kind id tech count b10
 // group part" per item; `bugs` the zfix switch (the plain PPC).
 int probe_store_fill(int before, int bugs, char* out, int size) {
-  const bool saved = zfix::options().bugs;
-  zfix::options().bugs = bugs != 0;
+  const bool saved = zfix::all();
+  zfix::set_all(bugs != 0);
   mech3::Store st(0);
   for (int i = 0; i < before; ++i) st.add_mech(i % 19);
   st.fill_all();
@@ -602,7 +602,7 @@ int probe_store_fill(int before, int bugs, char* out, int size) {
     o << it->kind() << ' ' << it->id() << ' ' << tech << ' ' << it->count << ' ' << int(it->b10) << ' ' << it->group
       << ' ' << it->part << '\n';
   }
-  zfix::options().bugs = saved;
+  zfix::set_all(saved);
   const std::string all = o.str();
   if (static_cast<int>(all.size()) >= size) return -1;
   std::memcpy(out, all.c_str(), all.size() + 1);
