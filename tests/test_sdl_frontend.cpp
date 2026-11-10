@@ -4836,7 +4836,7 @@ TEST(sdl_program_launcher_mod_needs_warn_never_block) {
     std::error_code ec;
     for (const auto& [rel, text] : std::vector<std::pair<std::string, std::string>>{
              {"/wd/mods/x/mod.txt", "name=X\nneeds=gone\n"},
-             {"/wd/mw3.cfg", std::string("install=") + MW3_GAME_DIR + "\n"}}) {
+             {"/wd/mw3.cfg", std::string("install=") + MW3_GAME_DIR + "\nsomething_unknown=7  # kept\n"}}) {
       std::filesystem::create_directories(std::filesystem::path(d + rel).parent_path(), ec);
       std::ofstream(d + rel) << text;
     }
@@ -4848,7 +4848,8 @@ TEST(sdl_program_launcher_mod_needs_warn_never_block) {
               text.c_str());
   EXPECT(a.exited && seen(a.log, "launcher: mods: x on\n"));
   EXPECT(seen(a.log, "launcher: mods: x warns: It needs the mod gone, which is not in the mods folder.\n"));
-  EXPECT(text.find("mod=x\n") != std::string::npos);
+  // Every line it did not write kept byte for byte, mod= added at the end (the player's settings never lost).
+  EXPECT(text == std::string("install=") + MW3_GAME_DIR + "\nsomething_unknown=7  # kept\nmod=x\n");
 }
 
 // MODS on the game last clicked (lead, 2026-11-10, the combined package): on Pirate's Moon it lists PM's own settings
