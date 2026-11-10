@@ -242,9 +242,14 @@ one ends:
 
 Nothing waits on the old process: the launcher ends at the game's first
 frame on Windows (`Launcher::watch_game`; it stays, waiting on the process,
-only for an AppImage). One case is left as it is: a game whose first frame
-took longer than the launcher's wait leaves the launcher up and watching,
-and it would then show itself when the first process ends at a restart.
+only for an AppImage, where the restart is an exec and the process goes on).
+A launcher that never saw a first frame (the ready file could not be
+written, say) is still watching when the game restarts; so the old process
+ends with an exit code of ours, `kStartedAgainExit` (93, log_start.h), and
+the launcher reads that as "the game goes on": it closes, as at a first
+frame, with no error line and without showing itself beside the new game
+(`sdl_program_launcher_stays_when_the_game_fails_or_is_slow`, its third
+case).
 
 Tests: `win_cmdline_quotes_by_the_documented_rules` (a table, and a whole
 line) and `win_cmdline_round_trips_through_the_splitting_rules` (3,906
