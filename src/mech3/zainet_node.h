@@ -86,6 +86,7 @@ struct NetNodeRec {
   NetNodeRec() = default;                       // 0x004c6ca0
   NetNodeRec(const NetNodeRec& other);          // 0x004c6ce0 -> 0x004c6050
   NetNodeRec& operator=(const NetNodeRec& o);   // 0x004c63a0
+  bool same(const NetNodeRec& o) const;         // 0x004c6680: the record cache's test
   ~NetNodeRec();                                // 0x004c62d0
   void reset();                                 // 0x004c6bd0: frees, then the defaults
 };

@@ -31,6 +31,8 @@
 #include "mech3/app_hud.h"
 #include "mech3/controls_cfg.h"
 #include "mech3/options.h"
+#include "mech3/mods_menu.h"
+#include "upgrades/editor/mods_edit.h"
 #include "mech3/options_menu.h"
 #include "mech3/pocket_panel.h"
 
@@ -212,6 +214,24 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   patch12::install();  // 1.0's data read as 1.2's (docs/patch12.md), and our own record edits
   options_sensitivity_slider() = true;  // ours: the options' MOUSE SENSITIVITY
   options_upgrades_page() = true;       // ours: the options' UPGRADES page
+  mods_menu_page() = true;              // ours: the main menu's MODS
+  // Ours: MODS's EDIT (upgrades/editor/mods_edit.h): the mission started as
+  // a debug start is (a stand-in pilot, no briefing), the chosen pilot and
+  // the launch put back when it is over.
+  mods_menu_edit_start() = [this](const std::string& mod, const std::string& world, int32_t number, std::string* why) {
+    const int32_t index = mission_dir_index(world.c_str());
+    if (index < 0) return *why = "no world " + world, false;
+    Launch l;
+    l.index = index, l.number = number, l.type = 1, l.op = 0;
+    const Handle real = peek32(0x60861c);
+    set_launch(l);
+    mods_edit_begin(mod, [this, real] {
+      launch_.active = false;
+      poke32(0x60861c, real);
+    });
+    replace_state(6);  // the Load state: the mission, then Core
+    return true;
+  };
   patch12::provide_files();  // and 1.2's added maps beside it, in the write dir
 }
 
@@ -922,7 +942,10 @@ void GameEngine::hud_update() {
   if (MessagePanel* p = message_panel()) p->update(dt);  // [0x00603d7c] vt+0x24: its text
   pocket_draw(dt);                                       // 0x0046a410
 }
-void GameEngine::hud_draw() { editor_frame(); }
+void GameEngine::hud_draw() {
+  mods_edit_frame();  // ours: MODS's EDIT opens the editor on the mission's first frame
+  editor_frame();
+}
 Handle GameEngine::pilot_hud(Handle data) { return handle_of(program_pilot_hud(object_of(data))); }
 void GameEngine::hud_static(Handle hud, float dt) { program_hud_static(object_of(hud), dt); }
 bool program_intensity_flag() { return options().intensity_flag[0] != 0; }
@@ -1100,4 +1123,8 @@ void GameEngine::shadows_reset() { shade_apply(); }  // 0x004e6900: the option a
 namespace mech3 {
 // W45: a network game in play runs on while the window is inactive (FIX (A)).
 bool GameEngine::run_while_inactive() { return program_net_running(); }
+void program_app_pause(bool on) {
+  if (Mech3App* a = app_if_any()) on ? a->deactivate() : a->activate();
+}
+
 }  // namespace mech3

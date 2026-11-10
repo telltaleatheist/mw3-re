@@ -30,8 +30,9 @@ Resolved resolve(const std::string& usual);
 std::string unusable(const std::string& dir);
 
 // Where a picked folder means to move to: itself if it is empty or holds no
-// data of ours, else a "MechWarrior 3 Data" folder inside it (a drive's root).
-std::string destination(const std::string& picked, const std::string& usual);
+// data of ours, else a `name` folder inside it (a drive's root): "MechWarrior
+// 3 Data", Pirate's Moon's "Pirate's Moon Data".
+std::string destination(const std::string& picked, const std::string& usual, const char* name = "Pirate's Moon Data");  // pm: mw3pm's
 
 // A move's check before starting: `error` if it cannot be done.
 struct Plan {

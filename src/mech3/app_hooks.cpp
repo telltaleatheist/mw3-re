@@ -427,6 +427,9 @@ void Engine::print_version(char* out, int size, int32_t major, int32_t minor) {
 // Pirate's Moon 1.0 @ 0x004b30b0: the exe's file version, "%d.%d.%d.%d"; MW3's rebuild shows its short form.
 const char* Engine::version_number() { return "1.0.11.5"; }
 const char* Engine::mission_dir(uint32_t n) { return mech3::mission_dir(static_cast<int32_t>(n)); }
+bool Engine::campaign_ends_at(int32_t, int32_t mission) { return mission == kCampaignLastMission; }
+bool Engine::campaign_world_start(int32_t, int32_t mission) { return campaign_fresh_world(mission); }
+
 const ConfigList* Engine::mech_loadouts(int32_t mech) {
   const MechDfn* d = mech3::mech_dfn(mech);
   return d ? d->configs : nullptr;

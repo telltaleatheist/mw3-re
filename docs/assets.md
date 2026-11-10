@@ -163,6 +163,13 @@ disc's root holds the InstallShield setup (`SETUP.EXE`, `DATA1.HDR`,
 `DATA1.CAB` of 189 MB, `_SYS1`/`_USER1`), `VIDEO\` (the 19 movies),
 `EXTRAS\` and `REDIST\`.
 
+Pirate's Moon's disc (`install_from_disc`'s `pirates_moon`, for the
+launcher; docs/launcher.md) has the same layout without `VIDEO\`, and its
+program as a loose `MECH3.EXE` beside the cabinet rather than in it: that is
+copied in as `Mech3.exe`, the 1.0 checks and the patch are left out, and the
+standalone missions (`zbd\c1\readersa1.zbd`) are required. Its track 2 is
+the music, as MW3's.
+
 `DATA1.CAB` is read by the patch's reader (The 1.2 patch, above), now from
 where it lies, a file at a time (`each_installshield`), and every file
 checked against the MD5 its descriptor carries (+0x2a): a damaged disc

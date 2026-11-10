@@ -63,9 +63,13 @@ class AivFile : public RdrFile {
   ~AivFile() override;                               // 0x004ded70
   int32_t unload() override;                         // +0x08 0x004df5f0
   AivRecord* cached(const char* name) const;         // 0x004def10
+  // 0x004defc0 (through 0x004e06e0): the vehicle editor's record for `name`
+  // kept; 0 when the one kept is the same already (a null name in either is
+  // never the same: 0x0049d2f0), else 1 (the insert's flag for a new key).
+  int32_t edit(const char* name, const AivRecord& r);
+  void empty_cache();  // 0x004df5d0
 
-  // +0x24: records the editor dialog keeps (0x004defc0, not ported); none
-  // while playing.
+  // +0x24: records the vehicle editor keeps (0x004defc0); none while playing.
   std::map<std::string, AivRecord*>* cache = nullptr;
 };
 AivFile& aiv_file();

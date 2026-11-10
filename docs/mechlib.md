@@ -364,3 +364,12 @@ differ:
    table at 0x5e6078.
 8. Last or never: 0x4fc8b0 / 0x552540 (only in one video mode) and the writer
    (0x4fc990, 0x4fcca0, 0x4fc4d0), which is dead.
+
+**A node's matrix from its angles (2026-11-09, mechlib JSON).** Where a
+mechlib node keeps its rotation, translation and scale, its 3x4 matrix is the
+y, x, z product mech3ax rebuilds (`object_matrix`), and the shipped bits are
+those of each sine and cosine rounded once from the true value: a float
+`cosf` can miss by one bit and differs between systems (the Blackhawk's
+`lcalf`: cos 0.855211 is 0x3f27f37b in the file, 0x3f27f37c from macOS's
+`cosf`, 0x3f27f37b from its `__sincosf` and from double). The port's JSON
+reader rounds from double (`cls_mechlib_json.cpp`); docs/modding.md.

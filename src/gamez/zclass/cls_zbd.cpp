@@ -1,5 +1,11 @@
 #include "gamez/zclass/cls_zbd.h"
+#include "gamez/zutil/zutl_zip.h"
+#include "upgrades/json/gamez_json.h"
 
+#include <cstdio>
+#include <memory>
+#include <set>
+#include <string>
 #include <vector>
 
 #include "gamez/zclass/camera.h"
@@ -224,7 +230,25 @@ void set_open_hook(OpenHook hook) { g_open_hook = hook; }
 
 // Mech3.exe 1.2 @ 0x004ff6a0. Only the signature and version are checked.
 std::FILE* open_zbd(const char* path, ZbdHeader* header) {
-  std::FILE* f = zutl::open(path, "rb");  // FIX (A): the mounts (zutl_path.h)
+  std::FILE* f = nullptr;
+  {
+    // UPGRADE (mods): an enabled mod's unzbd JSON for this world, as the file it stands for (docs/modding.md, gamez
+    // JSON); one that does not read is said and the gamez.zbd read. The file stays until the next open: the caller
+    // reads on from it, and Windows will not remove an open file.
+    static std::unique_ptr<zutl_zip::ScratchFile> scratch;
+    static std::set<std::string> said;
+    std::vector<uint8_t> bytes;
+    std::string what, why;
+    const int got = gamez_from_mod(path, &bytes, &what, &why);
+    if (got > 0) scratch = std::make_unique<zutl_zip::ScratchFile>(bytes.data(), bytes.size());
+    if (got > 0 && scratch->file) {
+      f = std::fopen(scratch->path.string().c_str(), "rb");
+      if (said.insert(what + "\n").second) std::printf("mw3: mod: %s instead of %s\n", what.c_str(), path);
+    } else if (got != 0 && said.insert(what + "\n" + why).second) {
+      std::printf("mw3: mod: %s: %s; %s read instead\n", what.c_str(), why.c_str(), path);
+    }
+  }
+  if (!f) f = zutl::open(path, "rb");  // FIX (A): the mounts (zutl_path.h)
   if (f && g_open_hook) f = g_open_hook(path, f);
   if (!f) return nullptr;
   int line;

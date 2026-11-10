@@ -75,6 +75,8 @@ mkdir "%DIST%\licenses\enet"
 copy /y third_party\enet\LICENSE "%DIST%\licenses\enet\" >nul || exit /b 1
 mkdir "%DIST%\licenses\miniupnpc"
 copy /y third_party\miniupnpc\LICENSE "%DIST%\licenses\miniupnpc\" >nul || exit /b 1
+mkdir "%DIST%\licenses\imgui"
+copy /y third_party\imgui\LICENSE.txt "%DIST%\licenses\imgui\" >nul || exit /b 1
 mkdir "%DIST%\licenses\miniz"
 copy /y third_party\miniz\LICENSE "%DIST%\licenses\miniz\" >nul || exit /b 1
 

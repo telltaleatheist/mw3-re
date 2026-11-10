@@ -18,6 +18,8 @@ struct LauncherOptions {
   std::string write_dir;
   std::string cfg_install;                // mw3.cfg's install=
   std::string cfg_pm_install;             // mw3.cfg's pm_install= (Pirate's Moon's folder)
+  std::string cfg_pm_notes;               // mw3.cfg's pm_notes=: the CRC of the PM notes last shown
+  std::string pm_write_dir;               // Pirate's Moon's settings folder (MW3_PM_WRITE_DIR; else found at its start)
   std::string cfg_mw1_game;               // mw3.cfg's mw1_game= (MechWarrior 1989's folder)
   std::vector<std::string> more_installs;  // a development build's copy
   bool fullscreen = true;
@@ -26,6 +28,8 @@ struct LauncherOptions {
   // For checking (--launcher-shot FILE [--launcher-screen main|setup|pick|work|notes|disc]):
   // the screen drawn once into FILE (a BMP of the 640x480 canvas), no window shown.
   std::string shot, screen = "main";
+  std::string pick;  // --launcher-pick PATH: with --launcher-screen mods, IMPORT run on PATH before the shot
+  std::string save_pick;  // --launcher-save-pick PATH: EXPORT's save box answered with PATH
   // A plain mw3 start that found no install (docs/games-layout.md): the find
   // screen alone, straight on into the game once there is one.
   bool setup_only = false;

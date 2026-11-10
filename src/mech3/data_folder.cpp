@@ -196,11 +196,11 @@ Resolved resolve(const std::string& usual) {
   return r;
 }
 
-std::string destination(const std::string& picked, const std::string& usual) {
+std::string destination(const std::string& picked, const std::string& usual, const char* name) {
   std::error_code ec;
   if (!fs::exists(picked, ec) || same(picked, usual) || fs::is_empty(picked, ec) || fs::exists(fs::path(picked) / kMarker, ec))
     return picked;
-  return (fs::path(picked) / "Pirate's Moon Data").string();  // someone's folder, a drive's root
+  return (fs::path(picked) / name).string();  // someone's folder, a drive's root
 }
 
 Plan plan(const std::string& from, const std::string& to, const std::string& usual) {

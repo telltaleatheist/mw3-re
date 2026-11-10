@@ -157,6 +157,10 @@ class GameEngine : public Engine {
   // state's game from the pilot the pilot screen chose, the ported screen's
   // calls into the ported mission, launch, states and zSound.
   void load_state_enter() override;
+  const char* campaign_briefing() override;   // the line's briefing= (ours)
+  const char* campaign_end_movie() override;  // movie_end= (ours)
+  bool campaign_ends_at(int32_t op, int32_t mission) override;      // the list's last line (ours)
+  bool campaign_world_start(int32_t op, int32_t mission) override;  // ModCampaignGame::world_start (ours)
   const char* game_text(int32_t slot) override;  // the pilot's game's vt+0x04 .. +0x10
   Handle pilot_campaign(Handle p) override;      // 0x00479440: the launch's game
   bool pilot_standalone() override;

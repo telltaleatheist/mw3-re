@@ -60,6 +60,7 @@ add_library(mw3core STATIC
   src/gamez/zinput/zin_cmdmap.cpp
   src/gamez/zinput/zin_joy.cpp
   src/gamez/znetwork/znet_object.cpp
+  src/gamez/znetwork/znet_view.cpp
   src/gamez/znetwork/znet_session.cpp
   src/gamez/znetwork/znet_dplay.cpp
   src/gamez/zutil/zutl_msg.cpp
@@ -86,15 +87,19 @@ add_library(mw3core STATIC
   src/mech3/game_setup.cpp
   third_party/miniz/miniz_tinfl.c
   src/gamez/zutil/zutl_zar.cpp
+  src/gamez/zutil/zutl_zip.cpp
+  src/gamez/zutil/zutl_json.cpp
   src/gamez/zsave/zsave.cpp
   src/gamez/zclass/camera.cpp
   src/gamez/zclass/class.cpp
   src/gamez/zclass/cls_di.cpp
   src/gamez/zclass/cls_mechlib.cpp
+  src/gamez/zclass/cls_mechlib_json.cpp
   src/gamez/zclass/cls_node.cpp
   src/gamez/zclass/cls_util.cpp
   src/gamez/zclass/cls_world.cpp
   src/gamez/zclass/cls_zbd.cpp
+  src/upgrades/json/gamez_json.cpp
   src/gamez/zclass/display.cpp
   src/gamez/zclass/light.cpp
   src/gamez/zclass/lod.cpp
@@ -110,6 +115,7 @@ add_library(mw3core STATIC
   src/gamez/zgeometry/zgeo_weiler.cpp
   src/gamez/zgeometry/zgeo_convexify.cpp
   src/gamez/zeffect/zeff_anim_init.cpp
+  src/gamez/zeffect/zeff_anim_json.cpp
   src/gamez/zentity/zent_init.cpp
   src/gamez/zentity/zent_manager.cpp
   src/gamez/zeffect/zeff_anim_puffer.cpp
@@ -138,7 +144,9 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_puff.cpp
   src/gamez/zmodel/gmod_screen.cpp
   src/gamez/zreader/zreader.cpp
+  src/gamez/zreader/zreader_json.cpp
   src/gamez/zsiscript/si_script.cpp
+  src/gamez/zsiscript/si_script_json.cpp
   src/gamez/zgame/zgameapp.cpp
   src/gamez/zgame/zgame_table.cpp
   src/gamez/zsound/zsnd_cd.cpp
@@ -222,6 +230,19 @@ add_library(mw3core STATIC
   src/mech3/veh_move.cpp
   src/mech3/veh_stealth.cpp
   src/mech3/game_editor.cpp
+  src/mech3/game_editor_net.cpp
+  src/mech3/game_editor_tree.cpp
+  src/mech3/game_editor_vehicles.cpp
+  src/upgrades/editor/ddx.cpp
+  src/upgrades/editor/form.cpp
+  src/upgrades/editor/help.cpp
+  src/upgrades/editor/help_menus.cpp
+  src/upgrades/editor/help_nets.cpp
+  src/upgrades/editor/help_vehicles.cpp
+  src/upgrades/editor/mods_edit.cpp
+  src/upgrades/editor/node_params.cpp
+  src/upgrades/editor/add_vehicle.cpp
+  src/upgrades/editor/aiv_save.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
   src/mech3/mech_reader.cpp
@@ -289,9 +310,11 @@ add_library(mw3core STATIC
   src/mech3/zainet.cpp
   src/mech3/zainetedit.cpp
   src/mech3/zainet_inout.cpp
+  src/mech3/zainet_inout_view.cpp
   src/mech3/zainet_region.cpp
   src/mech3/zainet_node.cpp
   src/mech3/zrdrainet.cpp
+  src/mech3/net_save.cpp
   src/mech3/zrdraiv.cpp
   src/mech3/zrdrvalve.cpp
   src/mech3/app.cpp
@@ -310,6 +333,7 @@ add_library(mw3core STATIC
   src/mech3/movie_shape_table.cpp
   src/mech3/mods.cpp
   src/mech3/mod_rows_file.cpp
+  src/mech3/mod_campaign.cpp
   third_party/pl_mpeg/pl_mpeg.c
   src/mech3/app_mission.cpp
   src/mech3/app_hook_census.cpp
@@ -326,6 +350,18 @@ add_library(mw3core STATIC
   src/mech3/menu_states.cpp
   src/mech3/credits.cpp
   src/mech3/options_menu.cpp
+  src/mech3/mods_menu.cpp
+  src/mech3/mod_install.cpp
+  src/upgrades/mods/mod_export.cpp
+  src/upgrades/reference/reference.cpp
+  src/upgrades/reference/reference_mods.cpp
+  src/upgrades/reference/reference_weapons.cpp
+  src/upgrades/reference/reference_dfn.cpp
+  src/upgrades/reference/reference_mission.cpp
+  src/upgrades/reference/reference_interp.cpp
+  src/upgrades/reference/reference_others.cpp
+  src/upgrades/reference/reference_dialogs.cpp
+  src/upgrades/reference/reference_json.cpp
   src/mech3/pause_menu.cpp
   src/mech3/quit_box.cpp
   src/mech3/lab_items.cpp
@@ -508,6 +544,14 @@ add_library(mw3probe SHARED
   tests/probe_sound_extra.cpp
   tests/probe_deaths.cpp
   tests/probe_ai_net.cpp
+  tests/probe_ai_netwrite.cpp
+  tests/probe_net_view.cpp
+  tests/probe_net_cache.cpp
+  tests/probe_aiv_edit.cpp
+  tests/probe_vehicle_ddx.cpp
+  tests/probe_inout_view.cpp
+  tests/probe_aiv_save.cpp
+  tests/probe_aiv_add.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
   tests/probe_mission.cpp
@@ -588,6 +632,10 @@ add_executable(mw3tests
   tests/test_movie_shape.cpp
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
+  tests/test_mod_install.cpp
+  tests/test_reference.cpp
+  tests/test_mod_campaign_pilots.cpp
+  tests/test_net_save.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp
   tests/test_bounded_media.cpp
@@ -727,14 +775,30 @@ if(SDL3_FOUND)
     src/frontend/sdl/sdl_install.cpp
     src/frontend/sdl/sdl_music.cpp
     src/frontend/sdl/sdl_platform.cpp
+    src/frontend/sdl/sdl_mods.cpp
     src/frontend/sdl/sdl_render3d.cpp
     src/frontend/sdl/sdl_sound.cpp
     src/frontend/sdl/sdl_vfw.cpp
     src/frontend/sdl/net_enet.cpp
     src/frontend/sdl/net_upnp.cpp
     src/frontend/sdl/sdl_child.cpp
+    src/frontend/sdl/editor_imgui.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3 enet miniupnpc)
+  # Dear ImGui (third_party/imgui, VERSION.txt): the game editor's dialogs only
+  # (docs/editor.md); in the programs through mw3sdl, never in mw3core or the probes.
+  add_library(mw3imgui STATIC
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/backends/imgui_impl_sdl3.cpp
+    third_party/imgui/backends/imgui_impl_sdlgpu3.cpp
+  )
+  target_include_directories(mw3imgui PUBLIC third_party/imgui)
+  target_link_libraries(mw3imgui PUBLIC SDL3::SDL3)
+  target_compile_options(mw3imgui PRIVATE "$<IF:$<CXX_COMPILER_ID:MSVC>,/w,-w>")
+  target_link_libraries(mw3sdl PUBLIC mw3imgui)
   # Windows: the Direct3D 12 shaders (sdl_render3d.hlsl), DXIL by the
   # Windows SDK's dxc, as headers the renderer includes.
   if(WIN32)

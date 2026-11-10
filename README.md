@@ -385,6 +385,11 @@ worked from, and builds them back into game files you can ship as a mod. A guide
 making whole missions and campaigns, with zStudio for the world and the rebuild's game
 editor for the mission, comes after Pirate's Moon.
 
+The game editor itself (the original's own, opened to players: the AI's paths, the
+vehicles' AI, saved into your mod) has a guide: [docs/editor-guide.md](docs/editor-guide.md).
+In the game every field, button and menu row has a tip, and the menu's HELP row gives a
+quick start.
+
 The original game has a tool of its own here: [tools/weapon-patch](tools/weapon-patch)
 adds weapons to the original `Mech3.exe`'s mech lab. It isn't part of the rebuild.
 

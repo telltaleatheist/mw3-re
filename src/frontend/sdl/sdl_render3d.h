@@ -1,6 +1,7 @@
 #pragma once
 #include <SDL3/SDL.h>
 
+#include <functional>
 #include <map>
 #include <vector>
 
@@ -52,6 +53,9 @@ class SdlRender3D : public platform::Render3D {
   }
   void viewport(int* x, int* y, int* w, int* h) const { *x = vx_, *y = vy_, *w = vw_, *h = vh_; }
   void set_shape(const FrameShape* s) { shape_ = s; }
+  // Ours: drawn on the swapchain after the game's frame is put there (the game
+  // editor's ImGui, editor_imgui.h). Not in a capture: shots show the game alone.
+  std::function<void(SDL_GPUCommandBuffer*, SDL_GPUTexture*, Uint32, Uint32)> overlay;
 
  private:
   void upload(SDL_GPUTexture* t, int width, int height, const uint8_t* rgba);

@@ -615,6 +615,15 @@ draws the main menu with its TrueType labels, a visible window runs 150
 frames of c1m2, a test track in the write dir's `music/` plays and loops
 through the MCI notify path.
 
+A `--mission` shot needs `--frame-ms 33` to show play (2026-11-09). The
+Core state enters under a 2 s fade-in (0x00480c70 pushes a FadeState, timed by
+the game's clock), and an unpaced hidden run draws hundreds of frames a
+second: at `--shot-frame 900` the shot is still inside the fade, with the
+world drawn but no HUD and no game editor, since the Core frame has not run
+yet. With `--frame-ms 33` the fade ends by frame 60 or so. The automated shot
+tests (test_sdl_frontend.cpp) pass it already; hand checks of the world
+alone are not affected.
+
 ## Open
 
 - mech3's controls setup (the default keys of the 0xa7 commands, 0x00411150,

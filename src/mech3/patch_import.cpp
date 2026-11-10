@@ -9,12 +9,14 @@
 #include <system_error>
 
 #include "gamez/zutil/zutl_zar.h"
+#include "gamez/zutil/zutl_zip.h"
 #include "mech3/data_version.h"
-#include "miniz/miniz_tinfl.h"
 
 namespace mech3 {
 namespace fs = std::filesystem;
 namespace {
+using zutl_zip::inflate_raw;
+using zutl_zip::Zip;
 
 uint32_t le16(const uint8_t* p) { return p[0] | p[1] << 8; }
 uint32_t le32(const uint8_t* p) { return p[0] | p[1] << 8 | p[2] << 16 | static_cast<uint32_t>(p[3]) << 24; }
@@ -34,118 +36,6 @@ bool read_file(const fs::path& p, std::vector<uint8_t>* out) {
   std::fclose(f);
   return true;
 }
-
-// Raw deflate into `out` (its size the expected length, or grown when 0).
-// A chunk that ends on a flush, not a final block, is whole once every byte
-// of it is taken.
-bool inflate_raw(const uint8_t* in, size_t n, std::vector<uint8_t>* out, size_t expect) {
-  tinfl_decompressor d;
-  tinfl_init(&d);
-  out->assign(expect ? expect : n * 4 + 1024, 0);
-  size_t in_at = 0, out_at = 0;
-  for (;;) {
-    size_t in_n = n - in_at, out_n = out->size() - out_at;
-    const tinfl_status s = tinfl_decompress(&d, in + in_at, &in_n, out->data(), out->data() + out_at, &out_n,
-                                            TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
-    in_at += in_n, out_at += out_n;
-    if (s == TINFL_STATUS_DONE || (s == TINFL_STATUS_FAILED_CANNOT_MAKE_PROGRESS && in_at == n)) break;
-    if (s == TINFL_STATUS_HAS_MORE_OUTPUT && !expect) {
-      out->resize(out->size() * 2);
-      continue;
-    }
-    return false;
-  }
-  if (expect && out_at != expect) return false;
-  out->resize(out_at);
-  return true;
-}
-
-// ZIP's CRC-32 (reflected, 0xedb88320), not zutl_zar's.
-uint32_t zip_crc(const uint8_t* p, size_t n) {
-  static uint32_t t[256];
-  if (!t[1])
-    for (uint32_t i = 0; i < 256; ++i) {
-      uint32_t c = i;
-      for (int k = 0; k < 8; ++k) c = c & 1 ? 0xedb88320u ^ (c >> 1) : c >> 1;
-      t[i] = c;
-    }
-  uint32_t c = 0xffffffffu;
-  for (size_t i = 0; i < n; ++i) c = t[(c ^ p[i]) & 0xff] ^ (c >> 8);
-  return c ^ 0xffffffffu;
-}
-
-// A ZIP read from its central directory, entry by entry (no Zip64: the
-// patch's archives are a few MB). A self-extracting exe with a ZIP appended
-// reads the same, its offsets shifted by the stub.
-struct Zip {
-  struct Entry {
-    std::string name;
-    uint32_t method, crc, csize, usize, local;
-  };
-  std::FILE* f = nullptr;
-  std::vector<Entry> entries;
-  ~Zip() {
-    if (f) std::fclose(f);
-  }
-  bool open(const fs::path& p) {
-    f = std::fopen(p.string().c_str(), "rb");
-    if (!f || std::fseek(f, 0, SEEK_END) != 0) return false;
-    const long size = std::ftell(f);
-    const long tail = std::min<long>(size, 0x10000 + 22);
-    std::vector<uint8_t> t(static_cast<size_t>(tail));
-    if (std::fseek(f, size - tail, SEEK_SET) != 0 || std::fread(t.data(), 1, t.size(), f) != t.size()) return false;
-    long eocd = -1;
-    for (long i = tail - 22; i >= 0; --i)
-      if (le32(&t[i]) == 0x06054b50) {
-        eocd = i;
-        break;
-      }
-    if (eocd < 0) return false;
-    const uint8_t* e = &t[eocd];
-    const uint32_t count = le16(e + 10), cd_size = le32(e + 12), cd_off = le32(e + 16);
-    const long cd_at = size - tail + eocd - static_cast<long>(cd_size);
-    if (cd_at < 0 || cd_off == 0xffffffffu) return false;
-    const long shift = cd_at - static_cast<long>(cd_off);  // the stub before an appended ZIP
-    std::vector<uint8_t> cd(cd_size);
-    if (std::fseek(f, cd_at, SEEK_SET) != 0 || std::fread(cd.data(), 1, cd.size(), f) != cd.size()) return false;
-    for (size_t at = 0, k = 0; k < count && at + 46 <= cd.size(); ++k) {
-      const uint8_t* c = &cd[at];
-      if (le32(c) != 0x02014b50) return false;
-      const uint32_t nlen = le16(c + 28), xlen = le16(c + 30), clen = le16(c + 32);
-      if (at + 46 + nlen > cd.size()) return false;
-      Entry en{std::string(reinterpret_cast<const char*>(c + 46), nlen), le16(c + 10), le32(c + 16), le32(c + 20),
-               le32(c + 24), static_cast<uint32_t>(le32(c + 42) + shift)};
-      std::replace(en.name.begin(), en.name.end(), '\\', '/');
-      if (!en.name.empty() && en.name.back() != '/') entries.push_back(en);
-      at += 46 + nlen + xlen + clen;
-    }
-    return true;
-  }
-  bool read(const Entry& en, std::vector<uint8_t>* out, std::string* error) {
-    uint8_t h[30];
-    if (std::fseek(f, static_cast<long>(en.local), SEEK_SET) != 0 || std::fread(h, 1, 30, f) != 30 || le32(h) != 0x04034b50) {
-      *error = en.name + ": no local header";
-      return false;
-    }
-    std::vector<uint8_t> raw(en.csize);
-    if (std::fseek(f, static_cast<long>(en.local + 30 + le16(h + 26) + le16(h + 28)), SEEK_SET) != 0 ||
-        std::fread(raw.data(), 1, raw.size(), f) != raw.size()) {
-      *error = en.name + ": cut short";
-      return false;
-    }
-    if (en.method == 0) {
-      *out = std::move(raw);
-    } else if (en.method != 8 || !inflate_raw(raw.data(), raw.size(), out, en.usize)) {
-      *error = en.name + (en.method == 8 ? ": does not inflate" : ": compressed by a method other than deflate");
-      return false;
-    }
-    if (out->size() != en.usize || zip_crc(out->data(), out->size()) != en.crc) {
-      *error = en.name + ": CRC does not match (a damaged download?)";
-      return false;
-    }
-    return true;
-  }
-};
 
 // What has been found of the 28, by their paths under the install.
 struct Gather {
@@ -416,7 +306,7 @@ PatchImport import_patch_12(const std::string& source, const std::string& out_di
 }
 
 // SHA-256 (FIPS 180-4).
-std::string sha256_hex(const uint8_t* data, size_t n) {
+void Sha256::block(const uint8_t* p) {
   static const uint32_t K[64] = {
       0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be,
       0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa,
@@ -424,32 +314,42 @@ std::string sha256_hex(const uint8_t* data, size_t n) {
       0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
       0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f,
       0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
-  uint32_t h[8] = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
   auto rotr = [](uint32_t x, int k) { return (x >> k) | (x << (32 - k)); };
-  auto block = [&](const uint8_t* p) {
-    uint32_t w[64];
-    for (int i = 0; i < 16; ++i) w[i] = static_cast<uint32_t>(p[4 * i]) << 24 | p[4 * i + 1] << 16 | p[4 * i + 2] << 8 | p[4 * i + 3];
-    for (int i = 16; i < 64; ++i) {
-      const uint32_t s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3);
-      const uint32_t s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10);
-      w[i] = w[i - 16] + s0 + w[i - 7] + s1;
-    }
-    uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
-    for (int i = 0; i < 64; ++i) {
-      const uint32_t t1 = hh + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i];
-      const uint32_t t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c));
-      hh = g, g = f, f = e, e = d + t1, d = c, c = b, b = a, a = t1 + t2;
-    }
-    h[0] += a, h[1] += b, h[2] += c, h[3] += d, h[4] += e, h[5] += f, h[6] += g, h[7] += hh;
-  };
-  size_t i = 0;
-  for (; i + 64 <= n; i += 64) block(data + i);
+  uint32_t w[64];
+  for (int i = 0; i < 16; ++i) w[i] = static_cast<uint32_t>(p[4 * i]) << 24 | p[4 * i + 1] << 16 | p[4 * i + 2] << 8 | p[4 * i + 3];
+  for (int i = 16; i < 64; ++i) {
+    const uint32_t s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3);
+    const uint32_t s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10);
+    w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+  }
+  uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
+  for (int i = 0; i < 64; ++i) {
+    const uint32_t t1 = hh + (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i];
+    const uint32_t t2 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) + ((a & b) ^ (a & c) ^ (b & c));
+    hh = g, g = f, f = e, e = d + t1, d = c, c = b, b = a, a = t1 + t2;
+  }
+  h[0] += a, h[1] += b, h[2] += c, h[3] += d, h[4] += e, h[5] += f, h[6] += g, h[7] += hh;
+}
+
+void Sha256::add(const uint8_t* data, size_t n) {
+  total += n;
+  if (used) {  // a block begun by the call before
+    const size_t take = std::min(n, sizeof buf - used);
+    std::memcpy(buf + used, data, take);
+    used += take, data += take, n -= take;
+    if (used < sizeof buf) return;
+    block(buf), used = 0;
+  }
+  for (; n >= 64; data += 64, n -= 64) block(data);
+  if (n) std::memcpy(buf, data, n), used = n;
+}
+
+std::string Sha256::hex() {
   uint8_t last[128] = {};
-  const size_t rest = n - i;
-  if (rest) std::memcpy(last, data + i, rest);
-  last[rest] = 0x80;
-  const size_t len = rest < 56 ? 64 : 128;
-  const uint64_t bits = static_cast<uint64_t>(n) * 8;
+  if (used) std::memcpy(last, buf, used);
+  last[used] = 0x80;
+  const size_t len = used < 56 ? 64 : 128;
+  const uint64_t bits = total * 8;
   for (int k = 0; k < 8; ++k) last[len - 1 - k] = static_cast<uint8_t>(bits >> (8 * k));
   block(last);
   if (len == 128) block(last + 64);
@@ -458,6 +358,12 @@ std::string sha256_hex(const uint8_t* data, size_t n) {
   for (uint32_t v : h)
     for (int k = 28; k >= 0; k -= 4) s += hex[(v >> k) & 15];
   return s;
+}
+
+std::string sha256_hex(const uint8_t* data, size_t n) {
+  Sha256 s;
+  s.add(data, n);
+  return s.hex();
 }
 
 // MD5 (RFC 1321): the cabinets' file descriptors carry their files'.

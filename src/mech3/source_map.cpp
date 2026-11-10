@@ -369,12 +369,15 @@ void walk_archive(ArchiveReader& r, const std::string& path, const std::vector<S
 bool usable(const Found& f) { return f.game == Found::kPiratesMoon && f.kind == Found::kInstall && f.on_disk; }
 
 std::string game_words(const Found& f) {
-  if (f.game == Found::kMw3) return "This is MechWarrior 3, not Pirate's Moon. Point to your installed Pirate's Moon.";
-  if (f.game != Found::kPiratesMoon) return "";
-  if (usable(f)) return "An installed copy of Pirate's Moon.";
-  if (f.kind == Found::kDisc)
-    return "This is the Pirate's Moon disc. Install it from the disc first, then point to the folder it installed to.";
-  return "This holds an installed Pirate's Moon, packed. Unpack it first, then point to the folder.";
+  if (f.game == Found::kPiratesMoon)
+    return "This is MechWarrior 3: Pirate's Moon, a game of its own: in the launcher, click PIRATE'S MOON, then GAME FILES, and give it there.";
+  if (f.game != Found::kMw3) return "";
+  std::string v = f.version.empty() ? "" : " version " + f.version;
+  if (f.kind == Found::kInstall) return "An installed copy of MechWarrior 3" + v + ".";
+  std::string s = "The MechWarrior 3 disc" + v;
+  if (!f.audio.empty())
+    s += ", with its music (" + std::to_string(f.audio.size()) + (f.audio.size() == 1 ? " CD track)" : " CD tracks)");
+  return s + ".";
 }
 
 Found map_source(const std::string& path, const MapProgress& progress) {

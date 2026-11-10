@@ -11,6 +11,7 @@
 #include "crt/msvc_string.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/weapon.h"
+#include "upgrades/reference/reference.h"
 
 namespace mech3 {
 
@@ -154,16 +155,16 @@ bool mech_row_parse(const std::string& value, ModMech* out, std::string* error) 
   while (in >> word) {
     const size_t eq = word.find('=');
     const std::string key = word.substr(0, eq), v = eq == std::string::npos ? "" : word.substr(eq + 1);
-    if (key == "title") {  // the rest of the line
+    if (upgrades::reference::key_is(key, "title")) {  // the rest of the line
       std::string rest;
       std::getline(in, rest);
       out->title = v + rest;
       break;
     }
-    if (key == "tech") tech = v;
-    else if (key == "mass") out->mass = std::atoi(v.c_str()), mass = true;
-    else if (key == "class") cls = v;
-    else if (key == "model") out->model = v;
+    if (upgrades::reference::key_is(key, "tech")) tech = v;
+    else if (upgrades::reference::key_is(key, "mass")) out->mass = std::atoi(v.c_str()), mass = true;
+    else if (upgrades::reference::key_is(key, "class")) cls = v;
+    else if (upgrades::reference::key_is(key, "model")) out->model = v;
     else return *error = "unknown key " + key, false;
   }
   if (out->name.empty() || out->name.find('=') != std::string::npos) return *error = "no name", false;
@@ -211,14 +212,14 @@ bool weapon_row_parse(const std::string& value, ModWeapon* out, std::string* err
   while (in >> word) {
     const size_t eq = word.find('=');
     const std::string key = word.substr(0, eq), v = eq == std::string::npos ? "" : word.substr(eq + 1);
-    if (key == "title") {
+    if (upgrades::reference::key_is(key, "title")) {
       std::string rest;
       std::getline(in, rest);
       out->title = v + rest;
       break;
     }
-    if (key == "ammo") ammo = v;
-    else if (key == "tech") tech = v;
+    if (upgrades::reference::key_is(key, "ammo")) ammo = v;
+    else if (upgrades::reference::key_is(key, "tech")) tech = v;
     else return *error = "unknown key " + key, false;
   }
   if (out->name.empty() || out->name.find('=') != std::string::npos) return *error = "no name", false;

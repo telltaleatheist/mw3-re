@@ -126,6 +126,14 @@ bool outside(const std::string& h) {
 }  // namespace
 
 bool game_text(const std::string& utf8, std::string* out) { return to_game(utf8, out); }
+std::string utf8_text(const std::string& game) {
+  std::string out;
+  for (char c : game) {
+    const auto b = static_cast<unsigned char>(c);
+    put_utf8(out, b >= 0x80 && b < 0xa0 ? kCp1252[b - 0x80] : b);
+  }
+  return out;
+}
 
 std::string any_case(const std::string& root, const std::string& rel) {
   std::string at = root;
@@ -176,7 +184,8 @@ bool mod_may_serve(const std::string& host_path) {
   while (p.rfind("./", 0) == 0) p.erase(0, 2);
   for (const char* dir : {"pilots/", "configs/", "keys/", "saves/", "patch12/", "mods/"})
     if (p.rfind(dir, 0) == 0) return false;
-  for (const char* file : {"mw3.cfg", "settings.reg", "movie-shapes.txt"})
+  // mw3-mod-added.txt: the marker of a mod the game added (mech3/mod_install.h).
+  for (const char* file : {"mw3.cfg", "settings.reg", "movie-shapes.txt", "mw3-mod-added.txt"})
     if (p == file) return false;
   return p.size() < 4 || p.compare(p.size() - 4, 4, ".log") != 0;
 }
@@ -187,6 +196,11 @@ std::string find_in_mods(const std::string& host_path) {
     if (!p.empty()) return p;
   }
   return {};
+}
+std::string find_in_mod(size_t i, const std::string& host_path) {
+  if (i >= g_mounts.mods.size() || host_path.empty() || absolute(host_path) || outside(host_path) || !mod_may_serve(host_path))
+    return {};
+  return in_mount(g_mounts.mods[i], host_path);
 }
 void set_write_dir(const std::string& dir) { g_mounts.write = dir; }
 

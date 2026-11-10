@@ -4,6 +4,7 @@
 // this one is named for the module (docs/interp.md).
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zgame/zgame_table.h"
+#include "upgrades/reference/reference.h"
 #include "gamez/zmodel/gmod_init.h"
 
 #include <sys/stat.h>
@@ -357,7 +358,10 @@ bool argv0_starts(Interp& in, const char* name, size_t n) {
 }
 
 // Mech3.exe 1.2 @ 0x00595270
-bool argv0_is(Interp& in, const char* name) { return std::strcmp(in.argc ? in.argv[0] : "", name) == 0; }
+bool argv0_is(Interp& in, const char* name) {
+  upgrades::reference::seen(name);  // ours: the modding reference's test (null in play)
+  return std::strcmp(in.argc ? in.argv[0] : "", name) == 0;
+}
 
 // Mech3.exe 1.2 @ 0x004108f0. The exe keeps this copy in MW3's code; nothing
 // sets the callback unless the debug console is open, so the shipped game
@@ -664,6 +668,7 @@ void echo(Interp& in) {
 
 // Mech3.exe 1.2 @ 0x00595e70. argv[0], the command, is never expanded.
 char* next_arg(Interp& in) {
+  upgrades::reference::arg_read('s');
   const uint32_t i = in.cursor++;
   char* a = i < in.argc ? in.argv[i] : nullptr;
   if (!a) return nullptr;
@@ -672,6 +677,7 @@ char* next_arg(Interp& in) {
 
 // Mech3.exe 1.2 @ 0x00595ea0
 bool arg_bool(Interp& in, bool def) {
+  upgrades::reference::arg_read('b');  // ours: the reference test's (null in play); before next_arg's 's'
   const char* s = next_arg(in);
   if (!s) return def;
   return crt::msvc_stricmp(s, "on") == 0 || crt::msvc_stricmp(s, "true") == 0;
@@ -679,12 +685,14 @@ bool arg_bool(Interp& in, bool def) {
 
 // Mech3.exe 1.2 @ 0x00595ef0. atof's double, rounded by each caller.
 double arg_float(Interp& in, float def) {
+  upgrades::reference::arg_read('f');
   const char* s = next_arg(in);
   return s ? crt::msvc_atof(s) : def;
 }
 
 // Mech3.exe 1.2 @ 0x00595f10
 int32_t arg_int(Interp& in, int32_t def) {
+  upgrades::reference::arg_read('i');
   const char* s = next_arg(in);
   return s ? crt::msvc_atoi(s) : def;
 }

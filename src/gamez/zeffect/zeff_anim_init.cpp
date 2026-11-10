@@ -1,7 +1,12 @@
 #include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_json.h"
+#include "gamez/zutil/zutl_zip.h"
 
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <set>
+#include <memory>
 #include <ctime>
 #include <type_traits>
 #include <vector>
@@ -226,9 +231,26 @@ int anim_read_zbd() { return zgame::game().zeff_anim_read_zbd(); }
 // place; the caller (0x50ae60) ignores the result.
 int mw3_anim_read_zbd() {
   AnimState& a = g_anim;
-  const char* const file = a.host_path.empty() ? a.path : a.host_path.c_str();
+  const char* file = a.host_path.empty() ? a.path : a.host_path.c_str();
   if (!a.loading || file[0] == 0) return -1;
-  std::FILE* f = zutl::open(file, "rb");  // FIX (A): the mounts (zutl_path.h)
+  // Ours (docs/modding.md, mech3ax's JSON): an enabled mod's unzbd JSON for this world, as the file it stands for;
+  // one that does not read is said and the anim.zbd read instead.
+  std::vector<uint8_t> json_zbd;
+  std::string what, why;
+  std::unique_ptr<zutl_zip::ScratchFile> scratch;
+  std::FILE* f = nullptr;
+  if (a.host_path.empty()) {
+    static std::set<std::string> said;
+    const int got = anim_from_mod(a.path, &json_zbd, &what, &why);
+    if (got > 0) scratch = std::make_unique<zutl_zip::ScratchFile>(json_zbd.data(), json_zbd.size());
+    if (got > 0 && scratch->file) {
+      f = std::fopen(scratch->path.string().c_str(), "rb");  // its own handle, closed below as the archive's is
+      if (said.insert(what + "\n").second) std::printf("mw3: mod: %s instead of %s\n", what.c_str(), a.path);
+    } else if (got != 0 && said.insert(what + "\n" + why).second) {
+      std::printf("mw3: mod: %s: %s; %s read instead\n", what.c_str(), why.c_str(), a.path);
+    }
+  }
+  if (!f) f = zutl::open(file, "rb");  // FIX (A): the mounts (zutl_path.h)
   if (!f) return -1;
   std::fseek(f, 0, SEEK_END);
   g_file_end = std::ftell(f);

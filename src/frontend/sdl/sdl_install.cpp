@@ -100,52 +100,57 @@ std::vector<std::string> (*g_candidates_hook)() = nullptr;
 
 void set_install_candidates_hook(std::vector<std::string> (*fn)()) { g_candidates_hook = fn; }
 
-std::vector<std::string> install_candidates() {
+std::vector<std::string> install_candidates(bool pirates_moon) {
   if (g_candidates_hook) return g_candidates_hook();
   std::vector<std::string> out;
   auto add = [&](const std::string& d) {
     if (!d.empty() && std::find(out.begin(), out.end(), d) == out.end()) out.push_back(d);
   };
+  // The folder names the installers' defaults and players use, by game.
+  // Pirate's Moon must be installed apart from MechWarrior 3 (its readme).
+  const std::vector<std::string> names =
+      pirates_moon ? std::vector<std::string>{"MicroProse/MechWarrior 3 Pirate's Moon", "MicroProse/Pirate's Moon",
+                                              "Games/MechWarrior 3 Pirate's Moon", "Games/Pirate's Moon", "Games/PiratesMoon",
+                                              "MechWarrior 3 Pirate's Moon", "Pirate's Moon", "PiratesMoon"}
+                   : std::vector<std::string>{"MicroProse/MechWarrior 3", "MicroProse/MechWarrior3", "Games/MechWarrior 3",
+                                              "Games/MechWarrior3", "Games/MW3", "MechWarrior 3", "MechWarrior3", "MW3"};
 #if defined(_WIN32)
   // The original's InstallShield script (disc SETUP.INS, value.shl): SOFTWARE\
   // PUBLISHER_NAME\PRODUCT_NAME\PRODUCT_VERSION gets "Program" and "Version",
   // and InstallationInfo's App Paths entry for PRODUCT_KEY (mech3.exe). A
   // 32-bit installer on 64-bit Windows wrote the WOW6432Node view, or, without
-  // admin rights, the user's VirtualStore copy.
-  // Pirate's Moon's own key, as its install writes it (the install's mw3pm.reg,
-  // and a PM installed on Windows 11: WOW6432Node\MicroProse\MechWarrior 3 EP1\1.0
-  // "Program"); install_valid takes only PM's data whichever key it finds.
-  const char* const pm_key = "SOFTWARE\\MicroProse\\MechWarrior 3 EP1\\1.0";
-  const char* const mp = "SOFTWARE\\MicroProse\\MechWarrior 3\\1.0";
+  // admin rights, the user's VirtualStore copy. Pirate's Moon's key is
+  // "MechWarrior 3 EP1" (its install's mw3pm.reg); both games' App Paths
+  // entry is mech3.exe, so it is asked for either (the caller checks which).
+  const std::string product = pirates_moon ? "MechWarrior 3 EP1" : "MechWarrior 3";
+  const std::string mp = "SOFTWARE\\MicroProse\\" + product + "\\1.0";
   const char* const app = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\mech3.exe";
   for (DWORD view : {static_cast<DWORD>(RRF_SUBKEY_WOW6432KEY), static_cast<DWORD>(RRF_SUBKEY_WOW6464KEY)}) {
-    add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, pm_key, "Program", view)));
-    add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, mp, "Program", view)));
+    add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, mp.c_str(), "Program", view)));
     add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, app, "Path", view)));
     add(install_of_program_value(reg_string(HKEY_LOCAL_MACHINE, app, nullptr, view)));
   }
-  for (const char* store : {"Software\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\WOW6432Node\\MicroProse\\MechWarrior 3\\1.0",
-                            "Software\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\MicroProse\\MechWarrior 3\\1.0"})
-    add(install_of_program_value(reg_string(HKEY_CURRENT_USER, store, "Program", 0)));
-  // The installer's default, PROGRAMFILES\MicroProse\MechWarrior 3, and the
-  // usual hand-picked places.
+  for (const char* store : {"Software\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\WOW6432Node\\MicroProse\\",
+                            "Software\\Classes\\VirtualStore\\MACHINE\\SOFTWARE\\MicroProse\\"})
+    add(install_of_program_value(reg_string(HKEY_CURRENT_USER, (store + product + "\\1.0").c_str(), "Program", 0)));
+  // The installer's default, PROGRAMFILES\MicroProse\..., and the usual
+  // hand-picked places on the system drive.
+  auto win = [](std::string n) {
+    for (char& c : n) c = c == '/' ? '\\' : c;
+    return n;
+  };
   for (const char* env : {"ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"})
-    if (const char* pf = std::getenv(env)) {
-      add(std::string(pf) + "\\MicroProse\\MechWarrior 3 Pirate's Moon");
-      add(std::string(pf) + "\\MicroProse\\Pirate's Moon");
-      add(std::string(pf) + "\\MicroProse\\MechWarrior 3");
-    }
+    if (const char* pf = std::getenv(env))
+      for (const std::string& n : names)
+        if (n.rfind("MicroProse/", 0) == 0) add(std::string(pf) + "\\" + win(n));
   const char* sd = std::getenv("SystemDrive");
   const std::string drive = sd ? sd : "C:";
-  for (const char* d : {"\\MicroProse\\MechWarrior 3 Pirate's Moon", "\\Games\\Pirate's Moon", "\\Pirate's Moon",
-                        "\\MicroProse\\MechWarrior 3", "\\MicroProse\\MechWarrior3", "\\Games\\MechWarrior 3",
-                        "\\Games\\MechWarrior3", "\\Games\\MW3", "\\MechWarrior 3", "\\MechWarrior3", "\\MW3"})
-    add(drive + d);
+  for (const std::string& n : names) add(drive + "\\" + win(n));
 #else
-  // Ours (docs/linux.md): a Windows install under Wine, Proton or Lutris.
-  // Each prefix's drive_c with the installer's default and the usual
-  // hand-picked folders; MW3 is not sold on Steam, so a Proton prefix is a
-  // non-Steam game's (compatdata/<id>/pfx).
+  // Ours (docs/linux.md): a Windows install under Wine, Proton or Lutris, and
+  // on the Mac CrossOver's and Whisky's bottles. Each prefix's drive_c with
+  // the installer's default and the usual hand-picked folders; neither game is
+  // sold on Steam, so a Proton prefix is a non-Steam game's (compatdata/<id>/pfx).
   const char* home_env = std::getenv("HOME");
   const std::string home = home_env ? home_env : "";
   std::vector<std::string> prefixes;
@@ -153,18 +158,22 @@ std::vector<std::string> install_candidates() {
   if (!home.empty()) {
     prefixes.push_back(home + "/.wine");
     std::error_code ec;
-    for (const char* steam : {"/.steam/steam/steamapps/compatdata", "/.local/share/Steam/steamapps/compatdata",
-                              "/.var/app/com.valvesoftware.Steam/data/Steam/steamapps/compatdata"})
-      for (const fs::directory_entry& e : fs::directory_iterator(home + steam, ec)) prefixes.push_back(e.path().string() + "/pfx");
-    for (const fs::directory_entry& e : fs::directory_iterator(home + "/Games", ec)) prefixes.push_back(e.path().string());
+    for (const char* many : {"/.steam/steam/steamapps/compatdata", "/.local/share/Steam/steamapps/compatdata",
+                             "/.var/app/com.valvesoftware.Steam/data/Steam/steamapps/compatdata"})
+      for (const fs::directory_entry& e : fs::directory_iterator(home + many, ec)) prefixes.push_back(e.path().string() + "/pfx");
+    for (const char* many : {"/Games", "/Library/Application Support/CrossOver/Bottles",
+                             "/Library/Containers/com.isaacmarovitz.Whisky/Bottles"})
+      for (const fs::directory_entry& e : fs::directory_iterator(home + many, ec)) prefixes.push_back(e.path().string());
   }
   std::error_code ec;
   for (const std::string& pfx : prefixes)
-    for (const char* d : {"/drive_c/Program Files (x86)/MicroProse/MechWarrior 3", "/drive_c/Program Files/MicroProse/MechWarrior 3",
-                          "/drive_c/MicroProse/MechWarrior 3", "/drive_c/Games/MechWarrior 3", "/drive_c/MechWarrior 3"})
-      if (fs::is_directory(pfx + d, ec)) add(pfx + d);
+    for (const std::string& n : names)
+      for (const char* pf : {"/drive_c/Program Files (x86)/", "/drive_c/Program Files/", "/drive_c/"})
+        if ((n.rfind("MicroProse/", 0) == 0 || std::string(pf) == "/drive_c/") && fs::is_directory(pfx + pf + n, ec))
+          add(pfx + pf + n);
   if (!home.empty())
-    for (const char* d : {"/Games/MechWarrior 3", "/Games/MechWarrior3", "/Games/MW3", "/MechWarrior 3"}) add(home + d);
+    for (const std::string& n : names)
+      if (n.rfind("MicroProse/", 0) != 0) add(home + "/" + n);
 #endif
   // This program's folder and the one above (mw3 beside or inside the
   // install); on the Mac, beside the .app.

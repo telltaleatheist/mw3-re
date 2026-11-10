@@ -185,6 +185,38 @@ bool clip_axis(float* a, float* b, int axis) {
 // Mech3.exe 1.2 @ 0x0059b490
 bool clip_line(float* a, float* b) { return clip_axis(a, b, 0) && clip_axis(a, b, 1); }
 
+namespace {
+// Mech3.exe 1.2 @ 0x0059b450 (ECX a, EDX b): `a` moved to depth z along the
+// line to `b`.
+void move_z(float* a, const float* b, float z) {
+  const float t = (z - a[2]) / (b[2] - a[2]);
+  a[0] = (b[0] - a[0]) * t + a[0];
+  a[2] = z;
+  a[1] = (b[1] - a[1]) * t + a[1];
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x0059b370
+bool clip_depth(float* a, float* b) {
+  const float lo = g_line_clip.min[2], hi = g_line_clip.max[2];
+  if (hi < a[2] && hi < b[2]) return false;
+  if (a[2] < lo && b[2] < lo) return false;
+  if (a[2] < lo) move_z(a, b, lo);
+  if (b[2] < lo) move_z(b, a, lo);
+  if (hi < b[2]) move_z(b, a, hi);
+  if (hi < a[2]) move_z(a, b, hi);
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0059b7b0
+bool in_depth(const float* p) { return g_line_clip.min[2] <= p[2] && p[2] <= g_line_clip.max[2]; }
+
+// Mech3.exe 1.2 @ 0x0059b7e0
+bool in_box(const float* p) {
+  const LineClip& c = g_line_clip;
+  return c.min[0] <= p[0] && p[0] <= c.max[0] && c.min[1] <= p[1] && p[1] <= c.max[1];
+}
+
 // Mech3.exe 1.2 @ 0x005a3b00
 void Frame::draw() {
   erase();
