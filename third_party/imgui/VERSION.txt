@@ -1,0 +1,9 @@
+Dear ImGui v1.93.0 (released 2026-10-14), https://github.com/ocornut/imgui
+commit c1aaac65e896a45f81f47a4d68f9959e0f86c859
+
+Copied unchanged: the core (imgui*.cpp, imgui*.h, imconfig.h, imstb_*.h), LICENSE.txt, and the
+SDL3 platform and SDL_GPU renderer backends (backends/imgui_impl_sdl3.*, imgui_impl_sdlgpu3*).
+Left out: the demo, the other backends, examples, docs, misc.
+Used only by the game editor's dialogs (docs/editor.md, Dear ImGui for the editor's dialogs).
+Named VERSION.txt, not VERSION: this folder is on the include path, and on a case-insensitive file
+system a VERSION file stands in for the standard <version> header.

@@ -1087,6 +1087,33 @@ as they are, drawn through zTwoD's FontText.
 `NewFrame` and `Render` run once per presented frame, from the editor's
 frame hook, after the game's update and before present.
 
+**Built (S7a, 2026-11-09).**
+- **The copy:** Dear ImGui v1.93.0 (2026-10-14), commit c1aaac65, in
+  `third_party/imgui`; `VERSION.txt` gives the tag, the commit and what was
+  copied. It is not named VERSION because the folder is on the include
+  path, and on a case-insensitive disk that file stands in for `<version>`.
+- **The build:** target `mw3imgui`, linked through mw3sdl.
+- **The code:** `src/frontend/sdl/editor_imgui.{h,cpp}`. `EditorUi` is made
+  at the program's start but starts ImGui only at the editor's first event
+  or frame, so a run that never opens the editor has no ImGui context.
+  `SdlPump::overlay_event` and `SdlRender3D::overlay` are its two hooks;
+  the overlay runs only on the swapchain path, never in a capture.
+- **The window:** an empty "Game editor" window stands in until S7b.
+  `io.IniFilename` is null, so nothing is written beside the game.
+- **The test:** `sdl_editor_imgui_routes_input` (mw3sdltests), on a hidden
+  window. With the editor down, ImGui is never made and the key reaches
+  zInput. With it up, a click over the ImGui window is ImGui's and one off
+  it is the game's; a key goes to the game with no text field focused and
+  not with one. Break: the pump passing every event on, and the field's
+  key reaches zInput (2 events, not 0).
+- **The check:** `MW3_EDITOR_AT=N` with `--debug-camera` brings the editor
+  up at the pump's Nth pass in a mission, as Shift+F12 does. With
+  `--shot`, c1m1 shows the game alone; in a visible window the log says
+  "the editor's dialogs drawn over the game".
+- **Packages:** both THIRD-PARTY.txt lists carry the licence. The Windows
+  package copies it to `licenses\imgui`, and `check_dist.ps1` requires it
+  there.
+
 ## The vehicle editor and ImGui, in sittings (planned 2026-11-09)
 
 1. **S7a ImGui in.**
