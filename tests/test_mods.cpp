@@ -37,6 +37,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "upgrades/mods/mod_report.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mods_tables.h"
 #include "mech3/patch12.h"
@@ -150,6 +151,63 @@ TEST(mods_mount_in_order_and_game_data_only) {
   // Writes go to the write dir, never into a mod or the install.
   EXPECT(zutl::write_path("zbd\\a.zbd") == wd + "/zbd/a.zbd");
   EXPECT(mech3::mods_found(wd).size() == 3);
+}
+
+// Modder step 3 (modding.md, Plain errors on the MODS screen): a mod's check
+// and this start's mount as sentences, what it replaces and adds, what it adds
+// by mod.txt, what is ignored, each thing refused and why.
+TEST(mods_report_says_what_a_mod_does_in_sentences) {
+  mech3::ModFindings f;
+  f.against_install = true, f.replaces = 2, f.adds = 1, f.ignored = 1;
+  f.mechs = {"Thor B"}, f.weapons = {"Rail", "Gauss2"}, f.campaigns = {"Long Night"};
+  f.refused = {"zbd/weapons.zrd: line 3: a '(' never closed", "mech Scout: there is a mech Scout already"};
+  f.warnings = {"campaign c.txt: line 4: no world zz in the mod or the game: it plays only with a mod that adds it"};
+  f.left_out = {"world x: there is no zbd/x/gamez.zbd in the mod"};
+  const std::vector<std::string> s = mech3::mod_sentences(f);
+  for (const std::string& l : s) std::printf("  %s\n", l.c_str());
+  const std::vector<std::string> want = {
+      "It replaces 2 of the game's files and adds 1 new file.",
+      "It adds the mech Thor B, the weapons Rail and Gauss2 and the campaign \"Long Night\".",
+      "1 of its files is the player's own kind (settings, pilots, saved games), which a mod cannot replace: it is ignored.",
+      "The file zbd/weapons.zrd is refused: line 3: a '(' never closed.",
+      "The mech Scout is refused: there is a mech Scout already.",
+      "Note: the campaign file c.txt: line 4: no world zz in the mod or the game: it plays only with a mod that adds it.",
+      "At this start the game left out the world x: there is no zbd/x/gamez.zbd in the mod."};
+  EXPECT(s == want);
+  EXPECT((mech3::mod_sentences(mech3::ModFindings{}) == std::vector<std::string>{"It changes nothing in the game.", "Nothing in it is refused."}));
+  EXPECT((mech3::mod_report_wrap("the file zbd/weapons.zrd is refused", 12) ==
+          std::vector<std::string>{"the file", "zbd/weapons.", "zrd is", "refused"}));
+  // A mod checked against an install, and mounted: the sentences from both.
+  SavedMounts keep;
+  const std::string root = tmp("mods_report");
+  const std::string wd = root + "/wd", install = root + "/install";
+  put(install + "/zbd/a.bin", "install");
+  put(wd + "/mods/one/mod.txt", "name=One\nmech=bad\nworld=x\n");
+  put(wd + "/mods/one/zbd/a.bin", "one");
+  put(wd + "/mods/one/zbd/new.bin", "one");
+  put(wd + "/mods/one/pilots/me.pil", "one");
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"one", "none"}, {install});
+  zutl::mount(install);
+  EXPECT(mech3::mods_left_out().count("none") && mech3::mods_left_out()["none"].size() == 1 &&
+         mech3::mods_left_out()["none"][0].rfind("the mod: it is not in ", 0) == 0);
+  int refused = -1;
+  std::string said;
+  for (const std::string& l : mech3::mod_report(wd + "/mods/one", install, "one", &refused)) said += l + "\n";
+  std::printf("%s", said.c_str());
+  EXPECT(refused == 2);
+  EXPECT(said.find("It replaces 1 of the game's files and adds 1 new file.") != std::string::npos);
+  EXPECT(said.find("1 of its files is the player's own kind") != std::string::npos);
+  EXPECT(said.find("The world x is refused: no zbd/x/gamez.zbd.") != std::string::npos);
+  EXPECT(said.find("The mech bad is refused: ") != std::string::npos);
+  EXPECT(said.find("At this start the game left out the world x: there is no zbd/x/gamez.zbd in the mod.") != std::string::npos);
+  EXPECT(said.find("At this start the game left out the mech bad: ") != std::string::npos);
+  EXPECT(said.find("Nothing in it is refused.") == std::string::npos);
+  // The launcher's list carries them with CHECK.
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"one"}, true, install))
+    EXPECT(e.check_errors == 2 && !e.report.empty() && e.report[0] == "It replaces 1 of the game's files and adds 1 new file.");
+  mech3::mods_left_out().clear();
 }
 
 TEST(mods_loose_zrd_beats_the_archives_entry) {

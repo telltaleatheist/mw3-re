@@ -517,6 +517,40 @@ menu, MODS, BACK: the stack at each step, nothing under the mission, the
 pilots kept until the main menu). The button's place: the bottom left, as
 shown (Owen, 2026-11-09). Left: a live remount.
 
+### Plain errors on the MODS screen (modder step 3, 2026-11-10)
+
+Ours (`upgrades/mods/mod_report`): a mod's `--check-mod` and what this
+start's mount left out of it, as sentences for a player.
+- `mod_check` fills a `ModFindings` when asked: the files it replaces and
+  adds (counted only against an install), the mechs, weapons, worlds,
+  Instant Action worlds and campaigns mod.txt adds, the player's own files
+  ignored, the animation files Pirate's Moon does not read, each error
+  (refused) and warning (a note) as `<what>: <why>`.
+- `mods_mount` records what it left out per mod folder (`mods_left_out`):
+  a mod not found or unusable, a world, campaign, mech, weapon or Instant
+  Action world, with why.
+- `mod_sentences` says them in order: "It replaces 2 of the game's files and
+  adds 1 new file.", "It adds the mech Thor B and the campaign "Long
+  Night".", what is ignored or unread, "The mech Scout is refused: there is
+  a mech Scout already.", "Note: ...", "At this start the game left out the
+  world x: ...", else "Nothing in it is refused."
+- In the game: REPORT, a tab under CAMPAIGNS' box (28,336; the bottom row
+  past x 452 is inside BACK's hit box, so a tab there also leaves the
+  screen), shows the chosen mod's or campaign's mod's sentences in that box,
+  wrapped to 34 characters, with the count refused under DETAILS; REPORT or
+  BACK goes back to the tables, ENTER does nothing there.
+- In the launcher: CHECK with a mod chosen opens its report on a page of its
+  own (`<`, `>`, BACK to MODS). A Pirate's Moon mod's comes from
+  `mw3pm --mod-report <folder> --install <PM's install>`, PM's own readers;
+  `--mod-report` is a file-only flag (no SDL, no write dir, no log), so the
+  player's folder and log are untouched.
+
+Tests: `mods_report_says_what_a_mod_does_in_sentences` (the sentences, the
+wrap, a mod checked and mounted), `mods_screen_report_shows_a_mods_sentences_headless`
+(REPORT, ENTER ignored, BACK to the tables, then out) and
+`sdl_program_launcher_mod_report_in_sentences` (MW3's from the check, PM's
+from mw3pm's answer, BACK to MODS).
+
 ### ADD MOD (2026-11-09; IMPORT since the evening)
 
 Ours (`mod_install`, the MODS screen's IMPORT, EXPORT, ADD FOLDER and MODS
@@ -1491,7 +1525,7 @@ animations come from point 2 of "Animations a def at a time".
      with its type, default and limits, built from the code so it stays right.
   3. **Plain errors on the MODS screen**: `--check-mod`'s findings and the mount log as
      sentences per mod (what it replaces or adds, what is refused and why), instead of
-     a crash or silence.
+     a crash or silence. Built 2026-11-10 (above, Plain errors on the MODS screen).
   4. **Quick testing**: a "test this mod" start straight into a chosen mission with the
      mod on; later, weapon and mech values reloaded while the game runs.
   5. **Starter mods and guides**: one small example of each kind (a mech variant, a

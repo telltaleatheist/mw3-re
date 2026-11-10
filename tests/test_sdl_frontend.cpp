@@ -4883,6 +4883,67 @@ TEST(sdl_program_launcher_mods_on_pirates_moon) {
   fs::remove_all(root, ec);
 }
 
+// CHECK with a mod chosen (modding.md, Plain errors on the MODS screen): its
+// report on a page of its own, in sentences; MechWarrior 3's from this
+// program's check, Pirate's Moon's from mw3pm --mod-report (a stand-in here
+// that says its arguments), BACK to MODS.
+TEST(sdl_program_launcher_mod_report_in_sentences) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path pm_game = fs::path(MW3_GAME_DIR).parent_path() / "pm";
+  if (!fs::is_regular_file(pm_game / "Mech3.exe", ec)) return;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "launcher mod report";
+  fs::remove_all(root, ec);
+  const auto put = [&](const fs::path& p, const std::string& t) {
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream(p) << t;
+  };
+  put(root / "wd" / "mw3.cfg", "install=" + std::string(MW3_GAME_DIR) + "\npm_install=" + pm_game.string() + "\nmod=one\n");
+  put(root / "wd" / "mods" / "one" / "mod.txt", "name=One\nfor=mw3\nmech=bad\n");
+  put(root / "pmwd" / "mods" / "pmmod" / "mod.txt", "name=Corsair Pack\nfor=mw3pm\n");
+  const std::string pm = (root / "mw3pm").string();
+  put(pm, "#!/bin/sh\necho 'It adds the mech Corsair.'\necho \"args: $1 $3 $4\"\nexit 0\n");
+  fs::permissions(pm, fs::perms::owner_all, ec);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  setenv("MW3_PM_WRITE_DIR", (root / "pmwd").c_str(), 1);
+  setenv("MW3_LAUNCHER_FRAMES", "40", 1);
+  auto run = [&](const char* name, const char* mods, const std::string& nav) {
+    if (mods) setenv("MW3_LAUNCHER_MODS", mods, 1);
+    setenv("MW3_LAUNCHER_NAV", nav.c_str(), 1);
+    const std::string log = (root / (std::string(name) + ".log")).string();
+    const pid_t pid = spawn_launcher({"--write-dir", (root / "wd").string(), "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    unsetenv("MW3_LAUNCHER_MODS");
+    unsetenv("MW3_LAUNCHER_NAV");
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const auto nexts = [](int n) {
+    std::string s;
+    for (int i = 0; i < n; ++i) s += "next,";
+    return s;
+  };
+  // MW3's: MODS, its row chosen (and turned off), CHECK (from the end: BACK, then CHECK, < and > being off, wherever the
+  // row's press leaves the focus), Escape back to MODS.
+  std::string log = run("mw3", nullptr, nexts(4) + "press," + "next,press,prev,prev,press,back");
+  for (size_t at = 0; (at = log.find("mod report: ", at)) != std::string::npos; ++at)
+    std::printf("  %s\n", log.substr(at, log.find('\n', at) - at).c_str());
+  EXPECT(log.find("screen report: <, >, BACK\n") != std::string::npos);
+  EXPECT(log.find("mod report: The mech bad is refused: ") != std::string::npos);
+  EXPECT(log.find("mod report: Nothing in it is refused.") == std::string::npos);
+  EXPECT(log.rfind("screen mods: ") > log.find("screen report: "));  // BACK: MODS again
+  // PM's: its row chosen, CHECK as above: mw3pm's answer.
+  log = run("pm", "pm", "next,press,prev,prev,press");
+  for (size_t at = 0; (at = log.find("mod report: ", at)) != std::string::npos; ++at)
+    std::printf("  %s\n", log.substr(at, log.find('\n', at) - at).c_str());
+  EXPECT(log.find("mod report: It adds the mech Corsair.") != std::string::npos);
+  const size_t args = log.find("mod report: args: --mod-report --install");  // the folder may wrap to the next line
+  EXPECT(args != std::string::npos && log.find(pm_game.filename().string(), args) != std::string::npos);
+  for (const char* k : {"MW3_PM_BIN", "MW3_PM_WRITE_DIR", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);
+  fs::remove_all(root, ec);
+}
+
 // GAME FILES (Owen, 2026-11-02): the find screen at any time, by keys or a
 // pad as by the mouse (MW3_LAUNCHER_NAV); with the install in use lacking
 // its music, ADD FROM MY DISC there too. A repick to a copy used where it

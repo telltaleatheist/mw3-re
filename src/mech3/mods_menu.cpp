@@ -11,6 +11,7 @@
 #include "mech3/mainmenu.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mod_install.h"
+#include "upgrades/mods/mod_report.h"
 #include "upgrades/mods/mod_export.h"
 
 namespace mech3 {
@@ -190,6 +191,7 @@ void ModsList::select(int32_t index) {
 }
 
 namespace {
+constexpr size_t kReportWidth = 34;  // REPORT's characters a row in the campaigns' box (main_darkgreen)
 // The render target from zVideo's buffers (0x00558290), as the other menus'.
 void target_buffers(Engine& e) {
   const Handle a = e.video_back_buffer();
@@ -250,6 +252,7 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
       export_btn(e, kExport),
       add_folder_btn(e, kAddFolder),
       folder_btn(e, kOpenFolder),
+      report_btn(e, kReport),
       campaign_list(e, kCampaigns),
       mod_list(e, kMods) {
   target_buffers(e);
@@ -289,6 +292,7 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
     bind_button(&export_btn, "EXPORTMOD");
     bind_button(&add_folder_btn, "ADDFOLDER");
     bind_button(&folder_btn, "MODSFOLDER");
+    bind_button(&report_btn, "REPORTMOD");
     unload();
   }
   // The details in PILOT ENTRY's box, the notes under the MODS table.
@@ -329,6 +333,7 @@ void ModsScreen::refill() {
 }
 
 void ModsScreen::show_details() {
+  if (reporting) return;  // REPORT's lines stay until REPORT again
   std::string d, d2, n;
   if (focus == kCampaigns && campaign_list.selected >= 0 &&
       campaign_list.selected < static_cast<int32_t>(tables.campaigns.size())) {
@@ -377,6 +382,7 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
       }
       return;
     case kEnter:
+      if (reporting) return;
       if (editing) edit_start();
       else enter_campaign();
       return;
@@ -424,9 +430,18 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
       return;
     }
     case kEditor:
+      if (reporting) report();
       edit();
       return;
+    case kReport:
+      if (editing) edit();
+      report();
+      return;
     case kBack:
+      if (reporting) {
+        report();  // back to the tables first
+        return;
+      }
       if (editing) {
         edit();  // back to the tables first
         return;
@@ -476,6 +491,46 @@ void ModsScreen::enter_campaign() {
   Engine& e = engine();
   e.pop_state(0);
   e.push_state(e.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
+}
+
+// REPORT (ours; modding.md, Plain errors on the MODS screen): the chosen
+// mod's check and this start's mount as sentences in the campaigns' box
+// (mod_report.h), wrapped to its width; REPORT or BACK goes back.
+void ModsScreen::report() {
+  if (reporting) {
+    reporting = false;
+    refill();
+    return;
+  }
+  std::string folder, name;
+  if (focus == kCampaigns && campaign_list.selected >= 0 &&
+      campaign_list.selected < static_cast<int32_t>(tables.campaigns.size())) {
+    const ModsCampaignRow& c = tables.campaigns[static_cast<size_t>(campaign_list.selected)];
+    folder = c.mod, name = c.name;
+  } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(tables.mods.size())) {
+    const ModsListEntry& m = tables.mods[static_cast<size_t>(mod_list.selected)];
+    folder = m.info.folder, name = m.info.name.empty() ? m.info.folder : m.info.name;
+  }
+  std::string path;
+  for (const ModInfo& i : mods_found(mods_menu_write_dir()))
+    if (i.folder == folder) path = i.path;
+  if (path.empty()) {
+    say(note, "Choose a mod or a custom campaign for its report.");
+    return;
+  }
+  int refused = 0;
+  std::vector<std::string> lines;
+  for (const std::string& s : mod_report(path, mods_menu_install(), folder, &refused))
+    for (const std::string& l : mod_report_wrap(s, kReportWidth)) lines.push_back(l);
+  reporting = true;
+  campaign_list.clear_items();
+  for (size_t i = 0; i < lines.size(); ++i) campaign_list.add_item(lines[i].c_str(), static_cast<int32_t>(i));
+  campaign_list.layout();
+  focus = kCampaigns;
+  say(detail, "REPORT " + name);
+  say(detail2, refused ? std::to_string(refused) + (refused == 1 ? " thing" : " things") + " the game would refuse" : "nothing refused");
+  say(note, "REPORT or BACK goes back to the tables.");
+  std::printf("mw3: mods: report on %s: %zu lines\n", folder.c_str(), lines.size());
 }
 
 // EDITOR (ours; editor.md, The way in from MODS): the selected campaign's

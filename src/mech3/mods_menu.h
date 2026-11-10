@@ -67,7 +67,7 @@ class ModsList : public FileList {
 
 class ModsScreen : public MenuScreen {
  public:
-  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport };
+  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport, kReport };
   ModsScreen(Engine& e, Handle state);
   void update(float dt) override;    // a picked mod taken in
   ~ModsScreen() override;
@@ -80,10 +80,11 @@ class ModsScreen : public MenuScreen {
   void enter_campaign();             // ENTER
   void edit();                       // EDITOR (ours): the selected mod's or campaign's missions, or back
   void edit_start();                 // ENTER while editing: the chosen mission in the editor
+  void report();                     // REPORT (ours, upgrades/mods/mod_report.h): the chosen mod's sentences, or back
 
   SlideButton enter, back;           // ENTER, BACK
   ShellButton toggle, up, down, editor;  // ON/OFF, UP, DOWN, EDITOR
-  ShellButton add_btn, export_btn, add_folder_btn, folder_btn;  // IMPORT, EXPORT, ADD FOLDER, MODS FOLDER
+  ShellButton add_btn, export_btn, add_folder_btn, folder_btn, report_btn;  // IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, REPORT
   ModsList campaign_list, mod_list;
   ztwod::Image lines{0}, lines2{0};
   zimg::Texture* own_lines = nullptr;  // LINES2 with the CAMPAIGNS box (ours, released with the screen)
@@ -97,6 +98,7 @@ class ModsScreen : public MenuScreen {
   bool editing = false;              // EDIT's list in CUSTOM CAMPAIGNS' box
   std::string edit_mod;              // its mod's folder
   std::vector<ModsEditRow> edit_rows;
+  bool reporting = false;            // REPORT's sentences in CUSTOM CAMPAIGNS' box
 };
 
 // "Mods State" (ours): the screen made on entering, let go on leaving, as
