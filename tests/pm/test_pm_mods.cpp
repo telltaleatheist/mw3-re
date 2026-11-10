@@ -188,7 +188,9 @@ Played play_c1m1(int32_t mech, int frames, bool network = false, size_t* turrets
     pump.stop = [&] { return out.frames >= frames; };
     app.run(pump);
     if (network) engine.network_set(0);
-    mech3::missions().cleanup(false);
+    // The world unloaded (0x00490480) as the game does before another world: a
+    // second launch in the process then starts from no world, not beside this one.
+    mech3::missions().cleanup(true);
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
