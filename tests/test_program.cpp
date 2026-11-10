@@ -138,6 +138,7 @@
 #include "mech3/game_editor_net.h"
 #include "mech3/game_editor_tree.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/mods/mod_test.h"
 #include "mech3/mech_reader.h"
 #include "upgrades/reference/reference.h"
 #include "mech3/game_editor_vehicles.h"
@@ -1562,7 +1563,7 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
     mech3::States& st = mech3::states();
     int stage = 0, core = 0;
     std::string listed, no_edit_note;
-    bool test_mode = false, switched = false, played = false, editor_closed = false, mods_again = false;
+    bool test_mode = false, switched = false, played = false, editor_closed = false, mods_again = false, reloaded = false;
     uint32_t real_pilot = 0, pilot_after = 0;
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
@@ -1587,7 +1588,9 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
         scr->on_button(mech3::ModsScreen::kTest, 0, 0);
         for (size_t i = 0; i < scr->edit_rows.size(); ++i)
           if (scr->edit_rows[i].world == "c2" && scr->edit_rows[i].number == 1) scr->campaign_list.FileList::select(int32_t(i));
+        const int32_t reloads = mech3::mod_test_reloads();
         scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+        reloaded = mech3::mod_test_reloads() == reloads + 1;  // the mechs' definitions read again (mod_test.h)
         stage = 2;
       } else if (stage == 2 && now == &st.core) {
         ++core;
@@ -1614,7 +1617,7 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
                 stage, listed.c_str(), no_edit_note.c_str(), played, editor_closed, mods_again, pilot_after == real_pilot);
     EXPECT(test_mode && listed.rfind("c1 1; c1 2; c1 3; c1 4; c2 1;", 0) == 0 && listed.find("c4b ") != std::string::npos);
     EXPECT(switched && no_edit_note.find("no missions to edit") != std::string::npos);
-    EXPECT(played && editor_closed);
+    EXPECT(played && editor_closed && reloaded);
     EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
     mech3::missions().cleanup(false);
     app.stop_game();

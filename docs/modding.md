@@ -924,6 +924,33 @@ QUIT lands on MODS, the pilot back). Breaks caught: the game's missions left
 out, the editor opened, MODS not reopened. A `--click-at` shot (MODS, the
 mod, the tab at 130,344) shows TEST's list with only TEST fired.
 
+**Values read again between TESTs** (part 2, 2026-11-10): edit a mod's
+files, QUIT to MODS, TEST again; no restart.
+- Weapons: weapons.zrd (a mod's loose text or its archive) is read with the
+  world (0x00583880 from the world load 0x0048faf0), which keeps a world
+  already up and loads any other afresh. The pause's QUIT unloads the world
+  (0x00490480: its `current` is -1 back on MODS, checked in the headless
+  test's run), so every TEST loads it, and the file as it is then, again.
+- Mechs: a mech's dfn is read once per run (0x004846a0's cache). TEST's
+  start lets every cached definition go (`mod_test_reload`, 0x004844b0's
+  loop: each one's saved loadouts written first, as at the game's exit), so
+  the mission reads them again. Nothing keeps a definition across a mission:
+  every user asks `mech_dfn` (or its handle) when it needs one, and the
+  `Config`s that come from a definition's list (a mission's mechs, the
+  launch's first loadout) live only in that mission; a pilot's slots hold
+  copies.
+- Not reloaded: mod.txt's `mech=` and `weapon=` rows (the row tables are
+  made at the start), models, textures and sounds. In a running mission
+  nothing is reloaded: the weapons' definitions are held by pointer with
+  their effects and shots in flight (one ported reader makes both).
+
+Test: `mods_test_reads_edited_weapons_and_mechs_again` (a mod's loose
+weapons.zrd and dfn_madcat.zrd: the first TEST reads 1234.5 and 0.77; after
+the edit a load without TEST's reload has the new velocity and the old
+accel_rate; TEST again has both new), and the headless TEST test checks the
+start calls it. Breaks caught: the definitions not let go, the start not
+calling it.
+
 ## Readable files read directly (modder-friendly step 1, begun 2026-11-09)
 
 A modder edits a reader entry as text and runs, without repacking reader.zbd.

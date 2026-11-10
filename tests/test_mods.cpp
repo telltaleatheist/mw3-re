@@ -46,6 +46,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/pilot.h"
 #include "mech3/mech_reader.h"
+#include "upgrades/mods/mod_test.h"
 #include "upgrades/mods/save_mods.h"
 
 namespace {
@@ -344,6 +345,91 @@ TEST(mods_loose_weapons_zrd_read_directly) {
   EXPECT(why("(A \"x\n\ny)\n") == "line 1: a quote never closed");
   EXPECT(why("(A 1\n(B 2\n") == "line 1: a '(' never closed");  // the outer one
   EXPECT(why("; (not counted\n(A 1) ; ) nor this\n") == "");
+  zwep::init_hooks() = hooks;
+}
+
+// Quick testing (modding.md): between two TESTs a modder edits a mod's loose weapons.zrd and a mech's dfn; the
+// next TEST reads both: weapons.zrd at every mission load (zwep's init), the dfn once TEST's start has let the
+// cached definitions go (mod_test_reload). Without it the mech keeps the value read first.
+TEST(mods_test_reads_edited_weapons_and_mechs_again) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/reader.zbd", ec)) return;
+  SavedMounts keep;
+  const zwep::InitHooks hooks = zwep::init_hooks();
+  zwep::init_hooks() = zwep::InitHooks{};
+  const std::string wd = tmp("mods_test_reload");
+  const std::string mech = mech3::mech_name(9), dfn_file = "dfn_" + mech + ".zrd";
+  // The shipped texts, to edit.
+  zrdr::init();
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  zutl::mount(install);
+  EXPECT(zrdr::open_archive("zbd\\reader.zbd", true));
+  zrdr::Node* weapons = zrdr::load("weapons.zrd");
+  zrdr::Node* dfn = zrdr::load(dfn_file.c_str());
+  EXPECT(weapons && dfn);
+  const auto edited = [&](float velocity, float accel) {
+    if (zrdr::Node* v = weapons ? zrdr::find(zrdr::find(weapons, "PPC"), "VELOCITY") : nullptr)
+      if (v->type == zrdr::List && v->list[0].i > 1) v->list[1].f = velocity;
+    if (zrdr::Node* a = dfn ? zrdr::find(dfn, "accel_rate") : nullptr) {
+      if (a->type == zrdr::List && a->list[0].i > 1) a = &a->list[1];
+      a->type = zrdr::Float, a->f = accel;
+    }
+    std::string w, d;
+    for (int i = 1; weapons && i < weapons->list[0].i; ++i) w += zrd_text(weapons->list[i]) + "\n";
+    for (int i = 1; dfn && i < dfn->list[0].i; ++i) d += zrd_text(dfn->list[i]) + "\n";
+    put(wd + "/mods/tune/zbd/weapons.zrd", w);
+    put(wd + "/mods/tune/zbd/" + dfn_file, d);
+  };
+  put(wd + "/mods/tune/mod.txt", "name=Tune\n");
+  edited(1234.5f, 0.77f);
+  zrdr::close_archives(true);
+  // One run's mounts; each "mission load" the weapons read as the mission does.
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"tune"}, {install});
+  zutl::mount(install);
+  zrdr::init();
+  zrdr::open_archive("zbd\\reader.zbd", true);
+  const auto mission = [&](float* velocity, float* accel) {
+    *velocity = -1, *accel = -1;
+    zwep::init(nullptr, "weapons.zrd", 0, nullptr);
+    if (const zwep::WeaponDef* d = zwep::find_def("PPC")) *velocity = d->velocity;
+    zwep::shutdown(nullptr);
+    if (mech3::MechDfn* m = mech3::mech_dfn(9); m && mech3::read_dfn(*m) && m->configs && !m->configs->configs.empty())
+      *accel = m->configs->configs[0]->accel_rate;  // the head's accel_rate, in each loadout
+  };
+  float v1, a1, v2, a2, v3, a3;
+  mech3::mod_test_reload();  // TEST
+  mission(&v1, &a1);
+  // The modder's second edit (the trees are the shipped ones, edited again).
+  zrdr::close_archives(true);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(install);
+  zrdr::init();
+  zrdr::open_archive("zbd\\reader.zbd", true);
+  zrdr::free_node(weapons), zrdr::free_node(dfn);
+  weapons = zrdr::load("weapons.zrd"), dfn = zrdr::load(dfn_file.c_str());
+  edited(2345.5f, 0.88f);
+  zrdr::close_archives(true);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"tune"}, {install});
+  zutl::mount(install);
+  zrdr::init();
+  zrdr::open_archive("zbd\\reader.zbd", true);
+  mission(&v2, &a2);           // a mission without TEST's reload: the mech as first read
+  mech3::mod_test_reload();    // TEST again
+  mission(&v3, &a3);
+  std::printf("  first TEST: PPC velocity %.1f, %s accel %.2f; edited, no reload: %.1f, %.2f; TEST again: %.1f, %.2f\n", v1,
+              mech.c_str(), a1, v2, a2, v3, a3);
+  EXPECT(v1 == 1234.5f && a1 == 0.77f);
+  EXPECT(v2 == 2345.5f && a2 == 0.77f);  // the weapons read at the load, the mech cached
+  EXPECT(v3 == 2345.5f && a3 == 0.88f);
+  zrdr::free_node(weapons), zrdr::free_node(dfn);
+  mech3::mod_test_reload();  // the edited mech let go
+  zrdr::close_archives(true);
   zwep::init_hooks() = hooks;
 }
 
