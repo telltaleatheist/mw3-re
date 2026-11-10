@@ -901,6 +901,15 @@ TEST(mods_needs_warn_never_block) {
                                      mech3::mods_row_note(e, on).rfind("It needs Green HUD", 0) == 0);
     if (e.info.folder == "red") EXPECT((e.needs == std::vector<std::string>{"It conflicts with X, which is on."}));
   }
+  // A Pirate's Moon mod (the launcher's MODS on PM): against mw3pm's own version, named for that game.
+  const std::string game = mech3::mods_game();
+  mech3::mods_game() = "mw3pm";
+  put(wd + "/mods/pmx/mod.txt", "name=PMX\nfor=mw3pm\ngame_version=1.0.9\n");
+  mech3::mods_program_version() = "pm-v1.0.2";
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"pmx"}))
+    if (e.info.folder == "pmx")
+      EXPECT((e.needs == std::vector<std::string>{"It needs Pirate's Moon Rebuild 1.0.9 or later; this is 1.0.2."}));
+  mech3::mods_game() = game;
   mech3::mods_program_version() = "";  // unknown: game_version= not checked
   for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"x"}))
     if (e.info.folder == "x") EXPECT(std::none_of(e.needs.begin(), e.needs.end(), [](const std::string& w) { return w.find("Rebuild") != std::string::npos; }));
