@@ -215,8 +215,15 @@ TEST(pm_menus_take_a_picked_mode_at_once_headless) {
   struct Seen {
     bool to_main = false;
     int32_t width = 0, mode = 0, saved = 0;
+    // At the main menu: the stack's depth, whether the main menu's state is its bottom, the screens and
+    // menu objects alive (each change frees the old ones: the main menu's state is replaced by itself).
+    int depth = -1;
+    bool bottom_is_main = false;
+    size_t screens = 0, objects = 0;
   };
-  const int32_t picks[] = {13, 13, 5};
+  std::vector<int32_t> picks = {13, 13, 5};
+  for (int i = 0; i < 10; ++i) picks.push_back(13), picks.push_back(5);  // twenty more changes in a row
+  Seen start;
   std::vector<Seen> seen;
   int32_t width0 = 0, mode0 = 0;
   enum { kMain, kOptions, kPage, kAfter, kDone } stage = kMain;
@@ -239,12 +246,14 @@ TEST(pm_menus_take_a_picked_mode_at_once_headless) {
       if (app.pending()) return;
       if (stage == kMain && at_main) {
         cur.width = engine.buffer_width(), cur.mode = engine.vmode(), cur.saved = mech3::options().in_game_vmode;
+        cur.depth = app.depth(), cur.bottom_is_main = app.stack(0) == &mech3::states().main;
+        cur.screens = engine.open_screens(), cur.objects = engine.menu_objects();
         mech3::main_menu()->buttons[mech3::MainMenuButton::kOptions].on_left_up();
         stage = kOptions;
       } else if (stage == kOptions && game) {  // OPTIONS opens on the menus as they are now
-        if (first) width0 = cur.width, mode0 = cur.mode, first = false;
+        if (first) width0 = cur.width, mode0 = cur.mode, start = cur, first = false;
         else seen.push_back(cur);
-        if (seen.size() == std::size(picks)) return void(stage = kDone);
+        if (seen.size() == picks.size()) return void(stage = kDone);
         cur = Seen{};
         game->gfx_audio.on_left_up();
         stage = kPage;
@@ -265,7 +274,7 @@ TEST(pm_menus_take_a_picked_mode_at_once_headless) {
       }
     };
     Pump pump;
-    pump.limit = 3000;
+    pump.limit = 9000;
     pump.stop = [&] { return stage == kDone; };
     app.run(pump);
     app.stop_game();
@@ -277,11 +286,20 @@ TEST(pm_menus_take_a_picked_mode_at_once_headless) {
   mech3::reset_states();
   mech3::options() = mech3::Options{};
   std::printf("  PM's menus at the start: canvas %d, mode %d\n", width0, mode0);
-  for (size_t i = 0; i < seen.size(); ++i)
+  for (size_t i = 0; i < seen.size() && i < 3; ++i)
     std::printf("  after %d: %s, canvas %d, mode %d (saved %d)\n", picks[i], seen[i].to_main ? "the main menu made again" : "back in OPTIONS",
                 seen[i].width, seen[i].mode, seen[i].saved);
-  EXPECT(stage == kDone && width0 == 640 && mode0 == 5 && seen.size() == std::size(picks));
-  if (seen.size() != std::size(picks)) return;
+  EXPECT(stage == kDone && width0 == 640 && mode0 == 5 && seen.size() == picks.size());
+  if (seen.size() != picks.size()) return;
+  // The main menu's state alone on the stack after every step, the screens and menu objects as many as at the start.
+  std::printf("  at the start: depth %d, %zu screens, %zu menu objects; after %zu steps: depth %d, %zu screens, %zu menu objects\n", start.depth,
+              start.screens, start.objects, seen.size(), seen.back().depth, seen.back().screens, seen.back().objects);
+  EXPECT(start.depth == 0 && start.bottom_is_main && start.screens > 0 && start.objects > 0);
+  int deep = 0, grown = 0;
+  for (const Seen& r : seen) deep += r.depth != 0 || !r.bottom_is_main, grown += r.screens != start.screens || r.objects != start.objects;
+  EXPECT(deep == 0 && grown == 0);
+  for (size_t i = 3; i + 1 < seen.size(); i += 2)
+    EXPECT(seen[i].to_main && seen[i].width == 853 && seen[i].mode == 13 && seen[i + 1].to_main && seen[i + 1].width == 640 && seen[i + 1].mode == 5);
   EXPECT(seen[0].to_main && seen[0].width == 853 && seen[0].mode == 13 && seen[0].saved == 13);   // 4:3 to 16:9
   EXPECT(!seen[1].to_main && seen[1].width == 853 && seen[1].mode == 13 && seen[1].saved == 13);  // the same again
   EXPECT(seen[2].to_main && seen[2].width == 640 && seen[2].mode == 5 && seen[2].saved == 5);     // 16:9 to 4:3
