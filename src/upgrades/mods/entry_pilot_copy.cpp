@@ -119,14 +119,21 @@ PilotCopy entry_copy_pilot(const std::string& write_dir, const std::string& name
         ++r.configs_kept;  // the entry's own loadouts for that mech stay
         continue;
       }
-      with_rows(fs::path(write_dir) / "configs" / f, fs::path(configs_dir) / f);
+      // Anything of that mech's already there (a .rows without its file, a folder of the name):
+      // that one loadout is left out, never the pilot's copy refused for it.
+      const fs::path to_file = fs::path(configs_dir) / f, to_rows = to_file.string() + ".rows";
+      if (fs::exists(fs::symlink_status(to_file, ec)) || fs::exists(fs::symlink_status(to_rows, ec))) {
+        ++r.configs_skipped;
+        continue;
+      }
+      with_rows(fs::path(write_dir) / "configs" / f, to_file);
     }
   }
   Made made;
   for (const auto& [a, b] : jobs) {
     if (made.folder(b.parent_path()) && made.copy(a, b)) continue;
     made.undo();
-    r.configs_kept = 0;
+    r.configs_kept = r.configs_skipped = 0;
     return refuse("could not copy " + a.filename().string() + " into " + b.parent_path().generic_string() + "; nothing was copied");
   }
   for (const fs::path& f : made.files) r.copied.push_back(f.string());

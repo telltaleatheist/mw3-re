@@ -15,6 +15,7 @@ struct PilotCopy {
   std::string why;                  // when not ok, for the player
   std::vector<std::string> copied;  // the files made, as full paths (none left when not ok)
   int configs_kept = 0;             // loadout files the entry already had: left as they were
+  int configs_skipped = 0;          // loadouts left out because something of that name was in the way there
 };
 
 // The main menu's pilots that can be copied: the names of <write dir>/pilots/*.mw3, sorted.
@@ -27,7 +28,10 @@ std::vector<std::string> main_menu_pilots(const std::string& write_dir);
 // one without the marker is refused) and `configs_dir` its loadouts' folder
 // (empty: no loadouts copied). Refused, with nothing written: a name that is
 // not a plain file name, no such pilot, a pilot or a saved game of that name
-// already in the entry (in any letter case).
+// already in the entry (in any letter case). The loadouts are not so strict:
+// a mech's file the entry has is kept, and one whose place is taken by a stray
+// file (its .rows without it, a folder of its name) is skipped; the pilot's
+// copy goes on without it.
 PilotCopy entry_copy_pilot(const std::string& write_dir, const std::string& name, const std::string& entry_dir,
                            const std::string& configs_dir);
 

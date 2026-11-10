@@ -127,29 +127,59 @@ TEST(entry_pilot_copy_refuses_and_writes_nothing) {
   EXPECT(snapshot(fs::path(l.wd) / "pilots") == pilots_before);
 }
 
-// A copy that cannot finish (a loadout's .rows meets a folder of that name in
-// the entry) removes the files and folders it made, and nothing else.
+// A copy of the pilot's own files that cannot finish (a save's .rows meets a
+// folder of that name in the entry) removes the files and folders it made,
+// and nothing else: for the pilot and its saves any clash refuses everything.
 TEST(entry_pilot_copy_part_way_leaves_only_what_was_there) {
   const Layout l = layout("pilot_copy_part");
   std::error_code ec;
   put(fs::path(l.entry) / "pilots/Old.mw3", "a pilot the entry had");
-  fs::create_directories(fs::path(l.configs) / "Annihilator.mw3.rows", ec);  // in the way of the last file
-  put(fs::path(l.configs) / "Annihilator.mw3.rows/keep.txt", "the player's");
+  put(fs::path(l.entry) / "pilots/games/Bob0103.mw3.rows/keep.txt", "the player's");  // a folder in the way of the last save's rows
   const auto before = snapshot(l.entry), originals = snapshot(fs::path(l.wd) / "pilots");
   const mech3::PilotCopy r = mech3::entry_copy_pilot(l.wd, "Bob", l.entry, l.configs);
   std::printf("  part-way: %s\n", r.why.c_str());
   EXPECT(!r.ok && r.copied.empty() && r.why.find("nothing was copied") != std::string::npos);
-  EXPECT(snapshot(l.entry) == before);  // Bob's files, saves and the loadouts copied before the failure are gone again
+  EXPECT(snapshot(l.entry) == before);  // Bob's file and the saves copied before the failure are gone again
+  EXPECT(!fs::exists(fs::path(l.entry) / "pilots/Bob.mw3", ec) && !fs::exists(l.configs, ec));
   EXPECT(fs::is_directory(fs::path(l.entry) / "pilots/games", ec) && fs::is_regular_file(fs::path(l.entry) / mech3::kCampaignMarker, ec));
   EXPECT(snapshot(fs::path(l.wd) / "pilots") == originals);
-  // With no entry folders yet but the marker: the folders the call made go too when it fails, and stay when it works.
+#if !defined(_WIN32)
+  // With no pilots folder in the entry yet: the folders the call made go too when it fails (a save
+  // that cannot be read), and stay when it works.
   const Layout m = layout("pilot_copy_fresh");
   fs::remove_all(fs::path(m.entry) / "pilots", ec);  // the test's own folder
-  put(fs::path(m.wd) / "configs/Zeus.mw3", "zeus");
-  fs::create_directories(fs::path(m.configs) / "Zeus.mw3", ec);  // a folder where the last loadout file goes
+  const fs::path save = fs::path(m.wd) / "pilots/games/Bob0103.mw3";
+  fs::permissions(save, fs::perms::none, ec);
+  const bool unreadable = !std::ifstream(save).good();  // (not so for root)
   const mech3::PilotCopy f = mech3::entry_copy_pilot(m.wd, "Bob", m.entry, m.configs);
-  EXPECT(!f.ok && !fs::exists(fs::path(m.entry) / "pilots", ec) && fs::is_directory(fs::path(m.configs) / "Zeus.mw3", ec));
-  fs::remove(fs::path(m.configs) / "Zeus.mw3", ec);
+  fs::permissions(save, fs::perms::owner_read | fs::perms::owner_write, ec);
+  if (unreadable) EXPECT(!f.ok && !fs::exists(fs::path(m.entry) / "pilots", ec) && !fs::exists(m.configs, ec));
+  if (unreadable) EXPECT(text_of(save) == "bob c1 m3");
   const mech3::PilotCopy g = mech3::entry_copy_pilot(m.wd, "Bob", m.entry, m.configs);
-  EXPECT(g.ok && fs::is_regular_file(fs::path(m.entry) / "pilots/games/Bob0102.mw3", ec) && text_of(fs::path(m.configs) / "Zeus.mw3") == "zeus");
+  EXPECT(g.ok && fs::is_regular_file(fs::path(m.entry) / "pilots/games/Bob0103.mw3", ec) && fs::is_regular_file(fs::path(m.configs) / "Bushwacker.mw3", ec));
+#endif
+}
+
+// The loadouts are not so strict (lead, 2026-11-10: a player should not lose
+// the pilot's copy to one stray file among the saved mechs): a mech whose
+// place in the entry is taken by a stray .rows, or by a folder of its name,
+// is skipped and counted; the pilot, its saves and the other loadouts copy.
+TEST(entry_pilot_copy_skips_a_loadout_whose_place_is_taken) {
+  const Layout l = layout("pilot_copy_skip");
+  std::error_code ec;
+  put(fs::path(l.configs) / "Annihilator.mw3.rows", "a stray rows file, its loadouts gone");
+  put(fs::path(l.wd) / "configs/Zeus.mw3", "zeus loadouts");
+  put(fs::path(l.configs) / "Zeus.mw3/keep.txt", "a folder of that name");
+  put(fs::path(l.wd) / "configs/Thor.mw3", "thor loadouts");
+  put(fs::path(l.configs) / "thor.MW3", "the entry's own thor");
+  const mech3::PilotCopy r = mech3::entry_copy_pilot(l.wd, "Bob", l.entry, l.configs);
+  std::printf("  skip: ok %d, %zu copied, %d kept, %d skipped %s\n", r.ok, r.copied.size(), r.configs_kept, r.configs_skipped, r.why.c_str());
+  EXPECT(r.ok && r.configs_skipped == 2 && r.configs_kept == 1 && r.copied.size() == 6);  // the pilot's 5 and the Bushwacker
+  const fs::path e = l.entry;
+  EXPECT(text_of(e / "pilots/Bob.mw3") == "bob's file" && text_of(e / "pilots/games/Bob0103.mw3") == "bob c1 m3");
+  EXPECT(text_of(e / "configs/Bushwacker.mw3") == "bushwacker loadouts");
+  // The stray files as they were; no loadout written beside them.
+  EXPECT(text_of(e / "configs/Annihilator.mw3.rows") == "a stray rows file, its loadouts gone" && !fs::exists(e / "configs/Annihilator.mw3", ec));
+  EXPECT(fs::is_directory(e / "configs/Zeus.mw3", ec) && text_of(e / "configs/Zeus.mw3/keep.txt") == "a folder of that name");
+  EXPECT(text_of(e / "configs/thor.MW3") == "the entry's own thor");
 }
