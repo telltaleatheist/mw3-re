@@ -524,3 +524,45 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
 - The working title ("MW3 REBUILD" on the title art) and the font: Owen's.
 - The calls are Mw3 dev's `mech3::setup` (game_setup.h, mac4/setup-api).
 - Once the GUI-subsystem build lands, mw3.log is the only console.
+
+## Updates (planned 2026-11-10; Owen 2026-11-09, no signing)
+
+CHECK FOR UPDATES in the launcher, the same flow on all three platforms, never
+the settings folders (MW3's, PM's, or where their pointers lead): only the
+program files are replaced.
+
+1. **Check**: GitHub's releases API, the latest release
+   (`api.github.com/repos/telltaleatheist/mw3-re/releases/latest`; the
+   packages are marked Latest, `pm-v*` game releases are not), its tag
+   compared with the launcher's own (`MW3_VERSION`, numbers part by part; a
+   build between releases counts as its last release). Fetched with the
+   system's `curl` (macOS, Linux, and Windows 10 1803+ ship it: no new
+   library, and its HTTPS is the system's), run as a child with no shell, a
+   time limit and its output read back; a small JSON reader for the four
+   fields needed (`tag_name`, `body`, `assets[].name`,
+   `assets[].browser_download_url`). `MW3_UPDATE_API` names another URL for
+   checks (a `file://` JSON). Tests: newer, same, older, a dev build, no
+   network, a broken answer: each said in plain words.
+2. **The notes and the question**: an UPDATE screen with the release's notes
+   (its body, wrapped and paged, the markdown's `#` and `-` shown plainly),
+   "Download and install MechWarrior 3 Rebuild 1.2.0?", DOWNLOAD AND
+   INSTALL and NOT NOW. Tests: the screen's text from a fixture release.
+3. **The download and its check**: the platform's asset (the
+   `-win64-Setup.exe`, the `-mac.dmg`, the `-x86_64.AppImage`) and the
+   release's `SHA256SUMS`, over HTTPS by curl into the system's temp folder,
+   with the bar and CANCEL; the asset's SHA-256 (patch_import's) against its
+   line. A mismatch, a missing line or a cut download installs nothing and
+   says so. Tests: good, wrong sum, no sums file, cancelled, cut short.
+4. **The install, each platform's normal way**: Windows runs the new Setup
+   (Inno Setup, the same AppId, upgrading in place; the launcher quits
+   first); the Mac replaces the whole app (the downloaded DMG attached with
+   `hdiutil`, the new app copied beside the old one, swapped in, the old one
+   removed only once the new one is in place, the DMG detached); Linux swaps
+   the AppImage (`$APPIMAGE`: the new one written beside it, made executable,
+   renamed over it). Then the new launcher is started and this one quits.
+   Tests: the Mac and Linux swaps on scratch copies (a bundle, an AppImage
+   file), a failure part way leaving the old program working; Windows
+   compile-checked with the mingw build and played on Owen's PC.
+5. **Owen's hard rule, checked**: the upgrade test (`sdl_program_package_upgrade_keeps_the_players_files`)
+   run through the updater's own swap, the settings folders unchanged by
+   hash.
