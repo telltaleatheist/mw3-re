@@ -45,6 +45,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/pilot.h"
 #include "mech3/mech_reader.h"
+#include "upgrades/mods/save_mods.h"
 
 namespace {
 namespace fs = std::filesystem;
@@ -2390,4 +2391,59 @@ TEST(reference_json_forms_keys_are_the_readers) {
     EXPECT(missing.empty() && dead.empty() && !read.empty());
   }
   EXPECT(forms == 4);
+}
+
+// The save's mods (docs/modding.md, The save's mods): a game saved with a gameplay mod holds "Mods/identity",
+// one saved without holds no such entry (the original's file); the load says when the running mods differ,
+// once, and nothing when they match or no game was read.
+TEST(mods_saved_game_records_its_mods) {
+  const std::string wd = tmp("mods_save_identity");
+  put(wd + "/mods/world/mod.txt", "name=World\n");
+  put(wd + "/mods/world/zbd/c1/gamez.zbd", "world");
+  put(wd + "/mods/world2/mod.txt", "name=World 2\n");
+  put(wd + "/mods/world2/zbd/c1/gamez.zbd", "other world");
+  put(wd + "/mods/tex/mod.txt", "name=Textures\n");
+  put(wd + "/mods/tex/zbd/rmechtex.zbd", "pixels");
+  const mech3::ModsIdentity keep = mech3::mods_identity();
+  const bool had = zsave::manager() != nullptr;
+  if (!had) zsave::init();
+  mech3::save_mods_register();
+  const auto saved = [&](const std::vector<std::string>& mods, const std::string& name) {
+    mech3::mods_identity_set(wd, mods);
+    const std::string path = wd + "/" + name;
+    EXPECT(zsave::save(path.c_str(), 2));
+    return path;
+  };
+  const auto loaded = [&](const std::string& path, const std::vector<std::string>& mods) {
+    mech3::mods_identity_set(wd, mods);
+    mech3::save_mods_begin_load();
+    EXPECT(zsave::load(path.c_str(), 2));
+    return mech3::save_mods_note();
+  };
+  const auto has_entry = [](const std::string& path) {
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    const bool ok = zutl_zar::open(a, path.c_str()) && zutl_zar::find(a, "Mods/identity") >= 0;
+    zutl_zar::close(a);
+    zutl_zar::destroy(a);
+    return ok;
+  };
+  const std::string plain = saved({}, "plain.mw3"), looks = saved({"tex"}, "looks.mw3"), world = saved({"world"}, "world.mw3");
+  EXPECT(!has_entry(plain) && !has_entry(looks) && has_entry(world));  // looks only: not gameplay, the original's file
+  EXPECT(loaded(world, {"world"}).empty() && loaded(plain, {}).empty() && loaded(looks, {"tex"}).empty());
+  EXPECT(loaded(plain, {"tex"}).empty());
+  const std::string a = loaded(world, {"world2"}), b = loaded(world, {}), c = loaded(plain, {"world"});
+  std::printf("  %s\n  %s\n  %s\n", a.c_str(), b.c_str(), c.c_str());
+  EXPECT(a == "Saved with other mods: World; now World 2");
+  EXPECT(b == "Saved with mods: World; none now");
+  EXPECT(c == "Saved without mods; now with World");
+  EXPECT(mech3::save_mods_note().empty());  // said once
+  // The entry's text read back; a stray line passed over, none read as none.
+  mech3::ModsIdentity id;
+  id.hash = 0x0123456789abcdefull, id.names = {"A mod", "B"};
+  const mech3::ModsIdentity r = mech3::save_mods_parse(mech3::save_mods_text(id) + "later 1\r\n");
+  EXPECT(r.hash == id.hash && r.names == id.names);
+  EXPECT(mech3::save_mods_parse("junk\n").hash == 0);
+  if (!had) zsave::shutdown();
+  mech3::mods_identity() = keep;
 }
