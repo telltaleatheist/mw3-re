@@ -4298,6 +4298,22 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **Pirate's Moon has its own teleport spots too.** Its worlds' reader.zbd
+  files hold location.zrd lists for the same hidden teleport tool:
+  - c1: Start, Allied Camp, Star League, Pirate Base, RadarDish1,
+    RadarDish2, sbridge_n, sbridge_s, mp_bridge;
+  - c2: Enemy Camp, Neutral Camp, Germanium Camp, Portal Wall;
+  - c3: Ruins, Pirate_landing;
+  - c4: Base1, Base2, Pirate1, Pirate2, miningcamp1, miningcamp2,
+    Drill Rig 2, waterfall.
+  The tool was fixed for the expansion. MechWarrior 3's wrote the mission's
+  nav points into the file on every save, so they showed twice the next
+  time, and its Cancel button moved you and saved just like OK. Pirate's
+  Moon's does neither, and stamps its saves "Last updated Nov 14 1999 at
+  14:36:03". One new slip: a name you type in gets no facing of its own.
+  (0x004a8450, dialog 132 at 0x004a8a40; docs/editor.md, Pirate's Moon's
+  teleport)
+
 - **Pirate's Moon's options file carries a time stamp: 3:33 PM, 13 September
   1999.** Its first words are "3:33" "PM" "9/13/1999", before the dialogs, a
   date and time someone left in it. The game never minds: it finds each

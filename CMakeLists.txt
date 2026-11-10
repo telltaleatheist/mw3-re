@@ -645,7 +645,6 @@ add_executable(mw3tests
   tests/test_mod_campaign_pilots.cpp
   tests/test_net_save.cpp
   tests/test_new_weapon.cpp
-  tests/test_teleport.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp
   tests/test_bounded_media.cpp
@@ -707,6 +706,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mods.cpp
     tests/test_net_save.cpp  # the editor's net save on PM's nets
     tests/test_editor.cpp  # the editor's menus, net and vehicle editors on PM's logic
+    tests/test_teleport.cpp  # the teleport on PM's logic and c3's places
     tests/test_update.cpp  # the updater (main's, shared): its versions, sums and swap
   )
   target_include_directories(mw3pmtests PRIVATE tests)

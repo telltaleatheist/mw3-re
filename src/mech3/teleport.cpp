@@ -32,6 +32,9 @@ bool teleport_hooks_default() { return g_hooks == &g_default; }
 // Mech3.exe 1.2 @ 0x004a37a0 (the list): the player's place first, unsaved,
 // yaw 0; then each nav point, yaw 0; then location.zrd's pairs, each one's
 // place and yaw by its name (0x005569e0: the first of that name).
+// Pirate's Moon 1.0 @ 0x004a8450: the nav points not kept (+0x4d 0), and the
+// place read by 0x00578b20, which skips a pair whose (x y z) is short and
+// keeps the last place's number where one is not a number.
 std::vector<TeleportSpot> teleport_spots(const float player[3], const zrdr::Node* location) {
   std::vector<TeleportSpot> out;
   TeleportSpot cur;
@@ -39,12 +42,13 @@ std::vector<TeleportSpot> teleport_spots(const float player[3], const zrdr::Node
   cur.name = kCurrent, cur.unsaved = 1;
   out.push_back(cur);
   for (TeleportSpot v : teleport_hooks().navs()) {
-    v.yaw = 0, v.unsaved = 0;
+    v.yaw = 0, v.unsaved = 0, v.kept = 0;
     out.push_back(v);
   }
   if (!location || location->type != zrdr::List || zrdr::list_count(location) < 2) return out;
   const zrdr::Node& pairs = location->list[1];
   if (pairs.type != zrdr::List) return out;
+  float at[3] = {};  // 0x00578b20's buffer, carried from pair to pair
   for (int32_t i = 1; i + 1 < zrdr::list_count(&pairs); i += 2) {
     if (pairs.list[i].type != zrdr::String || !pairs.list[i].s) continue;
     const zrdr::Node* v = zrdr::find(const_cast<zrdr::Node*>(location), pairs.list[i].s);
@@ -54,7 +58,11 @@ std::vector<TeleportSpot> teleport_spots(const float player[3], const zrdr::Node
     const zrdr::Node& xyz = v->list[1];
     if (xyz.type != zrdr::List || zrdr::list_count(&xyz) < 4) continue;
     TeleportSpot s;
-    for (int k = 0; k < 3; ++k) s.pos[k] = number(xyz.list[1 + k]);
+    for (int k = 0; k < 3; ++k) {
+      const zrdr::Node& n = xyz.list[1 + k];
+      if (n.type == zrdr::Float || n.type == zrdr::Int) at[k] = number(n);
+      s.pos[k] = at[k];
+    }
     s.yaw = number(v->list[2]);
     s.name = std::string(pairs.list[i].s).substr(0, 59);
     out.push_back(s);
@@ -63,13 +71,14 @@ std::vector<TeleportSpot> teleport_spots(const float player[3], const zrdr::Node
 }
 
 // Mech3.exe 1.2 @ 0x004a37a0 (the save): its header, then every saved spot.
+// Pirate's Moon 1.0 @ 0x004a8450: its own build date, the nav points left out.
 std::string location_zrd_text(const std::vector<TeleportSpot>& spots) {
   std::string t = "(\n";
   t += "  ;; LOCATION.ZRD stores teleport data for this mission.\n";
-  t += "  ;; Last updated Sep 20 1999 at 16:29:38.\n\n";  // the build's __DATE__ and __TIME__
+  t += "  ;; Last updated Nov 14 1999 at 14:36:03.\n\n";  // the build's __DATE__ and __TIME__ (0x0060b090)
   char line[256];
   for (const TeleportSpot& s : spots) {
-    if (s.unsaved) continue;
+    if (s.unsaved || !s.kept) continue;
     const std::string quoted = "\"" + s.name + "\"";
     std::snprintf(line, sizeof line, "%s ( ( %8.1f %8.1f %8.1f ) %8.1f )  ;; position/yaw\n", quoted.c_str(),
                   static_cast<double>(s.pos[0]), static_cast<double>(s.pos[1]), static_cast<double>(s.pos[2]),
@@ -149,6 +158,8 @@ void TeleportDialog::remove_picked() {
 
 // Mech3.exe 1.2 @ 0x00404860: a name typed into the list that it does not
 // hold (any case) added as a spot at the fields' place; an empty one refused.
+// Pirate's Moon 1.0 @ 0x004a8d70: the same, but the new record's yaw is left
+// as the allocator gave it. FIX (bug): the field's yaw, as MW3's.
 void TeleportDialog::left_list() {
   const std::string text = dlg.at(kList).text.substr(0, 78);
   if (text.empty()) {
@@ -169,7 +180,7 @@ void TeleportDialog::left_list() {
 // Mech3.exe 1.2 @ 0x00404ab0
 void TeleportDialog::changed_text() { changed = 1; }
 
-// Mech3.exe 1.2 @ 0x0040dfe0 (to DoModal): the fields at the player's place
+// Mech3.exe 1.2 @ 0x0040dfe0 (to DoModal; Pirate's Moon 1.0 @ 0x004a8a40, the same): the fields at the player's place
 // and yaw, in degrees (57.29578).
 void teleport_dialog_begin(TeleportDialog& d, std::vector<TeleportSpot>* spots, const float pos[3], float yaw) {
   d = TeleportDialog{};
@@ -182,8 +193,9 @@ void teleport_dialog_begin(TeleportDialog& d, std::vector<TeleportSpot>* spots, 
 
 // Mech3.exe 1.2 @ 0x0040dfe0 (from DoModal's IDOK: CDialog::OnOK's
 // UpdateData(TRUE) first, which keeps the dialog up when a field fails).
-// The exe takes any non-zero result, IDCANCEL too (0x0040e05f); ours calls
-// this on OK only (upgrades/editor/teleport.cpp, FIX (bug)).
+// MW3's took any non-zero result, IDCANCEL too (0x0040e05f); Pirate's Moon's
+// 0x004a8a40 takes IDOK only, as ours does (upgrades/editor/teleport.cpp).
+// Its changed flag is a byte.
 bool teleport_dialog_ok(TeleportDialog& d, float pos[3], float* yaw, int32_t* changed) {
   if (!d.update(true)) return false;
   pos[0] = d.x, pos[1] = d.y, pos[2] = d.z;

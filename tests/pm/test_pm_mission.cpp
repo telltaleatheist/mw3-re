@@ -57,6 +57,12 @@
 #include "pm/gamez/zclass/cls_clutter.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
+#include "mech3/game_editor.h"
+#include "mech3/game_editor_net.h"
+#include "mech3/net_save.h"
+#include "mech3/teleport.h"
+#include "upgrades/editor/form.h"
+#include "upgrades/editor/teleport.h"
 #include "mech3/mission_world.h"
 #include "gamez/zclass/cls_data.h"
 #include "mech3/briefing.h"
@@ -481,6 +487,12 @@ static LightSeen g_light;
 static struct { bool found[2] = {}, restored[2] = {}; const char* name[2] = {}; } g_animsave;  // PM_ANIMSAVE
 static struct { bool made = false; int counted = -1, listed = -1, damaged = -1, tried = 0; } g_splash;  // PM_SPLASH
 static struct { bool built = false, freed = false; int models = 0, polygons = 0, refs = 0, back = 0; } g_inout;  // PM_INOUT
+static struct {  // PM_TELEPORT
+  std::string listed, place, saved, text;
+  float want[3] = {}, at[3] = {};
+  bool moved = false, cancel_stayed = false;
+  std::vector<mech3::TeleportSpot> nav_names;  // the spots not kept: the nav points
+} g_tp;
 // PM_ANHUR (pm-tests 37): anhur04 shot down near the bridge; its root boxed while alive, what a shot and a walk meet after.
 static struct {
   bool killed = false, boxed_alive = false, boxed_dead = true;
@@ -902,6 +914,55 @@ static void kill_run(const char* which, bool quick) {
       mech3::ai::inout_view_show(nullptr);
       g_inout.freed = mech3::ai::inout_view_empty();
       done = true;
+      return;
+    }
+    // The editor's TELEPORT (docs/editor.md, Pirate's Moon's teleport) at frame 30: the last of the world's places
+    // picked, OK moves the player there and saves into the mod; then another picked and Cancel, nothing moved or saved.
+    if (std::getenv("PM_TELEPORT")) {
+      static int t = 0;
+      if (++t < 30) return;
+      done = true;
+      mech3::editor_key(mech3::kEditorCommand);
+      mech3::ai::net_save_into_mod() = "tp";
+      mech3::teleport_open(0);
+      mech3::EditorForm& form = mech3::teleport_form();
+      mech3::FormField* place = form.field("place");
+      const std::vector<mech3::TeleportSpot>* spots = mech3::teleport_dialog().spots;
+      if (!place || !place->combo || !spots || spots->empty()) return;
+      for (const std::string& s : place->combo->texts()) g_tp.listed += s + "; ";
+      for (const mech3::TeleportSpot& s : *spots)
+        if (!s.kept) g_tp.nav_names.push_back(s);
+      const mech3::TeleportSpot& to = spots->back();  // location.zrd's last
+      g_tp.place = to.name;
+      for (int k = 0; k < 3; ++k) g_tp.want[k] = to.pos[k];
+      for (size_t i = 0; i < place->combo->items.size(); ++i)
+        if (place->combo->items[i].text == to.name) *place->i = static_cast<int32_t>(i);
+      form.changed(*place);
+      form.press("OK");
+      g_tp.saved = mech3::teleport_last_saved();
+      g_tp.moved = mech3::mech_world_position(player, g_tp.at);
+      if (std::FILE* f = std::fopen(g_tp.saved.c_str(), "rb")) {
+        char b[4096];
+        g_tp.text.assign(b, std::fread(b, 1, sizeof b, f));
+        std::fclose(f);
+      }
+      mech3::teleport_open(0);
+      mech3::EditorForm& again = mech3::teleport_form();
+      if (mech3::FormField* p2 = again.field("place"); p2 && p2->combo)
+        for (size_t i = 0; i < p2->combo->items.size(); ++i) {
+          const std::string& s = p2->combo->items[i].text;
+          if (s != "Current Location" && s != g_tp.place) *p2->i = static_cast<int32_t>(i);
+        }
+      if (mech3::FormField* p2 = again.field("place")) again.changed(*p2);
+      std::error_code ec;
+      const auto when = std::filesystem::last_write_time(g_tp.saved, ec) - std::chrono::hours(1);
+      std::filesystem::last_write_time(g_tp.saved, when, ec);
+      again.press("Cancel");
+      float after[3] = {};
+      g_tp.cancel_stayed = mech3::mech_world_position(player, after) && std::fabs(after[0] - g_tp.at[0]) < 0.01f &&
+                           std::fabs(after[2] - g_tp.at[2]) < 0.01f && std::filesystem::last_write_time(g_tp.saved, ec) == when;
+      mech3::ai::net_save_into_mod().clear();
+      mech3::editor_key(mech3::kEditorCommand);
       return;
     }
     // A mod's splash on AC5 (200 m), hit where the query fills 32: the player's spot, else each one found within 2 km.
@@ -1954,7 +2015,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -2008,6 +2069,36 @@ TEST(pm_show_inout_builds_pm_models) {
     EXPECT(g_inout.built && g_inout.models > 0 && g_inout.polygons > 0 && g_inout.refs >= g_inout.models);
     EXPECT(g_inout.back == 0);  // PM's 0x0060b996 on: its back flag (== 0) never set, the side's [0x0062fa58] 0
     EXPECT(g_inout.freed);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  waitpid(child, &status, 0);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// The editor's TELEPORT on PM's logic in a mission (kill_run 1,1,3): the world's places listed with the nav points,
+// OK at the last place moves the player and writes PM's text (its build date, the places, no nav point) into the mod;
+// Cancel moves nothing and writes nothing.
+TEST(pm_teleport_moves_the_player_and_saves_pms_text) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    setenv("PM_TELEPORT", "1", 1);
+    kill_run("1,1,3", true);
+    std::printf("  listed: %s\n  %s: at %.1f %.1f %.1f (want %.1f %.1f %.1f); saved %s\n%s", g_tp.listed.c_str(),
+                g_tp.place.c_str(), g_tp.at[0], g_tp.at[1], g_tp.at[2], g_tp.want[0], g_tp.want[1], g_tp.want[2],
+                g_tp.saved.c_str(), g_tp.text.c_str());
+    EXPECT(g_tp.listed.find("Current Location") != std::string::npos && !g_tp.place.empty());
+    EXPECT(g_tp.moved && std::fabs(g_tp.at[0] - g_tp.want[0]) < 0.5f && std::fabs(g_tp.at[2] - g_tp.want[2]) < 0.5f);
+    EXPECT(g_tp.saved.find("tp") != std::string::npos && g_tp.text.find("Last updated Nov 14 1999 at 14:36:03.") != std::string::npos &&
+           g_tp.text.find("\"" + g_tp.place + "\"") != std::string::npos);
+    // No nav point written: every listed name but Current Location and the saved places is a nav point.
+    EXPECT(g_tp.nav_names.size() == 4);  // Able, Baker, Charlie, Start
+    for (const mech3::TeleportSpot& s : g_tp.nav_names) EXPECT(g_tp.text.find("\"" + s.name + "\"") == std::string::npos);
+    EXPECT(g_tp.cancel_stayed);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }

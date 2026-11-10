@@ -1805,6 +1805,51 @@ Tests:
   and OK puts the player at (-1408.7, -10.0, -845.3) and saves into the mod.
 - The help coverage (12 forms).
 
+### Pirate's Moon's teleport (pm, 2026-11-10)
+
+Read against MW3's: the command 0x004a8450 (case 0x9d of app_key's switch
+0x0040ba30; 0x0040b9f0 registers 0x69, 0x78, 0x74 and 0x86, MW3's plus 8,
+so no key reaches it here either) and dialog 132 at 0x004a8a40 (DoModal),
+0x004a8bb0 (ctor), 0x004a8c50 (DDX), 0x004a8ce0 (init), 0x004a8f00 (pick),
+0x004a8d70 (typed name), 0x004a8f70 (Delete), 0x004a9000 (changed),
+0x004a8ff0 (OnDestroy). The message map (0x005eabc8) and the dialog's
+layout are MW3's; the pick, Delete and init are MW3's code. What changed:
+- **Nav points are not saved.** The record gains a byte at +0x4d, 1 for
+  every place but the nav points ([0x0062daf0], each by 0x005acad0), and
+  the save skips a record with +0x4d clear as it skips +0x4c. MW3's wrote
+  the nav points into location.zrd on every save, so the next open listed
+  them twice.
+- **Cancel cancels.** 0x004a8a40 returns DoModal == IDOK; MW3's 0x0040dfe0
+  took any non-zero result (GOTO Net's 0x0040be40 kept MW3's `!= 0`).
+  Ghidra drops the save as unreachable: the flag is written through the
+  wrapper's fourth argument, which it does not follow; the asm at
+  0x004a8844 tests it.
+- **The place is read by 0x00578b20**: a list of at least three numbers
+  (Int or Float), or the pair is left out; a word among them keeps the
+  buffer's number, the last place's. The yaw is read raw, as MW3's.
+- **A null nav label** is checked, but the record is still added with its
+  name unset.
+- **A typed name's record** (0x004a8d70) takes the fields' place but not
+  the yaw (+0x0c is left as allocated). FIX (bug): the field's yaw, as MW3's.
+- The save stamps PM's build: "Last updated Nov 14 1999 at 14:36:03"; the
+  rest of its text, the remove-then-rename of location.bak (still into the
+  working directory) and the error box without location.zrd are MW3's.
+- The player is moved by vt+0xe8, PM's set_place (0x00419d50, the port's
+  `move_mech`).
+
+Ported on pm in `mech3/teleport` (the +0x4d byte as `kept`). Tests in
+mw3pmtests:
+- `teleport_spots_from_pm_c3_and_the_saved_text`: PM's c3 places (Ruins,
+  Pirate_landing), a nav point not kept, PM's header, the text read back
+  without the nav point, a short place left out and a word carried.
+- `teleport_dialog_handlers`: as main's, plus the typed name's yaw.
+- `pm_teleport_moves_the_player_and_saves_pms_text` (a mission in a child,
+  1,1,3 on c2): the list with Able, Baker, Charlie and Start; OK at Portal
+  Wall moves the player there and writes PM's text with c2's four places and
+  no nav point; Cancel moves nothing and writes nothing.
+Breaks caught: the nav points kept, MW3's date, no carry, the typed yaw
+left out.
+
 ## The editor's help (ours, 2026-11-09)
 
 Owen asked (through the lead) for help in the game and on GitHub, from one

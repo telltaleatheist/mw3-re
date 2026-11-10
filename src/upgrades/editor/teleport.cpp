@@ -92,8 +92,8 @@ std::string location_world() {
   return {};
 }
 
-// FIX (bug): Cancel only closes. The exe moved and saved on Cancel too
-// (DoModal tested non-zero); Pirate's Moon's twin tests IDOK.
+// Cancel only closes, as Pirate's Moon's 0x004a8a40 has it (IDOK only);
+// MW3's moved and saved on Cancel too.
 void close() {
   form_hide(&g.confirm);
   form_hide(&g.form);
