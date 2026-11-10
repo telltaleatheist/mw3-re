@@ -3,7 +3,8 @@
 # an api-ms-win-* set), the Visual C++ runtime counting as missing unless it
 # is in the folder (a player may not have it); and no game file is in it.
 # Needs dumpbin (vcvars64). Usage: check_dist.ps1 <folder>
-param([Parameter(Mandatory = $true)][string]$Dist)
+# -Pm: the combined package, mw3pm.exe required too (its DLLs checked as every program's).
+param([Parameter(Mandatory = $true)][string]$Dist, [switch]$Pm)
 $ErrorActionPreference = 'Stop'
 $here = Get-ChildItem -LiteralPath $Dist -File | ForEach-Object { $_.Name.ToLowerInvariant() }
 $sys = Join-Path $env:SystemRoot 'System32'
@@ -25,7 +26,8 @@ $game = Get-ChildItem -LiteralPath $Dist -Recurse -File |
   Where-Object { $_.Extension -in '.zbd', '.avi', '.fmv', '.m1v', '.zrd', '.wav', '.ogg', '.flac' -or $_.Name -ieq 'mech3.exe' -or
                  ($_.Extension -ieq '.ttf' -and $_.Name -cnotin $ours) }
 # The launcher (the main shortcut) and the game it starts.
-foreach ($exe in 'mw3launcher.exe', 'mw3.exe') {
+$programs = @('mw3launcher.exe', 'mw3.exe') + $(if ($Pm) { @('mw3pm.exe') } else { @() })
+foreach ($exe in $programs) {
   if (-not (Test-Path -LiteralPath (Join-Path $Dist $exe))) { $missing += "$exe (the program itself)" }
 }
 # The libraries linked into mw3.exe carry no file of their own: their licences must be there.

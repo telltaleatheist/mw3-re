@@ -14,6 +14,10 @@
 #ifndef Dist
   #error Give /DDist=<the package folder> (package.cmd does).
 #endif
+#ifndef Stem
+  ; MW3-Rebuild (the combined package, the name the launcher's updater takes) or MW3-alone
+  #define Stem "MW3-Rebuild"
+#endif
 
 [Setup]
 ; The same AppId every version: a new installer upgrades the old install in place.
@@ -38,7 +42,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=mw3.ico
 UninstallDisplayIcon={app}\mw3.exe
 UninstallDisplayName=MechWarrior 3 Rebuild
-OutputBaseFilename=MW3-Rebuild-Setup-{#AppVersion}
+OutputBaseFilename={#Stem}-Setup-{#AppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -51,6 +55,13 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "{#Dist}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+#if Stem == "MW3-alone"
+[InstallDelete]
+; MechWarrior 3 alone over the combined package: Pirate's Moon's program goes, so the launcher does not offer
+; an old one (its settings, %APPDATA%\MicroProse\Pirate's Moon, stay).
+Type: files; Name: "{app}\mw3pm.exe"
+#endif
 
 [Icons]
 ; The launcher is the shortcut, named for the game; mw3.exe is installed

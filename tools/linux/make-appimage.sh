@@ -11,6 +11,11 @@
 #           (tools/deps/build_deps.sh linux's build-deps/linux/prefix;
 #           default ../prefix); TOOLS: where linuxdeploy-x86_64.AppImage and
 #           appimagetool-x86_64.AppImage are (default ../deps).
+# For the combined package (tools/package/combined.sh, docs/release.md):
+#   MW3_PKG_PM_BIN=<mw3pm built on pm>  adds Pirate's Moon beside mw3 (its libraries gathered as mw3's)
+#   MW3_PKG_STEM=<stem>                 the AppImage's name: <stem>-<version>-x86_64.AppImage (default MW3-Rebuild;
+#                                       MW3 alone is MW3-alone, which the launcher's updater never takes)
+#   MW3_PKG_KEEP_BUILD=1                reuse build-linux-pkg's build (a second package from it)
 set -e
 cd "$(dirname "$0")/../.."
 PREFIX=$(cd "${1:-../prefix}" && pwd)
@@ -20,7 +25,8 @@ export APPIMAGE_EXTRACT_AND_RUN=1  # no FUSE needed (WSL, containers)
 # the minimal LGPL build mw3import needs), found through pkg-config.
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 
-rm -rf build-linux-pkg
+if [ -n "${MW3_PKG_PM_BIN:-}" ] && [ ! -x "$MW3_PKG_PM_BIN" ]; then echo "MW3_PKG_PM_BIN: no program at $MW3_PKG_PM_BIN" >&2; exit 1; fi
+if [ -z "${MW3_PKG_KEEP_BUILD:-}" ]; then rm -rf build-linux-pkg; else rm -rf build-linux-pkg/AppDir; fi
 cmake -S . -B build-linux-pkg -G Ninja -DCMAKE_BUILD_TYPE=Release -DMW3_PACKAGE=ON -DCMAKE_PREFIX_PATH="$PREFIX"
 cmake --build build-linux-pkg --target mw3 mw3launcher
 cmake --build build-linux-pkg --target mw3import 2>/dev/null || echo "mw3import not built (no FFmpeg): the package has no movie importer"
@@ -34,6 +40,11 @@ EXES="-e $APPDIR/usr/bin/mw3launcher -e $APPDIR/usr/bin/mw3"
 if [ -x build-linux-pkg/mw3import ]; then
   cp build-linux-pkg/mw3import "$APPDIR/usr/bin/"
   EXES="$EXES -e $APPDIR/usr/bin/mw3import"
+fi
+# The combined package: Pirate's Moon beside it (the launcher finds it there, launcher.md).
+if [ -n "${MW3_PKG_PM_BIN:-}" ]; then
+  cp "$MW3_PKG_PM_BIN" "$APPDIR/usr/bin/mw3pm"
+  EXES="$EXES -e $APPDIR/usr/bin/mw3pm"
 fi
 # The launcher's art (ours): beside the program, where SDL_GetBasePath finds it.
 cp assets/launcher/*.png assets/launcher/font.ttf "$APPDIR/usr/bin/assets/launcher/"
@@ -67,11 +78,13 @@ fi
 LD_LIBRARY_PATH="$PREFIX/lib:$LD_LIBRARY_PATH" "$TOOLS/linuxdeploy-x86_64.AppImage" --appdir "$APPDIR" $EXES \
   -d tools/linux/mw3.desktop -i tools/linux/mw3.png
 # Both programs, the launcher as the entry (AppRun follows the desktop file's Exec).
-for p in mw3launcher mw3; do [ -x "$APPDIR/usr/bin/$p" ] || { echo "no $p in the AppDir" >&2; exit 1; }; done
+PROGRAMS="mw3launcher mw3"
+[ -n "${MW3_PKG_PM_BIN:-}" ] && PROGRAMS="$PROGRAMS mw3pm"
+for p in $PROGRAMS; do [ -x "$APPDIR/usr/bin/$p" ] || { echo "no $p in the AppDir" >&2; exit 1; }; done
 grep -qx 'Exec=mw3launcher' "$APPDIR"/*.desktop || { echo "the AppImage does not start the launcher" >&2; exit 1; }
 # No local path or user name in anything shipped (release.md, Privacy).
 python3 -I tools/deps/check_paths.py "$APPDIR" || exit 1
 mkdir -p build-linux-pkg/dist
-OUT="build-linux-pkg/dist/MW3-Rebuild-$VER-x86_64.AppImage"
+OUT="build-linux-pkg/dist/${MW3_PKG_STEM:-MW3-Rebuild}-$VER-x86_64.AppImage"
 ARCH=x86_64 "$TOOLS/appimagetool-x86_64.AppImage" "$APPDIR" "$OUT"
 echo "$OUT"
