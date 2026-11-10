@@ -203,7 +203,9 @@ loadouts copied to a new 75 t row are half a ton over and refused; the
 Elemental's (7) are never weighed, and the other checks by number
 (`mech_damage.cpp`, `mech_build.cpp`) stay the Elemental's alone.
 
-**A new weapon.** `weapon=` in mod.txt, one line a weapon:
+**A new weapon.** `weapon=` in mod.txt, one line a weapon (the editor's
+New Weapon writes both the line and the definition: MODS, EDITOR, a mission,
+EDIT WEAPONS; editor.md, New Weapon):
 
 ```
 weapon=ERPPC_B ammo=no tech=any title=ER PPC B
