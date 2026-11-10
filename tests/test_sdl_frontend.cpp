@@ -4240,15 +4240,15 @@ TEST(launcher_first_start_notes) {
 
 // The launcher's MW3 line with a long install folder (lead, after the PC's
 // shot: it ran past the button's sides): shortened from the middle to the
-// width, "Ready: data 1.2, program v1.1.0, " kept whole, the folder's end kept longer.
+// width, "Ready, official: data 1.2, program v1.1.0, " kept whole, the folder's end kept longer.
 TEST(launcher_long_path_fits_the_button) {
   auto chars = [](const std::string& t) { return static_cast<int>(t.size()); };  // a width per character
-  const std::string ready = "Ready: data 1.2, program v1.1.0, ";
+  const std::string ready = "Ready, official: data 1.2, program v1.1.0, ";
   const std::string path = "C:\\Users\\SomebodyWithALongName\\Documents\\My Games\\MicroProse\\game\\mw3-1.2";
-  const std::string fit = sdlfe::fit_middle(ready + path, ready.size(), 50, chars);
+  const std::string fit = sdlfe::fit_middle(ready + path, ready.size(), 70, chars);  // about the plate's 500 px at 12 px
   std::printf("  %s\n", fit.c_str());
-  EXPECT(static_cast<int>(fit.size()) <= 50 && fit.rfind(ready, 0) == 0 && fit.find("...") != std::string::npos);
-  EXPECT(fit.size() > 44 && fit.compare(fit.size() - 7, 7, "mw3-1.2") == 0);  // its name, and as much as fits
+  EXPECT(static_cast<int>(fit.size()) <= 70 && fit.rfind(ready, 0) == 0 && fit.find("...") != std::string::npos);
+  EXPECT(fit.size() > 64 && fit.compare(fit.size() - 7, 7, "mw3-1.2") == 0);  // its name, and as much as fits
   EXPECT(sdlfe::fit_middle("short", 0, 50, chars) == "short");
   EXPECT(sdlfe::fit_middle(ready + path, ready.size(), 10, chars) == ready + "...");  // too narrow: the words alone
 }
@@ -5217,14 +5217,14 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
     return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   };
   std::string text = run("both");
-  const std::string mw3_line = "entry MECHWARRIOR 3: Ready: data 1.2, program v9.9.9, " + std::string(MW3_GAME_DIR);
-  const std::string pm_line = "entry PIRATE'S MOON: Ready: data 1.0, program pm-v8.8.8, " + pm_game.string();
+  const std::string mw3_line = "entry MECHWARRIOR 3: Ready, official: data 1.2, program v9.9.9, " + std::string(MW3_GAME_DIR);
+  const std::string pm_line = "entry PIRATE'S MOON: Ready, official: data 1.0, program pm-v8.8.8, " + pm_game.string();
   std::printf("  %s\n  %s\n", mw3_line.c_str(), pm_line.c_str());
   EXPECT(text.find(mw3_line) != std::string::npos && text.find(pm_line) != std::string::npos);
   // A program file without one (a script, an older build): left out, and never run.
   setenv("MW3_PM_BIN", program("mw3pm", "#!/bin/sh\necho ran > \"" + dir + "/ran.txt\"\n").c_str(), 1);
   text = run("none");
-  EXPECT(text.find("entry PIRATE'S MOON: Ready: data 1.0, " + pm_game.string()) != std::string::npos &&
+  EXPECT(text.find("entry PIRATE'S MOON: Ready, modified (program): data 1.0, " + pm_game.string()) != std::string::npos &&
          text.find("Pirate's Moon unknown") != std::string::npos && !fs::exists(dir + "/ran.txt", ec));
   // The real mw3: its file's version is its --version's.
   setenv("MW3_GAME_BIN", MW3_BIN, 1);
@@ -5236,7 +5236,26 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
   std::getline(vf, line);
   const std::string real = line.substr(line.find_last_of(' ') + 1);
   std::printf("  real mw3: %s\n", real.c_str());
-  EXPECT(!real.empty() && text.find("entry MECHWARRIOR 3: Ready: data 1.2, program " + real + ", ") != std::string::npos);
+  // A release's tag is official; a build between them (v1.0.5-243-gHASH) is not.
+  const bool release = real.find('-') == std::string::npos;
+  EXPECT(!real.empty() && text.find(std::string("entry MECHWARRIOR 3: Ready, ") + (release ? "official" : "modified (program)") +
+                                    ": data 1.2, program " + real + ", ") != std::string::npos);
+  // Mods on (two in mw3.cfg), and Pirate's Moon's data with a file changed: each named, nothing refused.
+  std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "mod=one\nmod=two\n";
+  setenv("MW3_GAME_BIN", program("mw3", tag + "v9.9.9" + std::string(1, '\0')).c_str(), 1);
+  const fs::path changed = fs::path(dir) / "pm changed";
+  for (const auto& e : fs::recursive_directory_iterator(pm_game)) {
+    const fs::path to = changed / fs::relative(e.path(), pm_game);
+    if (e.is_directory()) fs::create_directories(to, ec);
+    else if (e.path().filename() == "force_eff.ifr") std::ofstream(to) << "changed";
+    else fs::create_directories(to.parent_path(), ec), fs::create_symlink(e.path(), to, ec);
+  }
+  std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "pm_install=" << changed.string() << "\n";
+  setenv("MW3_PM_BIN", program("mw3pm", tag + "pm-v8.8.8" + std::string(1, '\0')).c_str(), 1);
+  text = run("mods");
+  EXPECT(text.find("entry MECHWARRIOR 3: Ready, modified (2 mods): data 1.2, program v9.9.9, ") != std::string::npos);
+  EXPECT(text.find("entry PIRATE'S MOON: Ready, modified (data): data unknown (a mod?), program pm-v8.8.8, " + changed.string()) !=
+         std::string::npos);
   for (const char* k : {"MW3_GAME_BIN", "MW3_PM_BIN", "MW3_PM_WRITE_DIR", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);
   fs::remove_all(dir, ec);
 }

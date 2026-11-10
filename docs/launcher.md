@@ -23,13 +23,18 @@ found or installed. The launcher below is its own program, `mw3launcher`
    (`sdlfe::install_candidates`), each through `setup::check_install`.
    No message box any more: the setup screen replaces the Browse dialog.
 4. **The launcher screen** (mockup 1). Entries:
-   - **MechWarrior 3**: "Ready: data 1.2, program v1.1.0, <folder>" (each
-     game's data version and its program's own `--version`, sitting 5 of
-     Pirate's Moon below), or "Not found yet:
+   - **MechWarrior 3**: "Ready, official: data 1.2, program v1.1.0, <folder>"
+     (each game's data version and its program's, sitting 5 of Pirate's Moon
+     below). The label (Owen, 2026-11-10: shown, never blocking) is
+     "official" when the data is a release's (MW3 1.0, 1.2, or 1.0 with the
+     patch's files; PM 1.0), the program a release build (a bare vX.Y.Z tag,
+     PM's pm-vX.Y.Z) and no mods are on, else "modified (data, program, 2
+     mods)" naming which (`official_words`; breaks: mods ignored, any v tag
+     taken as a release, the data always official: each caught). Or "Not found yet:
      click to find your game" (a click opens the find screen; v1.0, Owen
      2026-11-02: only then, the launcher always opens on the games). A
      folder too long for the plate is
-     shortened from the middle by its drawn width ("Ready: data 1.2, ...: "
+     shortened from the middle by its drawn width ("Ready, official: data 1.2, ...: "
      kept, more of the folder's end; `fit_middle`, text_fit.cpp): a long
      path ran past both sides on Owen's PC (lead, 2026-10-31).
      `launcher_long_path_fits_the_button`.
