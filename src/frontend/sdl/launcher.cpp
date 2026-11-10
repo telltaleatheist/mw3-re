@@ -1,4 +1,5 @@
 #include "frontend/sdl/launcher.h"
+#include "frontend/sdl/log_start.h"
 #include "frontend/sdl/data_folder_start.h"
 #include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher_notes.h"
@@ -865,6 +866,14 @@ void Launcher::watch_game() {
     game_ = nullptr;
     fs::remove(ready_file_, ec);
     fs::remove(ready_file_ + ".status", ec);
+    // The game started itself again as a new process (Windows, into or out of a MODS campaign: sdl_restart.h).
+    // It reaches this only when the launcher never saw the game's first frame (else it has closed): the game
+    // goes on, so the launcher ends as it does at a first frame, and does not come back beside it.
+    if (code == kStartedAgainExit) {
+      std::printf("mw3launcher: %s started itself again after %.1f s (the game goes on): the launcher closes\n", game_name_.c_str(), ms / 1000.0);
+      done_ = true;
+      return;
+    }
     std::printf("mw3launcher: %s exited (%d) after %.1f s\n", game_name_.c_str(), code, ms / 1000.0);
     status_ = code == 0 ? "" : game_name_ + " closed with an error (" + std::to_string(code) + "): see mw3.log.";
     status_good_ = code == 0;

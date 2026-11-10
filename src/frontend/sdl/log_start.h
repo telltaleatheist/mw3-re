@@ -16,6 +16,11 @@ namespace sdlfe {
 // waits for that process to end before it moves the log.
 constexpr const char* kRestartedFromEnv = "MW3_RESTARTED_FROM";
 
+// The exit code of a run that ended by starting the program again as a new process (Windows: restart_into;
+// elsewhere the process itself goes on, by exec). A launcher still watching that run reads it as "the game
+// goes on", not as the game's end or an error. Under 256, so a shell can give it too (the checks).
+constexpr int kStartedAgainExit = 93;
+
 struct LogStart {
   bool had_old = false;     // there was a log to move
   bool moved = false;       // it was moved aside
