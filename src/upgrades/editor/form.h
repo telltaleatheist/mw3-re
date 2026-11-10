@@ -11,6 +11,8 @@
 // Nothing here knows ImGui.
 namespace mech3 {
 
+struct DlgCombo;
+
 struct FormTree {
   std::string text;
   const void* data = nullptr;  // what the item stands for (its owner's; null for none)
@@ -19,18 +21,24 @@ struct FormTree {
 };
 
 struct FormField {
-  enum Kind { kLabel, kInt, kFloat, kFlag, kTri, kText, kChoice, kTree, kTabs };
+  enum Kind { kLabel, kInt, kFloat, kFlag, kTri, kText, kChoice, kTree, kTabs, kCheck, kRadio, kButton };
   std::string label;
   Kind kind = kLabel;
-  int32_t* i = nullptr;          // kInt: the value; kChoice: the chosen index (-1 none); kTabs: the page shown
+  int32_t* i = nullptr;          // kInt: the value; kChoice: the chosen index (-1 none); kTabs: the page shown;
+                                 // kCheck: the button's check (0..max); kRadio: the button checked (-1 none)
   float* f = nullptr;            // kFloat
   int32_t* on = nullptr;         // kFloat: whether it is given (null: always)
   uint8_t* set = nullptr;        // kTri: whether it is given ("as the default" when not)
   uint8_t* flag = nullptr;       // kFlag, kTri: the value
   std::string* text = nullptr;   // kText
+  const int32_t* limit = nullptr;  // kText: the most characters typed (0 none)
+  bool read_only = false;        // kText: shown, not typed in (it can still be left: `left`)
+  int32_t max = 1;               // kCheck: 2 for a three-state box (a click goes 0, 1, 2, 0)
+  const DlgCombo* combo = nullptr;  // kChoice: the list read from a dialog's combo each frame (ddx.h)
   std::vector<std::string> choices;  // kChoice; kTabs: the pages' titles
   FormTree* tree = nullptr;      // kTree
-  std::function<void()> changed;     // after a change through the form
+  std::function<void()> changed;     // after a change through the form; kButton: its press
+  std::function<void()> left;        // kText: after the field loses the focus (EN_KILLFOCUS)
   int32_t page = -1;             // shown only while the form's tabs show this page (-1: always)
 };
 
