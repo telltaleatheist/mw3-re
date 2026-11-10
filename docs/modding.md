@@ -983,6 +983,47 @@ accel_rate; TEST again has both new), and the headless TEST test checks the
 start calls it. Breaks caught: the definitions not let go, the start not
 calling it.
 
+## Starter mods (modder-friendly step 5, 2026-11-10)
+
+`mw3 --make-starter mech|weapon|translation|mission` (`mw3pm` the same,
+`upgrades/mods/starter_mods`) makes one small example mod in the write dir's
+`mods\starter_<kind>`, from the player's own install: the recipe is in the
+code, the game's file is read from the install and the edit applied, so
+nothing of the game's is in the repo or the download. The guides, in plain
+words for modders: `docs/starter-mods/` (one per kind, and a README).
+- mech: Thor B, `mech=thor_b ... model=thor` and `zbd\dfn_thor_b.zrd`, the
+  Thor's definition as text with `max_turn_rate` x1.25 and `accel_rate` x1.5.
+- weapon: ER PPC B, `weapon=ERPPC_B ammo=no tech=any` and `zbd\weapons.zrd`,
+  the game's as text with ERPPC copied after the last (DAMAGE x1.25, HEAT
+  x1.2; New Weapon's `weapons_with_definition`).
+- translation: `strings.txt`, the main menu's seven buttons in German, by
+  the install's own message numbers (read from its Mech3Msg.dll, each name in
+  a comment: the games number them apart, and `--check-mod` has no names).
+- mission: `campaign=one_mission.txt`, a campaign of the game's c1 mission 1.
+Each also has `about_this_mod.txt` (not `README.txt`, which the install has:
+the check would count it as replacing the game's). Each passes `--check-mod`
+with no warning and its report says nothing is refused.
+
+Only ever a new folder: when `starter_<kind>` is there (a folder or a file,
+whatever is in it), nothing is made and the message names it; the made
+files are built in memory first and the folder is made last-moment with
+`create_directory`, so there is no replace, no delete and no `--force`.
+
+Found with it, fixed: a mech row's loose `zbd\dfn_<name>.zrd` passed the
+mount's and `--check-mod`'s checks (archive_has: "loose beside it") but the
+reader never opened it. zrdr's load looked a name no archive has up only at
+the mounts' roots. Now a mod's file in an archive's own folder (loose, or
+mech3ax's JSON) is that archive's new entry (`mod_copy(..., added)`, said as
+"added to zbd\reader.zbd"); with no mods nothing changes.
+
+Test: `mods_starter_mods_made_checked_and_loaded` (each made, checked and
+reported clean; all four mounted: Thor B's loadouts with 1.5 times the Thor's
+accel_rate, ERPPC_B 1.25 times ERPPC's damage and after it, the menu's
+messages German, the campaign of c1 1; made again over a folder with a stray
+file and over a file of that name: refused by name, both left as they were;
+an unknown kind: nothing). Without the reader fix Thor B's definition does
+not load.
+
 ## Readable files read directly (modder-friendly step 1, begun 2026-11-09)
 
 A modder edits a reader entry as text and runs, without repacking reader.zbd.
