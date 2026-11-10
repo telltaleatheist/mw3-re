@@ -35,6 +35,9 @@ struct File {
   // "@top" any key asked of the file's root (a record looked up by name);
   // "m<n>" the missions' blocks; null none. The test leaves those out.
   const char* names_at = nullptr;
+  // Keys only, listed (mech3ax's JSON forms: the schema and its meanings are
+  // mech3ax's own); the rows' other cells are not used.
+  bool compact = false;
 };
 
 // Every file kind, in the reference's order.
@@ -100,5 +103,9 @@ File landmines();
 File hud();
 File sounds();
 File dialogs();
+File json_motion();
+File json_mechlib();
+File json_anim();
+File json_gamez();
 
 }  // namespace upgrades::reference

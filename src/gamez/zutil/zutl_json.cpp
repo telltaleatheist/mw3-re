@@ -1,5 +1,6 @@
 // Ours (docs/modding.md, mech3ax's JSON): see zutl_json.h.
 #include "gamez/zutil/zutl_json.h"
+#include "upgrades/reference/reference.h"
 
 #include <cerrno>
 #include <cfloat>
@@ -187,6 +188,7 @@ struct Parser {
 }  // namespace
 
 const Value* Value::get(const char* key) const {
+  upgrades::reference::seen(key, this);  // the modding reference's test observer (null in play)
   for (const auto& [k, v] : members)
     if (k == key) return &v;
   return nullptr;

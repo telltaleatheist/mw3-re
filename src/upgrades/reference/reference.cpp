@@ -24,7 +24,7 @@ const char*& context() {
 }
 
 const std::vector<File>& files() {
-  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn(), aiv(), targets(), nets(), regions(), valves(), objectives(), turrets(), vehicles(), world(), landmines(), hud(), sounds(), dialogs(), interp()};
+  static const std::vector<File> all = {mod_txt(), campaign(), weapons(), dfn(), aiv(), targets(), nets(), regions(), valves(), objectives(), turrets(), vehicles(), world(), landmines(), hud(), sounds(), dialogs(), interp(), json_motion(), json_mechlib(), json_anim(), json_gamez()};
   return all;
 }
 
@@ -47,6 +47,12 @@ std::string markdown() {
   for (const File& f : files()) {
     s += std::string("\n## ") + f.title + "\n\n";
     s += std::string("- Where: ") + f.where + "\n- Read by: " + f.reader + "\n\n" + f.intro + "\n\n";
+    if (f.compact) {
+      s += "Keys:";
+      for (size_t i = 0; i < f.keys.size(); ++i) s += std::string(i ? ", `" : " `") + f.keys[i].key + "`";
+      s += ".\n";
+      continue;
+    }
     s += "| Key | In | Type | When absent | Limits | What it does |\n|---|---|---|---|---|---|\n";
     for (const Key& k : f.keys)
       s += "| `" + cell(k.key) + "` | " + cell(*k.path ? k.path : "top") + " | " + cell(k.type) + " | " + cell(k.fallback) + " | " +
