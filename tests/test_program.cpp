@@ -25283,9 +25283,23 @@ struct ReshapeStep {
 struct ReshapeSeen {
   bool to_main = false;  // ACCEPT ended on the main menu (made again), not back in OPTIONS
   int32_t width = 0, mode = 0, credits = 0, options_accept = 0, saved_mode = 0;
+  // At the main menu: the stack's depth (0: the main menu's state alone), whether it is the bottom, and the
+  // screens and menu objects alive (the old ones freed: the same counts as at the start).
+  int depth = -1;
+  bool bottom_is_main = false;
+  size_t screens = 0, objects = 0;
+};
+// Two more cases of Engine::menu_mode_picked, asked for after the steps. guard: the stack's bottom is not the
+// main menu's state (as in a mission): nothing is queued, only the kept mode forgotten. entry: inside a MODS
+// campaign entry (upgrades/mods/entry_run.h) with its screen up: the menus are made again and the entry's
+// screen comes back, once, the entry not left.
+struct ReshapeMore {
+  bool guard = false, entry = false;
+  int guard_pending = -1, guard_mode = -1, guard_width = -1;                                      // guard
+  int entry_depth_before = -1, entry_depth = -1, entry_screens_up = -1, entry_leaves = -1, entry_width = -1;  // entry
 };
 std::vector<ReshapeSeen> menu_reshape_run(const std::vector<ReshapeStep>& steps, int32_t* width0, int32_t* credits0,
-                                          int32_t* accept0) {
+                                          int32_t* accept0, ReshapeSeen* first = nullptr, ReshapeMore* more = nullptr) {
   std::vector<ReshapeSeen> seen;
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
@@ -25345,12 +25359,42 @@ std::vector<ReshapeSeen> menu_reshape_run(const std::vector<ReshapeStep>& steps,
     EXPECT(app.init_instance());
     EXPECT(mech3::options().in_game_vmode == 5);
     mech3::States& st = mech3::states();
-    enum { kMain, kOptions, kPage, kAfter, kDone } stage = kMain;
+    enum { kMain, kOptions, kPage, kAfter, kGuard, kGuardBack, kEntry, kEntryAfter, kDone } stage = kMain;
     size_t k = 0;
-    int wait = 0;
+    int wait = 0, leaves = 0;
     ReshapeSeen cur;
+    struct Stand : zgame::State {
+    } stand;  // a state that is not the main menu's, for the guard
+    auto entry_up = [&] {  // the entry's own states on the stack
+      int n = 0;
+      for (int i = 0; i <= app.depth(); ++i)
+        if (auto* g = dynamic_cast<mech3::GameMenuState*>(app.stack(i))) n += g->kind == mech3::GameMenuState::kAction;
+      return n;
+    };
+    if (more && more->entry) {
+      mech3::entry_run() = mech3::EntryRun{};
+      mech3::entry_run().screen = mech3::EntryRun::kInstantAction, mech3::entry_run().id = "ia";
+      mech3::entry_run().leave = [&] { ++leaves; };
+      stage = kEntry;
+    }
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
+      if (stage == kEntry) {  // its screen up: a wide mode picked, as an ACCEPT there would
+        if (app.pending() || entry_up() != 1 || ++wait < 5) return;
+        more->entry_depth_before = app.depth();
+        mech3::options().in_game_vmode = 13;
+        engine.menu_mode_picked();
+        wait = 0, stage = kEntryAfter;
+        return;
+      }
+      if (stage == kEntryAfter) {
+        if (app.pending() || ++wait < 8) return;
+        more->entry_depth = app.depth(), more->entry_screens_up = entry_up(), more->entry_leaves = leaves;
+        more->entry_width = engine.buffer_width();
+        stage = kDone;
+        return;
+      }
+      if (stage == kGuard || stage == kGuardBack) return;  // (the pump's side below: that state draws nothing)
       auto* mm = const_cast<mech3::MainMenu*>(mech3::main_menu());
       auto* os = dynamic_cast<mech3::OptionsState*>(now);
       auto* game = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
@@ -25358,13 +25402,24 @@ std::vector<ReshapeSeen> menu_reshape_run(const std::vector<ReshapeStep>& steps,
       if (stage == kMain && now == &st.main && mm) {
         cur.width = engine.buffer_width(), cur.mode = engine.vmode(), cur.saved_mode = mech3::options().in_game_vmode;
         cur.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
+        cur.depth = app.depth(), cur.bottom_is_main = app.stack(0) == &st.main;
+        cur.screens = engine.open_screens(), cur.objects = engine.menu_objects();
         mm->buttons[mech3::MainMenuButton::kOptions].on_left_up();
         stage = kOptions;
       } else if (stage == kOptions && game) {
         cur.options_accept = game->accept.get_rect()->left;
-        if (k == 0 && seen.empty() && !*width0) *width0 = cur.width, *credits0 = cur.credits, *accept0 = cur.options_accept;
-        else seen.push_back(cur);
-        if (seen.size() == steps.size()) return void(stage = kDone);
+        if (k == 0 && seen.empty() && !*width0) {
+          *width0 = cur.width, *credits0 = cur.credits, *accept0 = cur.options_accept;
+          if (first) *first = cur;
+        } else {
+          seen.push_back(cur);
+        }
+        if (seen.size() == steps.size()) {
+          if (!more || !more->guard) return void(stage = kDone);
+          for (int i = app.depth(); i > 0; --i) app.pop(0);  // OPTIONS closed, then the main menu's state out
+          app.replace(&stand, 0);
+          return void(stage = kGuard);
+        }
         cur = ReshapeSeen{};
         if (steps[k].kind == 'R') game->gfx_audio.on_left_up();
         else game->upgrades.on_left_up();
@@ -25391,10 +25446,22 @@ std::vector<ReshapeSeen> menu_reshape_run(const std::vector<ReshapeStep>& steps,
       }
     };
     CountingPump pump;
-    pump.limit = 3000;
-    pump.stop = [&] { return stage == kDone; };
+    pump.limit = 3000 + 200 * static_cast<int>(steps.size());
+    pump.stop = [&] {
+      if (stage == kGuard && app.current() == &stand && !app.pending()) {
+        mech3::options().in_game_vmode = 13;
+        engine.menu_mode_picked();
+        more->guard_pending = app.pending(), more->guard_mode = engine.menu_vmode(), more->guard_width = engine.buffer_width();
+        app.replace(&st.main, 0);
+        stage = kGuardBack;
+      } else if (stage == kGuardBack && app.current() == &st.main && !app.pending()) {
+        stage = kDone;
+      }
+      return stage == kDone;
+    };
     app.run(pump);
     EXPECT(stage == kDone);
+    if (more && more->entry) mech3::entry_run() = mech3::EntryRun{};
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -25412,8 +25479,12 @@ std::vector<ReshapeSeen> menu_reshape_run(const std::vector<ReshapeStep>& steps,
 TEST(menus_take_a_picked_mode_at_once_headless) {
   if (!have_game()) return;
   int32_t width0 = 0, credits0 = 0, accept0 = 0;
-  const std::vector<ReshapeStep> steps = {{'R', 5}, {'R', 13}, {'R', 14}, {'W', 0}, {'W', 1}, {'R', 5}};
-  const std::vector<ReshapeSeen> s = menu_reshape_run(steps, &width0, &credits0, &accept0);
+  std::vector<ReshapeStep> steps = {{'R', 5}, {'R', 13}, {'R', 14}, {'W', 0}, {'W', 1}, {'R', 5}};
+  for (int i = 0; i < 10; ++i) steps.push_back({'R', 13}), steps.push_back({'R', 5});  // twenty more changes in a row
+  ReshapeSeen first;
+  ReshapeMore guard;
+  guard.guard = true;
+  const std::vector<ReshapeSeen> s = menu_reshape_run(steps, &width0, &credits0, &accept0, &first, &guard);
   std::printf("menus at the start: canvas %d, CREDITS %d, OPTIONS' ACCEPT %d\n", width0, credits0, accept0);
   for (size_t i = 0; i < s.size(); ++i)
     std::printf("  after %c %d: %s, canvas %d, mode %d (saved %d), CREDITS %d, OPTIONS' ACCEPT %d\n", steps[i].kind, steps[i].value,
@@ -25433,6 +25504,37 @@ TEST(menus_take_a_picked_mode_at_once_headless) {
   EXPECT(s[3].to_main && plain(s[3]) && s[3].saved_mode == 14);     // wide menus off: 4:3 menus, the mission's mode kept
   EXPECT(s[4].to_main && wide(s[4], 14));                           // and on again
   EXPECT(s[5].to_main && plain(s[5]) && s[5].saved_mode == 5);      // 16:9 to 4:3
+  // The main menu's state is replaced by itself each time, never stacked on itself: after every step it is
+  // alone on the stack, and the screens and menu objects alive are as many as at the start (the old ones
+  // freed by its leave). Twenty more changes in a row end the same (the stack holds 16).
+  std::printf("  at the start: depth %d, %zu screens, %zu menu objects; after %zu steps: depth %d, %zu screens, %zu menu objects\n",
+              first.depth, first.screens, first.objects, s.size(), s.back().depth, s.back().screens, s.back().objects);
+  EXPECT(first.depth == 0 && first.bottom_is_main && first.screens > 0 && first.objects > 0);
+  int deep = 0, grown = 0;
+  for (const ReshapeSeen& r : s) deep += r.depth != 0 || !r.bottom_is_main, grown += r.screens != first.screens || r.objects != first.objects;
+  EXPECT(deep == 0 && grown == 0);
+  for (size_t i = 6; i + 1 < s.size(); i += 2) EXPECT(s[i].to_main && wide(s[i], 13) && s[i + 1].to_main && plain(s[i + 1]));
+  // With another state at the stack's bottom (a mission's): nothing queued, the screen as it was (640, from the
+  // last step), and the kept mode forgotten, so the menus made next take the new one (13).
+  std::printf("  not on the main menu: %d queued, the menus' mode %d, canvas %d\n", guard.guard_pending, guard.guard_mode, guard.guard_width);
+  EXPECT(guard.guard_pending == 0 && guard.guard_mode == 13 && guard.guard_width == 640);
+}
+
+// The same inside a MODS campaign entry (docs/mods-campaigns-plan.md, Inside a campaign entry): there the main
+// menu's state shows the entry's screen and nothing else. A mode picked while it is up makes the menus again
+// and the entry's screen comes back: once, on the wide canvas, the stack as deep as before, the entry not left.
+// (No screen of an entry offers OPTIONS today, and a mission's pause is the guard's case above; this is the
+// rule should one come to.)
+TEST(menus_take_a_picked_mode_inside_an_entry_headless) {
+  if (!have_game()) return;
+  int32_t width0 = 0, credits0 = 0, accept0 = 0;
+  ReshapeMore e;
+  e.entry = true;
+  menu_reshape_run({}, &width0, &credits0, &accept0, nullptr, &e);
+  std::printf("  inside an entry: depth %d then %d, its screen up %d times, left %d times, canvas %d\n", e.entry_depth_before, e.entry_depth,
+              e.entry_screens_up, e.entry_leaves, e.entry_width);
+  EXPECT(e.entry_depth_before > 0 && e.entry_depth == e.entry_depth_before && e.entry_screens_up == 1 && e.entry_leaves == 0);
+  EXPECT(e.entry_width == 853);
 }
 
 // 16:9 menus are on by default (Owen, 2026-10-31): with nothing set, the
