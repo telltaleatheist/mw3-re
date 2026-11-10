@@ -460,9 +460,14 @@ caught.
   end lies (at that depth through the reticle, not that distance along the ray).
 - Around the query, the mech's contacts nearer than that reach (nearest
   first) are tested by their meshes: each active one's node loses its box test
-  (0x00445c60, 0x004fd2c0 flag 0x20 off, then on). A contact's entity is its
-  vt+0x48 (a mech returns itself; the program takes every class the same).
-  `test_pm_hud_aim.py` (the pass; the ray itself is not run in the emulator).
+  (0x00445c60, 0x004fd2c0 flag 0x20 off, then on), so after the query every
+  such contact is boxed for the rest of the frame. A contact's entity is its
+  vt+0x48: itself (0x00402250) for a mech, a vehicle, the stealth object and a
+  field base; none (0x00406ce0) for a turret, a target and a trap, which are
+  never boxed (`hud_object_aim_entity`; pm-tests 37, an early port boxing
+  turrets left a dead Anhur's box as a wall). `test_pm_hud_aim.py` (the pass;
+  the ray itself is not run in the emulator), `test_pm_aim_entities.py` (each
+  class's slot in PM's exe).
 
 ## 11. The frame (0x0043c820) and the pieces' updates
 

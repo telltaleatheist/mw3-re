@@ -4691,21 +4691,17 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   then decides the winner from what it saw itself, so a player whose game hadn't shown the base falling yet can
   get a different result, a tie that extends the match (from the code: 0x472850 reads only the reason; seen in
   the rebuild by destroying the base on the host alone).
-- **A shot-down Anhur can leave an invisible wall (Pirate's Moon).** Pirate's
-  Moon's reticle, as it aims, switches each nearby target to be hit by its
-  shape and then back to being hit by a simple box around it. For a turret,
-  and the Anhur aircraft are turrets, that box was never meant to be on, and
-  once the turret is dead the reticle stops touching it, so the box stays.
-  The box surrounds everything the turret was made of: where it died and
-  wherever its wreck fell. Shoot an Anhur down over c3m6's land bridge and a
-  box from the sky to the deck stops your lasers and your mech in empty air.
-  The rebuild drops a dead turret's box. Separately, the Anhur's script means
-  to switch the aircraft off when its fall ends, but that line sits inside the
-  fall's settings and was never built into the mission, so the aircraft stays
-  on forever. (Found from a playtest's hit log and the code: 0x00445c60,
-  0x004a7620, anhur.zrd; docs/pm-tests.md item 37) In the original, Owen
-  shot the Anhur down the same way and found no wall in the air over the
-  channel. Nobody saw where its wreck fell, so it isn't certain.
+- **A shot-down Anhur stays switched on (Pirate's Moon).** The Anhur's script
+  means to switch the aircraft off when its fall ends, but that line sits
+  inside the fall's settings and was never built into the mission, so the
+  aircraft stays on forever. It does no harm: Pirate's Moon's reticle, which
+  makes nearby mechs and vehicles easier to hit by testing them against a box,
+  leaves turrets (the Anhur is one) and mission targets out of it, so a dead
+  Anhur's wreck is solid only where its pieces are. (An early rebuild boxed
+  turrets too, and a shot-down Anhur then left an invisible wall over c3m6's
+  land bridge; Owen's run of the original showed none. From the code:
+  0x00445c60, the turret's vt+0x48 0x00406ce0, anhur.zrd; docs/pm-tests.md
+  item 37)
 - **The Anhur drops c3m6's land bridge (Pirate's Moon).** The bridge before
   nav Able gives way once it has taken 20 points of harm. Standing on it alone
   doesn't do it: in the rebuild, a mech left on the deck with the Anhur shot

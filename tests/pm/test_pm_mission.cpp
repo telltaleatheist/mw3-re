@@ -892,10 +892,32 @@ static void kill_run(const char* which, bool quick) {
       const int kill_at = std::atoi(std::getenv("PM_ANHUR")) > 1 ? std::atoi(std::getenv("PM_ANHUR")) : 1500;
       if (zcls::Node* d = zcls::list_find_by_name(6, "hslid01"); d && !(d->flags() & 4) && g_anhur.deck_gone < 0) g_anhur.deck_gone = t;
       if (std::getenv("PM_ANHUR_TRACK") && t % 30 == 0) {
-        float a[3] = {}, me[3] = {};
-        if (zcls::Node* d = zcls::list_find_by_name(6, "destroyed")) zcls::node_world_point(d, a);
+        float a[3] = {}, h[3] = {}, me[3] = {}, lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
+        zcls::Node *dn = nullptr, *hn = nullptr;  // anhur04's own (each Anhur has a "destroyed")
+        std::function<void(zcls::Node*)> find = [&](zcls::Node* q) {
+          if (!dn && std::strcmp(q->name(), "destroyed") == 0) dn = q;
+          if (!hn && std::strcmp(q->name(), "healthy") == 0) hn = q;
+          for (int32_t i = 0; i < q->child_count(); ++i) find(q->children[i]);
+        };
+        if (root) find(root);
+        if (dn) zcls::node_world_point(dn, a);
+        if (hn) zcls::node_world_point(hn, h);
+        float c[8][3];
+        if (root && zcls::node_box_corners(root, c) == 0)
+          for (int i = 0; i < 8; ++i)
+            for (int k = 0; k < 3; ++k) lo[k] = std::min(lo[k], c[i][k]), hi[k] = std::max(hi[k], c[i][k]);
+        if (dn && std::getenv("PM_ANHUR_GROUND")) {  // what the fall's ground query (0x004edab0) returns under the wreck
+          auto* world = static_cast<zcls::Node*>(mech3::world_hooks().world);
+          static zcls::GroundHits g;
+          const int rc = zcls::ground_point(world, a[0], a[1] + 20.0f, a[2], &g);
+          std::printf("  anhur ground under the wreck (rc %d): %d hits", rc, g.count);
+          for (int32_t i = 0; i < g.count && i < 6; ++i) std::printf(" | %.1f %s", g.hit[i].height, g.hit[i].node ? g.hit[i].node->name() : "-");
+          std::printf("\n");
+        }
         mech3::mech_world_position(player, me);
-        std::printf("  anhur t %d: root flags %x, destroyed at %.0f %.0f %.0f, player %.1f %.1f %.1f, deck gone %d\n", t, root ? root->flags() : 0, a[0], a[1], a[2], me[0], me[1], me[2], g_anhur.deck_gone);
+        std::printf("  anhur t %d: root flags %x, healthy %x at %.0f %.0f %.0f, destroyed %x at %.0f %.0f %.0f, box x %.0f..%.0f y %.0f..%.0f z %.0f..%.0f, player %.1f %.1f %.1f, deck gone %d\n",
+                    t, root ? root->flags() : 0, hn ? hn->flags() : 0, h[0], h[1], h[2], dn ? dn->flags() : 0, a[0], a[1], a[2], lo[0], hi[0], lo[1], hi[1], lo[2], hi[2],
+                    me[0], me[1], me[2], g_anhur.deck_gone);
       }
       if (zcls::Node* x = zcls::list_find_by_name(6, "xslid01")) {
         if (t == 1590) g_anhur.bridge_boxed_alive = (x->flags() & 0x20) != 0;
@@ -935,8 +957,8 @@ static void kill_run(const char* which, bool quick) {
       if (t == (std::getenv("PM_ANHUR_TRACK") ? 2400 : 1650)) done = true;
       return;
     }
-    // pm-tests 37's survey: every turret boxed as the reticle leaves one it passed, then destroyed (frame 30); 1500
-    // frames on, each root's box against its live pieces' boxes: how far past them it reaches (empty air it stops).
+    // pm-tests 37's survey: every turret boxed by hand (PM's aim ray never boxes one; a data BOX would), then
+    // destroyed (frame 30); 1500 frames on, each root's box against its live pieces' boxes: how far past them it reaches.
     if (std::getenv("PM_DEADROOTS")) {
       static int t = 0;
       static std::vector<zcls::Node*> roots;
@@ -1899,9 +1921,9 @@ static void kill_run(const char* which, bool quick) {
 
 // Always on: the same fall with the camera by the cockpit and outside: entering the cloud
 // tints the screen to its colour by the camera's height (docs/vehicles.md, The cloud's screen tint).
-// pm-tests 37, Owen's invisible wall in c3m6: an Anhur shot down over the land bridge left its root's box (set by PM's
-// reticle while it flew near, never cleared once it was dead) spanning where it died and its falling wreck. With bug
-// fixes on the dead turret drops it; off, the box stops the shot and the walk as in the exe (docs/fixes.md).
+// pm-tests 37, Owen's invisible wall in c3m6: an Anhur shot down over the land bridge left its root's box spanning
+// where it died and its falling wreck. Our aim ray had boxed it as it flew near; PM's never boxes a turret (its
+// vt+0x48 is none, 0x00406ce0, as a target's), so nothing is left to stop a shot or a mech, bug fixes on or off.
 TEST(pm_c3m6_dead_anhur_leaves_no_wall) {
 #if !defined(_WIN32)
   for (const bool bugs : {true, false}) {
@@ -1915,16 +1937,14 @@ TEST(pm_c3m6_dead_anhur_leaves_no_wall) {
       std::printf("  bugs %d: killed %d, boxed alive %d, dead %d; shot meets %s at %.1f m, walk %s at %.1f m; the deck gone at frame %d\n", bugs,
                   g_anhur.killed, g_anhur.boxed_alive, g_anhur.boxed_dead, name(g_anhur.shot), g_anhur.shot_at, name(g_anhur.walk), g_anhur.walk_at,
                   g_anhur.deck_gone);
-      EXPECT(g_anhur.killed && g_anhur.boxed_alive);  // the reticle had boxed it as it flew near
+      EXPECT(g_anhur.killed && !g_anhur.boxed_alive);  // never boxed by the aim ray, alive
       std::printf("  %d solid pieces, %d with nothing drawn; xslid01 (a target, never the reticle's) boxed alive %d, dead %d\n",
                   g_anhur.solid, g_anhur.unseen, g_anhur.bridge_boxed_alive, g_anhur.bridge_boxed_dead);
       EXPECT(!g_anhur.bridge_boxed_alive && !g_anhur.bridge_boxed_dead);
       EXPECT(g_anhur.solid > 0 && g_anhur.unseen == 0);  // the wreck stays solid by its polygons, all of them drawn
       const bool shot_box = g_anhur.shot && std::strcmp(g_anhur.shot->name(), "anhur04") == 0;
       const bool walk_box = g_anhur.walk && std::strcmp(g_anhur.walk->name(), "anhur04") == 0;
-      EXPECT(g_anhur.boxed_dead == !bugs);
-      EXPECT(shot_box == !bugs);
-      EXPECT(walk_box == !bugs);
+      EXPECT(!g_anhur.boxed_dead && !shot_box && !walk_box);
       std::fflush(nullptr);
       _exit(check::failures ? 1 : 0);
     }
