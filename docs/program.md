@@ -240,6 +240,10 @@ They run inside the original main loop, after the original start-up.
 - `--mod NAME` (repeatable), `--no-mods`, `--mods` (ours, docs/modding.md):
   this run's mods in order instead of mw3.cfg's `mod=` lines, none, or the
   mods found and enabled listed (then it quits).
+- `--make-starter mech|weapon|translation|mission` (ours, docs/modding.md,
+  Starter mods): a starter mod made from the install in the write dir's
+  `mods\starter_<kind>`, never over a folder or file already there; it says
+  what it made or why not and quits (exit 1 when not made).
 - `--check-mod DIR` (ours, docs/modding.md): the mod at DIR read as the game
   would read it, nothing mounted into play; the report printed, exit 1 when
   anything would be refused.

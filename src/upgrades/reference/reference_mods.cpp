@@ -8,7 +8,7 @@ namespace upgrades::reference {
 File mod_txt() {
   return {"mod.txt", "mod.txt", "the mod folder's root (`mods\\<mod>\\mod.txt`)", "ours: `mech3::mod_parse`, `mech_row_parse`, `weapon_row_parse`",
           "`key=value` lines, the key in any case, spaces around either trimmed; `#` starts a comment line. An unknown key is "
-          "ignored (a newer mod still loads). `world`, `ia_world`, `mech`, `weapon` and `campaign` may repeat. The values of "
+          "ignored (a newer mod still loads). `world`, `ia_world`, `mech`, `weapon`, `campaign`, `needs` and `conflicts` may repeat. The values of "
           "`mech=` and `weapon=` are a name and then `key=value` words; there an unknown key refuses the line.",
           {
               {"", "name", "text", "required", "", "The mod's name, shown on the MODS screen. Without it the mod cannot be used."},
@@ -35,6 +35,13 @@ File mod_txt() {
               {"", "anim", "`defs`", "none", "",
                "Its animations by its def files alone (`zbd\\<world>\\anim\\` and `zbd\\anim\\`): its whole anim files, kept for the "
                "original game, are not ours to read, so it combines with other def-file mods."},
+              {"", "needs", "`<mod> [version]`", "none", "the last word a version when it starts with a digit",
+               "Another mod it needs, by folder or `name=` (any case), and its least version. The MODS screens warn when it is "
+               "missing, off or older; the mod is still turned on."},
+              {"", "conflicts", "`<mod>`", "none", "", "A mod it does not work with, by folder or `name=`. The MODS screens warn "
+                                                       "when both are on; neither is stopped."},
+              {"", "game_version", "a version (`1.1.0`)", "none", "", "The least MechWarrior 3 Rebuild version it needs; an older "
+                                                                       "program warns on the MODS screens and still loads it."},
           }};
 }
 

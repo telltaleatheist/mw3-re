@@ -80,6 +80,8 @@
 #include "frontend/sdl/sdl_install.h"
 #include "upgrades/editor/help.h"
 #include "upgrades/mods/anim_defs.h"
+#include "upgrades/mods/mod_needs.h"
+#include "upgrades/mods/starter_mods.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/reference/reference.h"
 #include "mech3/game_editor.h"
@@ -179,6 +181,7 @@ struct Args {
   std::string check_mod;  // --check-mod DIR
   std::string mod_report;  // --mod-report DIR (ours, upgrades/mods/mod_report.h): the check as sentences
   std::string build_anim;  // --build-anim DIR: its def files merged for the original game (upgrades/mods/anim_defs)
+  std::string make_starter;  // --make-starter KIND: a starter mod made in the write dir's mods\ (upgrades/mods/starter_mods)
   std::string reference;  // --reference FILE: the modding reference written (upgrades/reference)
   std::string editor_guide;  // --editor-guide FILE: the editor's guide written (upgrades/editor/help)
   std::string pick;       // --pick PATH: the MODS screen's picker answered with PATH (ours, for scripted runs)
@@ -274,7 +277,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -297,6 +300,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
     else if (s == "--mod-report" && next(1)) a.mod_report = argv[++i];
     else if (s == "--build-anim" && next(1)) a.build_anim = argv[++i];
+    else if (s == "--make-starter" && next(1)) a.make_starter = argv[++i];
     else if (s == "--reference" && next(1)) a.reference = argv[++i];
     else if (s == "--editor-guide" && next(1)) a.editor_guide = argv[++i];
     else if (s == "--pick" && next(1)) a.pick = argv[++i];
@@ -682,6 +686,7 @@ int mw3_game_main(int argc, char** argv) {
   }
   if (!a.shot.empty()) a.hidden = true;
   if (a.verbose) mech3::ai::set_pm_ai_report(true);  // the PM AI's unanswered calls, as they come and at exit
+  mech3::mods_program_version() = MW3_VERSION;  // game_version= in mod.txt (upgrades/mods/mod_needs.h)
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK)) {
     sdlfe::fatal_box(std::string("MechWarrior 3 cannot start: ") + SDL_GetError(), a.hidden);
     return 1;
@@ -722,6 +727,18 @@ int mw3_game_main(int argc, char** argv) {
     for (const std::string& line : lines) std::printf("%s\n", line.c_str());
     SDL_Quit();
     return errors ? 1 : 0;
+  }
+  if (!a.make_starter.empty()) {  // a starter mod from the install's files, only ever a new folder
+    const std::string install = !a.install.empty() ? a.install : a.cfg_install;
+    if (install.empty() || a.write_dir.empty()) {
+      std::printf("error: no install or write dir to make it from (--install DIR, --write-dir DIR)\n");
+      SDL_Quit();
+      return 1;
+    }
+    const mech3::StarterMade m = mech3::starter_make(a.make_starter, install, a.write_dir + "/mods");
+    std::printf("%s\n", m.message.c_str());
+    SDL_Quit();
+    return m.ok ? 0 : 1;
   }
   if (!a.check_mod.empty()) {  // read the mod as the game would, nothing mounted into play
     int errors = 0;

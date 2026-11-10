@@ -7,7 +7,7 @@ Every key each file a mod can change is read with: its type, what the game takes
 - Where: the mod folder's root (`mods\<mod>\mod.txt`)
 - Read by: ours: `mech3::mod_parse`, `mech_row_parse`, `weapon_row_parse`
 
-`key=value` lines, the key in any case, spaces around either trimmed; `#` starts a comment line. An unknown key is ignored (a newer mod still loads). `world`, `ia_world`, `mech`, `weapon` and `campaign` may repeat. The values of `mech=` and `weapon=` are a name and then `key=value` words; there an unknown key refuses the line.
+`key=value` lines, the key in any case, spaces around either trimmed; `#` starts a comment line. An unknown key is ignored (a newer mod still loads). `world`, `ia_world`, `mech`, `weapon`, `campaign`, `needs` and `conflicts` may repeat. The values of `mech=` and `weapon=` are a name and then `key=value` words; there an unknown key refuses the line.
 
 | Key | In | Type | When absent | Limits | What it does |
 |---|---|---|---|---|---|
@@ -30,6 +30,9 @@ Every key each file a mod can change is read with: its type, what the game takes
 | `title` | weapon= | text, the rest of the line | NAME | - | The name shown; last on the line. |
 | `campaign` | top | a file in the mod | none | inside the mod's folder | A custom campaign's file (the next section). |
 | `anim` | top | `defs` | none | - | Its animations by its def files alone (`zbd\<world>\anim\` and `zbd\anim\`): its whole anim files, kept for the original game, are not ours to read, so it combines with other def-file mods. |
+| `needs` | top | `<mod> [version]` | none | the last word a version when it starts with a digit | Another mod it needs, by folder or `name=` (any case), and its least version. The MODS screens warn when it is missing, off or older; the mod is still turned on. |
+| `conflicts` | top | `<mod>` | none | - | A mod it does not work with, by folder or `name=`. The MODS screens warn when both are on; neither is stopped. |
+| `game_version` | top | a version (`1.1.0`) | none | - | The least MechWarrior 3 Rebuild version it needs; an older program warns on the MODS screens and still loads it. |
 
 ## A custom campaign's file
 
