@@ -92,4 +92,60 @@ int32_t team_for_name(const char* name) {
   return team_side(std::strcmp(name, "player") == 0 ? 0 : 1);
 }
 
+namespace {
+// The exe's float ==: FCOMP's unordered result (a NaN on either side) sets the
+// same flag as equal, and the compiled test reads only that one, so a NaN
+// equals anything (test_aiv_edit.py; docs/editor.md). -0 equals 0.
+bool x87_equal(float a, float b) { return !(a < b) && !(a > b); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004df1b0. Word i is at +0x04 + 4i; each compared as a
+// float (x87_equal) or as an int, as the exe does, and the flag bytes +0xcc /
+// +0xcd by their bits. Word 0x0f's place in the order and the skipped ones
+// are the exe's.
+bool AiParams::same_numbers(const AiParams& o) const {
+  const auto f = [&](int w) { return x87_equal(get<float>(4 + 4 * w), o.get<float>(4 + 4 * w)); };
+  const auto i = [&](int w) { return get<int32_t>(4 + 4 * w) == o.get<int32_t>(4 + 4 * w); };
+  const uint8_t a = raw[0xcc], b = o.raw[0xcc];
+  const uint8_t x = a ^ b;
+  if (!(i(0) && f(1) && f(2) && f(3) && f(4) && i(5))) return false;                                // 0x004bbd70
+  if (!(f(6) && f(7) && f(8) && f(9) && f(10) && f(11) && f(12) && f(13) && i(14))) return false;  // 0x004bbdd0
+  if (!(f(0x10) && f(0x11) && f(0x12) && f(0x13) && i(0x0f) && !(x & 7))) return false;             // 0x004bbe60
+  if (!(i(0x14) && f(0x15) && i(0x16) && i(0x17))) return false;
+  if (!(f(0x18) && f(0x19) && f(0x1a) && f(0x1b) && f(0x1c) && f(0x1d) && f(0x1e) && i(0x1f) && f(0x20) &&
+        i(0x21) && i(0x22) && f(0x23) && f(0x24) && i(0x25) && i(0x26) && i(0x27) && i(0x28)))
+    return false;                                                                                   // 0x004bbed0
+  if (!(f(0x29) && f(0x2a) && f(0x2b) && !(x & 8) && f(0x2c))) return false;                        // 0x004bc010
+  if (!(f(0x2d) && i(0x2e))) return false;                                                          // 0x004bc090
+  if (!f(0x2f)) return false;
+  if (!(i(0x30) && !(x & 0x30))) return false;                                                      // 0x004bc0d0
+  if (x & 0x40) return false;
+  // 0x004bc110 (ECX the first): bit 1 of +0xcd equal, and bit 0 too unless the first has bit 1.
+  const uint8_t y = raw[0xcd] ^ o.raw[0xcd];
+  if ((y & 2) || (!(raw[0xcd] & 2) && (y & 1))) return false;
+  return i(0x31) && !(x & 0x80);
+}
+
+// Mech3.exe 1.2 @ 0x004d9140: one vlist entry against another.
+static bool same_entry(const VListEntry& a, const VListEntry& b) {
+  const uint8_t x = a.flags ^ b.flags;
+  return !(x & 7) && x87_equal(a.f00, b.f00) && !(x & 0x18) && x87_equal(a.f04, b.f04) && !(x & 0x20) &&
+         x87_equal(a.f08, b.f08) && !(x & 0x40) && x87_equal(a.f0c, b.f0c) && !(x & 0x80) && x87_equal(a.f10, b.f10) &&
+         !((a.flags2 ^ b.flags2) & 3) && a.region == b.region;
+}
+
+// Mech3.exe 1.2 @ 0x004d91d0 -> 0x004d9090: the same list object, or both
+// there with as many entries, each the same valve and the same settings.
+bool AiParams::same_vlist(const AiParams& o) const {
+  if (vlist == o.vlist) return true;
+  if (!vlist || !o.vlist || vlist->size() != o.vlist->size()) return false;
+  auto j = o.vlist->begin();
+  for (auto k = vlist->begin(); k != vlist->end(); ++k, ++j)
+    if (k->valve != j->valve || !same_entry(*j, *k)) return false;
+  return true;
+}
+
+// Mech3.exe 1.2 @ 0x0049d2f0
+bool same_name(const char* a, const char* b) { return a && b && std::strcmp(a, b) == 0; }
+
 }  // namespace mech3::ai

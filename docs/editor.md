@@ -1000,12 +1000,27 @@ id). When it has none, one is made from the brain's settings (0x004df6f0,
   (0x0049d2f0, 0x004d91d0), the orders (0x004bbd70, 0x004bbdd0, 0x004bbe60,
   0x004bbed0, 0x004bc010, 0x004bc090, 0x004bc0d0, 0x004bc110), four words
   at +0x50 and two flag bits. When they differ, it puts the record in the
-  cache (0x004e06e0 -> 0x004defc0, which drops a record equal to the file's,
-  as the net file's 0x004dc2b0 does).
+  cache (0x004e06e0 -> 0x004defc0). The cache edit compares with the record
+  the cache already keeps for that vehicle (0x004def10), not with the file's,
+  and returns 0 when they are the same. A record with no pilot or no voice
+  name is never "the same" (0x0049d2f0 calls a null name unequal, even to
+  null), so it is always stored again.
 - It compares it the same way with the brain's live settings. When those
   differ, it gives them to the brain (0x004d99e0) and rebuilds the team's
   three masks on the vehicle (+0xc0, +0xc4, +0xc8: the team's bits, allies
   without bit 0, enemies the rest), and clears [0x0060b56c].
+
+**The compares, ported** (S7c, 2026-11-09): `AiParams::same_numbers`
+(0x004df1b0; the store's 0x004bbd70..0x004bc110 are the same chain in
+pieces), `same_vlist` (0x004d9090 with 0x004d9140) and `same_name`
+(0x0049d2f0) in `zai_params`, and `AivFile::edit` (0x004defc0) in
+`zrdraiv`. A float word is compared the way the x87 does it in the exe: an
+unordered result (a NaN on either side) sets the same flag as "equal", and the
+compiled test reads only that, so a NaN equals anything. A NaN cannot come from
+the dialog's fields, so this never shows. Test: test_aiv_edit.py (3000 pairs
+one word, one flag bit, -0 or a NaN apart, vlists of 0..3 entries one field
+apart, names; 0 differ). Breaks: a float word as an int, flag bit 0x40 left
+out, two null names equal, the entries' valve left out.
 
 **Nothing is saved.** As with the nets, an edit lives only in the aiv
 file's record cache (its map at +0x24) and in the running brain. The exe
