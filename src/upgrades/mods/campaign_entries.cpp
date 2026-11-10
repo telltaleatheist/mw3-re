@@ -142,6 +142,7 @@ std::string entry_dir(const std::string& write_dir, const std::string& id) {
   return (fs::path(write_dir) / kEntriesFolder / id).generic_string();
 }
 std::string entry_pilots_folder(const std::string& id) { return std::string(kEntriesFolder) + "\\" + id + "\\pilots"; }
+std::string entry_configs_folder(const std::string& id) { return std::string(kEntriesFolder) + "\\" + id + "\\configs"; }
 
 bool entry_ensure(const std::string& write_dir, const CampaignEntry& e, std::string* why) {
   const fs::path dir(entry_dir(write_dir, e.id));
@@ -151,6 +152,7 @@ bool entry_ensure(const std::string& write_dir, const CampaignEntry& e, std::str
     return false;
   }
   fs::create_directories(dir / "pilots" / "games", ec);
+  fs::create_directories(dir / "configs", ec);
   if (!fs::exists(dir / kCampaignMarker, ec))
     std::ofstream(dir / kCampaignMarker) << "\"" << e.name << "\" (" << e.id
                                          << "): its mods, pilots and saves, made by the game. Deleting this folder deletes them.\n";
