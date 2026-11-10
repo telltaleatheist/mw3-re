@@ -56,7 +56,6 @@ const std::vector<const char*>& small_fixes_list() {
       "Tripod turrets aim when facing straight up or down.",
       "A vehicle's gun stops at its true aiming limit.",
       "A vehicle file with pitch and no roll keeps its pitch.",
-      "An AI pilot at a backup node turns the right way.",
       "The reticle locks past 800 m when the weapons reach.",
       "LOCK_ON_LEAD reads the right value (a typo).",
       "The mech lab offers the plain PPC the data defines.",
@@ -68,6 +67,8 @@ const std::vector<const char*>& small_fixes_list() {
       "An animation whose object is missing waits its turn.",
       "Leaving c4b mission 5's or 6's area fails it.",
       "c2 mission 3's objective waits for its two Fireflies.",
+      "The Sunder Alternate B loads all 360 LRM 20 missiles.",
+      "The Strider has its recoil slide (a number typed as text).",
   };
   return l;
 }
