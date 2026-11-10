@@ -565,6 +565,17 @@ program files are replaced.
    (its body, wrapped and paged, the markdown's `#` and `-` shown plainly),
    "Download and install MechWarrior 3 Rebuild 1.2.0?", DOWNLOAD AND
    INSTALL and NOT NOW. Tests: the screen's text from a fixture release.
+   **Done (2026-11-10):** a newer release opens the UPDATE screen
+   (`Launcher::show_update`): "MECHWARRIOR 3 REBUILD 1.2.0", its notes as
+   plain lines (`upgrades::update::notes_lines`: headings without #, items as
+   bullets, **, * and ` marks dropped, links as their text) wrapped to 500 px
+   and paged with < and >, the question with "Your mods, pilots, saves and
+   settings are kept.", DOWNLOAD AND INSTALL (sitting 3) and NOT NOW. Same or
+   older: the main screen's status line, as sitting 1. `--launcher-screen
+   update` shoots it (with `MW3_UPDATE_API`). Tests:
+   `update_notes_as_plain_lines`, `sdl_program_launcher_checks_for_updates`
+   (the screen's plates and notes; none for same, older or broken). Break:
+   no screen for a newer release: caught.
 3. **The download and its check**: the platform's asset (the
    `-win64-Setup.exe`, the `-mac.dmg`, the `-x86_64.AppImage`) and the
    release's `SHA256SUMS`, over HTTPS by curl into the system's temp folder,

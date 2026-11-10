@@ -5273,7 +5273,8 @@ TEST(sdl_program_launcher_checks_for_updates) {
   fs::create_directories(dir / "wd", ec);
   std::ofstream(dir / "wd" / "mw3.cfg") << "install=" << MW3_GAME_DIR << "\n";
   const auto rel = [](const char* tag, bool draft) {
-    return std::string("{\"tag_name\":\"") + tag + "\",\"draft\":" + (draft ? "true" : "false") + ",\"prerelease\":false,\"body\":\"x\",\"assets\":[]}";
+    return std::string("{\"tag_name\":\"") + tag + "\",\"draft\":" + (draft ? "true" : "false") +
+           ",\"prerelease\":false,\"body\":\"## Fixes\\r\\n- **Lasers** hit again\\n- The `c1m2` crash\",\"assets\":[]}";
   };
   std::ofstream(dir / "newer.json") << "[" << rel("pm-v99.0.0", false) << "," << rel("v99.0.0", true) << "," << rel("v98.1.0", false) << "]";
   std::ofstream(dir / "older.json") << "[" << rel("v0.0.1", false) << "]";
@@ -5295,6 +5296,12 @@ TEST(sdl_program_launcher_checks_for_updates) {
     const size_t at = text.find("launcher: update: ");
     const std::string said = at == std::string::npos ? "(none)" : text.substr(at + 18, text.find('\n', at) - at - 18);
     std::printf("  %s: %s\n", name, said.c_str());
+    if (std::string(name) == "newer")  // sitting 2: the notes and the question
+      EXPECT(text.find("screen update: <, >, DOWNLOAD AND INSTALL, NOT NOW\n") != std::string::npos &&
+             text.find("update notes: Fixes\n") != std::string::npos && text.find("update notes: \xe2\x80\xa2 Lasers hit again\n") != std::string::npos &&
+             text.find("update notes: \xe2\x80\xa2 The c1m2 crash\n") != std::string::npos);
+    else
+      EXPECT(text.find("screen update:") == std::string::npos);
     return said;
   };
   EXPECT(run("newer").rfind("MechWarrior 3 Rebuild 98.1.0 is out (this is ", 0) == 0);

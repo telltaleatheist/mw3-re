@@ -78,3 +78,14 @@ TEST(update_says_what_it_found) {
   const u::Verdict none = u::judge("v1.1.0", list({release("pm-v1.0.1"), release("v1.3.0", true)}), "");
   EXPECT(none.kind == u::Verdict::kFailed && none.words.find("no release") != std::string::npos);
 }
+
+TEST(update_notes_as_plain_lines) {
+  const std::string md = "## MechWarrior 3\r\n\r\n- **Fixed:** the `c1m2` crash, see [the report](https://example.com/x).\n"
+                         "  - A *nested* item with a file_name\n\n\n### Pirate's Moon\n* Lancemates follow again\n\n";
+  const std::vector<std::string> lines = u::notes_lines(md);
+  for (const std::string& l : lines) std::printf("  |%s|\n", l.c_str());
+  const std::vector<std::string> want = {"MechWarrior 3", "", "\xe2\x80\xa2 Fixed: the c1m2 crash, see the report.",
+                                         "    \xe2\x80\xa2 A nested item with a file_name", "", "Pirate's Moon", "\xe2\x80\xa2 Lancemates follow again"};
+  EXPECT(lines == want);
+  EXPECT(u::notes_lines("").empty() && u::notes_lines("\n\n").empty());
+}

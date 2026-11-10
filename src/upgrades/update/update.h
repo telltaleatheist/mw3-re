@@ -39,6 +39,10 @@ struct Verdict {
 // From what the fetch gave: `json` (empty when it failed, `fetch_error` saying why) against `current` (MW3_VERSION).
 Verdict judge(const std::string& current, const std::string& json, const std::string& fetch_error);
 
+// A release's notes (markdown) as plain lines for the launcher's screen: headings without their #, "- " and "* "
+// items as "• ", **bold**, *italic* and `code` marks dropped, [text](url) as its text, blank runs as one.
+std::vector<std::string> notes_lines(const std::string& markdown);
+
 // The version as a player reads it: "1.2.0" from "v1.2.0".
 std::string plain_version(const std::string& tag);
 

@@ -232,6 +232,59 @@ int compare_versions(const std::string& a, const std::string& b) {
   return 0;
 }
 
+std::vector<std::string> notes_lines(const std::string& markdown) {
+  std::vector<std::string> out;
+  const auto inline_marks = [](std::string s) {
+    std::string r;
+    for (size_t i = 0; i < s.size(); ++i) {
+      if (s[i] == '[') {  // [text](url) -> text
+        const size_t close = s.find("](", i);
+        const size_t end = close == std::string::npos ? close : s.find(')', close);
+        if (end != std::string::npos) {
+          r += s.substr(i + 1, close - i - 1);
+          i = end;
+          continue;
+        }
+      }
+      if (s[i] == '`' || (s[i] == '*' && (i + 1 < s.size() && s[i + 1] == '*'))) {
+        if (s[i] == '*') ++i;
+        continue;
+      }
+      if (s[i] == '*' || s[i] == '_') {  // *italic*, _italic_: the mark between letters kept (file_name)
+        const bool word_before = i > 0 && std::isalnum(static_cast<unsigned char>(s[i - 1]));
+        const bool word_after = i + 1 < s.size() && std::isalnum(static_cast<unsigned char>(s[i + 1]));
+        if (!(word_before && word_after)) continue;
+      }
+      r += s[i];
+    }
+    return r;
+  };
+  size_t at = 0;
+  bool blank = true;  // no blank first line, none doubled
+  while (at <= markdown.size()) {
+    const size_t nl = markdown.find('\n', at);
+    std::string line = markdown.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
+    at = nl == std::string::npos ? markdown.size() + 1 : nl + 1;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    size_t lead = line.find_first_not_of(" \t");
+    if (lead == std::string::npos) {
+      if (!blank) out.emplace_back(), blank = true;
+      continue;
+    }
+    std::string text = line.substr(lead);
+    if (text[0] == '#') {
+      text = text.substr(text.find_first_not_of('#'));
+      text = text.substr(std::min(text.size(), text.find_first_not_of(' ')));
+    } else if ((text[0] == '-' || text[0] == '*') && text.size() > 1 && text[1] == ' ') {
+      text = std::string(lead > 1 ? "    " : "") + "\xe2\x80\xa2 " + text.substr(2);  // a nested item indented
+    }
+    out.push_back(inline_marks(text));
+    blank = false;
+  }
+  while (!out.empty() && out.back().empty()) out.pop_back();
+  return out;
+}
+
 std::string plain_version(const std::string& tag) {
   return tag.size() > 1 && tag[0] == 'v' && std::isdigit(static_cast<unsigned char>(tag[1])) ? tag.substr(1) : tag;
 }
