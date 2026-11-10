@@ -9,6 +9,7 @@
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -388,7 +389,7 @@ int segment_node(Node* node, int32_t siblings, const int32_t* in) {
 }
 
 int32_t cell_of(float v, float origin, float inv) {
-  return crt::msvc_ftol(std::floor(static_cast<double>((v - origin) * inv)));
+  return crt::msvc_ftol(std::floor(((zgeo::X(v) - origin) * inv).v));  // floor takes the x87's value
 }
 // Mech3.exe 1.2 @ 0x004efef0: the cells under the segments' boxes (all of
 // them, dropped ones too), each cell's nodes and fades.
@@ -1232,7 +1233,7 @@ int segment_nearest(Node* world, const float from[3], const float to[3], LineHit
   const zmth::Vec3 f{from[0], from[1], from[2]};
   auto dist2 = [&](int k) {
     const LineHit& h = out->hit[k];
-    return zmth::distance_sq(f, zmth::Vec3{h.point[0], h.point[1], h.point[2]});
+    return zmth::distance_sq_x87(f, zmth::Vec3{h.point[0], h.point[1], h.point[2]});
   };
   float best = dist2(0);
   out->hit[0].dist2 = best;
@@ -1282,10 +1283,10 @@ int sphere_leaf(Node* node) {
   corners_sphere(c, centre, &radius);
   float d2 = 0.0f;
   if (g_spq.ranged) {
-    const float d = zmth::distance(zmth::Vec3{g_spq.centre[0], g_spq.centre[1], g_spq.centre[2]},
-                                   zmth::Vec3{centre[0], centre[1], centre[2]}) -
-                    radius;
-    d2 = 0.0f <= d ? d * d : 0.0f;
+    const zgeo::X d = zgeo::X(zmth::distance_x87(zmth::Vec3{g_spq.centre[0], g_spq.centre[1], g_spq.centre[2]},
+                                                 zmth::Vec3{centre[0], centre[1], centre[2]})) -
+                      radius;  // on the x87 until squared and stored
+    d2 = 0.0 <= d.v ? (d * d).f() : 0.0f;
     if (g_spq.radius2 < d2) return 1;
   }
   if (g_spq.sight_world && (node->flags() & 0x400000)) {

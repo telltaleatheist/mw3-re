@@ -21,6 +21,11 @@ INTERSECT_BBOX and some materials flag 2 (the textured test). The results,
 the records (all 32 slots, pointers as indices), the options left, the
 captured texture coordinates, and every few queries each model's cached
 polygon and each node's flags must match bit for bit at 24-bit precision.
+At the reference's 53 bits (MW3_PRECISION=53) c1's shots match; its
+sphere query waits on zmath's transform_points 0x5227a0 at 53, and c2 on the
+camera's and sun's matrices (euler 0x521670, the translate 0x520480, the
+rotations 0x520610..): zmath's matrices at 53 are their own item
+(docs/movement-collision.md, Precision).
 """
 import ctypes
 import math

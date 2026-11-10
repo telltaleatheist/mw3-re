@@ -7,6 +7,7 @@
 
 #include "crt/msvc_math.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmath/zmth_matrix.h"
@@ -62,10 +63,10 @@ const float* place_vertices(Model& m) {
   }
   const float* t = s.matrix().m;
   for (uint32_t i = 0; i < n; ++i, src += 3) {
-    const float x = src[0], y = src[1], z = src[2];
-    out[3 * i] = ((x * t[0] + y * t[3]) + z * t[6]) + t[9];
-    out[3 * i + 1] = ((x * t[1] + y * t[4]) + z * t[7]) + t[10];
-    out[3 * i + 2] = ((x * t[2] + y * t[5]) + z * t[8]) + t[11];
+    const zgeo::X x = src[0], y = src[1], z = src[2];  // each word's sums stored once
+    out[3 * i] = (((x * t[0] + y * t[3]) + z * t[6]) + t[9]).f();
+    out[3 * i + 1] = (((x * t[1] + y * t[4]) + z * t[7]) + t[10]).f();
+    out[3 * i + 2] = (((x * t[2] + y * t[5]) + z * t[8]) + t[11]).f();
   }
   return out;
 }
@@ -114,9 +115,11 @@ bool same_sign(float a, float b) {
   return ((x ^ y) & 0x80000000u) == 0;
 }
 
+// The differences stored, the products summed on the x87 and stored once.
 float dot_from(const float* p, const float* v0, const float* n) {
+  using zgeo::X;
   const float dx = p[0] - v0[0], dy = p[1] - v0[1], dz = p[2] - v0[2];
-  return (dx * n[0] + dy * n[1]) + dz * n[2];
+  return ((X(dx) * n[0] + X(dy) * n[1]) + X(dz) * n[2]).f();
 }
 
 // 0x0054e2b0 and 0x0054ea30: the same test; the textured one differs in
@@ -150,7 +153,7 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
       continue;
     }
     crossed = 1;
-    const float t = e0 / (e0 - e1);
+    const float t = (zgeo::X(e0) / (zgeo::X(e0) - e1)).f();  // the difference not stored
     const float dx = t * (to[0] - from[0]), dy = t * (to[1] - from[1]), dz = t * (to[2] - from[2]);
     zcls::SegmentHit& h = out[k].hit[out[k].count];
     h.point[0] = from[0] + dx;
@@ -188,8 +191,8 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
     for (int32_t k = 0; k < count; ++k) {
       if (!in[k]) continue;
       const float* h = out[k].hit[out[k].count].point;
-      const float s = (h[u0] - c[u0]) * p + (h[u1] - c[u1]) * q;
-      in[k] = s > -0.0001;  // 0x005ce518
+      const zgeo::X s = (zgeo::X(h[u0]) - c[u0]) * p + (zgeo::X(h[u1]) - c[u1]) * q;
+      in[k] = s.v > -0.0001;  // 0x005ce518
       any |= in[k];
       *all &= in[k];
     }
@@ -207,8 +210,9 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
     if (!in[k] || out[k].count >= 0x20) continue;
     zcls::SegmentHit& h = out[k].hit[out[k].count];
     if (textured && g_uv.on) {
-      uv_out[0] = (h.point[a0] - v[a0]) * gu[0] + (h.point[a1] - v[a1]) * gu[1] + uvs[0];
-      uv_out[1] = (h.point[a0] - v[a0]) * gv[0] + (h.point[a1] - v[a1]) * gv[1] + uvs[1];
+      using zgeo::X;  // each sum on the x87, stored once
+      uv_out[0] = (((X(h.point[a0]) - v[a0]) * gu[0] + (X(h.point[a1]) - v[a1]) * gu[1]) + uvs[0]).f();
+      uv_out[1] = (((X(h.point[a0]) - v[a0]) * gv[0] + (X(h.point[a1]) - v[a1]) * gv[1]) + uvs[1]).f();
       g_uv.uv[0] = uv_out[0];
       g_uv.uv[1] = uv_out[1];
     }
@@ -334,6 +338,7 @@ void model_segments(zcls::Node* node, Model* model, const float* segs, const int
 // probe is above top (and so not counted).
 int32_t polygon_ground(zcls::Node* node, zcls::GroundHits* out, const float* probes, const int32_t* mask,
                        int32_t count, float top, const float* v, const Polygon& poly) {
+  using zgeo::X;
   int32_t all_in = 1, any = 1;
   float n[3];
   zmth::poly_normal(v, v + 3, v + 6, n);
@@ -354,15 +359,15 @@ int32_t polygon_ground(zcls::Node* node, zcls::GroundHits* out, const float* pro
         continue;
       }
       const float* p = probes + 3 * k;
-      const float s = (p[0] - c[0]) * bz + (p[2] - c[2]) * ax;
-      in[k] = s > -0.0001;  // 0x005ce518
+      const X s = (X(p[0]) - c[0]) * bz + (X(p[2]) - c[2]) * ax;
+      in[k] = s.v > -0.0001;  // 0x005ce518
       if (in[k]) any = 1;
       else all_in = 0;
     }
   }
   if (!any || count <= 0) return all_in;
   bool first = true;
-  float fx = 0, fz = 0;
+  X fx = 0.0f, fz = 0.0f;  // kept on the x87 for every probe
   for (int32_t k = 0; k < count; ++k) {
     if (!in[k]) {
       all_in = 0;
@@ -374,12 +379,12 @@ int32_t polygon_ground(zcls::Node* node, zcls::GroundHits* out, const float* pro
     std::memcpy(h.normal, n, 12);
     if (first) {
       first = false;
-      const float inv = 1.0f / n[1];
-      fx = -(n[0] * inv);
-      fz = -(n[2] * inv);
+      const X inv = X(1.0f) / n[1];
+      fx = -(X(n[0]) * inv);
+      fz = -(X(n[2]) * inv);
     }
     const float* p = probes + 3 * k;
-    h.height = ((p[2] - v[2]) * fz + (p[0] - v[0]) * fx) + v[1];
+    h.height = (((X(p[2]) - v[2]) * fz + (X(p[0]) - v[0]) * fx) + v[1]).f();
     if (h.height > top) {
       all_in = 0;
       continue;
@@ -412,20 +417,22 @@ void model_ground(zcls::Node* node, Model* model, const float* probes, const int
 // Mech3.exe 1.2 @ 0x0054d640. Inside means on the inner side of every
 // edge, walked backwards from the closing one, within 0.0001.
 int32_t polygon_ground_point(zcls::GroundHit* slot, const float* v, float x, float z, int32_t n) {
+  using zgeo::X;  // on the x87; the loop's edges store c[0] - a[0] first, the closing one not
   for (int32_t i = n - 1; i >= 0; --i) {
     const float* c = v + 3 * i;
     const float* a = i == n - 1 ? v : v + 3 * (i + 1);
-    const float e = (x - c[0]) * (a[2] - c[2]) + (z - c[2]) * (c[0] - a[0]);
-    if (!(e > -0.0001)) return 0;  // 0x005ce518
+    const X ca = X(c[0]) - a[0];
+    const X e = (X(x) - c[0]) * (X(a[2]) - c[2]) + (X(z) - c[2]) * (i == n - 1 ? ca : X(ca.f()));
+    if (!(e.v > -0.0001)) return 0;  // 0x005ce518
   }
   zmth::poly_normal(v, v + 3, v + 6, slot->normal);
   if (slot->normal[1] == 0.0f) {
     slot->height = v[1];
     return 1;
   }
-  const float inv = 1.0f / slot->normal[1];
-  const float fx = -(slot->normal[0] * inv), fz = -(slot->normal[2] * inv);
-  slot->height = ((z - v[2]) * fz + (x - v[0]) * fx) + v[1];
+  const X inv = X(1.0f) / slot->normal[1];
+  const X fx = -(X(slot->normal[0]) * inv), fz = -(X(slot->normal[2]) * inv);
+  slot->height = (((X(z) - v[2]) * fz + (X(x) - v[0]) * fx) + v[1]).f();
   return 1;
 }
 
@@ -476,8 +483,11 @@ uint32_t abs_bits(float f) {
 }
 
 // The inside test of 0x0054d760 on the plane (u, v): c a vertex, a the next.
-float edge(const float* p, const float* c, const float* a, int u, int v) {
-  return (p[v] - c[v]) * (a[u] - c[u]) + (p[u] - c[u]) * (c[v] - a[v]);
+// On the x87; the loop's edges store c[v] - a[v] first, the closing one not.
+double edge(const float* p, const float* c, const float* a, int u, int v, bool stored) {
+  using zgeo::X;
+  const X cv = X(c[v]) - a[v];
+  return ((X(p[v]) - c[v]) * (X(a[u]) - c[u]) + (X(p[u]) - c[u]) * (stored ? X(cv.f()) : cv)).v;
 }
 }  // namespace
 
@@ -488,21 +498,26 @@ float edge(const float* p, const float* c, const float* a, int u, int v) {
 // the -z plane an unordered edge also fails, on the others only the first.
 int32_t polygon_segment(zcls::LineHit* slot, const float a[3], const float b[3], const float* v, int32_t n,
                         int32_t two_sided) {
+  using zgeo::X;
+  // The x87 keeps e2x, the normal (stored too), the dots' differences and t;
+  // the other edges' words and the dots are stored (x87.py 54d760 54d83c 54d85c 54d887).
   const float e1x = v[3] - v[0], e1y = v[4] - v[1], e1z = v[5] - v[2];
-  const float e2x = v[6] - v[0], e2y = v[7] - v[1], e2z = v[8] - v[2];
+  const X e2x = X(v[6]) - v[0];
+  const X e2y = X(v[7]) - v[1], e2z = X(v[8]) - v[2];
+  const X n0 = e2z * e1y - e2y * e1z;
+  const X n1 = e2x * e1z - X(e2z.f()) * e1x;
+  const X n2 = X(e2y.f()) * e1x - e2x * e1y;
   float* nn = slot->normal;
-  nn[0] = e2z * e1y - e2y * e1z;
-  nn[1] = e2x * e1z - e2z * e1x;
-  nn[2] = e2y * e1x - e2x * e1y;
-  const float d_end = ((b[1] - v[1]) * nn[1] + (b[2] - v[2]) * nn[2]) + (b[0] - v[0]) * nn[0];
-  if (!two_sided && d_end >= 0.0f) return 0;  // 0x005ce510
-  const float d_start = ((a[1] - v[1]) * nn[1] + (a[2] - v[2]) * nn[2]) + (a[0] - v[0]) * nn[0];
-  if (same_sign(d_end, d_start)) return 0;
-  const float t = d_start / (d_start - d_end);
+  nn[0] = n0.f(), nn[1] = n1.f(), nn[2] = n2.f();
+  const X d_end = ((X(b[1]) - v[1]) * n1 + (X(b[2]) - v[2]) * n2) + (X(b[0]) - v[0]) * n0;
+  if (!two_sided && d_end.v >= 0.0) return 0;  // 0x005ce510
+  const float d_start = (((X(a[1]) - v[1]) * n1 + (X(a[2]) - v[2]) * n2) + (X(a[0]) - v[0]) * n0).f();
+  if (same_sign(d_end.f(), d_start)) return 0;
+  const X t = X(d_start) / (X(d_start) - d_end.f());
   float* p = slot->point;
-  p[0] = (b[0] - a[0]) * t + a[0];
-  p[1] = (b[1] - a[1]) * t + a[1];
-  p[2] = (b[2] - a[2]) * t + a[2];
+  p[0] = ((X(b[0]) - a[0]) * t + a[0]).f();
+  p[1] = ((X(b[1]) - a[1]) * t + a[1]).f();
+  p[2] = ((X(b[2]) - a[2]) * t + a[2]).f();
   const uint32_t ax = abs_bits(nn[0]), ay = abs_bits(nn[1]);
   int k = ax < ay ? 1 : 0;
   if ((ax < ay ? ay : ax) < abs_bits(nn[2])) k = 2;
@@ -511,14 +526,12 @@ int32_t polygon_segment(zcls::LineHit* slot, const float a[3], const float b[3],
   if (sign & 0x80000000u) k += 3;
   static const int kAxes[6][2] = {{1, 2}, {2, 0}, {0, 1}, {2, 1}, {0, 2}, {1, 0}};
   const int u = kAxes[k][0], w = kAxes[k][1];
-  if (!(edge(p, v + 3 * (n - 1), v, u, w) > -0.0001)) return 0;  // 0x005ce518
+  if (!(edge(p, v + 3 * (n - 1), v, u, w, false) > -0.0001)) return 0;  // 0x005ce518
   for (int32_t i = n - 2; i >= 0; --i) {
-    const float e = edge(p, v + 3 * i, v + 3 * (i + 1), u, w);
+    const double e = edge(p, v + 3 * i, v + 3 * (i + 1), u, w, true);
     if (k == 5 ? !(e > -0.0001) : e <= -0.0001) return 0;
   }
-  zmth::Vec3 un{nn[0], nn[1], nn[2]};
-  zmth::normalize(un);
-  nn[0] = un.x, nn[1] = un.y, nn[2] = un.z;
+  zmth::normalize_x87(nn);
   return 1;
 }
 
@@ -533,7 +546,8 @@ int32_t polygon_segment_uv(zcls::LineHit* slot, const float a[3], const float b[
   if (!two_sided && !(d_end < 0.0f)) return 0;
   const float d_start = dot_from(a, v, nn);
   if (same_sign(d_start, d_end)) return 0;
-  const float t = d_start / (d_start - d_end);
+  using zgeo::X;
+  const float t = (X(d_start) / (X(d_start) - d_end)).f();  // the difference not stored
   float* p = slot->point;
   for (int i = 0; i < 3; ++i) p[i] = a[i] + t * (b[i] - a[i]);
   const float mx = std::fabs(nn[0]), my = std::fabs(nn[1]);
@@ -545,24 +559,24 @@ int32_t polygon_segment_uv(zcls::LineHit* slot, const float a[3], const float b[
     if (!in) return 0;
     const float* c = v + 3 * i;
     const float* q = v + 3 * j;
-    float s;
+    X s = 0.0f;  // the edge's words stored, the sum on the x87
     if (axis == 0) {
       float y, z;
       if (0.0f <= nn[0]) y = q[1] - c[1], z = c[2] - q[2];
       else y = c[1] - q[1], z = q[2] - c[2];
-      s = (p[1] - c[1]) * z + (p[2] - c[2]) * y;
+      s = (X(p[1]) - c[1]) * z + (X(p[2]) - c[2]) * y;
     } else if (axis == 1) {
       float x, z;
       if (nn[1] <= 0.0f) x = q[0] - c[0], z = c[2] - q[2];
       else x = c[0] - q[0], z = q[2] - c[2];
-      s = (p[2] - c[2]) * x + (p[0] - c[0]) * z;
+      s = (X(p[2]) - c[2]) * x + (X(p[0]) - c[0]) * z;
     } else {
       float y, x;
       if (nn[2] <= 0.0f) y = q[1] - c[1], x = c[0] - q[0];
       else y = c[1] - q[1], x = q[0] - c[0];
-      s = (p[1] - c[1]) * x + (p[0] - c[0]) * y;
+      s = (X(p[1]) - c[1]) * x + (X(p[0]) - c[0]) * y;
     }
-    in = s > -0.0001;
+    in = s.v > -0.0001;
   }
   if (!in) return 0;
   const int a0 = axis == 0 ? 1 : 0, a1 = axis == 2 ? 1 : 2;
@@ -571,8 +585,8 @@ int32_t polygon_segment_uv(zcls::LineHit* slot, const float a[3], const float b[
                        &gu[1]);
   zmth::plane_gradient(v[a0], v[a1], v[3 + a0], v[3 + a1], v[6 + a0], v[6 + a1], uvs[1], uvs[3], uvs[5], &gv[0],
                        &gv[1]);
-  uv_out[0] = (p[a0] - v[a0]) * gu[0] + (p[a1] - v[a1]) * gu[1] + uvs[0];
-  uv_out[1] = (p[a1] - v[a1]) * gv[1] + (p[a0] - v[a0]) * gv[0] + uvs[1];
+  uv_out[0] = (((X(p[a0]) - v[a0]) * gu[0] + (X(p[a1]) - v[a1]) * gu[1]) + uvs[0]).f();
+  uv_out[1] = (((X(p[a1]) - v[a1]) * gv[1] + (X(p[a0]) - v[a0]) * gv[0]) + uvs[1]).f();
   g_uv.uv[0] = uv_out[0];
   g_uv.uv[1] = uv_out[1];
   return 1;
@@ -639,17 +653,19 @@ int32_t segment_polygon(const Polygon& p, const float* verts, zcls::LineHit* slo
 // The hit back in world space: the point through the top, the normal through
 // its 3x3, normalised.
 void hit_to_world(zcls::LineHit* slot) {
+  using zgeo::X;  // each word's sums stored once
   const float* m = zmth::matrix_stack().matrix().m;
   const float* q = slot->point;
-  const float px = ((q[0] * m[0] + q[1] * m[3]) + q[2] * m[6]) + m[9];
-  const float py = ((q[0] * m[1] + q[1] * m[4]) + q[2] * m[7]) + m[10];
-  const float pz = ((q[0] * m[2] + q[1] * m[5]) + q[2] * m[8]) + m[11];
+  const float px = (((X(q[0]) * m[0] + X(q[1]) * m[3]) + X(q[2]) * m[6]) + m[9]).f();
+  const float py = (((X(q[0]) * m[1] + X(q[1]) * m[4]) + X(q[2]) * m[7]) + m[10]).f();
+  const float pz = (((X(q[0]) * m[2] + X(q[1]) * m[5]) + X(q[2]) * m[8]) + m[11]).f();
   slot->point[0] = px, slot->point[1] = py, slot->point[2] = pz;
   const float* nn = slot->normal;
-  zmth::Vec3 w{(nn[0] * m[0] + nn[1] * m[3]) + nn[2] * m[6], (nn[0] * m[1] + nn[1] * m[4]) + nn[2] * m[7],
-               (nn[0] * m[2] + nn[1] * m[5]) + nn[2] * m[8]};
-  zmth::normalize(w);
-  slot->normal[0] = w.x, slot->normal[1] = w.y, slot->normal[2] = w.z;
+  float w[3] = {((X(nn[0]) * m[0] + X(nn[1]) * m[3]) + X(nn[2]) * m[6]).f(),
+                ((X(nn[0]) * m[1] + X(nn[1]) * m[4]) + X(nn[2]) * m[7]).f(),
+                ((X(nn[0]) * m[2] + X(nn[1]) * m[5]) + X(nn[2]) * m[8]).f()};
+  zmth::normalize_x87(w);
+  std::memcpy(slot->normal, w, 12);
 }
 }  // namespace
 
@@ -662,14 +678,18 @@ int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const
   float sa[3], sb[3];
   if (!identity) {
     zmth::Mat34 inv;
-    if (!zmth::invert_single(st.matrix(), inv, true)) return 0;
+    // At the reference runtime's 53 bits the x87's intermediates (render-matrix.md).
+    const bool ok = zfix::options().fpu53 ? zmth::invert(st.matrix(), inv, true)
+                                          : zmth::invert_single(st.matrix(), inv, true);
+    if (!ok) return 0;
     const float* m = inv.m;
     for (int k = 0; k < 2; ++k) {
       const float* q = k ? b : a;
       float* o = k ? sb : sa;
-      o[0] = ((q[0] * m[0] + q[1] * m[3]) + q[2] * m[6]) + m[9];
-      o[2] = ((q[0] * m[2] + q[1] * m[5]) + q[2] * m[8]) + m[11];
-      o[1] = ((q[0] * m[1] + q[1] * m[4]) + q[2] * m[7]) + m[10];
+      using zgeo::X;  // each word's sums stored once
+      o[0] = (((X(q[0]) * m[0] + X(q[1]) * m[3]) + X(q[2]) * m[6]) + m[9]).f();
+      o[2] = (((X(q[0]) * m[2] + X(q[1]) * m[5]) + X(q[2]) * m[8]) + m[11]).f();
+      o[1] = (((X(q[0]) * m[1] + X(q[1]) * m[4]) + X(q[2]) * m[7]) + m[10]).f();
     }
   } else {
     std::memcpy(sa, a, 12);
