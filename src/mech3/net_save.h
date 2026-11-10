@@ -36,8 +36,9 @@ std::vector<uint8_t> net_with_edits(const uint8_t* entry, size_t size, const zrd
 
 // An archive's bytes with entry `name` (matched case-insensitively) holding
 // `data`; every other entry's bytes, name, comment and file time as they
-// were, in their order. Empty when `archive` is not a zar archive MW3 reads
-// (table, version 1, count) or has no such entry, unless `add`: then the
+// were, in their order. Empty when `archive` is not a zar archive MW3 or PM
+// reads (table, version 1, count; PM's 2, count, CRC, its CRC made anew when
+// it was right) or has no such entry, unless `add`: then the
 // entry goes after the last (no comment, no file time).
 std::vector<uint8_t> archive_with_entry(const std::vector<uint8_t>& archive, const char* name,
                                         const std::vector<uint8_t>& data, bool add = false);

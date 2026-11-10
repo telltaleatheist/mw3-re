@@ -1559,6 +1559,50 @@ Checked: `test_aiv_edit.py` and `test_vehicle_ddx.py` run on PM's exe with
 `probe_aiv_same_numbers_pm`). Breaks caught: the target block left out, word 2
 compared as a float, +0xee bit 1 left out, MW3's name compare.
 
+### Pirate's Moon's net editor (pm, P2, 2026-11-10)
+
+Read against MW3's the same way. These are MW3's logic: the dialog and its
+pick 0x402d70 (New Net's id from 1..100, as MW3's), the editor's ctor and dtor
+0x402f40, 0x402fe0, Delete 0x403b10, the slot list 0x4042c0..0x404570, the
+builder's open 0x4022b0 and its loop 0x402120, the fold 0x4c3f20, and the node
+finds 0x4c4000, 0x4c40a0. PM's compile, waynet and region builds were ported
+with the AI (`zainetedit.cpp`, test_pm_ai_nets). What changed:
+
+- **No edit was ever kept.** PM's CZAiNetEdit ctor 0x4c39e0 clears +0x38
+  (`editing`) for every net, where MW3's 0x4bcba0 sets it when not building,
+  and its dtor 0x4c3e60 drops MW3's fold and save on close. So in PM's
+  release a move, an add or a delete never reached the record cache.
+  The port keeps both as PM's. Ours turns `editing` on where our editor opens
+  a net (`game_editor_net.cpp`'s `editable`), as MW3's did; the save was
+  already ours (Save Changes folds, then writes).
+- **The node record** is 0xc4 bytes. Its new fields are via (a name, a
+  number, a radius kept squared), terminus and static_mfb, at +0x9c..+0xa6;
+  the owned pointers follow (name +0xa8, auxname +0xac, via +0xb0, links
+  +0xb4, gate +0xb8, the union +0xbc, the assignment +0xc0). The compare
+  0x4d1ab0 adds via's name (0x4a06c0), number and radius (fcomp's C3), static_mfb
+  and terminus before the links; ported in `NetNodeRec::same`.
+- **The save** (`net_save.cpp`, ours) writes the new keys as the reader takes
+  them: `via ( name number radius )`, with the radius as read while it still
+  squares to the record's, else its square root, and a missing name as an Int
+  0; `terminus` with no items; `static_mfb ( on )`. PM's archives are version 2
+  (version, count and a CRC after the table, `pm/gamez/zutil/zutl_zar.h`).
+  The save reads them, writes version 2, and makes the CRC anew from every
+  entry's data when the source's was right (the readers'; the original PM
+  checks reader.zbd's) or keeps it (the 0 of the rest). Before this, Save
+  Changes on PM refused every mission archive.
+
+Checked:
+- test_net_cache.py with MW3_EXE=pm: PM's 0xc4-byte record, every new field
+  one apart. Breaks caught: via left out, terminus left out.
+- In mw3pmtests, test_net_save.cpp on PM's install:
+  - every shipped net archive rewritten as it is is the same file;
+  - all 619 nets saved unedited are the same bytes;
+  - every node re-encoded reads back the same (14,332 nodes; 626 with via, 12 with static_mfb);
+  - the reader opens the edited readerm1.zbd as PM's game, and its CRC checks;
+  - the record cache runs on net_05 (PM's net_01 holds two nodes).
+  PM's motion.zbd is left out: every entry stores a length of 1, and the
+  editor never saves into it.
+
 ## The editor's help (ours, 2026-11-09)
 
 Owen asked (through the lead) for help in the game and on GitHub, from one

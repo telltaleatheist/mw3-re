@@ -4,7 +4,9 @@
 // every shipped archive rewritten with an entry's own bytes is the same file;
 // the editor's own mod: made with its marker, reused, a folder not ours passed
 // over, an earlier save kept as .bak, turned on just before its source.
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -26,9 +28,28 @@
 #include "mech3/zainetedit.h"
 #include "mech3/zrdrainet.h"
 
+// In mw3pmtests, Pirate's Moon's install (its nets carry via, terminus and static_mfb).
+#ifdef MW3PM_GAME_DIR
+#include "gamez/zgame/zgame_table.h"
+#include "pm/gamez/zutil/zutl_zar.h"
+#include "pm/pm_game.h"
+#define NET_GAME_DIR MW3PM_GAME_DIR
+#else
+#define NET_GAME_DIR MW3_GAME_DIR
+#endif
+
 namespace {
 namespace fs = std::filesystem;
 using mech3::ai::NetNodeRec;
+
+// PM's archives open only as the running game's (version 2): PM for a test's
+// length, MW3's after.
+struct PmGame {
+#ifdef MW3PM_GAME_DIR
+  PmGame() { zgame::set_game(pm::table()); }
+  ~PmGame() { zgame::set_game(zgame::mw3_table()); }
+#endif
+};
 
 std::vector<uint8_t> file_bytes(const fs::path& p) {
   std::ifstream in(p, std::ios::binary);
@@ -108,6 +129,9 @@ std::string differs(const NetNodeRec& a, const NetNodeRec& b) {
   if (!same_str(a.auxname, b.auxname)) return "auxname";
   if (a.links != b.links) return "links";
   if (!same_str(a.gate, b.gate)) return "gate";
+  if (!same_str(a.via, b.via) || a.via_number != b.via_number || !same_f(a.via_radius2, b.via_radius2)) return "via";
+  if (a.terminus != b.terminus || a.static_mfb_set != b.static_mfb_set || a.static_mfb != b.static_mfb)
+    return "terminus/static_mfb";
   if (!a.valve_union != !b.valve_union) return "valveunion";
   if (a.valve_union) {
     if (a.valve_union->valves.size() != b.valve_union->valves.size()) return "valveunion size";
@@ -144,11 +168,13 @@ struct Entry {
 };
 std::vector<Entry> entries(const std::vector<uint8_t>& a) {
   std::vector<Entry> out;
-  if (a.size() < 8) return out;
+  if (a.size() < 12) return out;
   uint32_t version, count;
-  std::memcpy(&version, a.data() + a.size() - 8, 4), std::memcpy(&count, a.data() + a.size() - 4, 4);
-  if (version != 1 || count * sizeof(zutl_zar::Entry) > a.size() - 8) return out;
-  const size_t table = a.size() - 8 - count * sizeof(zutl_zar::Entry);
+  std::memcpy(&version, a.data() + a.size() - 12, 4);
+  const size_t tail = version == 2 ? 12 : 8;  // Pirate's Moon's: version 2, count, CRC
+  std::memcpy(&version, a.data() + a.size() - tail, 4), std::memcpy(&count, a.data() + a.size() - tail + 4, 4);
+  if ((version != 1 && version != 2) || count * sizeof(zutl_zar::Entry) > a.size() - tail) return out;
+  const size_t table = a.size() - tail - count * sizeof(zutl_zar::Entry);
   for (uint32_t i = 0; i < count; ++i) {
     zutl_zar::Entry e;
     std::memcpy(&e, a.data() + table + i * sizeof e, sizeof e);
@@ -165,15 +191,21 @@ bool is_net(const std::string& n) {
 }  // namespace
 
 TEST(net_save_every_shipped_net_round_trips) {
-  if (!fs::exists(MW3_GAME_DIR)) return;
+  if (!fs::exists(NET_GAME_DIR)) return;
   Hooks hooks;
+  int vias = 0, termini = 0, mfbs = 0;
   int archives = 0, archives_same = 0, nets = 0, nets_same = 0, nodes = 0, nodes_same = 0, bytes_same = 0;
   std::string first_bad;
-  for (const auto& f : fs::recursive_directory_iterator(fs::path(MW3_GAME_DIR) / "zbd")) {
+  for (const auto& f : fs::recursive_directory_iterator(fs::path(NET_GAME_DIR) / "zbd")) {
     if (f.path().extension() != ".zbd") continue;
     const std::vector<uint8_t> a = file_bytes(f.path());
     const std::vector<Entry> es = entries(a);
     if (es.empty()) continue;
+#ifdef MW3PM_GAME_DIR
+    // PM's motion.zbd stores every entry's length as 1 (pm::zar::span): no
+    // archive the editor saves into. Those with a net only.
+    if (std::none_of(es.begin(), es.end(), [](const Entry& e) { return is_net(e.name); })) continue;
+#endif
     ++archives;
     if (mech3::ai::archive_with_entry(a, es[0].name.c_str(), es[0].data) == a) ++archives_same;
     else if (first_bad.empty()) first_bad = f.path().string() + ": rewritten as it is, not the same file";
@@ -192,6 +224,7 @@ TEST(net_save_every_shipped_net_round_trips) {
       const std::map<std::string, NetNodeRec> now = records(back);
       for (const auto& [k, r] : was) {
         ++nodes;
+        vias += r.via != nullptr, termini += r.terminus, mfbs += r.static_mfb_set;
         auto it = now.find(k);
         const std::string d = it == now.end() ? std::string("missing") : differs(r, it->second);
         if (d.empty()) ++nodes_same;
@@ -204,10 +237,17 @@ TEST(net_save_every_shipped_net_round_trips) {
   mech3::ai::valves_clear();
   std::printf("  %d archives (%d the same rewritten), %d net files (%d the same unedited, %d the same re-encoded), "
               "%d nodes (%d read back the same)\n", archives, archives_same, nets, nets_same, bytes_same, nodes, nodes_same);
+  std::printf("  %d with via, %d terminus, %d static_mfb\n", vias, termini, mfbs);
   if (!first_bad.empty()) std::printf("  first: %s\n", first_bad.c_str());
+#ifdef MW3PM_GAME_DIR
+  EXPECT(archives > 40 && archives_same == archives);
+  EXPECT(nets > 600 && nets_same == nets);
+  EXPECT(nodes > 14000 && nodes_same == nodes && vias > 500 && mfbs > 0);
+#else
   EXPECT(archives > 50 && archives_same == archives);
   EXPECT(nets > 700 && nets_same == nets);
   EXPECT(nodes > 19000 && nodes_same == nodes);
+#endif
 }
 
 // The editor's own mod: the install's archive saved twice (its folder made
@@ -301,9 +341,10 @@ TEST(net_save_into_the_editors_own_mod) {
 // (zrdr::open_archive, NetFile::load): the edited records read back as they
 // were saved, every other node and entry as it was.
 TEST(net_save_edits_read_back_through_the_reader) {
-  const fs::path src = fs::path(MW3_GAME_DIR) / "zbd" / "c1" / "readerm1.zbd";
+  const fs::path src = fs::path(NET_GAME_DIR) / "zbd" / "c1" / "readerm1.zbd";
   if (!fs::exists(src)) return;
   Hooks hooks;
+  PmGame pm_game;
   const std::vector<uint8_t> a = file_bytes(src);
   std::vector<uint8_t> net;
   for (const Entry& e : entries(a))
@@ -315,6 +356,11 @@ TEST(net_save_edits_read_back_through_the_reader) {
   NetNodeRec moved = was["node_00"], fast = was["node_01"], added;
   moved.pos[0] = 1234.5678f, moved.pos[2] = -0.04999f;
   fast.speed_on = 1, fast.speed = 0.3333333f;
+#ifdef MW3PM_GAME_DIR
+  // PM's keys on an edit: a via with a new radius (7, kept squared), terminus, static_mfb.
+  std::free(fast.via), fast.via = strdup("via_net"), fast.via_number = 3, fast.via_radius2 = 49.0f;
+  fast.terminus = 1, fast.static_mfb_set = 1, fast.static_mfb = 1;
+#endif
   added.kind = 1, added.index = 99, added.links = {0, 1, 3};
   added.valve = mech3::ai::valve_get("door_a"), added.valve_on = 1, added.valve_has_value = 1, added.valve_value = 7;
   added.deploy_set = 1, added.deploy_valve_a = mech3::ai::valve_get("d_a"), added.deploy_valve_b = mech3::ai::valve_get("d_b");
@@ -329,6 +375,10 @@ TEST(net_save_edits_read_back_through_the_reader) {
   EXPECT(!out.empty());
   const fs::path saved = fs::path(MW3_TEST_TMP_ROOT) / "net_save_readerm1.zbd";
   { std::ofstream(saved, std::ios::binary).write(reinterpret_cast<const char*>(out.data()), out.size()); }
+#ifdef MW3PM_GAME_DIR
+  // PM's version 2: the CRC made anew over the edited data (the original checks reader.zbd's).
+  EXPECT(pm::zar::file_checksum_ok(saved.string().c_str()) && pm::zar::file_checksum_ok(src.string().c_str()));
+#endif
   const zutl::Mounts keep = zutl::mounts();
   zrdr::close_archives(true);
   zrdr::init();
@@ -362,20 +412,31 @@ TEST(net_save_edits_read_back_through_the_reader) {
   fs::remove(saved, ec);
 }
 
+// The cache test's net: MW3's c1m1 net_01; PM's net_01 holds two nodes, its
+// net_05 nine.
+#ifdef MW3PM_GAME_DIR
+constexpr int kCacheNetNo = 5;
+constexpr const char* kCacheNet = "net_05.zrd";
+#else
+constexpr int kCacheNetNo = 1;
+constexpr const char* kCacheNet = "net_01.zrd";
+#endif
+
 // The record cache (0x004dc2b0, NetFile::edit; S5 sitting 4) on c1's net_01:
 // the file's own record is not kept, a changed one is (a copy, its auxname
 // too), changed back it goes, a new key is kept, none marks a key gone (and
 // the save drops it), and the file reads as edited while anything is kept.
 TEST(net_record_cache_keeps_edits_until_they_are_the_files_again) {
-  const fs::path src = fs::path(MW3_GAME_DIR) / "zbd" / "c1" / "readerm1.zbd";
+  const fs::path src = fs::path(NET_GAME_DIR) / "zbd" / "c1" / "readerm1.zbd";
   if (!fs::exists(src)) return;
   Hooks hooks;
+  PmGame pm_game;
   const zutl::Mounts keep = zutl::mounts();
   zrdr::close_archives(true);
   zrdr::init();
   EXPECT(zrdr::open_archive(src.string().c_str(), true));
   {
-    mech3::ai::NetFile f(1, "net_01.zrd");
+    mech3::ai::NetFile f(kCacheNetNo, kCacheNet);
     EXPECT(f.load() != 0);
     const NetNodeRec* own = f.node_named("node_00");
     EXPECT(own != nullptr);
@@ -406,7 +467,7 @@ TEST(net_record_cache_keeps_edits_until_they_are_the_files_again) {
       // The save: node_02 dropped, node_99 added, the rest as it was.
       std::vector<uint8_t> a = file_bytes(src), net;
       for (const Entry& e : entries(a))
-        if (e.name == "net_01.zrd") net = e.data;
+        if (e.name == kCacheNet) net = e.data;
       std::vector<std::pair<std::string, const NetNodeRec*>> edits(f.cache.begin(), f.cache.end());
       const std::vector<uint8_t> out = mech3::ai::net_with_edits(net.data(), net.size(), f.tree, edits);
       zrdr::Node* was = tree_of(net);
@@ -424,11 +485,16 @@ TEST(net_record_cache_keeps_edits_until_they_are_the_files_again) {
   // marks a node gone.
   {
     mech3::ai::net_files_clear();
-    auto* reg = new mech3::ai::AiNet(1);  // the registry's net_01, as the dialog opens it
+    auto* reg = new mech3::ai::AiNet(kCacheNetNo);  // the registry's net_01, as the dialog opens it
     {
-      mech3::ai::CZAiNetEdit e(1, nullptr, 0);
+      mech3::ai::CZAiNetEdit e(kCacheNetNo, nullptr, 0);
       mech3::ai::NetFile* f = e.ref ? e.ref->file : nullptr;
       mech3::ai::NetNode* n5 = e.node(5);
+#ifdef MW3PM_GAME_DIR
+      // PM's ctor leaves editing off (0x004c39e0); our editor turns it on (game_editor_net's editable).
+      EXPECT(!e.editing);
+      e.editing = 1;
+#endif
       EXPECT(f && n5 && f->cache.empty() && e.editing);
       if (f && n5) {
         const float was[3] = {n5->pos()[0], n5->pos()[1], n5->pos()[2]};

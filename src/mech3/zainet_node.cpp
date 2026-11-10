@@ -80,7 +80,7 @@ namespace {
 bool same_text(const char* a, const char* b) { return a == b || (a && b && std::strcmp(a, b) == 0); }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004c6680: kind and number, the place (kind 0), the names,
+// Mech3.exe 1.2 @ 0x004c6680 (Pirate's Moon 1.0 @ 0x004d1ab0, below): kind and number, the place (kind 0), the names,
 // the properties, the gate, the valve union and assignment, the links.
 // FIX (bug): the exe leaves out wait_time and the valve, so an edit of only
 // those reads as the file's own and the cache drops it (docs/fixes.md).
@@ -119,6 +119,13 @@ bool NetNodeRec::same(const NetNodeRec& o) const {
         valve_assign->value != o.valve_assign->value)
       return false;
   }
+  // Pirate's Moon 1.0 @ 0x004d1ab0's new tests, before the links: via's name
+  // (0x004a06c0), number and radius (fcomp's C3: a NaN is equal), static_mfb,
+  // terminus.
+  if (!same_text(via, o.via) || via_number != o.via_number || via_radius2 < o.via_radius2 ||
+      via_radius2 > o.via_radius2 || static_mfb_set != o.static_mfb_set || static_mfb != o.static_mfb ||
+      terminus != o.terminus)
+    return false;
   return links == o.links;
 }
 

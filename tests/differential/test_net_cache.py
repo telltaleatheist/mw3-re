@@ -10,6 +10,9 @@ The answers must match, but where the port's fix departs: the exe leaves wait_ti
 valve (+0x30..+0x3c) out, so a record differing only there is "the same" to it and not to the port (counted;
 docs/fixes.md). Breaks, by hand in zainet_node.cpp, each must fail: the place compared for kind 1 too; the
 auxname left out; the links compared by count only.
+
+With MW3_EXE=pm, Pirate's Moon's 0x4d1ab0 (by the address map): its record is 0xc4 bytes, its new fields at
++0x9c..+0xa6 (via's radius squared and number, terminus, static_mfb) and via's name with the owned ones after.
 """
 import ctypes
 import os
@@ -26,18 +29,25 @@ SAME = 0x4c6680
 OURS = {0x28, 0x2c, 0x30, 0x34, 0x38, 0x3c}  # wait_time and the valve: the port compares them, the exe not
 
 probe = load_probe()
-probe.probe_net_rec_same.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+probe.probe_net_rec_same.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+PM = os.environ.get('MW3_EXE') == 'pm'
 
 INTS = [0x18, 0x20, 0x28, 0x30, 0x3c, 0x40, 0x44, 0x48, 0x50, 0x54, 0x58, 0x5c, 0x60, 0x64]
 FLOATS = [0x0c, 0x10, 0x14, 0x1c, 0x24, 0x2c, 0x4c, 0x84, 0x8c]
 BYTES = [0x38, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70, 0x71, 0x72, 0x80, 0x88, 0x89, 0x98, 0x99]
 PTRS = [0x34, 0x78, 0x7c, 0x90, 0x94]  # valves and the sound: compared as pointers
 VALVES = [0, 0x1000, 0x2000, 0x3000]
+if PM:
+    INTS, FLOATS, BYTES = INTS + [0xa0], FLOATS + [0x9c], BYTES + [0xa4, 0xa5, 0xa6]
+    SIZE, AT = 0xc4, dict(name=0xa8, aux=0xac, via=0xb0, links=0xb4, gate=0xb8, union=0xbc, assign=0xc0)
+else:
+    SIZE, AT = 0xb4, dict(name=0x9c, aux=0xa0, links=0xa4, gate=0xa8, union=0xac, assign=0xb0)
+STRINGS = ['name', 'aux', 'via', 'gate'] if PM else ['name', 'aux', 'gate']
 NAMES = [None, 'a', 'node', 'Gate_2', 'x']
 
 
 def record(rng):
-    b = bytearray(0xb4)
+    b = bytearray(SIZE)
     struct.pack_into('<i', b, 4, rng.choice([0, 1]))
     struct.pack_into('<i', b, 8, rng.randrange(0, 40))
     for off in INTS:
@@ -49,7 +59,7 @@ def record(rng):
     struct.pack_into('<h', b, 0x74, rng.randrange(-30, 30))
     for off in PTRS:
         struct.pack_into('<I', b, off, rng.choice(VALVES))
-    return dict(b=b, name=rng.choice(NAMES), aux=rng.choice(NAMES), gate=rng.choice(NAMES),
+    return dict(b=b, name=rng.choice(NAMES), aux=rng.choice(NAMES), gate=rng.choice(NAMES), via=rng.choice(NAMES),
                 links=[rng.randrange(-1, 20) for _ in range(rng.randrange(0, 4))],
                 union=None if rng.random() < 0.6 else [(rng.choice(VALVES[1:]), rng.randrange(1, 4)) for _ in range(rng.randrange(0, 3))],
                 assign=None if rng.random() < 0.6 else (rng.choice(VALVES[1:]), rng.randrange(0, 9)))
@@ -79,7 +89,7 @@ def mutate(rng, r):
         field = rng.choice(PTRS)
         struct.pack_into('<I', o['b'], field, rng.choice([v for v in VALVES if v != struct.unpack_from('<I', o['b'], field)[0]]))
     elif what == 7:
-        k = rng.choice(['name', 'aux', 'gate'])
+        k = rng.choice(STRINGS)
         o[k] = rng.choice([n for n in NAMES if n != o[k]])
         return o, k
     elif what == 8:
@@ -101,12 +111,13 @@ def mutate(rng, r):
 
 
 def line(r):
-    words = ' '.join(str(w) for w in struct.unpack('<45I', bytes(r['b'])))
+    words = ' '.join(str(w) for w in struct.unpack('<%dI' % (SIZE // 4), bytes(r['b'])))
     t = lambda s: s if s else '-'  # noqa: E731
     links = ','.join(str(x) for x in r['links']) if r['links'] else '-'
     uni = '-' if not r['union'] else ','.join('%d:%d' % p for p in r['union'])  # an empty union is made none below
     assign = '-' if r['assign'] is None else '%d:%d' % r['assign']
-    return '%s %s %s %s %s %s %s' % (words, t(r['name']), t(r['aux']), t(r['gate']), links, uni, assign)
+    names = ' '.join(t(r[k]) for k in STRINGS)
+    return '%s %s %s %s %s' % (words, names, links, uni, assign)
 
 
 class Exe:
@@ -115,7 +126,7 @@ class Exe:
 
     def put(self, r):
         o = self.o
-        a = o.alloc(0xb4)
+        a = o.alloc(SIZE)
         o.write(a, bytes(r['b']))
 
         def text(s):
@@ -124,17 +135,16 @@ class Exe:
             p = o.alloc(len(s) + 1)
             o.write(p, s.encode() + b'\0')
             return p
-        o.u32(a + 0x9c, text(r['name']))
-        o.u32(a + 0xa0, text(r['aux']))
-        o.u32(a + 0xa8, text(r['gate']))
+        for k in STRINGS:
+            o.u32(a + AT[k], text(r[k]))
         v = o.alloc(0x10)  # std::vector<int>: +4 begin, +8 end
         data = o.alloc(4 * max(1, len(r['links'])))
         o.write(data, struct.pack('<%di' % len(r['links']), *r['links']))
         o.u32(v + 4, data if r['links'] else 0)
         o.u32(v + 8, data + 4 * len(r['links']) if r['links'] else 0)
-        o.u32(a + 0xa4, v)
+        o.u32(a + AT['links'], v)
         if r['union'] is None:
-            o.u32(a + 0xac, 0)
+            o.u32(a + AT['union'], 0)
         else:
             u = o.alloc(0x10)
             d = o.alloc(8 * max(1, len(r['union'])))
@@ -143,14 +153,14 @@ class Exe:
                 o.u32(d + 8 * i + 4, n)
             o.u32(u + 4, d if r['union'] else 0)
             o.u32(u + 8, d + 8 * len(r['union']) if r['union'] else 0)
-            o.u32(a + 0xac, u)
+            o.u32(a + AT['union'], u)
         if r['assign'] is None:
-            o.u32(a + 0xb0, 0)
+            o.u32(a + AT['assign'], 0)
         else:
             s = o.alloc(8)
             o.u32(s, r['assign'][0])
             o.u32(s + 4, r['assign'][1])
-            o.u32(a + 0xb0, s)
+            o.u32(a + AT['assign'], s)
         return a
 
     def same(self, a, b):
@@ -175,7 +185,7 @@ def main():
         if b['union'] == []:
             b['union'] = None
         e = exe.same(a, b)
-        p = probe.probe_net_rec_same(line(a).encode(), line(b).encode())
+        p = probe.probe_net_rec_same(line(a).encode(), line(b).encode(), PM)
         kinds.setdefault(what, [0, 0])[e] += 1
         if p == e:
             continue

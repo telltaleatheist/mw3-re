@@ -1,6 +1,7 @@
 #include "mech3/net_save.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -138,6 +139,25 @@ void put_record(std::vector<uint8_t>& out, const NetNodeRec& r, const zrdr::Node
   if (r.gate) key("gate", 1), put_string(props, r.gate);
   if (r.shunt) key("shunt", 0);
   if (r.valve_assign) key("valve_assign", 2), put_valve(props, r.valve_assign->valve), put_int(props, r.valve_assign->value);
+  // Pirate's Moon's keys (its reader at 0x004ec92b): via ( name number radius ),
+  // the radius kept squared, so the one read is written back while it still
+  // squares to the record's; a missing name as an Int 0 (none to the reader).
+  if (r.via || r.via_number != d.via_number || !same(r.via_radius2, d.via_radius2)) {
+    float radius = std::sqrt(r.via_radius2);
+    if (was) {
+      zrdr::Node* f = zrdr::find(const_cast<zrdr::Node*>(was), "via");
+      float v;
+      if (f && f->type == zrdr::List && f->list[0].i > 3 && zrdr::get_float_value(&f->list[3], &v) &&
+          v * v == r.via_radius2)
+        radius = v;
+    }
+    key("via", 3);
+    if (r.via) put_string(props, r.via);
+    else put_int(props, 0);
+    put_int(props, r.via_number), put_float(props, radius);
+  }
+  if (r.terminus) key("terminus", 0);
+  if (r.static_mfb_set) key("static_mfb", 1), put_int(props, r.static_mfb);
   if (r.valve_union) {  // last: read_props finds keys anywhere in the value
     const int32_t n = static_cast<int32_t>(r.valve_union->valves.size());
     key("valveunion", n ? n : 1);
@@ -232,11 +252,15 @@ std::vector<uint8_t> net_with_edits(const uint8_t* p, size_t size, const zrdr::N
 std::vector<uint8_t> archive_with_entry(const std::vector<uint8_t>& a, const char* name,
                                         const std::vector<uint8_t>& data, bool add) {
   const size_t n = a.size();
-  if (n < 8 || get32(a.data() + n - 8) != 1) return {};
-  uint32_t count = get32(a.data() + n - 4);
+  // Pirate's Moon's version 2 (pm/gamez/zutil/zutl_zar.h): version, count and a
+  // CRC after the table.
+  const bool v2 = n >= 12 && get32(a.data() + n - 12) == 2;
+  const size_t tail = v2 ? 12 : 8;
+  if (n < 8 || (!v2 && get32(a.data() + n - 8) != 1)) return {};
+  uint32_t count = get32(a.data() + n - tail + 4);
   const size_t table_size = static_cast<size_t>(count) * sizeof(zutl_zar::Entry);
-  if (table_size > n - 8) return {};
-  const size_t table = n - 8 - table_size;
+  if (table_size > n - tail) return {};
+  const size_t table = n - tail - table_size;
   std::vector<zutl_zar::Entry> entries(count);
   if (count) std::memcpy(entries.data(), a.data() + table, table_size);
   int index = -1;
@@ -267,8 +291,20 @@ std::vector<uint8_t> archive_with_entry(const std::vector<uint8_t>& a, const cha
   const size_t at = out.size();
   out.resize(at + new_table_size);
   if (count) std::memcpy(out.data() + at, entries.data(), new_table_size);
-  put32(out, 1), put32(out, count);
-  return out;
+  if (!v2) return put32(out, 1), put32(out, count), out;
+  // The CRC of every entry's data in table order: made anew when the source's
+  // was right (the readers', which the original checks on reader.zbd), else
+  // kept (the 0 of the rest).
+  const auto crc_of = [&](const std::vector<uint8_t>& b, const std::vector<zutl_zar::Entry>& es) {
+    uint32_t c = 0;
+    for (const zutl_zar::Entry& e : es) c = zutl_zar::crc32(c, b.data() + e.start, e.length);
+    return c;
+  };
+  uint32_t crc = get32(a.data() + n - 4);
+  std::vector<zutl_zar::Entry> old(table_size / sizeof(zutl_zar::Entry));
+  if (!old.empty()) std::memcpy(old.data(), a.data() + table, table_size);
+  if (crc == crc_of(a, old)) crc = crc_of(out, entries);
+  return put32(out, 2), put32(out, count), put32(out, crc), out;
 }
 
 std::vector<uint8_t> net_new_entry(const char* name) {

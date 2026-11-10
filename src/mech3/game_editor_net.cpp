@@ -23,6 +23,14 @@
 namespace mech3 {
 
 namespace {
+// Ours (pm): PM's CZAiNetEdit ctor 0x004c39e0 clears +0x38 for every net
+// (MW3's 0x004bcba0 sets it when not building), so PM's editor kept no edit:
+// none reached the record cache or a save. Ours turns it on, as MW3's
+// (docs/editor.md, Pirate's Moon's net editor).
+ai::CZAiNetEdit* editable(ai::CZAiNetEdit* e) {
+  e->editing = 1;
+  return e;
+}
 NetDialog g_dialog;
 NetEditor* g_editor = nullptr;  // [0x005f4c6c]
 // [0x005f4c60]'s list after the main editor's slot (0x00404140 puts it
@@ -267,7 +275,7 @@ void net_dialog_close() {
     }
   } else {
     auto* edit = dynamic_cast<ai::CZAiNetEdit*>(pick);
-    if (!edit) edit = new ai::CZAiNetEdit(pick->get_id(), nullptr, 0);  // 0x004bd360 (vt+0x18 the id)
+    if (!edit) edit = editable(new ai::CZAiNetEdit(pick->get_id(), nullptr, 0));  // 0x004bd360 (vt+0x18 the id)
     // The editor owns it either way: 0x00402fd0 deletes it, and a net leaves
     // the registry as it goes.
     e = new NetEditor(edit, 0);
@@ -362,7 +370,7 @@ void net_editor_move(int32_t) {
 // CZAiNetEdit(id, none, 0)), its first node (vt+0x50(0)) at `at`, an editor
 // on it, the node's mark pressed (0x0058ebc0) so it starts picked.
 NetEditor* net_editor_new(int32_t id, const float at[3]) {
-  auto* edit = new ai::CZAiNetEdit(id, nullptr, 0);
+  auto* edit = editable(new ai::CZAiNetEdit(id, nullptr, 0));
   ai::NetNode* n = edit->add_node(nullptr);
   if (!n) {
     delete edit;
@@ -539,7 +547,7 @@ void net_window_open(const char* name) {
   if (!g_window) return;
   delete g_window->hosted;
   g_window->hosted = nullptr;
-  if (name) g_window->hosted = new NetEditor(new ai::CZAiNetEdit(-1, name, 0), 0);
+  if (name) g_window->hosted = new NetEditor(editable(new ai::CZAiNetEdit(-1, name, 0)), 0);
 }
 
 // Mech3.exe 1.2 @ 0x00404420 (the window's dtor, 0x004bf5d0): its editor
@@ -607,7 +615,7 @@ bool net_editor_showing(const ai::AiNet* net) {
 void net_editor_show(NetEditor*& slot, ai::AiNet* net) {
   if (slot && net && slot->net && slot->net->net == net) return;
   net_editor_slot_free(slot);
-  if (net && !net_editor_showing(net)) slot = new NetEditor(new ai::CZAiNetEdit(net->get_id(), nullptr, 0), 0);
+  if (net && !net_editor_showing(net)) slot = new NetEditor(editable(new ai::CZAiNetEdit(net->get_id(), nullptr, 0)), 0);
 }
 
 // Mech3.exe 1.2 @ 0x00404290: every editor on the list, the window's too,
