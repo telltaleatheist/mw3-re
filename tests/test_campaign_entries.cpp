@@ -43,8 +43,11 @@ std::string ids(const std::vector<mech3::CampaignEntry>& all) {
 }
 const char* kCampaign = "name=Long Night\nop=Op 1\nmission=c1 1\n";
 // A mods folder with each kind: assets (rows, a texture), a campaign mod with
-// two campaigns, a mod over the game's own c1, one kind=assets over c1 all
-// the same, a copy of a campaign, a mod of another game.
+// two campaigns, a mod that says kind=campaign (the game's campaign over its
+// files, a row of its own), mods laid over the game's own files with no
+// campaign of their own (c1skin, and overlay: a mission's reader, the main
+// reader and a new world: asset mods all the same), a copy of a campaign, a
+// mod of another game.
 void mods(const fs::path& wd) {
   put(wd / "mods/weps/mod.txt", "name=Freako Weapons\nweapon=GAUSS2 ammo=yes tech=sphere\n");
   put(wd / "mods/tex/mod.txt", "name=Textures\nneeds=weps\n");
@@ -52,8 +55,12 @@ void mods(const fs::path& wd) {
   put(wd / "mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\ncampaign=dawn.txt\nneeds=tex\n");
   put(wd / "mods/camp/night.txt", kCampaign);
   put(wd / "mods/camp/dawn.txt", "name=Dawn\nmission=c1 1\nbogus line\n");
-  put(wd / "mods/rewrite/mod.txt", "name=Campaign Rewrite\n");
+  put(wd / "mods/rewrite/mod.txt", "name=Campaign Rewrite\nkind=campaign\n");
   put(wd / "mods/rewrite/zbd/c1/readerm1.zbd", "x");
+  put(wd / "mods/overlay/mod.txt", "name=Overlay\nworld=w9\n");
+  put(wd / "mods/overlay/zbd/c1/readerm1.zbd", "x");
+  put(wd / "mods/overlay/zbd/reader.zbd", "x");
+  put(wd / "mods/overlay/zbd/w9/gamez.zbd", "x");
   put(wd / "mods/c1skin/mod.txt", "name=C1 Skin\nkind=assets\n");
   put(wd / "mods/c1skin/zbd/c1/gamez.zbd", "x");
   put(wd / "mods/copy/mod.txt", "name=My Night\nbase=camp~night\ncampaign=night.txt\n");
@@ -75,7 +82,11 @@ TEST(campaign_entries_listed_by_kind) {
   EXPECT(night && night->kind == mech3::CampaignEntry::kImported && night->name == "Long Night" && night->error.empty());
   EXPECT(dawn && !dawn->error.empty());  // listed with why it cannot be played
   EXPECT(copy && copy->kind == mech3::CampaignEntry::kCopy && copy->base == "camp~night");
-  EXPECT(rewrite && rewrite->campaign.empty() && rewrite->base == "mw3" && rewrite->name == "Campaign Rewrite");
+  EXPECT(rewrite && rewrite->campaign.empty() && rewrite->base == "mw3" && rewrite->name == "Campaign Rewrite");  // kind=campaign said
+  // A mod laid over the game's own files with no campaign of its own makes no entry: it is ticked for campaigns.
+  EXPECT(!mech3::find_entry(all, "overlay") && !mech3::find_entry(all, "c1skin"));
+  for (const mech3::ModInfo& m : mech3::mods_found(wd.string()))
+    if (m.folder == "overlay" || m.folder == "c1skin" || m.folder == "weps") EXPECT(!mech3::mod_is_campaign(m));
   // A folder of ours whose mod is gone: listed, its saves in reach; one without our marker: not ours, not listed.
   put(wd / "campaigns/gone~x" / mech3::kCampaignMarker, "ours");
   put(wd / "campaigns/gone~x/pilots/Ace.mw3", "pilot");
@@ -129,6 +140,34 @@ TEST(campaign_entries_folder_ticks_and_mounts) {
   EXPECT(!zutl::mod_may_serve("campaigns/mw3/mods.txt") && !zutl::mod_may_serve("Campaigns/mw3/pilots/A.mw3"));
 }
 
+// A mod laid over the game's own files (a mission's reader, the main reader,
+// a new world) is ticked like any asset mod: for the game's own campaign,
+// for an imported campaign, and for Instant Action, and mounts in each. In a
+// campaign with a mod of its own that mod comes first in the order (the
+// first wins a shared file): the campaign's own files win over a ticked
+// overlay, and the tick list's note says which.
+TEST(campaign_entries_an_overlay_mod_is_ticked_for_any_campaign_and_instant_action) {
+  using V = std::vector<std::string>;
+  const fs::path wd = tmp("entries_overlay");
+  mods(wd);
+  put(wd / "mods/camp/zbd/c1/readerm1.zbd", "camp's");  // the campaign's own copy of the file the overlay also holds
+  const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
+  for (const char* id : {"mw3", "ia", "camp~night"}) {
+    const mech3::CampaignEntry* e = mech3::find_entry(all, id);
+    EXPECT(e && mech3::entry_save_ticks(wd.string(), *e, V{"overlay"}));
+    if (!e) continue;
+    V locked;
+    const V mount = mech3::entry_mount_list(wd.string(), *e, &locked);
+    EXPECT(!mount.empty() && mount.back() == "overlay" && mech3::entry_missing_mods(wd.string(), *e).empty());
+    if (std::string(id) == "camp~night") EXPECT(!locked.empty() && mount.front() == "camp" && locked.front() == "camp");  // the campaign's own first
+    else EXPECT((mount == V{"overlay"}) && locked.empty());
+  }
+  // The order's note, as the tick list shows it for the campaign: the overlay shares the file, the campaign's wins.
+  for (const mech3::ModsListEntry& m : mech3::mods_list(wd.string(), V{"camp", "tex", "weps", "overlay"}))
+    if (m.info.folder == "overlay")
+      EXPECT(m.on && !m.conflicts_with.empty() && m.conflicts_with.front() == "camp" && m.shadowed.size() == 1);
+}
+
 TEST(campaign_entries_kind_rule) {
   mech3::ModInfo m;
   m.path = tmp("entries_kind");
@@ -136,12 +175,17 @@ TEST(campaign_entries_kind_rule) {
   m.kind = "campaign";
   EXPECT(mech3::mod_is_campaign(m));
   m.kind = "", m.worlds = {"w1"};
-  EXPECT(mech3::mod_is_campaign(m));
+  EXPECT(!mech3::mod_is_campaign(m));  // a new world alone: an asset mod (Instant Action's maps)
+  m.worlds.clear();
+  put(fs::path(m.path) / "zbd/C4B/anim.zbd", "x");
+  put(fs::path(m.path) / "zbd/reader.zbd", "x");
+  EXPECT(!mech3::mod_is_campaign(m));  // laid over the game's own files: an asset mod
+  m.campaigns = {"night.txt"};
+  EXPECT(mech3::mod_is_campaign(m));   // a campaign of its own
   m.kind = "ASSETS";
-  EXPECT(!mech3::mod_is_campaign(m));
-  m.kind = "", m.worlds.clear();
-  put(fs::path(m.path) / "zbd/C4B/anim.zbd", "x");  // any case
-  EXPECT(mech3::mod_is_campaign(m));
+  EXPECT(!mech3::mod_is_campaign(m));  // said otherwise
+  m.kind = "", m.campaigns.clear(), m.base = "camp~night";
+  EXPECT(mech3::mod_is_campaign(m));   // a copy
   mech3::ModInfo parsed;
   EXPECT(mech3::mod_parse("name=X\nkind=assets\nbase=camp~night\n", &parsed) && parsed.kind == "assets" && parsed.base == "camp~night");
 }
@@ -268,8 +312,8 @@ TEST(campaign_entry_plays_the_games_own_campaign_or_not) {
   const fs::path wd = tmp("entries_own");
   put(wd / "mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\n");
   put(wd / "mods/camp/night.txt", "name=Long Night\nmission=c1 1\n");
-  put(wd / "mods/rewrite/mod.txt", "name=Rewrite\n");
-  put(wd / "mods/rewrite/zbd/c1/anim.zbd", "x");  // the game's own campaign over its files
+  put(wd / "mods/rewrite/mod.txt", "name=Rewrite\nkind=campaign\n");  // the game's own campaign over its files, a row by its own word
+  put(wd / "mods/rewrite/zbd/c1/anim.zbd", "x");
   put(wd / "mods/mine/mod.txt", "name=My Rewrite\nkind=campaign\nbase=rewrite\n");
   put(wd / "mods/nightedit/mod.txt", "name=Night Edit\nkind=campaign\nbase=camp~night\n");
   put(wd / "mods/orphan/mod.txt", "name=Orphan\nkind=campaign\nbase=nowhere\n");
