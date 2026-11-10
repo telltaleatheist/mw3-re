@@ -323,6 +323,9 @@ class GameEngine : public Engine {
   void push_state(Handle state, uint32_t arg) override;
   bool menu_vcall(Handle obj, uint32_t slot, std::initializer_list<Arg> args, uint32_t* out);
   MenuScreen* screen_of(Handle h, uint32_t* offset = nullptr) const;
+  // The checks': the screens and the heap menu objects made and not yet freed.
+  size_t open_screens() const { return screens_.size(); }
+  size_t menu_objects() const { return menu_states_.size(); }
   void delete_screens();  // the ones still open at exit, and the menu objects
   MenuState* menu_state_of(Handle h) const;
   MenuState* popup_state_of(Handle h) const;  // the controls screen's popups (+0x16760, +0x1677c)

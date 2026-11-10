@@ -615,6 +615,8 @@ void GameEngine::delete_screens() {
     MenuState* st = menu_states_.begin()->second;
     menu_states_.erase(menu_states_.begin());
     st->screen_ = 0;
+    if (auto* g = dynamic_cast<GameMenuState*>(st))  // (its destructor deletes its own three: 0x0049ca00)
+      for (Handle& s : g->screens) s = 0;
     delete st;
   }
   // A screen's own popups go with it (their states delete them).

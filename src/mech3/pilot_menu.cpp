@@ -501,6 +501,19 @@ GameMenuState::GameMenuState(Kind k, Handle addr) : MenuState(name_of(k), addr),
   }
 }
 
+// Mech3.exe 1.2 @ 0x0049ca00, the multiplayer state's destructor (0x0049c9e0 the deleting one): the three
+// screens its constructor made are deleted (+0x1c, +0x20, +0x24, each vt+0x08(1)) and +0x0c, whichever of them
+// was shown, cleared before the shell's own (0x0048eb80). (Until 2026-11-10 the port had no such destructor, so
+// the three screens stayed each time the main menu's state was left: after every mission.)
+GameMenuState::~GameMenuState() {
+  if (kind != kMultiplayer) return;
+  for (Handle& s : screens) {
+    if (s) e().vcall(s, 0x08, {1});
+    s = 0;
+  }
+  screen_ = 0;
+}
+
 // Mech3.exe 1.2 @ 0x0048a750, 0x0048afd0, 0x0048b140, 0x0049cab0
 bool GameMenuState::enter() {
   Engine& en = e();

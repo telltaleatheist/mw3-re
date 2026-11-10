@@ -124,6 +124,7 @@ class GameMenuState : public MenuState {
  public:
   enum Kind { kAction, kCampaign, kTraining, kMultiplayer };
   GameMenuState(Kind k, Handle addr);
+  ~GameMenuState() override;         // 0x0049ca00 (multiplayer's: its three screens)
   bool enter() override;             // 0x0048a750, 0x0048afd0, 0x0048b140, 0x0049cab0
   bool update() override;            // 0x0048af20 (the campaign), else the shell's
   void leave() override;             // 0x0048afa0 (the campaign), else the shell's
