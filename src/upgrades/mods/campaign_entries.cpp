@@ -249,7 +249,7 @@ std::vector<std::string> entries_migrate(const std::string& write_dir) {
     const fs::path to = fs::path(entry_dir(write_dir, e.id)) / "pilots";
     if (fs::exists(to, ec)) continue;  // something there already: left as it is
     if (!entry_ensure(write_dir, e, nullptr)) continue;
-    fs::remove_all(to, ec);  // only the empty pilots\games just made
+    fs::remove(to / "games", ec), fs::remove(to, ec);  // the empty pilots\games just made; anything else stays and the move fails
     fs::rename(old, to, ec);
     if (ec) continue;
     fs::remove(to / kCampaignMarker, ec);  // the entry's own marker is one up
