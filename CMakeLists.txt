@@ -659,6 +659,7 @@ if(SDL3_FOUND)
     src/frontend/sdl/net_enet.cpp
     src/frontend/sdl/net_upnp.cpp
     src/frontend/sdl/sdl_child.cpp
+    src/frontend/sdl/log_start.cpp
     src/frontend/sdl/editor_imgui.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3 enet miniupnpc)
@@ -835,6 +836,7 @@ if(SDL3_FOUND)
       tests/main.cpp
       tests/test_sdl_frontend.cpp
       tests/test_win_cmdline.cpp
+      tests/test_log_start.cpp
       src/frontend/sdl/sdl_update.cpp
       src/frontend/sdl/sdl_restart.cpp
       src/frontend/sdl/win_cmdline.cpp

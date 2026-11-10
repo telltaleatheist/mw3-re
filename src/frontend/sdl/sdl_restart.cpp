@@ -16,6 +16,7 @@
 
 #include <io.h>
 
+#include "frontend/sdl/log_start.h"
 #include "frontend/sdl/win_cmdline.h"
 #else
 #include <fcntl.h>
@@ -146,6 +147,9 @@ bool restart_into(const std::string&, const std::vector<std::string>& args, std:
     return false;
   }
   std::wstring line = wide(win_command_line(narrow(exe), args));  // CreateProcessW may write into it
+  // The new start is told this process's id (in its environment, which it inherits; not an argument, so the
+  // start's own arguments stay as they are): it waits for this process to be gone before it moves the log.
+  SetEnvironmentVariableW(wide(kRestartedFromEnv).c_str(), std::to_wstring(GetCurrentProcessId()).c_str());
   STARTUPINFOW si{};
   si.cb = sizeof si;
   const bool fresh = output_is_a_file();
@@ -153,6 +157,7 @@ bool restart_into(const std::string&, const std::vector<std::string>& args, std:
   PROCESS_INFORMATION pi{};
   if (!CreateProcessW(exe.c_str(), line.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi)) {
     if (why) *why = "cannot start " + narrow(exe) + ": " + last_error_words();
+    SetEnvironmentVariableW(wide(kRestartedFromEnv).c_str(), nullptr);
     return false;
   }
   std::printf("mw3: starting again as process %lu%s: %s\n", static_cast<unsigned long>(pi.dwProcessId),
