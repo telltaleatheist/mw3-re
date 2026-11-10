@@ -73,6 +73,7 @@ GAME_STATES = {0: (0x48a6c0, 0x48a750, 0x48a7b0, None, None, 0x438c80),
                2: (0x48b120, 0x48b140, 0x48b170, None, None, 0x438c80),
                3: (0x49c900, 0x49cab0, 0x49cbb0, 0x49cb90, None, None)}
 APP_FMV, APP_IA_ARG = 0x608e49, 0x608e47
+MP_DTOR = 0x49ca00  # the multiplayer state's destructor; the shell's own (STATE_DTOR) follows inside it
 PILOTS, CURRENT = 0x60860c, 0x60861c
 MAIN_MENU = 0x609854
 VT_GAME = {0x5bee08: 0, 0x5bec40: 1, 0x5bed50: 2, 0x5becf8: 3, 0x5beda8: 4}
@@ -255,7 +256,8 @@ def make_plan(seed, bound, spots):
             if r.random() < 0.3:
                 lines.append(f'g {kind} enter')
         lines.append(mouse_line(r, spots, state))
-    lines += ['E', 'U', 'E']
+    # The state's end: the multiplayer state deletes its three screens (0x0049ca00); the others own none.
+    lines += ['E', 'U', 'E', f'g {kind} delete']
     return lines
 
 
@@ -365,8 +367,18 @@ class Original:
         e.stub(0x48ec40, '@shell_leave', 'c')
         e.stub(0x48ecc0, '@shell_resume', 'c,s0')
         e.stub(0x48ed30, '@shell_update', 'c')
-        for addr in (0x488bc0, 0x493260, 0x495f90, 0x49bd80):  # the Action and multiplayer screens
-            e.stub(addr, f'{addr:#010x}', 's0')
+        # The Action and multiplayer screens' constructors, stubbed: each object is given a vtable whose
+        # deleting destructor (+0x08) is traced, for the multiplayer state's destructor to call.
+        screen_vt = e.alloc(0x10)
+        e.w32(screen_vt + 8, e.new_stub('vt+0x8', 'c,s0', 4))
+
+        def screen_ctor(emu, key, a, pop):
+            obj = emu.t.handle(key, a)
+            if obj:
+                emu.w32(obj, screen_vt)
+            emu._ret(obj, pop)
+        for addr in (0x488bc0, 0x493260, 0x495f90, 0x49bd80):
+            e.stub(addr, f'{addr:#010x}', 's0', None, screen_ctor)
         e.stub(0x48aac0, '0x0048aac0', '')
         e.stub(0x494920, '0x00494920', 'c')
         e.stub(0x47fc40, '0x0047fc40', 's0')
@@ -517,6 +529,8 @@ class Original:
                     e.call(leave, ecx=G)
                 elif what == 'escape' and escape:
                     e.call(escape, ecx=G)
+                elif what == 'delete' and k == 3:
+                    e.call(MP_DTOR, ecx=G)
             elif op == 'E' and not m:
                 dump += 'gone\n' + self.dump_pilots() + self.dump_games()
             elif not m:
