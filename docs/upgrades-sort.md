@@ -23,8 +23,9 @@ Rows that could sit on either side are listed under **For Owen** with the
 side this proposes. No code changes with this; Owen approves (or moves rows)
 before anything moves.
 
-474 rows (fixes.md's 473 and the Small Pulse Laser's flash, to be made): 431 always on, 5 in our own
-tools, 8 under the four own switches, 21 under Small fixes, 4 left as the original, 5 not changes.
+478 rows: fixes.md's 473 table rows, its four data typos still to fix (Original bugs
+still to fix) and the Small Pulse Laser's flash. 433 always on, 5 in our own
+tools, 8 under the four own switches, 23 under Small fixes, 4 left as the original, 5 not changes.
 Rows are MW3's unless marked PM (a row on both games is listed once, as MW3's).
 
 ## The switches
@@ -41,7 +42,7 @@ and text put back as the data had them.
 | Improved AI | Lancemates find their way round walls, rivers and corners, and keep their floor in another zone. | 4 |
 | Water movement | Deep water slows a mech smoothly instead of stopping it. | 1 |
 | Artemis tracking | Artemis FCS missiles get their extra tracking. | 1 |
-| Small fixes | Everything in the list below: weapons, turrets and vehicles, mission scripts. | 21 |
+| Small fixes | Everything in the list below: weapons, turrets and vehicles, mission scripts, the mechs' data typos. | 23 |
 
 Big enough to be noticed in play, besides the four: **the turrets' pick**
 (their count runs on across missions: each later mission's turrets act once
@@ -80,6 +81,8 @@ line per switch, and Small fixes a button that shows its list.
 19. An animation whose object is missing waits for its conditions.
 20. Leaving c4b mission 5's or 6's area fails the mission.
 21. c2 mission 3's secondary objective waits for the mission's two Fireflies (it named two that aren't there, so it completed at once).
+22. The Sunder Alternate B carries its LRM 20's extra 240 missiles (to be made).
+23. The Strider's recoil slide is read as a number, as on the Cauldron, Bushwacker and Champion (to be made).
 
 ## Owen's answers (2026-11-10)
 
@@ -96,8 +99,8 @@ The borderline rows, as Owen settled them:
 - **Left as the original** (the fix removed, or never made): Pirate's Moon's
   firepoint aim cone (0x4a6ee0) and aim re-pick (0x4bb290); vehicles passing
   through walls, and not slowed by quicksand or lava.
-- **Small fixes**: c2 mission 3's secondary objective (the Fireflies), to be
-  made; the plain PPC; the turrets and vehicles (Improved AI stays the
+- **Small fixes**: c2 mission 3's secondary objective (the Fireflies), made
+  already under the bug fixes (fixes.md's row said otherwise); the plain PPC; the turrets and vehicles (Improved AI stays the
   lancemates' pathing).
 
 ## Where the `bugs` switch's users go
@@ -639,6 +642,22 @@ No original play to restore: the original never reaches these.
 | The editor's reload, 0x4bed90 (editor.md, The reload) | MW3 | an edit to a running net shows only at the next start |
 | Pirate's Moon's teleport, a typed place 0x004a8d70 (editor.md, Pirate's… | PM | MW3's took the yaw field; a typed place saved with a stray facing |
 
+### fixes.md's data typos still to fix (4)
+
+fixes.md's bulleted list (Original bugs still to fix) holds data typos for the
+importer besides the tables' rows; c2m3's Fireflies there is the Missions row
+below. The list's other entries (the CPU speed, the precision notes, the
+fonts) are port fixes, FIX (A) / (B), or the exe's own precision: always on,
+or no change. Two typos are pictures and text (always on), two play (Small
+fixes, items 22 and 23):
+
+| Fix | Game | Why |
+|---|---|---|
+| Firefly skin 5's label `MSG_SKIN_VARIANTD` (should be `VARIANTE`, SLATE) | MW3 | text: always on. To be made |
+| c1's script `Object3DSetScrllAlways` on `ocean52` (should be `Object3DSetScrollAlways`) | MW3 | a picture: the water does not scroll. Always on. To be made |
+| Sunder Alternate B's `extra (120 120)` beside the LRM 20's `ammo` instead of inside it | MW3 | play: 240 missiles lost. Small fixes. To be made |
+| Strider's `recoil_slide ("1.5.0")` as text (should be `1.5`) | MW3 | play: its recoil read as none. Small fixes. To be made |
+
 ## (b) Own switches
 
 ### MFB regroup after repair (2)
@@ -671,7 +690,7 @@ No original play to restore: the original never reaches these.
 
 Deep water: its row once said "game-breaking per Owen" (2026-10-30, when it was folded into `bugs`); release.md names water movement as an upgrade, so it is listed there.
 
-## (c) Small fixes (21)
+## (c) Small fixes (23)
 
 One switch; the in-game list above names each in the same order.
 
@@ -714,7 +733,7 @@ One switch; the in-game list above names each in the same order.
 | Animation prerequisites, 0x50aaa3 | MW3 | the mission's last animation can never be waited for |
 | Missing animation object, 0x50a0e0 | MW3 | the animation then fires without waiting for any of its conditions |
 | c4b missions 5 and 6's boundaries, the aiv.zrd vlist reader 0x4dfb00 | MW3 | leaving either mission's area never fails it |
-| c2m3's secondary objective (objectives.zrd c2 `m3`, "Destroy Smoke Jaguar… | MW3 | the objective completes with both Fireflies alive (playtest W24). To be made (Owen 2026-11-10: a small fix) (the… |
+| c2m3's secondary objective (objectives.zrd c2 `m3`, "Destroy Smoke Jaguar… | MW3 | the objective completes with both Fireflies alive (playtest W24). Made already: `fix_objective_data` points them at firefly_03 / 04 (Owen 2026-10-25; fixes.md, Original bugs still to fix, whose row here was stale); Small fixes (Owen 2026-11-10) (the… |
 
 ## Left as the original (Owen, 2026-11-10) (4)
 
