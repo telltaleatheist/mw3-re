@@ -7,9 +7,16 @@
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <cstdio>
 #include <set>
 
+#include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zclass/cls_mechlib_json.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/list.h"
 #include "gamez/zeffect/zeff_anim_json.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "gamez/zutil/zutl_zip.h"
 #include "gamez/zutil/zutl_json.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mods.h"
@@ -32,6 +39,49 @@ std::string lower(std::string s) {
   for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return s;
 }
+bool ends(const std::string& s, const char* tail) {
+  const size_t n = std::strlen(tail);
+  return s.size() > n && s.compare(s.size() - n, n, tail) == 0;
+}
+// A def file's name (lower case): a .json that is no script (si-script-*) and no node file (*.flt.json).
+bool is_def_name(const std::string& n) { return ends(n, ".json") && n.rfind("si-script-", 0) != 0 && !ends(n, ".flt.json"); }
+
+// A JSON value as text again (the node file's materials list for the materials reader).
+std::string json_text(const zutl_json::Value& v) {
+  using V = zutl_json::Value;
+  const auto quoted = [](const std::string& t) {
+    std::string o = "\"";
+    for (char c : t) {
+      if (c == '"' || c == '\\') o += '\\';
+      if (static_cast<unsigned char>(c) < 0x20) {
+        char b[8];
+        std::snprintf(b, sizeof b, "\\u%04x", c);
+        o += b;
+      } else {
+        o += c;
+      }
+    }
+    return o + "\"";
+  };
+  switch (v.kind) {
+    case V::Null: return "null";
+    case V::Bool: return v.b ? "true" : "false";
+    case V::Number: return v.text;
+    case V::String: return quoted(v.text);
+    case V::Array: {
+      std::string o = "[";
+      for (size_t i = 0; i < v.items.size(); ++i) o += (i ? "," : "") + json_text(v.items[i]);
+      return o + "]";
+    }
+    case V::Object: {
+      std::string o = "{";
+      for (size_t i = 0; i < v.members.size(); ++i) o += (i ? "," : "") + quoted(v.members[i].first) + ":" + json_text(v.members[i].second);
+      return o + "}";
+    }
+  }
+  return "null";
+}
+
 std::string text_of(const fs::path& p) {
   std::ifstream in(p, std::ios::binary);
   return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -147,8 +197,7 @@ std::vector<DefFile> mod_def_files(const char* game_path, const std::vector<uint
       std::vector<fs::path> files;
       for (const auto& e : fs::directory_iterator(at, ec)) {
         const std::string n = lower(e.path().filename().string());
-        if (e.is_regular_file(ec) && n.size() > 5 && n.compare(n.size() - 5, 5, ".json") == 0 && n.rfind("si-script-", 0) != 0)
-          files.push_back(e.path());
+        if (e.is_regular_file(ec) && is_def_name(n)) files.push_back(e.path());
       }
       std::sort(files.begin(), files.end());
       for (const fs::path& f : files) {
@@ -186,7 +235,7 @@ bool is_def_file(const std::string& mod_dir, const std::string& rel, std::string
     at = e + 1;
   }
   const std::string& name = parts.back();
-  if (name.size() <= 5 || name.compare(name.size() - 5, 5, ".json") != 0 || name.rfind("si-script-", 0) == 0) return false;
+  if (!is_def_name(name)) return false;
   if (parts.size() == 3 && parts[0] == "zbd" && parts[1] == "anim") return *world = "", true;
   if (parts.size() != 4 || parts[0] != "zbd" || parts[2] != "anim") return false;
   std::error_code ec;
@@ -253,8 +302,7 @@ int build_for_original(const std::string& mod_dir, const std::string& install, s
       std::vector<fs::path> files;
       for (const auto& e : fs::directory_iterator(folder, ec)) {
         const std::string n = lower(e.path().filename().string());
-        if (e.is_regular_file(ec) && n.size() > 5 && n.compare(n.size() - 5, 5, ".json") == 0 && n.rfind("si-script-", 0) != 0)
-          files.push_back(e.path());
+        if (e.is_regular_file(ec) && is_def_name(n)) files.push_back(e.path());
       }
       std::sort(files.begin(), files.end());
       for (const fs::path& f : files) {
@@ -270,6 +318,11 @@ int build_for_original(const std::string& mod_dir, const std::string& install, s
         }
       }
     }
+    for (const fs::path& folder : {fs::path(mod_dir) / "zbd" / w / "anim", fs::path(mod_dir) / "zbd" / "anim"})
+      for (const auto& e : fs::directory_iterator(folder, ec))
+        if (ends(lower(e.path().filename().string()), ".flt.json"))
+          lines->push_back(w + ": " + e.path().filename().string() + " is a node file: the original reads nodes only from the "
+                           "world's gamez.zbd, so its defs need that node there");
     if (defs.empty()) continue;
     std::ifstream in(zbd / w / "anim.zbd", std::ios::binary);
     const std::vector<uint8_t> base((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -291,6 +344,139 @@ int build_for_original(const std::string& mod_dir, const std::string& install, s
                      " added, written to " + to.generic_string());
   }
   return errors;
+}
+
+bool is_node_file(const std::string& rel) {
+  const std::string low = lower(rel);
+  if (!ends(low, ".flt.json") || low.rfind("zbd/", 0) != 0) return false;
+  const size_t a = low.find("/anim/");
+  if (a == std::string::npos || low.find('/', a + 6) != std::string::npos) return false;  // directly in an anim folder
+  const std::string mid = low.substr(4, a - 4);  // "" (zbd/anim/) or a world
+  return a == 3 || mid.find('/') == std::string::npos;
+}
+
+bool node_file_reads(const std::string& path, std::string* why) {
+  const std::string text = text_of(path);
+  zutl_json::Value doc;
+  if (!zutl_json::parse(text, &doc, why)) return false;
+  const zutl_json::Value* mats = doc.get("materials");
+  if (!mats || mats->kind != zutl_json::Value::Array) return *why = "no materials list (its own, in mechlib's materials.json form)", false;
+  std::vector<uint8_t> bytes;
+  if (!zcls::mechlib_materials_from_json(json_text(*mats), &bytes, why)) return *why = "materials: " + *why, false;
+  return zcls::mechlib_model_from_json(text, &bytes, why);
+}
+
+zcls::Node* load_node_file(const std::string& path, std::string* why) {
+  const std::string text = text_of(path);
+  zutl_json::Value doc;
+  if (!zutl_json::parse(text, &doc, why)) return nullptr;
+  const zutl_json::Value* mats = doc.get("materials");
+  if (!mats || mats->kind != zutl_json::Value::Array) return *why = "no materials list (its own, in mechlib's materials.json form)", nullptr;
+  std::vector<uint8_t> mat_bytes, tree_bytes;
+  if (!zcls::mechlib_materials_from_json(json_text(*mats), &mat_bytes, why)) return *why = "materials: " + *why, nullptr;
+  if (!zcls::mechlib_model_from_json(text, &tree_bytes, why)) return nullptr;
+  zcls::MechLib lib;  // the node file's own library: its materials, its one tree
+  {
+    zutl_zip::ScratchFile f(mat_bytes.data(), mat_bytes.size());
+    uint32_t count = 0;
+    if (!f.file || std::fread(&count, 4, 1, f.file) != 1 || static_cast<uint64_t>(count) * 0x28 + 4 > mat_bytes.size())
+      return *why = "its materials do not read", nullptr;
+    for (uint32_t i = 0; i < count; ++i) {
+      auto* m = new zcls::Material{};
+      zcls::read_material(f.file, *m);
+      lib.materials.push_back(m);
+    }
+  }
+  zcls::Node* root = nullptr;
+  {
+    zutl_zip::ScratchFile f(tree_bytes.data(), tree_bytes.size());
+    if (f.file) root = zcls::read_tree(lib.reader, f.file, nullptr);
+  }
+  // Every polygon's material within its own list (mechlib's own check).
+  bool fit = root != nullptr;
+  std::vector<zcls::Node*> stack;
+  if (root) stack.push_back(root);
+  while (fit && !stack.empty()) {
+    zcls::Node* n = stack.back();
+    stack.pop_back();
+    if (zmod::Model* m = n->model)
+      for (uint32_t i = 0; i < m->count(0x10) && fit; ++i) fit = m->polygons[i].material_index < lib.materials.size();
+    for (int32_t i = 0; i < n->child_count(); ++i) stack.push_back(n->children[i]);
+  }
+  if (fit) zcls::mechlib_resolve(lib, root);
+  for (zcls::Material* m : lib.materials) zcls::material_free(*m), delete m;
+  lib.materials.clear();
+  if (!root) return *why = "its tree does not read", nullptr;
+  if (!fit) return *why = "a polygon names a material its list lacks", nullptr;  // the tree stays, unused
+  return root;
+}
+
+void load_mod_node_files(const char* game_path, std::vector<std::string>* notes) {
+  const zutl::Mounts& mt = zutl::mounts();
+  if (mt.mods.empty() || !game_path) return;
+  std::string dir = zutl::host(game_path);
+  const size_t slash = dir.rfind('/');
+  std::string stem = slash == std::string::npos ? dir : dir.substr(slash + 1);
+  dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
+  if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
+  std::string up = dir.empty() ? std::string{} : dir.substr(0, dir.size() - 1);
+  const size_t s2 = up.rfind('/');
+  up = s2 == std::string::npos ? std::string{} : up.substr(0, s2 + 1);
+  std::set<std::string> done;
+  std::error_code ec;
+  for (size_t m = 0; m < mt.mods.size(); ++m)
+    for (const std::string& folder : {dir + stem + "/", up + stem + "/"}) {
+      const fs::path at = fs::path(mt.mods[m]) / folder;
+      if (!fs::is_directory(at, ec)) continue;
+      std::vector<fs::path> files;
+      for (const auto& e : fs::directory_iterator(at, ec))
+        if (e.is_regular_file(ec) && ends(lower(e.path().filename().string()), ".flt.json")) files.push_back(e.path());
+      std::sort(files.begin(), files.end());
+      for (const fs::path& f : files) {
+        const std::string fname = f.filename().string();
+        const std::string node = fname.substr(0, fname.size() - 5);  // "<node>.flt"
+        if (!done.insert(lower(node)).second) continue;
+        if (zcls::list_find_by_name(zcls::kAllNodes, node.c_str())) {
+          if (notes) notes->push_back(f.string() + ": the world has a " + node + " already; its own kept");
+          continue;
+        }
+        std::string why;
+        zcls::Node* root = load_node_file(f.string(), &why);
+        if (!root) {
+          if (notes) notes->push_back(f.string() + ": " + why + "; left out");
+          continue;
+        }
+        zcls::node_set_name(root, node.c_str());
+        if (notes) notes->push_back(f.string() + ": " + node + " read");
+      }
+    }
+}
+
+bool def_nodes_found(const std::vector<uint8_t>& def, std::string* missing) {
+  if (def.size() < 0x13c) return *missing = "(a short def)", false;
+  const uint8_t* r = def.data();
+  // Its own lights' and sounds' names, which its events find before the world's.
+  std::set<std::string> own;
+  static const size_t kList[9] = {0x60, 0x28, 0x2c, 0x2c, 0x2c, 0x24, 0x24, 0x30, 0x48};
+  std::vector<std::pair<size_t, size_t>> lists;  // each list's start and count
+  size_t q = 0x13c;
+  for (int k = 0; k < 9; ++k) {
+    const size_t n = k < 8 ? r[0x109 + k] : r[0x112];
+    lists.emplace_back(q, n);
+    q += n * kList[k];
+  }
+  if (q > def.size()) return *missing = "(a short def)", false;
+  for (int k : {2, 4})  // lights, dynamic sounds: entry 0 a placeholder
+    for (size_t i = 1; i < lists[k].second; ++i) own.insert(name_at(r + lists[k].first + i * kList[k]));
+  const auto found = [&](const std::string& n) {
+    return n.empty() || own.count(n) || zcls::list_find_by_name(zcls::kAllNodes, n.c_str()) != nullptr;
+  };
+  std::vector<std::string> names = {name_at(r + 0x20), name_at(r + 0x44)};
+  for (int k : {0, 1})  // object and node refs, from 1
+    for (size_t i = 1; i < lists[k].second; ++i) names.push_back(name_at(r + lists[k].first + i * kList[k]));
+  for (const std::string& n : names)
+    if (!found(n)) return *missing = n, false;
+  return true;
 }
 
 }  // namespace mech3::anim_defs
