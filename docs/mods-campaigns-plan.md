@@ -185,3 +185,83 @@ load's note, on the loading screen and in the log, once:
 
 Outside an entry the mod list is written and compared as before (`--mod`, a
 developer's start). Tests: `save_entry_*` (tests/test_save_entry.cpp).
+
+## Built: the restart on Windows (2026-11-10)
+
+The `_WIN32` side of `sdlfe::restart_into` (`frontend/sdl/sdl_restart.cpp`).
+Windows has no exec, so the program is started as a new process and this
+one ends:
+
+- its own file by `GetModuleFileNameW`, the buffer grown until the name fits
+  (long paths);
+- the command line by `win_command_line` (`frontend/sdl/win_cmdline`, plain
+  string code built on every system): the program's path in plain quotes,
+  each argument quoted by the rules `CommandLineToArgvW` splits by (as it is
+  without a space, tab, newline or quote; else in quotes, a quote written
+  `\"`, the backslashes before a quote or before the closing one doubled, an
+  empty argument `""`);
+- `CreateProcessW` with no inherited handles, the same working directory and
+  environment, made suspended;
+- the log: with no console stdout and stderr are `<write dir>\mw3.log`
+  (`log_to_file`), and the next start renames that file and opens a new one.
+  So this process writes its last line ("starting again as process N: ..."),
+  closes stdout and stderr, and only then lets the new process run
+  (`ResumeThread`); the new one cannot reach the log while the old one holds
+  it. `AllowSetForegroundWindow` lets its window come to the front. Then
+  `ExitProcess(0)`;
+- the new process's own standard handles: without `STARTF_USESTDHANDLES`
+  Windows gives a console program copies of its parent's standard handles
+  even when no handles are inherited, so the new process started out holding
+  the old log as its stdout and its rename was refused (error 32, seen on
+  the PC with `restart_check`, 2026-11-10). When this run's stdout or stderr
+  is a file on disk (asked of Windows' standard handles and of the C
+  runtime's, which alone knows a windowed program's `freopen`), the new
+  process is started with `STARTF_USESTDHANDLES` and no handles: a fresh
+  program with nothing open. When they are a console or a pipe (a
+  developer's run, a test reading the output) they are left, so the output
+  still shows; neither holds a log;
+- the new start's side (`log_to_file`, `frontend/sdl/log_start`): with that
+  fix the move still went through only at the second try on the PC (50 ms
+  later), so something holds the old log for a moment after the new process
+  runs. The new start is therefore safe against it, whatever it is: it is
+  told the old process's id (`MW3_RESTARTED_FROM` in its environment, set by
+  `restart_into`; not an argument, so the start's arguments are untouched),
+  waits for that process to end (2 s at most), then tries the move up to 20
+  times 50 ms apart (a first start 5 times: a quick quit and start meets the
+  same). The PC's finding (`restart_check`, 2026-11-10, three runs alike):
+  with the first process already ended the move still went through only at
+  the second try, so the holder for those milliseconds is something outside
+  our two programs, and the tries, not the wait, are what protects the log. The last start's log is never emptied, restarted or
+  not: when it cannot be moved the log is opened for append and the first
+  line says so ("the last start's log could not be moved to mw3.old.log
+  (error N after T tries): it is kept above, and this start's lines follow
+  it"). Until now the move's result was not looked at and the log opened
+  with "w", so a held log was overwritten. A restarted run's log says "mw3:
+  started again from process N (waited for its end, M ms); the last log
+  moved at try T".
+
+Nothing waits on the old process: the launcher ends at the game's first
+frame on Windows (`Launcher::watch_game`; it stays, waiting on the process,
+only for an AppImage). One case is left as it is: a game whose first frame
+took longer than the launcher's wait leaves the launcher up and watching,
+and it would then show itself when the first process ends at a restart.
+
+Tests: `win_cmdline_quotes_by_the_documented_rules` (a table, and a whole
+line) and `win_cmdline_round_trips_through_the_splitting_rules` (3,906
+arguments of the characters that matter split again by those rules), in
+tests/test_win_cmdline.cpp, run on every system. `tests/win/restart_check.cpp`
+is the Windows check without the game: `restart_check.exe DIR --watch` runs
+the check twice (in `DIR\plain` and `DIR\wait`), waits for each and prints
+the logs (0 when both passed). The first run takes `check.log` as its output
+and starts itself again with arguments that are hard to quote; the second
+moves that log aside before it opens anything (`log_start`, 20 tries) and
+writes a new `check.log` ending "restart check: OK" when the old log is
+whole in `check.old.log`, the new one fresh, and the arguments and working
+directory the first run's. Plain: the move is tried at once. Wait: the
+second run first waits for the first run's process to end, as the game
+does. In both the move must go through within the tries, and the try is
+printed. `log_start_*`
+(tests/test_log_start.cpp) checks the decision on every system with moves
+made to fail; it cannot show Windows refusing to move a held file. Build (the mingw
+cross compiler, or any Windows one):
+`x86_64-w64-mingw32-g++ -std=c++17 -Isrc tests/win/restart_check.cpp src/frontend/sdl/sdl_restart.cpp src/frontend/sdl/win_cmdline.cpp src/frontend/sdl/log_start.cpp -o restart_check.exe -static -luser32`.
