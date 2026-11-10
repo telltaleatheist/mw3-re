@@ -357,3 +357,106 @@ TEST(pm_entry_play_opens_each_entrys_own_state_headless) {
   }
   mech3::entry_run() = keep;
 }
+
+// A mission's return inside an entry on Pirate's Moon (upgrades/mods/entry_run.h): the game comes back to the
+// main menu's state (a pause's QUIT, a debriefing's ABORT: replace_state(2)), which opens the entry's screen
+// again; one BACK from it then leaves (the restart asked), never a second screen first. The Pirate Missions'
+// return sets no flag for the main menu to act on: PM's main menu (0x00489380) presses a button on entry only
+// for Instant Action's flag (0x0062cc50), the training slot's (0x0062cc52, set by the pause 0x00496270 for a
+// game of kind 4 and by the training's end 0x00494e70, never for the Pirate Missions' kind 5) and the credits'.
+// Instant Action's return comes with its flag, as its end sets it (IaDummyState).
+TEST(pm_entry_mission_return_reopens_the_screen_and_one_back_leaves_headless) {
+  std::error_code ec;
+  if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
+  const mech3::EntryRun keep = mech3::entry_run();
+  struct Want {
+    const char* id;
+    mech3::EntryRun::Screen screen;
+    mech3::GameMenuState::Kind kind;
+  };
+  const Want wants[] = {{"pirate", mech3::EntryRun::kPlay, mech3::GameMenuState::kStandalone},
+                        {"campaign", mech3::EntryRun::kPlay, mech3::GameMenuState::kCampaign},
+                        {"ia", mech3::EntryRun::kInstantAction, mech3::GameMenuState::kAction}};
+  for (const Want& w : wants) {
+    MountsBack back;
+    zgame::set_game(pm::table());
+    const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_entry_return_" + w.id;
+    fs::remove_all(wd, ec);
+    fs::create_directories(wd, ec);
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd.c_str());
+    zutl::mount(MW3PM_GAME_DIR);
+    mech3::reset_states();
+    mech3::options() = mech3::Options{};
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files;
+    int stage = 0, leaves = 0, leaves_before_back = -1, opens = 0, others = 0, wait = 0;
+    bool returned = false;  // the stack was down to the main menu's state after the return
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::entry_run() = mech3::EntryRun{};
+      mech3::entry_run().screen = w.screen, mech3::entry_run().id = w.id;
+      mech3::entry_run().leave = [&] { ++leaves; };
+      auto shown = [&] {  // the entry's own state on the stack, and no other game's
+        bool own = false;
+        for (int i = 0; i <= app.depth(); ++i)
+          if (auto* g = dynamic_cast<mech3::GameMenuState*>(app.stack(i))) (g->kind == w.kind ? own : (++others, own)) = g->kind == w.kind || own;
+        return own;
+      };
+      engine.on_present = [&](int) {
+        if (app.pending()) return;
+        if (stage == 0 && shown()) {  // opened at the start: now a mission's return to the main menu
+          ++opens;
+          // As a launch and a return do it: the screen's states popped and the main menu's state replaced in
+          // one batch (it never updates between; a mission's states took its place), then replaced by itself
+          // again at the mission's end (replace_state(2)): its leave, then its enter.
+          if (w.screen == mech3::EntryRun::kInstantAction) app.set_reopen_instant_action(1, 1);  // as its end sets it
+          for (int i = app.depth(); i > 0; --i) app.pop(1);
+          app.replace(app.state(2), 0);
+          stage = 1;
+        } else if (stage == 1 && returned) {
+          stage = 2;  // the main menu entered again
+        } else if (stage == 2 && shown() && ++wait > 3) {  // opened again; BACK once: the screen's states popped
+          ++opens;
+          leaves_before_back = leaves;
+          for (int i = app.depth(); i > 0; --i) app.pop(1);
+          stage = 3;
+        } else if (stage == 3 && (leaves > 0 || shown() || ++wait > 40)) {
+          stage = 4;  // left, or (wrongly) a screen up again, or nothing
+        }
+      };
+      Pump pump;
+      pump.limit = 2000;
+      pump.stop = [&] {
+        if (stage == 1 && app.depth() == 0) returned = true;
+        return stage == 4;
+      };
+      app.run(pump);
+      const bool up_again = stage == 4 && leaves == 0;
+      mech3::entry_run() = mech3::EntryRun{};
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+      std::printf("  entry %s: stage %d, opened %d times, left %d (before BACK %d), another game's state %d%s\n", w.id, stage, opens, leaves,
+                  leaves_before_back, others, up_again ? ", NOT left after one BACK" : "");
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    mech3::options() = mech3::Options{};
+    EXPECT(stage == 4 && opens == 2 && leaves == 1 && leaves_before_back == 0 && others == 0);
+    fs::remove_all(wd, ec);
+  }
+  mech3::entry_run() = keep;
+}
