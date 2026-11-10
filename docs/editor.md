@@ -1283,6 +1283,128 @@ read only and a focus-lost call).
     frames on, its brain on net 2;
   - Show unchecked frees the editor.
 
+### The vehicle editor's pages: Attack, Retreat, p5, Fire (S7e part 1, 2026-11-09)
+
+**Attack** (template 168, 0x004b92f0) exchanges its own tab's page shown
+(+0x4e4) first, in the same direction, then its fields. Its tab 1175 (+0x41c)
+switches pages through 0x004b9e10 -> 0x004b7c80. The pages, in the order
+0x004b8790 makes them: Circle 174, Direct 176, Jump 175, Zig Zag 173, Random
+Move 183. OnInitDialog's second 0x004b7c80 shows Circle.
+
+**The strategies** are a map made at start-up ([0x0060b2f8], 0x004b7f70 ->
+0x004b7d80): 0 Direct, 1 Zig Zag, 2 Circle, 3 Jump, 4 Random Move.
+- **The list** (1233, sorted) shows them by name, the number as each item's data
+  (0x004b7fb0 copies the map and adds each).
+- **Showing** looks the settings' +0x40 up with the map's [] (0x004ba380). A number
+  with no strategy gets a new entry with no name, so it selects nothing.
+- **Reading back** takes the picked item's data when it is 0..4.
+
+Offsets are in the settings (+0x64):
+
+| Page | Control | Field |
+|---|---|---|
+| Attack | Firing Accuracy 1272 (0..1000, DDV_MinMaxFloat 0x005abd7a), 1274 | +0xb8, +0xc0 |
+| Attack | Throttle 1234, 1248 | +0x94, +0x84 |
+| Attack | strategy 1233 | +0x40 |
+| Circle, Random Move | 1220 (Circle's DDX 0x004b9c30) | +0x44 |
+| Direct (0x004b9c80) | 1212, 1214 | +0x28, +0x2c: p1's approach and minimum ranges |
+| Jump (0x004b9cf0) | 1223, 1225, 1226, 1227 | +0x64, +0x68, +0x6c, +0x70: p5's four |
+| Zig Zag (0x004b9d90) | 1220, 1219 | +0x44 (Circle's radius too), +0x48 |
+| Retreat (0x004b9490) | 1213 | +0x50 |
+| Retreat | Net Distance 1221, Health 1222, Time 1224, Health Change 1271 | +0xcc bits 0, 2, 1, 3 |
+| Retreat | 1211, 1215, 1270 | +0x24 (p1's 1211 too), +0x4c, +0xb4 |
+| Retreat | Leavenet Disable: For timeout 1253 with 1254, Forever 1252 | +0x5c, +0x58, +0x60 |
+| p5 (0x004b96a0) | Collision Avoidance Enable 1246, 1228, 1230 | +0x80, +0x74, +0x78 |
+| p5 | Scan / Jump radios 1258 | +0xa4 |
+| p5 | 1247, 1223, 1225, 1226, 1227 | +0x7c, +0x64, +0x68, +0x6c, +0x70 |
+| p5 | Scan Trigger, Initial: Time 1244, Hit 1260, Aim 1261 | +0xa0, +0x9c, +0x98 |
+| p5 | Set Value, three-state: Time 1245, Hit 1262, Aim 1263 | the editor's +0x97c, +0x978, +0x974 |
+| p5 | Quit scan on trigger pull 1278 | +0xcc bit 6 |
+| Fire (0x004b9890) | 1145, 1191, 1216, 1232 | +0x30, +0x34, +0x38, +0x90 |
+
+**What these pages show:**
+- **The Set Value boxes** are the store's "as the brain has it" words. Each
+  goes only on the brain (the store's +0x98, +0x9c, +0xa0); the Initial box
+  beside it goes into the record. That leaves +0x980 (+0xcc bit 2) with no box.
+- **A field on two pages** is taken from whichever page is gathered last.
+  The tab switch gathers the page leaving, so an edit on one shows on the
+  other when that one comes up.
+- **DDV_MinMaxFloat** (as MFC's _AfxFailMinMaxReal) runs after the field is
+  taken. A value past 0..1000 stays in the settings, the box says "Please enter
+  a number between 0 and 1000.", and the pass stops there. Attack's strategy
+  list, after it, is not read, and the show pass after the store puts the list
+  back on the settings' strategy. A NaN passes.
+
+**Tests:**
+- **test_vehicle_ddx.py** covers every page now: 3000 passes over p1, p2,
+  Attack, Retreat, p5, Fire and the five strategy pages, with the strategy map
+  made by the exe's own start-up code (0x004b7f80). 0 differ.
+- **Breaks**, each fails:
+  - Retreat's Time on bit 0 (131 of 3000);
+  - the strategy's top 4 (6);
+  - the DDV before the field is taken (28);
+  - p5's Aim box on the Hit word (161).
+- **vehicle_editor_attack_retreat_p5_fire:**
+  - the list and Circle shown first;
+  - Direct showing and taking p1's range;
+  - the 0..1000 box stopping the pass before the list;
+  - the pick shown again from the settings, then taken;
+  - Retreat's bits;
+  - p5's Set Value box on the brain only.
+
+### The vehicle editor's Valve page (S7e part 2, 2026-11-09)
+
+**The entry.** Valve (template 172, 0x004b9930) shows one "vlist" entry of
+the settings (docs/ai.md 17.5): the one whose valve the valve list names (the
+editor's +0x3f8, found by 0x004d93d0). With none, it shows the editor's own
+spare entry (+0x3fc), which nothing else reads (0x004bb360).
+
+**The valve list** (1176, sorted, typed into):
+- **Its items** are every valve by name (0x004bb300 over [0x0060b504]).
+- **A pick** is CBN_SELCHANGE (0x004b9f80): the page gathered, then
+  0x004bb470, then the page shown again. CBN_SELENDOK (0x004b9fa0 ->
+  0x004bb390) does the same unless the item is the valve already shown.
+- **0x004bb470** takes the item's name. With no item picked it takes the
+  typed text instead: a name other than "0" (0x005e890c) makes the valve
+  (0x004d3c40) and fills the list again.
+- **An entry** for that valve is added when the settings have none
+  (0x004d9580: the defaults 0x005e8da0 on the valve, then 0x004d8e20: ranges
+  to the file's units).
+- **0x004bb550** then shows the name, and forgets one the list lacks.
+- **Ours:** the typed name is sent with Enter in the edit part. Typing clears
+  the list's pick; Win32's own matching while typing is not modelled.
+
+**The region list** (1177, sorted, typed into):
+- **Its items** are every region (0x004bb620 over [0x0060b3f4]).
+- **Read back** (0x004bb680, after the fields): the picked item's region by
+  name (0x004c5d20). Else a typed name other than "0" finds the region or
+  reads it from its file (0x004c5c00) and fills the list again. Else none.
+- **Shown** (0x004bb780): the entry's region, by name (vt+0x1c). A region the
+  list lacks is dropped from the entry.
+
+| Control | Entry field |
+|---|---|
+| close (zero) / open (one), radios 1178 | flags bit 1 |
+| Active 1256 | flags bit 0 |
+| Ammo 1181 with 1193 | bit 2, +0x00 |
+| Fired on 1182 | bit 3 |
+| Health 1180 with 1192 | bit 4, +0x04 |
+| Heat 1186 with 1195 | bit 5, +0x08 |
+| Target LOS 1190 with 1196 | bit 6, +0x0c (squared in play) |
+| Target Distance 1184 with 1194 | bit 7, +0x10 (squared in play) |
+| Region: Enters 1188, Exits 1189 | flags2 bits 0 and 1, the region +0x14 |
+
+**Tests:**
+- **test_vehicle_ddx.py** runs the Valve page as well, the entry given
+  (0x004bb360 stubbed) and the region's show and take recorded. 0 differ.
+  Breaks, each fails: Enters on flags2 bit 1 (102 of 3000); 1196 on +0x10
+  (167).
+- **vehicle_editor_valve_page:**
+  - the valves listed;
+  - one picked gets an entry of the defaults, shown;
+  - Health, its number and "open" put on the brain's vlist at Apply;
+  - a typed "gate_9" makes the valve, lists it and adds its entry.
+
 ## Dear ImGui for the editor's dialogs (lead, 2026-11-09)
 
 Owen: the editor's dialogs need not imitate MFC. The lead's call is Dear
@@ -1426,7 +1548,7 @@ frame hook, after the game's update and before present.
    configuration, chassis), and p1. Each page's DDX runs on an MFC stand-in,
    checked against the exe's DDX in Unicorn with MFC's calls modelled. Part
    2: Show InOut's drawing (0x004c4730, 0x004c41b0).
-5. **S7e The pages, part 2:** Attack and its strategy tab (Circle, Direct,
+5. **S7e The pages, part 2** (part 1 done above; Valve next): Attack and its strategy tab (Circle, Direct,
    Jump, Zig Zag, Random Move on Circle's DDX), Retreat, p5, Fire and Valve,
    with the valve combo.
 6. **S7f The save (ours):**

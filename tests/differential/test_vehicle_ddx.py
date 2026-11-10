@@ -1,5 +1,6 @@
-"""The vehicle editor's pages p1 and p2 (docs/editor.md, The vehicle editor's pages) against the original x86:
-their DoDataExchange, 0x4b8bc0 and 0x4b8eb0, run in Unicorn with MFC's DDX_* and DDV_* calls (mfc42.dll, not in the
+"""The vehicle editor's pages (docs/editor.md, The vehicle editor's pages) against the original x86: each page's
+DoDataExchange (p1 0x4b8bc0, p2 0x4b8eb0, Attack 0x4b92f0, Retreat 0x4b9490, p5 0x4b96a0, Fire 0x4b9890, Circle and
+Random Move 0x4b9c30, Direct 0x4b9c80, Jump 0x4b9cf0, Zig Zag 0x4b9d90) run in Unicorn with MFC's DDX_* and DDV_* calls (mfc42.dll, not in the
 exe) stood in for by a model of MFC 4.2 here, on a table of controls; the port runs the same pass on its own MFC
 stand-in (src/upgrades/editor/ddx.cpp). Random settings and controls, both directions: what the fields become, the
 controls' texts, checks and limits, the controls exchanged in order, the list fills called, a failing field's
@@ -22,19 +23,41 @@ from calltrace import load_probe  # noqa: E402
 from original import Original  # noqa: E402
 
 P1, P2 = 0x4b8bc0, 0x4b8eb0
+STRATEGIES_INIT = 0x4b7f80  # the strategy map [0x0060b2f8] made (0x4b7d80), as at start-up
 EDITOR_SLOT = 0x60b310
 SEND_MESSAGE = 0x5bb734  # SendMessageA's import slot
-TAILS = [0x4bc790, 0x4bc570, 0x4bc930, 0x4bc8f0, 0x4bc750, 0x4bc4e0]  # the list fills and gathers
+TAILS = [0x4bc790, 0x4bc570, 0x4bc930, 0x4bc8f0, 0x4bc750, 0x4bc4e0, 0x4bb780, 0x4bb680]  # the list fills and gathers
 SET_PILOT = 0x49d250
 # MFC's imports, by their thunks in the exe.
 DDX_CONTROL, DDX_RADIO, DDX_TEXT_UINT, DDX_TEXT_FLOAT, DDX_TEXT_INT = 0x5abd86, 0x5abff0, 0x5abff6, 0x5abd80, 0x5abfea
 DDX_CHECK, DDX_TEXT_STR, DDV_MAXCHARS, DDV_MINMAX, CSTR_ASSIGN = 0x5abdce, 0x5abdc2, 0x5ac04a, 0x5ac044, 0x5abdbc
+DDV_MINMAX_FLOAT = 0x5abd7a
 
-P1_EDITS = [1209, 1210, 1211, 1212, 1214]
-P1_CHECKS = {1231: 1, 1217: 1, 1251: 1, 1257: 2}
-P2_EDITS = [1111, 1200, 1201, 1202, 1203, 1117, 1243, 1284]
-P2_CHECKS = {1249: 2, 1275: 1, 1276: 1, 1279: 1, 1282: 1, 1283: 2}
-RADIO = 1197
+# page: (its DoDataExchange, edits, check boxes and their top, radio groups and their buttons, its list).
+PAGES = {
+    0: (P1, [1209, 1210, 1211, 1212, 1214], {1231: 1, 1217: 1, 1251: 1, 1257: 2}, {}, 1229),
+    1: (P2, [1111, 1200, 1201, 1202, 1203, 1117, 1243, 1284], {1249: 2, 1275: 1, 1276: 1, 1279: 1, 1282: 1, 1283: 2},
+        {1197: 3}, None),
+    2: (0x4b92f0, [1234, 1248, 1272, 1274], {}, {}, 1233),
+    3: (0x4b9490, [1213, 1211, 1215, 1254, 1270], {1224: 1, 1221: 1, 1222: 1, 1271: 1, 1253: 1, 1252: 1}, {}, None),
+    4: (0x4b96a0, [1230, 1228, 1223, 1225, 1226, 1227, 1247],
+        {1246: 1, 1261: 1, 1263: 2, 1260: 1, 1262: 2, 1244: 1, 1245: 2, 1278: 1}, {1258: 2}, None),
+    5: (0x4b9890, [1216, 1191, 1145, 1232], {}, {}, None),
+    7: (0x4b9c30, [1220], {}, {}, None),
+    8: (0x4b9c80, [1212, 1214], {}, {}, None),
+    9: (0x4b9cf0, [1225, 1223, 1226, 1227], {}, {}, None),
+    10: (0x4b9d90, [1220, 1219], {}, {}, None),
+    11: (0x4b9c30, [1220], {}, {}, None),
+    6: (0x4b9930, [1193, 1192, 1195, 1196, 1194],
+        {1181: 1, 1182: 1, 1180: 1, 1186: 1, 1188: 1, 1190: 1, 1184: 1, 1256: 1, 1189: 1}, {1178: 2}, None),
+}
+VALVE_ENTRY, REGION_SHOW, REGION_TAKE = 0x4bb360, 0x4bb780, 0x4bb680
+NAMES = {1: 'p1', 2: 'p2', 3: 'Attack', 4: 'Retreat', 5: 'p5', 6: 'Fire', 7: 'Valve', 8: 'Circle', 9: 'Direct', 10: 'Jump',
+         11: 'Zig Zag', 12: 'Random Move'}
+COMBO_HWND = {1229: 0x1229, 1233: 0x1233}
+# The lists' items as the exe's dialogs hold them: p1's in order, Attack's sorted with each strategy's number.
+COMBO_ITEMS = {1229: [('player', 0), ('nearest enemy', 0)],
+               1233: [('Circle', 2), ('Direct', 0), ('Jump', 3), ('Random Move', 4), ('Zig Zag', 1)]}
 
 
 class Ctl(ctypes.Structure):
@@ -43,9 +66,10 @@ class Ctl(ctypes.Structure):
 
 class State(ctypes.Structure):
     _fields_ = [('params', ctypes.c_uint8 * 0xd0), ('show', ctypes.c_int32), ('show_inout', ctypes.c_int32),
-                ('team_side', ctypes.c_int32), ('keep4', ctypes.c_int32), ('objective', ctypes.c_int32),
+                ('team_side', ctypes.c_int32), ('keep', ctypes.c_int32 * 5), ('objective', ctypes.c_int32),
                 ('shutdown', ctypes.c_int32), ('pilot_null', ctypes.c_int32), ('pilot', ctypes.c_char * 64),
-                ('p2_pilot', ctypes.c_char * 64), ('range_to', ctypes.c_int32), ('ctl', Ctl * 40),
+                ('p2_pilot', ctypes.c_char * 64), ('combo_cur', ctypes.c_int32), ('entry_f', ctypes.c_float * 5),
+                ('entry_flags', ctypes.c_uint8 * 2), ('ctl', Ctl * 40),
                 ('n_ctl', ctypes.c_int32), ('ids', ctypes.c_int32 * 64), ('n_ids', ctypes.c_int32),
                 ('calls', ctypes.c_uint32 * 16), ('n_calls', ctypes.c_int32), ('ok', ctypes.c_int32),
                 ('fail_id', ctypes.c_int32), ('message', ctypes.c_char * 96)]
@@ -296,6 +320,14 @@ def setup(o, m):
             mm.fail('Please enter an integer between %d and %d.' % (lo, hi))
         return 0
 
+    def min_max_float(o):
+        mm = m[0]
+        v = struct.unpack('<f', o.read(o.arg(1), 4))[0]
+        lo, hi = [struct.unpack('<f', struct.pack('<I', o.arg(k)))[0] for k in (2, 3)]
+        if save() and (v < lo or v > hi):
+            mm.fail('Please enter a number between %s and %s.' % (float_text(lo), float_text(hi)))
+        return 0
+
     def assign(o):
         p = o.arg(0)
         o.u32(o.ecx, cstring(o, c_str(o, p) if p else ''))
@@ -314,12 +346,27 @@ def setup(o, m):
 
     def send(o):
         mm = m[0]
-        msg, wp = o.arg(1), o.arg(2)
+        hwnd, msg, wp, lp = o.arg(0), o.arg(1), o.arg(2), o.arg(3)
+        cid = {v: k for k, v in COMBO_HWND.items()}.get(hwnd)
+        if cid is None:
+            raise RuntimeError('SendMessage %#x to %#x' % (msg, hwnd))
+        items = COMBO_ITEMS[cid]
         if msg == 0x14e:  # CB_SETCURSEL
-            mm.range_to = wp if wp < 2 else -1
-            return mm.range_to
+            mm.combo_cur = wp if wp < len(items) else -1
+            return mm.combo_cur & 0xffffffff
         if msg == 0x147:  # CB_GETCURSEL
-            return mm.range_to & 0xffffffff
+            return mm.combo_cur & 0xffffffff
+        if msg == 0x150:  # CB_GETITEMDATA
+            return items[wp][1] if wp < len(items) else 0xffffffff
+        if msg == 0x14d:  # CB_SELECTSTRING from the start: the first item the text begins, no case
+            if not lp:
+                return 0xffffffff
+            t = c_str(o, lp).lower()
+            for i, (text, _) in enumerate(items):
+                if text.lower().startswith(t):
+                    mm.combo_cur = i
+                    return i
+            return 0xffffffff
         raise RuntimeError('SendMessage %#x' % msg)
 
     o.stub_function(DDX_CONTROL, lambda o: 0, 12)
@@ -331,15 +378,34 @@ def setup(o, m):
     o.stub_function(DDX_TEXT_STR, text_str, 12)
     o.stub_function(DDV_MAXCHARS, max_chars, 12)
     o.stub_function(DDV_MINMAX, min_max, 16)
+    o.stub_function(DDV_MINMAX_FLOAT, min_max_float, 16)
     o.stub_function(CSTR_ASSIGN, assign, 4)
     for a in TAILS:
         o.stub_function(a, tail(a))
     o.stub_function(SET_PILOT, set_pilot, 4)
     o.stub_import(SEND_MESSAGE, send, 16)
+    o.stub_function(VALVE_ENTRY, lambda o: m[0].entry)  # the page's entry, given
+    # The strategy map as at start-up, its nodes in a heap of their own (each run's are reset).
+    pool = [o.alloc(0x100000)]
+
+    def op_new(o):
+        a = pool[0]
+        pool[0] += (max(o.arg(0), 4) + 15) & ~15
+        return a
+    o.stub_import(0x5bb4bc, op_new)                 # operator new
+    o.stub_import(0x5bb4c8, lambda c: 0)            # operator delete
+    o.stub_import(0x5bb4f8, lambda c: c.ecx)        # std::_Lockit
+    o.stub_import(0x5bb4f4, lambda c: 0)            # ~_Lockit
+    o.stub_function(0x5ac140, lambda c: 0)          # atexit
+    o.call(STRATEGIES_INIT)
 
 
 # --- random states ---------------------------------------------------------------------------------------------
 FLOAT_WORDS = {0x08, 0x0c, 0x10, 0x14, 0x1c, 0x20, 0x24, 0x28, 0x2c}
+
+
+def f32(x):
+    return struct.unpack('<f', struct.pack('<f', x))[0]
 
 
 def rand_float(rng):
@@ -384,7 +450,7 @@ def rand_text(rng, odd):
 
 
 def rand_state(rng, page):
-    edits, checks = (P1_EDITS, P1_CHECKS) if page == 0 else (P2_EDITS, P2_CHECKS)
+    _, edits, checks, radios, combo = PAGES[page]
     ctl = {}
     odd = rng.choice([3, 30])  # many fields odd, or one now and then
     for i in edits:
@@ -393,25 +459,36 @@ def rand_state(rng, page):
         ctl[1243] = [''.join(rng.choice('abcXYZ ') for _ in range(rng.choice([0, 3, 12, 31, 32, 32, 33, 40]))), 0, 0]
     for i, mx in checks.items():
         ctl[i] = ['', rng.randrange(mx + 1), 0]
-    if page == 1:
-        ctl[RADIO] = ['', rng.randrange(-1, 3), 0]
-    return dict(params=rand_params(rng), show=rng.choice([0, 1, 2, 3, -1]), show_inout=rng.randrange(2),
-                team_side=rng.choice([-1, 0, 1, 2, 5]), keep4=rng.choice([0, 1, 2, 3, -2]),
+    for i, n in radios.items():
+        ctl[i] = ['', rng.randrange(-1, n), 0]
+    params = rand_params(rng)
+    if page == 2 and rng.random() < 0.8:
+        struct.pack_into('<i', params, 0x40, rng.randrange(-1, 6))  # the strategy's number, mostly a real one
+    if page == 2 and rng.random() < 0.3:
+        struct.pack_into('<f', params, 0xb8, rng.choice([-1.0, 0.0, 999.5, 1000.0, 1000.5]))
+    entry = [rand_float(rng) for _ in range(5)] + [rng.randrange(256), rng.randrange(256)]
+    return dict(entry=entry, params=params, show=rng.choice([0, 1, 2, 3, -1]), show_inout=rng.randrange(2),
+                team_side=rng.choice([-1, 0, 1, 2, 5]), keep=[rng.choice([0, 1, 2, 3, -2]) for _ in range(5)],
                 objective=rng.choice([0, 1, 2]), shutdown=rng.choice([0, 1, 7]),
                 pilot=rng.choice([None, '', 'Dom', 'x' * 40]), p2_pilot=rng.choice(['', 'Alan', 'y' * 33]),
-                range_to=rng.choice([-1, 0, 1]), ctl=ctl)
+                combo_cur=rng.choice([-1, 0, 1, 2, 3, 4]) if combo == 1233 else rng.choice([-1, 0, 1]), ctl=ctl)
 
 
 def run_port(page, save, st):
     s = State()
     for i, v in enumerate(st['params']):
         s.params[i] = v
-    s.show, s.show_inout, s.team_side, s.keep4 = st['show'], st['show_inout'], st['team_side'], st['keep4']
+    s.show, s.show_inout, s.team_side = st['show'], st['show_inout'], st['team_side']
+    for k in range(5):
+        s.keep[k] = st['keep'][k]
     s.objective, s.shutdown = st['objective'], st['shutdown']
     s.pilot_null = 1 if st['pilot'] is None else 0
     s.pilot = (st['pilot'] or '').encode('latin-1')
     s.p2_pilot = st['p2_pilot'].encode('latin-1')
-    s.range_to = st['range_to']
+    s.combo_cur = st['combo_cur']
+    for k in range(5):
+        s.entry_f[k] = st['entry'][k]
+    s.entry_flags[0], s.entry_flags[1] = st['entry'][5], st['entry'][6]
     ids = sorted(st['ctl'])
     for k, i in enumerate(ids):
         s.ctl[k].id, s.ctl[k].text, s.ctl[k].check, s.ctl[k].limit = i, st['ctl'][i][0].encode('latin-1'), \
@@ -419,18 +496,22 @@ def run_port(page, save, st):
     s.n_ctl = len(ids)
     probe.probe_vehicle_ddx(page, save, ctypes.byref(s))
     return dict(params=bytes(s.params[4:0xd0]), show=s.show, show_inout=s.show_inout, team_side=s.team_side,
-                keep4=s.keep4, objective=s.objective, shutdown=s.shutdown,
+                keep=list(s.keep), objective=s.objective, shutdown=s.shutdown,
                 pilot=None if s.pilot_null else s.pilot.decode('latin-1'), p2_pilot=s.p2_pilot.decode('latin-1'),
-                range_to=s.range_to, ctl={s.ctl[k].id: [s.ctl[k].text.decode('latin-1'), s.ctl[k].check,
+                entry=[f32(x) for x in s.entry_f] + list(s.entry_flags), combo_cur=s.combo_cur,
+                ctl={s.ctl[k].id: [s.ctl[k].text.decode('latin-1'), s.ctl[k].check,
                                                         s.ctl[k].limit] for k in range(s.n_ctl)},
                 ids=list(s.ids[:s.n_ids]), calls=list(s.calls[:s.n_calls]), ok=s.ok,
                 fail=(s.fail_id, s.message.decode('latin-1')) if not s.ok else None)
 
 
 def run_exe(o, m_box, page, save, st):
-    mx = dict(P1_CHECKS) if page == 0 else dict(P2_CHECKS)
-    mm = Mfc(o, {i: list(v) for i, v in st['ctl'].items()}, mx, {RADIO: 3})
-    mm.range_to = st['range_to']
+    fn, _, checks, radios, _ = PAGES[page]
+    mm = Mfc(o, {i: list(v) for i, v in st['ctl'].items()}, dict(checks), dict(radios))
+    mm.combo_cur = st['combo_cur']
+    mm.entry = o.alloc(0x20)
+    o.write(mm.entry, struct.pack('<5f', *st['entry'][:5]) + bytes([0, 0, 0, 0, st['entry'][5], st['entry'][6], 0, 0])
+            + bytes(4))
     m_box[0] = mm
     e = o.alloc(0x988)
     o.write(e, bytes(0x988))
@@ -440,7 +521,10 @@ def run_exe(o, m_box, page, save, st):
     o.u32(e + 0x1cc, st['show'])
     o.write(e + 0x1d1, bytes([st['show_inout']]))
     o.u32(e + 0x4dc, st['team_side'])
-    o.u32(e + 0x984, st['keep4'])
+    for k in range(5):
+        o.u32(e + 0x974 + 4 * k, st['keep'][k])
+    o.u32(e + 0x4bc, COMBO_HWND[1229])  # p1's list's HWND (the CWnd at +0x49c)
+    o.u32(e + 0x47c, COMBO_HWND[1233])  # Attack's (+0x45c)
     pg = o.alloc(0x80)
     o.write(pg, bytes(0x80))
     o.u32(pg + 0x60, cstring(o, st['p2_pilot']))
@@ -450,7 +534,7 @@ def run_exe(o, m_box, page, save, st):
     o.write(dx, struct.pack('<iiii', 1 if save else 0, pg, 0, 0))
     ok = 1
     try:
-        o.call(P1 if page == 0 else P2, ecx=pg, stack_args=(dx,))
+        o.call(fn, ecx=pg, stack_args=(dx,))
     except Exception:  # Fail(): MFC throws past the rest of the exchange
         if not isinstance(mm.message, str) or not mm.message:
             raise
@@ -464,11 +548,12 @@ def run_exe(o, m_box, page, save, st):
         pilot = s if s else None
     return dict(params=bytes(params[4:0xd0]), show=struct.unpack('<i', o.read(e + 0x1cc, 4))[0],
                 show_inout=o.read(e + 0x1d1, 1)[0], team_side=struct.unpack('<i', o.read(e + 0x4dc, 4))[0],
-                keep4=struct.unpack('<i', o.read(e + 0x984, 4))[0],
+                keep=list(struct.unpack('<5i', o.read(e + 0x974, 20))),
                 objective=struct.unpack('<i', o.read(pg + 0x64, 4))[0],
                 shutdown=struct.unpack('<i', o.read(pg + 0x68, 4))[0], pilot=pilot,
                 p2_pilot=cstr_read(o, struct.unpack('<I', o.read(pg + 0x60, 4))[0]),
-                range_to=mm.range_to, ctl=mm.ctl, ids=mm.ids, calls=mm.calls, ok=ok,
+                entry=list(struct.unpack('<5f', o.read(mm.entry, 20))) + list(o.read(mm.entry + 0x18, 2)),
+                combo_cur=mm.combo_cur, ctl=mm.ctl, ids=mm.ids, calls=mm.calls, ok=ok,
                 fail=(mm.last, mm.message) if not ok else None)
 
 
@@ -506,11 +591,13 @@ def main():
     m_box = [None]
     setup(o, m_box)
     bad = conversions()
-    fails = {0: 0, 1: 0}
-    keys = ['params', 'show', 'show_inout', 'team_side', 'keep4', 'objective', 'shutdown', 'pilot', 'p2_pilot',
-            'range_to', 'ctl', 'ids', 'calls', 'ok', 'fail']
+    fails = {k: 0 for k in PAGES}
+    runs_of = {k: 0 for k in PAGES}
+    keys = ['entry', 'params', 'show', 'show_inout', 'team_side', 'keep', 'objective', 'shutdown', 'pilot', 'p2_pilot',
+            'combo_cur', 'ctl', 'ids', 'calls', 'ok', 'fail']
     for n in range(runs):
-        page, save = rng.randrange(2), rng.randrange(2)
+        page, save = rng.choice(sorted(PAGES)), rng.randrange(2)
+        runs_of[page] += 1
         st = rand_state(rng, page)
         heap = o.heap_next
         want = run_exe(o, m_box, page, save, st)
@@ -522,12 +609,12 @@ def main():
             w, g = want[k], got[k]
             if k == 'ctl':
                 w = {i: v for i, v in w.items() if i in st['ctl']}
-            if k == 'p2_pilot' and page == 0:
+            if k == 'p2_pilot' and page != 1:
                 continue
             if w != g:
                 bad += 1
                 if bad <= 10:
-                    print('run %d page p%d %s: %s differs' % (n, page + 1, 'save' if save else 'show', k))
+                    print('run %d page %s %s: %s differs' % (n, NAMES[page + 1], 'save' if save else 'show', k))
                     if k == 'params':
                         for off in range(0, len(w), 4):
                             if w[off:off + 4] != g[off:off + 4]:
@@ -538,7 +625,9 @@ def main():
     if bad:
         print('FAIL: %d of %d runs differ' % (bad, runs))
         sys.exit(1)
-    print('ok: %d page passes the same (%d stopped at a failed field), and the conversions' % (runs, fails[0] + fails[1]))
+    each = ', '.join('%s %d' % (NAMES[k + 1], runs_of[k]) for k in sorted(PAGES))
+    print('ok: %d page passes the same (%s; %d stopped at a failed field), and the conversions' %
+          (runs, each, sum(fails.values())))
 
 
 if __name__ == '__main__':

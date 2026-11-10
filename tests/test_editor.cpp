@@ -17,6 +17,7 @@
 #include "mech3/zainetedit.h"
 #include "mech3/game_editor_vehicles.h"
 #include "mech3/mech_config.h"
+#include "mech3/zai_valve.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
@@ -771,4 +772,99 @@ TEST(vehicle_editor_pages_show_and_take_back) {
   for (mech3::Config*& c : h.loadouts.configs) delete c, c = nullptr;
   mech3::set_vehicle_editor_hooks(nullptr);
   mech3::ai::aiv_file_reset();
+}
+
+// S7e1: Attack with its strategy list and its own tab (Circle first), a
+// field two pages share (Direct's approach is p1's), Retreat's flag bits,
+// p5's "set value" box into the store's word, Attack's 0..1000 check.
+TEST(vehicle_editor_attack_retreat_p5_fire) {
+  mech3::ai::aiv_file_reset();
+  VehStub h;
+  h.a.put<int32_t>(0x40, 2);      // Circle
+  h.a.put<float>(0x44, 75.0f);    // its radius
+  h.a.put<float>(0x28, 300.0f);   // the approach range
+  h.a.raw[0xcc] = 0x02;           // Retreat on Time
+  mech3::set_vehicle_editor_hooks(&h);
+  mech3::edit_vehicles(0);
+  mech3::VehicleEditor* e = mech3::vehicle_editor();
+  EXPECT(e && e->strategy_page == mech3::kPageCircle);
+  if (!e) return;
+  mech3::Dialog& attack = e->pages[mech3::kPageAttack];
+  mech3::vehicle_editor_tab(mech3::kPageAttack);
+  const mech3::DlgCombo& st = attack.at(1233).combo;
+  EXPECT(st.texts() == std::vector<std::string>({"Circle", "Direct", "Jump", "Random Move", "Zig Zag"}));
+  EXPECT(st.cur == 0 && e->pages[mech3::kPageCircle].at(1220).text == "75");
+  // Another strategy; Direct's tab shows p1's approach range.
+  attack.at(1233).combo.cur = 4;  // Zig Zag
+  mech3::vehicle_editor_strategy_tab(mech3::kPageDirect);
+  EXPECT(e->strategy_tab == 1 && e->pages[mech3::kPageDirect].at(1212).text == "300");
+  e->pages[mech3::kPageDirect].at(1212).text = "250";
+  attack.at(1272).text = "1000.5";  // past Attack's 0..1000: taken, then the box
+  e->form.press("Apply");
+  EXPECT(mech3::form_shown(&e->message) && e->message.fields[0].label == "Please enter a number between 0 and 1000.");
+  // The pass stopped at 1272: the strategy list after it was not read; Direct's
+  // field, exchanged first, was.
+  EXPECT(h.a.get<int32_t>(0x40) == 2 && h.a.get<float>(0x28) == 250.0f);
+  EXPECT(e->params.get<float>(0xb8) == 1000.5f);  // the DDV runs after the field is taken
+  e->message.press("OK");
+  EXPECT(attack.at(1233).combo.cur == 0);  // shown again from the settings: Circle
+  attack.at(1272).text = "1";
+  attack.at(1233).combo.cur = 4;
+  e->form.press("Apply");
+  EXPECT(h.a.get<int32_t>(0x40) == 1 && !mech3::form_shown(&e->message));
+  // p1 shows Direct's change; Retreat its bits; p5's Time "set" box into the store.
+  mech3::vehicle_editor_tab(mech3::kPageP1);
+  EXPECT(e->pages[mech3::kPageP1].at(1212).text == "250");
+  mech3::vehicle_editor_tab(mech3::kPageRetreat);
+  mech3::Dialog& retreat = e->pages[mech3::kPageRetreat];
+  EXPECT(retreat.at(1224).check == 1 && retreat.at(1221).check == 0);
+  retreat.at(1221).check = 1;  // Net Distance
+  mech3::vehicle_editor_tab(mech3::kPageP5);
+  e->pages[mech3::kPageP5].at(1245).check = 1;  // Time, set
+  e->form.press("Apply");
+  EXPECT((h.a.raw[0xcc] & 0x03) == 0x03 && h.a.get<int32_t>(0xa0) == 1 && e->keep[2] == 2);
+  EXPECT(e->form.press("OK") && !mech3::vehicle_editor());
+  mech3::set_vehicle_editor_hooks(nullptr);
+  mech3::ai::aiv_file_reset();
+}
+
+// S7e2: the Valve page: the valves listed; one picked gets an entry of the
+// defaults in the settings (0x004d9580), its numbers and conditions shown and
+// taken; a name typed makes the valve (0x004d3c40) and lists it.
+TEST(vehicle_editor_valve_page) {
+  mech3::ai::aiv_file_reset();
+  mech3::ai::valves_clear();
+  mech3::ai::valve_get("door_a");
+  mech3::ai::valve_get("alarm");
+  VehStub h;
+  mech3::set_vehicle_editor_hooks(&h);
+  mech3::edit_vehicles(0);
+  mech3::VehicleEditor* e = mech3::vehicle_editor();
+  EXPECT(e != nullptr);
+  if (!e) return;
+  mech3::Dialog& valve = e->pages[mech3::kPageValve];
+  mech3::vehicle_editor_tab(mech3::kPageValve);
+  EXPECT(valve.at(1176).combo.texts() == std::vector<std::string>({"alarm", "door_a"}) && valve.at(1176).combo.cur == -1);
+  valve.at(1176).combo.cur = 1;  // door_a
+  e->form.changed(*e->form.field("Valve"));
+  EXPECT(e->valve_name == "door_a" && e->params.vlist && e->params.vlist->size() == 1);
+  EXPECT(valve.at(1192).text == "0.1" && valve.at(1176).combo.cur == 1);  // the defaults' f04 (0x005e8da0)
+  valve.at(1180).check = 1;  // Health
+  valve.at(1192).text = "0.5";
+  valve.at(1178).check = 1;  // open (one)
+  e->form.press("Apply");
+  EXPECT(h.a.vlist && h.a.vlist->size() == 1);
+  if (h.a.vlist && !h.a.vlist->empty()) {
+    const mech3::ai::VListEntry& v = h.a.vlist->front();
+    EXPECT(v.valve && std::string(v.valve->name) == "door_a" && v.f04 == 0.5f && (v.flags & 0x12) == 0x12);
+  }
+  // A name typed and sent: the valve made and listed, an entry for it.
+  valve.at(1176).combo.cur = -1;
+  valve.at(1176).text = "gate_9";
+  e->form.field("Valve")->left();
+  EXPECT(mech3::ai::valve_find("gate_9") && valve.at(1176).combo.texts().size() == 3 && e->params.vlist->size() == 2);
+  EXPECT(e->form.press("OK") && !mech3::vehicle_editor());
+  mech3::set_vehicle_editor_hooks(nullptr);
+  mech3::ai::aiv_file_reset();
+  mech3::ai::valves_clear();
 }

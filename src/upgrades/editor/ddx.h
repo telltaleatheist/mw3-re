@@ -88,6 +88,7 @@ void ddx_check(DataExchange& dx, int32_t id, int32_t& v);
 void ddx_radio(DataExchange& dx, int32_t id, int32_t& v);  // the group starting at id
 void ddv_max_chars(DataExchange& dx, const std::string& v, int32_t n);
 void ddv_min_max_int(DataExchange& dx, int32_t v, int32_t lo, int32_t hi);
+void ddv_min_max_float(DataExchange& dx, float v, float lo, float hi);  // the bounds shown as "%.6g"
 
 // The conversions alone (the tests): the text a float shows as (MSVC's
 // printf: three exponent digits), and whether a text reads back as each.

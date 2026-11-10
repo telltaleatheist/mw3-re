@@ -113,10 +113,28 @@ void field(mech3::EditorForm& form, mech3::FormField& f) {
       const std::vector<std::string>& names = f.combo ? live : f.choices;
       std::vector<const char*> items;
       for (const std::string& c : names) items.push_back(c.c_str());
+      if (f.text) {
+        // A list typed into (CBS_DROPDOWN): its edit part; typing clears the
+        // pick, Enter sends the name (`left`).
+        char buf[256];
+        std::snprintf(buf, sizeof buf, "%s", f.text->c_str());
+        ImGui::PushID(f.label.c_str());
+        if (ImGui::InputText("##edit", buf, sizeof buf)) *f.text = buf, *f.i = -1;
+        if (f.left && ImGui::IsItemDeactivatedAfterEdit()) {
+          mech3::EditorForm* fp = &form;
+          std::function<void()> left = f.left;
+          mech3::form_post([fp, left] {
+            if (mech3::form_shown(fp)) left();
+          });
+        }
+        ImGui::PopID();
+      }
+      const int32_t was = *f.i;
       if (items.size() > 8)
         changed = ImGui::ListBox(f.label.c_str(), f.i, items.data(), static_cast<int>(items.size()), 12);
       else
         changed = ImGui::Combo(f.label.c_str(), f.i, items.data(), static_cast<int>(items.size()));
+      if (changed && f.text && *f.i >= 0 && *f.i != was) *f.text = names[size_t(*f.i)];  // the edit part follows
       break;
     }
     case mech3::FormField::kTree:
@@ -163,7 +181,7 @@ void form(mech3::EditorForm& f, int n) {
   for (mech3::FormField& x : f.fields) {
     if (x.page >= 0 && x.page != page) continue;
     field(f, x);
-    if (x.kind == mech3::FormField::kTabs && x.i) page = *x.i;
+    if (x.kind == mech3::FormField::kTabs && x.i) page = x.first + *x.i;
   }
   for (size_t i = 0; i < f.buttons.size(); ++i) {
     if (i) ImGui::SameLine();
