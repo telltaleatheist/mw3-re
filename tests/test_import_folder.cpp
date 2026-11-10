@@ -95,12 +95,15 @@ TEST(import_folder_takes_what_differs_from_the_install) {
   auto has = [&](const char* rel, const char* text) { return got.count(rel) && got.at(rel).find(text) != std::string::npos; };
   EXPECT(has("zbd/reader.txt", "the mod's reader") && has("zbd/c1/gamez.txt", "abd"));
   EXPECT(has("mod.txt", "name=Big Guns\n") && has("mod.txt", "for=mw3\n"));
-  EXPECT(report == "Took 3 files that differ from your install; left 2 the same; the program and its dlls are not part of a mod "
-                   "here (5); pilots, saves and settings stay yours (2); 2 files outside the game's folders left.");
+  EXPECT(report == "Took 3 files that differ from your install; the program and its dlls are not part of a mod here." &&
+         report.size() <= 2 * 58);  // the screen's two lines
   EXPECT(snapshot(inst) == inst_before && snapshot(modded) == modded_before);  // read only
   EXPECT(nothing_staged(wd));
   // The counts, and the staging folder's own life.
   mech3::ImportFolder f = mech3::import_folder_prepare(wd, modded, inst);
+  EXPECT(mech3::import_folder_report(f) ==
+         "Took 3 files that differ from your install; left 2 the same; the program and its dlls are not part of a mod "
+         "here (5); pilots, saves and settings stay yours (2); 2 files outside the game's folders left.");
   EXPECT(f.install && f.error.empty() && f.taken == 3 && f.same == 2 && f.programs == 5 && f.own == 2 && f.other == 2);
   EXPECT(f.game == mech3::ModGame::kMw3 && fs::path(f.picked).filename() == "Big Guns" &&
          fs::exists(fs::path(f.staging) / mech3::kModStagingMarker));

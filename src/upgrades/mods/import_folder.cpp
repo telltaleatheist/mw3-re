@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <chrono>
 #include <cstring>
 #include <filesystem>
@@ -109,6 +110,12 @@ std::string import_folder_report(const ImportFolder& f) {
   return t + ".";
 }
 
+std::string import_folder_report_short(const ImportFolder& f) {
+  if (!f.install) return {};
+  return "Took " + files_word(f.taken) + " that differ from your install" +
+         (f.programs ? "; the program and its dlls are not part of a mod here." : ".");
+}
+
 ImportFolder import_folder_prepare(const std::string& write_dir, const std::string& folder, const std::string& install,
                                    const ModAddLimits& limits) {
   ImportFolder f;
@@ -205,7 +212,10 @@ ModAddDone import_folder_run(const std::string& write_dir, const std::string& so
                   [&](const std::string& name) { return game == ModGame::kPm ? 2 : game == ModGame::kMw3 ? 1 : ask ? ask(name) : 1; },
                   enabled);
   import_folder_discard(f);
-  if (d.ok && report) *report = import_folder_report(f);
+  if (d.ok) {
+    std::printf("mw3: import: %s: %s\n", d.name.c_str(), import_folder_report(f).c_str());
+    if (report) *report = import_folder_report_short(f);
+  }
   return d;
 }
 

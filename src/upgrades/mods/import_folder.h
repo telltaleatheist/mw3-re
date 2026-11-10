@@ -37,13 +37,15 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
                                    const ModAddLimits& limits = {});
 // The staging folder removed (only with our marker in it).
 void import_folder_discard(ImportFolder& f);
-// The line that says what was taken and what was left.
+// The line that says what was taken and what was left (the log's), and the
+// short one for the MODS screen's two lines of 58 letters.
 std::string import_folder_report(const ImportFolder& f);
+std::string import_folder_report_short(const ImportFolder& f);
 
 // IMPORT's pick whole: a whole install prepared as above and added by
 // mod_add_run (the game its files say, else asked), any other pick handed to
-// mod_add_run unchanged. `report`, when given, gets the line above ("" for
-// any other pick).
+// mod_add_run unchanged. `report`, when given, gets the short line ("" for
+// any other pick); the long one goes to the log ("mw3: import: ...").
 ModAddDone import_folder_run(const std::string& write_dir, const std::string& source, const std::string& install,
                              const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled,
                              std::string* report = nullptr);
