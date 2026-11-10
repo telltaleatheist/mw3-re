@@ -228,9 +228,11 @@ add_library(mw3core STATIC
   src/upgrades/editor/help_menus.cpp
   src/upgrades/editor/help_nets.cpp
   src/upgrades/editor/help_vehicles.cpp
+  src/upgrades/editor/help_weapons.cpp
   src/upgrades/editor/mods_edit.cpp
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp
+  src/upgrades/editor/new_weapon.cpp
   src/upgrades/editor/aiv_save.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
@@ -519,6 +521,7 @@ add_library(mw3probe SHARED
   tests/probe_vehicle_ddx.cpp
   tests/probe_inout_view.cpp
   tests/probe_aiv_save.cpp
+  tests/probe_new_weapon.cpp
   tests/probe_aiv_add.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
@@ -602,6 +605,7 @@ add_executable(mw3tests
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_net_save.cpp
+  tests/test_new_weapon.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp
   tests/test_bounded_media.cpp

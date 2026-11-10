@@ -26,6 +26,7 @@ const std::vector<HelpForm>& help_forms() {
     help_menus(v);
     help_nets(v);
     help_vehicles(v);
+    help_weapons(v);
     return v;
   }();
   return all;
@@ -84,6 +85,9 @@ const std::vector<std::string>& help_workflow() {
       "into the mission's vehicle list (aiv.zrd).",
       "Change a vehicle's AI: EDIT VEHICLES, pick it, set its pages (when it wakes, how far it follows, how it "
       "attacks and retreats, what valve it sets), Apply to try it in the running mission, Save to keep it.",
+      "Add a weapon: EDIT WEAPONS (in a mission opened from MODS, EDITOR), pick the weapon to copy, set its name and "
+      "numbers, OK. It is written into the mod (mod.txt and zbd\\reader.zbd); the mech lab offers it from the next "
+      "start.",
       "Try it: EXIT GAME EDIT goes back to MODS. Play the campaign (ENTER on the MODS screen) to see the changes "
       "as a player would.",
       "Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save.",

@@ -143,6 +143,7 @@
 #include "upgrades/editor/help.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
+#include "upgrades/editor/new_weapon.h"
 #include "mech3/zainetedit.h"
 #include "mech3/zainet_inout_view.h"
 #include "mech3/app_keys.h"
@@ -26846,7 +26847,7 @@ TEST(mission_c1m1_vehicle_editor_saved_and_read_next_start_headless) {
 // The editor's help (ours, docs/editor-guide.md) on c1m1: every form the
 // editor opens (the net dialog, Node Params, Add vehicle, Delete's question,
 // the net window and its Open list, the Tree View, the Help window, Mech AI
-// and its message) and both menus: each field, button, tab and row has a tip,
+// and its message, New Weapon) and both menus: each field, button, tab and row has a tip,
 // and each tip names an item its form has.
 namespace {
 struct HelpSeen {
@@ -26937,6 +26938,14 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
       v->message.press("OK");
       v->form.press("OK");
     }
+    // New Weapon (EDIT WEAPONS) opens only from MODS's EDITOR: a session stands in for one.
+    mech3::ModsEditSession& ms = mech3::mods_edit_session();
+    const mech3::ModsEditSession kept = ms;
+    ms.active = true, ms.mod = "help_check";
+    mech3::new_weapon_open(0);
+    look(mech3::new_weapon_form());
+    mech3::new_weapon_form().press("Cancel");
+    ms = kept;
     mech3::editor_key(mech3::kEditorCommand);
     return true;
   });
@@ -26952,7 +26961,7 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
               seen.missing.size(), stale.size());
   for (const std::string& m : seen.missing) std::printf("    no tip: %s\n", m.c_str());
   for (const std::string& m : stale) std::printf("    tip for nothing: %s\n", m.c_str());
-  EXPECT(forms == 10 && seen.missing.empty() && stale.empty());
+  EXPECT(forms == 11 && seen.missing.empty() && stale.empty());
 }
 
 // The Ai Network Editor window (181, S5 sitting 4c) on c1m1: Change Net

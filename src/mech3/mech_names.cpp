@@ -169,10 +169,14 @@ bool weapon_row_parse(const std::string& value, ModWeapon* out, std::string* err
   return true;
 }
 
-bool weapon_row_add(const ModWeapon& r, std::string* error) {
+bool weapon_row_taken(const std::string& name) {
   for (int32_t i = 0; i < kBuiltinWeapons; ++i)  // the plain PPC's name too, with the fixes off
-    if (crt::msvc_stricmp(kWeapons[i], r.name.c_str()) == 0) return *error = "there is a weapon " + r.name + " already", false;
-  if (weapon_index(r.name.c_str()) >= 0) return *error = "there is a weapon " + r.name + " already", false;
+    if (crt::msvc_stricmp(kWeapons[i], name.c_str()) == 0) return true;
+  return weapon_index(name.c_str()) >= 0;
+}
+
+bool weapon_row_add(const ModWeapon& r, std::string* error) {
+  if (weapon_row_taken(r.name)) return *error = "there is a weapon " + r.name + " already", false;
   g_weapon_rows.push_back(r);
   return true;
 }
