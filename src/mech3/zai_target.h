@@ -42,6 +42,11 @@ struct Contact {
 enum Side : int32_t { kAlly = 0, kEnemy = 1, kNeutral = 2, kAny = 3 };
 
 // The fields 0x004d56e0 sets up, at their offsets in the vehicle.
+// Mech3.exe 1.2 @ 0x004d71a0: a team mask back to its 5-bit team numbers
+// (each set bit's index in 5 bits, lowest first, at most six). A mask of 0
+// would loop for ever in the exe; every caller's has a bit.
+uint32_t team_number_of(uint32_t mask);
+
 struct AiTarget {
   float height = 10.0f;              // +0x68  (the Mech's from its model's box)
   Contact* target = nullptr;         // +0x6c  the target selected
@@ -79,7 +84,7 @@ struct AiTarget {
   // The masks from a 5-bit team in each 5 bits (0x004d56e0, 0x004d2960):
   // team 0's bit 0 is no one's ally or enemy. [0x0060b56c] is cleared.
   void set_team(uint32_t t);
-  uint32_t team_number() const;                     // 0x004d71a0: the masks back to 5-bit teams
+  uint32_t team_number() const { return team_number_of(team); }  // 0x004d71a0 on +0xc0
   bool is_ally(Handle vehicle) const;               // 0x004d6130
   bool is_enemy(Handle vehicle) const;              // 0x004d6160
   bool on_side(int32_t side, Handle vehicle) const; // 0x004d6190

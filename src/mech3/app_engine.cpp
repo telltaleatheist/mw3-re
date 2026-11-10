@@ -1110,4 +1110,8 @@ void GameEngine::shadows_reset() { shade_apply(); }  // 0x004e6900: the option a
 namespace mech3 {
 // W45: a network game in play runs on while the window is inactive (FIX (A)).
 bool GameEngine::run_while_inactive() { return program_net_running(); }
+void program_app_pause(bool on) {
+  if (Mech3App* a = app_if_any()) on ? a->deactivate() : a->activate();
+}
+
 }  // namespace mech3

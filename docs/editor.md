@@ -1039,6 +1039,44 @@ Lancemate and the other DDX-only check boxes do anything beyond setting a
 field. Anything the release leaves empty or broken gets made to work as
 meant, as ours in `src/upgrades/editor/`.
 
+**The shell, built (S7c, 2026-11-09)** in `mech3/game_editor_vehicles`
+(EDIT VEHICLES on the main menu):
+- **The form:** "Mech AI", with the vehicle list (the combo 1239), the main
+  tab's seven pages as tabs (empty until S7d and S7e), Pause, OK, Apply and
+  Refresh. Made once ([0x0060b310]).
+- **The hooks** (`VehicleEditorHooks`, wired in app_vehicle):
+  - the list: zEntity's list in order, each mech (an AI one by its aiv
+    record's name, the player's "player") and each made vehicle with AI
+    controls (by its node's name, its record's). The exe's own test
+    (0x004bb200: vt+0x2c, vt+0x40, vt+0x50, or the controls' vt+0x54) is
+    left to read with the pages.
+  - each one's brain's settings (vt+0x140 -> vt+0x90);
+  - the masks (+0xc0..+0xc8);
+  - the player's allies and enemies;
+  - Pause: the app deactivated or activated, 0x0058fa80 / 0x0058faa0.
+- **Load** (0x004bc140) and **store** (0x004bb7e0), as mapped above. The
+  five "as the brain has it" words: the exe resets each to 2 after reading
+  the next, and resets 0x97c twice, so +0x980's is never reset; ported so.
+  The team round trip (0x004bc260, through `team_number_of`, 0x004d71a0)
+  sets the Team buttons.
+- **Units:** a load takes the ranges' square roots (to the file's units) and
+  the store squares them again, so the brain's numbers can come back a bit
+  apart. Apply then puts the record on the brain even with nothing edited,
+  as the exe does.
+- **Refresh** (0x004b9e40) finds the shown vehicle again by its name.
+- **Ours:** the editor closes when the mission's vehicles are forgotten; the
+  exe's dialog outlives them, and its next Apply would reach freed ones.
+- **Tests:**
+  - `vehicle_editor_shell_loads_and_applies`: stub hooks; the list, the
+    first loaded and its record made and cached, the team buttons, Apply's
+    team and masks, a pick storing the old one, Refresh by name, Pause, OK.
+  - `mission_c1m1_vehicle_editor_applies_to_a_brain_headless`: nine
+    listed, "player" among them; mobilehq_01's pilot set to "Tester" and
+    Applied, on its brain and in the cache; 60 frames on; OK closes.
+  - test_aiv_edit.py adds 0x004d71a0 (3000 masks, 0 differ).
+  - Breaks: no assignment to the brain (both tests fail); no cache edit
+    (the mission test fails).
+
 ## Dear ImGui for the editor's dialogs (lead, 2026-11-09)
 
 Owen: the editor's dialogs need not imitate MFC. The lead's call is Dear

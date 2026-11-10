@@ -12,6 +12,7 @@
 #include "mech3/game_editor_net.h"
 #include "mech3/zainet.h"
 #include "mech3/zainetedit.h"
+#include "mech3/game_editor_vehicles.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
@@ -600,4 +601,68 @@ TEST(add_vehicle_form_and_record) {
   mech3::editor_exit();
   mech3::editor_reset();
   mech3::set_editor_hooks(nullptr);
+}
+
+// The vehicle editor's shell (S7c; 0x004b86e0, docs/editor.md, The vehicle
+// editor): the Mech AI form lists the hooks' vehicles; the first is loaded
+// (its brain's settings, no aiv record here, so one is made and kept in the
+// cache); a team set and Apply puts it on the brain with the masks the store
+// builds (0x004d71a0's round trip first); picking another stores the first
+// and loads it; Refresh finds the shown one again by name; OK closes.
+namespace {
+struct VehStub : mech3::VehicleEditorHooks {
+  mech3::ai::AiParams a, b;
+  int a_tag = 0, b_tag = 0;
+  std::vector<mech3::VehicleEditorItem> list{{"apc_01", &a_tag}, {"tank_02", &b_tag}};
+  uint32_t masks[3] = {};
+  int pauses = 0;
+  std::vector<mech3::VehicleEditorItem> vehicles() override { return list; }
+  mech3::ai::AiParams* brain_params(void* v) override { return v == &a_tag ? &a : v == &b_tag ? &b : nullptr; }
+  void set_masks(void*, uint32_t t, uint32_t al, uint32_t en) override { masks[0] = t, masks[1] = al, masks[2] = en; }
+  uint32_t player_allies() override { return 2; }
+  uint32_t player_enemies() override { return 4; }
+  void pause(bool on) override { pauses += on ? 1 : 10; }
+};
+}  // namespace
+
+TEST(vehicle_editor_shell_loads_and_applies) {
+  mech3::ai::aiv_file_reset();
+  VehStub h;
+  h.a.put<int32_t>(0x18, 2), h.b.put<int32_t>(0x18, 1);
+  mech3::set_vehicle_editor_hooks(&h);
+  mech3::edit_vehicles(0);
+  mech3::VehicleEditor* e = mech3::vehicle_editor();
+  EXPECT(e && mech3::form_shown(&e->form) && e->form.title == "Mech AI");
+  if (!e) return;
+  EXPECT(e->form.fields[0].choices == std::vector<std::string>({"apc_01", "tank_02"}) && e->selected == 0);
+  EXPECT(e->form.fields[1].kind == mech3::FormField::kTabs && e->form.fields[1].choices.size() == 7);
+  // Team 2's mask is bit 2 (4), the player's enemies here: the Foe button.
+  EXPECT(e->params.team() == 2 && e->team_side == 1);
+  EXPECT(mech3::ai::aiv_file().cached("apc_01") != nullptr);  // the record made from the brain, kept
+  e->params.put<int32_t>(0x18, 1);  // team 1 (the ally)
+  e->form.press("Apply");
+  EXPECT(h.a.team() == 1 && h.masks[0] == 2 && h.masks[1] == 2 && h.masks[2] == (~2u & ~1u));
+  e->params.put<int32_t>(0x18, 2);  // team 2
+  EXPECT(e->form.press("Apply"));
+  EXPECT(h.a.team() == 2 && h.masks[0] == 4 && h.masks[1] == 4 && h.masks[2] == (~4u & ~1u));
+  EXPECT(mech3::ai::aiv_file().cached("apc_01")->team() == 2);
+  // Another vehicle: the first stored as shown, the second loaded.
+  e->params.put<int32_t>(0x18, 3);
+  *e->form.fields[0].i = 1;
+  e->form.changed(e->form.fields[0]);
+  EXPECT(h.a.team() == 3 && e->selected == 1 && e->params.team() == 1);
+  // Refresh: the list again, tank_02 found by name ahead of a new first.
+  h.list.insert(h.list.begin(), {"jeep_03", &h.a_tag});
+  EXPECT(e->form.press("Refresh"));
+  e = mech3::vehicle_editor();
+  EXPECT(e && e->selected == 2 && e->items.size() == 3);
+  // Pause's box asks the app; OK applies and closes.
+  e->pause_box = 1;
+  for (mech3::FormField& f : e->form.fields)
+    if (f.label == "Pause") e->form.changed(f);
+  EXPECT(h.pauses == 1);
+  EXPECT(e->form.press("OK"));
+  EXPECT(!mech3::vehicle_editor());
+  mech3::set_vehicle_editor_hooks(nullptr);
+  mech3::ai::aiv_file_reset();
 }

@@ -55,3 +55,6 @@ extern "C" int probe_aiv_same_vlist(const uint8_t* ea, int na, const uint8_t* eb
 }
 
 extern "C" int probe_aiv_same_name(const char* a, const char* b) { return mech3::ai::same_name(a, b) ? 1 : 0; }
+
+#include "mech3/zai_target.h"
+extern "C" uint32_t probe_team_number_of(uint32_t mask) { return mech3::ai::team_number_of(mask); }

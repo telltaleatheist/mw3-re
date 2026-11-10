@@ -1,6 +1,6 @@
 """The vehicle editor's record compares (docs/editor.md, The vehicle editor) against the original x86:
 AiParams::same_numbers (0x4df1b0, the store's 0x4bbd70..0x4bc110 alike), same_vlist (0x4d9090 with its entry
-compare 0x4d9140) and same_name (0x49d2f0). Random settings blocks in the exe's layout, each pair one word, one
+compare 0x4d9140), same_name (0x49d2f0), and the team mask's numbers (0x4d71a0, the editor's team round trip). Random settings blocks in the exe's layout, each pair one word, one
 flag bit or nothing apart (and the float words' -0 and NaN); vlists of 0..3 entries one field apart; names
 equal, unequal or missing.
 
@@ -28,6 +28,9 @@ probe = load_probe()
 probe.probe_aiv_same_numbers.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
 probe.probe_aiv_same_vlist.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
 probe.probe_aiv_same_name.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+probe.probe_team_number_of.argtypes = [ctypes.c_uint32]
+probe.probe_team_number_of.restype = ctypes.c_uint32
+TEAM_NUMBER = 0x4d71a0
 
 
 def block(rng):
@@ -122,6 +125,13 @@ class Exe:
         self.o.call(SAME_VLIST, ecx=field, stack_args=(self.owner(b),))
         return self.ret()
 
+    def team_number(self, mask):
+        from unicorn.x86_const import UC_X86_REG_EAX
+        p = self.o.alloc(4)
+        self.o.u32(p, mask)
+        self.o.call(TEAM_NUMBER, ecx=p)
+        return self.o.uc.reg_read(UC_X86_REG_EAX)
+
     def name(self, a, b):
         def text(s):
             if s is None:
@@ -175,6 +185,15 @@ def main():
         na, nb = (-1 if ea is None else len(ea)), (-1 if eb is None else len(eb))
         p = probe.probe_aiv_same_vlist(b''.join(bytes(x) for x in ea or []), na, b''.join(bytes(x) for x in eb or []), nb)
         check('vlist', exe.vlist(ea, eb), p, 'k %d' % k)
+        mask = 0
+        for _ in range(rng.randrange(1, 8)):
+            mask |= 1 << rng.randrange(32)
+        e, p = exe.team_number(mask), probe.probe_team_number_of(mask)
+        kinds.setdefault('team number', [0, 0])[1] += 1
+        if e != p:
+            bad += 1
+            if bad <= 5:
+                print('team number %#x: exe %#x, port %#x' % (mask, e, p))
         x, y = rng.choice([None, 'dom', 'alan']), rng.choice([None, 'dom', 'alan'])
         check('name', exe.name(x, y), probe.probe_aiv_same_name(x.encode() if x else None, y.encode() if y else None),
               '%r %r' % (x, y))

@@ -6,6 +6,7 @@
 #include "gamez/zutil/ztimer.h"
 #include "mech3/game_editor_net.h"
 #include "mech3/game_editor_tree.h"
+#include "mech3/game_editor_vehicles.h"
 #include "upgrades/editor/form.h"
 
 namespace mech3 {
@@ -15,7 +16,6 @@ EditorHooks g_default_hooks;
 EditorHooks* g_hooks = &g_default_hooks;
 EditorState g_state;
 
-void edit_vehicles(int32_t) { g_hooks->not_ported("EDIT VEHICLES (0x004040c0 -> 0x004b86e0, the vehicle editor)"); }
 void edit_weapons(int32_t) {}  // 0x004bf620: nothing in MW3
 void exit_game_edit(int32_t y) { editor_exit(y); }
 
@@ -69,6 +69,7 @@ EditorPanel& editor_panel() {
   return *g_state.panel;
 }
 void editor_reset() {
+  vehicle_editor_close();
   tree_close();
   net_window_free();
   net_editor_free();

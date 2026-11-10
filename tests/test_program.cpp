@@ -138,6 +138,7 @@
 #include "upgrades/editor/mods_edit.h"
 #include "mech3/mech_reader.h"
 #include "upgrades/reference/reference.h"
+#include "mech3/game_editor_vehicles.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
@@ -26773,4 +26774,55 @@ TEST(mission_c1m1_saved_net_hands_its_vehicles_over_headless) {
               on_old.size(), moved_over, still_old, ran);
   EXPECT(status.find("running now") != std::string::npos && new_net && old_net && drops == 1 && builds == 1);
   EXPECT(!on_old.empty() && moved_over == int32_t(on_old.size()) && ran > 80);
+}
+
+// The vehicle editor's shell on c1m1 (S7c): EDIT VEHICLES lists zEntity's
+// mechs and AI vehicles ("player" among them); an AI one picked, its pilot's
+// name changed and Applied: the brain has it and aiv.zrd's cache keeps the
+// record; the mission runs on; OK closes it.
+TEST(mission_c1m1_vehicle_editor_applies_to_a_brain_headless) {
+  if (!have_game()) return;
+  std::vector<std::string> names;
+  std::string picked, brain_pilot, cached_pilot;
+  int32_t ran = 0, at = -1;
+  bool closed = false;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("vehicle_editor", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    if (at < 0) {
+      mech3::editor_key(mech3::kEditorCommand);
+      mech3::edit_vehicles(0);
+      mech3::VehicleEditor* e = mech3::vehicle_editor();
+      if (!e) return true;
+      for (const mech3::VehicleEditorItem& it : e->items) names.push_back(it.name);
+      for (size_t i = 0; i < e->items.size() && picked.empty(); ++i)
+        if (mech3::vehicle_editor_hooks().brain_params(e->items[i].vehicle)) {
+          *e->form.fields[0].i = static_cast<int32_t>(i);
+          e->form.changed(e->form.fields[0]);
+          picked = e->items[i].name;
+        }
+      if (picked.empty()) return true;
+      std::free(e->params.pilot);
+      e->params.pilot = strdup("Tester");
+      e->form.press("Apply");
+      if (mech3::ai::AiParams* b = mech3::vehicle_editor_hooks().brain_params(e->items[size_t(e->selected)].vehicle))
+        brain_pilot = b->pilot ? b->pilot : "";
+      if (const mech3::ai::AivRecord* r = mech3::ai::aiv_file().cached(picked.c_str())) cached_pilot = r->pilot ? r->pilot : "";
+      at = f;
+      return false;
+    }
+    ++ran;
+    if (f < at + 60) return false;
+    if (mech3::VehicleEditor* e = mech3::vehicle_editor()) e->form.press("OK");
+    closed = !mech3::vehicle_editor();
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  std::string list;
+  for (const std::string& n : names) list += n + " ";
+  std::printf("  %zu listed: %s; picked %s: brain's pilot \"%s\", cached \"%s\"; ran %d frames; closed %d\n", names.size(),
+              list.c_str(), picked.c_str(), brain_pilot.c_str(), cached_pilot.c_str(), ran, closed);
+  EXPECT(std::find(names.begin(), names.end(), "player") != names.end() && names.size() > 1);
+  EXPECT(!picked.empty() && brain_pilot == "Tester" && cached_pilot == "Tester" && ran >= 60 && closed);
 }
