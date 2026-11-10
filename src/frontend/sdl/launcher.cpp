@@ -575,6 +575,27 @@ bool is_pm_install(const mech3::source::Found& f) {
 #define MW3_VERSION ""
 #endif
 
+// The label on a game's line (Owen, 2026-11-10: shown, never blocking): "official" when its data is a release's
+// (MW3 1.0 or 1.2, or 1.0 with the patch's files; PM 1.0), its program a release build (its tag a bare vX.Y.Z,
+// PM's pm-vX.Y.Z) and no mods are on; else "modified (...)" naming which.
+std::string official_words(const std::string& data, const std::string& program, bool pm, const std::vector<std::string>& mods) {
+  const bool data_ok = pm ? data == "1.0" : data == "1.0" || data == "1.2" || data == "1.0 with 1.2 files";
+  const auto release = [](const std::string& v) {  // digits and dots only after the prefix: no -N-gHASH, no -dirty
+    if (v.empty() || v.find_first_not_of("0123456789.") != std::string::npos || v.front() == '.' || v.back() == '.') return false;
+    return std::count(v.begin(), v.end(), '.') == 2;
+  };
+  const std::string prefix = pm ? "pm-v" : "v";
+  const bool program_ok = program.rfind(prefix, 0) == 0 && release(program.substr(prefix.size()));
+  std::vector<std::string> what;
+  if (!data_ok) what.push_back("data");
+  if (!program_ok) what.push_back("program");
+  if (!mods.empty()) what.push_back(mods.size() == 1 ? "a mod" : std::to_string(mods.size()) + " mods");
+  if (what.empty()) return "official";
+  std::string s = "modified (";
+  for (size_t i = 0; i < what.size(); ++i) s += (i ? ", " : "") + what[i];
+  return s + ")";
+}
+
 // A game's line's versions: its data's, then its program's ("data 1.2,
 // program v1.1.0, "); a program that did not say is left out.
 std::string versions_words(const std::string& data, const std::string& program) {
@@ -905,7 +926,8 @@ void Launcher::layout() {
     case kMain: {
       // A long folder is shortened to the plate when drawn (Text::fit), the
       // words before it kept.
-      const std::string ready = "Ready: " + versions_words(install_.version, mw3_program_);
+      const std::string ready = "Ready, " + official_words(install_.version, mw3_program_, false, mech3::mods_enabled(o_.write_dir)) +
+                                ": " + versions_words(install_.version, mw3_program_);
       std::string sub = install_.ok ? ready + install_.dir : "Not found yet: click to find your game";
       // The games as round badges (Owen: the ripple belongs to a circle),
       // each name and line beside its badge, the ripple from its centre.
@@ -920,7 +942,8 @@ void Launcher::layout() {
       if (o_.pm_bin.empty()) {
         game(kPm, 1, 1, "PIRATE'S MOON", "Coming later", false);
       } else {
-        const std::string pm_ready = "Ready: " + versions_words(pm_data_, pm_program_);
+        const std::string pm_ready = "Ready, " + official_words(pm_data_, pm_program_, true, mech3::mods_enabled(pm_wd())) + ": " +
+                                     versions_words(pm_data_, pm_program_);
         game(kPm, 1, 1, "PIRATE'S MOON", pm_dir_.empty() ? "Not found yet: click to find your game" : pm_ready + pm_dir_, true);
         if (!pm_dir_.empty()) buttons_.back().sub_keep = pm_ready.size();
         if (!entries_logged_) std::printf("mw3: launcher: entry PIRATE'S MOON: %s\n", buttons_.back().sub.c_str());
