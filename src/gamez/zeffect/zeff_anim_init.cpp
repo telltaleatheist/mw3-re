@@ -235,7 +235,7 @@ int anim_read_zbd() {
   std::FILE* f = nullptr;
   if (a.host_path.empty()) {
     static std::set<std::string> said;
-    const int got = anim_from_mod(a.path, &json_zbd, &what, &why);
+    const int got = anim_from_mod(a.path, &json_zbd, &what, &why, mech3::anim_defs::mod_defs_only);
     if (got > 0) scratch = std::make_unique<zutl_zip::ScratchFile>(json_zbd.data(), json_zbd.size());
     if (got > 0 && scratch->file) {
       f = std::fopen(scratch->path.string().c_str(), "rb");  // its own handle, closed below as the archive's is
@@ -244,6 +244,10 @@ int anim_read_zbd() {
       std::printf("mw3: mod: %s: %s; %s read instead\n", what.c_str(), why.c_str(), a.path);
     }
   }
+  // Ours (modding.md, anim=defs): a mod whose whole anim.zbd is the original's
+  // copy is passed over for the next one's (a mod's, else the install's).
+  if (!f && a.host_path.empty())
+    if (const std::string past = mech3::anim_defs::whole_file_past_defs_only(a.path); !past.empty()) f = std::fopen(past.c_str(), "rb");
   if (!f) f = zutl::open(file, "rb");  // FIX (A): the mounts (zutl_path.h)
   if (!f) return -1;
   // Ours (docs/modding.md, Animations a def at a time): the enabled mods' def

@@ -1578,6 +1578,75 @@ TEST(mods_anim_def_files_on_the_list_and_checked) {
   EXPECT(errors == 1 && report.find("activation") != std::string::npos && report.find("left out") != std::string::npos);
 }
 
+// Both ways (docs/modding.md, Animations a def at a time, step 3): a mod with anim=defs keeps a whole anim.zbd for the
+// original (here one whose gravity differs, at zbd\t1\ and in original\) that ours passes over for the install's,
+// its def files merged in; without anim=defs the same file is the base. The MODS list takes no base from such a mod
+// and its original\ files are none of its own; --build-anim writes original\zbd\t1\anim.zbd from the install's.
+TEST(mods_anim_defs_only_and_build_anim) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  std::vector<uint8_t> shipped = bytes_of(install + "/zbd/t1/anim.zbd");
+  std::vector<mech3::anim_defs::DefSpan> spans;
+  EXPECT(mech3::anim_defs::def_spans(shipped.data(), shipped.size(), &spans));
+  if (spans.size() < 3) return;
+  // A whole file of the mod's own: the shipped one, its gravity (block +0x1c) -2.5.
+  std::vector<uint8_t> own = shipped;
+  uint32_t sources;
+  std::memcpy(&sources, own.data() + 8, 4);
+  const float g = -2.5f;
+  std::memcpy(own.data() + 0x0c + sources * 0x54 + 0x1c, &g, 4);
+  SavedMounts keep;
+  const std::string wd = tmp("mods_anim_defs_only");
+  const std::string m = wd + "/mods/both";
+  put(m + "/mod.txt", "name=Both\nanim=defs\n");
+  fs::create_directories(m + "/zbd/t1", ec);
+  fs::create_directories(m + "/original/zbd/t1", ec);
+  std::ofstream(m + "/zbd/t1/anim.zbd", std::ios::binary).write(reinterpret_cast<const char*>(own.data()), own.size());
+  std::ofstream(m + "/original/zbd/t1/anim.zbd", std::ios::binary).write(reinterpret_cast<const char*>(own.data()), own.size());
+  put(m + "/zbd/t1/anim/added.json", json_with(exported[spans[1].key + ".json"], "anim_name", "\"both_added\""));
+  const auto read = [&](float* gravity) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd);
+    mech3::mods_mount(wd, {"both"}, {install});
+    zutl::mount(install);
+    zeff::anim() = zeff::AnimState{};
+    zeff::anim_allow_loading(1);
+    zeff::anim_set_zbd_path("zbd\\t1\\anim.zbd");
+    zeff::anim_read_zbd();
+    const int32_t n = zeff::anim().def_count();
+    *gravity = n > 0 ? zeff::anim().block.get<float>(0x1c) : 0.0f;
+    zeff::anim_free_all();
+    zeff::anim() = zeff::AnimState{};
+    return n;
+  };
+  float with_defs = 0, plain = 0;
+  const int32_t n1 = read(&with_defs);
+  put(m + "/mod.txt", "name=Both\n");
+  const int32_t n2 = read(&plain);
+  std::printf("  anim=defs: %d defs, gravity %.2f; without: %d defs, gravity %.2f\n", n1, with_defs, n2, plain);
+  EXPECT(n1 == static_cast<int32_t>(spans.size()) + 1 && with_defs != g);  // the install's base, its def added
+  EXPECT(n2 == static_cast<int32_t>(spans.size()) + 1 && plain == g);      // its own whole file the base
+  put(m + "/mod.txt", "name=Both\nanim=defs\n");
+  put(wd + "/mods/later/mod.txt", "name=Later\n");
+  put(wd + "/mods/later/zbd/anim/" + spans[2].key + ".json", exported[spans[2].key + ".json"]);
+  put(wd + "/mods/later/original/zbd/t1/anim.zbd", "x");  // both have one: never shared, never ours
+  const std::vector<mech3::ModsListEntry> list = mech3::mods_list(wd, {"both", "later"});
+  for (const auto& e : list)
+    if (e.info.folder == "later") EXPECT(e.anim_bases.empty() && e.conflicts_with.empty() && e.shadowed.empty());
+  std::vector<std::string> lines;
+  EXPECT(mech3::anim_defs::build_for_original(m, install, &lines) == 0);
+  for (const std::string& l : lines) std::printf("  %s\n", l.c_str());
+  const std::vector<uint8_t> built = bytes_of(m + "/original/zbd/t1/anim.zbd");
+  std::vector<mech3::anim_defs::DefSpan> now;
+  EXPECT(mech3::anim_defs::def_spans(built.data(), built.size(), &now) && now.size() == spans.size() + 1 && now.back().key.find("both_added") != std::string::npos);
+  EXPECT(fs::exists(m + "/original/zbd/t1/anim.zbd.bak"));  // the one there before
+}
+
 // What a world's anim JSON refuses, with the file, line and place (docs/modding.md).
 TEST(mods_anim_json_errors_name_the_place) {
   const auto def = [](const std::string& seq_events, const std::string& extra = "") {

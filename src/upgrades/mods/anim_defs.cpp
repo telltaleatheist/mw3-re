@@ -12,6 +12,7 @@
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zutil/zutl_json.h"
 #include "gamez/zutil/zutl_path.h"
+#include "mech3/mods.h"
 
 namespace mech3::anim_defs {
 
@@ -129,8 +130,8 @@ std::vector<DefFile> mod_def_files(const char* game_path, const std::vector<uint
   // The base's mod: the first with a whole file for this world (its anim.zbd, JSON folder or zip).
   size_t base_mod = mt.mods.size();
   for (size_t m = 0; m < mt.mods.size() && base_mod == mt.mods.size(); ++m)
-    if (!zutl::find_in_mod(m, dir + stem + ".zbd").empty() || !zutl::find_in_mod(m, dir + stem + "/metadata.json").empty() ||
-        !zutl::find_in_mod(m, dir + stem + ".zip").empty())
+    if (!mod_defs_only(m) && (!zutl::find_in_mod(m, dir + stem + ".zbd").empty() || !zutl::find_in_mod(m, dir + stem + "/metadata.json").empty() ||
+        !zutl::find_in_mod(m, dir + stem + ".zip").empty()))
       base_mod = m;
   std::set<std::string> base_keys;
   std::map<std::string, std::string> taken;  // key -> the file that has it
@@ -205,6 +206,91 @@ std::string def_file_key(const std::string& path) {
   };
   const std::string n = field("name"), a = field("anim_name");
   return n.empty() || a.empty() ? std::string() : zeff::anim_def_key(n, a, field("anim_root_name"));
+}
+
+bool mod_defs_only(size_t m) {
+  const zutl::Mounts& mt = zutl::mounts();
+  if (m >= mt.mods.size()) return false;
+  ModInfo info;
+  const std::string text = text_of(fs::path(mt.mods[m]) / "mod.txt");  // small, and read at a world's load only
+  return !text.empty() && (mod_parse(text, &info), info.anim_defs_only);
+}
+
+std::string whole_file_past_defs_only(const char* game_path) {
+  const zutl::Mounts& mt = zutl::mounts();
+  if (!game_path || mt.mods.empty()) return {};
+  const std::string rel = zutl::host(game_path);
+  bool blocked = false;
+  for (size_t m = 0; m < mt.mods.size(); ++m) {
+    const std::string at = zutl::find_in_mod(m, rel);
+    if (at.empty()) continue;
+    if (!mod_defs_only(m)) return blocked ? at : std::string();
+    blocked = true;
+  }
+  if (!blocked) return {};
+  for (const std::string& r : mt.read) {  // the install's (a read mount that is no mod)
+    if (std::find(mt.mods.begin(), mt.mods.end(), r) != mt.mods.end()) continue;
+    std::error_code ec;
+    const std::string p = zutl::any_case(r, rel);
+    if (!p.empty() && fs::is_regular_file(p, ec)) return p;
+  }
+  return {};
+}
+
+int build_for_original(const std::string& mod_dir, const std::string& install, std::vector<std::string>* lines) {
+  int errors = 0;
+  std::error_code ec;
+  const fs::path zbd = fs::path(install) / "zbd";
+  std::vector<std::string> worlds;
+  for (const auto& e : fs::directory_iterator(zbd, ec))
+    if (e.is_directory(ec) && fs::is_regular_file(e.path() / "anim.zbd", ec)) worlds.push_back(e.path().filename().string());
+  std::sort(worlds.begin(), worlds.end());
+  for (const std::string& w : worlds) {
+    std::vector<DefFile> defs;
+    std::set<std::string> keys;
+    for (const fs::path& folder : {fs::path(mod_dir) / "zbd" / w / "anim", fs::path(mod_dir) / "zbd" / "anim"}) {
+      if (!fs::is_directory(folder, ec) || fs::exists(folder / "metadata.json", ec)) continue;
+      std::vector<fs::path> files;
+      for (const auto& e : fs::directory_iterator(folder, ec)) {
+        const std::string n = lower(e.path().filename().string());
+        if (e.is_regular_file(ec) && n.size() > 5 && n.compare(n.size() - 5, 5, ".json") == 0 && n.rfind("si-script-", 0) != 0)
+          files.push_back(e.path());
+      }
+      std::sort(files.begin(), files.end());
+      for (const fs::path& f : files) {
+        DefFile d;
+        std::string why;
+        d.from = f.string();
+        const auto beside = [&](const std::string& n) { return text_of(folder / n); };
+        if (!zeff::anim_def_from_json(text_of(f), beside, &d.bytes, &d.key, &why)) {
+          lines->push_back("error: " + d.from + ": " + why + " (left out)");
+          ++errors;
+        } else if (keys.insert(d.key).second) {
+          defs.push_back(std::move(d));
+        }
+      }
+    }
+    if (defs.empty()) continue;
+    std::ifstream in(zbd / w / "anim.zbd", std::ios::binary);
+    const std::vector<uint8_t> base((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string why;
+    const std::vector<uint8_t> out = with_defs(base, defs, &why);
+    if (out.empty()) {
+      lines->push_back("error: " + w + ": " + why);
+      ++errors;
+      continue;
+    }
+    const fs::path to = fs::path(mod_dir) / "original" / "zbd" / w / "anim.zbd";
+    fs::create_directories(to.parent_path(), ec);
+    if (fs::exists(to, ec)) fs::copy_file(to, to.string() + ".bak", fs::copy_options::overwrite_existing, ec);
+    std::ofstream(to, std::ios::binary | std::ios::trunc).write(reinterpret_cast<const char*>(out.data()),
+                                                                static_cast<std::streamsize>(out.size()));
+    std::vector<DefSpan> was, now;
+    def_spans(base.data(), base.size(), &was), def_spans(out.data(), out.size(), &now);
+    lines->push_back(w + ": " + std::to_string(defs.size()) + " def files, " + std::to_string(now.size() - was.size()) +
+                     " added, written to " + to.generic_string());
+  }
+  return errors;
 }
 
 }  // namespace mech3::anim_defs

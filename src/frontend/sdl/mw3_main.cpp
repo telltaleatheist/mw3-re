@@ -78,6 +78,7 @@
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
 #include "upgrades/editor/help.h"
+#include "upgrades/mods/anim_defs.h"
 #include "upgrades/reference/reference.h"
 #include "mech3/game_editor.h"
 #include "mech3/options_menu.h"
@@ -168,6 +169,7 @@ struct Args {
   std::vector<std::string> mods, cfg_mods;
   bool mods_given = false, no_mods = false, list_mods = false;
   std::string check_mod;  // --check-mod DIR
+  std::string build_anim;  // --build-anim DIR: its def files merged for the original game (upgrades/mods/anim_defs)
   std::string reference;  // --reference FILE: the modding reference written (upgrades/reference)
   std::string editor_guide;  // --editor-guide FILE: the editor's guide written (upgrades/editor/help)
   std::string pick;       // --pick PATH: the MODS screen's picker answered with PATH (ours, for scripted runs)
@@ -254,7 +256,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--build-anim DIR] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -275,6 +277,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-mods") a.no_mods = true;
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
+    else if (s == "--build-anim" && next(1)) a.build_anim = argv[++i];
     else if (s == "--reference" && next(1)) a.reference = argv[++i];
     else if (s == "--editor-guide" && next(1)) a.editor_guide = argv[++i];
     else if (s == "--pick" && next(1)) a.pick = argv[++i];
@@ -678,6 +681,15 @@ int main(int argc, char** argv) {
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
   if (!a.mods_given) a.mods = a.cfg_mods;
   if (a.no_mods) a.mods.clear();
+  if (!a.build_anim.empty()) {  // the mod's def files merged into the install's anim.zbd files, for the original
+    const std::string install = !a.install.empty() ? a.install : a.cfg_install;
+    std::vector<std::string> lines;
+    const int errors = install.empty() ? 1 : mech3::anim_defs::build_for_original(a.build_anim, install, &lines);
+    if (install.empty()) lines.push_back("error: no install to build from (--install DIR)");
+    for (const std::string& line : lines) std::printf("%s\n", line.c_str());
+    SDL_Quit();
+    return errors ? 1 : 0;
+  }
   if (!a.check_mod.empty()) {  // read the mod as the game would, nothing mounted into play
     int errors = 0;
     const std::string install = !a.install.empty() ? a.install : a.cfg_install;

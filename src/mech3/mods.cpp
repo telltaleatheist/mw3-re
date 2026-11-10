@@ -89,6 +89,7 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (upgrades::reference::key_is(key, "mech") && !value.empty()) out->mechs.push_back(value);
     else if (upgrades::reference::key_is(key, "weapon") && !value.empty()) out->weapons.push_back(value);
     else if (upgrades::reference::key_is(key, "campaign") && !value.empty()) out->campaigns.push_back(value);
+    else if (upgrades::reference::key_is(key, "anim")) out->anim_defs_only = lower(value) == "defs";
     else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -464,7 +465,8 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
   for (ModsListEntry& e : out) {
     if (!e.on || !e.info.error.empty()) continue;
     const std::vector<std::string> files = mod_files(e.info.path), rows = row_names(e.info);
-    const ModAnims anims = mod_anims(e.info.path);
+    ModAnims anims = mod_anims(e.info.path);
+    if (e.info.anim_defs_only) anims.whole.clear();  // anim=defs: its whole files are the original's copy
     for (size_t k = 0; k < before.size(); ++k) {
       bool shared = false;
       for (const auto& [w, key] : anims.defs) {

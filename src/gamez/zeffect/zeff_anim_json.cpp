@@ -1583,7 +1583,8 @@ bool anim_def_from_json(const std::string& text, const std::function<std::string
   return true;
 }
 
-int anim_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string* what, std::string* why) {
+int anim_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string* what, std::string* why,
+                  const std::function<bool(size_t mod)>& skip) {
   if (zutl::mounts().mods.empty() || !game_path || !game_path[0]) return 0;
   std::string dir = zutl::host(game_path);
   const size_t slash = dir.rfind('/');
@@ -1591,6 +1592,7 @@ int anim_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string*
   dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
   if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
   for (size_t m = 0; m < zutl::mounts().mods.size(); ++m) {
+    if (skip && skip(m)) continue;
     const std::string meta = zutl::find_in_mod(m, dir + stem + "/metadata.json");
     if (!meta.empty()) {  // the folder: each file beside metadata.json
       const std::string folder = meta.substr(0, meta.size() - std::strlen("metadata.json"));

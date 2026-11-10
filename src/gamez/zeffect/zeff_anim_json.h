@@ -36,6 +36,8 @@ std::string anim_def_key(const std::string& name, const std::string& anim_name, 
 // zbd\\c1\\anim\\ (unzbd's files, metadata.json first), else unzbd's
 // zbd\\c1\\anim.zip. 1: `zbd` holds the file, `what` where it came from;
 // -1: one there that does not read (`what`, `why`); 0: none.
-int anim_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string* what, std::string* why);
+// `skip` (ours, modding.md's anim=defs): a mod passed over, its whole files not read.
+int anim_from_mod(const char* game_path, std::vector<uint8_t>* zbd, std::string* what, std::string* why,
+                  const std::function<bool(size_t mod)>& skip = nullptr);
 
 }  // namespace zeff

@@ -24,6 +24,7 @@ struct ModInfo {
   std::vector<std::string> mechs;   // mech=<row>: a new mech (mech_names.h, mech_row_parse), each line's value
   std::vector<std::string> weapons; // weapon=<row>: a new weapon (weapon_row_parse)
   std::vector<std::string> campaigns;  // campaign=<file>: a custom campaign (mod_campaign.h)
+  bool anim_defs_only = false;  // anim=defs: its animations by its def files alone, its whole anim files not ours
 };
 // An Instant Action world a mod adds: its folder (any world's) and the name shown.
 struct ModIaWorld {
@@ -32,7 +33,7 @@ struct ModIaWorld {
 std::vector<ModIaWorld>& mod_ia_worlds();
 
 // mod.txt: key=value lines (name, version, author, for, description, world,
-// ia_world, mech, weapon, campaign), # a comment; `name` required, `for` mw3 when given. False
+// ia_world, mech, weapon, campaign, anim), # a comment; `name` required, `for` mw3 when given. False
 // with `out->error`.
 bool mod_parse(const std::string& text, ModInfo* out);
 // Every folder under <write dir>/mods, by folder name; each one's mod.txt read.

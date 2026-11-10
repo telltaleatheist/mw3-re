@@ -32,6 +32,9 @@ File mod_txt() {
               {"weapon=", "tech", "`clan`, `sphere`, `any` or `none`", "required", "", "Which side's mech lab offers it."},
               {"weapon=", "title", "text, the rest of the line", "NAME", "", "The name shown; last on the line."},
               {"", "campaign", "a file in the mod", "none", "inside the mod's folder", "A custom campaign's file (the next section)."},
+              {"", "anim", "`defs`", "none", "",
+               "Its animations by its def files alone (`zbd\\<world>\\anim\\` and `zbd\\anim\\`): its whole anim files, kept for the "
+               "original game, are not ours to read, so it combines with other def-file mods."},
           }};
 }
 

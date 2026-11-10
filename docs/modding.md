@@ -1120,7 +1120,39 @@ the name check left out.
 Test: `mods_anim_def_files_on_the_list_and_checked`. Breaks caught: a
 world-less def not meeting a world's; the check not reading def files.
 
-Steps 3-4 below are still to build.
+**Built (step 3, 2026-11-10): `--build-anim` and `anim=defs`.**
+- `mw3 --build-anim <mod> [--install DIR]`
+  (`anim_defs::build_for_original`): for each world of the install that the
+  mod has def files for, it writes the install's anim.zbd with the mod's
+  def files merged in (its world folder before its world-less one, the first
+  file of a key) to `<mod>\original\zbd\<world>\anim.zbd`, keeping a .bak of
+  one there before. Errors are named and counted, and the exit code is 1 on
+  any.
+- mod.txt's `anim=defs` tells ours that the mod's whole anim files (at
+  `zbd\<world>\` too) are the original's copy:
+  - the load passes over them, for the next holder's (a mod's, else the
+    install's): `anim_from_mod`'s skip and `whole_file_past_defs_only`;
+  - the def merge's base passes over them as well;
+  - the MODS list takes no base from them;
+  - its def files are merged as any mod's.
+- `original\` is ours never to read: `mod_own_file` leaves it out of the
+  list's sharing, the lobby's hash and `--check-mod`. It is never served at
+  a game path anyway.
+
+Tests:
+- `test_anim_build.py`: def files from unzbd, one replaced (a scripted one
+  on c1, its script by file) and one added, built by the real
+  `mw3 --build-anim`; the original's reader 0x50a0e0, its post-load
+  0x50ae60 and frames of random calls (test_anim_run's run_mission) run on
+  each built file as the port does, on t1 and c1.
+- `mods_anim_defs_only_and_build_anim`: with anim=defs the install's base
+  (gravity) and the def added; without it the mod's own file; no base and
+  no sharing from original\; the built file walks, with its .bak.
+
+Breaks caught: the count left as it was; the anim=defs skip left out;
+original\ counted as the mod's.
+
+Step 4 below (the node files) is still to build.
 
 
 Owen's ask: animations moddable, and easy, with every old mod working
