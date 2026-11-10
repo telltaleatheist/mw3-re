@@ -175,6 +175,7 @@ std::vector<ModsEditRow> mods_edit_rows(const ModInfo& m) {
 
 std::vector<ModsEditRow> mods_test_rows(const ModInfo& m, const std::string& install) {
   std::vector<ModsEditRow> rows = mods_edit_rows(m);
+  const size_t own = rows.size();
   namespace fs = std::filesystem;
   for (int32_t w = 0; w < 9; ++w) {  // the game's nine worlds (0x00484c50); a mod's come after
     std::error_code ec;
@@ -192,6 +193,10 @@ std::vector<ModsEditRow> mods_test_rows(const ModInfo& m, const std::string& ins
       if (!seen) rows.push_back({mission_dir(w), k});
     }
   }
+  // Pirate's Moon: its missions are numbered across the worlds (c1 1, 2, 5;
+  // c2 3, 4, 8; c3 6, 7; c4 9, 10), so the game's are listed in play order.
+  std::stable_sort(rows.begin() + static_cast<std::ptrdiff_t>(own), rows.end(),
+                   [](const ModsEditRow& a, const ModsEditRow& b) { return a.number < b.number; });
   return rows;
 }
 

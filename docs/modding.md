@@ -904,6 +904,9 @@ there). With a mod or a custom campaign chosen:
 - The campaigns' box lists missions, as EDITOR's does: the mod's own first
   (its campaigns' lines, else its worlds' `readerm<N>.zbd`), then every
   campaign mission of the install's nine worlds (`zbd\<world>\readerm<N>.zbd`
+  (Pirate's Moon, on pm: by mission number, its play order, as its missions
+  are numbered across the worlds: c1 1, c1 2, c2 3, c2 4, c1 5, c3 6, c3 7,
+  c2 8, c4 9, c4 10)
   in the game's world order: c1 1..4, c2 1..4, c3 1..6, c4 1..3, c4b 4..6, t1
   1..4 on MW3 1.2), each world and number once. So a mod of weapons or mechs
   alone, which has no missions, is tested on the game's.

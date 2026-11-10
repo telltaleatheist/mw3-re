@@ -59,7 +59,8 @@ std::vector<ModsEditRow> mods_edit_rows(const ModInfo& m);
 // mission to play with the mods on (EDIT's start without the editor; MODS
 // again when the main menu comes back), and its missions: the mod's own
 // (mods_edit_rows), then every campaign mission of the install's worlds
-// (zbd\<world>\readerm<N>.zbd, the game's world order), each once.
+// (zbd\<world>\readerm<N>.zbd), each once, in Pirate's Moon's play order
+// (by number: its missions are numbered across the worlds).
 ModsEditStart& mods_menu_test_start();
 std::vector<ModsEditRow> mods_test_rows(const ModInfo& m, const std::string& install);
 void mods_menu_picked(const std::string& path);  // "" cancelled; the screen takes it on its next update
