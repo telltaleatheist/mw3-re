@@ -19,8 +19,8 @@ struct RestartTo {
 
 // The next start's arguments from this start's (without the program's name):
 // what a start into an entry adds taken out (--entry, --entry-play,
-// --entry-ia, --open-mods, --restarted) with --mod and --no-mods, the rest
-// kept in order, then `to`'s and --restarted (no intro movies).
+// --entry-ia, --open-mods, --restarted) with --mod and --no-mods and a
+// check's scripted input (--click-at, --tap), the rest kept in order, then `to`'s and --restarted (no intro movies).
 std::vector<std::string> restart_args(const std::vector<std::string>& args, const RestartTo& to);
 
 // The run's request, and main's taking of it (false: none asked).

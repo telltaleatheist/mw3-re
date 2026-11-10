@@ -72,6 +72,16 @@ std::vector<std::string> entry_mount_list(const std::string& write_dir, const Ca
 // they are unticked or imported again (its pilots are kept).
 std::vector<std::string> entry_missing_mods(const std::string& write_dir, const CampaignEntry& e);
 
+// The run's entry: --entry's, else the game's own campaign (official_entries'
+// first). What "turned on" means to everything that used to write mw3.cfg's
+// mod= lines (the editor's saves, IMPORT, the present MODS screen's ON/OFF):
+// that entry's ticks, read and written whole. entry_on_words: how a message
+// says it ("on for MechWarrior 3: play it from MODS").
+std::string& current_entry();
+std::vector<std::string> entry_mods_on(const std::string& write_dir);
+bool entry_mods_save(const std::string& write_dir, const std::vector<std::string>& on);
+std::string entry_on_words(const std::string& write_dir);
+
 // The first start of this build (once: mw3.cfg's mods_moved=1 after it):
 // mw3.cfg's mod= lines become the game's own entry's ticks (its asset mods)
 // and each enabled campaign mod's entries get the same; the pilots of
