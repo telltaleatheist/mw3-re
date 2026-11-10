@@ -378,7 +378,7 @@ storage, no screen yet.
   an asset mod otherwise.
 - **Each entry's folder**, `<write dir>\campaigns\<id>\` (`entry_ensure`):
   our marker `mw3-campaign.txt`, `pilots\` (the original's layout, saves in
-  `pilots\games\`), `mods.txt` (its ticks, `mod=` lines in winning order,
+  `pilots\games\`), `configs\` (its saved loadouts), `mods.txt` (its ticks, `mod=` lines in winning order,
   written beside it and renamed over it). A folder there without our marker
   and not empty is never taken. Mods never serve `campaigns\` files
   (`zutl::mod_may_serve`). A mod's campaign entered from MODS keeps its pilots
@@ -388,10 +388,10 @@ storage, no screen yet.
   the first part is locked. `entry_missing_mods`: a tick or a base that is
   gone or unusable; such an entry does not start.
 - **`--entry ID`**: the run mounts that entry's mods in place of mw3.cfg's
-  and, for the game's own campaign and Instant Action, keeps its pilots in
-  the entry. One that is not there, cannot be played or misses a mod is said
-  in the log and the game's own start goes on. Until step 2 a plain start
-  still mounts mw3.cfg's `mod=` lines, so the MODS screen keeps working.
+  and keeps its pilots and its saved loadouts in the entry from the start.
+  One that is not there, cannot be played or misses a mod is said in the log
+  and the game's own start goes on. Until step 2b a plain start still mounts
+  mw3.cfg's `mod=` lines, so the MODS screen keeps working.
 - **The first start of this build** (`entries_migrate`, once: mw3.cfg's
   `mods_moved=1`): mw3.cfg's `mod=` lines become the ticks of both of Pirate's
   Moon's campaigns, `campaign` and `pirate` (the mods were on for both; main:
@@ -407,6 +407,46 @@ Pirate's Moon's: `pm_entries_are_the_two_campaigns_and_instant_action`,
 `pm_entries_first_start_gives_both_campaigns_the_mods`
 (tests/pm/test_pm_entries.cpp) and `sdl_pm_program_entry_takes_each_of_its_campaigns`
 (mw3pm's own start with `--entry campaign`, `pirate`, `ia`, and `mw3` refused).
+
+### Starting again into an entry (step 2a)
+
+Mods are read when the game starts, so an entry is played by starting the
+program again into it, and left the same way. Built so far: the machinery,
+reached by the command line only (the MODS screen calls it in step 2b).
+
+- **The flags** (mw3_main.cpp): `--entry ID --entry-play` opens the entry's
+  pilot screen (a mod's campaign entered first), `--entry ID --entry-ia`
+  Instant Action's; `--open-mods` is a plain start with MODS open;
+  `--restarted` marks a start the program made itself: no intro movies (the
+  app's lobby flag, as `--movie`). An entry that cannot be played with
+  `--entry-play`/`--entry-ia`: the plain start, on MODS.
+- **Inside an entry** (`upgrades/mods/entry_run.h`, `MainState::update`): the
+  main menu is never the player's. Once it is up it opens the entry's screen;
+  a mission that comes back to it opens the screen again; the screen's own
+  BACK or CANCEL (the main menu on top with the screen already opened) leaves:
+  the game closes through the Exit state, as QUIT, and starts again with
+  `--open-mods`. The main menu's pilots are not loaded and its
+  `configs\` is not read or written.
+- **Saved loadouts** (`configs_folder`, mech_config.cpp's 0x00424b70 and
+  0x00424f60): `campaigns\<id>\configs\<mech>.mw3`, empty at first; the mech
+  lab's and Instant Action's. The lab's export and import folders stay shared.
+- **The restart** (`frontend/sdl/sdl_restart`): the run asks (`restart_ask`)
+  and ends; `main` starts the program again once the whole run is gone (the
+  log closed, SDL quit, the helpers and sockets let go by their owners), with
+  the start's own arguments less `--entry`, `--entry-play`, `--entry-ia`,
+  `--open-mods`, `--restarted`, `--mod`, `--no-mods`, plus the new ones
+  (`restart_args`). POSIX: every stream is written out, every handle above
+  stderr is marked close-on-exec (what is left is said: Metal's shader cache
+  files and the install's `rimage.zbd`, which the game never closes), and the
+  process becomes the new run with `execv` of its own file
+  (`_NSGetExecutablePath`; `/proc/self/exe`, not `$APPIMAGE`). The PID stays,
+  so a launcher waiting on the game and an AppImage's mount see one run. The
+  entry's run is `mw3.old.log` after it. Windows: not written yet (refused,
+  said).
+
+Tests: `sdl_restart_args_are_the_starts_own`,
+`sdl_program_restarts_into_and_out_of_an_entry` (one process: into Instant
+Action's entry, CANCEL, MODS), `campaign_entry_keeps_its_own_saved_loadouts`.
 
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 
@@ -1514,6 +1554,11 @@ animations' 0x32..0x34):
   "Saved with mods: A; none now" or "Saved without mods; now with B". The game
   still loads: the animations are matched by name (above), so what moved is
   dropped rather than run as the wrong one.
+
+Inside a MODS campaign entry the save records the entry in place of the mod
+list (`Mods/entry`: the entry, what it is built on, its ticks), and the
+load's note speaks of the campaign and its ticks (`save_entry_set`,
+docs/mods-campaigns-plan.md, Built: the save's entry).
 
 Tests: `mods_saved_game_records_its_mods` (a world mod, two of them, a
 textures mod: the entry only with gameplay; each pairing said or not, once;

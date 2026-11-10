@@ -1,6 +1,8 @@
+#include "mech3/mainmenu.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/mods/entry_run.h"
 #include "mech3/options_menu.h"
 #include "mech3/app_states.h"
 #include "mech3/mission.h"
@@ -975,7 +977,9 @@ bool MainState::enter() {
   reset_idle();
   Mech3App& ap = a();
   if (ap.multiplayer() || en.network_lobby_active()) en.vcall(screen_ + kButtonMulti, 0x30, {});
+  entry_run().opened = false;  // ours (upgrades/mods/entry_run.h)
   if (ap.reopen_instant_action()) {
+    entry_run().opened = entry_run().screen == EntryRun::kInstantAction;
     en.vcall(screen_ + kButtonInstantAction, 0x30, {});
     ap.set_reopen_instant_action(0, ap.instant_action_arg());
   } else if (ap.reopen_training()) {
@@ -999,6 +1003,31 @@ bool MainState::enter() {
 // hotkeys press the screen's buttons.
 bool MainState::update() {
   Engine& en = e();
+  // Ours (upgrades/mods/entry_run.h): inside a MODS entry the main menu only
+  // opens the entry's screen, and that screen's BACK (the menu on top again)
+  // leaves; the entry's pilots stay up, the main menu's are never loaded.
+  if (EntryRun& run = entry_run(); run.screen != EntryRun::kNone) {
+    const bool r = ShellState::update();
+    if (run.left) return r;
+    std::string why;
+    if (!run.opened && run.screen == EntryRun::kPlay && !run.campaign.empty()) {
+      const ModCampaign* found = nullptr;
+      for (const ModCampaign& c : mod_campaigns())
+        if (c.mod == run.mod && c.id == run.campaign) found = &c;
+      why = "its campaign is not among the mounted mods'";
+      if (found && campaign_enter(*found, &why)) why.clear();
+      if (!why.empty()) std::printf("mw3: entry %s cannot be played: %s\n", run.id.c_str(), why.c_str());
+    }
+    if (run.opened || !why.empty()) {
+      run.left = true;
+      if (run.leave) run.leave();
+    } else {
+      run.opened = true;
+      if (run.screen == EntryRun::kInstantAction) en.vcall(screen_ + kButtonInstantAction, 0x30, {});
+      else en.push_state(en.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
+    }
+    return r;
+  }
   // Ours: the main menu up again lets a custom campaign's pilots go (MODS's
   // ENTER). Not on a resume: the Campaign State's pop on its way to the
   // mission and ENTER's pop of MODS resume it in the same batch as the next

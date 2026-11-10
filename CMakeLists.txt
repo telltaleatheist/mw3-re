@@ -363,6 +363,8 @@ add_library(mw3core STATIC
   src/upgrades/mods/mod_test.cpp
   src/upgrades/mods/mod_needs.cpp
   src/upgrades/mods/campaign_entries.cpp
+  src/upgrades/mods/entry_pilot_copy.cpp
+  src/upgrades/mods/entry_run.cpp
   src/upgrades/mods/starter_mods.cpp
   src/upgrades/update/update.cpp
   src/upgrades/reference/reference.cpp
@@ -650,7 +652,10 @@ add_executable(mw3tests
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_campaign_entries.cpp
+  tests/test_entry_pilot_copy.cpp
+  tests/test_mod_copy_report.cpp
   tests/test_net_save.cpp
+  tests/test_save_entry.cpp
   tests/test_new_weapon.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp
@@ -806,6 +811,7 @@ if(SDL3_FOUND)
     src/frontend/sdl/net_enet.cpp
     src/frontend/sdl/net_upnp.cpp
     src/frontend/sdl/sdl_child.cpp
+    src/frontend/sdl/log_start.cpp
     src/frontend/sdl/editor_imgui.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3 enet miniupnpc)
@@ -894,6 +900,8 @@ if(SDL3_FOUND)
     if(MW3_BUILD_MW3)
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
+      src/frontend/sdl/sdl_restart.cpp
+      src/frontend/sdl/win_cmdline.cpp
       src/frontend/sdl/run_log.cpp
       src/frontend/sdl/crash_report.cpp
       src/frontend/sdl/launcher.cpp
@@ -981,6 +989,8 @@ if(SDL3_FOUND)
         src/frontend/sdl/mw3pm_main.cpp
         src/frontend/pm_debug_world.cpp
         src/frontend/sdl/mw3_main.cpp
+        src/frontend/sdl/sdl_restart.cpp
+        src/frontend/sdl/win_cmdline.cpp
         src/frontend/sdl/run_log.cpp
         src/frontend/sdl/crash_report.cpp
         src/frontend/sdl/launcher.cpp
@@ -1025,7 +1035,11 @@ if(SDL3_FOUND)
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
+      tests/test_win_cmdline.cpp
+      tests/test_log_start.cpp
       src/frontend/sdl/sdl_update.cpp
+      src/frontend/sdl/sdl_restart.cpp
+      src/frontend/sdl/win_cmdline.cpp
       tests/test_net_enet.cpp
       tests/test_net_upnp.cpp
     )
@@ -1045,7 +1059,8 @@ if(SDL3_FOUND)
     # PM's platform tests (input, window, render, text, net), in the same files. MW3_PM_SUITE
     # leaves out those that read MW3's data or start MW3's programs; a PM version comes with its feature.
     if(MW3_BUILD_PM AND NOT MW3_BUILD_MW3)
-      add_executable(mw3pmsdltests tests/main.cpp tests/test_sdl_frontend.cpp src/frontend/sdl/sdl_update.cpp tests/test_net_enet.cpp tests/test_net_upnp.cpp)
+      add_executable(mw3pmsdltests tests/main.cpp tests/test_sdl_frontend.cpp src/frontend/sdl/sdl_update.cpp tests/test_net_enet.cpp tests/test_net_upnp.cpp
+                     src/frontend/sdl/sdl_restart.cpp src/frontend/sdl/win_cmdline.cpp tests/test_win_cmdline.cpp tests/test_log_start.cpp)
       target_link_libraries(mw3pmsdltests PRIVATE mw3text mw3sdl pmcore mw3core SDL3::SDL3)
       target_compile_definitions(mw3pmsdltests PRIVATE MW3_PM_SUITE=1 MW3_GAME_DIR="${MW3PM_GAME_DIR}"
                                                        MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"

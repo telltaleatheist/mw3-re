@@ -9,6 +9,8 @@
 
 #include "check.h"
 #include "gamez/zutil/zutl_path.h"
+#include "mech3/mech_config.h"
+#include "mech3/mech_names.h"
 #include "mech3/mod_campaign.h"
 #include "upgrades/mods/campaign_entries.h"
 
@@ -173,4 +175,35 @@ TEST(campaign_entries_first_start_moves_the_mods) {
   EXPECT(mech3::entry_save_ticks(wd.string(), *mech3::find_entry(all, "mw3"), {"tex"}));
   EXPECT(mech3::entries_migrate(wd.string()).empty());
   EXPECT((mech3::entry_ticks(wd.string(), "mw3") == std::vector<std::string>{"tex"}) && text_of(wd / "mw3.cfg") == cfg + "\r\nmods_moved=1\r\n");
+}
+
+// Step 2 (docs/mods-campaigns-plan.md): an entry's saved loadouts are its
+// own, in campaigns/<id>/configs, made empty with the entry; the main
+// menu's configs folder is neither read nor written from inside one.
+TEST(campaign_entry_keeps_its_own_saved_loadouts) {
+  const fs::path wd = tmp("entries_configs");
+  const zutl::Mounts before = zutl::mounts();
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd.string());
+  const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
+  const mech3::CampaignEntry* ia = mech3::find_entry(all, "ia");
+  EXPECT(ia && mech3::entry_ensure(wd.string(), *ia, nullptr) && fs::is_directory(wd / "campaigns/ia/configs"));
+  EXPECT(mech3::configs_folder() == "configs");
+  const std::string file = std::string(mech3::mech_name(0)) + ".mw3";
+  {
+    mech3::ConfigList main_menu(0, 0);
+    EXPECT(main_menu.save_all() && fs::is_regular_file(wd / "configs" / file));  // the original's place
+  }
+  const auto stamp = fs::last_write_time(wd / "configs" / file);
+  mech3::set_configs_folder(mech3::entry_configs_folder("ia"));
+  {
+    mech3::ConfigList list(0, 0);
+    EXPECT(!list.load_saved());  // the main menu's is not the entry's: none yet
+    EXPECT(list.save_all() && fs::is_regular_file(wd / "campaigns/ia/configs" / file));
+    EXPECT(list.load_saved());
+  }
+  EXPECT(fs::last_write_time(wd / "configs" / file) == stamp);
+  mech3::set_configs_folder("");
+  EXPECT(mech3::configs_folder() == "configs");
+  zutl::mounts() = before;
 }

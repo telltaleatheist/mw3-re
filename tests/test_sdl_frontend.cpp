@@ -28,6 +28,7 @@
 #include "mech3/source_map.h"
 #include "mech3/patch_import.h"
 #include "frontend/sdl/sdl_update.h"
+#include "frontend/sdl/sdl_restart.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
 #include "frontend/sdl/editor_imgui.h"
@@ -4847,6 +4848,87 @@ TEST(sdl_program_entry_mounts_its_mods) {
   fs::remove_all(dir, ec);
 }
 
+// Mods by campaign, step 2a (sdl_restart.h): the next start's arguments are
+// this start's, what a start into an entry adds taken out and `to`'s put in.
+TEST(sdl_restart_args_are_the_starts_own) {
+  using V = std::vector<std::string>;
+  const V start = {"--write-dir", "C:/my games/mw3", "--windowed", "--mod", "weps", "--no-mods", "-nofmv"};
+  sdlfe::RestartTo ia;
+  ia.entry = "ia", ia.screen = sdlfe::RestartTo::kInstantAction;
+  const V in = sdlfe::restart_args(start, ia);
+  EXPECT((in == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--entry", "ia", "--entry-ia", "--restarted"}));
+  sdlfe::RestartTo camp;
+  camp.entry = "camp~night", camp.screen = sdlfe::RestartTo::kPlay;
+  EXPECT((sdlfe::restart_args(in, camp) ==
+          V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--entry", "camp~night", "--entry-play", "--restarted"}));
+  sdlfe::RestartTo out;
+  out.open_mods = true;
+  const V back = sdlfe::restart_args(in, out);
+  EXPECT((back == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-mods", "--restarted"}));
+  EXPECT((sdlfe::restart_args(back, sdlfe::RestartTo{}) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--restarted"}));
+  EXPECT((sdlfe::restart_args({"--entry"}, sdlfe::RestartTo{}) == V{"--restarted"}));  // a flag cut short: nothing read past the end
+  // The request is taken once.
+  sdlfe::RestartTo got;
+  EXPECT(!sdlfe::restart_asked(&got));
+  sdlfe::restart_ask(camp);
+  EXPECT(sdlfe::restart_asked(&got) && got.entry == "camp~night" && got.screen == sdlfe::RestartTo::kPlay && !sdlfe::restart_asked(&got));
+  EXPECT(!sdlfe::restart_own_path().empty());
+}
+
+// The whole way, in one process (the same PID: execv): a start into the
+// Instant Action entry opens its screen with the entry's own (empty) pilots,
+// not the main menu; CANCEL there closes the game and starts it again plain,
+// on MODS; nothing of ours is still open at the exec, and the main menu's
+// pilots folder is not made by the run inside the entry. An entry that is not
+// there puts the player on MODS.
+TEST(sdl_program_restarts_into_and_out_of_an_entry) {
+  namespace fs = std::filesystem;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/entry restart";  // a space in the path
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/wd", ec);
+  const std::string log = dir + "/run.log";
+  int status = 0;
+  const pid_t pid = spawn_mw3({"--install", MW3_GAME_DIR, "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                               "--frames", "300", "--click-at", "495,405@150", "--entry", "ia", "--entry-ia"}, log);
+  EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  auto at = [&](const char* what, size_t from = 0) { return text.find(what, from); };
+  const size_t entered = at("mw3: entry ia (Instant Action): 0 mods"), left = at("mw3: entry ia left: starting again on MODS"),
+               closed = at("mw3: closed, result 0"), mods = at("mw3: the main menu opens on MODS (--open-mods)");
+  std::printf("  entered %d, left %d, closed %d, on MODS %d\n", entered != std::string::npos, left != std::string::npos,
+              closed != std::string::npos, mods != std::string::npos);
+  EXPECT(entered != std::string::npos && left != std::string::npos && closed != std::string::npos && mods != std::string::npos);
+  EXPECT(entered < left && left < closed && closed < mods);
+  EXPECT(mods != std::string::npos && at("mw3: closed, result 0", mods) != std::string::npos);  // the second run, to its end
+  EXPECT(at("mw3: entry", mods == std::string::npos ? 0 : mods) == std::string::npos);  // plain: no entry
+  EXPECT(at("could not start again") == std::string::npos);
+  // What was still open at the exec is the system's or the install's, never the write dir's (the log, pilots, settings).
+  for (size_t i = at("still open: "); i != std::string::npos; i = at("still open: ", i + 1)) {
+    const std::string line = text.substr(i, text.find('\n', i) - i);
+    std::printf("  %s\n", line.c_str());
+    EXPECT(line.find(dir) == std::string::npos);
+  }
+  EXPECT(fs::is_regular_file(dir + "/wd/campaigns/ia/mw3-campaign.txt") && fs::is_directory(dir + "/wd/campaigns/ia/configs") &&
+         fs::is_directory(dir + "/wd/campaigns/ia/pilots"));
+  // The entry's run is the old log now: it never named the main menu's pilots.
+  std::ifstream o(dir + "/wd/mw3.old.log");
+  const std::string old((std::istreambuf_iterator<char>(o)), std::istreambuf_iterator<char>());
+  EXPECT(old.find("mw3: entry ia left") != std::string::npos);
+  // One that is not there: the game's own start, on MODS.
+  setenv("MW3_START_ONLY", "1", 1);
+  const std::string log2 = dir + "/b.log";
+  EXPECT(waited(spawn_mw3({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--entry", "nosuch", "--entry-play"}, log2), &status) &&
+         WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  unsetenv("MW3_START_ONLY");
+  std::ifstream g(log2);
+  const std::string b((std::istreambuf_iterator<char>(g)), std::istreambuf_iterator<char>());
+  EXPECT(b.find("mw3: entry nosuch: there is no such campaign") != std::string::npos &&
+         b.find("mw3: the main menu opens on MODS") != std::string::npos);
+  fs::remove_all(dir, ec);
+}
+
 // One window from the find screen into the game: a plain mw3 start with no
 // install found (MW3_FIND_INSTALL), an installed copy picked
 // (MW3_LAUNCHER_PICK), hands its window over, its renderer freed, and the
@@ -5986,7 +6068,8 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
   const bool release = real.find('-') == std::string::npos;
   EXPECT(!real.empty() && text.find(std::string("entry MECHWARRIOR 3: Ready, ") + (release ? "official" : "modified (program)") +
                                     ": data 1.2, program " + real + ", ") != std::string::npos);
-  // Mods on (two in mw3.cfg), and Pirate's Moon's data with a file changed: each named, nothing refused.
+  // mod= lines left in mw3.cfg are not spoken of (a start from here is the original: mods by campaign);
+  // Pirate's Moon's data with a file changed is named, nothing refused.
   std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "mod=one\nmod=two\n";
   setenv("MW3_GAME_BIN", program("mw3", tag + "v9.9.9" + std::string(1, '\0')).c_str(), 1);
   const fs::path changed = fs::path(dir) / "pm changed";
@@ -5999,7 +6082,8 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
   std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "pm_install=" << changed.string() << "\n";
   setenv("MW3_PM_BIN", program("mw3pm", tag + "pm-v8.8.8" + std::string(1, '\0')).c_str(), 1);
   text = run("mods");
-  EXPECT(text.find("entry MECHWARRIOR 3: Ready, official: data 1.2, program v9.9.9, 2 mods on, ") != std::string::npos);  // mods: a note
+  EXPECT(text.find("entry MECHWARRIOR 3: Ready, official: data 1.2, program v9.9.9, " + std::string(MW3_GAME_DIR)) != std::string::npos);
+  EXPECT(text.find("mods on") == std::string::npos && text.find("mod on") == std::string::npos);
   EXPECT(text.find("entry PIRATE'S MOON: Ready, modified (data): data unknown (a mod?), program pm-v8.8.8, " + changed.string()) !=
          std::string::npos);
   for (const char* k : {"MW3_GAME_BIN", "MW3_PM_BIN", "MW3_PM_WRITE_DIR", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);

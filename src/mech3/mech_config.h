@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <cstdint>
 #include <functional>
 #include <cstdio>
@@ -187,6 +188,13 @@ struct ConfigList {                // 0x18 bytes
   Config* find(const char* name) const;     // 0x00424e90: by name (strcmp), null when none
   bool remove(const Config* c);             // 0x00425090: the player's own only (not deleted)
 };
+
+// Ours (docs/mods-campaigns-plan.md): where the saved loadouts are, relative
+// to the write dir with the original's separators: "configs" (0x00576080),
+// or a MODS campaign entry's own (campaign_entries.h, entry_configs_folder),
+// so a loadout made with an entry's mods never reaches the main menu's.
+const std::string& configs_folder();
+void set_configs_folder(const std::string& folder);  // "" the original's
 
 // FIX (A) for the mech lab's Ctrl+X / Ctrl+I (0x00426180, 0x00426300; no
 // Windows file dialogs): export\\<mech>_<loadout>.m3c in the write dir, and
