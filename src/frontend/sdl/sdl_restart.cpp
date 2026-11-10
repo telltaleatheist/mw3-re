@@ -34,7 +34,8 @@ bool g_asked = false;
 
 // 0 not ours, 1 a flag of ours alone, 2 one with its value.
 int ours(const std::string& s) {
-  if (s == "--entry" || s == "--mod" || s == "--entry-pilot") return 2;
+  if (s == "--entry-test") return 3;
+  if (s == "--entry" || s == "--mod" || s == "--entry-pilot" || s == "--mods-entry") return 2;
   if (s == "--click-at" || s == "--tap") return 2;  // a check's script is for the run it was given to
   if (s == "--entry-play" || s == "--entry-ia" || s == "--open-mods" || s == "--open-ia" || s == "--restarted" || s == "--no-mods") return 1;
   return 0;
@@ -45,15 +46,17 @@ std::vector<std::string> restart_args(const std::vector<std::string>& args, cons
   std::vector<std::string> out;
   for (size_t i = 0; i < args.size(); ++i) {
     const int n = ours(args[i]);
-    if (n == 2) ++i;
+    if (n >= 2) i += static_cast<size_t>(n - 1);
     if (n == 0) out.push_back(args[i]);
   }
   if (!to.entry.empty()) {
     out.push_back("--entry"), out.push_back(to.entry);
     if (to.screen == RestartTo::kPlay) out.push_back("--entry-play");
     if (to.screen == RestartTo::kInstantAction) out.push_back("--entry-ia");
+    if (to.screen == RestartTo::kTest) out.push_back("--entry-test"), out.push_back(to.test_world), out.push_back(std::to_string(to.test_number));
   } else if (to.open_mods) {
     out.push_back("--open-mods");
+    if (!to.mods_entry.empty()) out.push_back("--mods-entry"), out.push_back(to.mods_entry);
   } else if (to.open_ia) {
     out.push_back("--open-ia");
   }

@@ -1016,6 +1016,27 @@ bool MainState::update() {
   // Ours (upgrades/mods/entry_run.h): inside a MODS entry the main menu only
   // opens the entry's screen, and that screen's BACK (the menu on top again)
   // leaves; the entry's pilots stay up, the main menu's are never loaded.
+  if (EntryRun& run = entry_run(); run.screen == EntryRun::kTest) {
+    // TEST through an entry: the mission at once; then (the main menu up again: mods_edit's reopen flag
+    // has opened MODS in its test mode from enter) MODS's BACK leaves.
+    const bool r = ShellState::update();
+    if (run.left) return r;
+    if (!run.started) {
+      run.started = true;
+      std::string why = "the mission cannot be started here";
+      const ModsEditStart& start = mods_menu_test_start();
+      if (!start || !start(run.mod, run.world, run.number, &why)) {
+        run.said = run.world + " mission " + std::to_string(run.number) + " cannot be played: " + why;
+        std::printf("mw3: entry %s: %s\n", run.id.c_str(), run.said.c_str());
+        if (const Handle m = mods_menu_state()) en.push_state(m, 0);  // the test screen, saying so
+        else run.left = true, run.leave ? run.leave() : void();
+      }
+    } else {
+      run.left = true;
+      if (run.leave) run.leave();
+    }
+    return r;
+  }
   if (EntryRun& run = entry_run(); run.screen != EntryRun::kNone) {
     const bool r = ShellState::update();
     if (run.left) return r;

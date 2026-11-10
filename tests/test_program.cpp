@@ -1508,10 +1508,14 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// Ours (modding.md, Quick testing): MODS, a mod with no missions of its own chosen, TEST lists the game's
-// campaign missions (each once, the world order); EDITOR then has nothing to list and TEST again lists them;
-// ENTER on c2 mission 1 plays it with the editor closed; the pause's QUIT lands on MODS again, the stand-in
-// pilot let go.
+// Ours (modding.md, TEST through entries, step 4a). On a plain run: TEST with a mod of MODS in focus that is
+// not ticked says to tick it; ticked, TEST lists the chosen campaign's missions (the game's, each once, the
+// world order); EDITOR says it is not available yet and TEST again lists them; PLAY on c2 mission 1 asks the
+// program to start again into the campaign and that mission, and plays nothing in place. Then the run inside
+// the entry, as --entry mw3 --entry-test c2 1: the mission starts at once with the editor closed; the pause's
+// QUIT lands on MODS in its test mode ("TEST in MechWarrior 3", the stand-in pilot let go), where other
+// buttons only say what the screen is; PLAY there plays another mission in place, the mechs' definitions read
+// again; QUIT, and BACK leaves the entry once.
 TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1521,9 +1525,8 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
   zutl::set_write_dir(wd);
   std::filesystem::create_directories(wd + "/mods/wpn");
   std::ofstream(wd + "/mods/wpn/mod.txt") << "name=Weapon Test\n";
-  mech3::entry_mods_save(wd, {"wpn"});
   mech3::mods_menu_write_dir() = wd;
-  mech3::mods_menu_mounted() = {"wpn"};
+  mech3::mods_menu_mounted().clear();  // a plain run: nothing mounted
   mech3::mods_menu_install() = MW3_GAME_DIR;
   mech3::reset_states();
   reset_process_state();
@@ -1563,64 +1566,100 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
     mech3::set_app(&app);
     EXPECT(app.init_instance());
     mech3::States& st = mech3::states();
-    int stage = 0, core = 0;
-    std::string listed, no_edit_note;
-    bool test_mode = false, switched = false, played = false, editor_closed = false, mods_again = false, reloaded = false;
+    int stage = 0, core = 0, left = 0, plays = 0;
+    std::string listed, no_edit_note, untick_note, title, other_note;
+    bool test_list = false, switched = false, played = false, editor_closed = false, mods_again = false, reloaded = false;
+    bool nothing_in_place = false, second_played = false, second_back = false;
     uint32_t real_pilot = 0, pilot_after = 0;
+    std::vector<std::string> asked;
+    mech3::mods_menu_test_restart() = [&](const std::string& entry, const std::string& world, int32_t number, std::string*) {
+      return asked.push_back(entry + " " + world + " " + std::to_string(number)), true;
+    };
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
         real_pilot = engine.peek32(0x60861c);
         const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
         stage = 1;
-      } else if (stage == 1) {
-        auto* ms = dynamic_cast<mech3::ModsState*>(now);
-        auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
-        if (!scr) return;
-        scr->mod_list.FileList::select(0);
-        scr->on_button(mech3::ModsScreen::kMods, 0, 0);
+      } else if (stage == 1 && scr) {
+        scr->mod_list.select(0);  // Weapon Test, not ticked for the campaign
+        scr->on_button(mech3::ModsScreen::kTest, 0, 0);
+        untick_note = std::string(scr->note.text) + " " + scr->restart.text;
+        scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
         scr->on_button(mech3::ModsScreen::kTest, 0, 0);  // TEST
         for (const mech3::ModsEditRow& r : scr->edit_rows) listed += r.world + " " + std::to_string(r.number) + "; ";
-        test_mode = scr->editing && scr->testing;
-        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDITOR: this mod has nothing to edit
+        test_list = scr->editing && scr->testing && !scr->test_mode;
+        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDITOR: step 4b
         no_edit_note = scr->note.text;
         switched = !scr->editing;
-        scr->mod_list.FileList::select(0);
-        scr->on_button(mech3::ModsScreen::kMods, 0, 0);
         scr->on_button(mech3::ModsScreen::kTest, 0, 0);
         for (size_t i = 0; i < scr->edit_rows.size(); ++i)
           if (scr->edit_rows[i].world == "c2" && scr->edit_rows[i].number == 1) scr->campaign_list.FileList::select(int32_t(i));
         const int32_t reloads = mech3::mod_test_reloads();
-        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
-        reloaded = mech3::mod_test_reloads() == reloads + 1;  // the mechs' definitions read again (mod_test.h)
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY: the restart asked for
+        nothing_in_place = mech3::mod_test_reloads() == reloads && !mech3::mods_edit_session().active;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);  // the list closed
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);  // MODS left
+        // The run inside the entry, as the program sets it for --entry mw3 --entry-test c2 1.
+        mech3::mods_menu_mounted() = {"wpn"};
+        mech3::EntryRun& run = mech3::entry_run();
+        run = mech3::EntryRun{};
+        run.screen = mech3::EntryRun::kTest, run.id = "mw3", run.world = "c2", run.number = 1;
+        run.leave = [&] { ++left; };
         stage = 2;
-      } else if (stage == 2 && now == &st.core) {
+      } else if ((stage == 2 || stage == 4) && now == &st.core) {
         ++core;
         if (core == 5) {
-          played = mech3::mods_edit_session().active && !mech3::mods_edit_session().editor;
+          (stage == 2 ? played : second_played) = mech3::mods_edit_session().active && !mech3::mods_edit_session().editor;
           editor_closed = mech3::editor_state().active == 0;
           keys.key(1, true);  // Escape: the pause
         }
         if (core == 6) keys.key(1, false);
-      } else if (stage == 2 && now == &st.pause) {
+      } else if ((stage == 2 || stage == 4) && now == &st.pause) {
         auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
-        if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), stage = 3;
-      } else if (stage == 3 && dynamic_cast<mech3::ModsState*>(now)) {
-        mods_again = true;
+        if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), ++stage, core = 0, ++plays;
+      } else if (stage == 3 && scr) {
+        // The test mode: this entry's list alone.
+        mods_again = scr->test_mode && scr->testing;
+        title = scr->detail.text;
         pilot_after = engine.peek32(0x60861c);
+        scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
+        scr->on_button(mech3::ModsScreen::kAdd, 0, 0);
+        other_note = std::string(scr->note.text) + " " + scr->restart.text;
+        for (size_t i = 0; i < scr->edit_rows.size(); ++i)
+          if (scr->edit_rows[i].world == "c1" && scr->edit_rows[i].number == 1) scr->campaign_list.FileList::select(int32_t(i));
+        const int32_t reloads = mech3::mod_test_reloads();
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY in place
+        reloaded = mech3::mod_test_reloads() == reloads + 1 && asked.size() == 1;
         stage = 4;
+      } else if (stage == 5 && scr) {
+        second_back = scr->test_mode && left == 0;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        stage = 6;
+      } else if (stage == 6 && left) {
+        stage = 7;
       }
     };
     CountingPump pump;
-    pump.limit = 8000;
-    pump.stop = [&] { return stage == 4; };
+    pump.limit = 16000;
+    pump.stop = [&] { return stage == 7; };
     app.run(pump);
-    std::printf("  stage %d; TEST listed: %s\n  EDITOR: \"%s\"; played %d, the editor closed %d, MODS again %d, the pilot back %d\n",
-                stage, listed.c_str(), no_edit_note.c_str(), played, editor_closed, mods_again, pilot_after == real_pilot);
-    EXPECT(test_mode && listed.rfind("c1 1; c1 2; c1 3; c1 4; c2 1;", 0) == 0 && listed.find("c4b ") != std::string::npos);
-    EXPECT(switched && no_edit_note.find("no missions to edit") != std::string::npos);
-    EXPECT(played && editor_closed && reloaded);
-    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    std::printf("  stage %d; unticked: \"%s\"; TEST listed: %s\n  EDITOR: \"%s\"; asked %s; played %d, the editor closed %d, the test mode \"%s\" %d, "
+                "others: \"%s\"; in place %d, again %d, left %d\n",
+                stage, untick_note.c_str(), listed.c_str(), no_edit_note.c_str(), asked.empty() ? "" : asked[0].c_str(), played, editor_closed,
+                title.c_str(), mods_again, other_note.c_str(), reloaded && second_played, second_back, left);
+    EXPECT(untick_note.find("Tick Weapon Test for MechWarrior 3 to test it there.") == 0);
+    EXPECT(test_list && listed.rfind("c1 1; c1 2; c1 3; c1 4; c2 1;", 0) == 0 && listed.find("c4b ") != std::string::npos);
+    EXPECT(switched && no_edit_note == "EDITOR is not available from MODS yet.");
+    EXPECT((asked == std::vector<std::string>{"mw3 c2 1"}) && nothing_in_place);
+    EXPECT(played && editor_closed && plays == 2);
+    EXPECT(mods_again && title == "TEST in MechWarrior 3" && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    EXPECT(other_note.find("This is the test of one campaign: PLAY plays a mission, BACK leaves it.") == 0);
+    EXPECT(reloaded && second_played && second_back && stage == 7 && left == 1);
+    mech3::entry_run() = mech3::EntryRun{};
+    mech3::mods_menu_test_restart() = nullptr;
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
