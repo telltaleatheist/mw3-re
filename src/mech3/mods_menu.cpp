@@ -779,7 +779,7 @@ void ModsScreen::export_mod(const std::string& zip) {
   std::string folder;
   folder.swap(export_folder);
   const std::filesystem::path dir = std::filesystem::path(mods_menu_write_dir()) / "mods" / folder;
-  tell(mod_export(dir.string(), zip).message);
+  tell(mod_export(dir.string(), zip, mods_menu_install(), true).message);  // checked first (modder step 8)
 }
 
 bool ModsState::enter() {

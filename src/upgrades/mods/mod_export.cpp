@@ -110,7 +110,7 @@ std::string mod_export_file_name(const ModInfo& info) {
   return mod_folder_name(info.version.empty() ? name : name + " " + info.version) + ".zip";
 }
 
-ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_path) {
+ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_path, const std::string& install, bool check) {
   ModExportResult r;
   std::error_code ec;
   const fs::path root(mod_dir), zip(zip_path);
@@ -133,6 +133,11 @@ ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_pa
   }
   info.folder = root.filename().string();
   std::string top = mod_folder_name(info.name.empty() ? info.folder : info.name);
+  // Ours (modder step 8): the check first, said and never stopping the pack.
+  if (check) mod_check(mod_dir, install, &r.refused);
+  // A folder laid out as an install without a mod.txt: one in the zip, so IMPORT takes it as a mod of this game.
+  const bool own_txt = fs::is_regular_file(root / "mod.txt", ec);
+  const std::string made_txt = own_txt ? std::string() : "name=" + info.folder + "\nfor=" + mods_game() + "\n";
   const fs::path saving = fs::path(zip_path + ".saving");
   archive* a = archive_write_new();
   archive_write_set_format_zip(a);
@@ -186,6 +191,14 @@ ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_pa
     }, size);
     sums += s.hex() + "  " + rel + "\n";
   }
+  if (!own_txt && why.empty()) {
+    put("mod.txt", [&](archive* w) { return archive_write_data(w, made_txt.data(), made_txt.size()) == static_cast<la_ssize_t>(made_txt.size()); },
+        static_cast<int64_t>(made_txt.size()));
+    Sha256 s;
+    s.add(reinterpret_cast<const uint8_t*>(made_txt.data()), made_txt.size());
+    sums += s.hex() + "  mod.txt\n";
+    r.made_mod_txt = true;
+  }
   put(kModChecksums, [&](archive* w) { return archive_write_data(w, sums.data(), sums.size()) == static_cast<la_ssize_t>(sums.size()); },
       static_cast<int64_t>(sums.size()));
   if (archive_write_close(a) != ARCHIVE_OK) fail(std::string("cannot finish the zip: ") + archive_error_string(a));
@@ -202,7 +215,9 @@ ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_pa
   r.ok = true;
   r.files = static_cast<int>(list.files.size()), r.left_out = static_cast<int>(list.left_out.size());
   r.message = "Exported " + (info.name.empty() ? info.folder : info.name) + " to " + zip.filename().string() + " (" +
-              std::to_string(r.files) + (r.files == 1 ? " file)." : " files).");
+              std::to_string(r.files) + (r.files == 1 ? " file" : " files") + (r.made_mod_txt ? " and a mod.txt" : "") + ").";
+  if (r.refused > 0)
+    r.message += " The game would refuse " + std::to_string(r.refused) + (r.refused == 1 ? " thing" : " things") + " in it; its report says what.";
   return r;
 #endif
 }

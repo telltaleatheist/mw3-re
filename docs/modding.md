@@ -710,6 +710,15 @@ code in `src/upgrades/`).
 - **Both ways:** the zip holds only the mod's own files and our checksums
   text, which neither game reads, so the original takes an unzipped export
   as it took the mod.
+- **The pack (modder step 8, 2026-11-10):** EXPORT is the pack button, not
+  a second one. It checks the mod first (`mod_check` against the install,
+  step 3's check) and says how many things the game would refuse ("The game
+  would refuse 1 thing in it; its report says what."), packing it all the
+  same. A folder with no mod.txt (files laid over an install) gets one in
+  the zip, `name=<folder>` and `for=` this game, listed in the checksums;
+  the folder itself is not touched. The launcher checks MechWarrior 3's mods
+  with its own readers; a Pirate's Moon mod's check is mw3pm's (REPORT/CHECK
+  there). `mod_export_packs_checked_and_with_its_mod_txt`.
 
 Tests: `mod_export_round_trip` (a mod with JSON folders and every kind of
 left-out file, and files beside it in mods\: the zip holds only the mod's,
@@ -1682,6 +1691,7 @@ animations come from point 2 of "Animations a def at a time".
      version it needs; the MODS screen warns before a mod is turned on. Built 2026-11-10
      (above, Requirements in mod.txt).
   8. **A pack button**: a mod folder to a shareable zip with its mod.txt and checksums.
+     Built 2026-11-10 as EXPORT's check and mod.txt (above, IMPORT and EXPORT, The pack).
 - The Battlesport editor as the mission editor (Owen, 2026-11-08, the after-PM order's
   step 4): the original developers' in-game editor (editor.md: the AI net and vehicle
   editors behind its menu, the stealth object's view) ported whole and wired up so

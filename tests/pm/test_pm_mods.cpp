@@ -50,6 +50,8 @@
 #include "pm/pm_game.h"
 #include "upgrades/editor/mods_edit.h"
 #include "upgrades/mods/mod_test.h"
+#include "upgrades/mods/mod_export.h"
+#include "upgrades/mods/mod_needs.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/mods/save_mods.h"
 #include "upgrades/mods/starter_mods.h"
@@ -421,6 +423,49 @@ TEST(pm_mods_anim_files_pm_does_not_read_are_said) {
     std::printf("  %s: %d unread, %zu anims shared, %zu bases\n", e.info.folder.c_str(), e.anims_unread, e.anims_taken.size(), e.anim_bases.size());
     EXPECT(e.anims_unread == 2 && e.anims_taken.empty() && e.anim_bases.empty());  // the same paths still shadow (files)
   }
+  fs::remove_all(wd, ec);
+}
+
+// Modder steps 3, 7 and 8 on Pirate's Moon: a for=mw3pm mod's report read by
+// PM's own readers against PM's install, its needs= and game_version= against
+// mw3pm's own version (pm-v...), named for Pirate's Moon, and EXPORT checking
+// it first; a MechWarrior 3 mod is "not for" this game in its report.
+TEST(pm_mods_report_needs_and_checked_export) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_mods_report", install = MW3PM_GAME_DIR;
+  std::error_code ec;
+  fs::remove_all(wd, ec);
+  fs::create_directories(wd + "/mods/a/zbd", ec);
+  fs::create_directories(wd + "/mods/mw3only", ec);
+  std::ofstream(wd + "/mods/a/mod.txt") << "name=A\nfor=mw3pm\nmech=broken\nneeds=gone\ngame_version=1.0.9\n";
+  std::ofstream(wd + "/mods/a/zbd/x.bin") << "x";
+  std::ofstream(wd + "/mods/mw3only/mod.txt") << "name=MW3 Only\nfor=mw3\n";
+  int refused = -1;
+  std::string said;
+  for (const std::string& l : mech3::mod_report(wd + "/mods/a", install, "a", &refused)) said += l + "\n";
+  std::printf("%s", said.c_str());
+  EXPECT(refused == 1 && said.find("It adds 1 new file.") != std::string::npos);
+  EXPECT(said.find("The mech broken is refused: ") != std::string::npos);
+  const std::string version = mech3::mods_program_version();
+  mech3::mods_program_version() = "pm-v1.0.2-12-gabc";
+  std::string needs;
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"a"}))
+    if (e.info.folder == "a")
+      for (const std::string& w : e.needs) needs += w + "\n";
+  std::printf("%s", needs.c_str());
+  EXPECT(needs == "It needs the mod gone, which is not in the mods folder.\n"
+                  "It needs Pirate's Moon Rebuild 1.0.9 or later; this is 1.0.2-12-gabc.\n");
+  mech3::mods_program_version() = "pm-v1.1.0";  // new enough: no version warning
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"a"}))
+    if (e.info.folder == "a") EXPECT(e.needs.size() == 1);
+  mech3::mods_program_version() = version;
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {}))
+    if (e.info.folder == "mw3only") EXPECT(e.info.error == "it is for mw3, not Pirate's Moon");
+  const mech3::ModExportResult r = mech3::mod_export(wd + "/mods/a", wd + "/a.zip", install, true);
+  std::printf("  export: %s\n", r.message.c_str());
+  EXPECT(r.ok && r.refused == 1 && r.message.find("The game would refuse 1 thing in it") != std::string::npos);
   fs::remove_all(wd, ec);
 }
 
