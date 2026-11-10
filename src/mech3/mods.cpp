@@ -18,6 +18,7 @@
 #include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "upgrades/mods/anim_defs.h"
+#include "upgrades/mods/mod_needs.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/json/gamez_json.h"
 #include "gamez/zclass/cls_zbd.h"
@@ -107,6 +108,17 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (upgrades::reference::key_is(key, "weapon") && !value.empty()) out->weapons.push_back(value);
     else if (upgrades::reference::key_is(key, "campaign") && !value.empty()) out->campaigns.push_back(value);
     else if (upgrades::reference::key_is(key, "anim")) out->anim_defs_only = lower(value) == "defs";
+    else if (upgrades::reference::key_is(key, "needs") && !value.empty()) {
+      // The last word is a version when it starts with a digit (or v and a digit): "Green HUD 1.2".
+      const size_t sp = value.find_last_of(" \t");
+      const std::string last = sp == std::string::npos ? std::string() : value.substr(sp + 1);
+      const bool version = !last.empty() && (std::isdigit(static_cast<unsigned char>(last[0])) ||
+                                             ((last[0] == 'v' || last[0] == 'V') && last.size() > 1 &&
+                                              std::isdigit(static_cast<unsigned char>(last[1]))));
+      out->needs.emplace_back(version ? trim(value.substr(0, sp)) : value, version ? last : std::string());
+    }
+    else if (upgrades::reference::key_is(key, "conflicts") && !value.empty()) out->conflicts.push_back(value);
+    else if (upgrades::reference::key_is(key, "game_version")) out->game_version = value;
     else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -488,6 +500,12 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
       e.info = m;
       out.push_back(e);
     }
+  // Ours (mod_needs.h): what each says it needs, against the mods on (an off one's as if turned on).
+  for (ModsListEntry& e : out) {
+    std::vector<std::string> on = enabled;
+    if (!e.on) on.push_back(e.info.folder);
+    if (e.info.error.empty()) e.needs = mod_needs_warnings(e.info, found, on);
+  }
   // What each enabled one shares with an enabled one before it (usable ones: an unusable mod mounts nothing).
   std::vector<std::pair<std::vector<std::string>, std::vector<std::string>>> before;  // files, row names
   std::vector<std::string> before_folders;
@@ -807,6 +825,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     const std::string name = low.substr(low.rfind('/') == std::string::npos ? 0 : low.rfind('/') + 1);
     if (anim_file_unread(low)) {
       out.push_back("  not read by Pirate's Moon, whose animations come from a world's anim.zbd only");
+      ++fx.unread_anims;
       continue;
     }
     // Not zar archives (M3): the texture and image libraries, the scripts.

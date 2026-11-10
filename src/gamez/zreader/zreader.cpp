@@ -736,13 +736,15 @@ void set_missing_hook(MissingHook hook) { g_missing_hook = hook; }
 // folder unzbd's zip unpacks to), then `<archive>.zip` holding `<entry>.json`.
 // The first found is the one; one that does not read is said once, with its
 // line, and null comes back (the entry read instead). Null without one.
+// `added`: the archive has no such entry (a mod's new one, as a mech row's
+// dfn_<name>.zrd beside reader.zbd), so the log says added, not instead.
 bool same_name(const std::string& a, const std::string& b) {
   if (a.size() != b.size()) return false;
   for (size_t i = 0; i < a.size(); ++i)
     if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
   return true;
 }
-Node* mod_copy(const zutl_zar::Archive& a, const char* name) {
+Node* mod_copy(const zutl_zar::Archive& a, const char* name, bool added = false) {
   if (zutl::mounts().mods.empty() || !a.path) return nullptr;
   std::string dir = zutl::host(a.path);
   const size_t slash = dir.rfind('/');
@@ -757,8 +759,9 @@ Node* mod_copy(const zutl_zar::Archive& a, const char* name) {
     said.push_back(key);
     std::printf(fmt, what.c_str(), why.c_str(), a.path);
   };
+  const char* fail = added ? "mw3: mod: %s: %s; not added to %s\n" : "mw3: mod: %s: %s; %s's entry read instead\n";
   auto took = [&](const std::string& what, Node* root) {
-    say(what, "mw3: mod: %s%s instead of %s's entry\n", "");
+    say(what, added ? "mw3: mod: %s%s added to %s\n" : "mw3: mod: %s%s instead of %s's entry\n", "");
     if (g_load_hook) g_load_hook(a.path, g_fname, root);
     return root;
   };
@@ -770,18 +773,18 @@ Node* mod_copy(const zutl_zar::Archive& a, const char* name) {
       Node* root = why.empty() ? zgame::game().zrdr_parse_text(t) : nullptr;  // the game's text reader (PM's on pm)
       std::fclose(t);
       if (root) return took(loose, root);
-      say(loose, "mw3: mod: %s: %s; %s's entry read instead\n", why.empty() ? "it does not read" : why);
+      say(loose, fail, why.empty() ? "it does not read" : why);
       return nullptr;
     }
     std::string text, what, why;
     const int got = zutl_zip::mod_json(m, dir, stem, entry + ".json", &text, &what, &why);
     if (got == 0) continue;  // none here: the next mod's, or the entry
     if (got < 0) {
-      say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
+      say(what, fail, why);
       return nullptr;
     }
     if (Node* root = parse_json(text, &why)) return took(what, root);
-    say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
+    say(what, fail, why);
     return nullptr;
   }
   return nullptr;
@@ -810,6 +813,11 @@ Node* load(const char* path) {
     if (g_load_hook) g_load_hook(a->path, g_fname, root);
     return upgrades::reference::loaded(g_fname, root);
   }
+  // Ours (docs/modding.md, A new mech): no archive has it; a mod's file of
+  // that name in an archive's folder (loose or mech3ax's JSON), as the mount's
+  // and --check-mod's checks find it, is a new entry of that archive.
+  for (size_t i = 0; g_state.archives_created && i < g_state.archives.size(); ++i)
+    if (Node* root = mod_copy(*g_state.archives[i], g_fname, true)) return upgrades::reference::loaded(g_fname, root);
   std::FILE* f = zutl::open(path, "rb");
   if (!f) return g_missing_hook ? g_missing_hook(g_fname) : nullptr;
   Node* root = zgame::game().zrdr_parse_text(f);
