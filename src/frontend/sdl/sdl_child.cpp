@@ -80,9 +80,10 @@ bool log_to_file(const std::string& write_dir, const std::string& name) {
   };
   const std::wstring log = wide(write_dir + "/" + name + ".log"), old = wide(write_dir + "/" + name + ".old.log");
   // A restarted run (sdl_restart.h; restart_into names the process it comes from): that process must be gone
-  // before its log can be moved, so it is waited for (2 s at most; one already gone has ended), and the move is
-  // tried for about a second. The last start's log is never emptied: when it cannot be moved this start's lines
-  // are appended to it, after a line that says so (log_start.h). A first start tries the move once, as before.
+  // before its log can be moved, so it is waited for (2 s at most; one already gone has ended). The move is then
+  // tried several times (log_start_tries: a log just closed is held for a moment by something outside our
+  // programs, seen on the PC with the old process gone). The last start's log is never emptied: when it cannot
+  // be moved this start's lines are appended to it, after a line that says so (log_start.h).
   wchar_t from[32] = L"";
   const bool restarted = GetEnvironmentVariableW(wide(kRestartedFromEnv).c_str(), from, 32) > 0;
   DWORD waited_ms = 0;
@@ -97,7 +98,7 @@ bool log_to_file(const std::string& write_dir, const std::string& name) {
     }
   }
   const LogStart s = log_start(
-      GetFileAttributesW(log.c_str()) != INVALID_FILE_ATTRIBUTES, restarted ? 20 : 1,
+      GetFileAttributesW(log.c_str()) != INVALID_FILE_ATTRIBUTES, log_start_tries(restarted),
       [&]() -> unsigned long { return MoveFileExW(log.c_str(), old.c_str(), MOVEFILE_REPLACE_EXISTING) ? 0 : GetLastError(); },
       [] { Sleep(50); });
   if (!_wfreopen(log.c_str(), s.append ? L"a" : L"w", stdout)) return false;

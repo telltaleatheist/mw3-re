@@ -227,7 +227,11 @@ one ends:
   told the old process's id (`MW3_RESTARTED_FROM` in its environment, set by
   `restart_into`; not an argument, so the start's arguments are untouched),
   waits for that process to end (2 s at most), then tries the move up to 20
-  times 50 ms apart. The last start's log is never emptied, restarted or
+  times 50 ms apart (a first start 5 times: a quick quit and start meets the
+  same). The PC's finding (`restart_check`, 2026-11-10, three runs alike):
+  with the first process already ended the move still went through only at
+  the second try, so the holder for those milliseconds is something outside
+  our two programs, and the tries, not the wait, are what protects the log. The last start's log is never emptied, restarted or
   not: when it cannot be moved the log is opened for append and the first
   line says so ("the last start's log could not be moved to mw3.old.log
   (error N after T tries): it is kept above, and this start's lines follow
@@ -253,10 +257,10 @@ and starts itself again with arguments that are hard to quote; the second
 moves that log aside before it opens anything (`log_start`, 20 tries) and
 writes a new `check.log` ending "restart check: OK" when the old log is
 whole in `check.old.log`, the new one fresh, and the arguments and working
-directory the first run's. Plain: the move must go through within the
-tries. Wait: the second run first waits for the first run's process to end,
-as the game does, and the move must then go through at the first try (which
-tells whether the first process was the holder). `log_start_*`
+directory the first run's. Plain: the move is tried at once. Wait: the
+second run first waits for the first run's process to end, as the game
+does. In both the move must go through within the tries, and the try is
+printed. `log_start_*`
 (tests/test_log_start.cpp) checks the decision on every system with moves
 made to fail; it cannot show Windows refusing to move a held file. Build (the mingw
 cross compiler, or any Windows one):

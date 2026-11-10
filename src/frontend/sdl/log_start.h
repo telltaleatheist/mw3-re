@@ -29,6 +29,11 @@ struct LogStart {
 // new file.
 LogStart log_start(bool log_exists, int tries, const std::function<unsigned long()>& move, const std::function<void()>& pause);
 
+// How many times a start tries the move, 50 ms apart: a restarted run 20 (about a second), a first start 5.
+// Seen on Windows: a log just closed is held for a moment by something outside our programs (the move went
+// through at the second try with the old process already gone), and a quick quit and start meets the same.
+inline int log_start_tries(bool restarted) { return restarted ? 20 : 5; }
+
 // fopen's mode for the log after log_start: "w", or "a" when the old one stays.
 inline const char* log_start_mode(const LogStart& s) { return s.append ? "a" : "w"; }
 

@@ -49,6 +49,13 @@ TEST(log_start_moves_the_old_log_or_keeps_it) {
   s = sdlfe::log_start(true, 1, fails(99, 5), pause);
   EXPECT(!s.moved && s.append && s.tries == 1 && moves == 1 && pauses == 0);
   EXPECT(sdlfe::log_start_note(s, "mw3.old.log").find("(error 5 after 1 try)") != std::string::npos);
+  // How many tries: a restarted run about a second's worth, a first start a few (a quick quit and start), and
+  // a first start held for one try still moves its log.
+  EXPECT(sdlfe::log_start_tries(true) == 20 && sdlfe::log_start_tries(false) == 5);
+  s = sdlfe::log_start(true, sdlfe::log_start_tries(false), fails(1, 32), pause);
+  EXPECT(s.moved && !s.append && s.tries == 2 && pauses == 1);
+  s = sdlfe::log_start(true, sdlfe::log_start_tries(false), fails(99, 32), pause);
+  EXPECT(!s.moved && s.append && s.tries == 5 && moves == 5 && pauses == 4);
   s = sdlfe::log_start(true, 0, fails(0, 5), pause);  // a count of none is one try
   EXPECT(s.moved && s.tries == 1);
 }

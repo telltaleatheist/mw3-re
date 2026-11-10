@@ -10,10 +10,12 @@
 // check.log to check.old.log before it opens anything (as the game rotates its log; Windows refuses while
 // anything holds the file), trying up to 20 times 50 ms apart (log_start), then opens a new check.log and says
 // at which try the move went through, and whether its arguments and working directory are the first run's.
-//   plain: the move is tried at once. It must go through within the tries.
+//   plain: the move is tried at once.
 //   wait:  the second run first waits for the first run's process to end (its id is in MW3_RESTARTED_FROM,
-//          as the game's log_to_file reads it; 2 s at most), and says how long. The move must then go
-//          through at the first try: if it does where the plain one needs two, the holder was the first process.
+//          as the game's log_to_file reads it; 2 s at most), and says how long.
+// In both the move must go through within the tries, and the try is printed. (On the PC, 2026-11-10, both
+// needed the second try, the wait mode with the first process already ended: the holder for those few
+// milliseconds is not the first process, and the tries, not the wait, are what protects the log.)
 // OK also needs the first run's log whole in check.old.log and the new check.log begun fresh.
 // Built by the mingw cross compiler on the Mac as a compile and link check; run on Windows.
 #include <cstdio>
@@ -113,7 +115,7 @@ int main(int argc, char** argv) {
     }
     DeleteFileA(old.c_str());
     s = sdlfe::log_start(
-        GetFileAttributesA(log.c_str()) != INVALID_FILE_ATTRIBUTES, 20,
+        GetFileAttributesA(log.c_str()) != INVALID_FILE_ATTRIBUTES, sdlfe::log_start_tries(true),
         [&]() -> unsigned long { return MoveFileA(log.c_str(), old.c_str()) ? 0 : GetLastError(); }, [] { Sleep(50); });
   }
   if (!std::freopen(log.c_str(), sdlfe::log_start_mode(s), stdout) || !std::freopen(log.c_str(), "a", stderr)) return 3;
@@ -138,8 +140,7 @@ int main(int argc, char** argv) {
   std::printf("restart check: the first process (%s): %s, %lu ms\n", from ? from : "no id", found, static_cast<unsigned long>(waited_ms));
   if (s.moved) std::printf("restart check: the first run's log moved at try %d\n", s.tries);
   else std::printf("restart check: the first run's log was still held after %d tries (error %lu): kept, this run appended\n", s.tries, s.error);
-  bool ok = s.moved && (!wait || s.tries == 1) && argc == want;
-  if (s.moved && wait && s.tries != 1) std::printf("restart check: with the first process gone the log must move at the first try\n");
+  bool ok = s.moved && argc == want;
   if (argc != want) std::printf("restart check: %d arguments, expected %d\n", argc, want);
   for (int i = 0; ok && i < hard; ++i)
     if (std::string(argv[at + i]) != kHard[i]) ok = false, std::printf("restart check: argument %d is [%s], sent [%s]\n", at + i, argv[at + i], kHard[i]);
