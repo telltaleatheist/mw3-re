@@ -921,7 +921,14 @@ answers the picker for scripted runs and shots.
   part of a mod here (11); ...". Refused, and said: the player's own install;
   the other game's install (by the files only one game ships, both sides);
   a folder that holds, or is in, the write dir; no install to compare with;
-  nothing that differs. Tests: `import_folder_takes_what_differs_from_the_install`,
+  nothing that differs. Said, not refused: another version of the data than the
+  player's (`import_folder_version`: the 28 files the 1.2 patch touches, each
+  that is exactly 1.0's or 1.2's counted, a mod's own aside; 1.0 against 1.2):
+  "This folder is version 1.0 and your game is 1.2, so the differences between
+  the versions are taken too: for a clean mod, install it onto a copy of the
+  same version." The mod's marker names the modded folder it came from
+  (`mod_add_run`'s `from`). Tests: `import_folder_says_another_version`,
+  `import_folder_takes_what_differs_from_the_install`,
   `import_folder_refusals`, `import_folder_other_picks_and_links`;
   `MW3_IMPORT_FOLDER=<folder> MW3_TEST=import_folder_real build/mw3tests` runs a
   real one (game/mw3-1.0 against 1.2: 14 files taken, 96 the same, under 2 s).

@@ -11,6 +11,8 @@
 #include <set>
 
 #include "gamez/zutil/zutl_path.h"
+#include "gamez/zutil/zutl_zar.h"
+#include "mech3/data_version.h"
 
 namespace mech3 {
 namespace fs = std::filesystem;
@@ -90,6 +92,27 @@ bool import_folder_is_install(const std::string& folder) {
   return !exe.empty() && fs::is_regular_file(exe, ec) && !zbd.empty() && fs::is_directory(zbd, ec);
 }
 
+std::string import_folder_version(const std::string& folder) {
+  int n = 0, of_10 = 0, of_12 = 0;
+  const DataFile* files = data_files(&n);
+  const std::map<std::string, fs::path> have = files_of(fs::path(folder));
+  for (int i = 0; i < n; ++i) {
+    const auto it = have.find(lower(files[i].path));
+    if (it == have.end()) continue;
+    std::error_code ec;
+    const uintmax_t size = fs::file_size(it->second, ec);
+    const bool s12 = size == files[i].size_12, s10 = files[i].size_10 && size == files[i].size_10;
+    if (ec || (!s12 && !s10)) continue;  // a mod's own, or another version's
+    std::ifstream f(it->second, std::ios::binary);
+    uint32_t crc = 0;
+    char buf[65536];
+    while (f.read(buf, sizeof buf) || f.gcount() > 0) crc = zutl_zar::crc32(crc, buf, static_cast<size_t>(f.gcount()));
+    if (s12 && crc == files[i].crc_12) ++of_12;
+    else if (s10 && crc == files[i].crc_10) ++of_10;
+  }
+  return of_12 && !of_10 ? "1.2" : of_10 && !of_12 ? "1.0" : "";
+}
+
 void import_folder_discard(ImportFolder& f) {
   if (f.staging.empty()) return;
   const fs::path staging = fs::path(f.staging);
@@ -102,7 +125,8 @@ void import_folder_discard(ImportFolder& f) {
 
 std::string import_folder_report(const ImportFolder& f) {
   if (!f.install) return {};
-  std::string t = "Took " + files_word(f.taken) + " that differ from your install";
+  std::string t = f.warning.empty() ? "" : f.warning + " ";
+  t += "Took " + files_word(f.taken) + " that differ from your install";
   if (f.same) t += "; left " + std::to_string(f.same) + " the same";
   if (f.programs) t += "; the program and its dlls are not part of a mod here (" + std::to_string(f.programs) + ")";
   if (f.own) t += "; pilots, saves and settings stay yours (" + std::to_string(f.own) + ")";
@@ -112,6 +136,9 @@ std::string import_folder_report(const ImportFolder& f) {
 
 std::string import_folder_report_short(const ImportFolder& f) {
   if (!f.install) return {};
+  if (!f.warning.empty())
+    return "Took " + files_word(f.taken) + ": this folder is version " + f.version + " and your game " + f.install_version +
+           ", so their differences are in the mod too.";
   return "Took " + files_word(f.taken) + " that differ from your install" +
          (f.programs ? "; the program and its dlls are not part of a mod here." : ".");
 }
@@ -142,6 +169,11 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
     if (f.game != ModGame::kUnknown && here != ModGame::kUnknown && f.game != here)
       return f.error = std::string("that folder is a ") + game_name(f.game) + " install, and yours is " + game_name(here), f;
   }
+  // Another version of the data than the player's: said before anything is taken (it still imports).
+  f.version = import_folder_version(folder), f.install_version = import_folder_version(install);
+  if (!f.version.empty() && !f.install_version.empty() && f.version != f.install_version)
+    f.warning = "This folder is version " + f.version + " and your game is " + f.install_version +
+                ", so the differences between the versions are taken too: for a clean mod, install it onto a copy of the same version.";
   // The folders the player's install has at its top: what a mod of this kind may serve.
   std::set<std::string> tops;
   for (fs::directory_iterator it(mine, ec), end; !ec && it != end; it.increment(ec))
@@ -210,7 +242,7 @@ ModAddDone import_folder_run(const std::string& write_dir, const std::string& so
   const ModGame game = f.game;
   d = mod_add_run(write_dir, f.picked, install,
                   [&](const std::string& name) { return game == ModGame::kPm ? 2 : game == ModGame::kMw3 ? 1 : ask ? ask(name) : 1; },
-                  enabled);
+                  enabled, source);
   import_folder_discard(f);
   if (d.ok) {
     std::printf("mw3: import: %s: %s\n", d.name.c_str(), import_folder_report(f).c_str());

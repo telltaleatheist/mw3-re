@@ -18,6 +18,10 @@ namespace mech3 {
 
 // The game's exe and a zbd folder in it, in any letter case.
 bool import_folder_is_install(const std::string& folder);
+// A folder's data version by the 28 files the 1.2 patch touches (data_version.h):
+// "1.0" or "1.2" when every one of them that is either's is that one's (a mod's
+// own changed files aside), else "".
+std::string import_folder_version(const std::string& folder);
 
 struct ImportFolder {
   bool install = false;      // `folder` is a whole install (else nothing below is set)
@@ -29,6 +33,10 @@ struct ImportFolder {
   int programs = 0;          // the program, dlls, dgVoodoo's files: left
   int own = 0;               // the player's own kind (pilots, configs, saves, settings, logs): left
   int other = 0;             // loose at the top, or in a folder the install does not have: left
+  // The data's version on each side ("1.0", "1.2", "" when it cannot be told),
+  // by the data files neither a mod nor the patch's other version changed; and
+  // what is said when they differ (the versions' differences are taken too).
+  std::string version, install_version, warning;
   std::string error;         // why it was refused ("" when not; the staging then gone)
 };
 // What would be taken, copied into a new staging folder. The modded folder

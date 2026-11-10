@@ -95,6 +95,8 @@ TEST(import_folder_takes_what_differs_from_the_install) {
   auto has = [&](const char* rel, const char* text) { return got.count(rel) && got.at(rel).find(text) != std::string::npos; };
   EXPECT(has("zbd/reader.txt", "the mod's reader") && has("zbd/c1/gamez.txt", "abd"));
   EXPECT(has("mod.txt", "name=Big Guns\n") && has("mod.txt", "for=mw3\n"));
+  // The marker names the modded folder it came from, not our staging copy.
+  EXPECT(has(mech3::kModAddedMarker, ("Added by the game from " + modded + ".").c_str()) && !has(mech3::kModAddedMarker, "mod-import"));
   EXPECT(report == "Took 3 files that differ from your install; the program and its dlls are not part of a mod here." &&
          report.size() <= 2 * 58);  // the screen's two lines
   EXPECT(snapshot(inst) == inst_before && snapshot(modded) == modded_before);  // read only
@@ -104,6 +106,7 @@ TEST(import_folder_takes_what_differs_from_the_install) {
   EXPECT(mech3::import_folder_report(f) ==
          "Took 3 files that differ from your install; left 2 the same; the program and its dlls are not part of a mod "
          "here (5); pilots, saves and settings stay yours (2); 2 files outside the game's folders left.");
+  EXPECT(f.version.empty() && f.install_version.empty() && f.warning.empty());  // made-up data: no version to tell
   EXPECT(f.install && f.error.empty() && f.taken == 3 && f.same == 2 && f.programs == 5 && f.own == 2 && f.other == 2);
   EXPECT(f.game == mech3::ModGame::kMw3 && fs::path(f.picked).filename() == "Big Guns" &&
          fs::exists(fs::path(f.staging) / mech3::kModStagingMarker));
@@ -188,4 +191,32 @@ TEST(import_folder_real_install_env) {
   const mech3::ModAddDone d = mech3::import_folder_run(wd, folder, MW3_GAME_DIR, nullptr, nullptr, &report);
   std::printf("  %s\n  %s\n", d.message.c_str(), report.c_str());
   EXPECT(d.ok && nothing_staged(wd));
+}
+
+// Another version of the data than the player's is said, and still imports:
+// the real 1.0 install as the modded folder against the 1.2 one (when both
+// are there).
+TEST(import_folder_says_another_version) {
+  const std::string v12 = MW3_GAME_DIR, v10 = std::string(MW3_GAME_DIR) + "/../mw3-1.0";
+  std::error_code ec;
+  if (!fs::exists(v12 + "/zbd/reader.zbd", ec) || !fs::exists(v10 + "/zbd/reader.zbd", ec)) {
+    std::printf("  (skipped: needs the 1.2 and the 1.0 installs)\n");
+    return;
+  }
+  EXPECT(mech3::import_folder_version(v12) == "1.2" && mech3::import_folder_version(v10) == "1.0");
+  const std::string wd = tmp("import_version_wd");
+  mech3::ImportFolder f = mech3::import_folder_prepare(wd, v10, v12);
+  std::printf("  %s\n  short: %s\n", mech3::import_folder_report(f).c_str(), mech3::import_folder_report_short(f).c_str());
+  EXPECT(f.error.empty() && f.taken > 0 && f.version == "1.0" && f.install_version == "1.2");
+  EXPECT(f.warning == "This folder is version 1.0 and your game is 1.2, so the differences between the versions are taken too: "
+                      "for a clean mod, install it onto a copy of the same version.");
+  EXPECT(mech3::import_folder_report(f).rfind(f.warning, 0) == 0);  // said first
+  EXPECT(mech3::import_folder_report_short(f).find("version 1.0 and your game 1.2") != std::string::npos &&
+         mech3::import_folder_report_short(f).size() <= 2 * 58);
+  mech3::import_folder_discard(f);
+  // The same version on both sides: nothing said.
+  mech3::ImportFolder same = mech3::import_folder_prepare(wd, v12, v12 + "/../mw3-1.2/.");
+  EXPECT(same.warning.empty());
+  mech3::import_folder_discard(same);
+  EXPECT(nothing_staged(wd));
 }
