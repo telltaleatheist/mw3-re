@@ -39,6 +39,30 @@ std::map<std::string, std::vector<std::string>>& mods_left_out();
 std::vector<std::string> mod_report(const std::string& dir, const std::string& install, const std::string& folder,
                                     int* refused = nullptr);
 
+// A copy (a campaign saved from another: mod.txt's base=, docs/mods-campaigns-plan.md)
+// against what it was saved from: the mods under it over the base= chain,
+// nearest first, then the game's own files.
+struct CopyChanges {
+  bool is_copy = false;             // the mod has a base=
+  std::string base, base_name;      // the entry it was saved from, and its name as shown
+  std::vector<std::string> under;   // the mods under it (folders), nearest first; none for a copy of the game's own
+  std::string missing;              // an entry of the chain that is not there: nothing below it could be compared
+  // Its files (as in the mod, '/' between), by what they do to what is under it.
+  std::vector<std::string> replaced;       // a mod under it has the file, with other bytes
+  std::vector<std::string> replaced_game;  // no mod under it has it; the game's install does
+  std::vector<std::string> added;          // nothing under it has it
+  std::vector<std::string> same;           // a mod under it has it byte for byte
+  // Its mod.txt rows by name ("mech Thor B", "weapon GAUSS2", "world w1", "campaign night.txt"), against the mods under it.
+  std::vector<std::string> rows_changed, rows_added;
+};
+// `folder` is the copy's folder in <write dir>/mods; `install` the game's ("": the game's own files are not looked at,
+// and a file no mod under it has counts as added).
+CopyChanges mod_copy_changes(const std::string& write_dir, const std::string& install, const std::string& folder);
+// As sentences for REPORT, after the mod's own (mod_report); none when it is not a copy. With part of the
+// chain missing only what is certain is said (what it replaces in the mods still there).
+std::vector<std::string> mod_copy_sentences(const CopyChanges& c);
+std::vector<std::string> mod_copy_report(const std::string& write_dir, const std::string& install, const std::string& folder);
+
 // Text wrapped to lines of at most `width` characters, at spaces.
 std::vector<std::string> mod_report_wrap(const std::string& text, size_t width);
 

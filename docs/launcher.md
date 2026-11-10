@@ -30,9 +30,11 @@ found or installed. The launcher below is its own program, `mw3launcher`
      patch's files; PM 1.0) and the program a release build (a bare vX.Y.Z
      tag, PM's pm-vX.Y.Z), else "modified (data, program)" naming which
      (`official_words`; breaks: any v tag taken as a release, the data always
-     official: each caught). Mods are a feature, not a change to the game
-     (lead): a neutral note of their own, "Ready, official: data 1.2,
-     program v1.1.0, 2 mods on, <folder>" (`versions_words`). Or "Not found yet:
+     official: each caught), as "Ready, official: data 1.2,
+     program v1.1.0, <folder>" (`versions_words`). Mods are not spoken of
+     here (until 2026-11-10 a note "2 mods on" was): a game started from the
+     launcher is the original, and mods are played from its MODS screen,
+     each campaign with its own (mods-campaigns-plan.md). Or "Not found yet:
      click to find your game" (a click opens the find screen; v1.0, Owen
      2026-11-02: only then, the launcher always opens on the games). A
      folder too long for the plate is
@@ -380,10 +382,9 @@ there anymore... if we're doing mods directly in the games"): each game's
 own MODS screen does all of it, and more (REPORT, TEST, custom campaigns,
 the editor; docs/modding.md). The shared code those screens use
 (`mods_list`, `mod_report`, `mod_needs`, `mod_install`, `mod_export`) and
-its tests stay. What stays in the launcher is the neutral note on each
-game's line, "N mods on" (`versions_words`, from `mech3::mods_enabled` on
-that game's settings folder): it says what the game will start with, and
-needs no button.
+its tests stay. The note "N mods on" that stayed on each game's line went
+too (2026-11-10, mods by campaign): a plain start mounts no mods, so the
+count said nothing true.
 
 ## Built (2026-10-30, mac5/launcher-ui)
 

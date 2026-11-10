@@ -23,10 +23,12 @@
 #include "mech3/mission.h"
 #include "mech3/options.h"
 #include "mech3/options_menu.h"
+#include "mech3/pilot_menu.h"
 #include "mech3/patch12.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
 #include "pm/pm_game.h"
+#include "upgrades/mods/entry_run.h"
 
 namespace {
 namespace fs = std::filesystem;
@@ -282,4 +284,76 @@ TEST(pm_menus_take_a_picked_mode_at_once_headless) {
   EXPECT(seen[0].to_main && seen[0].width == 853 && seen[0].mode == 13 && seen[0].saved == 13);   // 4:3 to 16:9
   EXPECT(!seen[1].to_main && seen[1].width == 853 && seen[1].mode == 13 && seen[1].saved == 13);  // the same again
   EXPECT(seen[2].to_main && seen[2].width == 640 && seen[2].mode == 5 && seen[2].saved == 5);     // 16:9 to 4:3
+}
+
+// Mods by campaign on Pirate's Moon (upgrades/mods/entry_run.h; MainState::update): a run started into an entry
+// with --entry-play opens that entry's own game from the main menu's state: the Campaign's entry its Campaign
+// State, the Pirate Missions' entry ("pirate") their Standalone State (the main menu's training slot on PM),
+// Instant Action's its Action State. (The pilot screen each shows first sits on top of it.)
+TEST(pm_entry_play_opens_each_entrys_own_state_headless) {
+  std::error_code ec;
+  if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
+  const mech3::EntryRun keep = mech3::entry_run();
+  struct Want {
+    const char* id;
+    mech3::EntryRun::Screen screen;
+    mech3::GameMenuState::Kind kind;
+  };
+  const Want wants[] = {{"campaign", mech3::EntryRun::kPlay, mech3::GameMenuState::kCampaign},
+                        {"pirate", mech3::EntryRun::kPlay, mech3::GameMenuState::kStandalone},
+                        {"ia", mech3::EntryRun::kInstantAction, mech3::GameMenuState::kAction}};
+  for (const Want& w : wants) {
+    MountsBack back;
+    zgame::set_game(pm::table());
+    const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_entry_play_" + w.id;
+    fs::remove_all(wd, ec);
+    fs::create_directories(wd, ec);
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd.c_str());
+    zutl::mount(MW3PM_GAME_DIR);
+    mech3::reset_states();
+    mech3::options() = mech3::Options{};
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files;
+    int found = -1, others = 0;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::entry_run() = mech3::EntryRun{};
+      mech3::entry_run().screen = w.screen, mech3::entry_run().id = w.id;
+      engine.on_present = [&](int) {
+        if (found >= 0) return;
+        for (int i = 0; i <= app.depth(); ++i)
+          if (auto* g = dynamic_cast<mech3::GameMenuState*>(app.stack(i))) {
+            if (g->kind == w.kind) found = i;
+            else ++others;
+          }
+      };
+      Pump pump;
+      pump.stop = [&] { return found >= 0 || others > 0; };
+      app.run(pump);
+      mech3::entry_run() = mech3::EntryRun{};  // (its leave must not run as the app goes)
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    mech3::options() = mech3::Options{};
+    std::printf("  entry %s: its state on the stack at %d (another game's first: %d)\n", w.id, found, others);
+    EXPECT(found >= 0 && others == 0);
+    fs::remove_all(wd, ec);
+  }
+  mech3::entry_run() = keep;
 }

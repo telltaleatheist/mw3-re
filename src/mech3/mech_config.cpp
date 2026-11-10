@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
@@ -15,6 +16,12 @@
 #include "mech3/mech_reader.h"
 
 namespace mech3 {
+
+namespace {
+std::string g_configs_folder = "configs";  // ours: configs_folder()
+}  // namespace
+const std::string& configs_folder() { return g_configs_folder; }
+void set_configs_folder(const std::string& folder) { g_configs_folder = folder.empty() ? "configs" : folder; }
 
 namespace {
 // _strdup: the name is malloc'd, as the loader's read_string makes it.
@@ -841,7 +848,7 @@ Config* Config::from_file(const char* n, std::FILE* f) {
 // and a config is kept whichever mech it names. True when the file opened.
 bool ConfigList::load_saved() {
   char path[128];
-  std::snprintf(path, sizeof path, "configs\\%s.mw3", mech_name(this->mech));
+  std::snprintf(path, sizeof path, "%s\\%s.mw3", g_configs_folder.c_str(), mech_name(this->mech));  // "configs" (ours: configs_folder())
   zutl_zar::Archive a;
   zutl_zar::init(a);
   if (!zutl_zar::open(a, path)) {
@@ -875,7 +882,7 @@ bool ConfigList::load_saved() {
 bool ConfigList::save_all() {
   // 0x00576080 ".\\configs" and _mkdir: zutl::open makes the folder in the write dir.
   char path[128];
-  std::snprintf(path, sizeof path, "configs\\%s.mw3", mech_name(this->mech));
+  std::snprintf(path, sizeof path, "%s\\%s.mw3", g_configs_folder.c_str(), mech_name(this->mech));  // "configs" (ours: configs_folder())
   if (keep_file) return false;  // ours: its file named a row no enabled mod adds
   zutl_zar::Archive a;
   zutl_zar::init(a);
