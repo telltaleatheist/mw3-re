@@ -276,6 +276,7 @@ add_library(mw3core STATIC
   src/mech3/zainet.cpp
   src/mech3/zainetedit.cpp
   src/mech3/zainet_inout.cpp
+  src/mech3/zainet_inout_view.cpp
   src/mech3/zainet_region.cpp
   src/mech3/zainet_node.cpp
   src/mech3/zrdrainet.cpp
@@ -510,6 +511,7 @@ add_library(mw3probe SHARED
   tests/probe_net_cache.cpp
   tests/probe_aiv_edit.cpp
   tests/probe_vehicle_ddx.cpp
+  tests/probe_inout_view.cpp
   tests/probe_aiv_add.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp

@@ -1209,10 +1209,42 @@ destructor (0x00404420).
   id, unless the slot shows it already or another editor on the list does
   (0x00404270 -> 0x00404200). A null net frees it (0x00404490).
 
-**Show InOut** ([0x0060b334], 0x004c4950: 0x004c4730 draws the mission's
-boundary from the "ionet" net, 0x004c41b0 takes it down) is not ported yet.
-The check box and its field work; drawing is the hooks' `show_inout`,
-empty for now.
+**Show InOut** ([0x0060b334]; 0x004c4950 draws for a name, takes down for
+null; the name "ionet" is never read) draws the current mission's
+boundary (S7d part 2, `mech3/zainet_inout_view`, the file between
+zainetmechinout.cpp and zaitarget.cpp):
+- **0x004c4730:** with a world and the areas read (docs/ai.md section 11), the
+  area of 0x004c36c0's mission number becomes walls. One object3d is the
+  root, with an object3d and a fresh model (0x00538fe0) under it for each run
+  of polygons that fits. The root is taken out of the segment queries
+  (0x004eb6d0) and joins the world (its vt+0, 0x0040bab0).
+- **The walls** (0x004c42e0, 0x004c43b0, 0x004c45f0): only tested
+  polygons, red and blue, are drawn, so yellow and cyan never are. Each side
+  from the last corner to this one is a wall 10 m high (0x005e8a68) of two
+  triangles. Each triangle is added twice (0x005e8a64), red (0x0050de00
+  255,0,0) one way and the polygon's colour the other: blue for kinds 0 and
+  2, yellow for 1 and 3.
+- **A model** takes polygons while its vertex count (3 a corner) stays under
+  1024 (0x005e8a6c); the next polygon starts a new one. An add that fails
+  does not stop the rest (0x005e8a60 set). The side triangles' flag
+  [0x0060b3a0] is never set.
+- **0x004c41b0** takes the root off its parents (the world) and deletes it
+  with its walls.
+- **Fixes**, FIX (bug), in fixes.md:
+  - the area index checked;
+  - a polygon too big for any model left out (the exe loops for ever making
+    empty models for it);
+  - the drawing forgotten at the mission's end (0x004c3dd0): the exe keeps
+    the pointer past the world.
+- **Tests:**
+  - test_inout_view.py: 400 runs of random polygons, starting counts and add
+    answers against the exe's builder, the colours and triangles recorded on
+    both sides. 0 differ.
+  - Breaks, each fails: the wall 9 m high; kind 2 yellow; the 1024 test as
+    `>`; the second triangle's swap left out.
+  - The c1m1 p2 test checks Show InOut too: 1 model, 1156 triangles, under
+    the world; taken down when unchecked.
+  - Not looked at on screen yet.
 
 **Ported** in `mech3/game_editor_vehicles` and `game_editor_net` (the slot list):
 - the pages' controls, p1 and p2 exchanged as above, and the main
@@ -1392,8 +1424,8 @@ frame hook, after the game's update and before present.
 4. **S7d The pages, part 1** (done, above): p2, the vehicle, with its
    handlers (team, home net and Net Edit into window 181, Send home,
    configuration, chassis), and p1. Each page's DDX runs on an MFC stand-in,
-   checked against the exe's DDX in Unicorn with MFC's calls modelled. Left
-   from it: Show InOut's drawing (0x004c4730, 0x004c41b0).
+   checked against the exe's DDX in Unicorn with MFC's calls modelled. Part
+   2: Show InOut's drawing (0x004c4730, 0x004c41b0).
 5. **S7e The pages, part 2:** Attack and its strategy tab (Circle, Direct,
    Jump, Zig Zag, Random Move on Circle's DDX), Retreat, p5, Fire and Valve,
    with the valve combo.
