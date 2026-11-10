@@ -1613,7 +1613,12 @@ registers no callback for it, so no key reaches it in the release.
     stops with an error box.
 - It then runs dialog 132 (0x0040dfe0: the fields at the player's place,
   the yaw passed as 0, shown in degrees).
-- On OK the player's vehicle is put there (vt+0xdc, yaw in radians).
+- On OK the player's vehicle is put there (vt+0xdc, yaw in radians). So
+  it is on Cancel: 0x0040dfe0 tests DoModal's result for non-zero
+  (`test eax, eax` at 0x0040e05f), and IDCANCEL is 2, so Cancel moves the
+  player to the fields as they last were (a pick's, without OnOK's
+  UpdateData(TRUE)) and, with the changed flag, saves. Pirate's Moon fixed
+  it (its 0x004a8a40 tests `== IDOK`) and kept GOTO Net's `!= 0`.
 - With the dialog's changed flag, location.zrd is renamed and rewritten as
   text: `(`, two `;;` lines ("Last updated Sep 20 1999 at 16:29:38", the
   build's __DATE__ and __TIME__ whenever it is saved), then
@@ -1645,6 +1650,7 @@ TeleportDialog, the hooks) **and ours** (`upgrades/editor/teleport`):
 - OK writes into the mission's mod as a loose `zbd\<world>\location.zrd`
   (the folder of the archive location.zrd came from), read ahead of the
   archive's entry. Its earlier copy is kept as location.zrd.bak.
+- FIX (bug): Cancel cancels, as in Pirate's Moon (no move, no save).
 
 Fixes, each FIX (bug) in the code:
 - a nav point without a label is left out (the exe copies from null);

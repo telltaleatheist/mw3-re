@@ -26962,7 +26962,7 @@ TEST(mission_c1m1_teleport_moves_the_player_headless) {
   if (!have_game()) return;
   std::string listed, saved;
   float at[3] = {}, want[3] = {-1408.7f, -10.0f, -845.3f};
-  bool moved = false, read_again = false;
+  bool moved = false, read_again = false, cancel_stayed = false;
   mech3::app_key_calls().debug_camera = true;
   cheat_mission("teleport", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
     if (f < 30) return false;
@@ -26982,7 +26982,20 @@ TEST(mission_c1m1_teleport_moves_the_player_headless) {
     mech3::teleport_open(0);  // again: the saved file is read now
     if (mech3::FormField* again = mech3::teleport_form().field("place"); again && again->combo)
       for (const std::string& t : again->combo->texts()) read_again = read_again || t == "Mission 2 Start";
-    mech3::teleport_form().press("Cancel");
+    // Cancel after a pick: no move, no save (FIX (bug); the exe moved and saved).
+    mech3::EditorForm& form2 = mech3::teleport_form();
+    if (mech3::FormField* again = form2.field("place"); again && again->combo)
+      for (size_t i = 0; i < again->combo->items.size(); ++i)
+        if (again->combo->items[i].text == "IA_base") *again->i = static_cast<int32_t>(i), form2.changed(*again);
+    std::error_code ec;
+    const auto written = std::filesystem::last_write_time(saved, ec);
+    std::filesystem::last_write_time(saved, written - std::chrono::hours(1), ec);  // a save would move it on
+    form2.press("Cancel");
+    float after[3] = {};
+    cancel_stayed = mech3::mech_world_position(mech3::mech_mission_player(), after) &&
+                    std::fabs(after[0] - at[0]) < 0.01f && std::fabs(after[2] - at[2]) < 0.01f &&
+                    std::filesystem::last_write_time(saved, ec) == written - std::chrono::hours(1) &&
+                    !mech3::form_shown(&form2);
     mech3::ai::net_save_into_mod().clear();
     mech3::editor_key(mech3::kEditorCommand);
     return true;
@@ -26993,6 +27006,7 @@ TEST(mission_c1m1_teleport_moves_the_player_headless) {
          listed.find("Mission 2 Start") != std::string::npos);
   EXPECT(moved && std::fabs(at[0] - want[0]) < 0.5f && std::fabs(at[2] - want[2]) < 0.5f);
   EXPECT(!saved.empty() && saved.find("tp") != std::string::npos && saved.find("c1") != std::string::npos && read_again);
+  EXPECT(cancel_stayed);
 }
 
 TEST(mission_c1m1_editor_help_covers_every_form_headless) {
