@@ -40,6 +40,7 @@ struct FormField {
   std::function<void()> changed;     // after a change through the form; kButton: its press
   std::function<void()> left;        // kText: after the field loses the focus (EN_KILLFOCUS)
   int32_t page = -1;             // shown only while the form's tabs show this page (-1: always)
+  int32_t first = 0;             // kTabs: the page its first tab shows (tabs inside a page's tab)
 };
 
 struct FormButton {

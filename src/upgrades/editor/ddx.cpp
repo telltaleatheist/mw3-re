@@ -230,4 +230,10 @@ void ddv_min_max_int(DataExchange& dx, int32_t v, int32_t lo, int32_t hi) {
     fail(dx, "Please enter an integer between " + std::to_string(lo) + " and " + std::to_string(hi) + ".");
 }
 
+// MFC 4.2's DDV_MinMaxFloat -> _AfxFailMinMaxReal (FLT_DIG): a NaN passes.
+void ddv_min_max_float(DataExchange& dx, float v, float lo, float hi) {
+  if (dx.save && (v < lo || v > hi))
+    fail(dx, "Please enter a number between " + ddx_float_text(lo) + " and " + ddx_float_text(hi) + ".");
+}
+
 }  // namespace mech3

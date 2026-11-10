@@ -1,8 +1,11 @@
 #include "mech3/game_editor_vehicles.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <list>
+#include <string>
 
 #include "gamez/znetwork/znet_object.h"
 #include "mech3/game_editor_net.h"
@@ -11,6 +14,8 @@
 #include "mech3/zai_target.h"
 #include "mech3/zainet.h"
 #include "mech3/zainet_inout_view.h"
+#include "mech3/zainet_region.h"
+#include "mech3/zai_valve.h"
 
 namespace mech3 {
 
@@ -24,6 +29,14 @@ std::vector<int32_t>* g_ids = nullptr;
 // The main tab's pages in the order 0x004b8790 adds them (their templates'
 // titles), and Attack's own tab's.
 const char* const kPageTitles[] = {"p1", "p2", "Attack", "Retreat", "p5", "Fire", "Valve"};
+const char* const kStrategyTitles[] = {"Circle", "Direct", "Jump", "Zig Zag", "Random Move"};
+
+// [0x0060b2f8], made at start-up (0x004b7f70 -> 0x004b7d80): the attack
+// strategies by number, Attack's list 1233.
+const char* strategy_name(int32_t id) {
+  static const char* const kNames[] = {"Direct", "Zig Zag", "Circle", "Jump", "Random Move"};
+  return id >= 0 && id < 5 ? kNames[id] : nullptr;
+}
 
 void trace(uint32_t at) {
   if (g_trace) g_trace->push_back(at);
@@ -265,7 +278,257 @@ void p2_exchange(DataExchange& dx) {
   }
 }
 
-void (*const kExchange[kPages])(DataExchange&) = {p1_exchange, p2_exchange};
+// Mech3.exe 1.2 @ 0x004b92f0: Attack; its own tab's page shown is exchanged
+// first, the same way.
+void attack_exchange(DataExchange& dx) {
+  VehicleEditor& e = *g_editor;
+  ai::AiParams& p = e.params;
+  if (e.strategy_page >= 0) vehicle_page_update(e.strategy_page, dx.save);
+  // DDX_Control 1175, 1233: the tab and the strategy list.
+  word<float>(p, 0x94, [&](float& v) { ddx_text(dx, 1234, v); });
+  word<float>(p, 0x84, [&](float& v) { ddx_text(dx, 1248, v); });
+  word<float>(p, 0xb8, [&](float& v) { ddx_text(dx, 1272, v); });
+  ddv_min_max_float(dx, p.get<float>(0xb8), 0.0f, 1000.0f);  // after the field is taken, as MFC's
+  word<float>(p, 0xc0, [&](float& v) { ddx_text(dx, 1274, v); });
+  DlgCombo& c = dx.dlg->at(1233).combo;
+  if (!dx.save) {
+    // 0x004ba380 is the map's [], so a number with no strategy gets an entry
+    // with no name, which selects nothing.
+    if (const char* n = strategy_name(p.get<int32_t>(0x40))) c.select_string(n);
+  } else {
+    const int32_t d = c.data(c.cur);
+    if (d >= 0 && d < 5) p.put<int32_t>(0x40, d);
+  }
+}
+
+// Mech3.exe 1.2 @ 0x004b9490: Retreat.
+void retreat_exchange(DataExchange& dx) {
+  ai::AiParams& p = g_editor->params;
+  uint8_t& f130 = p.raw[0xcc];
+  word<float>(p, 0x50, [&](float& v) { ddx_text(dx, 1213, v); });
+  const auto bit = [&](int32_t id, int b) {
+    int32_t v = (f130 >> b) & 1;
+    ddx_check(dx, id, v);
+    f130 = static_cast<uint8_t>((f130 & ~(1u << b)) | (v != 0) << b);
+  };
+  bit(1224, 1);  // Time
+  bit(1221, 0);  // Net Distance
+  bit(1222, 2);  // Health
+  bit(1271, 3);  // Health Change
+  word<float>(p, 0x24, [&](float& v) { ddx_text(dx, 1211, v); });  // p1's 1211 too
+  word<float>(p, 0x4c, [&](float& v) { ddx_text(dx, 1215, v); });
+  word<float>(p, 0x58, [&](float& v) { ddx_text(dx, 1254, v); });
+  word<int32_t>(p, 0x5c, [&](int32_t& v) { ddx_check(dx, 1253, v); });  // For timeout
+  word<int32_t>(p, 0x60, [&](int32_t& v) { ddx_check(dx, 1252, v); });  // Forever
+  word<float>(p, 0xb4, [&](float& v) { ddx_text(dx, 1270, v); });
+}
+
+// Mech3.exe 1.2 @ 0x004b96a0: p5, the scan.
+void p5_exchange(DataExchange& dx) {
+  VehicleEditor& e = *g_editor;
+  ai::AiParams& p = e.params;
+  word<int32_t>(p, 0x80, [&](int32_t& v) { ddx_check(dx, 1246, v); });  // collision avoidance
+  word<float>(p, 0x78, [&](float& v) { ddx_text(dx, 1230, v); });
+  word<float>(p, 0x74, [&](float& v) { ddx_text(dx, 1228, v); });
+  word<float>(p, 0x64, [&](float& v) { ddx_text(dx, 1223, v); });  // Jump's four too
+  word<float>(p, 0x68, [&](float& v) { ddx_text(dx, 1225, v); });
+  word<float>(p, 0x6c, [&](float& v) { ddx_text(dx, 1226, v); });
+  word<float>(p, 0x70, [&](float& v) { ddx_text(dx, 1227, v); });
+  word<float>(p, 0x7c, [&](float& v) { ddx_text(dx, 1247, v); });
+  word<int32_t>(p, 0x98, [&](int32_t& v) { ddx_check(dx, 1261, v); });  // Aim, initial
+  ddx_check(dx, 1263, e.keep[0]);                                        // Aim, set (+0x974)
+  word<int32_t>(p, 0x9c, [&](int32_t& v) { ddx_check(dx, 1260, v); });  // Hit
+  ddx_check(dx, 1262, e.keep[1]);
+  word<int32_t>(p, 0xa0, [&](int32_t& v) { ddx_check(dx, 1244, v); });  // Time
+  ddx_check(dx, 1245, e.keep[2]);
+  word<int32_t>(p, 0xa4, [&](int32_t& v) { ddx_radio(dx, 1258, v); });  // Scan, Jump
+  uint8_t& f130 = p.raw[0xcc];
+  int32_t v = (f130 & 0x40) >> 6;
+  ddx_check(dx, 1278, v);  // Quit scan on trigger pull
+  f130 = static_cast<uint8_t>((v != 0) << 6 | (f130 & 0xbf));
+}
+
+// Mech3.exe 1.2 @ 0x004b9890: Fire.
+void fire_exchange(DataExchange& dx) {
+  ai::AiParams& p = g_editor->params;
+  word<float>(p, 0x38, [&](float& v) { ddx_text(dx, 1216, v); });
+  word<float>(p, 0x34, [&](float& v) { ddx_text(dx, 1191, v); });
+  word<float>(p, 0x30, [&](float& v) { ddx_text(dx, 1145, v); });
+  word<float>(p, 0x90, [&](float& v) { ddx_text(dx, 1232, v); });
+}
+
+// Mech3.exe 1.2 @ 0x004b9c30: Circle (and Random Move, "behaves like Circle").
+void circle_exchange(DataExchange& dx) {
+  word<float>(g_editor->params, 0x44, [&](float& v) { ddx_text(dx, 1220, v); });
+}
+
+// Mech3.exe 1.2 @ 0x004b9c80: Direct, p1's two ranges.
+void direct_exchange(DataExchange& dx) {
+  ai::AiParams& p = g_editor->params;
+  word<float>(p, 0x28, [&](float& v) { ddx_text(dx, 1212, v); });
+  word<float>(p, 0x2c, [&](float& v) { ddx_text(dx, 1214, v); });
+}
+
+// Mech3.exe 1.2 @ 0x004b9cf0: Jump, p5's four.
+void jump_exchange(DataExchange& dx) {
+  ai::AiParams& p = g_editor->params;
+  word<float>(p, 0x68, [&](float& v) { ddx_text(dx, 1225, v); });
+  word<float>(p, 0x64, [&](float& v) { ddx_text(dx, 1223, v); });
+  word<float>(p, 0x6c, [&](float& v) { ddx_text(dx, 1226, v); });
+  word<float>(p, 0x70, [&](float& v) { ddx_text(dx, 1227, v); });
+}
+
+// Mech3.exe 1.2 @ 0x004b9d90: Zig Zag.
+void zigzag_exchange(DataExchange& dx) {
+  ai::AiParams& p = g_editor->params;
+  word<float>(p, 0x44, [&](float& v) { ddx_text(dx, 1220, v); });
+  word<float>(p, 0x48, [&](float& v) { ddx_text(dx, 1219, v); });
+}
+
+// The Valve page's lists: the valves 1176 (+0x398) and the regions 1177
+// (+0x3d8), both sorted and typed into; "0" (0x005e890c) is no name.
+DlgCombo& valve_list() { return g_editor->pages[kPageValve].at(1176).combo; }
+DlgCombo& region_list() { return g_editor->pages[kPageValve].at(1177).combo; }
+bool no_name(const std::string& s) { return s.empty() || s == "0"; }
+
+// Mech3.exe 1.2 @ 0x004bb300 with 0x004bb2e0: every valve, by name.
+void valves_fill() {
+  valve_list().reset();
+  for (const ai::Valve* v : ai::valves()) valve_list().add(v->name ? v->name : "");
+}
+
+// Mech3.exe 1.2 @ 0x004bb620 with 0x004bb5f0: every region, by name (vt+0x1c).
+void regions_fill() {
+  region_list().reset();
+  for (ai::Region* r : ai::regions()) region_list().add(r->name() ? r->name() : "");
+}
+
+// Mech3.exe 1.2 @ 0x004d93d0: the settings' entry whose valve is named so.
+ai::VListEntry* vlist_find(ai::AiParams& p, const std::string& name) {
+  if (!p.vlist) return nullptr;
+  for (ai::VListEntry& v : *p.vlist)
+    if (v.valve && v.valve->name && name == v.valve->name) return &v;
+  return nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004bb360: the entry the page shows.
+ai::VListEntry& valve_entry() {
+  VehicleEditor& e = *g_editor;
+  ai::VListEntry* v = vlist_find(e.params, e.valve_name);
+  return v ? *v : e.spare;
+}
+
+// Mech3.exe 1.2 @ 0x004bb550: the valve named shown in the list; a name the
+// list lacks is forgotten.
+void valve_show() {
+  VehicleEditor& e = *g_editor;
+  if (no_name(e.valve_name)) {
+    valve_list().set_cur(-1);
+    return;
+  }
+  if (valve_list().select_string(e.valve_name) == -1) e.valve_name.clear();
+}
+
+// Mech3.exe 1.2 @ 0x004bb470: the valve picked, or typed (made, 0x004d3c40,
+// and the list filled again); an entry for it added to the settings when they
+// have none (0x004d9580: the defaults on that valve, in the file's units,
+// 0x004d8e20).
+void valve_take() {
+  VehicleEditor& e = *g_editor;
+  DlgControl& c = e.pages[kPageValve].at(1176);
+  if (c.combo.cur == -1) {
+    e.valve_name = c.text;  // the edit part (GetWindowText)
+    if (!no_name(e.valve_name)) {
+      ai::valve_get(e.valve_name.c_str());
+      valves_fill();
+    } else {
+      e.valve_name.clear();
+    }
+  } else {
+    e.valve_name = c.combo.items[size_t(c.combo.cur)].text;  // GetLBText
+  }
+  if (!e.valve_name.empty() && !vlist_find(e.params, e.valve_name)) {
+    if (!e.params.vlist) e.params.vlist = new std::list<ai::VListEntry>;
+    ai::VListEntry v;  // 0x004d8d90: the defaults (0x005e8da0) on the valve
+    v.valve = ai::valve_get(e.valve_name.c_str());
+    e.params.vlist->push_back(v);
+    ai::VListEntry& n = e.params.vlist->back();
+    n.f10 = std::sqrt(n.f10), n.f0c = std::sqrt(n.f0c);  // 0x004d8e20
+  }
+  valve_show();
+}
+
+// Mech3.exe 1.2 @ 0x004bb780: the entry's region shown by name; one the list
+// lacks is dropped from the entry.
+void region_show(bool traced = true) {
+  if (traced) trace(0x004bb780);
+  ai::VListEntry& v = valve_entry();
+  if (!v.region) {
+    region_list().set_cur(-1);
+    return;
+  }
+  if (region_list().select_string(v.region->name() ? v.region->name() : "") == -1) v.region = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x004bb680: the region picked (0x004c5d20), or typed (found
+// or read from its file, 0x004c5c00, and the list filled again), on the entry.
+void region_take() {
+  trace(0x004bb680);
+  DlgControl& c = g_editor->pages[kPageValve].at(1177);
+  ai::Region* r = nullptr;
+  if (c.combo.cur == -1) {
+    if (!no_name(c.text)) {
+      r = ai::region_find(c.text.c_str());
+      regions_fill();
+    }
+  } else {
+    r = ai::region_named(c.combo.items[size_t(c.combo.cur)].text.c_str());
+  }
+  valve_entry().region = r;
+  region_show(false);
+}
+
+// Mech3.exe 1.2 @ 0x004b9930: Valve, the entry of the valve its list names
+// (0x004bb360): the value set, the conditions and their numbers.
+void valve_exchange(DataExchange& dx) {
+  ai::VListEntry& v = valve_entry();
+  uint8_t& f = v.flags;
+  uint8_t& f2 = v.flags2;
+  const auto bit = [&](uint8_t& byte, int32_t id, int b) {
+    int32_t x = (byte >> b) & 1;
+    ddx_check(dx, id, x);
+    byte = static_cast<uint8_t>((byte & ~(1u << b)) | (x != 0) << b);
+  };
+  // DDX_Control 1176: the valve list.
+  int32_t x = (f >> 1) & 1;
+  ddx_radio(dx, 1178, x);  // close (zero), open (one)
+  f = static_cast<uint8_t>((x != 0) << 1 | (f & 0xfd));
+  // DDX_Control 1177: the region list.
+  bit(f, 1181, 2);  // Ammo
+  ddx_text(dx, 1193, v.f00);
+  bit(f, 1182, 3);  // Fired on
+  bit(f, 1180, 4);  // Health
+  ddx_text(dx, 1192, v.f04);
+  bit(f, 1186, 5);  // Heat
+  ddx_text(dx, 1195, v.f08);
+  bit(f2, 1188, 0);  // Enters
+  bit(f, 1190, 6);   // Target LOS
+  ddx_text(dx, 1196, v.f0c);
+  bit(f, 1184, 7);  // Target Distance
+  ddx_text(dx, 1194, v.f10);
+  bit(f, 1256, 0);   // Active
+  bit(f2, 1189, 1);  // Exits
+  if (!dx.save)
+    region_show();
+  else
+    region_take();
+}
+
+void (*const kExchange[kPages])(DataExchange&) = {
+    p1_exchange,     p2_exchange,     attack_exchange, retreat_exchange, p5_exchange,     fire_exchange,
+    valve_exchange,
+    circle_exchange, direct_exchange, jump_exchange,   zigzag_exchange,  circle_exchange,
+};
 
 // Mech3.exe 1.2 @ 0x004bb7e0: the settings shown (gathered first) put on
 // vehicle i. The record built from them (0x004d9940, then 0x004d9b70 back
@@ -408,6 +671,18 @@ void make_pages() {
   for (int32_t id : {1275, 1279, 1276, 1282}) p2.at(id).max_check = 1;
   for (int32_t id : {1249, 1283}) p2.at(id).max_check = 2;
   p2.at(1197).radios = 3;  // Friend, Foe, Other
+  Dialog& attack = e.pages[kPageAttack];
+  attack.at(1233).combo.sorted = true;
+  for (int32_t id = 0; id < 5; ++id)  // 0x004b7fb0: the map in order
+    attack.at(1233).combo.set_data(attack.at(1233).combo.add(strategy_name(id)), id);
+  Dialog& valve = e.pages[kPageValve];
+  valve.at(1176).combo.sorted = valve.at(1177).combo.sorted = true;
+  valve.at(1178).radios = 2;
+  valves_fill();   // 0x004bb300
+  regions_fill();  // 0x004bb620
+  Dialog& p5 = e.pages[kPageP5];
+  for (int32_t id : {1245, 1262, 1263}) p5.at(id).max_check = 2;
+  p5.at(1258).radios = 2;  // Scan, Jump
   nets_fill();
   chassis_fill();
 }
@@ -468,6 +743,98 @@ void build() {
   team_id.left = vehicle_editor_team_left;
   e.form.fields.push_back(team_id);
   e.form.fields.push_back(check("Lancemate", kPageP2, 1283, 2));
+  // Attack (168), then its own tab and its pages.
+  e.form.fields.push_back(edit("Firing Accuracy", kPageAttack, 1272));
+  e.form.fields.push_back(edit("Firing Accuracy##2", kPageAttack, 1274));
+  e.form.fields.push_back(list("Strategy", kPageAttack, 1233, nullptr));
+  e.form.fields.push_back(edit("Throttle", kPageAttack, 1234));
+  e.form.fields.push_back(edit("Throttle##2", kPageAttack, 1248));
+  FormField strategies{"##strategies", FormField::kTabs};
+  strategies.choices.assign(std::begin(kStrategyTitles), std::end(kStrategyTitles));
+  strategies.i = &e.strategy_tab, strategies.first = kPageCircle, strategies.page = kPageAttack;
+  strategies.changed = [] {
+    if (g_editor) vehicle_editor_strategy_tab(kPageCircle + g_editor->strategy_tab);
+  };
+  e.form.fields.push_back(strategies);
+  e.form.fields.push_back(edit("Radius", kPageCircle, 1220));
+  e.form.fields.push_back(edit("Approach", kPageDirect, 1212));
+  e.form.fields.push_back(edit("Minimum Range", kPageDirect, 1214));
+  e.form.fields.push_back(edit("Delay##jump", kPageJump, 1223));
+  e.form.fields.push_back(edit("Delay 2##jump", kPageJump, 1225));
+  e.form.fields.push_back(edit("Duration##jump", kPageJump, 1226));
+  e.form.fields.push_back(edit("Duration 2##jump", kPageJump, 1227));
+  e.form.fields.push_back(edit("Length", kPageZigZag, 1219));
+  e.form.fields.push_back(edit("Target Distance", kPageZigZag, 1220));
+  e.form.fields.push_back(FormField{"Not yet implemented, behaves like Circle.", FormField::kLabel});
+  e.form.fields.back().page = kPageRandomMove;
+  e.form.fields.push_back(edit("Radius##random", kPageRandomMove, 1220));
+  // Retreat (169).
+  e.form.fields.push_back(check("Net Distance", kPageRetreat, 1221));
+  e.form.fields.push_back(edit("##1211", kPageRetreat, 1211));
+  e.form.fields.push_back(check("Health", kPageRetreat, 1222));
+  e.form.fields.push_back(edit("##1213", kPageRetreat, 1213));
+  e.form.fields.push_back(check("Time", kPageRetreat, 1224));
+  e.form.fields.push_back(edit("##1215", kPageRetreat, 1215));
+  e.form.fields.push_back(check("Health Change", kPageRetreat, 1271));
+  e.form.fields.push_back(edit("##1270", kPageRetreat, 1270));
+  e.form.fields.push_back(FormField{"Retreat Leavenet Disable", FormField::kLabel});
+  e.form.fields.back().page = kPageRetreat;
+  e.form.fields.push_back(check("For timeout", kPageRetreat, 1253));
+  e.form.fields.push_back(edit("##1254", kPageRetreat, 1254));
+  e.form.fields.push_back(check("Forever", kPageRetreat, 1252));
+  // p5 (170).
+  e.form.fields.push_back(FormField{"Scan Trigger: Initial / Set Value", FormField::kLabel});
+  e.form.fields.back().page = kPageP5;
+  e.form.fields.push_back(check("Time##initial", kPageP5, 1244));
+  e.form.fields.push_back(check("Time##set", kPageP5, 1245, 2));
+  e.form.fields.push_back(check("Hit##initial", kPageP5, 1260));
+  e.form.fields.push_back(check("Hit##set", kPageP5, 1262, 2));
+  e.form.fields.push_back(check("Aim##initial", kPageP5, 1261));
+  e.form.fields.push_back(check("Aim##set", kPageP5, 1263, 2));
+  FormField scan{"Scan Parameters", FormField::kRadio};
+  scan.choices = {"Scan", "Jump"};
+  scan.i = &e.pages[kPageP5].at(1258).check, scan.page = kPageP5;
+  e.form.fields.push_back(scan);
+  for (const int32_t id : {1247, 1223, 1225, 1226, 1227})
+    e.form.fields.push_back(edit(("##" + std::to_string(id)).c_str(), kPageP5, id));
+  e.form.fields.push_back(check("Quit scan on trigger pull", kPageP5, 1278));
+  e.form.fields.push_back(check("Collision Avoidance: Enable", kPageP5, 1246));
+  e.form.fields.push_back(edit("##1228", kPageP5, 1228));
+  e.form.fields.push_back(edit("##1230", kPageP5, 1230));
+  // Valve (172).
+  {
+    FormField valves = list("Valve", kPageValve, 1176, vehicle_editor_valve_changed);
+    valves.text = &e.pages[kPageValve].at(1176).text, valves.left = vehicle_editor_valve_picked;
+    e.form.fields.push_back(valves);
+    e.form.fields.push_back(check("Active", kPageValve, 1256));
+    FormField set{"Set", FormField::kRadio};
+    set.choices = {"close (zero)", "open (one)"};
+    set.i = &e.pages[kPageValve].at(1178).check, set.page = kPageValve;
+    e.form.fields.push_back(set);
+    e.form.fields.push_back(FormField{"Set value on any condition", FormField::kLabel});
+    e.form.fields.back().page = kPageValve;
+    e.form.fields.push_back(check("Health##valve", kPageValve, 1180));
+    e.form.fields.push_back(edit("##1192", kPageValve, 1192));
+    e.form.fields.push_back(check("Ammo", kPageValve, 1181));
+    e.form.fields.push_back(edit("##1193", kPageValve, 1193));
+    e.form.fields.push_back(check("Fired on", kPageValve, 1182));
+    e.form.fields.push_back(check("Target Distance", kPageValve, 1184));
+    e.form.fields.push_back(edit("##1194", kPageValve, 1194));
+    e.form.fields.push_back(check("Heat", kPageValve, 1186));
+    e.form.fields.push_back(edit("##1195", kPageValve, 1195));
+    e.form.fields.push_back(check("Enters", kPageValve, 1188));
+    e.form.fields.push_back(check("Exits", kPageValve, 1189));
+    FormField regions = list("Region", kPageValve, 1177, nullptr);
+    regions.text = &e.pages[kPageValve].at(1177).text;
+    e.form.fields.push_back(regions);
+    e.form.fields.push_back(check("Target LOS", kPageValve, 1190));
+    e.form.fields.push_back(edit("##1196", kPageValve, 1196));
+  }
+  // Fire (171).
+  e.form.fields.push_back(FormField{"Fire Control", FormField::kLabel});
+  e.form.fields.back().page = kPageFire;
+  for (const int32_t id : {1145, 1191, 1216, 1232})
+    e.form.fields.push_back(edit(("##" + std::to_string(id)).c_str(), kPageFire, id));
   e.form.fields.push_back(pause);
   e.form.buttons = {{"OK", vehicle_editor_ok}, {"Apply", vehicle_editor_apply}, {"Refresh", vehicle_editor_refresh}};
 }
@@ -522,6 +889,7 @@ void edit_vehicles(int32_t) {
   load_shown(0);
   build();
   vehicle_editor_tab(kPageP1);
+  vehicle_editor_strategy_tab(kPageCircle);
   g_editor->show_inout = !ai::inout_view_empty();
   if (g_editor->show_inout) ai::inout_view_show("ionet");
   form_show(&g_editor->form);
@@ -533,6 +901,15 @@ void vehicle_editor_tab(int32_t page) {
   if (g_editor->page >= 0) vehicle_page_update(g_editor->page, true);
   g_editor->page = page;
   g_editor->tab = page;
+  vehicle_page_update(page, false);
+}
+
+// Mech3.exe 1.2 @ 0x004b9e10 -> 0x004b7c80 on Attack's tab (+0x41c, +0x4e4)
+void vehicle_editor_strategy_tab(int32_t page) {
+  if (!g_editor || page == g_editor->strategy_page) return;
+  if (g_editor->strategy_page >= 0) vehicle_page_update(g_editor->strategy_page, true);
+  g_editor->strategy_page = page;
+  g_editor->strategy_tab = page - kPageCircle;
   vehicle_page_update(page, false);
 }
 
@@ -565,6 +942,8 @@ void vehicle_editor_refresh() {
   const std::string name = it ? it->name : std::string();
   g_editor->items = g_hooks->vehicles();
   nets_fill();
+  valves_fill();
+  regions_fill();
   chassis_fill();
   int32_t at = 0;
   for (size_t k = 0; k < g_editor->items.size(); ++k)
@@ -646,6 +1025,23 @@ void vehicle_editor_chassis() {
   vehicle_page_update(kPageP2, true);
   chassis_gather();
   vehicle_page_update(kPageP2, false);
+}
+
+// Mech3.exe 1.2 @ 0x004b9f80
+void vehicle_editor_valve_changed() {
+  if (!g_editor) return;
+  vehicle_page_update(kPageValve, true);
+  valve_take();
+  vehicle_page_update(kPageValve, false);
+}
+
+// Mech3.exe 1.2 @ 0x004b9fa0 -> 0x004bb390: nothing when the item picked is
+// the valve shown, else as a change.
+void vehicle_editor_valve_picked() {
+  if (!g_editor) return;
+  const DlgCombo& c = valve_list();
+  if (c.cur != -1 && c.items[size_t(c.cur)].text == g_editor->valve_name) return;
+  vehicle_editor_valve_changed();
 }
 
 // DestroyWindow -> 0x004b8b70: the object deleted and [0x0060b310] cleared

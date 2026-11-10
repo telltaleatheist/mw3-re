@@ -60,9 +60,15 @@ void set_vehicle_editor_hooks(VehicleEditorHooks* h);  // null: the defaults
 VehicleEditorHooks& vehicle_editor_hooks();
 
 // The main tab's pages in order (0x004b8790): p1 0x4e8, p2 0x548, Attack
-// 0x5b4, Retreat 0x7f4, p5 0x854, Fire 0x8b4, Valve 0x914. Each is a dialog
-// of its own (its controls), exchanged by its DoDataExchange (vt+0x8c).
-enum VehiclePage { kPageP1, kPageP2, kPageAttack, kPageRetreat, kPageP5, kPageFire, kPageValve, kPages };
+// 0x5b4, Retreat 0x7f4, p5 0x854, Fire 0x8b4, Valve 0x914; then Attack's own
+// tab's: Circle 0x614, Direct 0x674, Jump 0x6d4, Zig Zag 0x734, Random Move
+// 0x794 (Circle's DDX). Each is a dialog of its own (its controls),
+// exchanged by its DoDataExchange (vt+0x8c).
+enum VehiclePage {
+  kPageP1, kPageP2, kPageAttack, kPageRetreat, kPageP5, kPageFire, kPageValve,
+  kPageCircle, kPageDirect, kPageJump, kPageZigZag, kPageRandomMove, kPages
+};
+constexpr int32_t kMainPages = kPageValve + 1;
 
 // The editor (0x988 bytes, 0x004b80f0; [0x0060b310]); the pages from
 // Attack on come with S7e.
@@ -80,7 +86,13 @@ struct VehicleEditor {
   Dialog main;                  // the dialog's own controls: Pause 1218
   Dialog pages[kPages];         // each page's controls
   int32_t page = -1;            // +0x4e0  the main tab's page shown (-1 none yet)
+  int32_t strategy_page = -1;   // +0x4e4  Attack's tab's page shown
   int32_t tab = 0;              // the form's tab (the tab control's selection)
+  int32_t strategy_tab = 0;     // Attack's tab 1175's selection
+  // The Valve page's: the valve its list names (+0x3f8) and the entry it
+  // shows when the settings have none for that valve (+0x3fc, 0x20 bytes).
+  std::string valve_name;
+  ai::VListEntry spare;
   // p2's own (0x548 +0x60, +0x64, +0x68): the pilot's name as typed, and the
   // two flag bits as check boxes.
   std::string p2_pilot;
@@ -98,6 +110,7 @@ void vehicle_editor_refresh();       // 0x004b9f20 -> 0x004b9e40
 void vehicle_editor_pause();         // 0x004bc3f0
 void vehicle_editor_close();         // DestroyWindow -> 0x004b8b70 (PostNcDestroy)
 void vehicle_editor_tab(int32_t page);  // the tab's TCN_SELCHANGE 0x004b8770 -> 0x004b7c80
+void vehicle_editor_strategy_tab(int32_t page);  // Attack's tab 1175: 0x004b9e10 -> 0x004b7c80
 // The dialog's UpdateData (0x004b8680: the team round trip when showing,
 // then the page shown); false when one of its fields failed.
 bool vehicle_editor_update(bool save);
@@ -111,6 +124,10 @@ void vehicle_editor_net_edit();      // 1250 0x004b9f50: window 181
 void vehicle_editor_send_home();     // 1255 0x004b9f70 -> 0x004bc960
 void vehicle_editor_config();        // 1273 CBN_SELCHANGE 0x004b9fb0
 void vehicle_editor_chassis();       // 1274 CBN_SELCHANGE 0x004b9fd0
+// The Valve page's valve list 1176: CBN_SELCHANGE 0x004b9f80, CBN_SELENDOK
+// 0x004b9fa0 (also a name typed and Enter: ours, the edit part's way in).
+void vehicle_editor_valve_changed();
+void vehicle_editor_valve_picked();
 // Tests: when set, each page fill and gather (0x004bc4e0..0x004bc930) adds
 // its address as it runs.
 std::vector<uint32_t>*& vehicle_editor_trace();
