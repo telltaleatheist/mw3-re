@@ -368,7 +368,7 @@ void walk_archive(ArchiveReader& r, const std::string& path, const std::vector<S
 
 std::string game_words(const Found& f) {
   if (f.game == Found::kPiratesMoon)
-    return "This is MechWarrior 3: Pirate's Moon. Its support comes later: point to MechWarrior 3 itself.";
+    return "This is MechWarrior 3: Pirate's Moon, a game of its own: in the launcher, click PIRATE'S MOON, then GAME FILES, and give it there.";
   if (f.game != Found::kMw3) return "";
   std::string v = f.version.empty() ? "" : " version " + f.version;
   if (f.kind == Found::kInstall) return "An installed copy of MechWarrior 3" + v + ".";

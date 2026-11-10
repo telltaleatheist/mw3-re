@@ -66,6 +66,13 @@ Result apply_patch(const std::string& source, const std::string& write_dir, cons
 // install is never written, and one already in `write_dir` is kept.
 Result add_pm_sounds(const std::string& source, const std::string& write_dir, const ProgressFn& progress);
 
+// ADD FROM MY DISC for Pirate's Moon: the music (a .cue's CD audio) into
+// `music_dir` and the disc's soundsH.zbd into `write_dir` (add_pm_sounds),
+// each only when given (empty: not lacking). A drive, a folder or an .iso
+// has no music: said, the sounds still added.
+Result add_pm_from_disc(const std::string& source, const std::string& music_dir, const std::string& write_dir,
+                        const ProgressFn& progress);
+
 // A disc image's CD audio (its .cue) as music_dir/trackNN.wav.
 Result add_music(const std::string& cue, const std::string& music_dir, const ProgressFn& progress);
 
