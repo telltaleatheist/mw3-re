@@ -56,6 +56,11 @@ using ModsEditStart = std::function<bool(const std::string& mod, const std::stri
 // `why` when it cannot (unset: said). On true the game is closing.
 using ModsPlay = std::function<bool(const std::string& entry, std::string* why)>;
 ModsPlay& mods_menu_play();
+// TEST's on a plain run (step 4a): the program's start again into the entry and straight into that mission
+// (--entry ID --entry-test WORLD N). The campaign MODS opens on (--mods-entry ID: the one just left).
+using ModsTestRestart = std::function<bool(const std::string& entry, const std::string& world, int32_t number, std::string* why)>;
+ModsTestRestart& mods_menu_test_restart();
+std::string& mods_menu_open_entry();
 ModsEditStart& mods_menu_edit_start();
 bool& mods_menu_reopen();
 // A mod's missions for EDIT: its campaigns' lines when it has any (mounted:
@@ -118,6 +123,10 @@ class ModsScreen : public MenuScreen {
   std::string edit_mod;              // its mod's folder
   std::vector<ModsEditRow> edit_rows;
   bool reporting = false;            // REPORT's sentences in CUSTOM CAMPAIGNS' box
+  // Inside an entry started for TEST (upgrades/mods/entry_run.h, kTest): the screen is that entry's test list
+  // only ("TEST in <campaign>"): ENTER plays the chosen mission in place, BACK leaves the entry.
+  bool test_mode = false;
+  void open_test_mode();
 };
 
 // "Mods State" (ours): the screen made on entering, let go on leaving, as

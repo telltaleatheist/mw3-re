@@ -4709,6 +4709,17 @@ TEST(sdl_restart_args_are_the_starts_own) {
   EXPECT((sdlfe::restart_args(piloted, camp) ==
           V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--entry", "camp~night", "--entry-play", "--restarted"}));
   camp.pilot.clear();
+  // TEST through an entry: the mission goes along; leaving a campaign names it for MODS; both are taken out again.
+  sdlfe::RestartTo test;
+  test.entry = "camp~night", test.screen = sdlfe::RestartTo::kTest, test.test_world = "c2", test.test_number = 3;
+  const V tested = sdlfe::restart_args(in, test);
+  EXPECT((tested == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--entry", "camp~night", "--entry-test", "c2", "3", "--restarted"}));
+  sdlfe::RestartTo back_to;
+  back_to.open_mods = true, back_to.mods_entry = "camp~night";
+  const V on_mods = sdlfe::restart_args(tested, back_to);
+  EXPECT((on_mods == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-mods", "--mods-entry", "camp~night", "--restarted"}));
+  EXPECT((sdlfe::restart_args(on_mods, sdlfe::RestartTo{}) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--restarted"}));
+  EXPECT((sdlfe::restart_args({"--entry-test", "c1"}, sdlfe::RestartTo{}) == V{"--restarted"}));  // cut short: nothing read past the end
   EXPECT((sdlfe::restart_args({"--entry"}, sdlfe::RestartTo{}) == V{"--restarted"}));  // a flag cut short: nothing read past the end
   // The request is taken once.
   sdlfe::RestartTo got;
@@ -4836,6 +4847,7 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   const std::string b = run({"--entry", "camp~night", "--entry-play", "--click-at", "495,405@150"}, "b");
   const size_t left = has(b, "mw3: entry camp~night left: starting again on MODS"), mods = has(b, "mw3: the main menu opens on MODS (--open-mods)");
   EXPECT(left != none && mods != none && left < mods && has(b, "mw3: closed, result 0", mods) != none);
+  EXPECT(has(b, "mw3: MODS opens with the campaign camp~night chosen (--mods-entry)", left) != none);  // back where the player was
   for (size_t i = has(b, "still open: "); i != none; i = has(b, "still open: ", i + 1)) {
     const std::string line = b.substr(i, b.find('\n', i) - i);
     EXPECT(line.find(dir) == none);  // the pilot's file is not among them
@@ -4848,6 +4860,14 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   const std::string c = run({"--click-at", "135,435@130", "--click-at", "470,62@170", "--click-at", "425,255@190", "--click-at", "420,320@220"}, "c");
   const size_t own = has(c, "mw3: MODS: starting again into entry mw3"), in = has(c, "mw3: entry mw3 (MechWarrior 3): 2 mods");
   std::printf("  the game's own with a tick: asked %d, entered with both %d\n", own != none, in != none);
+  // TEST through the entry (step 4a): MODS, TEST (the game's own campaign's missions, the first chosen), PLAY:
+  // the game starts again into the campaign with its ticks and straight into the mission, no pilot screen.
+  const std::string t = run({"--click-at", "135,435@130", "--click-at", "130,343@170", "--click-at", "420,320@220"}, "t");
+  const size_t test_asked = has(t, "mw3: MODS: starting again into entry mw3 to test c1 mission 1"),
+               test_in = has(t, "mw3: entry mw3 (MechWarrior 3): 2 mods"), loading = has(t, "mw3: load: Loading [ c1 ]");
+  std::printf("  TEST: asked %d, entered %d, the mission loading %d\n", test_asked != none, test_in != none, loading != none);
+  EXPECT(test_asked != none && test_in != none && loading != none && test_asked < test_in && test_in < loading);
+  EXPECT(has(t, "mw3: closed, result 0", loading == none ? 0 : loading) != none && has(t, "mission load failed") == none);
   EXPECT(own != none && in != none && own < in && has(c, "mod hud (Green HUD) mounted", in) != none && has(c, "mod weps (Weps) mounted", in) != none);
   {
     std::ifstream t(dir + "/wd/campaigns/mw3/mods.txt");

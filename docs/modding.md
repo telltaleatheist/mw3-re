@@ -525,6 +525,35 @@ the order's rules), `mods_screen_each_campaign_its_own_ticks_and_locked_rows_hea
 `sdl_program_mods_enter_plays_an_entry_and_back` (a campaign's row and PLAY;
 the game's own with a mod ticked on the screen).
 
+### TEST through entries (step 4a)
+
+- **On MODS** (a plain run): TEST lists the chosen campaign's missions: with
+  a mod of MODS in focus that mod's own first (it must be ticked for the
+  campaign: "Tick <mod> for <campaign> to test it there."), then the
+  campaign's mod's, then the game's campaign missions, each once. PLAY on one
+  starts the program again into the campaign with its ticks and straight
+  into that mission (`--entry ID --entry-test WORLD N`,
+  `mods_menu_test_restart`), with the stand-in pilot, no pilot screen.
+- **Inside the entry** (`EntryRun::kTest`, `MainState::update`): the mission
+  starts at once (today's `mods_menu_test_start`). When it ends, however it
+  ends, MODS opens in its test mode (`ModsScreen::open_test_mode`): "TEST in
+  <campaign>" at the top left with the count of mods on, the list of
+  missions (every mounted mod's own, the campaign's, the game's), and
+  nothing else: PLAY plays the chosen one in place, the mechs' definitions
+  read again (`mod_test_reload`, the quick loop: the same entry and ticks, no
+  restart); every other button only says what the screen is; BACK leaves:
+  the program starts again plain on MODS with that campaign chosen
+  (`--open-mods --mods-entry ID`, which leaving a campaign's pilot screen
+  passes too). A mission that cannot be started or does not load says why on
+  the test screen and the list stays.
+- Changing a tick is not offered inside the test (it needs the restart): BACK,
+  tick, TEST again.
+- EDITOR still says it is not available from MODS (step 4b).
+
+Tests: `mods_screen_test_plays_a_mission_and_comes_back_headless` (both
+halves), `sdl_program_mods_enter_plays_an_entry_and_back` (MODS, TEST, PLAY:
+the restart and the mission loading), `sdl_restart_args_are_the_starts_own`.
+
 ### Instant Action's own MODS (first part)
 
 Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Instant Action): Instant
@@ -789,7 +818,7 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   off is never started half-mounted: ENTER turns the mod on for the next
   start and says so ("its mod is turned on; restart to play it").
 - EDITOR: EDIT (editor.md, The way in from MODS): the selected campaign's or mod's missions in the campaigns' box, ENTER opening one in the game editor, saves going into the mod itself.
-- TEST (Quick testing, below): the same list with the game's own missions after the mod's, ENTER playing one with the mods on.
+- TEST (Quick testing, below; since step 4a through the chosen campaign's entry: TEST through entries): the chosen campaign's missions, PLAY starting the game again into it and the mission.
 - BACK: the main menu.
 - ENTER and BACK hit where they are drawn (`ModsSlideButton`, lead 2026-11-10):
   the ring and knob of their 82x82 image (alpha 64 and up) and their label's

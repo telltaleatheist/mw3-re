@@ -179,6 +179,9 @@ struct Args {
   bool mods_given = false, no_mods = false, list_mods = false;
   // --entry ID (ours, upgrades/mods/campaign_entries.h): a MODS campaign entry's mods and pilots for this run.
   std::string entry;
+  std::string entry_test_world;  // --entry-test WORLD N: that mission at once, then MODS's test mode in the entry (entry_run.h)
+  int entry_test_number = 0;
+  std::string mods_entry;   // --mods-entry ID: the campaign MODS opens on (with --open-mods)
   std::string entry_pilot;  // --entry-pilot NAME: Instant Action's pilot picked at once (sdl_restart.h)
   // Its screen opened at once (upgrades/mods/entry_run.h), a plain start with MODS open, and a start made by
   // the program itself (sdl_restart.h): no intro movies.
@@ -274,7 +277,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia]] [--entry-pilot NAME] [--open-mods | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia | --entry-test WORLD N]] [--entry-pilot NAME] [--open-mods [--mods-entry ID] | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -295,6 +298,8 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-mods") a.no_mods = true;
     else if (s == "--entry" && next(1)) a.entry = argv[++i];
     else if (s == "--entry-pilot" && next(1)) a.entry_pilot = argv[++i];
+    else if (s == "--entry-test" && next(2)) a.entry_test_world = argv[++i], a.entry_test_number = std::atoi(argv[++i]);
+    else if (s == "--mods-entry" && next(1)) a.mods_entry = argv[++i];
     else if (s == "--entry-play") a.entry_play = true;
     else if (s == "--entry-ia") a.entry_ia = true;
     else if (s == "--open-mods") a.open_mods = true;
@@ -804,16 +809,20 @@ int program(int argc, char** argv) {
       mech3::set_configs_folder(mech3::entry_configs_folder(e->id));
       std::printf("mw3: entry %s (%s): %zu mods\n", e->id.c_str(), e->name.c_str(), a.mods.size());
       // Its screen alone (--entry-play, --entry-ia): the main menu opens it and its BACK leaves.
-      if (a.entry_play || a.entry_ia) {
+      const bool test = !a.entry_test_world.empty();
+      if (a.entry_play || a.entry_ia || test) {
         mech3::EntryRun& run = mech3::entry_run();
         const bool ia = a.entry_ia || e->kind == mech3::CampaignEntry::kInstantAction;
-        run.screen = ia ? mech3::EntryRun::kInstantAction : mech3::EntryRun::kPlay;
+        run.screen = test ? mech3::EntryRun::kTest : ia ? mech3::EntryRun::kInstantAction : mech3::EntryRun::kPlay;
         run.id = e->id, run.mod = e->mod, run.campaign = e->campaign;
+        run.world = a.entry_test_world, run.number = a.entry_test_number;
       }
     }
     // One that cannot be played: the player back on MODS, where it is listed.
-    if (a.entry.empty() && (a.entry_play || a.entry_ia)) a.open_mods = true;
+    if (a.entry.empty() && (a.entry_play || a.entry_ia || !a.entry_test_world.empty())) a.open_mods = true;
   }
+  mech3::mods_menu_open_entry() = a.mods_entry;
+  if (a.open_mods && !a.mods_entry.empty()) std::printf("mw3: MODS opens with the campaign %s chosen (--mods-entry)\n", a.mods_entry.c_str());
   if (a.open_mods) mech3::mods_menu_reopen() = true, std::printf("mw3: the main menu opens on MODS (--open-mods)\n");
   // The five switches from mw3.cfg, all off with --original (ours; the
   // always-on fixes stay: zfix.h's `fixed`, docs/upgrades-sort.md). 1.0.x's
@@ -1782,10 +1791,20 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         mech3::entry_run().leave = [&app] {
           sdlfe::RestartTo to;
           to.open_mods = mech3::entry_run().screen != mech3::EntryRun::kInstantAction;  // Instant Action came from the main menu: back to it
+          if (to.open_mods) to.mods_entry = mech3::entry_run().id;  // MODS with that campaign chosen
           std::printf("mw3: entry %s left: starting again on %s\n", mech3::entry_run().id.c_str(), to.open_mods ? "MODS" : "the main menu");
           sdlfe::restart_ask(to);
           app.replace(app.state(4), 0);
         };
+      // Ours: MODS's TEST on a plain run (mods_menu.h): into the entry and straight into the mission.
+      mech3::mods_menu_test_restart() = [&app](const std::string& entry, const std::string& world, int32_t number, std::string*) {
+        std::printf("mw3: MODS: starting again into entry %s to test %s mission %d\n", entry.c_str(), world.c_str(), number);
+        sdlfe::RestartTo to;
+        to.entry = entry, to.screen = sdlfe::RestartTo::kTest, to.test_world = world, to.test_number = number;
+        sdlfe::restart_ask(to);
+        app.replace(app.state(4), 0);
+        return true;
+      };
       // Ours: Instant Action's MODS (upgrades/mods/ia_mods_menu.h): into its entry with the ticks, or plain on Instant Action.
       mech3::ia_mods_restart() = [&app](bool into_entry, const std::string& pilot, std::string*) {
         std::printf("mw3: Instant Action's MODS: starting again %s%s%s\n", into_entry ? "into entry ia" : "plain, on Instant Action",
