@@ -180,6 +180,17 @@ bool entry_save_ticks(const std::string& write_dir, const CampaignEntry& e, cons
   return write_text(fs::path(entry_dir(write_dir, e.id)) / kEntryTicksFile, text);
 }
 
+bool entry_plays_own_campaign(const std::string& write_dir, const CampaignEntry& e) {
+  if (e.kind == CampaignEntry::kInstantAction) return false;
+  const std::vector<CampaignEntry> all = campaign_entries(write_dir);
+  int steps = 0;
+  for (const CampaignEntry* at = &e; at; at = at->base.empty() ? nullptr : find_entry(all, at->base)) {
+    if (!at->campaign.empty() || at->missing || ++steps > 32) return false;  // a campaign of its own, a gap, or a loop
+    if (at->kind == CampaignEntry::kOfficial) return true;
+  }
+  return false;  // the chain did not reach the game's own
+}
+
 std::string& current_entry() {
   static std::string id;
   if (id.empty()) id = official_entries().front().id;

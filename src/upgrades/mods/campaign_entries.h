@@ -72,6 +72,12 @@ std::vector<std::string> entry_mount_list(const std::string& write_dir, const Ca
 // they are unticked or imported again (its pilots are kept).
 std::vector<std::string> entry_missing_mods(const std::string& write_dir, const CampaignEntry& e);
 
+// The entry plays the game's own campaign: it and everything it is built on
+// (its base= chain) have no campaign= of their own, and it is not Instant
+// Action's. A main-menu pilot brought into such an entry carries on from its
+// saved games; into any other it starts that campaign anew (entry_pilots.h).
+bool entry_plays_own_campaign(const std::string& write_dir, const CampaignEntry& e);
+
 // The run's entry: --entry's, else the game's own campaign (official_entries'
 // first). What "turned on" means to everything that used to write mw3.cfg's
 // mod= lines (the editor's saves, IMPORT, the present MODS screen's ON/OFF):

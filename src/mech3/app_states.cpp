@@ -2,6 +2,7 @@
 #include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/mods/entry_pilots.h"
 #include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/ia_mods_menu.h"
 #include "mech3/options_menu.h"
@@ -980,6 +981,9 @@ bool MainState::enter() {
   // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action was given, picked now the pilots are loaded.
   if (!ia_start_pilot().empty()) {
     Pilot* p = find_pilot(ia_start_pilot().c_str());
+    std::string why;
+    if (!p && entry_is_main_pilot(ia_start_pilot())) p = entry_bring_pilot(ia_start_pilot(), &why);  // the main menu's, brought across
+    if (!why.empty()) std::printf("mw3: Instant Action's pilot %s could not be brought: %s\n", ia_start_pilot().c_str(), why.c_str());
     std::printf("mw3: Instant Action's pilot %s: %s\n", ia_start_pilot().c_str(), p ? "picked" : "not there, the pilot screen");
     ia_start_pilot().clear();
     if (p) current_pilot() = p, ap.set_reopen_instant_action(1, 1);

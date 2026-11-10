@@ -241,8 +241,8 @@ TEST(ia_mods_accept_steps_and_line) {
 
 // Instant Action's MODS, second part (ia_mods.h): INSTANT ACTION goes straight
 // into the modded one only with mods ticked and none missing; a plain run
-// with a ticked mod gone says so; the pilot carried over is offered once.
-TEST(ia_mods_straight_in_missing_and_the_pilot_offer) {
+// with a ticked mod gone says so.
+TEST(ia_mods_straight_in_and_missing) {
   using V = std::vector<std::string>;
   const fs::path wd = tmp("ia_mods_pilot");
   put(wd / "mods/hud/mod.txt", "name=Green HUD\n");
@@ -258,14 +258,27 @@ TEST(ia_mods_straight_in_missing_and_the_pilot_offer) {
   EXPECT(!mech3::ia_straight_in(wd.string()) && (mech3::ia_mods_missing(wd.string()) == V{"weps"}));
   EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: 1 missing");
   EXPECT(mech3::ia_mods_line(wd.string(), 2) == "MODS: 2 on");  // the tick list's own count stays the ticks'
-  // The pilot: none of that name; the main menu's (offered); declined (not asked again); the entry's own (picked).
-  EXPECT(mech3::ia_pilot_state(wd.string(), "") == mech3::IaPilot::kNone && mech3::ia_pilot_state(wd.string(), "Ace") == mech3::IaPilot::kNone);
-  put(wd / "pilots/Ace.mw3", "ace");
-  put(wd / "pilots/Bo Lee.mw3", "bo");
-  EXPECT(mech3::ia_pilot_state(wd.string(), "ace") == mech3::IaPilot::kOffer);  // any letter case, as the game's names
-  mech3::ia_pilot_declined(wd.string(), "Ace");
-  EXPECT(mech3::ia_pilot_state(wd.string(), "ACE") == mech3::IaPilot::kDeclined && mech3::ia_pilot_state(wd.string(), "Bo Lee") == mech3::IaPilot::kOffer);
-  EXPECT(text_of(wd / "pilots/Ace.mw3") == "ace");
-  put(wd / "campaigns/ia/pilots/Bo Lee.mw3", "bo's copy");
-  EXPECT(mech3::ia_pilot_state(wd.string(), "bo lee") == mech3::IaPilot::kThere);
+}
+
+// Which entries a main-menu pilot carries on in (entry_plays_own_campaign):
+// the game's own campaign and everything built on it; not a campaign with its
+// own campaign file, a copy of one, an entry whose chain is broken, nor
+// Instant Action's.
+TEST(campaign_entry_plays_the_games_own_campaign_or_not) {
+  const fs::path wd = tmp("entries_own");
+  put(wd / "mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\n");
+  put(wd / "mods/camp/night.txt", "name=Long Night\nmission=c1 1\n");
+  put(wd / "mods/rewrite/mod.txt", "name=Rewrite\n");
+  put(wd / "mods/rewrite/zbd/c1/anim.zbd", "x");  // the game's own campaign over its files
+  put(wd / "mods/mine/mod.txt", "name=My Rewrite\nkind=campaign\nbase=rewrite\n");
+  put(wd / "mods/nightedit/mod.txt", "name=Night Edit\nkind=campaign\nbase=camp~night\n");
+  put(wd / "mods/orphan/mod.txt", "name=Orphan\nkind=campaign\nbase=nowhere\n");
+  const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
+  auto own = [&](const char* id) {
+    const mech3::CampaignEntry* e = mech3::find_entry(all, id);
+    EXPECT(e != nullptr);
+    return e && mech3::entry_plays_own_campaign(wd.string(), *e);
+  };
+  EXPECT(own("mw3") && own("rewrite") && own("mine"));
+  EXPECT(!own("ia") && !own("camp~night") && !own("nightedit") && !own("orphan"));
 }

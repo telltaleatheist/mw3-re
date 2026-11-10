@@ -4860,7 +4860,8 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
 // Instant Action's own MODS (upgrades/mods/ia_mods_menu.h), each run one
 // process. A: a plain run, Instant Action (a pilot made), the MODS tab, a mod
 // ticked, ACCEPT: the game starts again into the entry ia with that mod
-// mounted; the main menu's pilot stays where it was and the entry has none.
+// mounted, the pilot brought across quietly (no box) and picked, so it lands
+// on Instant Action's screen; the main menu's pilot is as it was.
 // B: inside the entry, the MODS tab and ALL OFF: it starts again plain, on
 // Instant Action. C: inside the entry, CANCEL on its pilot screen: it starts
 // again on the main menu, not on MODS.
@@ -4875,7 +4876,7 @@ TEST(sdl_program_instant_action_mods) {
   };
   put("wd/mods/hud/mod.txt", "name=Green HUD\n");
   put("wd/mods/weps/mod.txt", "name=Weps\nweapon=GAUSS2 ammo=yes tech=sphere\n");
-  setenv("MW3_BOX_ANSWER", "2", 1);  // the offer to copy the pilot: no (a new pilot is made there)
+  setenv("MW3_BOX_ANSWER", "2", 1);  // no box is expected: one that came would be answered and said, and fail below
   auto run = [&](const std::vector<std::string>& extra, const char* name) {
     std::vector<std::string> args = {"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
                                      "--frame-ms", "33", "--seed", "1", "--frames", "500"};
@@ -4900,9 +4901,12 @@ TEST(sdl_program_instant_action_mods) {
   EXPECT(a.substr(0, asked == none ? 0 : asked).find("mounted") == none);  // the first run was the original
   EXPECT(entered != none && a.find("mw3: closed, result 0", entered) != none && a.find("could not start again") == none);
   EXPECT(text_of("wd/campaigns/ia/mods.txt") == "mod=hud\n");
-  EXPECT(fs::is_regular_file(dir + "/wd/pilots/a.mw3") && !fs::exists(dir + "/wd/campaigns/ia/pilots/a.mw3"));
-  EXPECT(a.find("mw3: box answered 2 (MW3_BOX_ANSWER): Instant Action with mods keeps its own pilots") != none);
-  EXPECT(text_of("wd/campaigns/ia/pilots-not-copied.txt") == "a\n" && a.find(", pilot a") == none);  // said no: not asked again, no pilot carried
+  // The pilot: carried by name, brought into the entry without saved games, picked; nothing asked, no note file.
+  const size_t brought = a.find("mw3: pilot a brought into ia from the main game (without saved games");
+  EXPECT(a.find("starting again into entry ia, pilot a") != none && brought != none && entered < brought);
+  EXPECT(a.find("mw3: Instant Action's pilot a: picked", brought) != none && a.find("mw3: Instant Action open, MODS: 1 on", brought) != none);
+  EXPECT(a.find("mw3: box answered") == none && !fs::exists(dir + "/wd/campaigns/ia/pilots-not-copied.txt"));
+  EXPECT(fs::is_regular_file(dir + "/wd/pilots/a.mw3") && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
   // Inside the entry (its pilot screen first: a pilot "a" of its own), the MODS tab, ALL OFF.
   const std::string b = run({"--entry", "ia", "--entry-ia", "--tap", "30@120", "--click-at", "420,320@160", "--click-at", "440,180@260",
                              "--click-at", "120,63@300"}, "b");
@@ -4919,9 +4923,9 @@ TEST(sdl_program_instant_action_mods) {
   fs::remove_all(dir, ec);
 }
 
-// The second part. D: the offer answered yes: the pilot and the saved mechs
-// are copied into the entry, the main menu's left byte for byte, and the
-// start lands past the pilot screen with that pilot. E: with the mods ticked,
+// The second part. D: the pilot and the saved mechs are brought into the
+// entry quietly at the restart (no box), the main menu's left byte for byte,
+// and the start lands past the pilot screen with that pilot. E: with the mods ticked,
 // a plain run's INSTANT ACTION goes straight into the entry. F: a ticked mod
 // gone: INSTANT ACTION stays the original, nothing starts again.
 TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
@@ -4950,13 +4954,14 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
     return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   };
   const size_t none = std::string::npos;
-  setenv("MW3_BOX_ANSWER", "1", 1);
+  setenv("MW3_BOX_ANSWER", "2", 1);  // no box is expected: one that came would be said in the log
   const std::string d = run({"--click-at", "60,210@120", "--tap", "30@170", "--click-at", "420,320@200", "--click-at", "440,180@300",
                              "--click-at", "425,255@340", "--click-at", "420,320@380"}, "d");
   unsetenv("MW3_BOX_ANSWER");
   const size_t asked = d.find("mw3: Instant Action's MODS: starting again into entry ia, pilot a"), picked = d.find("mw3: Instant Action's pilot a: picked");
-  std::printf("  D: offered %d, restarted with the pilot %d, picked %d\n", d.find("mw3: box answered 1") != none, asked != none, picked != none);
-  EXPECT(d.find("mw3: box answered 1 (MW3_BOX_ANSWER): Instant Action with mods keeps its own pilots") != none);
+  const size_t brought = d.find("mw3: pilot a brought into ia from the main game (without saved games");
+  std::printf("  D: brought quietly %d, restarted with the pilot %d, picked %d\n", brought != none && d.find("mw3: box answered") == none, asked != none, picked != none);
+  EXPECT(brought != none && asked < brought && brought < picked && d.find("mw3: box answered") == none);
   EXPECT(asked != none && picked != none && asked < picked && d.find("mw3: closed, result 0", picked) != none);
   EXPECT(picked != none && d.find("mw3: Instant Action open, MODS: 1 on, 4 maps", picked) != none);  // past the pilot screen, the mod on
   EXPECT(!bytes("wd/pilots/a.mw3").empty() && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
