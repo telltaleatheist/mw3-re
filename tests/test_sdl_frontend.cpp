@@ -1,5 +1,6 @@
 // The SDL front end's pieces that run without a window (docs/program.md):
 // the DirectInput stand-in and the GDI text on SDL3_ttf.
+#include <sstream>
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -4822,6 +4823,64 @@ TEST(sdl_program_launcher_mods_by_keys) {
   EXPECT(text == std::string("install=") + MW3_GAME_DIR + "\nwidemenus=1\nmod=beta\n");
 }
 
+// MODS on the game last clicked (lead, 2026-11-10, the combined package): on Pirate's Moon it lists PM's own settings
+// folder's mods, a for=mw3pm mod usable and a for=mw3 one refused in words, its row's press switching it in PM's
+// mw3.cfg; MechWarrior 3's folder and mw3.cfg untouched, and MW3's MODS still MW3's.
+TEST(sdl_program_launcher_mods_on_pirates_moon) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path pm_game = fs::path(MW3_GAME_DIR).parent_path() / "pm";
+  if (!fs::is_regular_file(pm_game / "Mech3.exe", ec)) return;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "launcher pm mods";
+  fs::remove_all(root, ec);
+  const auto put = [&](const fs::path& p, const std::string& t) {
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream(p) << t;
+  };
+  const std::string mw3_cfg = "install=" + std::string(MW3_GAME_DIR) + "\npm_install=" + pm_game.string() + "\nmod=one\n";
+  put(root / "wd" / "mw3.cfg", mw3_cfg);
+  put(root / "wd" / "mods" / "one" / "mod.txt", "name=One\nfor=mw3\n");
+  put(root / "pmwd" / "mw3.cfg", "mod=pmmod\nsound=0.8\n");
+  put(root / "pmwd" / "mods" / "pmmod" / "mod.txt", "name=Corsair Pack\nfor=mw3pm\n");
+  put(root / "pmwd" / "mods" / "zz" / "mod.txt", "name=MW3 Only\nfor=mw3\n");
+  const std::string pm = (root / "mw3pm").string();
+  put(pm, "#!/bin/sh\nexit 0\n");
+  fs::permissions(pm, fs::perms::owner_all, ec);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  setenv("MW3_PM_WRITE_DIR", (root / "pmwd").c_str(), 1);
+  setenv("MW3_LAUNCHER_FRAMES", "30", 1);
+  auto run = [&](const char* name, const char* mods, const char* nav) {
+    if (mods) setenv("MW3_LAUNCHER_MODS", mods, 1);
+    if (nav) setenv("MW3_LAUNCHER_NAV", nav, 1);
+    const std::string log = (root / (std::string(name) + ".log")).string();
+    const pid_t pid = spawn_launcher({"--write-dir", (root / "wd").string(), "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    unsetenv("MW3_LAUNCHER_MODS");
+    unsetenv("MW3_LAUNCHER_NAV");
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const auto text_of = [&](const fs::path& p) {
+    std::ifstream f(p);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  // PM's: its two mods, the MW3 one refused; the first row pressed: off in PM's mw3.cfg only.
+  std::string log = run("pm", "pm", "next,press");
+  std::printf("  %s", log.substr(log.find("screen mods:"), log.find('\n', log.find("screen mods:")) - log.find("screen mods:") + 1).c_str());
+  EXPECT(log.find("screen mods: > Corsair Pack, MW3 Only, IMPORT") != std::string::npos ||
+         log.find("screen mods: Corsair Pack, MW3 Only, IMPORT") != std::string::npos);
+  EXPECT(log.find("launcher: mods: pmmod off") != std::string::npos);
+  EXPECT(text_of(root / "pmwd" / "mw3.cfg").find("mod=pmmod") == std::string::npos &&
+         text_of(root / "pmwd" / "mw3.cfg").find("sound=0.8") != std::string::npos);
+  EXPECT(text_of(root / "wd" / "mw3.cfg").find("mod=one\n") != std::string::npos);
+  // MW3's MODS (MECHWARRIOR 3 last, the default): its own mod, PM's not listed.
+  log = run("mw3", nullptr, "next,next,next,next,press");  // MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS
+  EXPECT(log.find("screen mods: One, IMPORT") != std::string::npos);
+  for (const char* k : {"MW3_PM_BIN", "MW3_PM_WRITE_DIR", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);
+  fs::remove_all(root, ec);
+}
+
 // GAME FILES (Owen, 2026-11-02): the find screen at any time, by keys or a
 // pad as by the mouse (MW3_LAUNCHER_NAV); with the install in use lacking
 // its music, ADD FROM MY DISC there too. A repick to a copy used where it
@@ -5184,6 +5243,174 @@ TEST(sdl_program_launcher_checks_mechwarrior3) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// The combined package's layouts (release.md, Packages with Pirate's Moon): the launcher with mw3 and mw3pm beside it
+// in a program folder (Windows' and a zip's), a Mac app's Contents/MacOS (with its Info.plist; SDL's base path is
+// Resources there, the launcher looks beside its own executable), and an AppImage's usr/bin. Each shows both games
+// with their programs' versions (read from the files) and starts each.
+TEST(sdl_program_package_layouts_find_both_games) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path pm_game = fs::path(MW3_GAME_DIR).parent_path() / "pm";
+  if (!fs::is_regular_file(pm_game / "Mech3.exe", ec)) return;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "package layouts";
+  fs::remove_all(root, ec);
+  fs::create_directories(root / "wd", ec);
+  std::ofstream(root / "wd" / "mw3.cfg") << "install=" << MW3_GAME_DIR << "\npm_install=" << pm_game.string() << "\n";
+  const std::string tag = std::string("MW3-PROGRAM") + "-VERSION:";
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_GAME_BIN");
+  setenv("MW3_PM_WRITE_DIR", (root / "pmwd").c_str(), 1);
+  setenv("MW3_NO_IMPORT", "1", 1);
+  struct Layout {
+    const char* name;
+    fs::path bin;  // where the three programs go
+  };
+  const Layout layouts[] = {{"program folder", root / "MW3 Rebuild"},
+                            {"Mac app", root / "MW3 Rebuild.app" / "Contents" / "MacOS"},
+                            {"AppImage", root / "AppDir" / "usr" / "bin"}};
+  for (const Layout& l : layouts) {
+    fs::create_directories(l.bin, ec);
+    if (std::string(l.name) == "Mac app") {
+      fs::create_directories(l.bin.parent_path() / "Resources", ec);
+      std::ofstream(l.bin.parent_path() / "Info.plist") << "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict>"
+                                                           "<key>CFBundleExecutable</key><string>mw3launcher</string></dict></plist>\n";
+    }
+    fs::copy_file(MW3_LAUNCHER_BIN, l.bin / "mw3launcher", fs::copy_options::overwrite_existing, ec);
+    for (const auto& [game, version] : {std::pair<const char*, const char*>{"mw3", "v1.1.0"}, {"mw3pm", "pm-v1.0.1"}}) {
+      // A script that says which ran, its file carrying the version tag after a comment.
+      std::ofstream(l.bin / game, std::ios::binary) << "#!/bin/sh\necho " << game << " >> \"" << (l.bin / "started.txt").string() << "\"\nexit 0\n# "
+                                                    << tag << version << std::string(1, '\0') << "\n";
+      fs::permissions(l.bin / game, fs::perms::owner_all, ec);
+    }
+    std::string text;
+    for (const char* flag : {"--launcher-play", "--launcher-pm"}) {
+      const std::string log = (root / (std::string(l.name) + flag + ".log")).string();
+      const pid_t pid = spawn_bin((l.bin / "mw3launcher").c_str(), {"--write-dir", (root / "wd").string(), flag, "--window", "640x480", "--hidden", "--nosound"}, log);
+      int status = 0;
+      EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+      std::ifstream f(log);
+      text += std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    }
+    std::ifstream sf(l.bin / "started.txt");
+    const std::string started((std::istreambuf_iterator<char>(sf)), std::istreambuf_iterator<char>());
+    const bool mw3_line = text.find("entry MECHWARRIOR 3: Ready, official: data 1.2, program v1.1.0, ") != std::string::npos;
+    const bool pm_line = text.find("entry PIRATE'S MOON: Ready, official: data 1.0, program pm-v1.0.1, ") != std::string::npos;
+    std::printf("  %s: both lines %d %d, started %s\n", l.name, mw3_line, pm_line, started == "mw3\nmw3pm\n" ? "both" : started.c_str());
+    EXPECT(mw3_line && pm_line && started == "mw3\nmw3pm\n");
+  }
+  unsetenv("MW3_PM_WRITE_DIR");
+  unsetenv("MW3_NO_IMPORT");
+  fs::remove_all(root, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// Owen's hard rule for the combined package (2026-11-09): reinstalling never touches a player's mods, pilots, saves,
+// settings or imported data. A package's program folder (launcher, mw3, mw3pm) used, then replaced by a new one as an
+// installer or a dragged app does, and both games started from each through PLAY: MechWarrior 3's data folder (moved
+// elsewhere by its pointer, MY DATA FOLDER) and Pirate's Moon's settings folder keep every file byte for byte, and
+// every mw3.cfg line; only logs and the launcher's own new keys are added.
+TEST(sdl_program_package_upgrade_keeps_the_players_files) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  if (!fs::is_regular_file(fs::path(MW3_GAME_DIR).parent_path() / "pm" / "Mech3.exe", ec)) return;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "package upgrade";
+  fs::remove_all(root, ec);
+  const fs::path usual = root / "MicroProse" / "MechWarrior 3", pm_wd = root / "MicroProse" / "Pirate's Moon", data = root / "My MW3 Data";
+  const auto put = [&](const fs::path& p, const std::string& bytes) {
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream(p, std::ios::binary) << bytes;
+  };
+  put(usual / mech3::data_folder::kPointer, data.string() + "\n");
+  put(data / mech3::data_folder::kMarker, "moved here by MY DATA FOLDER\n");
+  put(data / "mw3.cfg", "install=" + std::string(MW3_GAME_DIR) + "\npm_install=" + (fs::path(MW3_GAME_DIR).parent_path() / "pm").string() +
+                            "\nmod=one\nmouse=2.5\n");
+  put(data / "pilots" / "Ace.pil", std::string(400, 'p'));
+  put(data / "configs" / "madcat.mw3", "a loadout");
+  put(data / "mods" / "one" / "mod.txt", "name=One\n");
+  put(data / "video" / "c1.fmv", std::string(1000, 'v'));
+  put(data / "music" / "track02.wav", std::string(800, 'm'));
+  put(pm_wd / "mw3.cfg", "mod=pmmod\nsound=0.8\n");
+  put(pm_wd / "pilots" / "Corsair.pil", std::string(300, 'c'));
+  put(pm_wd / "mods" / "pmmod" / "mod.txt", "name=PM mod\nfor=mw3pm\n");
+  put(pm_wd / "zbd" / "soundsH.zbd", "the disc's, added from it");
+  // Every file the player has now, by its bytes.
+  const auto snapshot = [&]() {
+    std::map<std::string, std::string> m;
+    for (const fs::path& top : {usual, pm_wd, data})
+      for (const auto& e : fs::recursive_directory_iterator(top, ec))
+        if (e.is_regular_file()) {
+          std::ifstream f(e.path(), std::ios::binary);
+          m[e.path().string()] = std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        }
+    return m;
+  };
+  const std::map<std::string, std::string> before = snapshot();
+  const auto make_app = [&](const char* version) {  // a package's program folder: the launcher and two games
+    const fs::path app = root / "Program";
+    fs::remove_all(app, ec);
+    fs::create_directories(app, ec);
+    fs::copy_file(MW3_LAUNCHER_BIN, app / "mw3launcher", ec);
+    for (const char* game : {"mw3", "mw3pm"}) {
+      std::ofstream(app / game) << "#!/bin/sh\necho " << version << " " << game << " >> \"" << (root / "started.txt").string() << "\"\nexit 0\n";
+      fs::permissions(app / game, fs::perms::owner_all, ec);
+    }
+    return app;
+  };
+  setenv("MW3_USUAL_FOLDER", usual.c_str(), 1);
+  setenv("MW3_NO_IMPORT", "1", 1);
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_GAME_BIN");
+  unsetenv("MW3_PM_WRITE_DIR");
+  int runs = 0;
+  for (const char* version : {"old", "new"}) {
+    const fs::path app = make_app(version);  // the old folder gone, the new one in its place
+    for (const char* flag : {"--launcher-play", "--launcher-pm"}) {
+      const pid_t pid = spawn_bin((app / "mw3launcher").c_str(), {flag, "--window", "640x480", "--hidden", "--nosound"},
+                                  (root / ("run" + std::to_string(++runs) + ".log")).string());
+      int status = 0;
+      const bool ok = pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+      if (!ok) {  // what it said
+        std::ifstream lf(root / ("run" + std::to_string(runs) + ".log"));
+        std::printf("  run %d (%s %s) ended %d:\n%s\n", runs, version, flag, status,
+                    std::string((std::istreambuf_iterator<char>(lf)), std::istreambuf_iterator<char>()).substr(0, 1500).c_str());
+      }
+      EXPECT(ok);
+    }
+  }
+  unsetenv("MW3_USUAL_FOLDER");
+  unsetenv("MW3_NO_IMPORT");
+  std::ifstream sf(root / "started.txt");
+  const std::string started((std::istreambuf_iterator<char>(sf)), std::istreambuf_iterator<char>());
+  std::printf("  started: %s", started.c_str());
+  EXPECT(started == "old mw3\nold mw3pm\nnew mw3\nnew mw3pm\n");
+  const std::map<std::string, std::string> after = snapshot();
+  int same = 0, changed = 0, gone = 0;
+  for (const auto& [path, bytes] : before) {
+    const auto it = after.find(path);
+    if (it == after.end()) {
+      ++gone, std::printf("  gone: %s\n", path.c_str());
+    } else if (it->second == bytes) {
+      ++same;
+    } else if (fs::path(path).filename() == "mw3.cfg") {  // each line kept; the launcher's own keys may be added
+      std::istringstream was(bytes);
+      for (std::string l; std::getline(was, l);)
+        if (it->second.find(l + "\n") == std::string::npos) ++changed, std::printf("  %s lost \"%s\"\n", path.c_str(), l.c_str());
+      ++same;
+    } else {
+      ++changed, std::printf("  changed: %s\n", path.c_str());
+    }
+  }
+  for (const auto& [path, bytes] : after)
+    if (!before.count(path) && fs::path(path).extension() != ".log")
+      std::printf("  added: %s\n", path.c_str());
+  std::printf("  the player's files: %d kept, %d changed, %d gone\n", same, changed, gone);
+  EXPECT(same == static_cast<int>(before.size()) && changed == 0 && gone == 0);
+  if (!std::getenv("MW3_KEEP")) fs::remove_all(root, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // Each game's line with its data's version and its program's (docs/launcher.md,
 // Pirate's Moon, sitting 5): each program's version read from its file
 // (mw3_version_tag), never by running it; a file without one left out. A tag
@@ -5221,6 +5448,15 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
   const std::string pm_line = "entry PIRATE'S MOON: Ready, official: data 1.0, program pm-v8.8.8, " + pm_game.string();
   std::printf("  %s\n  %s\n", mw3_line.c_str(), pm_line.c_str());
   EXPECT(text.find(mw3_line) != std::string::npos && text.find(pm_line) != std::string::npos);
+  // The package's own version on the footer: the launcher's tag (its log's first line) without its "v".
+  {
+    const std::string head = "mw3launcher (MechWarrior 3 rebuild) ";
+    const size_t at = text.find(head);
+    std::string v = at == std::string::npos ? std::string() : text.substr(at + head.size(), text.find(',', at) - at - head.size());
+    if (v.size() > 1 && v[0] == 'v') v.erase(0, 1);
+    std::printf("  footer: MechWarrior 3 Rebuild %s\n", v.c_str());
+    EXPECT(!v.empty() && text.find("footer MechWarrior 3 Rebuild " + v + "\n") != std::string::npos);
+  }
   // A program file without one (a script, an older build): left out, and never run.
   setenv("MW3_PM_BIN", program("mw3pm", "#!/bin/sh\necho ran > \"" + dir + "/ran.txt\"\n").c_str(), 1);
   text = run("none");
@@ -5253,7 +5489,7 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
   std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "pm_install=" << changed.string() << "\n";
   setenv("MW3_PM_BIN", program("mw3pm", tag + "pm-v8.8.8" + std::string(1, '\0')).c_str(), 1);
   text = run("mods");
-  EXPECT(text.find("entry MECHWARRIOR 3: Ready, modified (2 mods): data 1.2, program v9.9.9, ") != std::string::npos);
+  EXPECT(text.find("entry MECHWARRIOR 3: Ready, official: data 1.2, program v9.9.9, 2 mods on, ") != std::string::npos);  // mods: a note
   EXPECT(text.find("entry PIRATE'S MOON: Ready, modified (data): data unknown (a mod?), program pm-v8.8.8, " + changed.string()) !=
          std::string::npos);
   for (const char* k : {"MW3_GAME_BIN", "MW3_PM_BIN", "MW3_PM_WRITE_DIR", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);

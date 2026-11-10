@@ -35,6 +35,9 @@ std::vector<ModIaWorld>& mod_ia_worlds();
 // ia_world, mech, weapon, campaign), # a comment; `name` required, `for` mw3 when given. False
 // with `out->error`.
 bool mod_parse(const std::string& text, ModInfo* out);
+// The game a mod's for= must name (its first word): "mw3" here; the launcher's MODS sets "mw3pm" while it works on
+// Pirate's Moon's folder (branch pm's own default).
+std::string& mods_game();
 // Every folder under <write dir>/mods, by folder name; each one's mod.txt read.
 std::vector<ModInfo> mods_found(const std::string& write_dir);
 

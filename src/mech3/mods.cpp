@@ -70,6 +70,11 @@ std::string lower(std::string s) {
 }
 }  // namespace
 
+std::string& mods_game() {
+  static std::string g = "mw3";
+  return g;
+}
+
 bool mod_parse(const std::string& text, ModInfo* out) {
   std::istringstream in(text);
   for (std::string line; std::getline(in, line);) {
@@ -93,9 +98,9 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     }
   }
   if (out->name.empty()) out->error = "mod.txt has no name= line";
-  // The first word exactly (a version may follow): "mw3pm" is Pirate's Moon's, not this game's.
-  else if (!out->game.empty() && lower(out->game).substr(0, lower(out->game).find_first_of(" \t")) != "mw3")
-    out->error = "it is for " + out->game + ", not MechWarrior 3";
+  // The first word exactly (a version may follow): "mw3pm" is Pirate's Moon's, "mw3" MechWarrior 3's.
+  else if (!out->game.empty() && lower(out->game).substr(0, lower(out->game).find_first_of(" \t")) != mods_game())
+    out->error = "it is for " + out->game + ", not " + (mods_game() == "mw3pm" ? "Pirate's Moon" : "MechWarrior 3");
   return out->error.empty();
 }
 

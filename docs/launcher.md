@@ -27,10 +27,12 @@ found or installed. The launcher below is its own program, `mw3launcher`
      (each game's data version and its program's, sitting 5 of Pirate's Moon
      below). The label (Owen, 2026-11-10: shown, never blocking) is
      "official" when the data is a release's (MW3 1.0, 1.2, or 1.0 with the
-     patch's files; PM 1.0), the program a release build (a bare vX.Y.Z tag,
-     PM's pm-vX.Y.Z) and no mods are on, else "modified (data, program, 2
-     mods)" naming which (`official_words`; breaks: mods ignored, any v tag
-     taken as a release, the data always official: each caught). Or "Not found yet:
+     patch's files; PM 1.0) and the program a release build (a bare vX.Y.Z
+     tag, PM's pm-vX.Y.Z), else "modified (data, program)" naming which
+     (`official_words`; breaks: any v tag taken as a release, the data always
+     official: each caught). Mods are a feature, not a change to the game
+     (lead): a neutral note of their own, "Ready, official: data 1.2,
+     program v1.1.0, 2 mods on, <folder>" (`versions_words`). Or "Not found yet:
      click to find your game" (a click opens the find screen; v1.0, Owen
      2026-11-02: only then, the launcher always opens on the games). A
      folder too long for the plate is
@@ -338,6 +340,17 @@ comes back with a line saying how it closed. Built 2026-10-31;
 `sdl_program_launcher_starts_mechwarrior_1989` (a stand-in script).
 
 ## Mods (2026-11-08, modding item 5)
+
+**On the game last clicked (2026-11-10, the combined package):** after a click
+on PIRATE'S MOON, MODS lists and writes Pirate's Moon's own settings folder
+(its `mods\` and mw3.cfg; `mods_target(o, true)`), takes `for=mw3pm` mods and
+refuses `for=mw3` ones in words (`mech3::mods_game`, "mw3" here, set to "mw3pm"
+around each operation; branch `pm`'s own default is "mw3pm"), adds and exports
+there, and checks against PM's install. CHECK stays MechWarrior 3's: this
+program's readers cannot read PM's version-2 archives, so for PM it points to
+`mw3pm --check-mod`. MW3's folder and mw3.cfg are untouched.
+`sdl_program_launcher_mods_on_pirates_moon` (breaks: MODS always MW3's, the
+for= left "mw3": each caught); `MW3_LAUNCHER_MODS=pm` opens it for checks.
 
 MODS on the main screen (beside GAME FILES and QUIT) opens the list of the
 settings folder's `mods\` (`mech3::mods_list`, docs/modding.md, The
