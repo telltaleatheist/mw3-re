@@ -214,7 +214,10 @@ they were misnamed `entity_init` / `entity_shutdown`) make and free the
 manager; the mission load's `game_saved` asks the pilot's game's
 `restore()` (vt+0x28) when the launch came from the menus. The anim
 registrants are `zeff_anim_save`'s (activation_save .. anim_load), added
-by `anim_init`; `GameEngine::anim_enable` is 0x005090d0.
+by `anim_init`; `GameEngine::anim_enable` is 0x005090d0. Ours: a "Mods"
+registrant (priority 1, `upgrades/mods/save_mods`, added by `save_init`)
+writes `Mods/identity` when a gameplay mod is on (modding.md, The save's
+mods); the original passes over the entry.
 
 ## 6. Testing
 

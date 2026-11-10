@@ -3,6 +3,7 @@
 
 #include "mech3/options.h"
 #include "crt/msvc_string.h"
+#include "upgrades/mods/save_mods.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -300,6 +301,7 @@ bool Missions::setup() {
   h.fn_4b4ab0(0x60b228);
   h.player_setup(h.app_turrets());
   if (h.game_saved()) h.progress_text("Saved Game Loaded");
+  if (const std::string n = save_mods_note(); !n.empty()) h.progress_text(n.c_str());  // ours: upgrades/mods/save_mods
   if (abort) return false;
   for (int i = 1; i < 5; ++i) objectives[i] = 0;  // +0x7c..+0x88; +0x78 is left
   const Handle out[5] = {0x6098d0 + 0x78, 0x6098d0 + 0x7c, 0x6098d0 + 0x80, 0x6098d0 + 0x84, 0x6098d0 + 0x88};
