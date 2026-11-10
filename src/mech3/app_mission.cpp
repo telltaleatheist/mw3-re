@@ -846,7 +846,7 @@ struct WiredBrainHooks : ai::BrainHooks {
     if (void* b = veh(v)) return program_vehicle_speed_at(b, share);
     return mech_speed_at(mech(v), share);
   }
-  float stopping_distance(Handle v, float speed) override {
+  double stopping_distance(Handle v, float speed) override {
     if (void* b = veh(v)) return program_vehicle_stopping_distance(b, speed);
     return mech_stopping_distance(mech(v), speed);
   }

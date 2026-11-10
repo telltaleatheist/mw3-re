@@ -12,7 +12,7 @@ Every reg_*.zrd in every mission's reader archive, each looked up twice, plus
 every net file and a missing name as regions; then made-up files reaching the
 paths the shipped ones do not. The lookups run at the load's 53 bits; then
 points round each region (its corners, the middles of its sides, inside and
-outside it) are tested in turn at the 24 bits of play, so where each test
+outside it) are tested in turn at the reference's 53 bits, so where each test
 starts (the side the last one failed at) is checked too. Both sides' output
 streams (tests/probe_ai_net.cpp) and their logs of zerr reports must match.
 """

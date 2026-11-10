@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "mech3/zainetedit.h"
+#include "mech3/zai_x87.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -21,10 +22,11 @@ RegionEdge::RegionEdge(const float* a, const float* b) {
   normal[0] = d[2], normal[1] = 0.0f, normal[2] = -d[0];
 }
 
-// Mech3.exe 1.2 @ 0x004c5a30 (a per-frame test: floats, the exe's order)
+// Mech3.exe 1.2 @ 0x004c5a30, as the reference runs it at 53 bits (zai_x87.h):
+// the differences stored, the dot summed in the register and stored.
 bool RegionEdge::outside(const float* p) const {
-  const float d[3] = {p[0] - point[0], p[1] - point[1], p[2] - point[2]};
-  const float dot = (d[0] * normal[0] + d[1] * normal[1]) + d[2] * normal[2];
+  const float d[3] = {stored(double{p[0]} - point[0]), stored(double{p[1]} - point[1]), stored(double{p[2]} - point[2])};
+  const float dot = stored((double{d[0]} * normal[0] + double{d[1]} * normal[1]) + double{d[2]} * normal[2]);
   return dot < 0.0f;
 }
 

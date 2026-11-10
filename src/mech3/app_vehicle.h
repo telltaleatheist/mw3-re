@@ -161,7 +161,7 @@ bool program_vehicle_free(void* v);       // vt+0x00 0x004ac630(1); false when n
 // active, velocity) is zEntity's, the mech helpers' (app_mech.h).
 float program_vehicle_health(void* v);                      // vt+0x98 0x004ad820
 float program_vehicle_speed_at(void* v, float share);       // vt+0x118
-float program_vehicle_stopping_distance(void* v, float s);  // vt+0x120
+double program_vehicle_stopping_distance(void* v, float s);  // vt+0x120: in the register
 float program_vehicle_stop_share(void* v, float d);         // vt+0x12c
 float program_vehicle_move_speed(void* v);                  // vt+0x114
 bool program_vehicle_can_face(void* v, const float d[3]);   // vt+0x8c

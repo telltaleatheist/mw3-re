@@ -952,7 +952,7 @@ BasicVehicle& bv(void* v) { return *static_cast<BasicVehicle*>(v); }
 }  // namespace
 float program_vehicle_health(void* v) { return vehicle_health_share(bv(v)); }
 float program_vehicle_speed_at(void* v, float share) { return vehicle_speed_at(bv(v), share); }
-float program_vehicle_stopping_distance(void* v, float s) { return vehicle_stopping_distance(bv(v), s); }
+double program_vehicle_stopping_distance(void* v, float s) { return vehicle_stopping_distance(bv(v), s); }
 float program_vehicle_stop_share(void* v, float d) { return vehicle_stop_share(bv(v), d); }
 float program_vehicle_move_speed(void* v) { return vehicle_move_speed(bv(v)); }
 bool program_vehicle_can_face(void* v, const float d[3]) { return vehicle_gun_within_world(bv(v), d); }

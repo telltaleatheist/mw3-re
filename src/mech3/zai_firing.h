@@ -89,7 +89,7 @@ struct Aim {
   float limit2 = 1.0f;            // +0x20  the offset's limit, squared
 
  private:
-  bool frame(Brain& b, Contact* target, zgame::Handle w, float f[9], float muzzle[3], float* spread,
+  bool frame(Brain& b, Contact* target, zgame::Handle w, float f[9], float muzzle[3], double* spread,
              float* dist);                                // 0x004b70b0
   void pick_drift(const float f[9], float spread, float dist);  // 0x004b71a0
   void repick(Brain& b, Contact* target, zgame::Handle w, float at[3]);  // 0x004b74f0

@@ -686,7 +686,7 @@ class RegionsRun:
             got.append(e.eax())
             self.put_region(o, got[-1])
         self.put_state(o)
-        cpu.fpu_control(0x007f)   # the tests run in play: 24 bits
+        cpu.fpu_control(0x027f)   # the tests at the reference's 53 bits (docs/ai.md 17.4b)
         slot = e.alloc(12)
         for r, pts in zip(got, points):
             if r == 0:
@@ -909,7 +909,7 @@ class PathsRun(CompiledRun):
         o = Out()
         for n in nets:
             cpu.call(0x402240, ecx=n, edx=0, count=2_000_000_000)
-        cpu.fpu_control(0x007f)   # the queries run in play: 24 bits
+        cpu.fpu_control(0x027f)   # the queries at the reference's 53 bits (docs/ai.md 17.4b)
         for q in queries:
             self.query(o, q, names)
         cpu.fpu_control(0x027f)

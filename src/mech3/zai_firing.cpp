@@ -1,4 +1,5 @@
 #include "mech3/zai_firing.h"
+#include "mech3/zai_x87.h"
 
 #include <algorithm>
 #include <cmath>
@@ -339,28 +340,30 @@ struct Scorer {
         float po[3], pv[3];
         h.position(f.obstacle, po);
         h.position(v, pv);
-        zmth::Vec3 to{0, 0, 0};
-        const float d = zmth::direction(zmth::Vec3{pv[0], pv[1], pv[2]}, zmth::Vec3{po[0], po[1], po[2]}, to);
-        const float dot = (to.x * dir[0] + to.y * dir[1]) + to.z * dir[2];
+        // 0x0051e3d0 and the sums as the exe runs them (zai_x87.h)
+        float to[3] = {stored(double{po[0]} - pv[0]), stored(double{po[1]} - pv[1]), stored(double{po[2]} - pv[2])};
+        const float d = normalize_x87(to);
+        const float dot = stored((double{to[0]} * dir[0] + double{to[1]} * dir[1]) + double{to[2]} * dir[2]);
         if (dot > 0) {
           if (unordered_or_less(d, 10.0f)) return false;  // 0x005c93f4
-          if (unordered_or_less((1.0f - dot * dot) / dot * d * d, 400.0f)) return false;  // 0x005c93f8
+          if (!((1.0 - double{dot} * dot) / dot * d * d >= 400.0f)) return false;  // 0x005c93f8, unrounded
         }
       }
       f.obstacle = 0;
     }
     float fwd[3] = {0, 0, 0};
     h.forward(v, &fwd[0], &fwd[2]);
-    const float flat = dir[0] * fwd[0] + dir[2] * fwd[2];
-    const float k = 0.25f / (0.25f - dir[1] * dir[1]);  // [0x0060b2b4] 0.5 squared (0x004b5b00)
-    const float m = crt::x87_add_f24(2.0, -static_cast<double>(flat)) * k;  // the double 0x005c9400
-    s = m * m * s;
+    // The sums as the exe runs them (zai_x87.h): k and m in the register, s stored after each step.
+    const float flat = wide_sum(dir[0], fwd[0], dir[2], fwd[2]);
+    const double k = 0.25f / (0.25f - double{dir[1]} * dir[1]);  // [0x0060b2b4] 0.5 squared (0x004b5b00)
+    const double m = (2.0 - flat) * k;  // the double 0x005c9400
+    s = stored(m * m * s);
     r.turn = h.can_face(v, dir);  // vt+0x8c
-    if (!r.turn) s = s + s;
-    s = (h.health(e) - -0.5f) * s * 0.6666667f;  // vt+0x98; 0x005c9408, 0x005c940c
-    s = (1.5f - h.heat(e)) * s * 0.6666667f;     // vt+0x9c; 0x005c9410
+    if (!r.turn) s = stored(double{s} + s);
+    s = stored((double{h.health(e)} - -0.5f) * s * 0.6666667f);  // vt+0x98; 0x005c9408, 0x005c940c
+    s = stored((1.5f - double{h.heat(e)}) * s * 0.6666667f);     // vt+0x9c; 0x005c9410
     r.clear = h.clear_line(v, e);                // 0x004d5980(e, 0)
-    if (!r.clear) s = crt::x87_mul_f24(s, 10.0);  // the double 0x005c9418
+    if (!r.clear) s = stored(double{s} * 10.0);  // the double 0x005c9418
     r.score = s;
     return true;
   }
@@ -460,7 +463,7 @@ float fast_sqrt(float x) {
   std::memcpy(&r, &i, 4);
   return r;
 }
-float dot3(const float a[3], const float b[3]) { return (a[0] * b[0] + a[1] * b[1]) + a[2] * b[2]; }
+float dot3(const float a[3], const float b[3]) { return stored((double{a[0]} * b[0] + double{a[1]} * b[1]) + double{a[2]} * b[2]); }
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x004d6de0. A beam or a weapon whose def +0x6c has 0x800
@@ -480,36 +483,41 @@ bool lead_point(zgame::Handle bearer, const Contact& c, zgame::Handle w, float o
   const float speed = instant ? 3.4028235e38f : h.weapon_speed(w);
   if (instant) return true;
   if (speed == 0 || std::isnan(speed)) return true;  // the double 0x005ccfc8
-  const float d[3] = {out[0] - muzzle[0], out[1] - muzzle[1], out[2] - muzzle[2]};
+  // As the reference runs it at 53 bits (zai_x87.h): the dots, a, the
+  // discriminant and 1/a stored; the roots and t in the register.
+  const float d[3] = {stored(double{out[0]} - muzzle[0]), stored(double{out[1]} - muzzle[1]), stored(double{out[2]} - muzzle[2])};
   float vs[3], vt[3];
   h.velocity(bearer, vs);    // its vt+0x0c
   h.velocity(c.entity, vt);
-  const float v[3] = {vt[0] - vs[0], vt[1] - vs[1], vt[2] - vs[2]};
-  const float vv = dot3(v, v), dd = dot3(d, d), dv = dot3(d, v);
-  const float a = speed * speed - vv;
+  float v[3] = {stored(double{vt[0]} - vs[0]), stored(double{vt[1]} - vs[1]), stored(double{vt[2]} - vs[2])};
+  const float vv = dot3(v, v), dd = dot3(d, d), dv = dot3(d, v);  // each stored
+  const float a = stored(double{speed} * speed - vv);
   const bool still = unordered_or_less(std::fabs(vv), 0.001f);  // the double 0x005ccfd0
-  float t;
+  double t = 0;
   bool solved = true;
   if (a == 0 || std::isnan(a)) {
     if (dv == 0 || std::isnan(dv)) solved = false;
-    else t = dd / (dv * speed + dv * speed);
+    else t = dd / ((double{dv} * speed) + (double{dv} * speed));
   } else if (still) {
-    t = fast_sqrt(dd) / speed;
+    t = double{fast_sqrt(dd)} / speed;
   } else {
-    const float disc = a * dd + dv * dv;
+    const float disc = stored(double{a} * dd + double{dv} * dv);
     if (!(disc > 0)) {
       if (unordered_or_less(disc, 0)) solved = false;
-      else t = -(dv / a);
+      else t = -(double{dv} / a);
     } else {
       const float root = fast_sqrt(disc);
-      const float inv = 1.0f / a;  // 0x005ccfb8
-      const float t1 = (root - dv) * inv;
-      const float t2 = (-dv - root) * inv;
-      t = t2 > 0 ? t2 : t1;
+      const float inv = stored(1.0 / a);  // 0x005ccfb8
+      const double t1 = (double{root} - dv) * inv;
+      const double t2 = (-double{dv} - root) * inv;
+      t = t2 > 0 ? double{stored(t2)} : t1;  // the second as stored, the first from the register
     }
   }
   if (!solved || !(t > 0)) return false;
-  if (!still) out[0] = out[0] + t * v[0], out[1] = out[1] + t * v[1], out[2] = out[2] + t * v[2];
+  if (!still) {
+    for (int i = 0; i < 3; ++i) v[i] = stored(t * v[i]);
+    for (int i = 0; i < 3; ++i) out[i] = stored(double{out[i]} + v[i]);
+  }
   return true;
 }
 
@@ -534,14 +542,14 @@ uint8_t VolleyPlan::track(float arg) {
   const bool ok = lead_point(bearer, *c, w, at);
   if (!ok) return 0;
   h.weapon_node_position(w, aim);
-  aim[0] = at[0] - aim[0], aim[1] = at[1] - aim[1], aim[2] = at[2] - aim[2];
-  zmth::Vec3 n{aim[0], aim[1], aim[2]};
-  zmth::normalize(n);  // 0x004020d0
+  // The sums as the exe runs them (zai_x87.h).
+  float n[3] = {stored(double{at[0]} - aim[0]), stored(double{at[1]} - aim[1]), stored(double{at[2]} - aim[2])};
+  normalize_x87(n);  // 0x004020d0
   float m[9];
   h.vehicle_matrix(bearer, m);
-  aim[0] = (n.x * m[0] + n.y * m[1]) + n.z * m[2];
-  aim[1] = (n.x * m[3] + n.y * m[4]) + n.z * m[5];
-  aim[2] = (n.x * m[6] + n.y * m[7]) + n.z * m[8];
+  aim[0] = stored((double{n[0]} * m[0] + double{n[1]} * m[1]) + double{n[2]} * m[2]);
+  aim[1] = stored((double{n[0]} * m[3] + double{n[1]} * m[4]) + double{n[2]} * m[5]);
+  aim[2] = stored((double{n[0]} * m[6] + double{n[1]} * m[7]) + double{n[2]} * m[8]);
   float clamped[3];
   h.bearer_aim_clamp(bearer, aim, clamped);  // its answer only feeds a dot the exe drops
   h.bearer_set_aim(bearer, aim);
@@ -582,36 +590,34 @@ void across(const float n[3], float out[3]) {
     const float a = std::fabs(n[i]);
     if (a < best_abs) best = n[i], best_abs = a, k = i;
   }
-  for (int i = 0; i < 3; ++i) {
-    float x = -(n[i] * best);
+  for (int i = 0; i < 3; ++i) {  // in the register, each stored (zai_x87.h)
+    double x = -(double{n[i]} * best);
     if (i == k) x = x - -1.0f;
-    out[i] = x;
+    out[i] = stored(x);
   }
 }
 // f's row 1 from rows 2 and 0: row2 x row0.
 void cross_rows(float f[9]) {
   const float* a = f + 6;
   const float* b = f;
-  f[3] = a[1] * b[2] - b[1] * a[2];
-  f[4] = a[2] * b[0] - b[2] * a[0];
-  f[5] = a[0] * b[1] - b[0] * a[1];
+  f[3] = stored(double{a[1]} * b[2] - double{b[1]} * a[2]);
+  f[4] = stored(double{a[2]} * b[0] - double{b[2]} * a[0]);
+  f[5] = stored(double{a[0]} * b[1] - double{b[0]} * a[1]);
 }
-void normalize_row(float r[3]) {
-  zmth::Vec3 n{r[0], r[1], r[2]};
-  zmth::normalize(n);  // 0x004020d0
-  r[0] = n.x, r[1] = n.y, r[2] = n.z;
-}
+void normalize_row(float r[3]) { normalize_x87(r); }  // 0x004020d0
 // v across the rows of f: v0 row0 + v1 row1 + v2 row2.
 void to_frame(float v[3], const float f[9]) {
-  const float x = (v[0] * f[0] + v[1] * f[3]) + v[2] * f[6];
-  const float y = (v[0] * f[1] + v[1] * f[4]) + v[2] * f[7];
-  const float z = (v[0] * f[2] + v[1] * f[5]) + v[2] * f[8];
+  const float x = stored((double{v[0]} * f[0] + double{v[1]} * f[3]) + double{v[2]} * f[6]);
+  const float y = stored((double{v[0]} * f[1] + double{v[1]} * f[4]) + double{v[2]} * f[7]);
+  const float z = stored((double{v[0]} * f[2] + double{v[1]} * f[5]) + double{v[2]} * f[8]);
   v[0] = x, v[1] = y, v[2] = z;
 }
-// A random angle: (rand / 16383.5 - 1) * span, rounded as the 24-bit x87 does.
-float random_angle(double span) {
-  const float u = crt::x87_mul_f24(brain_hooks().rand(), 6.103701895199438e-05);  // 0x005c9428
-  return crt::x87_mul_f24(crt::x87_add_f24(u, -1.0), span);                         // 0x005c93a8
+float dot_stored(const float a[3], const float b[3]) {
+  return stored((double{a[0]} * b[0] + double{a[1]} * b[1]) + double{a[2]} * b[2]);
+}
+// A random angle: (rand / 16383.5 - 1) * span, in the register (not stored).
+double random_angle(double span) {
+  return (brain_hooks().rand() * 6.103701895199438e-05 - 1.0) * span;  // 0x005c9428, 0x005c93a8
 }
 const float kAimScale = static_cast<float>(2.0 / 100.0);  // [0x0060b2ec], 0x004b7030 at start-up
 }  // namespace
@@ -620,20 +626,18 @@ const float kAimScale = static_cast<float>(2.0 / 100.0);  // [0x0060b2ec], 0x004
 // difficulty's, times +0xc0 when the mech has a targeting computer or a
 // fire control system); when not 0, the weapon's muzzle, the unit way from
 // the target to it in f's row 2 and its length.
-bool Aim::frame(Brain& b, Contact* target, zgame::Handle w, float f[9], float muzzle[3], float* spread,
+bool Aim::frame(Brain& b, Contact* target, zgame::Handle w, float f[9], float muzzle[3], double* spread,
                 float* dist) {
   BrainHooks& h = brain_hooks();
-  *spread = b.params.get<float>(0xb8) * h.aim_intensity();
-  if (h.targeting_aid(b.controls->vehicle())) *spread = b.params.get<float>(0xc0) * *spread;
+  *spread = double{b.params.get<float>(0xb8)} * h.aim_intensity();  // kept as a double (a qword in the exe)
+  if (h.targeting_aid(b.controls->vehicle())) *spread = double{b.params.get<float>(0xc0)} * *spread;
   active = *spread != 0;
   if (active) {
     h.weapon_node_position(w, muzzle);  // 0x004ed530 on +0x20
     float at[3];
     h.entity_lock_position(h.contact_entity(target), at);  // 0x005a8630
-    f[6] = muzzle[0] - at[0], f[7] = muzzle[1] - at[1], f[8] = muzzle[2] - at[2];
-    zmth::Vec3 n{f[6], f[7], f[8]};
-    *dist = zmth::normalize(n);
-    f[6] = n.x, f[7] = n.y, f[8] = n.z;
+    f[6] = stored(double{muzzle[0]} - at[0]), f[7] = stored(double{muzzle[1]} - at[1]), f[8] = stored(double{muzzle[2]} - at[2]);
+    *dist = normalize_x87(f + 6);  // 0x004020d0
   }
   return active;
 }
@@ -643,12 +647,13 @@ bool Aim::frame(Brain& b, Contact* target, zgame::Handle w, float f[9], float mu
 // range per second; the offset's limit that far.
 void Aim::pick_drift(const float f[9], float spread, float dist) {
   BrainHooks& h = brain_hooks();
-  const float r = spread * dist * kAimScale;
-  limit2 = r * r;
-  const float a = random_angle(0.7853981633973);  // 0x005e88a0
+  const double wide = double{spread} * dist * kAimScale;  // in the register; r stored, the limit from both
+  const float r = stored(wide);
+  limit2 = stored(wide * r);
+  const double a = random_angle(0.7853981633973);  // 0x005e88a0
   drift[2] = 0;
-  drift[1] = static_cast<float>(std::sin(double{a}));
-  drift[0] = static_cast<float>(std::cos(double{a}));
+  drift[1] = stored(std::sin(a));
+  drift[0] = stored(std::cos(a));
   drift[1] = r * drift[1];
   drift[0] = r * drift[0];
   to_frame(drift, f);
@@ -659,25 +664,26 @@ void Aim::pick_drift(const float f[9], float spread, float dist) {
 // offset at 0.6 to 1 of the limit in a random direction across the line of
 // sight, and a drift back over the target.
 void Aim::track(Brain& b, Contact* target, zgame::Handle w) {
-  float f[9], muzzle[3], spread, dist;
+  float f[9], muzzle[3], dist;
+  double spread;
   if (!frame(b, target, w, f, muzzle, &spread, &dist)) return;
   BrainHooks& h = brain_hooks();
   across(f + 6, f);
   normalize_row(f);
   cross_rows(f);
-  const float u = crt::x87_add_f24(crt::x87_mul_f24(h.rand(), 1.2207403790398877e-05), 0.6);  // 0x005c9440, 0x005c9448
-  const float r = u * spread * kAimScale * dist;
-  const float a = random_angle(3.14159265359);  // 0x005c9450
+  const double u = h.rand() * 1.2207403790398877e-05 + 0.6;  // 0x005c9440, 0x005c9448
+  const float r = stored(u * spread * kAimScale * dist);
+  const double a = random_angle(3.14159265359);  // 0x005c9450
   offset[2] = 0;
-  offset[1] = static_cast<float>(std::sin(double{a}));
-  offset[0] = static_cast<float>(std::cos(double{a}));
+  offset[1] = stored(std::sin(a));
+  offset[0] = stored(std::cos(a));
   offset[1] = r * offset[1];
   offset[0] = offset[0] * r;
   to_frame(offset, f);
   f[0] = -offset[0], f[1] = -offset[1], f[2] = -offset[2];
   normalize_row(f);
   cross_rows(f);
-  pick_drift(f, spread, dist);
+  pick_drift(f, stored(spread), dist);
 }
 
 // Mech3.exe 1.2 @ 0x004b74f0 (the lead, once the offset strays past its
@@ -685,31 +691,31 @@ void Aim::track(Brain& b, Contact* target, zgame::Handle w) {
 // of the target, the offset taken from there and a new drift picked; behind
 // the muzzle the offset is dropped.
 void Aim::repick(Brain& b, Contact* target, zgame::Handle w, float at[3]) {
-  float f[9], muzzle[3], spread, dist;
+  float f[9], muzzle[3], dist;
+  double spread;
   if (!frame(b, target, w, f, muzzle, &spread, &dist)) return;
   BrainHooks& h = brain_hooks();
-  float d[3] = {at[0] - muzzle[0], at[1] - muzzle[1], at[2] - muzzle[2]};
-  const float dot = (d[0] * f[6] + d[1] * f[7]) + d[2] * f[8];
-  const float along = -dot;
+  float d[3] = {stored(double{at[0]} - muzzle[0]), stored(double{at[1]} - muzzle[1]), stored(double{at[2]} - muzzle[2])};
+  const float along = -dot_stored(d, f + 6);
   if (!(along > 0)) {
     offset[0] = offset[1] = offset[2] = 0;  // 0x0063d870
     across(f + 6, f);
   } else {
     if (!(along == dist) && !std::isnan(dist)) {  // x87 C3: equal or unordered
-      const float k = dist / along;
-      d[0] = k * d[0], d[1] = k * d[1], d[2] = k * d[2];
-      at[0] = muzzle[0] + d[0], at[1] = muzzle[1] + d[1], at[2] = muzzle[2] + d[2];
+      const double k = double{dist} / along;  // in the register
+      d[0] = stored(k * d[0]), d[1] = stored(k * d[1]), d[2] = stored(k * d[2]);
+      at[0] = stored(double{muzzle[0]} + d[0]), at[1] = stored(double{muzzle[1]} + d[1]), at[2] = stored(double{muzzle[2]} + d[2]);
       float pos[3];
       h.entity_lock_position(h.contact_entity(target), pos);
-      offset[0] = at[0] - pos[0], offset[1] = at[1] - pos[1], offset[2] = at[2] - pos[2];
-      const float o2 = (offset[0] * offset[0] + offset[1] * offset[1]) + offset[2] * offset[2];
+      offset[0] = stored(double{at[0]} - pos[0]), offset[1] = stored(double{at[1]} - pos[1]), offset[2] = stored(double{at[2]} - pos[2]);
+      const float o2 = dot_stored(offset, offset);
       if (o2 == 0 || std::isnan(o2)) across(f + 6, offset);
     }
     f[0] = -offset[0], f[1] = -offset[1], f[2] = -offset[2];
   }
   normalize_row(f);
   cross_rows(f);
-  pick_drift(f, spread, dist);
+  pick_drift(f, stored(spread), dist);
 }
 
 // Mech3.exe 1.2 @ 0x004b77e0 (from the firing, as it fires): the manager
@@ -723,12 +729,12 @@ void Aim::lead(Brain& b, float dt, Contact* target, zgame::Handle w, zgame::Hand
     h.wm_aim_at(wm, pos);
     return;
   }
-  offset[0] = drift[0] * dt + offset[0];
-  offset[1] = drift[1] * dt + offset[1];
-  offset[2] = drift[2] * dt + offset[2];
+  offset[0] = stored(double{drift[0]} * dt + offset[0]);
+  offset[1] = stored(double{drift[1]} * dt + offset[1]);
+  offset[2] = stored(double{drift[2]} * dt + offset[2]);
   h.entity_lock_position(h.contact_entity(target), pos);
-  float at[3] = {pos[0] + offset[0], pos[1] + offset[1], pos[2] + offset[2]};
-  const float o2 = (offset[0] * offset[0] + offset[1] * offset[1]) + offset[2] * offset[2];
+  float at[3] = {stored(double{pos[0]} + offset[0]), stored(double{pos[1]} + offset[1]), stored(double{pos[2]} + offset[2])};
+  const float o2 = dot_stored(offset, offset);
   if (limit2 < o2) repick(b, target, w, at);
   h.wm_aim_at(wm, at);
 }
