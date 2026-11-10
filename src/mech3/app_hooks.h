@@ -228,6 +228,11 @@ class Engine : public zgame::AppHooks {
     (void)a, (void)caption, (void)text;
     return 1;
   }
+  // Ours: the same with a caption of our own words (Instant Action's pilot offer, upgrades/mods/ia_mods_menu.h).
+  virtual uint32_t message_box_words(int32_t a, const std::string& caption, const std::string& text) {
+    (void)a, (void)caption, (void)text;
+    return 1;
+  }
   virtual uint32_t message_box(int32_t a, int32_t caption, int32_t text, int32_t arg = 0) {
     (void)arg;
     return unported("0x004ac150", {a, caption, text});

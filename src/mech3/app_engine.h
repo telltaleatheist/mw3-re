@@ -333,6 +333,7 @@ class GameEngine : public Engine {
   uint32_t message_box3(int32_t a, int32_t caption, int32_t text, const char* s1, const char* s2,
                         const char* s3) override;
   uint32_t message_box_plain(int32_t a, int32_t caption, const std::string& text) override;
+  uint32_t message_box_words(int32_t a, const std::string& caption, const std::string& text) override;
   void credits_restart(Handle screen) override;
   void pilot_state_set_mode(Handle state, int32_t mode) override;
   void action_open(Handle screen) override;
@@ -453,7 +454,7 @@ class GameEngine : public Engine {
   // own loop runs up to 100,000 frames).
   std::function<uint32_t(int32_t style, int32_t caption, int32_t text)> on_message_box;
   std::string last_box_text;  // the test hook's: message_box3's text as formatted
-  uint32_t game_message_box(int32_t style, int32_t caption, const std::string& text);  // 0x004ac150
+  uint32_t game_message_box(int32_t style, int32_t caption, const std::string& text, const char* caption_words = nullptr);  // 0x004ac150
   void pump_events();                // FIX (A): the window's events, inside the box's loop
   ztwod::MessageBox* message_box_open() const { return box_; }  // the box being answered, or null
 

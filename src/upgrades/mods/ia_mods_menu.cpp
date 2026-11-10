@@ -223,7 +223,7 @@ void IaModsScreen::accept() {
     if (state == IaPilot::kOffer) {
       const std::string text = "Instant Action with mods keeps its own pilots and saved mechs. Copy " + pilot +
                                " and your saved mechs there? Your pilot here is not changed.";
-      if (engine().message_box_plain(1, 0x1e0, text) == 1) {
+      if (engine().message_box_words(1, "Instant Action", text) == 1) {
         const PilotCopy c = entry_copy_pilot(dir, pilot, entry_dir(dir, kIaEntry), entry_dir(dir, kIaEntry) + "/configs");
         if (!c.ok) {
           tell("The pilot was not copied: " + c.why);

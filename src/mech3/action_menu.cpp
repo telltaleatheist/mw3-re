@@ -401,7 +401,7 @@ void ActionScreen::reset() {
   if (mods_tab) {  // ours: the line as this run stands, said in the log as the screen opens
     const std::string line = ia_mods_line(mods_menu_write_dir());
     mods_text_say(mods_tab->line, line);
-    std::printf("mw3: Instant Action open, %s\n", line.c_str());
+    std::printf("mw3: Instant Action open, %s, %d maps\n", line.c_str(), worlds.count());
   }
   const ActionSetup& k = action_setup();
   GameSlot* slot = player_slot();

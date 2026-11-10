@@ -4849,7 +4849,7 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   std::printf("  D: offered %d, restarted with the pilot %d, picked %d\n", d.find("mw3: box answered 1") != none, asked != none, picked != none);
   EXPECT(d.find("mw3: box answered 1 (MW3_BOX_ANSWER): Instant Action with mods keeps its own pilots") != none);
   EXPECT(asked != none && picked != none && asked < picked && d.find("mw3: closed, result 0", picked) != none);
-  EXPECT(picked != none && d.find("mw3: Instant Action open, MODS: 1 on", picked) != none);  // past the pilot screen, the mod on
+  EXPECT(picked != none && d.find("mw3: Instant Action open, MODS: 1 on, 4 maps", picked) != none);  // past the pilot screen, the mod on
   EXPECT(!bytes("wd/pilots/a.mw3").empty() && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
   EXPECT(bytes("wd/campaigns/ia/configs/keep.mw3") == "a saved mech" && bytes("wd/configs/keep.mw3") == "a saved mech");
   EXPECT(!fs::exists(dir + "/wd/campaigns/ia/pilots-not-copied.txt"));
@@ -4865,6 +4865,23 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   const std::string f = run({"--click-at", "60,210@120"}, "f");
   std::printf("  F: stayed the original %d\n", f.find("starting again") == none);
   EXPECT(f.find("starting again") == none && f.find("mw3: entry") == none && f.find("mw3: closed, result 0") != none);
+  // G: a ticked mod's own map (ia_world=; the c1 world's files linked, as mod_world_plays_in_instant_action_headless
+  // builds it) is in the modded Instant Action's map list; then the MODS tab and ALL OFF: back out with the pilot's
+  // name, the main menu's pilot of that name picked, the original's four maps.
+  fs::rename(dir + "/wd/hud away", dir + "/wd/mods/hud", ec);
+  fs::create_directories(dir + "/wd/mods/mymap/zbd/mymap", ec);
+  for (fs::directory_iterator it(fs::path(MW3_GAME_DIR) / "zbd" / "c1", ec), end; !ec && it != end; it.increment(ec))
+    fs::create_symlink(fs::absolute(it->path()), dir + "/wd/mods/mymap/zbd/mymap/" + it->path().filename().string(), ec);
+  put("wd/mods/mymap/mod.txt", "name=My Map\nworld=mymap\nia_world=mymap My Map\nworld=c1\n");
+  put("wd/mods/mymap/mymap.gs", "source c1.gs\n");
+  put("wd/campaigns/ia/mods.txt", "mod=mymap\n");
+  const std::string g = run({"--entry", "ia", "--entry-ia", "--entry-pilot", "a", "--click-at", "440,180@120", "--click-at", "120,63@160"}, "g");
+  const size_t modded = g.find("mw3: Instant Action open, MODS: 1 on, 5 maps"), out = g.find("mw3: Instant Action's MODS: starting again plain, on Instant Action, pilot a");
+  const size_t back = out == none ? none : g.find("mw3: Instant Action's pilot a: picked", out);
+  std::printf("  G: the mod's map listed %d, out with the pilot %d, the original's maps %d\n", modded != none, back != none,
+              back != none && g.find("mw3: Instant Action open, MODS: off, 4 maps", back) != none);
+  EXPECT(modded != none && out != none && modded < out && back != none);
+  EXPECT(back != none && g.find("mw3: Instant Action open, MODS: off, 4 maps", back) != none && g.find("mw3: entry", back) == none);
   fs::remove_all(dir, ec);
 }
 
