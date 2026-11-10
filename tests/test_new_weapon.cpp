@@ -4,6 +4,7 @@
 // definition as it was; mod.txt's weapon= line put in place or after the
 // last; and the form from MODS's EDITOR, OK writing into the mod, which the
 // next start mounts with the weapon in the lab's list.
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -222,5 +223,136 @@ TEST(new_weapon_form_writes_into_the_mod) {
          mech3::weapon_has_tech(w, mech3::kInnerSphere));
   const std::vector<float> d = defs_read({"ERPPC_B"});
   EXPECT(d.size() == 3 && d[0] == 25.0f && d[1] == 920.0f);
+  mech3::weapon_rows_clear();
+}
+
+// The effects and sounds (second sitting): the copy's as the file has them,
+// each slot's choices those the file's weapons use; picks written (one
+// changed, one left out, one added where the copy has none) and read back.
+TEST(new_weapon_effects_and_sounds) {
+  const std::string install = MW3_GAME_DIR;
+  if (!fs::exists(install + "/zbd/reader.zbd")) return;
+  const std::vector<uint8_t> zrd = entry_of(install + "/zbd/reader.zbd", "weapons.zrd");
+  mech3::WeaponEffects e;
+  EXPECT(mech3::weapon_effects_of(zrd.data(), zrd.size(), "ERPPC", &e));
+  EXPECT(e.value[mech3::kMuzzle] == "ppc_muzl.flt" && e.value[mech3::kFireSound] == "wep_erppc_fire");
+  EXPECT(e.value[mech3::kProjectile] == "ppc_trc.flt" && e.value[mech3::kProjectileAnim] == "ppc_fire");
+  EXPECT(e.value[mech3::kTrail] == "ppc_trail.flt" && e.value[mech3::kFlybySound].empty());
+  EXPECT(e.value[mech3::kImpact] == "impact_ppc_mech" && e.value[mech3::kImpactSound] == "snd_ppc_hit");
+  size_t choices = 0;
+  for (int k = 0; k < mech3::kEffectSlots; ++k) {
+    const std::vector<std::string> c = mech3::effect_choices(zrd.data(), zrd.size(), k);
+    choices += c.size();
+    if (!e.value[k].empty()) EXPECT(std::find(c.begin(), c.end(), e.value[k]) != c.end());
+  }
+  std::printf("  %zu names offered over the 8 slots\n", choices);
+  EXPECT(choices > 60);
+  mech3::WeaponNumbers n;
+  mech3::weapon_numbers_of(zrd.data(), zrd.size(), "ERPPC", &n);
+  mech3::WeaponEffects fx;
+  fx.value[mech3::kMuzzle] = "gaus_muzl.flt";
+  fx.value[mech3::kTrail] = mech3::kNoEffect;
+  fx.value[mech3::kFlybySound] = "wep_slaser_on";
+  const std::vector<uint8_t> out = mech3::weapons_with_definition(zrd.data(), zrd.size(), "ERPPC", "ERPPC_B", n, mech3::kAnyTech, false, &fx);
+  mech3::WeaponEffects back;
+  EXPECT(mech3::weapon_effects_of(out.data(), out.size(), "ERPPC_B", &back));
+  EXPECT(back.value[mech3::kMuzzle] == "gaus_muzl.flt" && back.value[mech3::kTrail].empty() &&
+         back.value[mech3::kFlybySound] == "wep_slaser_on" && back.value[mech3::kImpact] == "impact_ppc_mech");
+  EXPECT(mech3::weapon_effects_of(out.data(), out.size(), "ERPPC", &back) && back.value[mech3::kTrail] == "ppc_trail.flt");
+}
+
+// A loose weapons.zrd (text): the shipped file as text, a comment of the
+// modder's in it, reads back as the shipped bytes; the pair put in its text
+// reads as the binary append does, the comment kept.
+TEST(new_weapon_loose_text) {
+  const std::string install = MW3_GAME_DIR;
+  if (!fs::exists(install + "/zbd/reader.zbd")) return;
+  const std::vector<uint8_t> zrd = entry_of(install + "/zbd/reader.zbd", "weapons.zrd");
+  // The file's top node holds its items: the text is those items.
+  std::string whole = mech3::zrd_text_of(zrd.data(), zrd.size());
+  EXPECT(whole.size() > 2 && whole.front() == '(' && whole.back() == ')');
+  const std::string text = "; my weapons\n" + whole.substr(1, whole.size() - 2) + "\n; the end\n";
+  std::string why;
+  const std::vector<uint8_t> read = mech3::weapons_text_bytes(text, &why);
+  std::printf("  text %zu bytes, read back %zu bytes (shipped %zu)%s%s\n", text.size(), read.size(), zrd.size(),
+              why.empty() ? "" : ": ", why.c_str());
+  EXPECT(read == zrd);
+  mech3::WeaponNumbers n;
+  mech3::weapon_numbers_of(zrd.data(), zrd.size(), "AC20", &n);
+  n.damage = 9.0f;
+  const std::vector<uint8_t> def = mech3::weapon_definition(zrd.data(), zrd.size(), "AC20", "AC20_B", n, mech3::kInnerSphere, true);
+  const std::string with = mech3::weapons_text_with_definition(text, "AC20_B", mech3::zrd_text_of(def.data(), def.size()), &why);
+  EXPECT(with.find("; my weapons") == 0 && with.find("; the end") != std::string::npos);
+  const std::vector<uint8_t> bin = mech3::weapons_with_definition(zrd.data(), zrd.size(), "AC20", "AC20_B", n, mech3::kInnerSphere, true);
+  EXPECT(!with.empty() && mech3::weapons_text_bytes(with, &why) == bin);
+  EXPECT(mech3::weapons_text_with_definition("(VERSION (2))", "x", "()", &why).empty() && !why.empty());
+}
+
+// The form's effects: a pick shown at the view (the preview's calls), a
+// model's not; OK into a mod with its own loose zbd\weapons.zrd: the text
+// written there (its comment kept, a .bak), no reader.zbd made, and the next
+// start's definition read from it.
+TEST(new_weapon_form_effects_and_loose_file) {
+  const std::string install = MW3_GAME_DIR;
+  if (!fs::exists(install + "/zbd/reader.zbd")) return;
+  SavedMounts keep;
+  const std::vector<uint8_t> zrd = entry_of(install + "/zbd/reader.zbd", "weapons.zrd");
+  const std::string whole = mech3::zrd_text_of(zrd.data(), zrd.size());
+  const std::string wd = tmp_dir("new_weapon_loose");
+  const fs::path mod = fs::path(wd) / "mods" / "loose";
+  fs::create_directories(mod / "zbd");
+  { std::ofstream(mod / "mod.txt") << "name=Loose\n"; }
+  { std::ofstream(mod / "zbd" / "weapons.zrd") << "; a modder's file\n" << whole.substr(1, whole.size() - 2) << "\n"; }
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"loose"}, {install});
+  zutl::mount(install);
+  std::vector<std::string> shown;
+  mech3::new_weapon_preview().anim = [&](const std::string& nm, const float*) { return shown.push_back("a " + nm), true; };
+  mech3::new_weapon_preview().sound = [&](const std::string& nm, const float*) { return shown.push_back("s " + nm), true; };
+  mech3::mods_edit_begin("loose", nullptr);
+  mech3::new_weapon_open(0);
+  mech3::EditorForm& f = mech3::new_weapon_form();
+  mech3::FormField* copy = f.field("copy of");
+  int32_t erppc = -1;
+  for (size_t i = 0; copy && i < copy->choices.size(); ++i)
+    if (copy->choices[i] == "ERPPC") erppc = static_cast<int32_t>(i);
+  EXPECT(erppc >= 0);
+  if (erppc < 0) return mech3::mods_edit_end();
+  *copy->i = erppc;
+  f.changed(*copy);
+  const auto pick = [&](const char* label, const std::string& name) {
+    mech3::FormField* x = f.field(label);
+    for (size_t i = 0; x && i < x->choices.size(); ++i)
+      if (x->choices[i] == name) *x->i = static_cast<int32_t>(i);
+    if (x) f.changed(*x);
+  };
+  EXPECT(f.field("muzzle")->choices[size_t(*f.field("muzzle")->i)] == "ppc_muzl.flt");
+  pick("muzzle", "gaus_muzl.flt");
+  pick("firing sound", "wep_ac20_fire");
+  pick("projectile", "ultra_trc_4.flt");
+  pick("trail", mech3::kNoEffect);
+  std::string calls;
+  for (const std::string& c : shown) calls += c + "; ";
+  std::printf("  shown: %s\n", calls.c_str());
+  EXPECT(shown == std::vector<std::string>({"a gaus_muzl.flt", "s wep_ac20_fire"}));  // a model, and none, not shown
+  EXPECT(f.press("OK") && !mech3::form_shown(&f));
+  mech3::mods_edit_end();
+  mech3::new_weapon_preview() = mech3::NewWeaponPreview{};
+  const std::string text = text_of(mod / "zbd" / "weapons.zrd");
+  EXPECT(text.rfind("; a modder's file", 0) == 0 && text.find("\"ERPPC_B\"") != std::string::npos);
+  EXPECT(fs::exists(mod / "zbd" / "weapons.zrd.bak") && !fs::exists(mod / "zbd" / "reader.zbd"));
+  std::string why;
+  const std::vector<uint8_t> b = mech3::weapons_text_bytes(text, &why);
+  mech3::WeaponEffects e;
+  EXPECT(mech3::weapon_effects_of(b.data(), b.size(), "ERPPC_B", &e) && e.value[mech3::kMuzzle] == "gaus_muzl.flt" &&
+         e.value[mech3::kProjectile] == "ultra_trc_4.flt" && e.value[mech3::kTrail].empty());
+  // The next start: the loose file's definition read (it wins over the reader archive's entry).
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"loose"}, {install});
+  zutl::mount(install);
+  const std::vector<float> d = defs_read({"ERPPC_B"});
+  EXPECT(d.size() == 3 && d[0] == 17.0f && mech3::weapon_index("ERPPC_B") >= 38);
   mech3::weapon_rows_clear();
 }

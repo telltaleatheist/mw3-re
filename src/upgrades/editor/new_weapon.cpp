@@ -1,17 +1,24 @@
 #include "upgrades/editor/new_weapon.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <set>
 #include <sstream>
 
 #include "crt/msvc_string.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zreader/zreader.h"
+#include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "mech3/game_editor.h"
 #include "mech3/game_editor_net.h"
 #include "mech3/mech_names.h"
 #include "mech3/net_save.h"
@@ -159,6 +166,71 @@ void set_mass(Node& def, const char* tech, std::vector<int32_t> values) {
   else mass->kids.push_back(str(tech)), mass->kids.push_back(list(std::move(nums)));
 }
 
+const EffectSlotInfo kSlots[kEffectSlots] = {
+    {"muzzle", "FIRE", "ANIMATION", 'a'},       {"firing sound", "FIRE", "SOUND", 's'},
+    {"projectile", "FLYOUT", "MODEL", 'm'},     {"projectile animation", "FLYOUT", "MODEL_ANIMATION", 'a'},
+    {"trail", "FLYOUT", "ANIMATION", 'a'},      {"flyby sound", "FLYOUT", "SOUND", 's'},
+    {"impact", "IMPACT", "ANIMATION", 'a'},     {"impact sound", "IMPACT", "SOUND", 's'},
+};
+// A slot's block in a definition: FIRE, FLYOUT, or IMPACT's `default`; made when `make`.
+Node* slot_block(Node& def, int slot, bool make) {
+  const char* b = kSlots[slot].block;
+  Node* v = value_of(def, b);
+  if (!v || v->type != zrdr::List) {
+    if (!make) return nullptr;
+    def.kids.push_back(str(b)), def.kids.push_back(list({}));
+    v = &def.kids.back();
+  }
+  if (std::strcmp(b, "IMPACT") != 0) return v;
+  Node* d = value_of(*v, "default");
+  if (!d || d->type != zrdr::List) {
+    if (!make) return nullptr;
+    v->kids.push_back(str("default")), v->kids.push_back(list({}));
+    d = &v->kids.back();
+  }
+  return d;
+}
+std::string slot_value(Node& def, int slot) {
+  Node* b = slot_block(def, slot, false);
+  const Node* n = b ? first(value_of(*b, kSlots[slot].key)) : nullptr;
+  return n && n->type == zrdr::String ? n->s : std::string();
+}
+void set_slot(Node& def, int slot, const std::string& value) {
+  if (value.empty()) return;  // the copy's
+  Node* b = slot_block(def, slot, value != kNoEffect);
+  if (!b) return;
+  for (size_t k = 0; k + 1 < b->kids.size(); k += 2)
+    if (b->kids[k].type == zrdr::String && same(b->kids[k].s, kSlots[slot].key)) {
+      if (value == kNoEffect) {
+        b->kids.erase(b->kids.begin() + static_cast<std::ptrdiff_t>(k), b->kids.begin() + static_cast<std::ptrdiff_t>(k + 2));
+      } else if (b->kids[k + 1].type == zrdr::List && !b->kids[k + 1].kids.empty()) {
+        b->kids[k + 1].kids[0] = str(value);  // its other items (the muzzle's "follows") kept
+      } else {
+        b->kids[k + 1] = list({str(value)});
+      }
+      return;
+    }
+  if (value != kNoEffect) b->kids.push_back(str(kSlots[slot].key)), b->kids.push_back(list({str(value)}));
+}
+
+std::string text_of_node(const Node& n) {
+  char b[64];
+  switch (n.type) {
+    case zrdr::List: {
+      std::string t = "(";
+      for (size_t i = 0; i < n.kids.size(); ++i) t += (i ? " " : "") + text_of_node(n.kids[i]);
+      return t + ")";
+    }
+    case zrdr::String: return "\"" + n.s + "\"";
+    case zrdr::Float:
+      std::snprintf(b, sizeof b, "%.9g", static_cast<double>(n.f()));
+      if (std::strchr(b, 'e')) std::snprintf(b, sizeof b, "%.9f", static_cast<double>(n.f()));
+      if (!std::strchr(b, '.')) std::strcat(b, ".0");
+      return b;
+    default: return std::to_string(n.i());
+  }
+}
+
 // ---- the form ----
 struct Form {
   bool open = false;
@@ -168,6 +240,9 @@ struct Form {
   std::string name, title, error;
   WeaponNumbers n;
   int32_t name_limit = 31;
+  int32_t fx[kEffectSlots] = {};                  // each slot's pick: 0 none, then fx_names[k]'s
+  std::vector<std::string> fx_names[kEffectSlots];  // "(none)" first, then every name the file's weapons use there
+  bool loose = false;                             // the mod's loose zbd\weapons.zrd is what is written
   EditorForm form;
 };
 Form g;
@@ -181,6 +256,11 @@ void show_error(const std::string& e) {
   if (!g.form.fields.empty()) g.form.fields.back().label = e;
 }
 
+std::string text_of_file(const fs::path& p) {
+  std::ifstream in(p, std::ios::binary);
+  return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
 void close_form() {
   form_hide(&g.form);
   g.open = false;
@@ -191,6 +271,15 @@ void close_form() {
 bool source(std::vector<uint8_t>* out, std::string* why) {
   const std::string rel = "zbd\\reader.zbd";
   const std::string& mod = mods_edit_session().mod;
+  // A loose zbd\weapons.zrd wins in a mod (modding.md, Readable files read directly): its text, read.
+  const fs::path loose = fs::path(zutl::mounts().write) / "mods" / mod / "zbd" / "weapons.zrd";
+  std::error_code lec;
+  if (fs::exists(loose, lec)) {
+    g.loose = true;
+    *out = weapons_text_bytes(text_of_file(loose), why);
+    if (out->empty()) return *why = "the mod's zbd\\weapons.zrd: " + *why, false;
+    return true;
+  }
   const fs::path own = fs::path(zutl::mounts().write) / "mods" / mod / "zbd" / "reader.zbd";
   std::error_code ec;
   const std::string path = fs::exists(own, ec) ? own.string() : zutl::find(rel.c_str());
@@ -224,7 +313,46 @@ void pick_copy() {
   g.ammo = w >= 0 && weapon_uses_ammo(w) ? 0 : 1;  // 0 yes, 1 no
   const bool clan = w >= 0 && weapon_has_tech(w, kClan), sphere = w >= 0 && weapon_has_tech(w, kInnerSphere);
   g.tech = clan && sphere ? 2 : clan ? 0 : sphere ? 1 : 3;
+  WeaponEffects e;
+  weapon_effects_of(g.zrd.data(), g.zrd.size(), c, &e);
+  for (int k = 0; k < kEffectSlots; ++k) {
+    const std::vector<std::string>& names = g.fx_names[k];
+    const auto it = std::find(names.begin(), names.end(), e.value[k]);
+    g.fx[k] = e.value[k].empty() || it == names.end() ? 0 : static_cast<int32_t>(it - names.begin());
+  }
   show_error("");
+}
+
+// A slot's pick shown once at the view's pick, else at its camera.
+void preview(int slot) {
+  const int32_t i = g.fx[slot];
+  if (i <= 0 || static_cast<size_t>(i) >= g.fx_names[slot].size() || kSlots[slot].kind == 'm') return;
+  const std::string& name = g.fx_names[slot][size_t(i)];
+  float at[3] = {};
+  if (!editor_hooks().ground_pick(at))
+    if (const float* c = editor_hooks().camera_pos()) at[0] = c[0], at[1] = c[1], at[2] = c[2];
+  NewWeaponPreview& p = new_weapon_preview();
+  bool shown;
+  if (kSlots[slot].kind == 's') {
+    if (p.sound) shown = p.sound(name, at);
+    else if (zsnd::Object* o = zsnd::find(name.c_str())) shown = zsnd::play_at(o, at, 1.0f, nullptr) != nullptr;
+    else shown = false;
+  } else {
+    static const float zero[3] = {};
+    if (p.anim) shown = p.anim(name, at);
+    else if (zeff::AnimDef* d = zeff::anim_find(name.c_str())) shown = zeff::anim_start_at(d, nullptr, at, zero, zero) != nullptr;
+    else shown = false;
+  }
+  if (!shown) editor_status(name + " is not loaded in this mission, so it cannot be shown here");
+}
+
+WeaponEffects effects_picked() {
+  WeaponEffects e;
+  for (int k = 0; k < kEffectSlots; ++k) {
+    const int32_t i = g.fx[k];
+    e.value[k] = i > 0 && static_cast<size_t>(i) < g.fx_names[k].size() ? g.fx_names[k][size_t(i)] : std::string(kNoEffect);
+  }
+  return e;
 }
 
 // The row as mod.txt's reader takes it; "" and `why` when refused.
@@ -248,17 +376,25 @@ void ok() {
   const std::string& mod = mods_edit_session().mod;
   const fs::path dir = fs::path(zutl::mounts().write) / "mods" / mod;
   std::error_code ec;
-  if (fs::exists(dir / "zbd" / "weapons.zrd", ec)) {  // a loose file wins in a mod (modding.md): not written yet
-    return show_error("this mod has its own zbd\\weapons.zrd, which New Weapon does not write yet");
-  }
-  const std::vector<uint8_t> out = weapons_with_definition(g.zrd.data(), g.zrd.size(), g.copies[size_t(g.copy)], r.name,
-                                                           g.n, r.tech, r.ammo);
-  if (out.empty()) {
-    return show_error("weapons.zrd does not read as one");
-  }
-  const ai::NetSave s = ai::save_archive_edit("zbd\\reader.zbd", "weapons.zrd", out);
-  if (!s.ok) {
-    return show_error("not saved: " + s.error);
+  const WeaponEffects fx = effects_picked();
+  const std::string& copy = g.copies[size_t(g.copy)];
+  std::string where = "zbd\\reader.zbd";
+  if (g.loose) {  // the loose file wins in a mod: the pair put in its text, the rest of it as the modder wrote it
+    const fs::path loose = dir / "zbd" / "weapons.zrd";
+    const std::vector<uint8_t> def = weapon_definition(g.zrd.data(), g.zrd.size(), copy, r.name, g.n, r.tech, r.ammo, &fx);
+    std::string text = def.empty() ? std::string() : weapons_text_with_definition(text_of_file(loose), r.name, zrd_text_of(def.data(), def.size()), &why);
+    std::string read_why;
+    const std::vector<uint8_t> back = text.empty() ? std::vector<uint8_t>{} : weapons_text_bytes(text, &read_why);
+    const std::vector<std::string> names = weapons_defined(back.data(), back.size());
+    if (names.empty() || names.back() != r.name) return show_error("the mod's zbd\\weapons.zrd: " + (why.empty() ? read_why : why));
+    fs::copy_file(loose, loose.string() + ".bak", fs::copy_options::overwrite_existing, ec);
+    std::ofstream(loose, std::ios::binary | std::ios::trunc) << text;
+    where = "zbd\\weapons.zrd";
+  } else {
+    const std::vector<uint8_t> out = weapons_with_definition(g.zrd.data(), g.zrd.size(), copy, r.name, g.n, r.tech, r.ammo, &fx);
+    if (out.empty()) return show_error("weapons.zrd does not read as one");
+    const ai::NetSave s = ai::save_archive_edit("zbd\\reader.zbd", "weapons.zrd", out);
+    if (!s.ok) return show_error("not saved: " + s.error);
   }
   // mod.txt: the row, its earlier text kept as mod.txt.bak.
   const fs::path txt = dir / "mod.txt";
@@ -275,7 +411,7 @@ void ok() {
   }
   g_last = r.name;
   close_form();
-  editor_status(r.name + " written into " + mod + " (mod.txt, zbd\\reader.zbd); the mech lab offers it from the next start");
+  editor_status(r.name + " written into " + mod + " (mod.txt, " + where + "); the mech lab offers it from the next start");
 }
 
 void cancel() { close_form(); }
@@ -308,8 +444,14 @@ void build() {
                    flt("fire rate", &g.n.fire_rate), flt("velocity", &g.n.velocity),
                    in("Clan tons", &g.n.clan_tons), in("Clan slots", &g.n.clan_slots),
                    in("Inner Sphere tons", &g.n.sphere_tons), in("Inner Sphere slots", &g.n.sphere_slots),
-                   in("rounds a ton", &g.n.rounds),
-                   {g.error, FormField::kLabel}};  // last: why OK was refused (show_error)
+                   in("rounds a ton", &g.n.rounds)};
+  for (int k = 0; k < kEffectSlots; ++k) {
+    FormField f{kSlots[k].label, FormField::kChoice};
+    f.i = &g.fx[k], f.choices = g.fx_names[k];
+    f.changed = [k] { preview(k); };
+    g.form.fields.push_back(f);
+  }
+  g.form.fields.push_back({g.error, FormField::kLabel});  // last: why OK was refused (show_error)
   g.form.buttons = {{"OK", ok}, {"Cancel", cancel}};
 }
 }  // namespace
@@ -372,13 +514,12 @@ std::string weapon_free_name(const std::string& copy, const std::vector<std::str
   return {};
 }
 
-std::vector<uint8_t> weapons_with_definition(const uint8_t* zrd, size_t size, const std::string& copy,
-                                             const std::string& name, const WeaponNumbers& n, int32_t tech,
-                                             bool ammo) {
-  File f;
-  if (!parse(zrd, size, &f)) return {};
+namespace {
+// The new definition: `copy`'s with the numbers and the effects set.
+bool build_def(const File& f, const std::string& copy, const std::string& name, const WeaponNumbers& n, int32_t tech,
+               bool ammo, const WeaponEffects* fx, Node* out) {
   const Node* from = value_of(ballistics(f), copy);
-  if (!from || from->type != zrdr::List) return {};
+  if (!from || from->type != zrdr::List) return false;
   Node def = *from;
   if (Node* nm = first(value_of(def, "NAME")); nm && nm->type == zrdr::String) nm->s = name;  // found by NAME (0x581ed0)
   set_first(def, "DAMAGE", n.damage);
@@ -389,6 +530,28 @@ std::vector<uint8_t> weapons_with_definition(const uint8_t* zrd, size_t size, co
   if (tech & kClan) set_mass(def, "clan", {n.clan_tons, n.clan_slots});
   if (tech & kInnerSphere) set_mass(def, "sphere", {n.sphere_tons, n.sphere_slots});
   if (ammo) set_mass(def, "ammo", {n.rounds});
+  if (fx)
+    for (int k = 0; k < kEffectSlots; ++k) set_slot(def, k, fx->value[k]);
+  *out = std::move(def);
+  return true;
+}
+}  // namespace
+
+std::vector<uint8_t> weapon_definition(const uint8_t* zrd, size_t size, const std::string& copy, const std::string& name,
+                                       const WeaponNumbers& n, int32_t tech, bool ammo, const WeaponEffects* fx) {
+  File f;
+  Node def;
+  std::vector<uint8_t> out;
+  if (parse(zrd, size, &f) && build_def(f, copy, name, n, tech, ammo, fx, &def)) write(out, def);
+  return out;
+}
+
+std::vector<uint8_t> weapons_with_definition(const uint8_t* zrd, size_t size, const std::string& copy,
+                                             const std::string& name, const WeaponNumbers& n, int32_t tech,
+                                             bool ammo, const WeaponEffects* fx) {
+  File f;
+  Node def;
+  if (!parse(zrd, size, &f) || !build_def(f, copy, name, n, tech, ammo, fx, &def)) return {};
   // BALLISTICS' count two more, its items as they were, the new pair after them.
   std::vector<uint8_t> out(zrd, zrd + f.bal_at);
   put32(out, zrdr::List), put32(out, get32(zrd + f.bal_at + 4) + 2);
@@ -397,6 +560,91 @@ std::vector<uint8_t> weapons_with_definition(const uint8_t* zrd, size_t size, co
   write(out, def);
   out.insert(out.end(), zrd + f.bal_end, zrd + size);
   return out;
+}
+
+const EffectSlotInfo& effect_slot(int slot) { return kSlots[std::clamp(slot, 0, kEffectSlots - 1)]; }
+
+bool weapon_effects_of(const uint8_t* zrd, size_t size, const std::string& name, WeaponEffects* out) {
+  File f;
+  if (!parse(zrd, size, &f)) return false;
+  Node* def = value_of(const_cast<Node&>(ballistics(f)), name);
+  if (!def || def->type != zrdr::List) return false;
+  for (int k = 0; k < kEffectSlots; ++k) out->value[k] = slot_value(*def, k);
+  return true;
+}
+
+std::vector<std::string> effect_choices(const uint8_t* zrd, size_t size, int slot) {
+  File f;
+  std::set<std::string> seen;
+  if (parse(zrd, size, &f)) {
+    Node& b = const_cast<Node&>(ballistics(f));
+    for (size_t k = 0; k + 1 < b.kids.size(); k += 2)
+      if (b.kids[k + 1].type == zrdr::List)
+        if (std::string v = slot_value(b.kids[k + 1], slot); !v.empty()) seen.insert(v);
+  }
+  return std::vector<std::string>(seen.begin(), seen.end());
+}
+
+std::string zrd_text_of(const uint8_t* p, size_t size) {
+  Node n;
+  size_t at = 0;
+  return read(p, size, &at, &n) ? text_of_node(n) : std::string();
+}
+
+std::string weapons_text_with_definition(const std::string& text, const std::string& name, const std::string& def_text,
+                                         std::string* why) {
+  // The text's tokens by depth, past strings and ';' comments: BALLISTICS, then its list's closing parenthesis.
+  int depth = 0, list_depth = -1;
+  bool after_key = false;
+  for (size_t i = 0; i < text.size(); ++i) {
+    const char c = text[i];
+    if (c == ';') {
+      while (i < text.size() && text[i] != '\n') ++i;
+      continue;
+    }
+    if (c == '"') {
+      const size_t e = text.find('"', i + 1);
+      if (e == std::string::npos) break;
+      after_key = list_depth < 0 && same(text.substr(i + 1, e - i - 1), "BALLISTICS");
+      i = e;
+      continue;
+    }
+    if (c == '(') {
+      ++depth;
+      if (after_key) list_depth = depth, after_key = false;
+      continue;
+    }
+    if (c == ')') {
+      if (depth == list_depth) return text.substr(0, i) + "\n  \"" + name + "\" " + def_text + "\n" + text.substr(i);
+      --depth;
+      continue;
+    }
+    if (std::isspace(static_cast<unsigned char>(c))) continue;
+    size_t e = i;  // a bare word or number
+    while (e < text.size() && !std::isspace(static_cast<unsigned char>(text[e])) && text[e] != '(' && text[e] != ')' && text[e] != ';' && text[e] != '"') ++e;
+    after_key = list_depth < 0 && same(text.substr(i, e - i), "BALLISTICS");
+    i = e - 1;
+  }
+  return *why = "it has no BALLISTICS list", std::string();
+}
+
+std::vector<uint8_t> weapons_text_bytes(const std::string& text, std::string* why) {
+  std::FILE* f = std::tmpfile();
+  if (!f) return *why = "no temporary file", std::vector<uint8_t>{};
+  std::fwrite(text.data(), 1, text.size(), f);
+  std::rewind(f);
+  zrdr::Node* root = zrdr::parse_text(f);
+  std::fclose(f);
+  std::vector<uint8_t> out;
+  if (!root) return *why = "it does not read as a reader file", out;
+  ai::put_node(out, *root);
+  zrdr::free_node(root);
+  return out;
+}
+
+NewWeaponPreview& new_weapon_preview() {
+  static NewWeaponPreview p;
+  return p;
 }
 
 std::string mod_txt_with_weapon(const std::string& text, const std::string& name, const std::string& line) {
@@ -436,6 +684,10 @@ void new_weapon_open(int32_t) {
   }
   g.copies = weapon_copies(g.zrd.data(), g.zrd.size());
   g.defined = weapons_defined(g.zrd.data(), g.zrd.size());
+  for (int k = 0; k < kEffectSlots; ++k) {
+    g.fx_names[k] = {kNoEffect};
+    for (const std::string& n : effect_choices(g.zrd.data(), g.zrd.size(), k)) g.fx_names[k].push_back(n);
+  }
   g.open = true;
   build();
   pick_copy();

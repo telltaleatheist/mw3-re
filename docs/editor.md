@@ -894,7 +894,7 @@ does not offer them: they write into a mod, and only MODS's EDIT names one.
 - **Then** it appears in the mech lab from the next start, as a hand-made
   row does.
 
-### 1a. New Weapon on EDIT WEAPONS (built 2026-11-10, main fields)
+### 1a. New Weapon on EDIT WEAPONS (built 2026-11-10: main fields, then effects and sounds)
 
 Owen's calls (2026-11-09): it opens only from MODS → EDITOR, not by
 Shift+F12; the main fields come first, the effects and sounds in a second
@@ -941,9 +941,13 @@ MODS, EDITOR".
 - **mod.txt:** `weapon=<name> ammo=.. tech=.. [title=..]`, put in place of a
   weapon= line naming the same weapon (any case), else after the last line.
   Line ends are kept, and the old file is kept as mod.txt.bak.
-- A mod with a loose zbd\weapons.zrd (which wins in a mod) is refused for
-  now: "this mod has its own zbd\weapons.zrd, which New Weapon does not
-  write yet". Writing it as text is left for later.
+- A mod with its own loose zbd\weapons.zrd (which wins in a mod): the form
+  reads its text (`weapons_text_bytes`: the text reader, then the tree's
+  bytes) and OK puts the pair in it as text
+  (`weapons_text_with_definition`: after BALLISTICS' last item, found past
+  strings and ';' comments, everything else of the modder's kept), checked by
+  reading it back, the old text kept as weapons.zrd.bak. No reader.zbd is
+  made then.
 
 The lab offers it from the next start (rows are read at the mount).
 
@@ -967,10 +971,35 @@ The lab offers it from the next start (rows are read at the mount).
   not raised, DAMAGE written to the copy, the sphere pair under clan.
 - The help coverage test opens it (11 forms).
 
-**Second sitting:** the effects and sounds (the muzzle, trail, impact and
-flyby picked from lists of the worlds' animation defs and zSound's names),
-each shown once at the view's pick when picked (sketch item 1, Effects and
-sounds; with item 3's machinery). Also the loose weapons.zrd written as text.
+**Effects and sounds** (the second sitting, 2026-11-10). Eight slots, each a
+list of the names the file's definitions use there (`effect_choices`; what
+the shipped weapons use is in every world), "(none)" first, the copy's
+picked:
+- muzzle and firing sound: FIRE's ANIMATION and SOUND;
+- projectile, projectile animation, trail and flyby sound: FLYOUT's MODEL,
+  MODEL_ANIMATION, ANIMATION and SOUND;
+- impact and impact sound: IMPACT default's ANIMATION and SOUND.
+
+A pick replaces the value's first item (a muzzle's second, "follows the
+firepoint", kept), "(none)" leaves the key out, and a key the copy lacks is
+added. The other soils' impact blocks stay the copy's.
+
+Picking one shows it once where the view points (the editor's ground pick,
+else its camera): an animation by `zeff::anim_find` and `anim_start_at`, as
+the weapons' own effects start; a sound by `zsnd::find` and `play_at`. A
+model is not shown. A name the mission has not loaded (or a sound with the sound off) says so under the menu.
+
+Tests:
+- `new_weapon_effects_and_sounds`: ERPPC's eight as the file has them, the
+  choices; picks written and read back, the copy's own untouched.
+- `new_weapon_loose_text`: the shipped file as text with comments reads
+  back to its exact bytes, and the pair put in the text reads as the binary
+  append does.
+- `new_weapon_form_effects_and_loose_file`: the preview's calls (an
+  animation and a sound shown; a model and "(none)" not); OK into a loose
+  file, its comment kept, a .bak, no reader.zbd; the next start reads it.
+- `test_new_weapon.py`'s fourth case: six picks through the original's
+  0x583880, read as the port reads them.
 
 ### 2. Mech variant
 
