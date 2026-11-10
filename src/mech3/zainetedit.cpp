@@ -151,7 +151,8 @@ void CZAiNetEdit::fold_edits() {
   dirty = f.edited() ? 1 : 0;
 }
 
-// Mech3.exe 1.2 @ 0x004bd020. The save on close (0x004bd100) is the editor's.
+// Pirate's Moon 1.0 @ 0x004c3e60: MW3's 0x004bd020 without its fold and save on close
+// (0x004bd100, 0x004d72a0); in both the save is the editor's.
 CZAiNetEdit::~CZAiNetEdit() {
   for (znet::Element*& e : elems) {
     if (e != placeholder) delete e;

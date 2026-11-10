@@ -695,6 +695,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_options.cpp
     tests/pm/test_pm_hud.cpp
     tests/pm/test_pm_mods.cpp
+    tests/test_net_save.cpp  # the editor's net save on PM's nets
   )
   target_include_directories(mw3pmtests PRIVATE tests)
   target_link_libraries(mw3pmtests PRIVATE pmcore mw3core)
@@ -722,8 +723,8 @@ if(MW3_BUILD_PM)
   # The HUD (pm-map step 7): the objectives box (test_pm_hud_objectives.py)
   target_sources(pmprobe PRIVATE tests/probe_pm_hud.cpp)
   target_sources(pmprobe PRIVATE tests/probe_command.cpp)
-  # The vehicle editor's compares and pages on PM's (test_aiv_edit.py, test_vehicle_ddx.py with MW3_EXE=pm)
-  target_sources(pmprobe PRIVATE tests/probe_aiv_edit.cpp tests/probe_vehicle_ddx.cpp)
+  # The editor's compares and pages on PM's (test_aiv_edit, test_vehicle_ddx, test_net_cache with MW3_EXE=pm)
+  target_sources(pmprobe PRIVATE tests/probe_aiv_edit.cpp tests/probe_vehicle_ddx.cpp tests/probe_net_cache.cpp)
   target_sources(pmprobe PRIVATE tests/probe_jets.cpp)
   target_sources(pmprobe PRIVATE tests/probe_update.cpp)
   target_sources(pmprobe PRIVATE tests/probe_skis.cpp)

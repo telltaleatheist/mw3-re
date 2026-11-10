@@ -214,6 +214,12 @@ Left out on purpose (2026-11-05): PM's in-game file boxes for the lab's develope
 Left to chance: code nothing maps is looked for by its first 24 bytes in
 PM's code (unique hits only).
 
+A slip found (2026-11-10): the vehicle editor's strategy map, MW3's
+0x60b2f8, maps to 0x62f8f4, but PM's own thunk 0x4be440 loads 0x62f8f8 (the
+block's delta is 4 off there). `test_vehicle_ddx.py` passes PM's address
+itself. A global a test hands over as ECX or a value is not translated anyway;
+check such an address against the PM code that uses it.
+
 **`original.py` on PM's exe** (`MW3_EXE=pm`): every image address a test
 gives `call`, `read`, `write`, `u32`, `stub_import`, `stub_function` and
 `import_code` is translated; `cpu.uc` is a proxy that translates hook

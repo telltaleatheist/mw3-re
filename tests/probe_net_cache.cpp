@@ -22,11 +22,13 @@ char* text(const std::string& s) { return s == "-" ? nullptr : strdup(s.c_str())
 // pointers ignored), then the name, auxname and gate ("-": none), the links
 // ("-" or a,b,c), the valve union ("-" or v:n,v:n with v a valve's word) and
 // the assignment ("-" or v:value).
-void fill(NetNodeRec& r, const std::string& line) {
+// Pirate's Moon's (pm): 49 words (0xc4 bytes, its fields +0x9c..+0xa6), and
+// via after auxname.
+void fill(NetNodeRec& r, const std::string& line, bool pm = false) {
   std::istringstream in(line);
-  uint32_t w[45];
-  for (uint32_t& x : w) in >> x;
-  uint8_t b[0xb4];
+  uint32_t w[49];
+  for (int k = 0; k < (pm ? 49 : 45); ++k) in >> w[k];
+  uint8_t b[0xc4];
   std::memcpy(b, w, sizeof b);
   const auto f = [&](int off) { float v; std::memcpy(&v, b + off, 4); return v; };
   const auto i = [&](int off) { int32_t v; std::memcpy(&v, b + off, 4); return v; };
@@ -47,9 +49,16 @@ void fill(NetNodeRec& r, const std::string& line) {
   r.arrange_set = b[0x80], r.arrange = f(0x84), r.mcbwait_set = b[0x88], r.mcbwait_b = b[0x89];
   r.mcbwait_time = f(0x8c), r.mcbwait_valve = ptr<mech3::ai::Valve>(u(0x90)), r.sound = ptr<void>(u(0x94));
   r.backup = b[0x98], r.shunt = b[0x99];
-  std::string name, aux, gate, links, uni, assign;
-  in >> name >> aux >> gate >> links >> uni >> assign;
-  r.name = text(name), r.auxname = text(aux), r.gate = text(gate);
+  std::string name, aux, via = "-", gate, links, uni, assign;
+  if (pm) {
+    r.via_radius2 = f(0x9c), r.via_number = i(0xa0);
+    r.terminus = b[0xa4], r.static_mfb_set = b[0xa5], r.static_mfb = b[0xa6];
+    in >> name >> aux >> via;
+  } else {
+    in >> name >> aux;
+  }
+  in >> gate >> links >> uni >> assign;
+  r.name = text(name), r.auxname = text(aux), r.gate = text(gate), r.via = text(via);
   if (links != "-") {
     std::istringstream l(links);
     for (std::string t; std::getline(l, t, ',');) r.links.push_back(std::stoi(t));
@@ -76,9 +85,9 @@ void unhook(NetNodeRec& r) {
 }
 }  // namespace
 
-extern "C" int probe_net_rec_same(const char* a_line, const char* b_line) {
+extern "C" int probe_net_rec_same(const char* a_line, const char* b_line, int pm) {
   NetNodeRec a, b;
-  fill(a, a_line), fill(b, b_line);
+  fill(a, a_line, pm), fill(b, b_line, pm);
   const int r = a.same(b) ? 1 : 0;
   unhook(a), unhook(b);
   return r;
