@@ -184,6 +184,12 @@ single-game packages stay. One sitting each, each with its tests:
    holds the game, and saves what it finds. Tests: a fake HOME with prefixes
    and bottles (each game found in its own, an MW3 folder never taken as
    PM's, the saved one first); Windows' registry part by the mingw build.
+   **Done (2026-11-09):** `install_candidates(pirates_moon)`, `Launcher::find_pm`;
+   `sdl_program_launcher_finds_pirates_moon` (MW3's data under PM's folder
+   name in the prefix searched first, never taken; PM in a CrossOver bottle
+   found, saved as pm_install= and started there). Breaks: the game check
+   dropped, the bottles dropped, PM's folder name changed: each caught.
+   MechWarrior 3's search is a superset of what it was (the bottles added).
 2. **Installed from the disc or an image** (.iso, .cue/.bin, a zip or 7z of
    either) into the rebuild's own folder, as MW3's SETUP does, music from
    the image's track 2. `setup::install_from_source` taking a Pirate's Moon
