@@ -6,7 +6,7 @@ MechWarrior 3 shipped with the developers' own editor still inside: a menu over 
 
 ## Quick start
 
-1. Open the editor: on the MODS screen pick a mod or custom campaign, then EDITOR and a mission (its saves go into that mod). Or, started with --debug-camera, press Shift+F12 in any mission (its saves go into a mod of its own, "editor edits").
+1. Open the editor from the MODS screen: pick a mod or custom campaign, then EDITOR and a mission, and it opens with the editor up. A custom campaign played from MODS (ENTER) has it in every mission too: EDITOR in the pause menu, or Shift+F12. Its saves go into that mod. The game's own campaign, Pirate Missions, Instant Action, training and multiplayer have no editor.
 2. The menu is on the left; point at a row and click (or press Space). The view is a free camera: fly it with the movement keys.
 3. EDIT AI NETS: pick a net. Its nodes and links are drawn in the world. Click a node to pick it; picking a second one links the first to it. Move Node, Delete Node, Node Params and Add veh to node work on the first picked node.
 4. EDIT VEHICLES: pick a vehicle, change its pages, then Apply (the running mission takes it at once) and Save (it is written for the next start).
@@ -35,7 +35,7 @@ The menu over the mission when the editor is up (the original's, with HELP added
 | EDIT VEHICLES | The Mech AI window: pick one of the mission's vehicles and change its AI settings. |
 | EDIT WEAPONS | Empty in the original game: it does nothing (yet). |
 | HELP | This quick start, in a window. Ours: the original had none. |
-| EXIT GAME EDIT | Close the editor. From MODS it goes back to the MODS screen; after Shift+F12 the view goes back to your mech. |
+| EXIT GAME EDIT | Close the editor. From MODS's EDITOR it goes back to the MODS screen; in a custom campaign's mission the view goes back to your mech and the mission goes on. |
 
 ## The net editor's menu
 

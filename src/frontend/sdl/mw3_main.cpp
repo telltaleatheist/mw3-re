@@ -161,7 +161,7 @@ struct Args {
   std::string cfg_mw1_game;  // mw3.cfg's mw1_game= (ours: the launcher's MechWarrior 1989 folder)
   std::string cfg_joystick, cfg_joystick_axes;  // mw3.cfg's joystick=, joystick_axes= (ours, W54: sdl_input.h)
   int wide_menus = -1, cfg_wide_menus = -1;  // --wide-menus / --no-wide-menus, mw3.cfg's widemenus= (ours)
-  bool debug_camera = false;  // --debug-camera or debugcamera=1 (ours, docs/editor.md S4): the game editor on Shift+F12
+  bool debug_camera = false;  // --debug-camera (ours, docs/editor.md S4): the game editor anywhere; developers only
   std::vector<std::string> assets;
   // Mods (ours, docs/modding.md): --mod NAME (repeatable, this run's list),
   // else mw3.cfg's mod= lines, in order; --no-mods none; --mods lists them.
@@ -437,7 +437,6 @@ void read_config(const std::string& dir, Args& a) {
     else if (line == "widemenus=1") a.cfg_wide_menus = 1;
     else if (line == "throttle_reverse=0") a.cfg_throttle_reverse = 0;
     else if (line == "throttle_reverse=1") a.cfg_throttle_reverse = 1;
-    else if (line == "debugcamera=1") a.debug_camera = true;
   }
 }
 

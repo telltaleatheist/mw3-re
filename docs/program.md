@@ -211,7 +211,10 @@ They run inside the original main loop, after the original start-up.
   level (not a cave's roof: playtest S7), and turned to face it
   each frame, to watch a mech up close (its damage decals with `--fire`,
   damage-decals.md). The mission's opening camera still runs first.
-- `--debug-camera` (ours; `debugcamera=1` in mw3.cfg): Shift+F12 opens
+- `--debug-camera` (ours; a developer's flag, on the command line only: no
+  player reaches it, and mw3.cfg's old `debugcamera=1` is read no more):
+  Shift+F12 opens, in any mission (players have it only in a mission the
+  MODS screen launched: editor.md, The way in),
   The "BATTLESPORT GAME EDITOR" over the mission (debug command 0x9a,
   which the exe binds to no key; F11 stays the lancemate command screen):
   the view on the stealth object, flown with the movement keys, and the
