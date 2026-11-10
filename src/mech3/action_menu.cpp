@@ -398,6 +398,11 @@ void ActionScreen::show_custom() {
 // the kept choice ([0x00605820]) replaces it when there is one.
 void ActionScreen::reset() {
   Engine& e = engine();
+  if (mods_tab) {  // ours: the line as this run stands, said in the log as the screen opens
+    const std::string line = ia_mods_line(mods_menu_write_dir());
+    mods_text_say(mods_tab->line, line);
+    std::printf("mw3: Instant Action open, %s, %d maps\n", line.c_str(), worlds.count());
+  }
   const ActionSetup& k = action_setup();
   GameSlot* slot = player_slot();
   worlds.select(k.g874 < worlds.count() ? k.g874 : 0);  // ours: a mod's world kept by a pilot, the mod since gone

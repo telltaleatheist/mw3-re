@@ -226,6 +226,8 @@ TEST(ia_mods_accept_steps_and_line) {
   EXPECT(mech3::ia_mods_step({"a"}, {"a", "b"}, true) == IaModsStep::kIntoEntry);
   EXPECT(mech3::ia_mods_step({"a"}, {}, true) == IaModsStep::kPlain);
   const fs::path wd = tmp("ia_mods_line");
+  put(wd / "mods/a/mod.txt", "name=A\n");
+  put(wd / "mods/b/mod.txt", "name=B\n");
   const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
   const mech3::CampaignEntry* ia = mech3::find_entry(all, mech3::kIaEntry);
   EXPECT(ia && mech3::entry_save_ticks(wd.string(), *ia, V{"a", "b"}));
@@ -235,4 +237,35 @@ TEST(ia_mods_accept_steps_and_line) {
   EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: 2 on");
   EXPECT(mech3::ia_mods_line(wd.string(), 1) == "MODS: 1 on" && mech3::ia_mods_line(wd.string(), 0) == "MODS: off");  // the tick list's own count
   mech3::entry_run() = mech3::EntryRun{};
+}
+
+// Instant Action's MODS, second part (ia_mods.h): INSTANT ACTION goes straight
+// into the modded one only with mods ticked and none missing; a plain run
+// with a ticked mod gone says so; the pilot carried over is offered once.
+TEST(ia_mods_straight_in_missing_and_the_pilot_offer) {
+  using V = std::vector<std::string>;
+  const fs::path wd = tmp("ia_mods_pilot");
+  put(wd / "mods/hud/mod.txt", "name=Green HUD\n");
+  put(wd / "mods/weps/mod.txt", "name=Weps\n");
+  const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
+  const mech3::CampaignEntry* ia = mech3::find_entry(all, mech3::kIaEntry);
+  EXPECT(ia != nullptr);
+  mech3::entry_run() = mech3::EntryRun{};
+  EXPECT(!mech3::ia_straight_in(wd.string()) && !mech3::ia_straight_in(""));  // nothing ticked: the original
+  EXPECT(mech3::entry_save_ticks(wd.string(), *ia, V{"hud", "weps"}));
+  EXPECT(mech3::ia_straight_in(wd.string()) && mech3::ia_mods_missing(wd.string()).empty());
+  fs::remove_all(wd / "mods/weps");
+  EXPECT(!mech3::ia_straight_in(wd.string()) && (mech3::ia_mods_missing(wd.string()) == V{"weps"}));
+  EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: 1 missing");
+  EXPECT(mech3::ia_mods_line(wd.string(), 2) == "MODS: 2 on");  // the tick list's own count stays the ticks'
+  // The pilot: none of that name; the main menu's (offered); declined (not asked again); the entry's own (picked).
+  EXPECT(mech3::ia_pilot_state(wd.string(), "") == mech3::IaPilot::kNone && mech3::ia_pilot_state(wd.string(), "Ace") == mech3::IaPilot::kNone);
+  put(wd / "pilots/Ace.mw3", "ace");
+  put(wd / "pilots/Bo Lee.mw3", "bo");
+  EXPECT(mech3::ia_pilot_state(wd.string(), "ace") == mech3::IaPilot::kOffer);  // any letter case, as the game's names
+  mech3::ia_pilot_declined(wd.string(), "Ace");
+  EXPECT(mech3::ia_pilot_state(wd.string(), "ACE") == mech3::IaPilot::kDeclined && mech3::ia_pilot_state(wd.string(), "Bo Lee") == mech3::IaPilot::kOffer);
+  EXPECT(text_of(wd / "pilots/Ace.mw3") == "ace");
+  put(wd / "campaigns/ia/pilots/Bo Lee.mw3", "bo's copy");
+  EXPECT(mech3::ia_pilot_state(wd.string(), "bo lee") == mech3::IaPilot::kThere);
 }

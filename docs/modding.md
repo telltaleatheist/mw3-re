@@ -504,13 +504,37 @@ Action takes mods from its own screen, not from MODS's list.
 - **Leaving** modded Instant Action by its pilot screen's CANCEL starts again
   on the main menu of a plain run (no `--open-mods`: the player came from the
   main menu).
-- Not yet (the second part): INSTANT ACTION on the main menu going straight
-  into the modded one when mods are ticked, the chosen pilot carried over
-  (the copy-over offer) so the restart lands on the same screen, and the
-  "MODS: 1 missing" case. Until then the entry opens on its own pilot screen.
+- **Straight in** (`ia_straight_in`, `MainMenuButton::on_left_up`): on a
+  plain run, INSTANT ACTION (the button, its hotkey and the app's reopen
+  press all go through the button) starts the program again into the entry
+  when it has ticks and none is missing. A ticked mod gone: the original
+  Instant Action opens and its line says "MODS: 1 missing"
+  (`ia_mods_missing`); the list shows which, and ACCEPT there refuses until
+  it is turned off or imported again.
+- **The pilot goes along** (`--entry-pilot NAME`, `RestartTo::pilot`,
+  `ia_start_pilot`): ACCEPT passes the chosen pilot's name; the main menu's
+  state, once the pilots are loaded, picks the pilot of that name in the
+  run's folder and sets the app's "back from a game" flags (0x0048a750), so
+  Instant Action opens on its own screen, not the pilot screen. No pilot of
+  that name: the pilot screen.
+- **The one offer** (`ia_pilot_state`, dev 3's `entry_copy_pilot`): going
+  into the entry with a pilot it does not have, the game's own message box
+  asks once whether to copy the pilot and the saved mechs there ("Your pilot
+  here is not changed."). OK copies (the originals only read; a failed copy
+  is said and nothing starts); CANCEL notes the name in
+  `campaigns\ia\pilots-not-copied.txt`, never asked again, and the entry
+  opens on its pilot screen for a new one.
+- A list longer than its box (fourteen rows) scrolls by the list's own arrows.
+- Checks: `MW3_BOX_ANSWER=N` answers every message box N at once, said in
+  the log with its text (a scripted click repeats while a box is up, so it
+  cannot press the box's own buttons).
 
-Tests: `sdl_program_instant_action_mods` (three runs, each one process),
-`ia_mods_accept_steps_and_line`, `sdl_restart_args_are_the_starts_own`.
+Tests: `sdl_program_instant_action_mods` (three runs, each one process; the
+offer answered no), `sdl_program_instant_action_mods_pilot_and_straight_in`
+(the offer answered yes, the pilot picked after the restart; straight in
+from the main menu; a ticked mod gone), `ia_mods_accept_steps_and_line`,
+`ia_mods_straight_in_missing_and_the_pilot_offer`,
+`sdl_restart_args_are_the_starts_own`.
 
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 

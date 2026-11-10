@@ -119,6 +119,9 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 ## Open
 
 - 1.1.0 waits for this (Owen, 2026-11-10), so mods change behaviour once.
+- A way back after saying no to the pilot's copy (the name noted in the
+  entry's `pilots-not-copied.txt` and not asked again), or after deleting the
+  copied pilot there: a small COPY PILOT control, with step 3's pilot offer.
 - The starter mods' translation kind: kept as it is (it costs nothing), but not
   featured, since translations are not managed.
 

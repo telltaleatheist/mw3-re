@@ -977,6 +977,13 @@ bool MainState::enter() {
   Mech3App& ap = a();
   if (ap.multiplayer() || en.network_lobby_active()) en.vcall(screen_ + kButtonMulti, 0x30, {});
   entry_run().opened = false;  // ours (upgrades/mods/entry_run.h)
+  // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action was given, picked now the pilots are loaded.
+  if (!ia_start_pilot().empty()) {
+    Pilot* p = find_pilot(ia_start_pilot().c_str());
+    std::printf("mw3: Instant Action's pilot %s: %s\n", ia_start_pilot().c_str(), p ? "picked" : "not there, the pilot screen");
+    ia_start_pilot().clear();
+    if (p) current_pilot() = p, ap.set_reopen_instant_action(1, 1);
+  }
   if (ap.reopen_instant_action()) {
     entry_run().opened = entry_run().screen == EntryRun::kInstantAction;
     en.vcall(screen_ + kButtonInstantAction, 0x30, {});

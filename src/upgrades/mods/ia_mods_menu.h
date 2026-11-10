@@ -22,7 +22,8 @@ constexpr uint32_t kIaModsStateCtor = 0xf0000006;
 bool& ia_mods_page();     // the program turns Instant Action's MODS tab on
 Handle& ia_mods_state();  // its menu object, made at the first press, let go with the main menu's
 // The program's start again: into the entry (its ticks mounted) or plain, on Instant Action. False with `why`.
-using IaModsRestart = std::function<bool(bool into_entry, std::string* why)>;
+// `pilot`: the one to pick there ("" none: the pilot screen).
+using IaModsRestart = std::function<bool(bool into_entry, const std::string& pilot, std::string* why)>;
 IaModsRestart& ia_mods_restart();
 
 class IaModsScreen : public MenuScreen {

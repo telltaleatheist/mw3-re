@@ -16,11 +16,12 @@ struct RestartTo {
   Screen screen = kNone;   // the entry's screen: its pilots (--entry-play) or Instant Action (--entry-ia)
   bool open_mods = false;  // a plain start with MODS open (--open-mods)
   bool open_ia = false;    // a plain start on Instant Action (--open-ia)
+  std::string pilot;       // Instant Action's pilot picked at once (--entry-pilot NAME), so its screen opens, not the pilot screen
 };
 
 // The next start's arguments from this start's (without the program's name):
 // what a start into an entry adds taken out (--entry, --entry-play,
-// --entry-ia, --open-mods, --open-ia, --restarted) with --mod and --no-mods and a
+// --entry-ia, --entry-pilot, --open-mods, --open-ia, --restarted) with --mod and --no-mods and a
 // check's scripted input (--click-at, --tap), the rest kept in order, then `to`'s and --restarted (no intro movies).
 std::vector<std::string> restart_args(const std::vector<std::string>& args, const RestartTo& to);
 
