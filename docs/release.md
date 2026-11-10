@@ -225,6 +225,14 @@ the Linux AppDir. Left, and why:
 
 ## 5. Publishing (Owen)
 
-- [ ] The tag pushed, the GitHub release made with the notes, and the three
-      platforms' files uploaded, with a `SHA256SUMS` of them.
+- [ ] The tag pushed (a package's: a bare `vX.Y.Z` on `main`), the GitHub
+      release made with the notes, and the three platforms' files uploaded,
+      with a `SHA256SUMS` of them. **Required on every release**: the
+      launcher's UPDATES installs nothing without its line (docs/launcher.md,
+      Updates). `shasum -a 256 <files> > SHA256SUMS` (or `sha256sum`), one
+      `<hash>  <name>` line each. The packages' names stay
+      `...-win64-Setup.exe`, `...-mac.dmg`, `...-x86_64.AppImage`, which the
+      updater looks for; the games' own downloads may go on the same release
+      as extra assets. Not a draft and not a prerelease once published (the
+      updater skips both); the Latest flag does not matter to it.
 - [ ] Each upload downloaded again and its checksum checked.

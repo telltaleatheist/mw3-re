@@ -31,6 +31,7 @@
 #include "mech3/mod_install.h"
 #include "upgrades/mods/mod_export.h"
 #include "frontend/sdl/sdl_mods.h"
+#include "frontend/sdl/sdl_update.h"
 #include "mech3/source_map.h"
 #include "gamez/zutil/zutl_path.h"
 
@@ -348,6 +349,7 @@ enum Id {
   kAddDisc = 20,
   kGo = 30, kCancel, kNotesOk,
   kData = 40, kDataPick, kDataUsual, kMoveGo, kRemoveOld, kKeepOld,
+  kUpdates = 49,
   kMods = 50, kModUp, kModDown, kModCheck, kModPrev, kModNext, kModAdd, kModAddFolder, kModFolder,
   kModExport,
   kModRow = 60,  // kModRow + i: the page's i-th mod (kModsPerPage)
@@ -367,7 +369,7 @@ struct Work {
   mech3::setup::Result result;
   std::atomic<bool> cancel{false}, done{false};
   std::string title;
-  enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
+  enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData, kUpdateCheck } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
   ~Work() {
     cancel = true;
     if (th.joinable()) th.join();
@@ -509,6 +511,7 @@ class Launcher {
   bool files_pm_ = false;  // GAME FILES' screens are Pirate's Moon's (pm_last_ when they opened)
   bool pm_lacks_music_ = false, pm_lacks_sounds_ = false;  // pm_refresh
   bool mods_pm_ = false;  // MODS works on Pirate's Moon's mods (the game last clicked)
+  std::shared_ptr<upgrades::update::Verdict> update_;  // the last CHECK FOR UPDATES' verdict
   ModsTarget mods_here() {
     if (mods_pm_) pm_wd();
     return mods_target(o_, mods_pm_);
@@ -979,9 +982,10 @@ void Launcher::layout() {
       }
       // GAME FILES (Owen, 2026-11-02): the find screen at any time, to pick
       // or refresh the game's files; QUIT for fullscreen (Escape too).
-      add(kFiles, {132, 384, 120, 34}, "GAME FILES");
-      add(kMods, {260, 384, 120, 34}, "MODS");
-      add(kQuit, {388, 384, 120, 34}, "QUIT");
+      add(kFiles, {68, 384, 120, 34}, "GAME FILES");
+      add(kMods, {196, 384, 120, 34}, "MODS");
+      add(kUpdates, {324, 384, 120, 34}, "UPDATES");  // CHECK FOR UPDATES (docs/launcher.md, Updates)
+      add(kQuit, {452, 384, 120, 34}, "QUIT");
       break;
     }
     case kSetupScreen: {
@@ -1732,6 +1736,12 @@ void Launcher::finish_work() {
     return;
   }
   if (kind == Work::kMoveData) return moved(r);
+  if (kind == Work::kUpdateCheck) {  // sitting 2 shows a newer release's notes and asks
+    std::printf("mw3: launcher: update: %s\n", r.summary.c_str());
+    status_ = r.summary, status_good_ = r.ok;
+    screen_ = kMain, layout();
+    return;
+  }
   if (kind == Work::kConvert) {  // on where it was going
     std::function<void()> then = std::move(after_convert_);
     after_convert_ = nullptr;
@@ -1916,6 +1926,21 @@ void Launcher::activate(int id) {
       status_ = "The old copy stays in " + move_from_ + ".", status_good_ = true;
       from_files_ = false, screen_ = kMain, layout();
       break;
+    case kUpdates: {  // GitHub's releases asked on the worker (the system's curl), the verdict on the status line
+      work_ = std::make_unique<Work>();
+      work_->kind = Work::kUpdateCheck;
+      auto verdict = update_ = std::make_shared<upgrades::update::Verdict>();
+      work_->start("CHECKING FOR UPDATES", [verdict](const mech3::setup::ProgressFn& f) {
+        f(mech3::setup::Progress{"Asking GitHub for the newest release", 0.3, ""});
+        *verdict = check_for_updates(MW3_VERSION);
+        mech3::setup::Result r;
+        r.ok = verdict->kind != upgrades::update::Verdict::kFailed;
+        r.summary = verdict->words;
+        return r;
+      });
+      screen_ = kWorking, layout();
+      break;
+    }
     case kMods:
       mods_pm_ = pm_last_ && !o_.pm_bin.empty() && !pm_dir_.empty();  // the game last clicked
       screen_ = kModsScreen, status_.clear(), mods_checked_ = false, mod_sel_ = -1, mod_page_ = 0;

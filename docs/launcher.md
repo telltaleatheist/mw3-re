@@ -531,18 +531,36 @@ CHECK FOR UPDATES in the launcher, the same flow on all three platforms, never
 the settings folders (MW3's, PM's, or where their pointers lead): only the
 program files are replaced.
 
-1. **Check**: GitHub's releases API, the latest release
-   (`api.github.com/repos/telltaleatheist/mw3-re/releases/latest`; the
-   packages are marked Latest, `pm-v*` game releases are not), its tag
-   compared with the launcher's own (`MW3_VERSION`, numbers part by part; a
-   build between releases counts as its last release). Fetched with the
+1. **Check**: GitHub's releases list
+   (`api.github.com/repos/telltaleatheist/mw3-re/releases`), the highest
+   bare `vX.Y.Z` tag of the releases that are neither drafts nor
+   prereleases (`pm-v*` game releases and anything else left out; lead
+   2026-11-10: not the Latest flag, which anyone may set otherwise), compared
+   with the launcher's own tag (`MW3_VERSION`, numbers part by part; a build
+   between releases counts as its last release). Fetched with the
    system's `curl` (macOS, Linux, and Windows 10 1803+ ship it: no new
    library, and its HTTPS is the system's), run as a child with no shell, a
-   time limit and its output read back; a small JSON reader for the four
-   fields needed (`tag_name`, `body`, `assets[].name`,
-   `assets[].browser_download_url`). `MW3_UPDATE_API` names another URL for
+   time limit and its arguments an array; a small JSON reader for the fields
+   needed (`tag_name`, `draft`, `prerelease`, `body`, `assets[].name`,
+   `assets[].browser_download_url`). The individual games' downloads may sit
+   on the same release as extra assets: only the platform's package asset is
+   taken. `MW3_UPDATE_API` names another URL for
    checks (a `file://` JSON). Tests: newer, same, older, a dev build, no
    network, a broken answer: each said in plain words.
+   **Done (2026-11-10):** `upgrades::update` (`parse_releases`, a small JSON
+   reader; `package_tag`, `newest_package`, `compare_versions`, `judge`) and
+   `sdlfe::curl_get` / `check_for_updates` (`frontend/sdl/sdl_update`; curl
+   found at Windows' System32\curl.exe or /usr/bin/curl, never through
+   PATH; `--proto =https`, `file://` only for `MW3_UPDATE_API`). UPDATES on
+   the main screen (GAME FILES, MODS, UPDATES, QUIT) asks on the worker and
+   says the verdict on the status line. Checked once against GitHub's real
+   list: v1.0.5 the newest package, this build up to date. Tests:
+   `update_reads_the_releases_list` (escapes, \u, a surrogate pair, four broken
+   answers), `update_picks_the_newest_package_release` (drafts, prereleases,
+   pm-v*, rc tags, 1.10 above 1.9), `update_compares_versions` (a dev build
+   counts as its release), `update_says_what_it_found`,
+   `sdl_update_fetch_by_curl`, `sdl_program_launcher_checks_for_updates`.
+   Breaks: drafts kept, rc tags taken: each caught.
 2. **The notes and the question**: an UPDATE screen with the release's notes
    (its body, wrapped and paged, the markdown's `#` and `-` shown plainly),
    "Download and install MechWarrior 3 Rebuild 1.2.0?", DOWNLOAD AND

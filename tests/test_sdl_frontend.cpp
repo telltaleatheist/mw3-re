@@ -26,6 +26,7 @@
 
 #include "check.h"
 #include "mech3/source_map.h"
+#include "frontend/sdl/sdl_update.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
 #include "frontend/sdl/editor_imgui.h"
@@ -4377,7 +4378,7 @@ TEST(sdl_program_launcher_screens) {
     const char* hover;
     int edge_x, edge_y;
   };
-  for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
+  for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, UPDATES, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
                         Shot{"mods", false, "screen mods: Alpha 1.0, Beta, broken, IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, UP, DOWN, CHECK, <, >, BACK\n", "hover Alpha 1.0: edge\n", 427, 104},
                         Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
                         Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
@@ -4717,10 +4718,10 @@ TEST(sdl_program_launcher_finds_the_game_then_plays) {
   const auto none = std::vector<std::pair<std::string, std::string>>{{"MW3_FIND_INSTALL", "1"}, {"MW3_LAUNCHER_FRAMES", "20"}};
   // No install: the games, then the find screen; nothing started.
   const LauncherRun a = run_launcher_with("launcher_v1_none", "READY\nsleep 1", nullptr, none);
-  std::printf("no install: main %d, find %d, game started %d\n", screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n"),
+  std::printf("no install: main %d, find %d, game started %d\n", screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, UPDATES, QUIT\n"),
               screen(a.log, "screen find: FIND THE GAME, BACK\n"), !a.args.empty());
   EXPECT(a.exited && a.args.empty());
-  EXPECT(screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n") && screen(a.log, "screen find: FIND THE GAME, BACK\n"));
+  EXPECT(screen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, UPDATES, QUIT\n") && screen(a.log, "screen find: FIND THE GAME, BACK\n"));
   for (const char* gone : {"SETUP", "SEARCH AGAIN", "A FOLDER INSTEAD", "APPLY THE 1.2 PATCH", "POINT TO YOUR GAME",
                            "A DISC IMAGE OR DOWNLOAD", ", A FOLDER,", "THE DISC'S FOLDER"})
     EXPECT(!screen(a.log, gone));
@@ -4903,7 +4904,7 @@ TEST(sdl_program_launcher_game_files_repicks) {
   std::printf("GAME FILES by keys: focus %d, find screen %d\n", seen(a.log, "focus GAME FILES"),
               seen(a.log, "screen find: FIND THE GAME, ADD FROM MY DISC, BACK\n"));
   EXPECT(a.exited && a.args.empty());
-  EXPECT(seen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n") && seen(a.log, "focus MECHWARRIOR 3\n") &&
+  EXPECT(seen(a.log, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, UPDATES, QUIT\n") && seen(a.log, "focus MECHWARRIOR 3\n") &&
          seen(a.log, "focus GAME FILES\n") && seen(a.log, "screen find: FIND THE GAME, ADD FROM MY DISC, BACK\n"));
   // GAME FILES, then the development copy picked (used where it is).
   const auto repick = std::vector<std::pair<std::string, std::string>>{{"MW3_FIND_INSTALL", "1"},
@@ -5238,6 +5239,68 @@ TEST(sdl_program_launcher_checks_mechwarrior3) {
   text = run(noc2, "second");
   EXPECT(text.find("note: The missions of operation 2") != std::string::npos && text.find("notes shown") == std::string::npos && starts() == 3);
   for (const char* k : {"MW3_GAME_BIN", "MW3_NO_IMPORT", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);
+  fs::remove_all(dir, ec);
+}
+#endif
+
+// The updater's fetch (docs/launcher.md, Updates, sitting 1): the system's curl as a child, its arguments an array.
+// A file:// fixture read only when allowed (checks), a missing one said in curl's words, an http address refused.
+TEST(sdl_update_fetch_by_curl) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path dir = fs::path(MW3_TEST_TMP) / "update_fetch";
+  fs::create_directories(dir, ec);
+  std::ofstream(dir / "releases.json") << "[{\"tag_name\":\"v9.9.9\",\"draft\":false,\"prerelease\":false,\"body\":\"New.\",\"assets\":[]}]";
+  std::string out, error;
+  const std::string url = "file://" + (dir / "releases.json").string();
+  EXPECT(sdlfe::curl_get(url, 10, &out, &error, true) && out.find("v9.9.9") != std::string::npos);
+  EXPECT(!sdlfe::curl_get(url, 10, &out, &error, false) && error == "not an https address");
+  EXPECT(!sdlfe::curl_get("file://" + (dir / "gone.json").string(), 10, &out, &error, true) && !error.empty() && out.empty());
+  std::printf("  a missing file: %s\n", error.c_str());
+  EXPECT(!sdlfe::curl_get("http://localhost:9/x", 10, &out, &error, false) && !error.empty());  // https only
+  std::printf("  http: %s\n", error.c_str());
+  fs::remove_all(dir, ec);
+}
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// UPDATES on the main screen (sitting 1): the releases list asked (MW3_UPDATE_API, a fixture), its verdict on the
+// status line: a newer package release, none newer, an answer that isn't one; PM's releases and drafts left out.
+TEST(sdl_program_launcher_checks_for_updates) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path dir = fs::path(MW3_TEST_TMP) / "launcher_updates";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir / "wd", ec);
+  std::ofstream(dir / "wd" / "mw3.cfg") << "install=" << MW3_GAME_DIR << "\n";
+  const auto rel = [](const char* tag, bool draft) {
+    return std::string("{\"tag_name\":\"") + tag + "\",\"draft\":" + (draft ? "true" : "false") + ",\"prerelease\":false,\"body\":\"x\",\"assets\":[]}";
+  };
+  std::ofstream(dir / "newer.json") << "[" << rel("pm-v99.0.0", false) << "," << rel("v99.0.0", true) << "," << rel("v98.1.0", false) << "]";
+  std::ofstream(dir / "older.json") << "[" << rel("v0.0.1", false) << "]";
+  std::ofstream(dir / "broken.json") << "<html>API rate limit exceeded</html>";
+  setenv("MW3_LAUNCHER_FRAMES", "240", 1);
+  setenv("MW3_LAUNCHER_NAV", "next,next,next,next,press", 1);  // MECHWARRIOR 3, GAME FILES, MODS, UPDATES (PM greyed, skipped)
+  unsetenv("MW3_PM_BIN");
+  auto run = [&](const char* name) {
+    setenv("MW3_UPDATE_API", ("file://" + (dir / (std::string(name) + ".json")).string()).c_str(), 1);
+    const std::string log = (dir / (std::string(name) + ".log")).string();
+    const pid_t pid = spawn_launcher({"--write-dir", (dir / "wd").string(), "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    if (text.find("launcher: update: ") == std::string::npos)  // where the steps went
+      for (size_t a = text.find("focus "); a != std::string::npos; a = text.find("focus ", a + 1))
+        std::printf("    %s\n", text.substr(a, text.find('\n', a) - a).c_str());
+    const size_t at = text.find("launcher: update: ");
+    const std::string said = at == std::string::npos ? "(none)" : text.substr(at + 18, text.find('\n', at) - at - 18);
+    std::printf("  %s: %s\n", name, said.c_str());
+    return said;
+  };
+  EXPECT(run("newer").rfind("MechWarrior 3 Rebuild 98.1.0 is out (this is ", 0) == 0);
+  EXPECT(run("older").rfind("This is the newest MechWarrior 3 Rebuild (", 0) == 0);
+  EXPECT(run("broken").find("GitHub's answer could not be read") != std::string::npos);
+  for (const char* k : {"MW3_LAUNCHER_FRAMES", "MW3_LAUNCHER_NAV", "MW3_UPDATE_API"}) unsetenv(k);
   fs::remove_all(dir, ec);
 }
 #endif
