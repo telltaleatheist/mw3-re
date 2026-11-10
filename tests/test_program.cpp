@@ -2019,6 +2019,11 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
   std::ofstream(wd + "/mods/lost/mod.txt") << "name=Lost\ncampaign=lost.txt\nmech=bad\n";
   std::ofstream(wd + "/mods/lost/lost.txt") << "name=Lost Frontier\nmission=c1 1\n";
   std::ofstream(wd + "/mods/lost/zbd/notes.bin") << "x";
+  // A copy saved from it: one file changed, one added.
+  std::filesystem::create_directories(wd + "/mods/lost2/zbd");
+  std::ofstream(wd + "/mods/lost2/mod.txt") << "name=Lost, my edit\nkind=campaign\nbase=lost~lost\n";
+  std::ofstream(wd + "/mods/lost2/zbd/notes.bin") << "changed";
+  std::ofstream(wd + "/mods/lost2/zbd/more.bin") << "new";
   mech3::ModCampaign mc;
   EXPECT(mech3::campaign_load(wd + "/mods/lost", "lost", "lost.txt", &mc));
   mech3::mod_campaigns() = {mc};
@@ -2049,7 +2054,8 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
     std::vector<std::string> lines;
     std::string detail;
     int campaigns_after = -1;
-    bool still_mods = false;
+    bool still_mods = false, own_reporting = false;
+    std::string own_note, copy_lines;
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
@@ -2060,6 +2066,18 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
       auto* ms = dynamic_cast<mech3::ModsState*>(now);
       auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
       if (stage == 1 && scr) {
+        // The game's own campaign has no mod of its own: said, no report opened.
+        scr->campaign_list.FileList::select(0);
+        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
+        scr->on_button(mech3::ModsScreen::kReport, 0, 0);
+        own_note = std::string(scr->note.text) + " " + scr->restart.text;
+        own_reporting = scr->reporting;
+        // The copy: what it changed from the campaign it was saved from comes first.
+        scr->campaign_list.FileList::select(2);
+        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
+        scr->on_button(mech3::ModsScreen::kReport, 0, 0);
+        for (const auto* i : scr->campaign_list.items) copy_lines += std::string(i->text) + " ";
+        scr->on_button(mech3::ModsScreen::kReport, 0, 0);  // closed
         scr->campaign_list.FileList::select(1);  // the mod's campaign (row 0 is the game's own)
         scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
         scr->on_button(mech3::ModsScreen::kReport, 0, 0);
@@ -2084,7 +2102,12 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
     for (const std::string& l : lines) all += (all.empty() ? "" : " ") + l, widest = std::max(widest, l.size());
     std::printf("  stage %d, %zu lines (widest %zu), campaigns after %d:\n", stage, lines.size(), widest, campaigns_after);
     for (const std::string& l : lines) std::printf("    %s\n", l.c_str());
-    EXPECT(stage == 3 && still_mods && campaigns_after == 2);  // the game's own and the mod's
+    EXPECT(stage == 3 && still_mods && campaigns_after == 3);  // the game's own, the mod's and the copy
+    std::printf("  own: \"%s\"; the copy: %s\n", own_note.c_str(), copy_lines.c_str());
+    EXPECT(!own_reporting && own_note.find("MechWarrior 3 is the game's own campaign: choose one of its mods") == 0);
+    const size_t copy_at = copy_lines.find("It is a copy saved from the campaign \"Lost Frontier\"."), own_at = copy_lines.find("It adds 2 new files");
+    EXPECT(copy_at == 0 && copy_lines.find("It replaces 1 file of that campaign: zbd/notes.bin") != std::string::npos);
+    EXPECT(copy_lines.find("It adds 1 new file: zbd/more.bin") != std::string::npos && (own_at == std::string::npos || own_at > copy_at));
     EXPECT(!lines.empty() && widest <= 34);
     EXPECT(all.find("It adds 2 new files.") != std::string::npos);  // notes.bin and the campaign's lost.txt
     EXPECT(all.find("It adds the campaign \"Lost Frontier\".") != std::string::npos);

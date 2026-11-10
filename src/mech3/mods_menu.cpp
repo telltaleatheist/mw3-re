@@ -622,7 +622,10 @@ void ModsScreen::report() {
   for (const ModInfo& i : mods_found(mods_menu_write_dir()))
     if (i.folder == folder) path = i.path;
   if (path.empty()) {
-    say(note, "Choose a mod or a custom campaign for its report.");
+    // The game's own campaign has no mod to report on; its mods are at the right.
+    tell(focus == kCampaigns && chosen_row() && chosen_row()->mod.empty()
+             ? name + " is the game's own campaign: choose one of its mods at the right for a report."
+             : "Choose a mod or a campaign for its report.");
     return;
   }
   int refused = 0;
@@ -630,6 +633,8 @@ void ModsScreen::report() {
   std::vector<std::string> sentences;
   for (const ModsListEntry& e : ticks.rows)
     if (e.info.folder == folder) sentences = e.needs;  // what it needs first (mod_needs.h)
+  // A copy: what it changed from the campaign it was saved from, first (mod_report.h, mod_copy_report).
+  for (const std::string& s : mod_copy_report(mods_menu_write_dir(), mods_menu_install(), folder)) sentences.push_back(s);
   for (const std::string& s : mod_report(path, mods_menu_install(), folder, &refused)) sentences.push_back(s);
   for (const std::string& s : sentences)
     for (const std::string& l : mod_report_wrap(s, kReportWidth)) lines.push_back(l);

@@ -508,7 +508,11 @@ records, ENTER relabelled PLAY).
   editor's saves inside a campaign's run still tick their mod for that
   campaign, `current_entry`.)
 - REPORT, EXPORT, ADD FOLDER and MODS FOLDER as before, on the chosen
-  campaign's mod or the chosen mod. TEST and EDITOR still wait for step 4;
+  campaign's mod or the chosen mod. REPORT on a copy says first what it
+  changed from the campaign it was saved from (`mod_copy_report`: the files
+  it replaces there and in the game, the files and rows it adds, what is the
+  same), then the mod's own sentences. The game's own campaign has no mod to
+  report on, and says so. TEST and EDITOR still wait for step 4;
   nothing on this screen deletes anything yet (a copy's DELETE comes with
   Save as).
 - The old two-table function (`mods_tables`) is gone. An older slip put
@@ -629,8 +633,9 @@ never written from inside one.
 
 Tests: `entry_pilot_screen_lists_and_brings_the_main_menus_pilots_headless`
 (both kinds of campaign), `campaign_entry_plays_the_games_own_campaign_or_not`,
-`entry_pilot_copy_without_saves_brings_no_saved_game`, and the two Instant
-Action runs above.
+`entry_pilot_copy_without_saves_brings_no_saved_game`,
+`sdl_program_entry_pilot_brought_by_a_click_on_its_name` (a real click on
+the name), and the two Instant Action runs above.
 
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 

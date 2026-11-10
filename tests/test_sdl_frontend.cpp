@@ -4999,6 +4999,58 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   fs::remove_all(dir, ec);
 }
 
+// Pilots inside an entry (upgrades/mods/entry_pilots.h), by the mouse, as a
+// player does it: a start into the game's own campaign entry shows the main
+// menu's pilot on the pilot screen; nothing is brought until the player
+// clicks its name; the click brings it (its file, into the entry) and lists
+// its games; the main menu's pilot file is unchanged to the byte.
+TEST(sdl_program_entry_pilot_brought_by_a_click_on_its_name) {
+  namespace fs = std::filesystem;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/entry pilot click";
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/wd", ec);
+  {  // the main menu's pilot, made as the game makes one
+    const zutl::Mounts before = zutl::mounts();
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(dir + "/wd");
+    mech3::Pilot* p = mech3::create_pilot("Stepper");
+    EXPECT(p && p->save());
+    for (mech3::Pilot* q : mech3::pilots()) delete q;
+    mech3::pilots().clear();
+    mech3::current_pilot() = nullptr;
+    zutl::mounts() = before;
+  }
+  auto bytes = [&](const std::string& rel) {
+    std::ifstream f(dir + "/" + rel, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const std::string main_pilot = bytes("wd/pilots/Stepper.mw3");
+  EXPECT(!main_pilot.empty());
+  auto run = [&](const std::vector<std::string>& extra, const char* name) {
+    std::vector<std::string> args = {"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
+                                     "--frame-ms", "33", "--seed", "1", "--frames", "300", "--entry", "mw3", "--entry-play"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    EXPECT(waited(spawn_mw3(args, log), &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const size_t none = std::string::npos;
+  // No click: listed only, nothing brought.
+  const std::string a = run({}, "a");
+  EXPECT(a.find("brought into") == none && !fs::exists(dir + "/wd/campaigns/mw3/pilots/Stepper.mw3"));
+  // A click on its name (the row's hit area is the name's own width).
+  const std::string b = run({"--click-at", "95,135@200"}, "b");
+  const size_t brought = b.find("mw3: pilot Stepper brought into mw3 from the main game (with its saved games"),
+               listed = b.find("mw3: pilot Stepper picked on the pilot screen: 1 games listed");
+  std::printf("  no click brought nothing %d; the click brought %d, its games listed %d\n", a.find("brought into") == none, brought != none, listed != none);
+  EXPECT(brought != none && listed != none && brought < listed);
+  EXPECT(fs::is_regular_file(dir + "/wd/campaigns/mw3/pilots/Stepper.mw3") && bytes("wd/pilots/Stepper.mw3") == main_pilot);
+  fs::remove_all(dir, ec);
+}
+
 // One window from the find screen into the game: a plain mw3 start with no
 // install found (MW3_FIND_INSTALL), an installed copy picked
 // (MW3_LAUNCHER_PICK), hands its window over, its renderer freed, and the
