@@ -524,7 +524,7 @@ class Launcher {
   bool mods_pm_ = false;  // MODS works on Pirate's Moon's mods (the game last clicked)
   std::shared_ptr<upgrades::update::Verdict> update_;  // the last CHECK FOR UPDATES' verdict
   std::vector<std::string> update_lines_;  // its release's notes wrapped to the screen (show_update)
-  std::shared_ptr<std::string> update_file_;  // the checked download (sitting 3), installed by sitting 4
+  std::shared_ptr<std::string> update_file_;  // after DOWNLOAD AND INSTALL: the program to start next (empty: none)
   size_t update_page_ = 0;
   static constexpr int kUpdateTop = 150, kUpdateBottom = 322, kUpdateWidth = 500;
   size_t update_per_page() { return static_cast<size_t>(std::max(1, (kUpdateBottom - kUpdateTop) / std::max(1, text_.line_skip(13)))); }
@@ -1796,11 +1796,15 @@ void Launcher::finish_work() {
     screen_ = kMain, layout();
     return;
   }
-  if (kind == Work::kUpdateDownload) {  // back on the UPDATE screen, saying what came of it (sitting 4 installs)
+  if (kind == Work::kUpdateDownload) {  // installed: the new launcher started and this one gone; else why, on the screen
     std::printf("mw3: launcher: update: %s\n", r.summary.c_str());
-    status_ = r.ok ? r.summary + " Installing it comes with the launcher's next sitting." : r.summary;
-    status_good_ = r.ok || r.cancelled;
+    status_ = r.summary, status_good_ = r.ok || r.cancelled;
     screen_ = kUpdateScreen, layout();
+    if (r.ok && !SDL_getenv("MW3_UPDATE_NO_RESTART")) {  // checks keep this launcher
+      const std::string next = update_file_ ? *update_file_ : std::string();
+      if (!next.empty() && !start_detached(next)) status_ = "Installed. Start MechWarrior 3 Rebuild again.";
+      else done_ = true;  // Windows: the Setup replaces this program once it is gone
+    }
     return;
   }
   if (kind == Work::kConvert) {  // on where it was going
@@ -2006,11 +2010,16 @@ void Launcher::activate(int id) {
       const std::string dir = (fs::temp_directory_path(ec) / "MW3-Rebuild-update").string();  // ours alone, never a settings folder
       work_->start("DOWNLOADING THE UPDATE", [release, dir, file](const mech3::setup::ProgressFn& f) {
         const Downloaded d = download_update(release, dir, [&](double x) {
-          return f(mech3::setup::Progress{"Downloading MechWarrior 3 Rebuild " + upgrades::update::plain_version(release.tag), x, ""});
+          return f(mech3::setup::Progress{"Downloading MechWarrior 3 Rebuild " + upgrades::update::plain_version(release.tag), x * 0.9, ""});
         });
         mech3::setup::Result r;
         r.ok = d.ok, r.cancelled = d.cancelled, r.summary = d.words;
-        *file = d.path;
+        if (!d.ok) return r;
+        std::printf("mw3: launcher: update: %s\n", d.words.c_str());
+        f(mech3::setup::Progress{"Installing", 0.95, ""});  // sitting 4: the platform's own way
+        const Installed in = install_update(d.path);
+        r.ok = in.ok, r.summary = in.words;
+        *file = in.restart;
         return r;
       });
       screen_ = kWorking, layout();

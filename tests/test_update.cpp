@@ -107,3 +107,54 @@ TEST(update_picks_the_platforms_package_and_its_sum) {
   EXPECT(u::sums_line(sums, "MW3-Rebuild-Setup-1.2.0.exe") == "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");  // binary mode, lower case
   EXPECT(u::sums_line(sums, "MW3-Rebuild-1.2.0-x86_64.AppImage").empty() && u::sums_line(sums, "short.dmg").empty());
 }
+
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+
+// Sitting 4's swap: a folder (a Mac app) and a file (an AppImage, its execute bit kept) put in place; the old kept
+// whenever it cannot be done; an earlier try's leftovers cleared; nothing beside touched.
+TEST(update_swaps_the_program_in_or_keeps_the_old) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "update_swap";
+  fs::remove_all(root, ec);
+  const auto put = [&](const fs::path& p, const std::string& t) {
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream(p) << t;
+  };
+  const auto text = [](const fs::path& p) {
+    std::ifstream f(p);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  // A Mac app: the old one's files all replaced by the new one's.
+  put(root / "Apps" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "mw3launcher", "old");
+  put(root / "Apps" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "only-in-old", "x");
+  put(root / "Apps" / "Something Else.app" / "keep", "theirs");
+  put(root / "dmg" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "mw3launcher", "new");
+  put(root / "Apps" / "MW3 Rebuild.app.old" / "stale", "an earlier try's");
+  std::string error;
+  EXPECT(u::swap_in((root / "dmg" / "MW3 Rebuild.app").string(), (root / "Apps" / "MW3 Rebuild.app").string(), &error));
+  EXPECT(text(root / "Apps" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "mw3launcher") == "new" &&
+         !fs::exists(root / "Apps" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "only-in-old"));
+  EXPECT(!fs::exists(root / "Apps" / "MW3 Rebuild.app.old") && !fs::exists(root / "Apps" / "MW3 Rebuild.app.new"));
+  EXPECT(text(root / "Apps" / "Something Else.app" / "keep") == "theirs");
+  // An AppImage file, executable.
+  put(root / "bin" / "MW3-Rebuild-x86_64.AppImage", "old image");
+  put(root / "dl" / "MW3-Rebuild-1.2.0-x86_64.AppImage", "new image");
+  fs::permissions(root / "dl" / "MW3-Rebuild-1.2.0-x86_64.AppImage", fs::perms::owner_all, ec);
+  EXPECT(u::swap_in((root / "dl" / "MW3-Rebuild-1.2.0-x86_64.AppImage").string(), (root / "bin" / "MW3-Rebuild-x86_64.AppImage").string(), &error));
+  EXPECT(text(root / "bin" / "MW3-Rebuild-x86_64.AppImage") == "new image" &&
+         (fs::status(root / "bin" / "MW3-Rebuild-x86_64.AppImage").permissions() & fs::perms::owner_exec) != fs::perms::none);
+  // Cannot be done: the old kept, nothing left beside it.
+  EXPECT(!u::swap_in((root / "nothing").string(), (root / "bin" / "MW3-Rebuild-x86_64.AppImage").string(), &error) &&
+         text(root / "bin" / "MW3-Rebuild-x86_64.AppImage") == "new image");
+  EXPECT(!u::swap_in((root / "dl" / "MW3-Rebuild-1.2.0-x86_64.AppImage").string(), (root / "bin" / "gone").string(), &error));
+  put(root / "ro" / "MW3-Rebuild-x86_64.AppImage", "kept");
+  fs::permissions(root / "ro", fs::perms::owner_read | fs::perms::owner_exec, ec);  // a folder it may not write in
+  const bool done = u::swap_in((root / "dl" / "MW3-Rebuild-1.2.0-x86_64.AppImage").string(), (root / "ro" / "MW3-Rebuild-x86_64.AppImage").string(), &error);
+  std::printf("  read-only folder: %s\n", error.c_str());
+  fs::permissions(root / "ro", fs::perms::owner_all, ec);
+  EXPECT(!done && text(root / "ro" / "MW3-Rebuild-x86_64.AppImage") == "kept" && !fs::exists(root / "ro" / "MW3-Rebuild-x86_64.AppImage.new"));
+  fs::remove_all(root, ec);
+}

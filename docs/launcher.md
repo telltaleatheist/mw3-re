@@ -610,6 +610,28 @@ program files are replaced.
    Tests: the Mac and Linux swaps on scratch copies (a bundle, an AppImage
    file), a failure part way leaving the old program working; Windows
    compile-checked with the mingw build and played on Owen's PC.
+   **Done (2026-11-10):** `upgrades::update::swap_in` (copied beside the old as
+   .new, the old moved aside as .old, the new renamed in, the old removed last;
+   any failure puts the old back; an earlier try's .new/.old cleared) and
+   `sdlfe::install_update`: Windows starts the new Setup and the launcher quits;
+   the Mac attaches the DMG (`hdiutil attach -nobrowse -readonly -noautoopen`
+   on a mount point of our own), swaps its app in for the running one (found
+   from the executable's path; only an .app with Contents/MacOS/mw3launcher,
+   the new one too), detaches; Linux swaps the AppImage in for `$APPIMAGE`
+   (only a file *.AppImage). A copy not run from its package (the build, a
+   dev run) refuses in words ("cannot replace itself: ...use the downloaded
+   file"). After an install the new launcher starts on its own
+   (`start_detached`) and this one quits; `MW3_UPDATE_TARGET` and
+   `MW3_UPDATE_NO_RESTART` for checks. Tests:
+   `update_swaps_the_program_in_or_keeps_the_old` (a folder, a file with its
+   execute bit, a missing new copy, a missing target, a read-only folder: the
+   old kept), `sdl_update_installs_the_mac_app` (a real DMG made by hdiutil:
+   swapped, detached, the DMG removed, the settings folder beside unchanged;
+   not our app and a DMG without one refused), the launcher test (the build's
+   launcher refuses to replace itself). Breaks: any target taken, not
+   detached: each caught. Windows' branch compile-checked with mingw; Linux's
+   is not compiled on this Mac (its package build is the first), and the
+   Windows Setup run waits for Owen's PC.
 5. **Owen's hard rule, checked**: the upgrade test (`sdl_program_package_upgrade_keeps_the_players_files`)
    run through the updater's own swap, the settings folders unchanged by
    hash.

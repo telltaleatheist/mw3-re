@@ -56,6 +56,12 @@ const char* platform_package_words(Platform p);  // "the Windows Setup", for the
 // The SHA-256 SHA256SUMS gives `name` ("<64 hex>  <name>" or "<hex> *<name>"), lower case; empty when none.
 std::string sums_line(const std::string& sums, const std::string& name);
 
+// Sitting 4: `fresh` (a file, or a folder such as a Mac app) put in `target`'s place, `target`'s folder only: copied
+// beside it as <target>.new, the old moved aside as <target>.old, the new renamed in, the old removed last. Any
+// failure puts the old back and removes what was copied, so the program that runs is never half replaced. False with
+// `error`. Nothing outside `target` and its two siblings is touched (never a settings folder).
+bool swap_in(const std::string& fresh, const std::string& target, std::string* error);
+
 // The version as a player reads it: "1.2.0" from "v1.2.0".
 std::string plain_version(const std::string& tag);
 

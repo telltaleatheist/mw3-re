@@ -29,4 +29,17 @@ struct Downloaded {
 };
 Downloaded download_update(const upgrades::update::Release& r, const std::string& dir, const std::function<bool(double)>& progress);
 
+// Sitting 4: the checked download installed the platform's normal way. Windows: the new Setup started (it upgrades
+// in place; the launcher then quits). The Mac: the DMG attached read-only, its app swapped in for the running one
+// (upgrades::update::swap_in), the DMG detached. Linux: the AppImage swapped in for $APPIMAGE. Only a target that is
+// our program is replaced (an .app with Contents/MacOS/mw3launcher; a file *.AppImage); MW3_UPDATE_TARGET names it
+// in checks. `restart` what to start next (empty: nothing). Never a settings folder.
+struct Installed {
+  bool ok = false;
+  std::string words, restart;
+};
+Installed install_update(const std::string& download);
+// The new launcher started on its own (no stdio of ours); false when it could not be.
+bool start_detached(const std::string& program);
+
 }  // namespace sdlfe

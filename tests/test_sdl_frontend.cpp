@@ -5324,6 +5324,67 @@ TEST(sdl_update_download_and_its_check) {
   fs::remove_all(dir, ec);
 }
 
+#if defined(__APPLE__)
+// The Mac's install (sitting 4): a real DMG holding a new app, attached read-only, its app swapped in for the old
+// one (MW3_UPDATE_TARGET in place of the running app), detached; a target that is not our app, or a DMG without one,
+// changes nothing. The settings folder beside it untouched.
+TEST(sdl_update_installs_the_mac_app) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "update_mac";
+  fs::remove_all(root, ec);
+  const auto put = [&](const fs::path& p, const std::string& t) {
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream(p) << t;
+  };
+  const auto text = [](const fs::path& p) {
+    std::ifstream f(p);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const fs::path old_app = root / "Applications" / "MW3 Rebuild.app";
+  put(old_app / "Contents" / "MacOS" / "mw3launcher", "#!/bin/sh\necho old\n");
+  put(root / "Library" / "MicroProse" / "MechWarrior 3" / "mw3.cfg", "mod=one\n");
+  put(root / "dmg-src" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "mw3launcher", "#!/bin/sh\necho new\n");
+  put(root / "dmg-src" / "MW3 Rebuild.app" / "Contents" / "Info.plist", "<plist/>\n");
+  const std::string dmg = (root / "MW3-Rebuild-9.0.0-mac.dmg").string();
+  const std::string make = "/usr/bin/hdiutil create -quiet -fs HFS+ -volname 'MW3 Rebuild' -srcfolder '" + (root / "dmg-src").string() +
+                           "' -format UDZO '" + dmg + "'";
+  if (std::system(make.c_str()) != 0) {
+    std::printf("  no hdiutil here: skipped\n");
+    return;
+  }
+  // Not our app: refused, nothing changed.
+  put(root / "Elsewhere" / "Other.app" / "Contents" / "MacOS" / "other", "theirs");
+  setenv("MW3_UPDATE_TARGET", (root / "Elsewhere" / "Other.app").c_str(), 1);
+  sdlfe::Installed in = sdlfe::install_update(dmg);
+  EXPECT(!in.ok && in.words.find("cannot replace itself") != std::string::npos && text(root / "Elsewhere" / "Other.app" / "Contents" / "MacOS" / "other") == "theirs");
+  // Ours: swapped, detached, the DMG gone, the settings untouched.
+  setenv("MW3_UPDATE_TARGET", old_app.c_str(), 1);
+  in = sdlfe::install_update(dmg);
+  std::printf("  mac install: %s (restart %s)\n", in.words.c_str(), in.restart.c_str());
+  EXPECT(in.ok && text(old_app / "Contents" / "MacOS" / "mw3launcher") == "#!/bin/sh\necho new\n" && fs::exists(old_app / "Contents" / "Info.plist"));
+  EXPECT(in.restart == (old_app / "Contents" / "MacOS" / "mw3launcher").string() && !fs::exists(dmg) &&
+         !fs::exists(root / "Applications" / "MW3 Rebuild.app.old") && !fs::exists(root / "Applications" / "MW3 Rebuild.app.new"));
+  EXPECT(text(root / "Library" / "MicroProse" / "MechWarrior 3" / "mw3.cfg") == "mod=one\n");
+  std::string mounted;
+  {
+    FILE* p = popen("/sbin/mount", "r");
+    char buf[512];
+    while (p && std::fgets(buf, sizeof buf, p)) mounted += buf;
+    if (p) pclose(p);
+  }
+  EXPECT(mounted.find("MW3-Rebuild-update-mount") == std::string::npos);  // detached
+  // A DMG without our app: nothing installed.
+  fs::remove_all(root / "dmg-src" / "MW3 Rebuild.app", ec);
+  put(root / "dmg-src" / "readme.txt", "no app");
+  std::system(make.c_str());
+  in = sdlfe::install_update(dmg);
+  EXPECT(!in.ok && in.words.find("holds no MW3 Rebuild app") != std::string::npos && text(old_app / "Contents" / "MacOS" / "mw3launcher") == "#!/bin/sh\necho new\n");
+  unsetenv("MW3_UPDATE_TARGET");
+  fs::remove_all(root, ec);
+}
+#endif
+
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // UPDATES on the main screen (sitting 1): the releases list asked (MW3_UPDATE_API, a fixture), its verdict on the
 // status line: a newer package release, none newer, an answer that isn't one; PM's releases and drafts left out.
@@ -5381,7 +5442,8 @@ TEST(sdl_program_launcher_checks_for_updates) {
       EXPECT(text.find("screen update: <, >, DOWNLOAD AND INSTALL, NOT NOW\n") != std::string::npos &&
              text.find("update notes: Fixes\n") != std::string::npos && text.find("update notes: \xe2\x80\xa2 Lasers hit again\n") != std::string::npos &&
              text.find("update notes: \xe2\x80\xa2 The c1m2 crash\n") != std::string::npos &&
-             text.find("launcher: update: Downloaded and checked: " + ours + ".\n") != std::string::npos);
+             text.find("launcher: update: Downloaded and checked: " + ours + ".\n") != std::string::npos &&
+             text.find("cannot replace itself") != std::string::npos);  // run from the build, not an app or an AppImage: refused
     else
       EXPECT(text.find("screen update:") == std::string::npos);
     return said;

@@ -2,10 +2,15 @@
 
 #include "mech3/patch_import.h"
 
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
+
 #include <SDL3/SDL.h>
 
 #include <cstdio>
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -16,6 +21,12 @@ namespace fs = std::filesystem;
 
 namespace sdlfe {
 namespace {
+
+// A name part no other run of ours picks: the clock's nanoseconds and a count (SDL's ticks are 0 before its init).
+std::string unique_part() {
+  static int n = 0;
+  return std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" + std::to_string(++n);
+}
 
 // The system's curl: Windows' own in System32 (never one a folder on PATH puts first), the usual places elsewhere.
 std::string curl_path() {
@@ -44,7 +55,7 @@ bool curl_get(const std::string& url, int seconds, std::string* out, std::string
   const bool file = url.rfind("file://", 0) == 0;
   if (file && !allow_file) return *error = "not an https address", false;
   std::error_code ec;
-  const fs::path body = fs::temp_directory_path(ec) / ("mw3-update-" + std::to_string(SDL_GetTicksNS()) + ".json");
+  const fs::path body = fs::temp_directory_path(ec) / ("mw3-update-" + unique_part() + ".json");
   const std::string limit = std::to_string(seconds);
   const std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--max-time", limit,
                                          "--proto", file ? "=file" : "=https", "--proto-redir", "=https",
@@ -196,6 +207,126 @@ Downloaded download_update(const upgrades::update::Release& r, const std::string
   d.ok = true, d.path = path;
   d.words = "Downloaded and checked: " + package->name + ".";
   return d;
+}
+
+namespace {
+// A tool run to its end with its arguments as an array (hdiutil): its exit code, its output in `said`.
+int run_tool(const std::vector<std::string>& args, int seconds, std::string* said) {
+  std::vector<const char*> argv;
+  for (const std::string& a : args) argv.push_back(a.c_str());
+  argv.push_back(nullptr);
+  const SDL_PropertiesID props = SDL_CreateProperties();
+  SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, argv.data());
+  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+  SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+  SDL_Process* p = SDL_CreateProcessWithProperties(props);
+  SDL_DestroyProperties(props);
+  if (!p) return -1;
+  int code = -1;
+  bool ended = false;
+  SDL_IOStream* io = SDL_GetProcessOutput(p);
+  const Uint64 until = SDL_GetTicks() + static_cast<Uint64>(seconds) * 1000;
+  while (!(ended = SDL_WaitProcess(p, false, &code)) && SDL_GetTicks() < until) {
+    char buf[256];
+    const size_t n = io ? SDL_ReadIO(io, buf, sizeof buf) : 0;
+    said->append(buf, n);
+    if (n == 0) SDL_Delay(20);
+  }
+  if (!ended) SDL_KillProcess(p, true), SDL_WaitProcess(p, true, &code), code = -1;
+  if (io)
+    for (char buf[256]; const size_t n = SDL_ReadIO(io, buf, sizeof buf);) said->append(buf, n);
+  SDL_DestroyProcess(p);
+  return code;
+}
+
+// Our running program's package: the Mac app holding this executable, Linux's $APPIMAGE; empty when not one.
+std::string running_package() {
+  if (const char* t = std::getenv("MW3_UPDATE_TARGET")) return t;  // checks
+#if defined(__APPLE__)
+  char buf[4096];
+  uint32_t n = sizeof buf;
+  if (_NSGetExecutablePath(buf, &n) != 0) return {};
+  std::error_code ec;
+  const fs::path exe = fs::weakly_canonical(fs::path(buf), ec);
+  const fs::path app = exe.parent_path().parent_path().parent_path();  // X.app/Contents/MacOS/mw3launcher
+  return app.extension() == ".app" ? app.string() : std::string();
+#elif defined(_WIN32)
+  return {};
+#else
+  const char* a = std::getenv("APPIMAGE");
+  return a ? a : std::string();
+#endif
+}
+
+bool is_our_app(const fs::path& app) {
+  std::error_code ec;
+  return app.extension() == ".app" && fs::is_regular_file(app / "Contents" / "MacOS" / "mw3launcher", ec);
+}
+}  // namespace
+
+bool start_detached(const std::string& program) {
+  const char* args[] = {program.c_str(), nullptr};
+  const SDL_PropertiesID props = SDL_CreateProperties();
+  SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char**>(args));
+  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_NULL);
+  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_NULL);
+  SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
+  SDL_Process* p = SDL_CreateProcessWithProperties(props);
+  SDL_DestroyProperties(props);
+  if (!p) return false;
+  SDL_DestroyProcess(p);
+  return true;
+}
+
+Installed install_update(const std::string& download) {
+  Installed in;
+  std::error_code ec;
+  if (!fs::is_regular_file(download, ec)) return in.words = "The downloaded file is gone: nothing was installed.", in;
+#if defined(_WIN32)
+  // The new Setup, as a player would run it (Inno Setup, the same AppId: an upgrade in place); the launcher quits.
+  if (!start_detached(download)) return in.words = "The new Setup could not be started: run it yourself from " + download + ".", in;
+  in.ok = true;
+  in.words = "The new Setup is running: follow it, then start MechWarrior 3 Rebuild again.";
+  return in;
+#else
+  const std::string target = running_package();
+#if defined(__APPLE__)
+  if (target.empty() || !is_our_app(target))
+    return in.words = "This copy is not running from the MW3 Rebuild app, so it cannot replace itself: open the downloaded " +
+                      fs::path(download).filename().string() + " and drag the app over the old one.", in;
+  const fs::path mnt = fs::temp_directory_path(ec) / ("MW3-Rebuild-update-mount-" + unique_part());
+  fs::create_directories(mnt, ec);
+  std::string said;
+  if (run_tool({"/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mnt.string(), download}, 120, &said) != 0) {
+    fs::remove(mnt, ec);
+    return in.words = "The downloaded disk image could not be opened, so nothing was installed.", in;
+  }
+  fs::path fresh;
+  for (const auto& e : fs::directory_iterator(mnt, ec))
+    if (is_our_app(e.path())) fresh = e.path();
+  std::string error;
+  const bool swapped = !fresh.empty() && upgrades::update::swap_in(fresh.string(), target, &error);
+  std::string detach_said;
+  run_tool({"/usr/bin/hdiutil", "detach", mnt.string(), "-force"}, 60, &detach_said);
+  fs::remove(mnt, ec);
+  if (fresh.empty()) return in.words = "The downloaded disk image holds no MW3 Rebuild app, so nothing was installed.", in;
+  if (!swapped) return in.words = "The new app could not be put in place: " + error + ".", in;
+  in.restart = (fs::path(target) / "Contents" / "MacOS" / "mw3launcher").string();
+#else
+  if (target.empty() || fs::path(target).extension() != ".AppImage" || !fs::is_regular_file(target, ec))
+    return in.words = "This copy is not running as an AppImage, so it cannot replace itself: use the downloaded " + download + " instead.", in;
+  fs::permissions(download, fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec, fs::perm_options::add, ec);
+  std::string error;
+  if (!upgrades::update::swap_in(download, target, &error)) return in.words = "The new AppImage could not be put in place: " + error + ".", in;
+  in.restart = target;
+#endif
+  fs::remove(download, ec);
+  in.ok = true;
+  in.words = "Installed. MechWarrior 3 Rebuild starts again now.";
+  return in;
+#endif
 }
 
 upgrades::update::Verdict check_for_updates(const std::string& current) {

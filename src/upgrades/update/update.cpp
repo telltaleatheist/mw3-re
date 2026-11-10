@@ -1,6 +1,8 @@
 #include "upgrades/update/update.h"
 
 #include <cctype>
+#include <filesystem>
+#include <system_error>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -333,6 +335,40 @@ std::string sums_line(const std::string& sums, const std::string& name) {
     if (file == name) return hash;
   }
   return {};
+}
+
+bool swap_in(const std::string& fresh, const std::string& target, std::string* error) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path to(target), staged(target + ".new"), old(target + ".old");
+  if (!fs::exists(fresh, ec)) return *error = "the new copy is not there: " + fresh, false;
+  if (!fs::exists(to, ec)) return *error = "the program to replace is not there: " + target, false;
+  // Leftovers of an earlier try (ours by their names) cleared first.
+  fs::remove_all(staged, ec);
+  fs::remove_all(old, ec);
+  fs::copy(fresh, staged, fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
+  if (ec) {
+    const std::string why = ec.message();
+    fs::remove_all(staged, ec);
+    return *error = "the new copy could not be written beside the old one (" + why + ")", false;
+  }
+  fs::permissions(staged, fs::status(fresh, ec).permissions(), ec);  // an AppImage's execute bit
+  fs::rename(to, old, ec);
+  if (ec) {
+    const std::string why = ec.message();
+    fs::remove_all(staged, ec);
+    return *error = "the old copy could not be moved aside (" + why + ")", false;
+  }
+  fs::rename(staged, to, ec);
+  if (ec) {
+    const std::string why = ec.message();
+    std::error_code back;
+    fs::rename(old, to, back);  // the old one back in its place
+    fs::remove_all(staged, back);
+    return *error = "the new copy could not be put in place (" + why + "); the old one is kept", false;
+  }
+  fs::remove_all(old, ec);  // a failure here leaves only a stale .old, cleared by the next update
+  return true;
 }
 
 std::string plain_version(const std::string& tag) {
