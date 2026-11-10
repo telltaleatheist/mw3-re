@@ -676,6 +676,32 @@ TEST(mods_saves_name_their_rows_beside_them) {
 // listed with why; an enabled mod's files and rows an earlier enabled one
 // holds, with that mod named; the check's count on request; the new order
 // written as mw3.cfg's mod= lines at the old ones' place, every other line kept.
+// A Pirate's Moon mod's animation files PM's reader does not read (unzbd's
+// JSON, def and node files: modding.md) are said so by --check-mod and
+// counted on its MODS line, not shared; with MW3 the game, they are read.
+TEST(mods_pm_anim_files_it_does_not_read_are_said) {
+  const std::string wd = tmp("mods_pm_anim_unread");
+  for (const char* m : {"a", "b"}) {
+    put(wd + "/mods/" + m + "/mod.txt", std::string("name=") + m + "\nfor=mw3pm\n");
+    put(wd + "/mods/" + m + "/zbd/c1/anim/door-open.json", "{}");
+    put(wd + "/mods/" + m + "/zbd/anim/door-open.json", "{}");
+  }
+  const std::string game = mech3::mods_game();
+  for (const char* g : {"mw3pm", "mw3"}) {
+    mech3::mods_game() = g;
+    const bool pm = std::strcmp(g, "mw3pm") == 0;
+    int errors = -1;
+    std::string report;
+    for (const std::string& l : mech3::mod_check(wd + "/mods/a", "", &errors)) report += l + "\n";
+    size_t said = 0;
+    for (size_t at = 0; (at = report.find("not read by Pirate's Moon", at)) != std::string::npos; ++at) ++said;
+    std::printf("  %s: said %zu\n", g, said);
+    EXPECT(said == (pm ? 2u : 0u));
+    for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"a", "b"})) EXPECT(e.anims_unread == (pm ? 2 : 0));
+  }
+  mech3::mods_game() = game;
+}
+
 TEST(mods_list_for_the_launcher) {
   const std::string wd = tmp("mods_list");
   put(wd + "/mods/y/mod.txt", "name=Y\nmech=scout tech=sphere mass=20 class=light\n");
