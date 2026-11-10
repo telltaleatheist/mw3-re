@@ -29,6 +29,7 @@ Every key each file a mod can change is read with: its type, what the game takes
 | `tech` | weapon= | `clan`, `sphere`, `any` or `none` | required | - | Which side's mech lab offers it. |
 | `title` | weapon= | text, the rest of the line | NAME | - | The name shown; last on the line. |
 | `campaign` | top | a file in the mod | none | inside the mod's folder | A custom campaign's file (the next section). |
+| `anim` | top | `defs` | none | - | Its animations by its def files alone (`zbd\<world>\anim\` and `zbd\anim\`): its whole anim files, kept for the original game, are not ours to read, so it combines with other def-file mods. |
 
 ## A custom campaign's file
 

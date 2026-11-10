@@ -11,11 +11,13 @@
 #include <functional>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 
 #include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zeffect/zeff_anim_json.h"
+#include "upgrades/mods/anim_defs.h"
 #include "upgrades/json/gamez_json.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
@@ -92,6 +94,7 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (upgrades::reference::key_is(key, "mech") && !value.empty()) out->mechs.push_back(value);
     else if (upgrades::reference::key_is(key, "weapon") && !value.empty()) out->weapons.push_back(value);
     else if (upgrades::reference::key_is(key, "campaign") && !value.empty()) out->campaigns.push_back(value);
+    else if (upgrades::reference::key_is(key, "anim")) out->anim_defs_only = lower(value) == "defs";
     else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -413,6 +416,34 @@ std::vector<std::string> row_names(const ModInfo& m) {
 }
 }  // namespace
 
+// A mod's animations a def at a time: its def files' (world, key), the world
+// "" for all of them, and the worlds it has a whole anim file for.
+struct ModAnims {
+  std::vector<std::pair<std::string, std::string>> defs;
+  std::set<std::string> whole;
+};
+ModAnims mod_anims(const std::string& dir) {
+  ModAnims a;
+  std::error_code ec;
+  const fs::path zbd = fs::path(dir) / "zbd";
+  if (!fs::is_directory(zbd, ec)) return a;
+  for (fs::recursive_directory_iterator it(zbd, ec), end; !ec && it != end; it.increment(ec)) {
+    if (!it->is_regular_file(ec)) continue;
+    const std::string rel = fs::relative(it->path(), dir, ec).generic_string(), low = lower(rel);
+    std::string world;
+    if (anim_defs::is_def_file(dir, rel, &world)) {
+      if (const std::string key = anim_defs::def_file_key(it->path().string()); !key.empty()) a.defs.emplace_back(world, key);
+      continue;
+    }
+    // zbd/<world>/anim.zbd, anim.zip or anim/metadata.json
+    const size_t s1 = low.find('/'), s2 = s1 == std::string::npos ? s1 : low.find('/', s1 + 1);
+    if (s2 == std::string::npos) continue;
+    const std::string w = low.substr(s1 + 1, s2 - s1 - 1), tail = low.substr(s2 + 1);
+    if (tail == "anim.zbd" || tail == "anim.zip" || tail == "anim/metadata.json") a.whole.insert(w);
+  }
+  return a;
+}
+
 std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::vector<std::string>& enabled, bool check,
                                      const std::string& install) {
   const std::vector<ModInfo> found = mods_found(write_dir);
@@ -435,11 +466,27 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
   // What each enabled one shares with an enabled one before it (usable ones: an unusable mod mounts nothing).
   std::vector<std::pair<std::vector<std::string>, std::vector<std::string>>> before;  // files, row names
   std::vector<std::string> before_folders;
+  std::vector<ModAnims> before_anims;
   for (ModsListEntry& e : out) {
     if (!e.on || !e.info.error.empty()) continue;
     const std::vector<std::string> files = mod_files(e.info.path), rows = row_names(e.info);
+    ModAnims anims = mod_anims(e.info.path);
+    if (e.info.anim_defs_only) anims.whole.clear();  // anim=defs: its whole files are the original's copy
     for (size_t k = 0; k < before.size(); ++k) {
       bool shared = false;
+      for (const auto& [w, key] : anims.defs) {
+        const bool taken = std::any_of(before_anims[k].defs.begin(), before_anims[k].defs.end(), [&](const auto& b) {
+          return b.second == key && (b.first == w || b.first.empty() || w.empty());
+        });
+        if (taken) e.anims_taken.push_back((w.empty() ? std::string("all worlds") : w) + " " + key), shared = true;
+      }
+      std::set<std::string> worlds;  // where this mod's def files meet an earlier whole file
+      for (const auto& d : anims.defs) {
+        if (d.first.empty()) worlds.insert(before_anims[k].whole.begin(), before_anims[k].whole.end());
+        else if (before_anims[k].whole.count(d.first)) worlds.insert(d.first);
+      }
+      for (const std::string& w : worlds)
+        if (std::find(e.anim_bases.begin(), e.anim_bases.end(), w) == e.anim_bases.end()) e.anim_bases.push_back(w), shared = true;
       for (const std::string& f : files)
         if (std::binary_search(before[k].first.begin(), before[k].first.end(), f)) e.shadowed.push_back(f), shared = true;
       for (const std::string& r : rows)
@@ -448,6 +495,7 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
     }
     before.emplace_back(files, rows);
     before_folders.push_back(e.info.folder);
+    before_anims.push_back(anims);
   }
   if (check)
     for (ModsListEntry& e : out) {
@@ -866,6 +914,23 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       ++entries;
       if (!zcls::gamez_from_json(file, &zbd, &why)) error(rel + ": " + why + " (not read; the gamez.zbd is)");
       else out.push_back("  its world read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
+    } else if (std::string world; anim_defs::is_def_file(dir, rel, &world)) {
+      // one animation (modding.md, Animations a def at a time): read alone, as the merge reads it
+      ++entries;
+      const std::string folder = (fs::path(host).parent_path() / "").generic_string();
+      const auto file = [&](const std::string& n) {
+        std::ifstream in(folder + n, std::ios::binary);
+        std::stringstream t;
+        t << in.rdbuf();
+        return t.str();
+      };
+      std::vector<uint8_t> def;
+      std::string key, why;
+      if (!zeff::anim_def_from_json(file(fs::path(host).filename().string()), file, &def, &key, &why))
+        error(rel + ": " + why + " (this animation left out)");
+      else
+        out.push_back("  the animation " + key + " for " + (world.empty() ? std::string("every world") : world) +
+                      ": replaces the world's of that name, else added (" + std::to_string(def.size()) + " bytes)");
     } else if (name == "metadata.json" && low.size() > 19 && low.compare(low.size() - 19, 19, "/anim/metadata.json") == 0) {
       // a world's animations as unzbd's JSON: the folder read whole, as the game reads it
       const std::string folder = host.substr(0, host.size() - std::strlen("metadata.json"));

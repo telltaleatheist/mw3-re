@@ -1855,7 +1855,8 @@ std::string Launcher::mod_line(const mech3::ModsListEntry& e) const {
   if (!e.conflicts_with.empty()) {
     std::string with;
     for (const std::string& c : e.conflicts_with) with += (with.empty() ? "" : ", ") + c;
-    s += " - shares " + std::to_string(e.shadowed.size() + e.rows_taken.size()) + " with " + with + " (above wins)";
+    s += " - shares " + std::to_string(e.shadowed.size() + e.rows_taken.size() + e.anims_taken.size() + e.anim_bases.size()) +
+         " with " + with + " (above wins)";
   }
   if (e.check_errors == 0) s += " - check: fine";
   else if (e.check_errors > 0) s += " - check: " + std::to_string(e.check_errors) + " the game would refuse (mw3.log)";

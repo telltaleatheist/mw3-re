@@ -24,6 +24,7 @@ struct ModInfo {
   std::vector<std::string> mechs;   // mech=<row>: a new mech (mech_names.h, mech_row_parse), each line's value
   std::vector<std::string> weapons; // weapon=<row>: a new weapon (weapon_row_parse)
   std::vector<std::string> campaigns;  // campaign=<file>: a custom campaign (mod_campaign.h)
+  bool anim_defs_only = false;  // anim=defs: its animations by its def files alone, its whole anim files not ours
 };
 // An Instant Action world a mod adds: its folder (any world's) and the name shown.
 struct ModIaWorld {
@@ -32,7 +33,7 @@ struct ModIaWorld {
 std::vector<ModIaWorld>& mod_ia_worlds();
 
 // mod.txt: key=value lines (name, version, author, for, description, world,
-// ia_world, mech, weapon, campaign), # a comment; `name` required, `for` mw3 when given. False
+// ia_world, mech, weapon, campaign, anim), # a comment; `name` required, `for` mw3 when given. False
 // with `out->error`.
 bool mod_parse(const std::string& text, ModInfo* out);
 // The game a mod's for= must name (its first word): "mw3" here; the launcher's MODS sets "mw3pm" while it works on
@@ -101,6 +102,12 @@ struct ModsListEntry {
   bool on = false;
   std::vector<std::string> shadowed;     // its files an earlier enabled mod holds (lower case, '/')
   std::vector<std::string> rows_taken;   // its mech= / weapon= names an earlier enabled mod adds
+  // Ours (modding.md, Animations a def at a time): its def files' animations
+  // an earlier enabled mod's def files hold ("c1 <key>", "all worlds <key>"),
+  // and the worlds where an earlier enabled mod's whole anim file is the base
+  // (its def files then only add new animations there).
+  std::vector<std::string> anims_taken;
+  std::vector<std::string> anim_bases;
   std::vector<std::string> conflicts_with;  // those mods' folders
   int check_errors = -1;
 };
