@@ -1417,6 +1417,11 @@ void network_error_shown(uint32_t, const uint8_t*, size_t) {}
 // turrets back, the network game ended (0x0046d100), the handler gone,
 // zNetwork down (0x00586c20), the transport given up, the lobby launch's
 // +0x19c and +0x1a4 cleared (+0x1a8, its dword, is not in the port).
+// Pirate's Moon 1.0 @ 0x004822f0: the same steps, its app 4 bytes lower
+// (the network on at +0x1b9, the turrets [0x0062cc46], the cheat +0x1b4;
+// off: the flag back before 0x0046f150, the handler off 0x005a8c20, zNetwork
+// down 0x005a8940, +0x19c and the +0x1a4 dword cleared); the port keeps
+// MW3's offsets for both.
 void GameEngine::network_set(int32_t on) {
   if (on) {
     if (network_on_) return;

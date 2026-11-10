@@ -46,6 +46,7 @@
 #include "mech3/pause_menu.h"
 #include "mech3/options.h"
 #include "mech3/player.h"
+#include "mech3/turret.h"
 #include "platform/silent_sound.h"
 #include "pm/pm_game.h"
 #include "upgrades/editor/mods_edit.h"
@@ -144,7 +145,7 @@ struct Played {
   int frames = 0;
   mech3::LaunchedMech mech;
 };
-Played play_c1m1(int32_t mech, int frames) {
+Played play_c1m1(int32_t mech, int frames, bool network = false, size_t* turrets = nullptr) {
   Played out;
   mech3::reset_states();
   if (!zsnd::state().open) zsnd::state() = zsnd::State{};
@@ -169,6 +170,7 @@ Played play_c1m1(int32_t mech, int frames) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
+    if (network) engine.network_set(1);
     mech3::GameEngine::Launch l;  // c1, a campaign mission, mission 1
     l.mech = mech;
     engine.set_launch(l);
@@ -176,12 +178,16 @@ Played play_c1m1(int32_t mech, int frames) {
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       out.core = true;
-      if (++out.frames == 5) out.made = mech3::launched_mech(&out.mech);
+      if (++out.frames == 5) {
+        out.made = mech3::launched_mech(&out.mech);
+        if (turrets) *turrets = mech3::tur::turret_list().size();
+      }
     };
     Pump pump;
     pump.limit = 4000;
     pump.stop = [&] { return out.frames >= frames; };
     app.run(pump);
+    if (network) engine.network_set(0);
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -743,4 +749,23 @@ TEST(pm_starter_mods_made_checked_and_loaded) {
   mech3::free_dfns();
   zwep::init_hooks() = hooks;
   zgame::set_game(zgame::mw3_table());
+}
+
+// The network switch on PM (0x004822f0, multiplayer-port.md, The network switch's other half): c1m1 loaded inside a
+// network game makes no turret; loaded after one, its turrets.
+TEST(pm_net_game_has_no_turrets_c1m1_headless) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  in_child("pm_net_game_has_no_turrets_c1m1_headless", [] {
+    MountsBack back;
+    zgame::set_game(pm::table());
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir((std::string(MW3_TEST_TMP_ROOT) + "/pm_net_turrets").c_str());
+    zutl::mount(MW3PM_GAME_DIR);
+    size_t in_net = 99, after = 0;
+    const Played a = play_c1m1(9, 10, true, &in_net);
+    const Played b = play_c1m1(9, 10, false, &after);
+    std::printf("  in a network game %zu turrets (core %d); after it %zu (core %d)\n", in_net, a.core, after, b.core);
+    EXPECT(a.core && b.core && in_net == 0 && after > 0);
+    zgame::set_game(zgame::mw3_table());
+  });
 }
