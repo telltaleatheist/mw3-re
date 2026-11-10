@@ -13,6 +13,7 @@ Breaks, by hand, each must fail: p2's x and z swapped (1200 on +0x10); the Lance
 ddx_text(float) without MFC's 31-character cut; DDV_MinMaxInt's top 101.
 """
 import ctypes
+import os
 import random
 import struct
 import sys
@@ -23,7 +24,7 @@ from calltrace import load_probe  # noqa: E402
 from original import Original  # noqa: E402
 
 P1, P2 = 0x4b8bc0, 0x4b8eb0
-STRATEGIES_INIT = 0x4b7f80  # the strategy map [0x0060b2f8] made (0x4b7d80), as at start-up
+STRATEGIES_INIT = 0x4b7d80  # the strategy map made, as at start-up (0x4b7f80's call, ECX the map)
 EDITOR_SLOT = 0x60b310
 SEND_MESSAGE = 0x5bb734  # SendMessageA's import slot
 TAILS = [0x4bc790, 0x4bc570, 0x4bc930, 0x4bc8f0, 0x4bc750, 0x4bc4e0, 0x4bb780, 0x4bb680]  # the list fills and gathers
@@ -32,6 +33,17 @@ SET_PILOT = 0x49d250
 DDX_CONTROL, DDX_RADIO, DDX_TEXT_UINT, DDX_TEXT_FLOAT, DDX_TEXT_INT = 0x5abd86, 0x5abff0, 0x5abff6, 0x5abd80, 0x5abfea
 DDX_CHECK, DDX_TEXT_STR, DDV_MAXCHARS, DDV_MINMAX, CSTR_ASSIGN = 0x5abdce, 0x5abdc2, 0x5ac04a, 0x5ac044, 0x5abdbc
 DDV_MINMAX_FLOAT = 0x5abd7a
+
+# With MW3_EXE=pm, Pirate's Moon's pages (the address map): the same exchanges, the main dialog's fields moved by
+# PM's 0x20-byte target block in the settings record (+0x130 on) and 0x20 more from +0x378 on.
+PM = os.environ.get('MW3_EXE') == 'pm'
+STRATEGIES = 0x62f8f8 if PM else 0x60b2f8  # PM's from its 0x4be440 (the address map has 0x62f8f4)
+
+
+def D(off):
+    """A main-dialog offset of MW3's on the exe run."""
+    return off if not PM or off < 0x130 else off + (0x20 if off < 0x2b4 else 0x40)
+
 
 # page: (its DoDataExchange, edits, check boxes and their top, radio groups and their buttons, its list).
 PAGES = {
@@ -221,15 +233,20 @@ def cstring(o, s):
     return a + 12
 
 
+def raw(o, p, n):
+    """n bytes at a pointer the exe holds: already PM's on PM's exe, so read past the address map."""
+    return bytes(o._uc.mem_read(p, n))
+
+
 def cstr_read(o, p):
-    n = struct.unpack('<i', o.read(p - 8, 4))[0]
-    return o.read(p, n).decode('latin-1')
+    n = struct.unpack('<i', raw(o, p - 8, 4))[0]
+    return raw(o, p, n).decode('latin-1')
 
 
 def c_str(o, p):
     out = b''
     while True:
-        c = o.read(p, 1)
+        c = raw(o, p, 1)
         if c == b'\0':
             return out.decode('latin-1')
         out += c
@@ -397,7 +414,7 @@ def setup(o, m):
     o.stub_import(0x5bb4f8, lambda c: c.ecx)        # std::_Lockit
     o.stub_import(0x5bb4f4, lambda c: 0)            # ~_Lockit
     o.stub_function(0x5ac140, lambda c: 0)          # atexit
-    o.call(STRATEGIES_INIT)
+    o.call(STRATEGIES_INIT, ecx=STRATEGIES)
 
 
 # --- random states ---------------------------------------------------------------------------------------------
@@ -513,18 +530,19 @@ def run_exe(o, m_box, page, save, st):
     o.write(mm.entry, struct.pack('<5f', *st['entry'][:5]) + bytes([0, 0, 0, 0, st['entry'][5], st['entry'][6], 0, 0])
             + bytes(4))
     m_box[0] = mm
-    e = o.alloc(0x988)
-    o.write(e, bytes(0x988))
+    e = o.alloc(D(0x988))
+    o.write(e, bytes(D(0x988)))
     o.u32(EDITOR_SLOT, e)
-    o.write(e + 0x64, st['params'])
-    o.u32(e + 0x64 + 0xd4, 0 if st['pilot'] is None else cstring(o, st['pilot']) + 0)  # a plain char* will do
-    o.u32(e + 0x1cc, st['show'])
-    o.write(e + 0x1d1, bytes([st['show_inout']]))
-    o.u32(e + 0x4dc, st['team_side'])
+    o.write(e + 0x64, st['params'][:0xcc])
+    o.write(e + D(0x130), st['params'][0xcc:])  # PM's target block before these flags is left 0 (no page reads it)
+    o.u32(e + D(0x138), 0 if st['pilot'] is None else cstring(o, st['pilot']) + 0)  # a plain char* will do
+    o.u32(e + D(0x1cc), st['show'])
+    o.write(e + D(0x1d1), bytes([st['show_inout']]))
+    o.u32(e + D(0x4dc), st['team_side'])
     for k in range(5):
-        o.u32(e + 0x974 + 4 * k, st['keep'][k])
-    o.u32(e + 0x4bc, COMBO_HWND[1229])  # p1's list's HWND (the CWnd at +0x49c)
-    o.u32(e + 0x47c, COMBO_HWND[1233])  # Attack's (+0x45c)
+        o.u32(e + D(0x974) + 4 * k, st['keep'][k])
+    o.u32(e + D(0x4bc), COMBO_HWND[1229])  # p1's list's HWND (the CWnd at +0x49c)
+    o.u32(e + D(0x47c), COMBO_HWND[1233])  # Attack's (+0x45c)
     pg = o.alloc(0x80)
     o.write(pg, bytes(0x80))
     o.u32(pg + 0x60, cstring(o, st['p2_pilot']))
@@ -539,16 +557,18 @@ def run_exe(o, m_box, page, save, st):
         if not isinstance(mm.message, str) or not mm.message:
             raise
         ok = 0
-    params = bytearray(o.read(e + 0x64, 0xd0))
-    pilot_p = struct.unpack('<I', o.read(e + 0x64 + 0xd4, 4))[0]
+    params = bytearray(o.read(e + 0x64, 0xcc) + o.read(e + D(0x130), 4))
+    if PM and o.read(e + 0x130, 0x20) != bytes(0x20):
+        raise RuntimeError('a page wrote the target block')
+    pilot_p = struct.unpack('<I', o.read(e + D(0x138), 4))[0]
     pilot = None if not pilot_p else c_str(o, pilot_p)
     for ecx, s in mm.pilot_set:
-        if ecx != e + 0x138:
+        if ecx != e + D(0x138):
             raise RuntimeError('0x49d250 on %#x' % ecx)
         pilot = s if s else None
-    return dict(params=bytes(params[4:0xd0]), show=struct.unpack('<i', o.read(e + 0x1cc, 4))[0],
-                show_inout=o.read(e + 0x1d1, 1)[0], team_side=struct.unpack('<i', o.read(e + 0x4dc, 4))[0],
-                keep=list(struct.unpack('<5i', o.read(e + 0x974, 20))),
+    return dict(params=bytes(params[4:0xd0]), show=struct.unpack('<i', o.read(e + D(0x1cc), 4))[0],
+                show_inout=o.read(e + D(0x1d1), 1)[0], team_side=struct.unpack('<i', o.read(e + D(0x4dc), 4))[0],
+                keep=list(struct.unpack('<5i', o.read(e + D(0x974), 20))),
                 objective=struct.unpack('<i', o.read(pg + 0x64, 4))[0],
                 shutdown=struct.unpack('<i', o.read(pg + 0x68, 4))[0], pilot=pilot,
                 p2_pilot=cstr_read(o, struct.unpack('<I', o.read(pg + 0x60, 4))[0]),

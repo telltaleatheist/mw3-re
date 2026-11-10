@@ -4,10 +4,13 @@ compare 0x4d9140), same_name (0x49d2f0), and the team mask's numbers (0x4d71a0, 
 flag bit or nothing apart (and the float words' -0 and NaN); vlists of 0..3 entries one field apart; names
 equal, unequal or missing.
 
+With MW3_EXE=pm, Pirate's Moon's (0x4f02b0 and the rest by the address map): its record is 0x20 bytes longer, the
+target block (words 0x32..0x39, 0x34 and 0x35 ints) before the flag bytes, now three (+0xe8..+0xea here).
+
     cmake --build build --target mw3probe && .venv/bin/python -P tests/differential/test_aiv_edit.py [runs]
 
 Breaks, by hand in zai_params.cpp, each must fail: a float word compared as an int (word 1); flag bit 0x40 left
-out; same_name true for two nulls; the entries' valve left out.
+out; same_name true for two nulls (on PM: false); the entries' valve left out.
 """
 import ctypes
 import os
@@ -23,9 +26,16 @@ from original import Original  # noqa: E402
 SAME_NUMBERS, SAME_VLIST, SAME_NAME = 0x4df1b0, 0x4d9090, 0x49d2f0
 INT_WORDS = {0, 5, 14, 0x0f, 0x14, 0x16, 0x17, 0x1f, 0x21, 0x22, 0x25, 0x26, 0x27, 0x28, 0x2e, 0x30, 0x31}
 SKIPPED = {0x32, 0x33}  # the flag bytes' word (compared by bits) and past it
+PM = os.environ.get('MW3_EXE') == 'pm'
+if PM:  # the record's words, its flag bytes and the unread byte past them (the offsets from +0x04)
+    WORDS, FLAGS, UNREAD, SIZE = 0x3a, [0xe8, 0xe9, 0xea], 0xeb, 0xec
+    INT_WORDS |= {0x34, 0x35}
+else:
+    WORDS, FLAGS, UNREAD, SIZE = 0x32, [0xc8, 0xc9], 0xca, 0xcc
 
 probe = load_probe()
-probe.probe_aiv_same_numbers.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+same_numbers = probe.probe_aiv_same_numbers_pm if PM else probe.probe_aiv_same_numbers
+same_numbers.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
 probe.probe_aiv_same_vlist.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
 probe.probe_aiv_same_name.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
 probe.probe_team_number_of.argtypes = [ctypes.c_uint32]
@@ -34,14 +44,14 @@ TEAM_NUMBER = 0x4d71a0
 
 
 def block(rng):
-    b = bytearray(0xcc)
-    for w in range(0x32):
+    b = bytearray(SIZE)
+    for w in range(WORDS):
         if w in INT_WORDS:
             struct.pack_into('<i', b, 4 * w, rng.choice([0, 1, -1, rng.randrange(-100, 100)]))
         else:
             struct.pack_into('<f', b, 4 * w, rng.choice([0.0, 1.0, rng.uniform(-500, 500)]))
-    b[0xc8] = rng.randrange(256)
-    b[0xc9] = rng.randrange(256)
+    for at in FLAGS:
+        b[at] = rng.randrange(256)
     return b
 
 
@@ -51,12 +61,12 @@ def mutate(rng, b):
     if k == 0:
         return o, 'none'
     if k == 1:  # the flag bytes, one bit
-        at = rng.choice([0xc8, 0xc9])
+        at = rng.choice(FLAGS)
         bit = rng.randrange(8)
         o[at] ^= 1 << bit
         return o, 'flag %#x bit %d' % (at, bit)
     if k == 2:  # -0 for 0, or NaN for itself
-        w = rng.choice([w for w in range(0x32) if w not in INT_WORDS])
+        w = rng.choice([w for w in range(WORDS) if w not in INT_WORDS])
         if struct.unpack_from('<f', o, 4 * w)[0] == 0.0 and rng.random() < 0.5:
             struct.pack_into('<I', o, 4 * w, 0x80000000)
             return o, 'minus zero'
@@ -66,9 +76,9 @@ def mutate(rng, b):
         struct.pack_into('<I', b, 4 * w, 0x7fc00000)  # both NaN
         return o, 'nan both'
     if k == 3:  # bytes past the compared words
-        o[0xca] ^= 0xff
+        o[UNREAD] ^= 0xff
         return o, 'unread bytes'
-    w = rng.randrange(0x32)
+    w = rng.randrange(WORDS)
     if w in INT_WORDS:
         struct.pack_into('<i', o, 4 * w, struct.unpack_from('<i', o, 4 * w)[0] + 1)
     else:
@@ -96,7 +106,7 @@ class Exe:
         return self.o.uc.reg_read(UC_X86_REG_EAX) & 0xff
 
     def numbers(self, a, b):
-        pa, pb = self.o.alloc(0xcc), self.o.alloc(0xcc)
+        pa, pb = self.o.alloc(SIZE), self.o.alloc(SIZE)
         self.o.write(pa, bytes(a))
         self.o.write(pb, bytes(b))
         self.o.call(SAME_NUMBERS, ecx=pa, stack_args=(pb,))
@@ -166,7 +176,7 @@ def main():
             exe = Exe()
         a = block(rng)
         b, what = mutate(rng, a)
-        check('numbers ' + what.split()[0], exe.numbers(a, b), probe.probe_aiv_same_numbers(bytes(a), bytes(b)), what)
+        check('numbers ' + what.split()[0], exe.numbers(a, b), same_numbers(bytes(a), bytes(b)), what)
         n = rng.choice([None, 0, 1, 2, 3])
         ea = None if n is None else [entry(rng) for _ in range(n)]
         eb = None if ea is None else [bytearray(e) for e in ea]

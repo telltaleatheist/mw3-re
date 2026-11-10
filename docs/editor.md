@@ -1528,6 +1528,37 @@ The exe keeps Apply only in aiv.zrd's record cache and in the running brain
     vehicle editor's Save under MODS EDIT goes into the mod itself, the net's
     save kept as the .bak.
 
+### Pirate's Moon's vehicle editor (pm, P1, 2026-11-10)
+
+The same dialog and pages, read function by function against MW3's (each
+pair's pseudocode with the address map's names and the dialog's offsets put
+back): OnInitDialog 0x4becd0, the tab switch 0x4be1b0, every page's exchange
+(p1 0x4bf100, p2 0x4bf3f0, Attack 0x4bf810, Retreat 0x4bf9c0, p5 0x4bfbc0,
+Fire 0x4bfdb0, Valve 0x4bfe50, Circle and Random Move 0x4c02f0, Direct
+0x4c0170, Jump 0x4c01e0, Zig Zag 0x4c0280), the list fills and gathers
+0x4c29d0..0x4c2dd0, the load 0x4c2680, the store 0x4c1cb0 and the valve find
+0x4e9700 are MW3's logic. The main dialog's fields move: +0x20 from +0x130
+(the settings record grew by PM's 0x20-byte target block, between the numbers
+and the flags) and +0x40 from +0x378. No page shows the target block.
+
+Two things changed, both ported on pm (`zai_params.cpp`):
+- **The record compare 0x4f02b0** (the store's "is this the cached record"
+  and aiv.zrd's record cache) is MW3's 0x4df1b0 plus 0x4c25a0 (the target
+  block: words 0, 1, 4..7 as floats, 2 and 3 as ints; PM's flag bits +0xed
+  2..7 and +0xee bit 0) and +0xee bit 1. Its order differs from MW3's; it has
+  no side effects, so the result is the same. 0x4c2570 is MW3's lancemate
+  test at PM's offset.
+- **The name compare 0x4a06c0** adds a first test, the same pointer: two
+  records with no pilot (or no voice) now match, where MW3's 0x49d2f0 never
+  matches a none. Its callers on PM are the store, aiv.zrd's cache 0x4f00e0
+  and the net node compare 0x4d1ab0 (whose names the port already compared
+  that way).
+
+Checked: `test_aiv_edit.py` and `test_vehicle_ddx.py` run on PM's exe with
+`MW3_EXE=pm` (the record's PM layout and the dialog's offsets in the tests;
+`probe_aiv_same_numbers_pm`). Breaks caught: the target block left out, word 2
+compared as a float, +0xee bit 1 left out, MW3's name compare.
+
 ## The editor's help (ours, 2026-11-09)
 
 Owen asked (through the lead) for help in the game and on GitHub, from one

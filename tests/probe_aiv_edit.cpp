@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <list>
+#include <utility>
 
 #include "mech3/zai_params.h"
 
@@ -42,6 +43,18 @@ void unhook(AiParams& p) {
 extern "C" int probe_aiv_same_numbers(const uint8_t* a, const uint8_t* b) {
   AiParams x, y;
   fill(x, a, nullptr, -1), fill(y, b, nullptr, -1);
+  return x.same_numbers(y) ? 1 : 0;
+}
+
+// Pirate's Moon's record (0x004f02b0): the 0xec bytes at +0x04, its target block
+// at +0xcc..+0xeb and its flags at +0xec.. (+0xcc.. here).
+extern "C" int probe_aiv_same_numbers_pm(const uint8_t* a, const uint8_t* b) {
+  AiParams x, y;
+  for (auto [p, s] : {std::pair{&x, a}, std::pair{&y, b}}) {
+    std::memcpy(p->raw + AiParams::kBegin, s, 0xc8);
+    std::memcpy(p->target_words, s + 0xc8, sizeof p->target_words);
+    std::memcpy(p->raw + 0xcc, s + 0xe8, AiParams::kEnd - 0xcc);
+  }
   return x.same_numbers(y) ? 1 : 0;
 }
 
