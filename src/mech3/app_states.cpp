@@ -962,6 +962,7 @@ void delete_object(Engine& en, uint32_t global) {
 // flags press a button at once.
 bool MainState::enter() {
   Engine& en = e();
+  if (en.take_menu_reshape()) en.set_screen_mode(en.menu_vmode());  // ours: a mode picked in the menus (menu_mode_picked)
   ShellState::enter();
   screen_ = en.construct(0x486260, {addr()});  // new(0x12c1c)
   en.screen_refresh(screen_);
