@@ -67,6 +67,7 @@ class AivFile : public RdrFile {
   // kept; 0 when the one kept is the same already (a null name in either is
   // never the same: 0x0049d2f0), else 1 (the insert's flag for a new key).
   int32_t edit(const char* name, const AivRecord& r);
+  void empty_cache();  // 0x004df5d0
 
   // +0x24: records the vehicle editor keeps (0x004defc0); none while playing.
   std::map<std::string, AivRecord*>* cache = nullptr;

@@ -150,12 +150,17 @@ AivFile::~AivFile() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x004df5f0 (0x004df5d0 empties the cache)
+// Mech3.exe 1.2 @ 0x004df5d0
+void AivFile::empty_cache() {
+  if (!cache) return;
+  std::map<std::string, AivRecord*> gone;
+  gone.swap(*cache);  // each record's dtor releases the file: the map is out of its way
+  for (auto& [k, r] : gone) delete r;
+}
+
+// Mech3.exe 1.2 @ 0x004df5f0
 int32_t AivFile::unload() {
-  if (cache) {
-    for (auto& [k, r] : *cache) delete r;
-    cache->clear();
-  }
+  empty_cache();
   return RdrFile::unload();
 }
 

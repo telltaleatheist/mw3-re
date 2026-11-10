@@ -99,6 +99,7 @@ struct VehicleEditor {
   int32_t p2_objective = 0, p2_shutdown = 0;
   EditorForm form;
   EditorForm message;           // a failed field's box (AfxMessageBox)
+  std::string saved;            // ours: where the last Save wrote, or why not
 };
 VehicleEditor*& vehicle_editor();  // [0x0060b310]
 
@@ -109,6 +110,7 @@ void vehicle_editor_ok();            // 0x004b8d20: Apply, then closed
 void vehicle_editor_refresh();       // 0x004b9f20 -> 0x004b9e40
 void vehicle_editor_pause();         // 0x004bc3f0
 void vehicle_editor_close();         // DestroyWindow -> 0x004b8b70 (PostNcDestroy)
+void vehicle_editor_save();          // ours: Save, the records Applied into the editor's mod (aiv_save.h)
 void vehicle_editor_tab(int32_t page);  // the tab's TCN_SELCHANGE 0x004b8770 -> 0x004b7c80
 void vehicle_editor_strategy_tab(int32_t page);  // Attack's tab 1175: 0x004b9e10 -> 0x004b7c80
 // The dialog's UpdateData (0x004b8680: the team round trip when showing,

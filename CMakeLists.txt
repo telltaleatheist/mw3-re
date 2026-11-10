@@ -227,6 +227,7 @@ add_library(mw3core STATIC
   src/upgrades/editor/mods_edit.cpp
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp
+  src/upgrades/editor/aiv_save.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
   src/mech3/mech_reader.cpp
@@ -513,6 +514,7 @@ add_library(mw3probe SHARED
   tests/probe_aiv_edit.cpp
   tests/probe_vehicle_ddx.cpp
   tests/probe_inout_view.cpp
+  tests/probe_aiv_save.cpp
   tests/probe_aiv_add.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp

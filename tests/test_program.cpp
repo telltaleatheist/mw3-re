@@ -1364,7 +1364,8 @@ TEST(campaign_operation_end_and_campaign_end_headless) {
 // EDITOR lists its missions, ENTER opens c1 mission 1 with the editor up (no
 // Shift+F12); net_01's node_00 moved and saved goes into the mod itself, its
 // own readerm1.zbd replaced and the old one kept as .bak; EXIT GAME EDIT
-// lands on MODS again, the stand-in pilot let go.
+// lands on MODS again, the stand-in pilot let go. The vehicle editor's Save
+// (S7f) goes into the mod too, the net's save kept as the .bak.
 TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1407,7 +1408,8 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
     mech3::States& st = mech3::states();
     int stage = 0, frames = 0, rows = 0;
     bool listed = false, editor_up = false, moved = false, saved_into_mod = false, kept_bak = false, mods_again = false;
-    std::string status, row0;
+    std::string status, row0, vehicle_status;
+    bool vehicle_into_mod = false;
     uint32_t real_pilot = 0, pilot_after = 0;
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
@@ -1443,6 +1445,20 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
         }
         saved_into_mod = bytes(own) != before && !std::filesystem::exists(wd + "/mods/editor edits");
         kept_bak = std::filesystem::exists(own + ".bak") && bytes(own + ".bak") == before;
+        // The vehicle editor's Save (S7f) goes into the mod too, over the net's save.
+        const std::string after_net = bytes(own);
+        mech3::edit_vehicles(0);
+        if (mech3::VehicleEditor* v = mech3::vehicle_editor()) {
+          for (size_t i = 0; i < v->items.size(); ++i)
+            if (v->items[i].name == "owens_01") *v->form.fields[0].i = int32_t(i), v->form.changed(v->form.fields[0]);
+          mech3::vehicle_editor_tab(mech3::kPageP2);
+          v->pages[mech3::kPageP2].at(1243).text = "Mod Pilot";
+          v->form.press("Save");
+          vehicle_status = v->saved;
+          v->form.press("OK");
+        }
+        vehicle_into_mod = bytes(own) != after_net && bytes(own + ".bak") == after_net &&
+                           !std::filesystem::exists(wd + "/mods/editor edits");
         mech3::net_editor_exit(0);
         mech3::editor_exit(0);  // EXIT GAME EDIT
         stage = 3;
@@ -1463,6 +1479,8 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
                 kept_bak, status.c_str(), mods_again, pilot_after == real_pilot);
     EXPECT(listed && editor_up && moved && saved_into_mod && kept_bak);
     EXPECT(status.find("mods\\ed\\") != std::string::npos);
+    std::printf("  the vehicle editor's Save: \"%s\", into the mod %d\n", vehicle_status.c_str(), vehicle_into_mod);
+    EXPECT(vehicle_into_mod && vehicle_status.find("mods\\ed\\") != std::string::npos);
     EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
     mech3::missions().cleanup(false);
     app.stop_game();
@@ -26579,6 +26597,86 @@ TEST(mission_c1m1_new_net_saved_and_loaded_next_start_headless) {
   EXPECT(id > 0 && id < 100 && nodes == 2 && status.find("editor edits") != std::string::npos);
   EXPECT(first[0] == pick[0] && first[1] == pick[1] && first[2] == pick[2] && (pick[0] != 0 || pick[2] != 0));
   EXPECT(found && read == 2 && again[0] == first[0] && again[1] == first[1] && again[2] == first[2]);
+}
+
+// The vehicle editor's save (ours, S7f; docs/editor.md, The vehicle
+// editor's save) on c1m1: owens_01's pilot name, skin and place on p2 and a
+// range on p1, Apply, Save (twice: the second keeps the first as .bak); the
+// next start, on the same write folder, gives its brain the saved values.
+TEST(mission_c1m1_vehicle_editor_saved_and_read_next_start_headless) {
+  if (!have_game()) return;
+  std::string write_dir, saved, picked;
+  float x0 = 0, range = 0, x_again = 0, range_again = 0;
+  int32_t skin_again = -1;
+  std::string pilot_again;
+  bool bak = false, found_again = false;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("vehicle_save", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    write_dir = zutl::mounts().write;
+    mech3::editor_key(mech3::kEditorCommand);
+    mech3::edit_vehicles(0);
+    mech3::VehicleEditor* e = mech3::vehicle_editor();
+    if (!e) return true;
+    for (size_t i = 0; i < e->items.size(); ++i)
+      if (e->items[i].name == "owens_01") {
+        *e->form.fields[0].i = static_cast<int32_t>(i);
+        e->form.changed(e->form.fields[0]);
+        picked = e->items[i].name;
+      }
+    if (picked.empty()) return true;
+    mech3::vehicle_editor_tab(mech3::kPageP2);
+    mech3::Dialog& p2 = e->pages[mech3::kPageP2];
+    x0 = e->params.get<float>(0x08) + 10.0f;
+    p2.at(1200).text = std::to_string(x0);
+    p2.at(1243).text = "Saved Pilot";
+    p2.at(1284).text = "9";
+    mech3::vehicle_editor_tab(mech3::kPageP1);
+    range = 123.5f;
+    e->pages[mech3::kPageP1].at(1210).text = "123.5";  // Leave Net Range to Target (+0x20, squared in play)
+    e->form.press("Save");  // Apply, then the save
+    e->form.press("Save");  // again: the first kept as .bak
+    saved = e->saved;
+    e->form.press("OK");
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  const std::filesystem::path out = std::filesystem::path(write_dir) / "mods" / "editor edits" / "zbd" / "c1" / "readerm1.zbd";
+  bak = std::filesystem::exists(out.string() + ".bak");
+  // The next start on the same folder (the editor mod on in its mw3.cfg).
+  const char* keep = g_cheat_mission_dir;
+  g_cheat_mission_dir = write_dir.c_str();
+  const std::vector<std::string> on = mech3::mods_enabled(write_dir);
+  const int32_t refs_between = mech3::ai::aiv_file().refs;  // nothing holds aiv.zrd: the next start reads it anew
+  g_cheat_mission_mods = &on;
+  cheat_mission("vehicle_save_again", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    mech3::editor_key(mech3::kEditorCommand);
+    mech3::edit_vehicles(0);
+    if (mech3::VehicleEditor* e = mech3::vehicle_editor()) {
+      for (const mech3::VehicleEditorItem& it : e->items)
+        if (it.name == picked)
+          if (mech3::ai::AiParams* b = mech3::vehicle_editor_hooks().brain_params(it.vehicle)) {
+            found_again = true;
+            x_again = b->get<float>(0x08);
+            range_again = std::sqrt(b->get<float>(0x20));
+            skin_again = b->skin();
+            pilot_again = b->pilot ? b->pilot : "";
+          }
+      e->form.press("OK");
+    }
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  g_cheat_mission_dir = keep;
+  g_cheat_mission_mods = nullptr;
+  mech3::app_key_calls().debug_camera = false;
+  std::printf("  %s: \"%s\"; .bak %d; next start: found %d, x %.2f (wanted %.2f), range %.2f, skin %d, pilot \"%s\"\n",
+              picked.c_str(), saved.c_str(), bak, found_again, x_again, x0, range_again, skin_again,
+              pilot_again.c_str());
+  EXPECT(picked == "owens_01" && saved.find("editor edits") != std::string::npos && bak && refs_between == 0);
+  EXPECT(found_again && std::fabs(x_again - x0) < 0.01f && std::fabs(range_again - range) < 0.001f && skin_again == 9 &&
+         pilot_again == "Saved Pilot");
 }
 
 // The Ai Network Editor window (181, S5 sitting 4c) on c1m1: Change Net

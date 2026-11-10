@@ -7,6 +7,7 @@
 #include "mech3/game_editor_net.h"
 #include "mech3/game_editor_tree.h"
 #include "mech3/game_editor_vehicles.h"
+#include "upgrades/editor/aiv_save.h"
 #include "upgrades/editor/form.h"
 
 namespace mech3 {
@@ -70,6 +71,7 @@ EditorPanel& editor_panel() {
 }
 void editor_reset() {
   vehicle_editor_close();
+  aiv_notes_clear();  // ours: the vehicle editor's records waiting for a Save
   tree_close();
   net_window_free();
   net_editor_free();
