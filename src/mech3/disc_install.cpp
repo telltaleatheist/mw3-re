@@ -206,7 +206,7 @@ bool swap_in_folder(const std::string& tmp, const std::string& out, std::error_c
 
 DiscInstall install_from_disc(const std::string& source, const std::string& out_dir, const std::string& patch,
                               const std::string& music_dir, const DiscProgress& progress,
-                              const std::string& movies_from) {
+                              const std::string& movies_from, bool pirates_moon) {
   DiscInstall r;
   auto say = [&](const std::string& s) { r.log.push_back(s); };
   auto fail = [&](DiscInstall::Failure f, const std::string& why) {
@@ -297,6 +297,14 @@ DiscInstall install_from_disc(const std::string& source, const std::string& out_
   if (!read_ok) return abandon(why, source + ": " + error);
   done = cab->size;
   say(cab->path + ": " + std::to_string(r.files) + " files, " + std::to_string(r.bytes >> 20) + " MB");
+  if (pirates_moon && !seen.count("mech3.exe"))  // its program sits beside the cabinet
+    if (const Disc::File* exe = disc.find(dir.empty() ? "MECH3.EXE" : dir + "/MECH3.EXE")) {
+      std::vector<uint8_t> b(static_cast<size_t>(exe->size));
+      if (!disc.read(*exe, 0, b.size(), b.data())) return abandon(DiscInstall::kDamaged, source + ": cannot read " + exe->path);
+      if (!write_file(tmp / "Mech3.exe", b.data(), b.size()))
+        return abandon(DiscInstall::kCannotWrite, "cannot write " + (tmp / "Mech3.exe").string());
+      ++r.files, r.bytes += b.size();
+    }
 
   // VIDEO\ as video/, its file names as the disc has them.
   std::vector<uint8_t> buf(1 << 20);
@@ -332,33 +340,40 @@ DiscInstall install_from_disc(const std::string& source, const std::string& out_
   }
   say("video: " + std::to_string(r.movies) + " files");
 
-  // The data files against 1.0's (assets.md, Data versions).
   if (!step("Checking the files", "")) return abandon(DiscInstall::kCancelled, "cancelled");
-  int n = 0, of_10 = 0, in_10 = 0;
-  const DataFile* files = data_files(&n);
-  std::vector<uint8_t> data;
-  for (int i = 0; i < n; ++i) {
-    const DataFile& d = files[i];
-    if (d.size_10) ++in_10;
-    if (!read_all(tmp / d.path, &data)) {
-      if (d.size_10) r.warnings.push_back(std::string(d.path) + " is not on the disc");
-      continue;
+  if (pirates_moon) {
+    if (!fs::exists(tmp / "zbd" / "reader.zbd", ec) || !fs::exists(tmp / "zbd" / "c1" / "readersa1.zbd", ec))
+      return abandon(DiscInstall::kNotMw3, source + ": the cabinet has no zbd\\reader.zbd and zbd\\c1\\readersa1.zbd "
+                                                    "(not the Pirate's Moon disc?)");
+    r.version = "1.0";
+  } else {
+    // The data files against 1.0's (assets.md, Data versions).
+    int n = 0, of_10 = 0, in_10 = 0;
+    const DataFile* files = data_files(&n);
+    std::vector<uint8_t> data;
+    for (int i = 0; i < n; ++i) {
+      const DataFile& d = files[i];
+      if (d.size_10) ++in_10;
+      if (!read_all(tmp / d.path, &data)) {
+        if (d.size_10) r.warnings.push_back(std::string(d.path) + " is not on the disc");
+        continue;
+      }
+      if (d.size_10 && data.size() == d.size_10 && zutl_zar::crc32(0, data.data(), data.size()) == d.crc_10 &&
+          sha256_hex(data.data(), data.size()) == d.sha256_10)
+        ++of_10;
+      else
+        r.warnings.push_back(std::string(d.path) + " is not the 1.0 disc's");
     }
-    if (d.size_10 && data.size() == d.size_10 && zutl_zar::crc32(0, data.data(), data.size()) == d.crc_10 &&
-        sha256_hex(data.data(), data.size()) == d.sha256_10)
-      ++of_10;
-    else
-      r.warnings.push_back(std::string(d.path) + " is not the 1.0 disc's");
+    if (read_all(tmp / "Mech3.exe", &data) && sha256_hex(data.data(), data.size()) != kExe10)
+      r.warnings.push_back("Mech3.exe is not the 1.0 disc's");
+    r.version = of_10 == in_10 && r.warnings.empty() ? "1.0" : "unknown";
+    say("data: " + std::to_string(of_10) + " of the 1.0 disc's " + std::to_string(in_10) + " files");
+    if (!fs::exists(tmp / "zbd" / "reader.zbd", ec))
+      return abandon(DiscInstall::kNotMw3, source + ": the cabinet has no zbd\\reader.zbd (not the MechWarrior 3 disc?)");
   }
-  if (read_all(tmp / "Mech3.exe", &data) && sha256_hex(data.data(), data.size()) != kExe10)
-    r.warnings.push_back("Mech3.exe is not the 1.0 disc's");
-  r.version = of_10 == in_10 && r.warnings.empty() ? "1.0" : "unknown";
-  say("data: " + std::to_string(of_10) + " of the 1.0 disc's " + std::to_string(in_10) + " files");
-  if (!fs::exists(tmp / "zbd" / "reader.zbd", ec))
-    return abandon(DiscInstall::kNotMw3, source + ": the cabinet has no zbd\\reader.zbd (not the MechWarrior 3 disc?)");
 
   // The 1.2 patch's 28, over them.
-  if (!patch.empty()) {
+  if (!patch.empty() && !pirates_moon) {
     if (!step("Applying the 1.2 patch", patch)) return abandon(DiscInstall::kCancelled, "cancelled");
     const std::string pdir = (tmp / ".patch12").string();
     const PatchImport p = import_patch_12(patch, pdir);
@@ -404,7 +419,8 @@ DiscInstall install_from_disc(const std::string& source, const std::string& out_
   {
     const std::string note = "Installed by mw3 --install-from (docs/assets.md, Installing from the disc).\nsource=" +
                              source + "\nversion=" + r.version + "\nfiles=" + std::to_string(r.files) +
-                             "\nmovies=" + std::to_string(r.movies) + "\n";
+                             "\nmovies=" + std::to_string(r.movies) + "\n" +
+                             (pirates_moon ? "game=Pirate's Moon\n" : "");
     if (!write_file(tmp / kMarker, reinterpret_cast<const uint8_t*>(note.data()), note.size()))
       return abandon(DiscInstall::kCannotWrite, "cannot write " + (tmp / kMarker).string());
   }

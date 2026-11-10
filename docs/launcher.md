@@ -196,6 +196,19 @@ single-game packages stay. One sitting each, each with its tests:
    source (today refused: "Its support comes later"). Tests on game/pm-disc
    (the image), the result read by `map_source` as PM and played to its
    first frame by mw3pm.
+   **Done (2026-11-09):** `install_from_disc(..., pirates_moon)` and
+   `setup::install_from_source` taking a PM source: from the disc, its image,
+   its cue (track 2 as `music/track02.wav`) or an archive of any of them; no
+   1.0 checks and no patch (PM had one release, "1.0"), `zbd\reader.zbd` and
+   `zbd\c1\readersa1.zbd` required, the disc's loose `MECH3.EXE` (beside the
+   cabinet, not in it) copied in as `Mech3.exe` and staged from an archive
+   too; an installed PM copy on disk used where it is. The folder it goes to
+   is the launcher's choice (sitting 4: PM's own settings folder).
+   `setup_install_pirates_moon_from_its_disc`: the cue and a zip of the image
+   each give game/pm's files at their sizes, the exe and reader.zbd byte for
+   byte, read back by `map_source` as PM; with `MW3_PM_BIN`, mw3pm plays the
+   result to a frame. Breaks: the loose exe dropped, the game not passed,
+   the exe not staged: each caught.
 3. **Checks before the first game**, in plain words: missing files; an
    empty `zbd\soundsH.zbd` (the disc's copy put in Pirate's Moon's settings
    folder, never into the install); anything else that blocks a start.

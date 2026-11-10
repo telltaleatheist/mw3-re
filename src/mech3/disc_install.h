@@ -74,8 +74,11 @@ using DiscProgress = std::function<bool(const std::string& stage, double fractio
 // removed only once the new one is in place, put back if the rename fails,
 // so a failure leaves the old install working. False with `ec` on failure.
 bool swap_in_folder(const std::string& tmp, const std::string& out, std::error_code& ec);
+// `pirates_moon`: the Pirate's Moon disc (docs/launcher.md, Pirate's Moon):
+// no 1.0 checks and no patch (it had one release, "1.0"), its standalone
+// missions required, and its loose MECH3.EXE copied in as Mech3.exe.
 DiscInstall install_from_disc(const std::string& source, const std::string& out_dir, const std::string& patch,
                               const std::string& music_dir, const DiscProgress& progress,
-                              const std::string& movies_from = "");
+                              const std::string& movies_from = "", bool pirates_moon = false);
 
 }  // namespace mech3
