@@ -583,12 +583,28 @@ void Launcher::find_mw1() {
 // The port started as its own script starts it (`mechwarrior <game dir>
 // <capture dir>`, the saves in MECHWARRIOR_SAVE_DIRECTORY), both under the
 // write dir's mw1; this window hidden until it exits.
-// Pirate's Moon: its folder as last picked, while it still holds the game.
+// Pirate's Moon: its folder as last picked, while it still holds the game;
+// else the places it may be installed (sdlfe::install_candidates: its
+// registry key, the usual folders, Wine, Proton and Lutris prefixes, the
+// Mac's bottles), each read by map_source so an MW3 folder is never taken,
+// the one found saved to mw3.cfg as pm_install= (docs/launcher.md).
 void Launcher::find_pm() {
-  if (o_.pm_bin.empty() || o_.cfg_pm_install.empty()) return;
-  const mech3::source::Found f = mech3::source::map_source(o_.cfg_pm_install);
-  if (is_pm_install(f)) pm_dir_ = o_.cfg_pm_install;
-  std::printf("mw3: launcher: Pirate's Moon at %s: %s\n", o_.cfg_pm_install.c_str(), pm_dir_.empty() ? "not there" : "ready");
+  if (o_.pm_bin.empty()) return;
+  if (!o_.cfg_pm_install.empty() && is_pm_install(mech3::source::map_source(o_.cfg_pm_install))) {
+    pm_dir_ = o_.cfg_pm_install;
+    std::printf("mw3: launcher: Pirate's Moon at %s: ready\n", pm_dir_.c_str());
+    return;
+  }
+  if (!o_.cfg_pm_install.empty()) std::printf("mw3: launcher: Pirate's Moon at %s: not there\n", o_.cfg_pm_install.c_str());
+  for (const std::string& d : sdlfe::install_candidates(true)) {
+    std::error_code ec;
+    if (!fs::is_directory(d, ec) || !is_pm_install(mech3::source::map_source(d))) continue;
+    pm_dir_ = d;
+    sdlfe::save_config_value(o_.write_dir, "pm_install", d);
+    std::printf("mw3: launcher: Pirate's Moon found at %s\n", d.c_str());
+    return;
+  }
+  std::printf("mw3: launcher: no Pirate's Moon install found\n");
 }
 
 void Launcher::run_mw1() {

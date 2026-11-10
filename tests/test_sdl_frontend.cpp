@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "check.h"
+#include "mech3/source_map.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
 #include "frontend/sdl/editor_imgui.h"
@@ -5036,16 +5037,90 @@ TEST(sdl_program_launcher_starts_pirates_moon) {
   EXPECT(args.size() >= 3 && args[0] == "--install" && args[1] == install.string() && args[2] == "--no-launcher");
   for (const std::string& a : args) EXPECT(a != "--write-dir" && a.find(dir + "/wd") == std::string::npos);
 
-  // A folder that is not there: no start, the setting left alone.
+  // A folder that is not there: no start, the setting left alone (with no
+  // Pirate's Moon anywhere the search looks: an empty HOME).
   std::filesystem::remove(dir + "/args.txt", ec);
   cfg(dir + "/gone");
+  const std::string home_was = std::getenv("HOME") ? std::getenv("HOME") : "";
+  std::filesystem::create_directories(dir + "/emptyhome", ec);
+  setenv("HOME", (dir + "/emptyhome").c_str(), 1);
   EXPECT(run("gone").find("not there") != std::string::npos);
+  setenv("HOME", home_was.c_str(), 1);
   EXPECT(!std::filesystem::exists(dir + "/args.txt", ec));
   std::ifstream kept(dir + "/wd/mw3.cfg");
   std::string line;
   std::getline(kept, line);
   EXPECT(line == "pm_install=" + dir + "/gone");
   unsetenv("MW3_PM_BIN");
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// Pirate's Moon found by itself (docs/launcher.md, Pirate's Moon as MechWarrior
+// 3, sitting 1): a HOME with a Wine prefix holding MechWarrior 3 and, under
+// Pirate's Moon's folder name, MechWarrior 3's data again (searched first),
+// and a Mac CrossOver bottle holding Pirate's Moon. Each game's search lists its own places; read by
+// map_source, Pirate's Moon is the bottle's and never the MW3 copy. The
+// launcher with no pm_install= finds it, saves it, and starts it there.
+TEST(sdl_program_launcher_finds_pirates_moon) {
+  namespace fs = std::filesystem;
+  const fs::path mw3 = fs::path(MW3_GAME_DIR), pmdir = mw3.parent_path() / "pm";
+  std::error_code ec;
+  if (!fs::is_regular_file(pmdir / "Mech3.exe", ec)) {
+    std::printf("launcher finds pm: no game/pm: skipped\n");
+    return;
+  }
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher finds pm", home = dir + "/home";
+  fs::remove_all(dir, ec);
+  const fs::path wine = fs::path(home) / ".wine/drive_c/Program Files/MicroProse/MechWarrior 3";
+  const fs::path bottle = fs::path(home) / "Library/Application Support/CrossOver/Bottles/Games/drive_c/Program Files/MicroProse/MechWarrior 3 Pirate's Moon";
+  // MW3's data under a PM name, in the prefix searched first: never taken.
+  const fs::path decoy = fs::path(home) / ".wine/drive_c/Program Files/MicroProse/MechWarrior 3 Pirate's Moon";
+  for (const fs::path& p : {wine, bottle, decoy}) fs::create_directories(p.parent_path(), ec);
+  fs::create_directory_symlink(fs::canonical(mw3, ec), wine, ec);
+  fs::create_directory_symlink(fs::canonical(pmdir, ec), bottle, ec);
+  fs::create_directory_symlink(fs::canonical(mw3, ec), decoy, ec);
+  const std::string home_was = std::getenv("HOME") ? std::getenv("HOME") : "";
+  setenv("HOME", home.c_str(), 1);
+  const std::vector<std::string> pm_places = sdlfe::install_candidates(true), mw3_places = sdlfe::install_candidates(false);
+  auto has = [](const std::vector<std::string>& v, const fs::path& p) { return std::find(v.begin(), v.end(), p.string()) != v.end(); };
+  EXPECT(has(pm_places, bottle) && has(pm_places, decoy) && !has(pm_places, wine));
+  EXPECT(has(mw3_places, wine) && !has(mw3_places, bottle));
+  std::string found;
+  for (const std::string& d : pm_places) {
+    const mech3::source::Found f = mech3::source::map_source(d);
+    if (found.empty() && f.kind == mech3::source::Found::kInstall && f.game == mech3::source::Found::kPiratesMoon && f.on_disk)
+      found = d;
+  }
+  std::printf("launcher finds pm: %zu places for PM, %zu for MW3; PM read in %s\n", pm_places.size(), mw3_places.size(), found.c_str());
+  EXPECT(found == bottle.string());
+  // The launcher, mw3.cfg without pm_install=: found, saved, started there.
+  fs::create_directories(dir + "/wd", ec);
+  const std::string pm = dir + "/mw3pm";
+  {
+    std::ofstream sh(pm);
+    sh << "#!/bin/sh\nfor a in \"$@\"; do echo \"$a\"; done > \"" << dir << "/args.txt\"\nexit 0\n";
+  }
+  fs::permissions(pm, fs::perms::owner_all, ec);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  const std::string log = dir + "/launcher.log";
+  const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-pm", "--window", "640x480", "--hidden", "--nosound"}, log);
+  int status = 0;
+  EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  unsetenv("MW3_PM_BIN");
+  setenv("HOME", home_was.c_str(), 1);
+  std::ifstream lf(log);
+  const std::string text((std::istreambuf_iterator<char>(lf)), std::istreambuf_iterator<char>());
+  std::ifstream cf(dir + "/wd/mw3.cfg");
+  const std::string cfg((std::istreambuf_iterator<char>(cf)), std::istreambuf_iterator<char>());
+  std::vector<std::string> args;
+  {
+    std::ifstream af(dir + "/args.txt");
+    for (std::string a; std::getline(af, a);) args.push_back(a);
+  }
+  EXPECT(text.find("Pirate's Moon found at " + bottle.string()) != std::string::npos);
+  EXPECT(cfg.find("pm_install=" + bottle.string()) != std::string::npos);
+  EXPECT(args.size() >= 2 && args[0] == "--install" && args[1] == bottle.string());
 }
 #endif
 
