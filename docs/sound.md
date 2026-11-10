@@ -236,6 +236,21 @@ other groups hold its voices, and unloading a set while a fade or a pause
 record still points at its duplicates (both are real hazards: quitting
 from pause, unloading a mission's sets with fades running).
 
+**A lead to follow: a sound blaring at a briefing's start** (Freako, since
+1.2: usually a laser, sometimes at a multiplayer load; which sound follows
+the wav positions in soundsH.zbd). Ruled out (2026-11-09/10, 1.0 against
+1.2): the briefing's ctor, voice step and map sounds, every zSound play
+call (31 against 30, paired one to one), the pause's RESUME and QUIT, a
+name missing from the archive (the zar read 0x576b30 refuses index -1), and
+unpause 0x56f130 (its only caller is RESUME). The port plays only the
+briefing voice and the world's ambient during a briefing (traced through
+the campaign test). The suspect if it happens only after a mission: a
+DirectSound duplicate of the last mission's (a laser is the commonest)
+that outlives `unload_set` (the records above that keep pointing at
+duplicates) and is played or restarted when the next briefing starts.
+Waiting on Freako's steps (first briefing or after a mission; which
+campaign; the 1.2 exe on 1.0 data).
+
 Breaks caught (each made in the port, the quick test fails): DirectSound's
 volume curve, an exact square root, 5 dB falloff, pan 2000, a FIFO queue,
 8 duplicates, 30 dB/s fades, the pick without its slack, unpause skipping
