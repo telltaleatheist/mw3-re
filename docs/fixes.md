@@ -45,6 +45,10 @@ below), so the switch would turn nothing on or off here. The `water` field
 and its `upgrade_water=` key stay (shared code, and a folder may hold one
 from MW3): the page never writes the key, so a player's line is left as it
 is, and a network host's five bits are taken whole with the water bit unused.
+The fifth follows (Owen, 2026-11-10): the gradual slowing made for MW3,
+ported to Pirate's Moon behind WATER, the original's flat 60% with it off;
+the bit's place in the settings, the page's order and the host's word are
+kept for it.
 
 What each Pirate's Moon-own change reads:
 

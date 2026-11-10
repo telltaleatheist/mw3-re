@@ -20,7 +20,9 @@ A 1.0 `mw3.cfg`'s `bugfixes=` line becomes the five switches the first time.
 Pirate's Moon's page has four: no WATER MOVEMENT, because the water change
 corrects something Pirate's Moon's own game no longer does, so there would be
 nothing to switch. Its SMALL FIXES list is its own, nine lines. A water
-setting already in your settings file is left as it is.
+setting already in your settings file is left as it is. A WATER MOVEMENT
+switch for Pirate's Moon follows: the gradual slowing in deep water with it
+on, the original's flat slowing with it off.
 
 The rule: keep everything as the original did it, quirks that players know
 and plan around included. Change only what stops the game running on today's
