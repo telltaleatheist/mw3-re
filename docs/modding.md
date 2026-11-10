@@ -1071,7 +1071,39 @@ every shipped entry, run by itself when mech3ax's unzbd is beside the
 checkout. PM's archives the same where its formats match (mech3ax's `pm`
 readers), on `pm` after pm-v1.0.0.
 
-## Animations a def at a time (design, proposal only, 2026-11-09)
+## Animations a def at a time (design 2026-11-09; step 1 built 2026-11-10)
+
+**Built (step 1): the merge, the def files and the save's name check.**
+- `upgrades/mods/anim_defs` (`mod_def_files`, `with_defs`, `def_spans`)
+  runs in the anim load (`zeff::anim_read_zbd`), on the file chosen (the
+  install's, or the first enabled mod's whole anim.zbd or JSON).
+- A def file is read alone by `zeff::anim_def_from_json`. Its key is
+  unzbd's file name for it, from its own names (`anim_def_key`: node-anim,
+  or node-anim-root when the root is another node; the same as unzbd's names
+  on every def of the six worlds).
+- An ObjectMotionSiScript event in a def file names its script's file
+  (`"script": "si-script-<name>.zan"`, read from `<name>.json` beside it)
+  in place of metadata's index.
+- Each file that does not read, or is passed over by the rules, is said once
+  in the log (`mw3: mod: ...`).
+- A saved running animation whose def at the saved index has another name
+  is dropped and said (`zeff_anim_save.cpp`, running_load). Recording the
+  mods' identity in the save is not built yet. In test_anim_save.py's saves
+  (six missions, plain, cross-loaded from the original's, and damaged), the
+  only runs dropped are the damaged phase's records cut short before their
+  name ends (all 28 shorter than 0x28 bytes, the name read as the zeros
+  past the cut). No plain or cross-loaded save loses one.
+
+Tests: `mods_anim_def_files_merge_on_every_world` (all six worlds: the keys,
+one def replaced, a scripted one where the world has one, and one added,
+every other def's bytes, the header and what follows as shipped) and
+`mods_anim_def_files_by_the_mods_order` (t1: the order rules, the notes, the
+world as the game reads it, the save's drop). Breaks caught: no replacing in
+place, the root left out of the key, a later mod replacing the base's def,
+the name check left out.
+
+Steps 2-4 below are still to build.
+
 
 Owen's ask: animations moddable, and easy, with every old mod working
 exactly as before. Today a mod replaces a world's whole anim.zbd (or its

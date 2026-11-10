@@ -1,3 +1,4 @@
+#include "mech3/net_save.h"
 #include "mech3/data_version.h"
 #include "mech3/patch_import.h"
 #include "mech3/disc_install.h"
@@ -272,6 +273,10 @@ void reset_process_state() {
   // The scripts' tolerances (doubles in zModel's data) and the skipped calls' count.
   zmod::tolerances_reset();
   zint::null_calls().clear();
+  // Where the editor's saves go: Shift+F12 in a custom campaign's mission sets
+  // the campaign's mod (editor_from_level), which a later test's editor, opened
+  // another way, would save into.
+  mech3::ai::net_save_into_mod().clear();
   // What the start-up and the Core state's start change (item 13): the data's.
   zeff::anim_log().save_on = zeff::anim_log().net_on = 1;
   zvid::display().clear_on = 1;

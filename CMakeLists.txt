@@ -326,6 +326,7 @@ add_library(mw3core STATIC
   src/mech3/mods_menu.cpp
   src/mech3/mod_install.cpp
   src/upgrades/mods/mod_export.cpp
+  src/upgrades/mods/anim_defs.cpp
   src/upgrades/reference/reference.cpp
   src/upgrades/reference/reference_mods.cpp
   src/upgrades/reference/reference_weapons.cpp

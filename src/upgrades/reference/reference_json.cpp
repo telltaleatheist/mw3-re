@@ -264,6 +264,7 @@ File json_anim() {
               {"", "save_log", "-", "-", "", "-"},
               {"", "scale", "-", "-", "", "-"},
               {"", "scale_delta", "-", "-", "", "-"},
+              {"", "script", "text", "-", "", "ours: an ObjectMotionSiScript event of a def file names its script's file (si-script-<name>.zan) in place of index"},
               {"", "script_names", "-", "-", "", "-"},
               {"", "seq_defs_ptr", "-", "-", "", "-"},
               {"", "seq_state", "-", "-", "", "-"},
