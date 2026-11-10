@@ -1401,23 +1401,40 @@ zimg::Texture* GameEngine::map_image(Handle map) {
 
 namespace mech3 {
 
+namespace {
+// Mech3.exe 1.2 @ 0x0047fde0: message 0xc, a network error ("Network Error:"
+// 0xd78 with its text), handed to the game's message box 0x004ac050 with its
+// first argument 0, which shows nothing: in the release the error is dropped.
+void network_error_shown(uint32_t, const uint8_t*, size_t) {}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x0047fc40: the app's network on or off. On: zNetwork up
 // (0x00586ba0; FIX (A): on the platform's transport, not DirectPlay's
 // instance), unless it is already (a --host or --join start's); the lobby
-// launch's set-up (+0x19c) is not ported. Off: the network game ended
-// (0x0046d100), zNetwork down (0x00586c20), the transport given up.
+// launch's set-up (+0x19c) is not ported. Then no turrets (+0x1b2
+// [0x00608e3a] = 0: the mission load reads no aiTurrets.zrd), message 0xc's
+// handler, and the invincibility cheat off (+0x1b8 [0x00608e40]). Off: the
+// turrets back, the network game ended (0x0046d100), the handler gone,
+// zNetwork down (0x00586c20), the transport given up, the lobby launch's
+// +0x19c and +0x1a4 cleared (+0x1a8, its dword, is not in the port).
 void GameEngine::network_set(int32_t on) {
   if (on) {
     if (network_on_) return;
     if (!znet::session().initialised && p_.network_open)
       if (znet::Transport* t = p_.network_open()) znet::initialise(t);
+    app().byte_at(0x1b2) = 0;
+    znet::on(0xc, network_error_shown, 2);  // 0x00587aa0
+    app().byte_at(0x1b8) = 0;
     network_on_ = true;
     return;
   }
   if (!network_on_) return;
+  app().byte_at(0x1b2) = 1;
   net_end();
+  znet::off(0xc, network_error_shown);  // 0x00587b20
   znet::shutdown();
   if (p_.network_close) p_.network_close();
+  app().lobby_ = 0, app().field_1a4_ = 0;
   network_on_ = false;
 }
 
