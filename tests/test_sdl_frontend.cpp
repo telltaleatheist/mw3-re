@@ -4892,6 +4892,32 @@ TEST(sdl_program_launcher_mods_by_keys) {
   EXPECT(text == std::string("install=") + MW3_GAME_DIR + "\nwidemenus=1\nmod=beta\n");
 }
 
+// Modder step 7 (modding.md, Requirements in mod.txt): a mod whose needs= is
+// missing, its row pressed: turned on all the same (mw3.cfg), the warning on
+// the status line and its row's "1 warning (CHECK)".
+TEST(sdl_program_launcher_mod_needs_warn_never_block) {
+  auto seen = [](const std::string& log, const std::string& line) { return log.find(line) != std::string::npos; };
+  const auto keys = std::vector<std::pair<std::string, std::string>>{
+      {"MW3_FIND_INSTALL", "1"}, {"MW3_LAUNCHER_FRAMES", "30"}, {"MW3_LAUNCHER_NAV", "next,next,next,press,next,press"}};
+  auto mods = [](const std::string& d) {
+    std::error_code ec;
+    for (const auto& [rel, text] : std::vector<std::pair<std::string, std::string>>{
+             {"/wd/mods/x/mod.txt", "name=X\nneeds=gone\n"},
+             {"/wd/mw3.cfg", std::string("install=") + MW3_GAME_DIR + "\n"}}) {
+      std::filesystem::create_directories(std::filesystem::path(d + rel).parent_path(), ec);
+      std::ofstream(d + rel) << text;
+    }
+  };
+  const LauncherRun a = run_launcher_with("launcher_mod_needs", "READY", nullptr, keys, mods, false);
+  std::ifstream cfg(std::string(MW3_TEST_TMP) + "/launcher_mod_needs/wd/mw3.cfg");
+  const std::string text((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
+  std::printf("  warned %d; cfg:\n%s", seen(a.log, "launcher: mods: x warns: It needs the mod gone, which is not in the mods folder.\n"),
+              text.c_str());
+  EXPECT(a.exited && seen(a.log, "launcher: mods: x on\n"));
+  EXPECT(seen(a.log, "launcher: mods: x warns: It needs the mod gone, which is not in the mods folder.\n"));
+  EXPECT(text.find("mod=x\n") != std::string::npos);
+}
+
 // MODS on the game last clicked (lead, 2026-11-10, the combined package): on Pirate's Moon it lists PM's own settings
 // folder's mods, a for=mw3pm mod usable and a for=mw3 one refused in words, its row's press switching it in PM's
 // mw3.cfg; MechWarrior 3's folder and mw3.cfg untouched, and MW3's MODS still MW3's.

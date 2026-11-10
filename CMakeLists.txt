@@ -332,6 +332,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/save_mods.cpp
   src/upgrades/mods/mod_report.cpp
   src/upgrades/mods/mod_test.cpp
+  src/upgrades/mods/mod_needs.cpp
   src/upgrades/update/update.cpp
   src/upgrades/reference/reference.cpp
   src/upgrades/reference/reference_mods.cpp

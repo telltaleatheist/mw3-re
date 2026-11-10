@@ -28,6 +28,7 @@
 #include "gamez/zrender/zrndr_tint.h"
 #include "mech3/game_setup.h"
 #include "mech3/mods.h"
+#include "upgrades/mods/mod_needs.h"
 #include "mech3/mod_install.h"
 #include "upgrades/mods/mod_export.h"
 #include "frontend/sdl/sdl_mods.h"
@@ -1894,6 +1895,8 @@ void Launcher::finish_work() {
 void Launcher::mods_refresh() {
   const ModsTarget t = mods_here();
   const GameOfMods as(t.game);
+  // game_version= against the game the mods are for: this build's, or mw3pm's own (read from its file).
+  mech3::mods_program_version() = mods_pm_ ? pm_program_ : std::string(MW3_VERSION);
   // CHECK reads the install with this program's readers: MechWarrior 3's only (mw3pm --check-mod checks PM's).
   mods_ = mech3::mods_list(t.write_dir, mech3::mods_enabled(t.write_dir), mods_checked_ && !mods_pm_, mods_install());
   if (mod_sel_ >= static_cast<int>(mods_.size())) mod_sel_ = static_cast<int>(mods_.size()) - 1;
@@ -1921,6 +1924,7 @@ void Launcher::show_mod_report(const mech3::ModsListEntry& e) {
     }
     if (code < 0 || sentences.empty()) sentences = {"Pirate's Moon could not check this mod (its program did not answer)."};
   }
+  sentences.insert(sentences.begin(), e.needs.begin(), e.needs.end());  // what it needs first (mod_needs.h)
   report_lines_.clear();
   for (const std::string& s : sentences)
     for (const std::string& w : text_.wrap(s, 13, kUpdateWidth)) report_lines_.push_back(w);
@@ -1985,6 +1989,8 @@ std::string Launcher::mod_line(const mech3::ModsListEntry& e) const {
     s += " - shares " + std::to_string(e.shadowed.size() + e.rows_taken.size() + e.anims_taken.size() + e.anim_bases.size()) +
          " with " + with + " (above wins)";
   }
+  if (e.on && !e.needs.empty())
+    s += " - " + std::to_string(e.needs.size()) + (e.needs.size() == 1 ? " warning" : " warnings") + " (CHECK)";
   if (e.anims_unread > 0)
     s += " - " + std::to_string(e.anims_unread) + (e.anims_unread == 1 ? " animation file" : " animation files") + " Pirate's Moon does not read";
   if (e.check_errors == 0) s += " - check: fine";
@@ -2007,6 +2013,12 @@ void Launcher::activate(int id) {
     mods_save(on, folder + (now ? " on" : " off"));
     for (size_t k = 0; k < mods_.size(); ++k)
       if (mods_[k].info.folder == folder) mod_sel_ = static_cast<int>(k);
+    // Ours (mod_needs.h): turned on all the same; what it needs said on the status line.
+    if (now && mod_sel_ >= 0 && !mods_[static_cast<size_t>(mod_sel_)].needs.empty()) {
+      const std::vector<std::string>& w = mods_[static_cast<size_t>(mod_sel_)].needs;
+      status_ = w[0] + (w.size() > 1 ? " (" + std::to_string(w.size() - 1) + " more: CHECK)" : ""), status_good_ = false;
+      std::printf("mw3: launcher: mods: %s warns: %s\n", folder.c_str(), w[0].c_str());
+    }
     layout();
     return;
   }

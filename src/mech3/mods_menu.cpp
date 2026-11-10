@@ -45,12 +45,22 @@ ModsTables mods_tables(const std::string& write_dir, const std::vector<std::stri
 
 std::string mods_row_text(const ModsListEntry& m) {
   const std::string& name = m.info.name.empty() ? m.info.folder : m.info.name;
-  const bool flagged = !m.info.error.empty() || !m.conflicts_with.empty();
+  const bool flagged = !m.info.error.empty() || !m.conflicts_with.empty() || (m.on && !m.needs.empty());
   return std::string(m.on ? "[x] " : "[ ] ") + name + (flagged ? " !" : "");
 }
 
 std::string mods_row_note(const ModsListEntry& m, const std::vector<ModsListEntry>& all) {
   if (!m.info.error.empty()) return "Cannot be used: " + m.info.error;
+  // Ours (mod_needs.h): what it needs first, an off mod's as what turning it on would warn of.
+  std::string needs;
+  for (const std::string& w : m.needs) needs += (needs.empty() ? "" : " ") + w;
+  if (!needs.empty() && !m.on) needs = "Turned on: " + needs;
+  const std::string rest = mods_row_note_shared(m, all);
+  return needs.empty() ? rest : rest.empty() ? needs : needs + " " + rest;
+}
+
+// The rest of a row's note: what it shares, the animation files not read.
+std::string mods_row_note_shared(const ModsListEntry& m, const std::vector<ModsListEntry>& all) {
   const std::string unread = m.anims_unread > 0 ? std::to_string(m.anims_unread) + (m.anims_unread == 1 ? " animation file" : " animation files") +
                                                       " Pirate's Moon does not read"
                                                 : std::string();
@@ -418,6 +428,7 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
     case kDown:
       if (const ModsListEntry* m = chosen_mod()) {
         const std::string folder = m->info.folder;
+        const bool turning_on = id == kToggle && std::find(enabled.begin(), enabled.end(), folder) == enabled.end();
         if (id == kToggle) mods_toggle(enabled, folder);
         else mods_move(enabled, folder, id == kUp ? -1 : 1);
         mods_save_enabled(dir, enabled);
@@ -426,6 +437,10 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
           if (tables.mods[static_cast<size_t>(i)].info.folder == folder) mod_list.FileList::select(i);
         focus = kMods;
         show_details();
+        // Ours (mod_needs.h): turned on all the same, its warnings said.
+        for (const ModsListEntry& e : tables.mods)
+          if (turning_on && e.info.folder == folder && !e.needs.empty())
+            tell(e.needs[0] + (e.needs.size() > 1 ? " (" + std::to_string(e.needs.size() - 1) + " more: REPORT)" : ""));
       }
       return;
     case kEnter:
@@ -571,7 +586,11 @@ void ModsScreen::report() {
   }
   int refused = 0;
   std::vector<std::string> lines;
-  for (const std::string& s : mod_report(path, mods_menu_install(), folder, &refused))
+  std::vector<std::string> sentences;
+  for (const ModsListEntry& e : tables.mods)
+    if (e.info.folder == folder) sentences = e.needs;  // what it needs first (mod_needs.h)
+  for (const std::string& s : mod_report(path, mods_menu_install(), folder, &refused)) sentences.push_back(s);
+  for (const std::string& s : sentences)
     for (const std::string& l : mod_report_wrap(s, kReportWidth)) lines.push_back(l);
   reporting = true;
   campaign_list.clear_items();

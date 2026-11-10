@@ -37,6 +37,7 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "upgrades/mods/mod_needs.h"
 #include "upgrades/mods/mod_report.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "mech3/mods_tables.h"
@@ -843,8 +844,64 @@ TEST(mods_pm_anim_files_it_does_not_read_are_said) {
     std::printf("  %s: said %zu\n", g, said);
     EXPECT(said == (pm ? 2u : 0u));
     for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"a", "b"})) EXPECT(e.anims_unread == (pm ? 2 : 0));
+    // And the report says them (mod_report.h).
+    std::string sentences;
+    for (const std::string& l : mech3::mod_report(wd + "/mods/a", "", "")) sentences += l + "\n";
+    EXPECT((sentences.find("2 of its animation files are not read by Pirate's Moon") != std::string::npos) == pm);
   }
   mech3::mods_game() = game;
+}
+
+// Modder step 7 (modding.md, Requirements in mod.txt): needs=, conflicts= and
+// game_version= read, and warned of against the other mods and the program
+// (missing, off, older, a conflict either way said once, a newer program
+// needed); an off mod's as if turned on; a row with one flagged, its note
+// saying it first. Nothing refuses a mod.
+TEST(mods_needs_warn_never_block) {
+  mech3::ModInfo m;
+  EXPECT(mech3::mod_parse("name=X\nneeds=Green HUD 1.2\nneeds=base\nneeds=Pack v2\nconflicts=Red HUD\ngame_version=1.1.0\n", &m));
+  EXPECT((m.needs == std::vector<std::pair<std::string, std::string>>{{"Green HUD", "1.2"}, {"base", ""}, {"Pack", "v2"}}));
+  EXPECT((m.conflicts == std::vector<std::string>{"Red HUD"}) && m.game_version == "1.1.0" && m.error.empty());
+  const std::string wd = tmp("mods_needs");
+  put(wd + "/mods/x/mod.txt", "name=X\nneeds=Green HUD 1.2\nneeds=base\nneeds=gone\nconflicts=Red HUD\ngame_version=1.1.0\n");
+  put(wd + "/mods/green/mod.txt", "name=Green HUD\nversion=1.1\n");
+  put(wd + "/mods/base/mod.txt", "name=Base\n");
+  put(wd + "/mods/red/mod.txt", "name=Red HUD\nconflicts=x\n");  // naming x back: said once
+  put(wd + "/mods/ok/mod.txt", "name=OK\nneeds=green\ngame_version=1.0\n");
+  const std::string program = mech3::mods_program_version();
+  mech3::mods_program_version() = "v1.0.5-280-gabc";
+  const std::vector<mech3::ModsListEntry> l = mech3::mods_list(wd, {"green", "red", "ok"});
+  std::string rows;
+  for (const mech3::ModsListEntry& e : l) {
+    rows += mech3::mods_row_text(e) + "|";
+    std::printf("  %s:", e.info.folder.c_str());
+    for (const std::string& w : e.needs) std::printf(" [%s]", w.c_str());
+    std::printf("\n");
+  }
+  std::printf("  rows: %s\n", rows.c_str());
+  for (const mech3::ModsListEntry& e : l) {
+    if (e.info.folder == "x") {
+      EXPECT((e.needs == std::vector<std::string>{
+                  "It needs Green HUD 1.2 or later; that mod is 1.1.", "It needs Base, which is off.",
+                  "It needs the mod gone, which is not in the mods folder.", "It conflicts with Red HUD, which is on.",
+                  "It needs MechWarrior 3 Rebuild 1.1.0 or later; this is 1.0.5-280-gabc."}));
+      EXPECT(!e.on && mech3::mods_row_note(e, l).rfind("Turned on: It needs Green HUD 1.2 or later", 0) == 0);
+      EXPECT(mech3::mods_row_text(e) == "[ ] X");  // off: not flagged
+    }
+    if (e.info.folder == "ok") EXPECT(e.on && e.needs.empty() && mech3::mods_row_text(e) == "[x] OK");
+    if (e.info.folder == "red") EXPECT(e.needs.empty());  // x is off: no conflict on
+  }
+  // x on: its row flagged, its note saying what it needs; red now warns of x (x names it), once.
+  const std::vector<mech3::ModsListEntry> on = mech3::mods_list(wd, {"green", "red", "ok", "x"});
+  for (const mech3::ModsListEntry& e : on) {
+    if (e.info.folder == "x") EXPECT(e.on && e.needs.size() == 5 && mech3::mods_row_text(e) == "[x] X !" &&
+                                     mech3::mods_row_note(e, on).rfind("It needs Green HUD", 0) == 0);
+    if (e.info.folder == "red") EXPECT((e.needs == std::vector<std::string>{"It conflicts with X, which is on."}));
+  }
+  mech3::mods_program_version() = "";  // unknown: game_version= not checked
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"x"}))
+    if (e.info.folder == "x") EXPECT(std::none_of(e.needs.begin(), e.needs.end(), [](const std::string& w) { return w.find("Rebuild") != std::string::npos; }));
+  mech3::mods_program_version() = program;
 }
 
 TEST(mods_list_for_the_launcher) {
