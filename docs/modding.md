@@ -16,12 +16,14 @@ that reads a file is covered, not only its reader; a file's own names (a
 weapon's, a record's) are declared per file and left out. A key the code
 reads but no shipped mission reaches is marked unchecked in the document.
 Covered so far: mod.txt, custom campaigns, weapons.zrd, the mech
-definitions, aiv.zrd, targets.zrd, the AI nets and regions, valves.zrd and
-objectives.zrd, and the script commands (every name the preprocessor, the
-dispatcher and MW3's pre hook test, from an unknown word under each first
-letter, and each command's arguments as it reads them, from running it with
-0 to 12 numbers on a stand-in node and no engine; they agree with
-interp.md's table from the disassembly); the JSON forms follow.
+definitions, aiv.zrd, targets.zrd, the AI nets and regions, valves.zrd,
+objectives.zrd, aiTurrets.zrd, vehicle.zrd, world.zrd, landmines.zrd,
+hud.zrd, sounds.zrd, the dialogs (the check also opens every main menu
+screen and the options' pages for them) and the script commands; the JSON
+forms follow. A file's own names are declared per file (`names_at`: a path,
+`@top` for a record asked of the root by name, `m<n>` for the missions'
+blocks, `any:KEY` for the list after KEY wherever it stands); a key the
+registry lists is a key wherever it stands.
 
 ## A mod (M1, 2026-11-01)
 

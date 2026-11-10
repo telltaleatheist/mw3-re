@@ -9797,6 +9797,7 @@ std::string ref_kind(const std::string& name) {
   for (char c : name)
     if (!std::isdigit(static_cast<unsigned char>(c))) k += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   if (k.rfind("dfn_", 0) == 0) return "dfn";
+  if (k.rfind("dlg", 0) == 0 || k == "dialog.zrd" || k == "briefing.zrd") return "dialog";
   if (k.rfind("reg_", 0) == 0) return "region";
   if (k.rfind("net_", 0) == 0 || k.rfind("waynet_", 0) == 0) return "net";
   return k;
@@ -9837,6 +9838,25 @@ void ref_record(RefRun* out, const std::function<void()>& run) {
         const size_t semi = std::min(paths.find(';', at), paths.size());
         const std::string path = paths.substr(at, semi - at);
         at = semi + 1;
+        if (path == "@top" || path == "m<n>") continue;  // rules the lookup applies (above)
+        if (path.rfind("any:", 0) == 0) {  // the list after KEY, wherever KEY stands
+          const std::string key = path.substr(4);
+          std::function<void(const zrdr::Node*)> walk = [&](const zrdr::Node* l) {
+            if (!l || l->type != zrdr::List) return;
+            for (int32_t i = 1; i < l->list[0].i; ++i) {
+              const zrdr::Node& it = l->list[i];
+              if (it.type == zrdr::String && it.s && key == it.s && i + 1 < l->list[0].i && l->list[i + 1].type == zrdr::List) {
+                const zrdr::Node& names = l->list[i + 1];
+                for (int32_t n = 1; n + 1 < names.list[0].i; ++n)
+                  if (names.list[n].type == zrdr::String && names.list[n].s && names.list[n + 1].type == zrdr::List)
+                    ref_run()->names[k].insert(names.list[n].s);
+              }
+              walk(&it);
+            }
+          };
+          walk(top);
+          continue;
+        }
         const zrdr::Node* n = path.empty() ? top : zrdr::find(const_cast<zrdr::Node*>(top), path.c_str());
         if (!n || n->type != zrdr::List) continue;
         for (int32_t i = 1; i + 1 < n->list[0].i; ++i)
@@ -9851,7 +9871,20 @@ void ref_record(RefRun* out, const std::function<void()>& run) {
     for (auto& [k, v] : ref_run()->roots) v.erase(std::remove(v.begin(), v.end(), node), v.end());
   };
   ref::observer() = [](const char*, const char* key, const void* node) {
-    if (auto it = ref_run()->owner.find(node); it != ref_run()->owner.end()) ref_run()->keys[it->second].insert(key);
+    auto it = ref_run()->owner.find(node);
+    if (it == ref_run()->owner.end()) return;
+    // names_at "@top": a key asked of the file's root is a record's name (is
+    // there a vehicle of this type?); "m<n>": the missions' blocks.
+    for (const upgrades::reference::File& f : upgrades::reference::files()) {
+      if (it->second != f.id || !f.names_at) continue;
+      const std::string rules = std::string(";") + f.names_at + ";";
+      const auto& roots = ref_run()->roots[it->second];
+      const bool top = std::find(roots.begin(), roots.end(), node) != roots.end();
+      const bool mission = key[0] == 'm' && key[1] && std::all_of(key + 1, key + std::strlen(key), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); });
+      if ((top && rules.find(";@top;") != std::string::npos) || (mission && rules.find(";m<n>;") != std::string::npos))
+        ref_run()->names[it->second].insert(key);
+    }
+    ref_run()->keys[it->second].insert(key);
   };
   run();
   ref::observer() = nullptr, ref::free_observer() = nullptr, ref::load_observer() = nullptr;
@@ -9872,6 +9905,82 @@ TEST(reference_files_keys_are_the_readers_headless) {
   static const M kMissions[] = {{0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 1}, {1, 2}, {1, 3}, {1, 4}, {2, 1}, {2, 2}, {2, 3},
                                 {2, 4}, {2, 5}, {2, 6}, {3, 1}, {3, 2}, {3, 3}, {4, 4}, {4, 5}, {4, 6}, {5, 1}};
   RefRun run;
+  // The menus first (their dialogs: dialog.zrd, the dlg*.zrd files): each
+  // main menu screen opened, and the game options' three pages, in a fresh
+  // app each, 20 frames on the screen.
+  struct Walk { int32_t button; int page; };  // a MainMenuButton (-1 MODS); 1 graphics, 2 controls, 3 upgrades
+  static const Walk kWalks[] = {{mech3::MainMenuButton::kInstantAction, 0}, {mech3::MainMenuButton::kNewCampaign, 0},
+                                {mech3::MainMenuButton::kMultiplayer, 0},   {mech3::MainMenuButton::kTraining, 0},
+                                {mech3::MainMenuButton::kOptions, 0},       {mech3::MainMenuButton::kOptions, 1},
+                                {mech3::MainMenuButton::kOptions, 2},       {mech3::MainMenuButton::kOptions, 3},
+                                {mech3::MainMenuButton::kCredits, 0},       {-1, 0}};
+  int walked = 0;
+  for (const Walk& walk : kWalks) {
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("reference_files_menus"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::options() = mech3::Options{};
+    const bool mods_page = mech3::mods_menu_page(), upgrades_page = mech3::options_upgrades_page();
+    mech3::mods_menu_page() = true, mech3::options_upgrades_page() = true;
+    mech3::mods_menu_write_dir() = temp_dir("reference_files_menus");
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    int stage = 0, frames = 0;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      ref_record(&run, [&] {
+        EXPECT(app.init_instance());
+        engine.on_present = [&](int) {
+          if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+            auto* menu = const_cast<mech3::MainMenu*>(mech3::main_menu());
+            (walk.button < 0 ? menu->mods : menu->buttons[walk.button]).on_left_up();
+            stage = 1;
+          } else if (stage == 1 && app.current() != &mech3::states().main) {
+            if (walk.page) {
+              auto* os = dynamic_cast<mech3::OptionsState*>(app.current());
+              auto* g = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+              if (!g) return;
+              if (walk.page == 1) g->gfx_audio.on_left_up();
+              else if (walk.page == 2) g->controls.on_left_up();
+              else g->upgrades.on_left_up();
+            }
+            stage = 2;
+          } else if (stage == 2 && ++frames >= 20) {
+            stage = 3;
+          }
+        };
+        CountingPump pump;
+        pump.limit = 1500;
+        pump.stop = [&] { return stage == 3; };
+        app.run(pump);
+      });
+      walked += stage == 3;
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    mech3::mods_menu_page() = mods_page, mech3::options_upgrades_page() = upgrades_page;
+    mech3::mods_menu_write_dir().clear();
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+  std::printf("  menus walked: %d of %zu\n", walked, std::size(kWalks));
+  EXPECT(walked == static_cast<int>(std::size(kWalks)));
   int launched = 0;
   for (const M& mission : kMissions) {
     SavedMounts keep;
@@ -9933,12 +10042,14 @@ TEST(reference_files_keys_are_the_readers_headless) {
     const auto it = run.keys.find(f.id);
     const std::string id = f.id;
     if (id == "mod.txt" || id == "campaign" || id == "interp") continue;  // not reader files: test_reference.cpp
+    std::set<std::string> reg, unchecked;
+    for (const ref::Key& k : f.keys) (k.unchecked ? unchecked : reg).insert(k.key);
+    // A file's names leave the lookups, but a key the registry lists is a key
+    // wherever it stands (SHARED_IMAGE_PATH beside the dialogs' own names).
     std::set<std::string> read;
     if (it != run.keys.end())
       for (const std::string& k : it->second)
-        if (!run.names[f.id].count(k)) read.insert(k);
-    std::set<std::string> reg, unchecked;
-    for (const ref::Key& k : f.keys) (k.unchecked ? unchecked : reg).insert(k.key);
+        if (!run.names[f.id].count(k) || reg.count(k) || unchecked.count(k)) read.insert(k);
     std::string missing, dead, reached;
     for (const std::string& k : read)
       if (!reg.count(k) && !unchecked.count(k)) missing += k + " ";

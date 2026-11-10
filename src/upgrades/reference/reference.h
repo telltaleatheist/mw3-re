@@ -32,7 +32,8 @@ struct File {
   std::vector<Key> keys;
   // Where the file's own names sit (records the modder names, not keys):
   // paths whose list-valued children are names, ';' between, "" the top;
-  // null none. The test leaves lookups of those names out.
+  // "@top" any key asked of the file's root (a record looked up by name);
+  // "m<n>" the missions' blocks; null none. The test leaves those out.
   const char* names_at = nullptr;
 };
 
@@ -92,5 +93,12 @@ File regions();
 File valves();
 File objectives();
 File interp();
+File turrets();
+File vehicles();
+File world();
+File landmines();
+File hud();
+File sounds();
+File dialogs();
 
 }  // namespace upgrades::reference

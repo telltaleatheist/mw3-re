@@ -435,6 +435,287 @@ One block per mission (`m1`, `m2`, ...). Each group holds `type (arguments)` pai
 | `button` | mouse_press, joystick_press | left/right/middle, or a number | none | - | The button. (No shipped mission reaches this read: not checked.) |
 | `weapon` | weapon_fire, weapon_select | a weapon's name | none | - | The weapon. (No shipped mission reaches this read: not checked.) |
 
+## aiTurrets.zrd (the turrets)
+
+- Where: `zbd\reader.zbd`
+- Read by: `Turret::setup` 0x004a6270 (`mech3/turret.cpp`)
+
+`GENERIC_DESTROY_ANIM`, then `TURRET` holding one record per turret type, by the name the world's turret nodes carry (docs/vehicles.md, The turrets).
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `GENERIC_DESTROY_ANIM` | top | an animation | none | - | Played when a turret without its own is destroyed. |
+| `TURRET` | top | `NAME ( ... )` records | none | - | The turret types. |
+| `PARTS` | TURRET/<turret> | list of 2 to 4 node names | none | - | Its turning part, its gun and one or two firepoints. |
+| `DEACTIVATE` | TURRET/<turret> | list: node [subnodes] | none | - | A node whose loss shuts it down. |
+| `EFFECT` | TURRET/<turret> | list: node time | none | - | A scrolling effect node, and how long it runs. |
+| `HEALTH` | TURRET/<turret> | float | 1 | - | Its health. |
+| `DESTROY_ANIM` | TURRET/<turret> | an animation | the node's or the generic | - | Played when it is destroyed. |
+| `ONFIRE_ANIM` | TURRET/<turret> | list of animations | none | - | Played as it fires. |
+| `WAKEUP_ANIM` | TURRET/<turret> | list of animations | none | - | Played as it wakes. |
+| `SLEEP_ANIM` | TURRET/<turret> | list of animations | none | - | Played as it sleeps. |
+| `AUX_ANIM` | TURRET/<turret> | list of animations | none | - | Others it runs. |
+| `IS_IDLE` | TURRET/<turret> | flag | unset | - | Starts idle. |
+| `SOUNDS` | TURRET/<turret> | a block | none | - | Its sounds: `FIRE`. |
+| `FIRE` | TURRET/<turret>/SOUNDS | a sound | none | - | Played as it fires. |
+| `LIMITS` | TURRET/<turret> | a block | none | - | How far it turns: `YAW`. |
+| `YAW` | TURRET/<turret>/LIMITS | list: min max (deg) | -360 360 | - | Its yaw range. |
+| `BBOX` | TURRET/<turret> | int | 1 | - | Hit by its box (1) or its polygons. |
+| `WEAPON` | TURRET/<turret> | a block | none | - | Its weapon: the keys below. |
+| `NAME` | TURRET/<turret>/WEAPON | a weapons.zrd name | none | - | The weapon. |
+| `AMMO` | TURRET/<turret>/WEAPON | int | 0 (unlimited) | - | Its rounds. |
+| `DETECTION_RANGE` | TURRET/<turret>/WEAPON | float (m) | the weapon's range (200 without one) | - | How far it sees. |
+| `FIRE_LIMITS` | TURRET/<turret>/WEAPON | list: two floats | none | - | Its bursts' bounds. |
+| `FIRE_RATE` | TURRET/<turret>/WEAPON | float | the weapon's | - | How fast it fires. |
+| `AMS_RANGE` | TURRET/<turret> | float (m) | no AMS | - | An anti-missile system with this range. |
+| `TURRET_HEIGHT` | TURRET/<turret> | float (m) | the model's | - | Its height. |
+
+## vehicle.zrd (the vehicles)
+
+- Where: `zbd\reader.zbd`
+- Read by: the vehicle setup (`mech3/veh_controls.cpp`, `veh_basic_object.cpp`, `veh_stealth.cpp`, `player.cpp`; docs/vehicles.md)
+
+One record per vehicle type by name (`apc`, `owens`, `mobilehq`, `stealth`, ...; aiv.zrd's records name them). Its `common_mode` block holds the motion's keys (docs/vehicles.md, The motion block).
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `health` | <vehicle> | float | the default | - | Its health. |
+| `start_anims` | <vehicle> | list of animations | none | - | Started when it is made. |
+| `sounds` | <vehicle> | a block | none | - | Its sounds: `engine`. |
+| `engine` | <vehicle>/sounds | a sound | none | - | Its engine's loop. |
+| `motion_anim` | <vehicle> | an animation | none | - | Its motion animation. |
+| `weapons` | <vehicle> | list of (weapon ...) | none | - | Its weapons and their slots. |
+| `firepoint` | <vehicle>/weapons | a node's name | `firepoint` | - | Where the weapons fire from. |
+| `common_mode` | <vehicle> | a block | none | - | Its motion: the keys below. |
+| `platform` | <vehicle>/common_mode | list of points | the model's support points | required without them | Its supports. |
+| `collision` | <vehicle>/common_mode | list of points | the model's collide points | required without them | Its collision points. |
+| `rates` | <vehicle>/common_mode | list: two floats | 10 30 | - | Its acceleration rates. |
+| `friction` | <vehicle>/common_mode | list: three floats | 10000 10 0 | - | Its friction. |
+| `stopping` | <vehicle>/common_mode | float | 8 | - | How fast it stops. |
+| `quicksand_slowdown` | <vehicle>/common_mode | float | 0.9 | - | Its speed in quicksand. |
+| `lava_slowdown` | <vehicle>/common_mode | float | 0.8 | - | Its speed on lava. |
+| `turns` | <vehicle>/common_mode | list: two floats | 0.6 2 | - | How it turns. |
+| `turn_damping` | <vehicle>/common_mode | float | 30 | - | How its turning damps. |
+| `rate_damping` | <vehicle>/common_mode | list: two floats | 30 30 | - | How its speed damps. |
+| `a_damping` | <vehicle>/common_mode | float | 8 | - | How its tilt damps. |
+| `mass` | <vehicle>/common_mode | float | 1 | - | Its mass. |
+| `gun_pitch` | <vehicle>/common_mode | list: min (deg) and a rate | -15 0.5 | - | Its gun's pitch. |
+| `mode` | <vehicle>/common_mode | `basic`, `fly`, `sub`, `track`, `hover` or `amphib` | track | by its first two letters | How it moves. |
+| `amphib_wave` | <vehicle>/common_mode | list | none | the last given wins | Its bobbing on water. |
+| `hover_wave` | <vehicle>/common_mode | list | none | the last given wins | Its hovering bob. |
+| `sub_wave` | <vehicle>/common_mode | list | none | the last given wins | Its bob under water. |
+| `mode_alt` | <vehicle>/common_mode | float | 2 | - | Its height over the ground. |
+| `chas_smooth` | <vehicle>/common_mode | float | 0 | - | How its chassis follows. |
+| `chas_pitch` | <vehicle>/common_mode | list | 0 | - | Its chassis' pitch. |
+| `chas_roll` | <vehicle>/common_mode | list | 0 | - | Its chassis' roll. |
+| `collision_d` | <vehicle>/common_mode | list: two floats | 0.5 0.15 | - | Its collision response. |
+
+## world.zrd (a mission's sky and weather)
+
+- Where: each world's reader archive
+- Read by: the world parameters (`mech3/mission_world.cpp`; multiplayer's `mpinfo.zrd` `world_params` the same)
+
+One block per mission (`m1`, `m2`, ...).
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `fog` | m<n> | a block | no fog | - | Fog: the keys below. |
+| `range` | m<n>/fog, underwater | list: near far | the world's | - | Where it starts and ends. |
+| `hwrange` | m<n>/fog, underwater | list: near far | range | hardware rendering only | The same on hardware. |
+| `color` | m<n>/fog, underwater, weather | list: r g b | the world's | - | Its colour. |
+| `altitude` | m<n>/fog, underwater | list: low high | the world's | - | Its height band. |
+| `state` | m<n>/fog | int | 0 | - | Its state. |
+| `node` | m<n>/fog | a node's name | required with fog | - | The sky node. |
+| `underwater` | m<n> | a block | none | - | Under water: range, hwrange, color, altitude. |
+| `jet_ceiling` | m<n> | float (m) | 150 | - | How high jump jets reach. |
+| `global_wind` | m<n> | a block | none | - | The wind: the keys below. |
+| `max_speed` | m<n>/global_wind | float | unset | - | Its top speed. |
+| `random_accel` | m<n>/global_wind | float | unset | - | How it gusts. |
+| `random_angvel` | m<n>/global_wind | float (deg) | unset | - | How it veers. |
+| `velocity` | m<n>/global_wind | list: x y z | unset | - | Its steady part. |
+| `sun` | m<n> | a block | the world's | - | The sun: the keys below. |
+| `orientation` | m<n>/sun | list: three angles (deg) | the world's | - | Where it shines from. |
+| `diffuse` | m<n>/sun | float | the world's | - | Its light. |
+| `ambient` | m<n>/sun | float | the world's | - | The ambient light. |
+| `ambient_temperature` | m<n> | float | 20 | > 0, else 20 | The air's temperature (heat). |
+| `weather` | m<n> | a block | none | - | Snow or rain: the keys below. |
+| `particles` | m<n>/weather | int | 100 | - | How many. |
+| `type` | m<n>/weather | `SNOW` or `RAIN` | none | - | Which. |
+| `wind` | m<n>/weather | a block: dir vel | 0 0 | - | How it drifts. |
+| `dir` | m<n>/weather/wind | float | 0 | - | Its direction. |
+| `vel` | m<n>/weather/wind | float | 0 | - | Its speed. |
+| `gravity` | m<n>/weather | float | 0 | - | How fast it falls. |
+| `alpha_gradient` | m<n>/weather | list: two floats | 0 0 | - | How it fades. |
+| `fluctuate` | m<n> | a block | none | - | Moving cloud shadows: the keys below. |
+| `period` | m<n>/fluctuate | float | 5 | - | Their period. |
+| `wavelength` | m<n>/fluctuate | float | 500 | - | Their size. |
+| `base` | m<n>/fluctuate | float | 0.7 | - | The light's base. |
+| `amplitude` | m<n>/fluctuate | float | 0.3 | - | How much it varies. |
+| `heading` | m<n>/fluctuate | float (deg) | 0 | - | Which way they move. |
+
+## landmines.zrd (a world's mines)
+
+- Where: each world's reader archive
+- Read by: `landmines_load` 0x004135c0 (`mech3/landmines.cpp`)
+
+`weapon` and `radius`, then one block per mission (`m1`, ...) of `(x y z)` points, each an armed mine.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `weapon` | top | a weapons.zrd name | required | - | What a mine is. |
+| `radius` | top | float (m) | 20 | - | How close sets one off. |
+
+## hud.zrd (the cockpit's layout)
+
+- Where: `zbd\reader.zbd`
+- Read by: the HUD (`mech3/hud.cpp`; docs/hud.md)
+
+One block per screen size (`V640x480`, `V800x600`, ... `V1600x1200`); the port takes `V640x480` and moves each piece with the screen's edge it belongs to.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `MFD` | V<w>x<h> | a block | none | - | The multi-function display: position, size. |
+| `TARGET` | V<w>x<h> | a block | none | - | The target window: position, size. |
+| `TIMER` | V<w>x<h> | a block | none | - | The timer: position. |
+| `WEAPONS` | V<w>x<h> | a block | none | - | The weapon list: position, width. |
+| `EQUIPMENT` | V<w>x<h> | a block | none | - | The equipment list: position, width. |
+| `COMPASS` | V<w>x<h> | a block | none | - | The compass: tape, frame. |
+| `GAUGES` | V<w>x<h> | a block | none | - | The gauges: the frames and the heat pieces. |
+| `position` | MFD, TARGET, TIMER, WEAPONS, EQUIPMENT | list: x y | none | - | Where it sits. |
+| `size` | MFD, TARGET | list: w h | none | - | Its size. |
+| `width` | WEAPONS, EQUIPMENT | int | the default | - | Its width. |
+| `tape` | COMPASS | list: x y | none | - | The tape's place. |
+| `frame` | COMPASS | list: x y | none | - | The frame's place. |
+| `speed_frame` | GAUGES | list: x y | none | - | The speed gauge. |
+| `fuel_frame` | GAUGES | list: x y | none | - | The jump fuel gauge. |
+| `coolant_frame` | GAUGES | list: x y | none | - | The coolant gauge. |
+| `heat_bar` | GAUGES | list: x y | none | - | The heat bar. |
+| `heat_meter` | GAUGES | list: x y | none | - | The heat meter. |
+| `heat_text` | GAUGES | list: x y | none | - | The heat number. |
+| `heat_arrow` | GAUGES | list: x y | none | - | The heat arrow. |
+
+## sounds.zrd (the sounds)
+
+- Where: `zbd\reader.zbd`
+- Read by: zSound's reader (`gamez/zsound/zsnd_init.cpp`)
+
+The sound settings, then `SETS`: each set's sounds by name with their keys, and `SOUND_GROUPS`. A sound's flags are keys alone.
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `SYNTAX` | top | int | 1 | - | The file's form. |
+| `CD_TRACKS` | top | a block | none | - | The music tracks. |
+| `SOUND_PATH` | top | text | none | - | Added to where loose sound files are looked for. |
+| `HIGH_DEFAULT` | top | a format block | none | - | The default sound format at high quality. |
+| `MEDIUM_DEFAULT` | top | a format block | none | - | At medium quality. |
+| `LOW_DEFAULT` | top | a format block | none | - | At low quality. |
+| `SPEED_OF_SOUND` | top | float | the default | - | The speed of sound (the Doppler effect). |
+| `PLAYBACK_FORMAT` | top | a block: HIGH MEDIUM LOW | none | - | The output format by quality. |
+| `HIGH` | PLAYBACK_FORMAT, a sound | list: rate bits channels | none | - | At high quality. |
+| `MEDIUM` | PLAYBACK_FORMAT, a sound | list: rate bits channels | none | read with bug fixes on | At medium quality. |
+| `MED` | PLAYBACK_FORMAT, a sound | list | none | the original's spelling, read with bug fixes off | Never in the data: the original's medium quality took nothing. (No shipped mission reaches this read: not checked.) |
+| `LOW` | PLAYBACK_FORMAT, a sound | list: rate bits channels | none | - | At low quality. |
+| `SETS` | top | `NAME ( ... )` records | none | - | The sound sets. |
+| `DEMO_SETS` | top | the same | none | the demo build only | The demo's sets. (No shipped mission reaches this read: not checked.) |
+| `SUB_SET` | SETS/<set> | list of set names | none | - | Sets loaded with it. |
+| `3D` | SETS/<set>/<sound> | a key alone | off | - | Placed in the world. |
+| `LOOPED` | SETS/<set>/<sound> | a key alone | off | - | Loops. |
+| `FREQUENCY` | SETS/<set>/<sound> | a key alone | off | - | Its pitch can change. |
+| `HARDWARE` | SETS/<set>/<sound> | a key alone | off | - | Wants hardware mixing. |
+| `PURGEABLE` | SETS/<set>/<sound> | a key alone | off | - | Can be unloaded. |
+| `VOICE` | SETS/<set>/<sound> | a key alone | off | - | A voice (radio). |
+| `QUEUE` | SETS/<set>/<sound> | list | none | - | Queued after others. |
+| `VOLUME` | SETS/<set>/<sound> | float | 1 | - | Its volume. |
+| `A3DDIST` | SETS/<set>/<sound> | float | the default | - | Its 3D distance. |
+| `RANGE` | SETS/<set>/<sound> | list | none | - | How far it is heard. |
+| `MINDELAY` | SETS/<set>/<sound> | float (s) | 0 | - | The least time between two plays. |
+| `SUBTITLE` | SETS/<set>/<sound> | a message key | none | - | Its subtitle. |
+| `SOUND_GROUPS` | top | a block | none | - | The sound groups. |
+| `DEMO_GROUPS` | top | a block | none | the demo build only | The demo's groups. (No shipped mission reaches this read: not checked.) |
+
+## The dialogs (dialog.zrd, dlg*.zrd, briefing.zrd)
+
+- Where: `zbd\reader.zbd`
+- Read by: zTwoD's dialog reader (`Dialog::load` 0x0059f010) and each screen's binds (docs/twod.md, menus.md)
+
+One record per dialog by the name its screen asks for (`MAINMENU`, `GAME_OPTION_DIALOG`, `MESSAGEBOX`, ...). `PRIMITIVES` and `BUTTONS` hold the dialog's pictures and controls by name; a screen binds the names it knows (an unknown name is never shown, a missing one is reported and left out). The keys below are read by every screen's binds; this list is what the menus the check opens read (every main menu screen, the options' pages, the briefing, the message box).
+
+| Key | In | Type | When absent | Limits | What it does |
+|---|---|---|---|---|---|
+| `IMAGE_PATH` | a dialog | text: folders, `;` between | none | - | Where its pictures are found. |
+| `SHARED_IMAGE_PATH` | a dialog | text | none | - | More folders, shared with other dialogs. |
+| `PRIMITIVES` | a dialog | `NAME ( ... )` records | none | - | Its pictures (backgrounds, lines, boxes) by name. |
+| `BUTTONS` | a dialog | `NAME ( ... )` records | none | - | Its controls by name: the screen's buttons, lists, sliders. |
+| `CURSOR` | a dialog | a block | none | - | Its mouse cursor: `BITMAP`, `CENTER`, `CAPTURE`. |
+| `CAPTURE` | CURSOR | int | 0 | - | Keeps the cursor inside the dialog. |
+| `FONTS` | a dialog | a block | none | - | Fonts the dialog names. |
+| `BACKGROUND_IMAGES` | a dialog | list | none | - | Pictures shown behind it. |
+| `BACKGROUND_SOUNDS` | a dialog | list | none | - | Sounds played while it shows. |
+| `BACKGROUND_TEXT` | a dialog | list | none | - | Text shown behind it. |
+| `BACKGROUND_VIDEOS` | a dialog | list | none | - | Videos shown behind it. |
+| `MOUSETRAP` | a dialog | list | none | - | A rectangle the mouse is held in. |
+| `POSITION` | a button or picture | list: x y | 0 0 | - | Where it sits (640 x 480). |
+| `BITMAP` | a button or picture | a picture's name | none | - | Its picture. |
+| `AUXBITMAP` | a button or picture | a picture's name | none | the main menu's | A second picture (the main menu's glow). |
+| `CENTER` | a button or picture | flag | 0 | - | Its position is its centre. |
+| `SIZE` | a button or picture | list: w h | the picture's | - | Its size. |
+| `RECT` | a button or picture | list: x y w h | none | - | Its area. |
+| `LABEL` | a button or picture | text, or (text offset font) lists | none | - | Its words, their offset and font. |
+| `TEXT` | a button or picture | a message key | none | - | Its text. |
+| `FONT` | a button or picture | a font's name | the dialog's | - | Its font. |
+| `OFFSET` | a button or picture | list: x y | 0 0 | - | Its label's offset. |
+| `ROLLOVER` | a button or picture | a block | none | - | What changes under the mouse: picture, label, `SOUND`, `FLASH`. |
+| `ACTIVATE` | a button or picture | a block | none | - | What a press does: `SOUND`, picture. |
+| `DISABLE` | a button or picture | a block | none | - | How it looks when off. |
+| `DISABLE_SEL` | a button or picture | a block | none | - | How a check box looks when off and checked. |
+| `DISABLE_UNSEL` | a button or picture | a block | none | - | How a check box looks when off and not checked. |
+| `CHECKED` | a button or picture | a block | none | - | How a check box looks when checked. |
+| `FLASH` | a button or picture | list | none | - | A blinking label under the mouse. |
+| `SOUND` | a button or picture | a sound | none | - | Played (under the mouse, on a press). |
+| `GLOW_OFFSET` | a button or picture | list: x y | 0 0 | the main menu's | Where its glow sits. |
+| `HELP` | a button or picture | a message key | none | - | Its help line. |
+| `RADIUS` | a button or picture | int | the default | - | A round button's size. |
+| `MAXRADIUS` | a button or picture | int | the default | - | How far its glow grows. |
+| `FILLBITMAP` | a button or picture | a picture's name | none | a slider's | A slider's filled part. |
+| `WORDWRAP` | a button or picture | list | none | - | Text wrapped at a width. |
+| `UP` | a button or picture | a block | none | a list's | Its scroll-up arrow. |
+| `DOWN` | a button or picture | a block | none | a list's | Its scroll-down arrow. |
+| `NORMAL_FONT` | a list | a font's name | the dialog's | - | Its rows' font. |
+| `SELECTED_FONT` | a list | a font's name | NORMAL_FONT | - | The chosen row's font. |
+| `STATIC_FONT` | a list | a font's name | none | the mech lab's | Rows that cannot be chosen. |
+| `LIST_FONT` | a list | a font's name | the dialog's | - | A drop list's font. |
+| `SPACING` | a list | list: x y | 0 0 | - | The space between rows. |
+| `LISTSIZE` | a list | int | the default | - | Rows shown. |
+| `LISTWIDTH` | a list | int | the default | - | Its width. |
+| `LIST_OFFSET` | a list | list: x y | 0 0 | - | Where its rows start. |
+| `ACTIVE_RECT` | a list | list: x y w h | none | - | The area that takes clicks. |
+| `ITEMROLLOVER` | a list | a block | none | - | A row under the mouse. |
+| `BAR` | a list | a block | none | - | Its bar. |
+| `ROLLOVER_SOUND` | a list | a sound | none | - | Played over a row. |
+| `SELECT_SOUND` | a list | a sound | none | - | Played on choosing a row. |
+| `OPTIONTEXT` | the controls | a picture or text | none | - | The controls screen's description line. |
+| `SCROLLING_TEXT` | the credits | a block | none | - | The credits' text. |
+| `SCROLL_RATE` | the credits | float | the default | - | How fast the credits scroll. |
+| `MB_YES` | the message box | a button | not shown | - | Its YES button. |
+| `MB_NO` | the message box | a button | not shown | - | Its NO button. |
+| `MB_ABORT` | the message box | a button | not shown | - | Its ABORT button. |
+| `MB_RETRY` | the message box | a button | not shown | - | Its RETRY button. |
+| `MB_IGNORE` | the message box | a button | not shown | - | Its IGNORE button. |
+| `CALL_BUTTON` | the multiplayer screen | a button | not shown | - | Its CALL button. |
+| `MAP` | the briefing | a block | none | - | The briefing's map. |
+| `MARKERS` | the briefing | list | none | - | The map's markers, with the briefing's sounds. |
+| `at` | the briefing | number (s) | 0 | - | When a briefing step starts. |
+| `image` | the briefing | a picture's name | none | - | A briefing step's picture. |
+| `string` | the briefing | a message key | none | - | A briefing step's text. |
+| `label` | the briefing | a message key | none | - | A marker's label. |
+| `sound` | the briefing | a sound | none | - | A briefing step's sound. |
+| `color` | the briefing | list: r g b | white | - | A marker's colour. |
+| `radius` | the briefing | list: two ints | none | - | A marker's circle. |
+| `points` | the briefing | list of points | none | - | A marker's path. |
+| `offset` | the briefing | list: x y | 0 0 | - | A label's offset. |
+| `font` | the briefing | a font's name | the dialog's | - | A step's font. |
+| `inactive_font` | the action menu | a font's name | none | - | A choice that is off. |
+
 ## Script commands (interp.zbd, a world's .gs and .gw)
 
 - Where: `zbd\interp.zbd` (a mod's own scripts)
