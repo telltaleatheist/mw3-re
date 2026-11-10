@@ -562,11 +562,58 @@ the game's own with a mod ticked on the screen).
   the test screen and the list stays.
 - Changing a tick is not offered inside the test (it needs the restart): BACK,
   tick, TEST again.
-- EDITOR still says it is not available from MODS (step 4b).
+- EDITOR: step 4b, below.
 
 Tests: `mods_screen_test_plays_a_mission_and_comes_back_headless` (both
 halves), `sdl_program_mods_enter_plays_an_entry_and_back` (MODS, TEST, PLAY:
 the restart and the mission loading), `sdl_restart_args_are_the_starts_own`.
+
+### EDITOR through entries: Save as only (step 4b)
+
+The editor never changes the campaign it opened. Its saves go into a copy.
+
+- **On MODS**: EDITOR lists the chosen campaign's missions (TEST's list) and
+  PLAY starts the program again into the campaign with that mission open in
+  the editor (`--entry ID --entry-edit WORLD N`, `EntryRun::kEdit`).
+  Leaving the editor leaves the entry: MODS again, on the copy when one was
+  made, else on the campaign.
+- **The first save of a session** (`upgrades/editor/save_as`,
+  `editor_save_ready` at the head of every save command: the net editor's
+  Save Changes, the vehicle editor's Save, Add Vehicle, New Weapon, the
+  teleport places) opens a box, "Save as a new campaign", with a name
+  offered: "<campaign>, my edit", then "..., my edit 2" while a folder of
+  that name exists. Save makes the copy and runs the save; a name whose
+  folder exists keeps the box with the reason and a new suggestion, never
+  writing over; Cancel closes it and says "Nothing was saved." Later saves in
+  the session go into the copy, nothing asked.
+- **The copy** (`save_as_make_copy`): `mods\<name>` with the editor's marker
+  (`mw3-editor.txt`) and a mod.txt of `name=`, `kind=campaign`,
+  `base=<the entry edited>` and the base's `for=`. It holds only the files
+  changed. A file that is one archive of many records (a world's
+  `readerm<N>.zbd`, `reader.zbd`) is copied whole at its first edit, as the
+  editor's saves always were. Its entry starts with the ticks of the
+  campaign it was saved from, and it is listed in CAMPAIGNS as a copy.
+- **A copy edited** is saved into itself: it is ours.
+- **Never written**: the game's own campaign, an imported mod (campaign or
+  asset) and a folder put in `mods\` by hand. A save's target without the
+  editor's marker is refused in the one writer (`save_archive_edit`), and in
+  New Weapon's and the teleport's own file writes, whoever asks.
+- **New Weapon and the vehicle editor inside an entry** save into the same
+  copy: the weapon is part of that campaign's copy, on for it. A modder who
+  wants it as a mod that can be ticked for other campaigns ships it as an
+  asset mod of its own; EXPORT packs a copy as it is (a campaign copy, with
+  its `base=`), and cannot yet split its weapons out into an asset mod.
+- **Shift+F12 in a campaign played from MODS** saves the same way: into a
+  copy of that campaign, not into the campaign's mod.
+- Outside an entry (a developer's `--debug-camera` on a plain run) the saves
+  go to the editor's own "editor edits" mod as before. One left on a
+  tester's disk from earlier builds is not touched and is listed as whatever
+  its mod.txt reads as.
+
+Tests: `editor_saves_only_as_a_copy_of_the_campaign` (the rule on built
+folders, the copy, the box), `mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless`
+(both halves), `mods_campaign_mission_has_the_editor_headless`,
+`sdl_program_mods_enter_plays_an_entry_and_back` (MODS, EDITOR, PLAY).
 
 ### Instant Action's own MODS (first part)
 

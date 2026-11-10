@@ -231,6 +231,7 @@ add_library(mw3core STATIC
   src/upgrades/editor/help_vehicles.cpp
   src/upgrades/editor/help_weapons.cpp
   src/upgrades/editor/mods_edit.cpp
+  src/upgrades/editor/save_as.cpp
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp
   src/upgrades/editor/new_weapon.cpp
