@@ -296,6 +296,10 @@ Installed install_update(const std::string& download) {
   if (target.empty() || !is_our_app(target))
     return in.words = "This copy is not running from the MW3 Rebuild app, so it cannot replace itself: open the downloaded " +
                       fs::path(download).filename().string() + " and drag the app over the old one.", in;
+  // An app opened where it was downloaded runs from a read-only copy macOS makes (App Translocation).
+  if (target.find("/AppTranslocation/") != std::string::npos)
+    return in.words = "This copy runs from a read-only copy macOS made of the download, so it cannot replace itself: drag the app into Applications first, or open the downloaded " +
+                      fs::path(download).filename().string() + " and drag the app into Applications.", in;
   const fs::path mnt = fs::temp_directory_path(ec) / ("MW3-Rebuild-update-mount-" + unique_part());
   fs::create_directories(mnt, ec);
   std::string said;

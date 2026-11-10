@@ -1513,8 +1513,6 @@ std::string Launcher::in_use() const {
   return s;
 }
 
-// MechWarrior 3 started: by mw3launcher as the game's own program, else
-// (a plain mw3 start, or no game_bin) the window handed on.
 // A newer release found: its notes as plain lines wrapped to the screen, the first page, the question.
 void Launcher::show_update() {
   update_lines_.clear();
@@ -1532,6 +1530,8 @@ void Launcher::show_update() {
   if (SDL_getenv("MW3_LAUNCHER_UPDATE_GO")) activate(kUpdateGo);  // checks: DOWNLOAD AND INSTALL pressed
 }
 
+// MechWarrior 3 started: by mw3launcher as the game's own program, else
+// (a plain mw3 start, or no game_bin) the window handed on.
 void Launcher::play() {
   if (!mw3_ready()) return;
   // The movies converted here first, with the bar (Owen: a first start sat

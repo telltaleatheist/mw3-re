@@ -132,8 +132,14 @@ TEST(update_swaps_the_program_in_or_keeps_the_old) {
   put(root / "Apps" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "only-in-old", "x");
   put(root / "Apps" / "Something Else.app" / "keep", "theirs");
   put(root / "dmg" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "mw3launcher", "new");
-  put(root / "Apps" / "MW3 Rebuild.app.old" / "stale", "an earlier try's");
+  put(root / "Apps" / "MW3 Rebuild.app.old" / "Contents" / "MacOS" / "mw3launcher", "an earlier try's");
   std::string error;
+  // A folder of the player's where a leftover would be: kept, and the update stops (never-delete-foreign-folders).
+  put(root / "Apps" / "MW3 Rebuild.app.new" / "notes.txt", "theirs");
+  EXPECT(!u::swap_in((root / "dmg" / "MW3 Rebuild.app").string(), (root / "Apps" / "MW3 Rebuild.app").string(), &error) &&
+         text(root / "Apps" / "MW3 Rebuild.app.new" / "notes.txt") == "theirs" &&
+         text(root / "Apps" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "mw3launcher") == "old");
+  fs::remove_all(root / "Apps" / "MW3 Rebuild.app.new", ec);
   EXPECT(u::swap_in((root / "dmg" / "MW3 Rebuild.app").string(), (root / "Apps" / "MW3 Rebuild.app").string(), &error));
   EXPECT(text(root / "Apps" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "mw3launcher") == "new" &&
          !fs::exists(root / "Apps" / "MW3 Rebuild.app" / "Contents" / "MacOS" / "only-in-old"));

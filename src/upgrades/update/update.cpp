@@ -343,9 +343,15 @@ bool swap_in(const std::string& fresh, const std::string& target, std::string* e
   const fs::path to(target), staged(target + ".new"), old(target + ".old");
   if (!fs::exists(fresh, ec)) return *error = "the new copy is not there: " + fresh, false;
   if (!fs::exists(to, ec)) return *error = "the program to replace is not there: " + target, false;
-  // Leftovers of an earlier try (ours by their names) cleared first.
-  fs::remove_all(staged, ec);
-  fs::remove_all(old, ec);
+  // Leftovers of an earlier try cleared first, only when they are ours: a file, or a folder holding our launcher as
+  // the Mac app does; anything else in the way is the player's and stops the update.
+  for (const fs::path& left : {staged, old}) {
+    if (!fs::exists(fs::symlink_status(left, ec))) continue;
+    const bool ours = fs::is_regular_file(fs::symlink_status(left, ec)) ||
+                      (fs::is_directory(fs::symlink_status(left, ec)) && fs::is_regular_file(left / "Contents" / "MacOS" / "mw3launcher", ec));
+    if (!ours) return *error = left.string() + " is in the way and is not ours: move it and try again", false;
+    fs::remove_all(left, ec);
+  }
   fs::copy(fresh, staged, fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
   if (ec) {
     const std::string why = ec.message();
