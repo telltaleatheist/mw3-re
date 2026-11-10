@@ -29,6 +29,7 @@
 #include "mech3/patch_import.h"
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/sdl_restart.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
 #include "frontend/sdl/editor_imgui.h"
@@ -4678,7 +4679,7 @@ TEST(sdl_program_entry_mounts_its_mods) {
 // this start's, what a start into an entry adds taken out and `to`'s put in.
 TEST(sdl_restart_args_are_the_starts_own) {
   using V = std::vector<std::string>;
-  const V start = {"--write-dir", "C:/my games/mw3", "--windowed", "--mod", "weps", "--no-mods", "-nofmv"};
+  const V start = {"--write-dir", "C:/my games/mw3", "--windowed", "--mod", "weps", "--click-at", "1,2@3", "--tap", "28@9", "--no-mods", "-nofmv"};
   sdlfe::RestartTo ia;
   ia.entry = "ia", ia.screen = sdlfe::RestartTo::kInstantAction;
   const V in = sdlfe::restart_args(start, ia);
@@ -4752,6 +4753,78 @@ TEST(sdl_program_restarts_into_and_out_of_an_entry) {
   const std::string b((std::istreambuf_iterator<char>(g)), std::istreambuf_iterator<char>());
   EXPECT(b.find("mw3: entry nosuch: there is no such campaign") != std::string::npos &&
          b.find("mw3: the main menu opens on MODS") != std::string::npos);
+  fs::remove_all(dir, ec);
+}
+
+// Mods by campaign, step 2b: a plain start mounts no mods, whatever mw3.cfg's
+// mod= lines say (they were moved to the campaign entries); MODS's ENTER on a
+// custom campaign closes the game and starts it again into that campaign's
+// entry, its mods mounted, in the same process. Then a start into the entry
+// with a pilot of its own loaded: CANCEL on its pilot screen leaves to MODS,
+// the pilot's file closed before the exec and left as it was, the main
+// menu's pilots never made.
+TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
+  namespace fs = std::filesystem;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/entry play";  // a space in the path
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel) << text;
+  };
+  put("wd/mods/weps/mod.txt", "name=Weps\nweapon=GAUSS2 ammo=yes tech=sphere\n");
+  put("wd/mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\n");
+  put("wd/mods/camp/night.txt", "name=Long Night\nop=Op 1\nmission=c1 1\n");
+  put("wd/mw3.cfg", "mod=weps\n");
+  auto run = [&](const std::vector<std::string>& extra, const char* name) {
+    std::vector<std::string> args = {"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
+                                     "--frame-ms", "33", "--seed", "1", "--frames", "400"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    EXPECT(waited(spawn_mw3(args, log), &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto has = [](const std::string& text, const char* what, size_t from = 0) { return text.find(what, from); };
+  const size_t none = std::string::npos;
+  // MODS (the main menu), then ENTER on the campaign (the list's first row, chosen as the screen opens).
+  const std::string a = run({"--click-at", "135,435@130", "--click-at", "420,320@200"}, "a");
+  const size_t asked = has(a, "mw3: MODS: starting again into entry camp~night"), entered = has(a, "mw3: entry camp~night (Long Night): 1 mods");
+  std::printf("  moved %d, ENTER asked %d, entered %d\n", has(a, "mods: moved to their campaigns") != none, asked != none, entered != none);
+  EXPECT(has(a, "mods: mw3 takes the 1 mods mw3.cfg had on") != none && has(a, "mods: moved to their campaigns") != none);
+  EXPECT(asked != none && entered != none && asked < entered);
+  // The plain run is the original: weps, on in mw3.cfg, is named only by the move, never mounted.
+  EXPECT(a.substr(0, asked).find("mw3: entry") == none && a.substr(0, asked).find("mod weps") == none && a.substr(0, asked).find("Weps") == none);
+  EXPECT(has(a, "Camp", entered == none ? 0 : entered) != none);  // the entry's run mounts its mod
+  EXPECT(entered != none && has(a, "mw3: closed, result 0", entered) != none && has(a, "could not start again") == none);
+  EXPECT(fs::is_regular_file(dir + "/wd/campaigns/camp~night/mw3-campaign.txt"));
+  // A pilot of the entry's own, made as the game makes one.
+  {
+    const zutl::Mounts before = zutl::mounts();
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(dir + "/wd");
+    mech3::set_pilots_folder(mech3::entry_pilots_folder("camp~night"));
+    mech3::Pilot* p = mech3::create_pilot("Stepper");
+    EXPECT(p && p->save());
+    for (mech3::Pilot* q : mech3::pilots()) delete q;
+    mech3::pilots().clear();
+    mech3::current_pilot() = nullptr;
+    mech3::set_pilots_folder("");
+    zutl::mounts() = before;
+  }
+  const fs::path pilot = fs::path(dir) / "wd/campaigns/camp~night/pilots/Stepper.mw3";
+  EXPECT(fs::is_regular_file(pilot));
+  fs::remove_all(dir + "/wd/pilots", ec);
+  const std::string b = run({"--entry", "camp~night", "--entry-play", "--click-at", "495,405@150"}, "b");
+  const size_t left = has(b, "mw3: entry camp~night left: starting again on MODS"), mods = has(b, "mw3: the main menu opens on MODS (--open-mods)");
+  EXPECT(left != none && mods != none && left < mods && has(b, "mw3: closed, result 0", mods) != none);
+  for (size_t i = has(b, "still open: "); i != none; i = has(b, "still open: ", i + 1)) {
+    const std::string line = b.substr(i, b.find('\n', i) - i);
+    EXPECT(line.find(dir) == none);  // the pilot's file is not among them
+  }
+  EXPECT(fs::is_regular_file(pilot) && fs::file_size(pilot) > 0);
+  std::printf("  left %d, on MODS %d, the pilot kept %d\n", left != none, mods != none, fs::is_regular_file(pilot));
   fs::remove_all(dir, ec);
 }
 

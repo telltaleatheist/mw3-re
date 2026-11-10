@@ -76,6 +76,7 @@
 #include "frontend/sdl/run_log.h"
 #include "frontend/sdl/sdl_restart.h"
 #include "upgrades/mods/entry_run.h"
+#include "upgrades/mods/save_mods.h"
 #include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
@@ -731,7 +732,9 @@ int program(int argc, char** argv) {
   zutl::repair_old_names(a.write_dir);
   if (!a.hidden && !a.write_dir.empty()) sdlfe::crash_report_install("mw3", a.write_dir + "/mw3.log", true);
   if (!a.write_dir.empty()) read_config(a.write_dir, a);
-  if (!a.mods_given) a.mods = a.cfg_mods;
+  // Ours (docs/mods-campaigns-plan.md): a plain start mounts no mods, the main menu plays the original;
+  // mw3.cfg's mod= lines are only moved to the campaign entries (entries_migrate), mods mount for --entry
+  // (and --mod NAME, for checks and modders).
   if (a.no_mods) a.mods.clear();
   if (!a.build_anim.empty()) {  // the mod's def files merged into the install's anim.zbd files, for the original
     const std::string install = !a.install.empty() ? a.install : a.cfg_install;
@@ -791,6 +794,7 @@ int program(int argc, char** argv) {
       a.entry.clear();
     } else {
       a.mods = mech3::entry_mount_list(a.write_dir, *e);
+      mech3::current_entry() = e->id;  // what the editor's saves and IMPORT turn a mod on for
       // Its own pilots and saved loadouts from the start: the main menu's are never read or written inside an entry.
       mech3::set_pilots_folder(mech3::entry_pilots_folder(e->id));
       mech3::set_configs_folder(mech3::entry_configs_folder(e->id));
@@ -900,6 +904,10 @@ int program(int argc, char** argv) {
   if (!a.mods.empty())
     for (const std::string& line : mech3::mods_mount(a.write_dir, a.mods, {patch_dir, a.install}))
       std::printf("mw3: %s\n", line.c_str());
+  if (!a.entry.empty()) {  // a saved game records its entry, bases and ticks (upgrades/mods/save_mods.h)
+    const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(a.write_dir);
+    if (const mech3::CampaignEntry* e = mech3::find_entry(all, a.entry)) mech3::save_entry_set(a.write_dir, *e);
+  }
   mech3::mods_menu_write_dir() = a.write_dir;  // the MODS screen's (ours)
   mech3::mods_menu_mounted() = a.mods;
   if (!a.patch.empty()) {
@@ -1748,6 +1756,15 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       if (debug) app.post_intro_ = debug.get();
       if (!a.movie.empty()) app.lobby_flow_ = 1;  // the Intro state's own movies skipped
       if (launch) app.post_intro_ = &mech3::states().load;
+      // Ours: MODS's ENTER (mods_menu.h): the game closed as QUIT closes it, then started again into the entry.
+      mech3::mods_menu_play() = [&app](const std::string& entry, std::string*) {
+        std::printf("mw3: MODS: starting again into entry %s\n", entry.c_str());
+        sdlfe::RestartTo to;
+        to.entry = entry, to.screen = sdlfe::RestartTo::kPlay;
+        sdlfe::restart_ask(to);
+        app.replace(app.state(4), 0);
+        return true;
+      };
       if (a.restarted) app.lobby_flow_ = 1;  // ours (sdl_restart.h): the program's own start again, no intro movies
       // Ours (upgrades/mods/entry_run.h): the entry left: the game closed as QUIT closes it, then started again on MODS.
       if (mech3::entry_run().screen != mech3::EntryRun::kNone)
