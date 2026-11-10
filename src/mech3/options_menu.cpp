@@ -180,6 +180,7 @@ void UpgradesScreen::AcceptButton::on_left_up() {
   if (!s) return;
   s->apply(1);
   s->state_escape();
+  e_.menu_mode_picked();  // ours: wide menus on or off at once
 }
 
 UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
@@ -212,7 +213,7 @@ UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
   set_active(1);
 }
 
-// The bug fixes take hold at once; wide menus from the next screen made.
+// The bug fixes take hold at once, and wide menus too (ACCEPT's menu_mode_picked).
 void UpgradesScreen::apply(int32_t to_options) {
   zfix::Options& o = zfix::options();
   if (!to_options) {
@@ -373,6 +374,7 @@ void SoundCycle::after_bind() {
 void GfxAudioScreen::AcceptButton::on_left_up() {
   e_.pop_state(1);
   if (auto* s = dynamic_cast<MenuScreen*>(owner)) e_.vcall(e_.state_screen(s->state), 0x10, {1});
+  e_.menu_mode_picked();  // ours: a new shape for the menus at once
 }
 
 // Mech3.exe 1.2 @ 0x00438f60
