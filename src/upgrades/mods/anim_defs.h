@@ -5,6 +5,8 @@
 #include <utility>
 #include <vector>
 
+namespace zcls { struct Node; }
+
 // Ours (docs/modding.md, Animations a def at a time): a world's animations a
 // def at a time. A mod's def files, each one def as unzbd writes it, are
 // merged into the world's anim.zbd as it loads:
@@ -68,5 +70,29 @@ std::string whole_file_past_defs_only(const char* game_path);
 // game reads (a .bak of one there before). One line a world or a file left
 // out; the number of errors.
 int build_for_original(const std::string& mod_dir, const std::string& install, std::vector<std::string>* lines);
+
+// Step 4 (modding.md, The nodes a def needs): a node file, `<node>.flt.json`
+// beside the def files (zbd\<world>\anim\, zbd\anim\), is a tree in mechlib's
+// model form as unzbd writes one, plus a `materials` list of its own in
+// mechlib's materials.json form, which its polygons' material_index indexes.
+// The enabled mods' node files for the world (per node name the first mod's,
+// a world folder before its world-less one) whose name no node in the world
+// has are read (read_tree), resolved onto the world's materials, and left
+// parentless as the shipped effects' nodes are, for the fixup's search by
+// name. One note a file read or refused.
+void load_mod_node_files(const char* game_path, std::vector<std::string>* notes);
+// A node file (a mod's path, any case) by its place: zbd/<world>/anim/ or
+// zbd/anim/, named <node>.flt.json.
+bool is_node_file(const std::string& rel);
+// Its two halves read as the load reads them (the tree's JSON and its own
+// materials), without a world; false and `why` when either does not.
+bool node_file_reads(const std::string& path, std::string* why);
+// A node file's tree, null and `why` when it does not read.
+zcls::Node* load_node_file(const std::string& path, std::string* why);
+// Whether every node a def's bytes name (its node, its root, its object and
+// node lists) is in the world's node list or one of its own lights or sounds;
+// `missing` the first that is not. The fixup stops at a def it cannot bind,
+// leaving every later def unbound, so a def file naming one is left out.
+bool def_nodes_found(const std::vector<uint8_t>& def, std::string* missing);
 
 }  // namespace mech3::anim_defs

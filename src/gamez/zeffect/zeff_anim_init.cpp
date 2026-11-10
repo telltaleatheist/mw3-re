@@ -267,7 +267,20 @@ int mw3_anim_read_zbd() {
     std::fseek(f, 0, SEEK_SET);
     static std::set<std::string> said;
     std::vector<std::string> notes;
-    const std::vector<mech3::anim_defs::DefFile> defs = mech3::anim_defs::mod_def_files(a.path, base, &notes);
+    // With the world up: the mods' node files read first, then each def file
+    // whose nodes the world does not have left out (the fixup would stop there).
+    if (a.world) mech3::anim_defs::load_mod_node_files(a.path, &notes);
+    std::vector<mech3::anim_defs::DefFile> defs = mech3::anim_defs::mod_def_files(a.path, base, &notes);
+    if (a.world)
+      for (auto it = defs.begin(); it != defs.end();) {
+        std::string missing;
+        if (mech3::anim_defs::def_nodes_found(it->bytes, &missing)) {
+          ++it;
+          continue;
+        }
+        notes.push_back(it->from + ": " + it->key + " names " + missing + ", which this world does not have; left out");
+        it = defs.erase(it);
+      }
     for (const std::string& n : notes)
       if (said.insert(n).second) std::printf("mw3: mod: %s\n", n.c_str());
     if (!defs.empty()) {
