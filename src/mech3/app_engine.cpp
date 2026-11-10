@@ -32,6 +32,7 @@
 #include "mech3/options.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/mods/mod_test.h"
 #include "mech3/options_menu.h"
 #include "mech3/pocket_panel.h"
 
@@ -236,6 +237,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   mods_menu_test_start() = [this](const std::string& mod, const std::string& world, int32_t number, std::string* why) {
     const int32_t index = mission_dir_index(world.c_str());
     if (index < 0) return *why = "no world " + world, false;
+    mod_test_reload();  // the mechs' definitions read again (upgrades/mods/mod_test.h)
     Launch l;
     l.index = index, l.number = number, l.type = 1, l.op = 0;
     const Handle real = peek32(0x60861c);
