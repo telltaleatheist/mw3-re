@@ -103,7 +103,7 @@ TEST(game_editor_entry_and_exit_in_the_originals_order) {
   const mech3::EditorPanel& p = mech3::editor_panel();
   EXPECT(st.active == 1 && st.mode == 0 && st.menu == &mech3::editor_main_menu_rows() && p.layer.active);
   EXPECT(joined(h.calls) == "push_map, bind 163 57 1, bind 164 1081 2, view_on_stealth, lines off");
-  const char* want[8] = {"PICK A COMMAND", " EDIT AI NETS", " EDIT VEHICLES", " EDIT WEAPONS", " HELP", "", "", " EXIT GAME EDIT"};  // HELP: ours
+  const char* want[8] = {"PICK A COMMAND", " EDIT AI NETS", " EDIT VEHICLES", " EDIT WEAPONS", " HELP", "", " TELEPORT", " EXIT GAME EDIT"};  // HELP, TELEPORT: ours
   for (int i = 0; i < 25; ++i) {
     const std::string text = p.rows[i]->text;
     EXPECT(text == (i < 8 ? want[i] : ""));

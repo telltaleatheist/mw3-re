@@ -1699,6 +1699,12 @@ TEST(mods_anim_node_files_bind_their_defs) {
   put(m + "/zbd/anim/mod_muz.flt.json", node_file);
   put(m + "/zbd/anim/mod_muz-mod_blast.json", renamed("mod_muz.flt", "mod_blast"));
   put(m + "/zbd/anim/nowhere.json", renamed("no_such_node.flt", "bad_one"));
+  {  // the same model with an empty materials list: every polygon outside it, refused and destroyed
+    std::string bad = model;
+    bad.replace(bad.find("\"" + root0 + "\""), root0.size() + 2, "\"bad_idx.flt\"");
+    bad.replace(bad.rfind('}'), 1, ",\n\"materials\": []\n}");
+    put(m + "/zbd/anim/bad_idx.flt.json", bad);
+  }
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd);
   mech3::mods_mount(wd, {"fx"}, {install});
@@ -1726,6 +1732,7 @@ TEST(mods_anim_node_files_bind_their_defs) {
   EXPECT(last && std::strcmp(last->name(), "mod_blast") == 0 && last->node && std::strcmp(last->node->name(), "mod_muz.flt") == 0);
   EXPECT(bound == count - 1);
   EXPECT(!zeff::anim_find("bad_one"));
+  EXPECT(!zcls::list_find_by_name(zcls::kAllNodes, "bad_idx.flt"));  // its tree gone, not left on the lists
   for (int32_t i = 1; i < count; ++i)  // the stand-in puffers are no real ones: not freed
     for (int k = 1; k < zeff::anim().defs[i].count(0x10c); ++k) zeff::anim().defs[i].puffers[k].made = nullptr;
   zeff::anim_free_all();

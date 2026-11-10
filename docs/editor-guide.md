@@ -36,7 +36,23 @@ The menu over the mission when the editor is up (the original's, with HELP added
 | EDIT VEHICLES | The Mech AI window: pick one of the mission's vehicles and change its AI settings. |
 | EDIT WEAPONS | New Weapon: a weapon copied from one the game knows, its name and numbers set, written into the mod (opened from MODS, EDITOR only). Empty in the original game; ours. |
 | HELP | This quick start, in a window. Ours: the original had none. |
+| TELEPORT | Move your mech to a place: the mission's nav points, the world's saved places, or one you type in. The developers' own tool, which the original never let you reach; ours. |
 | EXIT GAME EDIT | Close the editor. From MODS's EDITOR it goes back to the MODS screen; in a custom campaign's mission the view goes back to your mech and the mission goes on. |
+
+## Teleport
+
+The developers' teleport, which the original carries but never lets you reach. It lists your own place (Current Location), the mission's nav points and the world's saved places (each world ships some: mission starts, the Instant Action base). OK moves your mech there and saves the places, nav points included, into the mod as zbd\<world>\location.zrd (the old one kept as .bak), as the original did.
+
+| Item | What it does |
+|---|---|
+| place | Pick a place to fill the numbers, or type a new name and leave the box to add one at the numbers below. |
+| x | Where to go: east-west, in metres. |
+| y | Height. |
+| z | North-south. |
+| yaw (deg.) | Which way to face, in degrees (-360 to 360). |
+| OK | Go there, and save the places into the mod. |
+| Cancel | Close it; stay where you are. |
+| Delete | Take the picked place off the list (asked first); saved with OK. |
 
 ## The net editor's menu
 

@@ -4298,6 +4298,22 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 
 ## Pirate's Moon
 
+- **Pirate's Moon has its own teleport spots too.** Its worlds' reader.zbd
+  files hold location.zrd lists for the same hidden teleport tool:
+  - c1: Start, Allied Camp, Star League, Pirate Base, RadarDish1,
+    RadarDish2, sbridge_n, sbridge_s, mp_bridge;
+  - c2: Enemy Camp, Neutral Camp, Germanium Camp, Portal Wall;
+  - c3: Ruins, Pirate_landing;
+  - c4: Base1, Base2, Pirate1, Pirate2, miningcamp1, miningcamp2,
+    Drill Rig 2, waterfall.
+  The tool was fixed for the expansion. MechWarrior 3's wrote the mission's
+  nav points into the file on every save, so they showed twice the next
+  time, and its Cancel button moved you and saved just like OK. Pirate's
+  Moon's does neither, and stamps its saves "Last updated Nov 14 1999 at
+  14:36:03". One new slip: a name you type in gets no facing of its own.
+  (0x004a8450, dialog 132 at 0x004a8a40; docs/editor.md, Pirate's Moon's
+  teleport)
+
 - **Pirate's Moon's options file carries a time stamp: 3:33 PM, 13 September
   1999.** Its first words are "3:33" "PM" "9/13/1999", before the dialogs, a
   date and time someone left in it. The game never minds: it finds each
@@ -4735,3 +4751,21 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   LB-X autocannons' scattered pellets name a missing animation too (`mac_fire`),
   so they fly without one. (From the data: weapons.zrd against every world's
   anim.zbd. docs/fixes.md, Candidates for Owen)
+- **The developers left their own teleport spots in every operation.** Each
+  world's reader.zbd holds a location.zrd, the list a hidden teleport tool
+  read (a debug command no key reaches in the release). The spots:
+  - c1: Mission 1 Start, Mission 2 Start, Mission 3 Start, IA_base;
+  - c2: Mission 1-3 Start, m1_dam, m3_dock, IA_base, m4_pipes;
+  - c3: m4_factories, m5_dome, m5_gateway, m6_spaceport, m3_dropship,
+    m5_dock, IA_base;
+  - c4: m1_Train_station, m3_clan_base, m4_chateau, "personal trans
+    trigger", IA_base;
+  - c4b: dome, gate, batchall;
+  - t1 (training): Start Area, beach, town, road, mech_list, RoadEnd.
+
+  "IA_base" in each campaign world points at where the Instant Action base
+  is. The tool also listed the mission's nav points and your own place, and
+  its save stamped every file "Last updated Sep 20 1999 at 16:29:38", the
+  date and time the game was built. The rebuild opens it as the editor's
+  TELEPORT. (From the data and the code: 0x004a37a0, dialog 132.
+  docs/editor.md, Teleport)

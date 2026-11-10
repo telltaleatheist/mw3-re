@@ -221,6 +221,7 @@ add_library(mw3core STATIC
   src/mech3/mech_shade.cpp
   src/mech3/veh_basic.cpp
   src/mech3/turret.cpp
+  src/mech3/teleport.cpp
   src/mech3/veh_basic_object.cpp
   src/mech3/mech_fieldbase.cpp
   src/mech3/mech_fieldbase_dock.cpp
@@ -244,6 +245,7 @@ add_library(mw3core STATIC
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp
   src/upgrades/editor/new_weapon.cpp
+  src/upgrades/editor/teleport.cpp
   src/upgrades/editor/aiv_save.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
@@ -704,6 +706,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mods.cpp
     tests/test_net_save.cpp  # the editor's net save on PM's nets
     tests/test_editor.cpp  # the editor's menus, net and vehicle editors on PM's logic
+    tests/test_teleport.cpp  # the teleport on PM's logic and c3's places
     tests/test_update.cpp  # the updater (main's, shared): its versions, sums and swap
   )
   target_include_directories(mw3pmtests PRIVATE tests)

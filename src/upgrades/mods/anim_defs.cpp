@@ -13,6 +13,7 @@
 #include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zmodel/gmod_const.h"
@@ -407,7 +408,10 @@ zcls::Node* load_node_file(const std::string& path, std::string* why) {
   for (zcls::Material* m : lib.materials) zcls::material_free(*m), delete m;
   lib.materials.clear();
   if (!root) return *why = "its tree does not read", nullptr;
-  if (!fit) return *why = "a polygon names a material its list lacks", nullptr;  // the tree stays, unused
+  if (!fit) {
+    zcls::tree_destroy(root);  // its nodes and models freed, off every list
+    return *why = "a polygon names a material its list lacks", nullptr;
+  }
   return root;
 }
 

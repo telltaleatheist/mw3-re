@@ -1730,6 +1730,126 @@ Checked:
   are 0xa3 / 0xa4 (MW3's 0x9b / 0x9c), the Mad Cat is mech 13, and the
   chassis list holds 26 rows. A list cut back to 19 fails it.
 
+## Teleport (2026-11-10)
+
+**The original's.** The developers' teleport, command 0x95. It is a case of
+app_key's switch 0x0040dba0 (0x0040dd17 calls 0x004a37a0), but 0x0040db60
+registers no callback for it, so no key reaches it in the release.
+- 0x004a37a0 lists the places (0x50-byte records):
+  - "Current Location", the player's place (0x005a85e0), not saved;
+  - the mission's nav points ([0x00609980], the nav waynet: vt+0x24 the
+    label, vt+0x18 the place), yaw 0, saved;
+  - location.zrd's `name ((x y z) yaw)` pairs (zrdr::load). Every world's
+    reader.zbd ships one (discoveries.md lists the spots). Without one it
+    stops with an error box.
+- It then runs dialog 132 (0x0040dfe0: the fields at the player's place,
+  the yaw passed as 0, shown in degrees).
+- On OK the player's vehicle is put there (vt+0xdc, yaw in radians). So
+  it is on Cancel: 0x0040dfe0 tests DoModal's result for non-zero
+  (`test eax, eax` at 0x0040e05f), and IDCANCEL is 2, so Cancel moves the
+  player to the fields as they last were (a pick's, without OnOK's
+  UpdateData(TRUE)) and, with the changed flag, saves. Pirate's Moon fixed
+  it (its 0x004a8a40 tests `== IDOK`) and kept GOTO Net's `!= 0`.
+- With the dialog's changed flag, location.zrd is renamed and rewritten as
+  text: `(`, two `;;` lines ("Last updated Sep 20 1999 at 16:29:38", the
+  build's __DATE__ and __TIME__ whenever it is saved), then
+  `"name" ( ( %8.1f %8.1f %8.1f ) %8.1f )  ;; position/yaw` for every saved
+  place, then `)`. The decompiler drops the name and time arguments; the
+  asm passes them.
+
+**Dialog 132** (0x00404630; the template: x, y, z, yaw edits 1009..1012,
+"Deg.", OK, Cancel, Delete (3), the list 1073 CBS_DROPDOWN | CBS_SORT):
+- 0x00404720 exchanges x, y, z and yaw (DDV ±360).
+- 0x004047b0 lists the places, each one's data its record, and selects
+  "Current Location".
+- 0x004049b0 (CBN_SELCHANGE) fills the fields from the pick.
+- 0x00404860 (CBN_KILLFOCUS) adds a typed name the list lacks (any case) as
+  a place at the fields. An empty one gets message 0x1de.
+- 0x00404a20 (Delete) asks with message 0x1df and the list's text; on Yes
+  it marks the pick unsaved and deletes it from the list.
+- 0x00404ab0 (CBN_EDITCHANGE, the edits' EN_CHANGE) sets the changed flag.
+  Windows sends EN_CHANGE for the dialog's own SetWindowText too, so
+  OnInitDialog's UpdateData(FALSE) sets it: in effect every OK saved.
+- 0x00404aa0: OnDestroy, the cursor hidden again.
+
+**Ported** (`mech3/teleport`: teleport_spots, location_zrd_text,
+TeleportDialog, the hooks) **and ours** (`upgrades/editor/teleport`):
+- A TELEPORT row in the editor's main menu (its last blank row), so it is
+  reached as the editor is (MODS only).
+- The dialog is a form: the place list with its typed name, the four
+  fields, OK, Cancel, Delete; Delete's question is a Yes/No form.
+- OK writes into the mission's mod as a loose `zbd\<world>\location.zrd`
+  (the folder of the archive location.zrd came from), read ahead of the
+  archive's entry. Its earlier copy is kept as location.zrd.bak.
+- FIX (bug): Cancel cancels, as in Pirate's Moon (no move, no save).
+
+Fixes, each FIX (bug) in the code:
+- a nav point without a label is left out (the exe copies from null);
+- Delete with nothing picked does nothing (the exe writes through CB_ERR,
+  at 0x4b);
+- the .bak goes beside the file (the exe's rename named no folder, so it
+  went to the working directory);
+- a location.zrd pair of another shape is left out (unchecked in the exe);
+- without a location.zrd the list is the player's place and the nav points
+  (the exe stopped).
+
+Tests:
+- `teleport_spots_from_c1_and_the_saved_text`: c1's shipped file (four
+  places after the player and a nav point); the saved text exactly as the
+  exe's format, read back by the text reader to the same places.
+- `teleport_dialog_handlers`: the init's flag, the sorted list, a pick, a
+  typed name added in its place, an empty name, Delete asked, done and
+  refused, nothing picked, OK in radians, a yaw past 360.
+- `mission_c1m1_teleport_moves_the_player_headless`: the row's form lists
+  c1m1's nav points (Able, Baker, Start) and c1's places; Mission 2 Start
+  and OK puts the player at (-1408.7, -10.0, -845.3) and saves into the mod.
+- The help coverage (12 forms).
+
+### Pirate's Moon's teleport (pm, 2026-11-10)
+
+Read against MW3's: the command 0x004a8450 (case 0x9d of app_key's switch
+0x0040ba30; 0x0040b9f0 registers 0x69, 0x78, 0x74 and 0x86, MW3's plus 8,
+so no key reaches it here either) and dialog 132 at 0x004a8a40 (DoModal),
+0x004a8bb0 (ctor), 0x004a8c50 (DDX), 0x004a8ce0 (init), 0x004a8f00 (pick),
+0x004a8d70 (typed name), 0x004a8f70 (Delete), 0x004a9000 (changed),
+0x004a8ff0 (OnDestroy). The message map (0x005eabc8) and the dialog's
+layout are MW3's; the pick, Delete and init are MW3's code. What changed:
+- **Nav points are not saved.** The record gains a byte at +0x4d, 1 for
+  every place but the nav points ([0x0062daf0], each by 0x005acad0), and
+  the save skips a record with +0x4d clear as it skips +0x4c. MW3's wrote
+  the nav points into location.zrd on every save, so the next open listed
+  them twice.
+- **Cancel cancels.** 0x004a8a40 returns DoModal == IDOK; MW3's 0x0040dfe0
+  took any non-zero result (GOTO Net's 0x0040be40 kept MW3's `!= 0`).
+  Ghidra drops the save as unreachable: the flag is written through the
+  wrapper's fourth argument, which it does not follow; the asm at
+  0x004a8844 tests it.
+- **The place is read by 0x00578b20**: a list of at least three numbers
+  (Int or Float), or the pair is left out; a word among them keeps the
+  buffer's number, the last place's. The yaw is read raw, as MW3's.
+- **A null nav label** is checked, but the record is still added with its
+  name unset.
+- **A typed name's record** (0x004a8d70) takes the fields' place but not
+  the yaw (+0x0c is left as allocated). FIX (bug): the field's yaw, as MW3's.
+- The save stamps PM's build: "Last updated Nov 14 1999 at 14:36:03"; the
+  rest of its text, the remove-then-rename of location.bak (still into the
+  working directory) and the error box without location.zrd are MW3's.
+- The player is moved by vt+0xe8, PM's set_place (0x00419d50, the port's
+  `move_mech`).
+
+Ported on pm in `mech3/teleport` (the +0x4d byte as `kept`). Tests in
+mw3pmtests:
+- `teleport_spots_from_pm_c3_and_the_saved_text`: PM's c3 places (Ruins,
+  Pirate_landing), a nav point not kept, PM's header, the text read back
+  without the nav point, a short place left out and a word carried.
+- `teleport_dialog_handlers`: as main's, plus the typed name's yaw.
+- `pm_teleport_moves_the_player_and_saves_pms_text` (a mission in a child,
+  1,1,3 on c2): the list with Able, Baker, Charlie and Start; OK at Portal
+  Wall moves the player there and writes PM's text with c2's four places and
+  no nav point; Cancel moves nothing and writes nothing.
+Breaks caught: the nav points kept, MW3's date, no carry, the typed yaw
+left out.
+
 ## The editor's help (ours, 2026-11-09)
 
 Owen asked (through the lead) for help in the game and on GitHub, from one

@@ -145,6 +145,7 @@
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
 #include "upgrades/editor/new_weapon.h"
+#include "upgrades/editor/teleport.h"
 #include "mech3/zainetedit.h"
 #include "mech3/zainet_inout_view.h"
 #include "mech3/app_keys.h"
@@ -26954,6 +26955,60 @@ struct HelpSeen {
 };
 }  // namespace
 
+// Teleport (docs/editor.md, Teleport) on c1m1, the editor up: the TELEPORT row's form lists Current Location, the
+// mission's nav points and c1's shipped places; Mission 2 Start picked and OK: the player there, the places
+// (nav points too) saved into the mission's mod as zbd\c1\location.zrd, which the next open reads.
+TEST(mission_c1m1_teleport_moves_the_player_headless) {
+  if (!have_game()) return;
+  std::string listed, saved;
+  float at[3] = {}, want[3] = {-1408.7f, -10.0f, -845.3f};
+  bool moved = false, read_again = false, cancel_stayed = false;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("teleport", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    mech3::editor_key(mech3::kEditorCommand);
+    mech3::ai::net_save_into_mod() = "tp";
+    mech3::teleport_open(0);
+    mech3::EditorForm& form = mech3::teleport_form();
+    mech3::FormField* place = form.field("place");
+    if (!place || !place->combo) return true;
+    for (const std::string& t : place->combo->texts()) listed += t + "; ";
+    for (size_t i = 0; i < place->combo->items.size(); ++i)
+      if (place->combo->items[i].text == "Mission 2 Start") *place->i = static_cast<int32_t>(i);
+    form.changed(*place);
+    form.press("OK");
+    saved = mech3::teleport_last_saved();
+    moved = mech3::mech_world_position(mech3::mech_mission_player(), at);
+    mech3::teleport_open(0);  // again: the saved file is read now
+    if (mech3::FormField* again = mech3::teleport_form().field("place"); again && again->combo)
+      for (const std::string& t : again->combo->texts()) read_again = read_again || t == "Mission 2 Start";
+    // Cancel after a pick: no move, no save (FIX (bug); the exe moved and saved).
+    mech3::EditorForm& form2 = mech3::teleport_form();
+    if (mech3::FormField* again = form2.field("place"); again && again->combo)
+      for (size_t i = 0; i < again->combo->items.size(); ++i)
+        if (again->combo->items[i].text == "IA_base") *again->i = static_cast<int32_t>(i), form2.changed(*again);
+    std::error_code ec;
+    const auto written = std::filesystem::last_write_time(saved, ec);
+    std::filesystem::last_write_time(saved, written - std::chrono::hours(1), ec);  // a save would move it on
+    form2.press("Cancel");
+    float after[3] = {};
+    cancel_stayed = mech3::mech_world_position(mech3::mech_mission_player(), after) &&
+                    std::fabs(after[0] - at[0]) < 0.01f && std::fabs(after[2] - at[2]) < 0.01f &&
+                    std::filesystem::last_write_time(saved, ec) == written - std::chrono::hours(1) &&
+                    !mech3::form_shown(&form2);
+    mech3::ai::net_save_into_mod().clear();
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  std::printf("  listed: %s\n  at %.1f %.1f %.1f; saved %s\n", listed.c_str(), at[0], at[1], at[2], saved.c_str());
+  EXPECT(listed.find("Current Location") != std::string::npos && listed.find("IA_base") != std::string::npos &&
+         listed.find("Mission 2 Start") != std::string::npos);
+  EXPECT(moved && std::fabs(at[0] - want[0]) < 0.5f && std::fabs(at[2] - want[2]) < 0.5f);
+  EXPECT(!saved.empty() && saved.find("tp") != std::string::npos && saved.find("c1") != std::string::npos && read_again);
+  EXPECT(cancel_stayed);
+}
+
 TEST(mission_c1m1_editor_help_covers_every_form_headless) {
   if (!have_game()) return;
   HelpSeen seen;
@@ -27024,6 +27079,9 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
       }
     mech3::new_weapon_form().press("Cancel");
     ms = kept;
+    mech3::teleport_open(0);
+    look(mech3::teleport_form());
+    mech3::teleport_form().press("Cancel");
     mech3::editor_key(mech3::kEditorCommand);
     return true;
   });
@@ -27039,7 +27097,7 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
               seen.missing.size(), stale.size());
   for (const std::string& m : seen.missing) std::printf("    no tip: %s\n", m.c_str());
   for (const std::string& m : stale) std::printf("    tip for nothing: %s\n", m.c_str());
-  EXPECT(forms == 11 && previews == 2 && seen.missing.empty() && stale.empty());
+  EXPECT(forms == 12 && previews == 2 && seen.missing.empty() && stale.empty());
 }
 
 // The Ai Network Editor window (181, S5 sitting 4c) on c1m1: Change Net
