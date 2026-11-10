@@ -618,6 +618,7 @@ add_executable(mw3tests
   tests/test_mod_campaign_pilots.cpp
   tests/test_campaign_entries.cpp
   tests/test_entry_pilot_copy.cpp
+  tests/test_mod_copy_report.cpp
   tests/test_net_save.cpp
   tests/test_new_weapon.cpp
   tests/test_teleport.cpp

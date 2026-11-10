@@ -112,3 +112,24 @@ refuses the whole copy, and a loadout file the entry already has is kept
 copy that fails part-way removes the files it made and the folders it made
 if they are empty again, nothing else. `main_menu_pilots` lists the names
 to offer. Tests: `entry_pilot_copy_*` (tests/test_entry_pilot_copy.cpp).
+
+## Built: REPORT on a copy (2026-11-10)
+
+`mech3::mod_copy_changes` and `mod_copy_report` (`upgrades/mods/mod_report`),
+the lines REPORT adds for a copy (a mod whose mod.txt has `base=`); the MODS
+screen calls `mod_copy_report(write_dir, install, folder)` after the mod's
+own report. The chain is walked through the entries (`find_entry`): the
+base's mod, that mod's base, down to the game's own entry. Each of the
+copy's files (not its mod.txt or our markers; names compared in any letter
+case) is set against the nearest mod under it that has the file: other
+bytes, "replaces N files of that campaign"; the same bytes, "the same, so it
+changes nothing"; in no mod under it but in the game's install, "replaces N
+of the game's own files"; nowhere, "adds N new files". Its mod.txt rows
+(`mech=`, `weapon=`, `world=`, `ia_world=`, `campaign=`, by name: the words
+before the first key=value) are changed or added against the rows under it,
+the nearest mod's winning. Up to six names are listed, then "and N more".
+When part of the chain is not in the mods folder that is said, and only
+what is certain is: what the copy replaces in the mods still there (a file
+nothing above the gap has may have been the missing campaign's, so neither
+"adds" nor the game's files are claimed). A chain that comes round to
+itself ends. Tests: `mod_copy_report_*` (tests/test_mod_copy_report.cpp).
