@@ -2636,7 +2636,7 @@ TEST(mods_screen_add_mod_headless) {
         for (const auto* i : scr->mod_list.items) rows += std::string(i->text) + "|";
         for (const mech3::ModsCampaignRow& c : scr->tables.campaigns) campaign_rows += mech3::mods_campaign_row_text(c) + "|";
         if (const mech3::ModsCampaignRow* c = scr->chosen_row()) chosen_campaign = c->name;
-        own_locked = scr->ticks.is_locked("Desert Pack") && scr->enabled.empty();
+        own_locked = scr->ticks.is_locked("Desert Pack");
         scr->on_button(mech3::ModsScreen::kAddFolder, 0, 0), stage = 3, wait = 0;
       } else if (stage == 3 && ++wait == 3) {
         second_note = std::string(scr->note.text) + " " + scr->restart.text;
@@ -2660,10 +2660,10 @@ TEST(mods_screen_add_mod_headless) {
                 asked, opened.c_str());
     EXPECT(stage == 4 && picked_folder == 2);
     EXPECT(adding_note == "Adding Desert Pack..." && adding_before);  // drawn a frame before the add
-    // Desert Pack holds a file of the game's own t1 world: a campaign over the game's files, listed in CAMPAIGNS and
-    // chosen; in MODS it is that campaign's own mod (on, locked), nothing is ticked for any campaign by an import.
-    EXPECT(rows == "[on] Desert Pack|" && own_locked && campaign_rows == "MechWarrior 3|Desert Pack|" && chosen_campaign == "Desert Pack");
-    EXPECT(first_note.find("Added Desert Pack: its campaign is listed.") == 0);
+    // Desert Pack holds a file of the game's own t1 world and no campaign of its own: an asset mod (Owen, 2026-11-10),
+    // a row of MODS, unticked; CAMPAIGNS has the game's own alone, still chosen; nothing is ticked by an import.
+    EXPECT(rows == "[ ] Desert Pack|" && !own_locked && campaign_rows == "MechWarrior 3|" && chosen_campaign == "MechWarrior 3");
+    EXPECT(first_note.find("Added Desert Pack: tick it for a campaign, then PLAY.") == 0);
     EXPECT(mech3::entry_mods_on(wd).empty() && mech3::mods_enabled(wd).empty() && !std::filesystem::exists(wd + "/campaigns/Desert Pack/mods.txt"));
     EXPECT(std::filesystem::is_regular_file(wd + "/mods/Desert Pack/zbd/t1/notes.txt"));
     EXPECT(asked == 1 && second_note.find("Not added: no game chosen for Plain.") == 0 && !std::filesystem::exists(wd + "/mods/Plain"));
