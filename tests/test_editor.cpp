@@ -5,6 +5,9 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <sstream>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -20,6 +23,7 @@
 #include "mech3/zai_valve.h"
 #include "upgrades/editor/aiv_save.h"
 #include "upgrades/editor/form.h"
+#include "upgrades/editor/help.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
 
@@ -98,7 +102,7 @@ TEST(game_editor_entry_and_exit_in_the_originals_order) {
   const mech3::EditorPanel& p = mech3::editor_panel();
   EXPECT(st.active == 1 && st.mode == 0 && st.menu == &mech3::editor_main_menu_rows() && p.layer.active);
   EXPECT(joined(h.calls) == "push_map, bind 155 57 1, bind 156 1081 2, view_on_stealth, lines off");
-  const char* want[8] = {"PICK A COMMAND", " EDIT AI NETS", " EDIT VEHICLES", " EDIT WEAPONS", "", "", "", " EXIT GAME EDIT"};
+  const char* want[8] = {"PICK A COMMAND", " EDIT AI NETS", " EDIT VEHICLES", " EDIT WEAPONS", " HELP", "", "", " EXIT GAME EDIT"};  // HELP: ours
   for (int i = 0; i < 25; ++i) {
     const std::string text = p.rows[i]->text;
     EXPECT(text == (i < 8 ? want[i] : ""));
@@ -218,7 +222,7 @@ TEST(game_editor_net_dialog_and_menu) {
   EXPECT(mech3::net_editor()->net->header.net == 3);  // the edit takes its own id (400..499), as the exe's
   EXPECT(mech3::editor_state().mode == 1 && mech3::editor_state().menu == &mech3::editor_net_menu_rows());
   const char* rows[13] = {"Pick CMD or Point", " GOTO Net", " Change Net Params", " Node Params", " Add veh to node",
-                          " Move Node", " Delete Node", " Delete Net", " Save Changes", " Tree View", "", "", " Exit Net Editor"};
+                          " Move Node", " Delete Node", " Delete Net", " Save Changes", " Tree View", " Help", "", " Exit Net Editor"};  // Help: ours
   for (int i = 0; i < 13; ++i) EXPECT(row_text(i) == rows[i]);
   h.calls.clear();
   press(h, 1);  // GOTO Net
@@ -872,4 +876,31 @@ TEST(vehicle_editor_valve_page) {
   mech3::ai::aiv_file_reset();
   mech3::aiv_notes_clear();  // the stubs' records (their orders' valves freed next)
   mech3::ai::valves_clear();
+}
+
+// The editor's guide (ours, docs/editor-guide.md) is the help tables' output:
+// when it is not, `build/mw3 --editor-guide docs/editor-guide.md` brings it up
+// to date. Every tip filled, each item once in its table; the HELP rows open
+// the quick start.
+TEST(editor_guide_is_current) {
+  std::ifstream f(std::string(MW3_SOURCE_DIR) + "/docs/editor-guide.md", std::ios::binary);
+  std::stringstream ss;
+  ss << f.rdbuf();
+  const bool same = ss.str() == mech3::editor_guide_markdown();
+  if (!same) std::printf("  stale: run build/mw3 --editor-guide docs/editor-guide.md\n");
+  EXPECT(same);
+  for (const mech3::HelpForm& form : mech3::help_forms()) {
+    std::set<std::string> seen;
+    for (const mech3::HelpTip& t : form.tips) {
+      const bool fresh = seen.insert(t.item).second;
+      if (!fresh) std::printf("  %s: %s twice\n", form.form, t.item);
+      EXPECT(fresh && *t.text);
+    }
+  }
+  mech3::help_open(0);
+  EXPECT(mech3::form_shown(&mech3::help_window()) &&
+         mech3::help_window().fields.size() == mech3::help_quick_start().size());
+  EXPECT(mech3::help_window().press("Close") && !mech3::form_shown(&mech3::help_window()));
+  EXPECT(mech3::help_tip("Node Parameters: node_07", "speed") != nullptr);  // the title's node number aside
+  EXPECT(mech3::help_tip("Mech AI", "no such field") == nullptr);
 }

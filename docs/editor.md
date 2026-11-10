@@ -1461,6 +1461,35 @@ The exe keeps Apply only in aiv.zrd's record cache and in the running brain
     vehicle editor's Save under MODS EDIT goes into the mod itself, the net's
     save kept as the .bak.
 
+## The editor's help (ours, 2026-11-09)
+
+Owen asked (through the lead) for help in the game and on GitHub, from one
+source so the two cannot drift.
+- **The tables** (`upgrades/editor/help.h`) sit beside the forms' models:
+  help_menus.cpp (both menus' rows), help_nets.cpp (the net dialog, Node
+  Params, Add vehicle, Delete's question, the net window and its Open list,
+  the Tree View, the Help window) and help_vehicles.cpp (Mech AI, its pages
+  and tabs, its message). Each entry is keyed by its form's title (up to "##"
+  or ':') and the item's label (a tab as "tab <title>").
+- **In the game** the ImGui view shows an item's tip on hover. A row of the
+  editor's panel (the game's own menu) shows its tip as a tooltip while the
+  mouse is over it.
+- **HELP rows**, ours, sit in a blank row of each menu (main menu row 4, net
+  menu row 10). They open "Editor help", the quick start.
+- **The guide**, docs/editor-guide.md, is generated whole from the same
+  tables: the quick start, the walk-through from a fresh mod to a changed
+  mission, and a section per form. `build/mw3 --editor-guide
+  docs/editor-guide.md` writes it.
+- **Tests:**
+  - `editor_guide_is_current` fails when the guide is stale. It also checks
+    every tip is filled, each item once, the Help window and the lookup.
+  - `mission_c1m1_editor_help_covers_every_form_headless` opens all ten forms
+    and reads both menus: every field, button, tab and row has a tip (0
+    without), and every tip names an item its form has (0 stale).
+  - Break: a tip renamed ("Send hom") fails both.
+- Valve's "Target Distance" check box is labelled "Target Distance##valve"
+  now: the form already had Zig Zag's field of that name.
+
 ## Dear ImGui for the editor's dialogs (lead, 2026-11-09)
 
 Owen: the editor's dialogs need not imitate MFC. The lead's call is Dear

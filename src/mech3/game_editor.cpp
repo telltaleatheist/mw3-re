@@ -9,6 +9,7 @@
 #include "mech3/game_editor_vehicles.h"
 #include "upgrades/editor/aiv_save.h"
 #include "upgrades/editor/form.h"
+#include "upgrades/editor/help.h"
 
 namespace mech3 {
 
@@ -23,7 +24,7 @@ void exit_game_edit(int32_t y) { editor_exit(y); }
 // 0x005e0d30.
 const EditorEntry kMainRows[8] = {
     {"PICK A COMMAND", nullptr},          {" EDIT AI NETS", edit_ai_nets}, {" EDIT VEHICLES", edit_vehicles},
-    {" EDIT WEAPONS", edit_weapons},       {"", nullptr},                   {"", nullptr},
+    {" EDIT WEAPONS", edit_weapons},       {" HELP", help_open},            {"", nullptr},  // HELP: ours
     {"", nullptr},                         {" EXIT GAME EDIT", exit_game_edit},
 };
 const EditorMenu kMainMenu = {8, kMainRows};

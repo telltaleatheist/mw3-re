@@ -820,7 +820,7 @@ void build() {
     e.form.fields.push_back(check("Ammo", kPageValve, 1181));
     e.form.fields.push_back(edit("##1193", kPageValve, 1193));
     e.form.fields.push_back(check("Fired on", kPageValve, 1182));
-    e.form.fields.push_back(check("Target Distance", kPageValve, 1184));
+    e.form.fields.push_back(check("Target Distance##valve", kPageValve, 1184));
     e.form.fields.push_back(edit("##1194", kPageValve, 1194));
     e.form.fields.push_back(check("Heat", kPageValve, 1186));
     e.form.fields.push_back(edit("##1195", kPageValve, 1195));
