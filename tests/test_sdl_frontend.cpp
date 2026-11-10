@@ -7040,3 +7040,52 @@ TEST(sdl_editor_forms_click_through_imgui) {
   EXPECT(applied_under_modal == 1 && asked == 1 && !mech3::form_shown(&m));
   mech3::form_hide(&f);
 }
+
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)  // posix_spawn
+// Mods by campaign on Pirate's Moon (upgrades/mods/campaign_entries.h): mw3pm's --entry takes each of the game's
+// own entries, campaign, pirate and ia, with that entry's ticks and its own pilots folder made; MechWarrior 3's
+// entry is not one of Pirate's Moon's and is said; a start moves mw3.cfg's mod= lines to both campaigns once.
+TEST(sdl_pm_program_entry_takes_each_of_its_campaigns) {
+  namespace fs = std::filesystem;
+  if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/reader.zbd")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm entry start";  // a space in the path
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel) << text;
+  };
+  put("wd/mods/weps/mod.txt", "name=Weps\nfor=mw3pm\nweapon=GAUSS2 ammo=yes tech=sphere\n");
+  put("wd/mods/skin/mod.txt", "name=Skin\n");
+  put("wd/mw3.cfg", "mod=weps\n");
+  setenv("MW3_START_ONLY", "1", 1);
+  auto run = [&](const std::string& entry) {
+    const std::string log = dir + "/" + entry + ".log";
+    int status = 0;
+    const pid_t pid = spawn_mw3({"--install", MW3_GAME_DIR, "--write-dir", dir + "/wd", "--no-launcher", "--window", "640x480", "--nosound",
+                                 "--hidden", "--entry", entry},
+                                log);
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const std::string c = run("campaign");
+  put("wd/campaigns/pirate/mods.txt", "mod=skin\nmod=weps\n");  // the Pirate Missions' own ticks, changed after the move
+  const std::string p = run("pirate"), ia = run("ia"), other = run("mw3");
+  unsetenv("MW3_START_ONLY");
+  auto has = [](const std::string& log, const char* line) { return log.find(line) != std::string::npos; };
+  std::printf("  campaign %d, pirate %d, ia %d, MechWarrior 3's refused %d\n", has(c, "mw3: entry campaign (Campaign): 1 mods"),
+              has(p, "mw3: entry pirate (Pirate Missions): 2 mods"), has(ia, "mw3: entry ia (Instant Action): 0 mods"),
+              has(other, "mw3: entry mw3: there is no such campaign"));
+  EXPECT(has(c, "mods: campaign takes the 1 mods mw3.cfg had on") && has(c, "mods: pirate takes the 1 mods mw3.cfg had on") &&
+         has(c, "mods: moved to their campaigns"));
+  EXPECT(has(c, "mw3: entry campaign (Campaign): 1 mods"));
+  EXPECT(has(p, "mw3: entry pirate (Pirate Missions): 2 mods") && !has(p, "mods: moved"));  // its own ticks; the move once
+  EXPECT(has(ia, "mw3: entry ia (Instant Action): 0 mods"));
+  EXPECT(has(other, "mw3: entry mw3: there is no such campaign; the game's own start instead"));
+  for (const char* id : {"campaign", "pirate", "ia"})
+    EXPECT(fs::is_regular_file(dir + "/wd/campaigns/" + id + "/mw3-campaign.txt") && fs::is_directory(dir + "/wd/campaigns/" + id + "/pilots/games"));
+  EXPECT(!fs::exists(dir + "/wd/campaigns/mw3"));
+  fs::remove_all(dir, ec);
+}
+#endif

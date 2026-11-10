@@ -89,11 +89,15 @@ void mod_entries(const ModInfo& m, std::vector<CampaignEntry>& out) {
 
 }  // namespace
 
+// Pirate's Moon's: its two campaigns, each an entry with its own folder,
+// pilots and ticks (the Campaign first: a mod over the game's own files and
+// the first start's move of mw3.cfg's mod= lines take it), then Instant Action.
 std::vector<CampaignEntry> official_entries() {
-  CampaignEntry mw3, ia;
-  mw3.kind = CampaignEntry::kOfficial, mw3.id = "mw3", mw3.name = "MechWarrior 3";
+  CampaignEntry campaign, pirate, ia;
+  campaign.kind = CampaignEntry::kOfficial, campaign.id = "campaign", campaign.name = "Campaign";
+  pirate.kind = CampaignEntry::kOfficial, pirate.id = "pirate", pirate.name = "Pirate Missions";
   ia.kind = CampaignEntry::kInstantAction, ia.id = "ia", ia.name = "Instant Action";
-  return {mw3, ia};
+  return {campaign, pirate, ia};
 }
 
 bool mod_is_campaign(const ModInfo& m) {
@@ -256,7 +260,8 @@ std::vector<std::string> entries_migrate(const std::string& write_dir) {
     log.push_back("mods: " + e.id + "'s pilots moved from pilots/mods/" + e.mod + "/" + e.campaign);
   }
   for (const CampaignEntry& e : all) {
-    const bool give = e.id == official_entries().front().id || (!e.mod.empty() && std::find(campaigns.begin(), campaigns.end(), e.mod) != campaigns.end());
+    // Pirate's Moon: both of its campaigns played with the mods that were on, so both take them.
+    const bool give = e.kind == CampaignEntry::kOfficial || (!e.mod.empty() && std::find(campaigns.begin(), campaigns.end(), e.mod) != campaigns.end());
     if (!give || assets.empty() || fs::exists(fs::path(entry_dir(write_dir, e.id)) / kEntryTicksFile, ec)) continue;
     if (entry_save_ticks(write_dir, e, assets))
       log.push_back("mods: " + e.id + " takes the " + std::to_string(assets.size()) + " mods mw3.cfg had on");

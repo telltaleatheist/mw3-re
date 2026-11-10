@@ -21,17 +21,17 @@ constexpr const char* kEntriesMovedKey = "mods_moved";     // mw3.cfg's, once th
 
 struct CampaignEntry {
   enum Kind { kOfficial, kInstantAction, kImported, kCopy } kind = kOfficial;
-  std::string id;        // its folder under campaigns\: "mw3", "ia", "<mod>" or "<mod>~<campaign id>"
+  std::string id;        // its folder under campaigns\: "campaign", "pirate", "ia", "<mod>" or "<mod>~<campaign id>"
   std::string name;      // shown
   std::string mod;       // the mod it is (imported, copy); "" for the game's own and Instant Action
   std::string campaign;  // the mod's campaign= id; "" when the mod plays the game's own campaign over its files
-  std::string base;      // the entry it is built on: a copy's base=, a mod over the game's own files "mw3"
+  std::string base;      // the entry it is built on: a copy's base=, a mod over the game's own files "campaign"
   std::string error;     // why it cannot be played (its campaign file does not read), "" when it can
   bool missing = false;  // its folder is there, its mod is not: listed so its saves stay in reach
 };
 
-// The game's own entries, in the list's order: main's "mw3" and "ia"
-// (branch pm's its two campaigns and "ia").
+// The game's own entries, in the list's order. Pirate's Moon's: "campaign",
+// "pirate" (the Pirate Missions) and "ia" (main's: "mw3" and "ia").
 std::vector<CampaignEntry> official_entries();
 
 // A mod's kind: kind=campaign or kind=assets when mod.txt says; else a
@@ -71,7 +71,7 @@ std::vector<std::string> entry_mount_list(const std::string& write_dir, const Ca
 std::vector<std::string> entry_missing_mods(const std::string& write_dir, const CampaignEntry& e);
 
 // The first start of this build (once: mw3.cfg's mods_moved=1 after it):
-// mw3.cfg's mod= lines become the game's own entry's ticks (its asset mods)
+// mw3.cfg's mod= lines become the ticks of the game's own campaigns (both; its asset mods)
 // and each enabled campaign mod's entries get the same; the pilots of
 // custom campaigns under pilots\mods\<mod>\<id>\ (our marker in them) move
 // to their entry. mw3.cfg keeps every line byte for byte. The log's lines.

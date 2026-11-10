@@ -364,9 +364,12 @@ Ours, `upgrades/mods/campaign_entries`. Built so far: the model and its
 storage, no screen yet.
 
 - **Entries** (`campaign_entries`): the game's own (`official_entries()`:
+  on this branch Pirate's Moon's three, `campaign` ("Campaign"), `pirate`
+  ("Pirate Missions") and `ia`, each with its own folder, pilots and ticks;
   `mw3` and `ia` on main), then each campaign mod's `campaign=` as
-  `<mod>~<id>`, or the mod itself (id `<mod>`, base `mw3`) when it plays the
-  game's campaign over its files, then each folder of ours under
+  `<mod>~<id>`, or the mod itself (id `<mod>`, base `campaign`: Pirate's Moon's
+  worlds c1 to c4 serve both of its campaigns, and such a mod is put on the
+  Campaign) when it plays the game's campaign over its files, then each folder of ours under
   `campaigns\` whose mod is gone (`missing`: its saves stay listed). A copy is
   a mod whose mod.txt has `base=<entry>`.
 - **A mod's kind** (`mod_is_campaign`): mod.txt's `kind=campaign|assets`
@@ -390,14 +393,20 @@ storage, no screen yet.
   in the log and the game's own start goes on. Until step 2 a plain start
   still mounts mw3.cfg's `mod=` lines, so the MODS screen keeps working.
 - **The first start of this build** (`entries_migrate`, once: mw3.cfg's
-  `mods_moved=1`): mw3.cfg's `mod=` lines become the `mw3` entry's ticks (its
-  asset mods), and each enabled campaign mod's entries get the same;
+  `mods_moved=1`): mw3.cfg's `mod=` lines become the ticks of both of Pirate's
+  Moon's campaigns, `campaign` and `pirate` (the mods were on for both; main:
+  the `mw3` entry's; its asset mods), and each enabled campaign mod's entries get the same;
   `pilots\mods\<mod>\<id>\` with our marker moves to its entry. mw3.cfg
   keeps every line byte for byte; none is made where there is none.
 
 Tests: `campaign_entries_listed_by_kind`, `_folder_ticks_and_mounts`,
 `_kind_rule`, `_first_start_moves_the_mods` (test_campaign_entries.cpp),
 `sdl_program_entry_mounts_its_mods` (a real start, a space in the path).
+Pirate's Moon's: `pm_entries_are_the_two_campaigns_and_instant_action`,
+`pm_entries_each_keep_their_own_folder_pilots_and_ticks`,
+`pm_entries_first_start_gives_both_campaigns_the_mods`
+(tests/pm/test_pm_entries.cpp) and `sdl_pm_program_entry_takes_each_of_its_campaigns`
+(mw3pm's own start with `--entry campaign`, `pirate`, `ia`, and `mw3` refused).
 
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 
