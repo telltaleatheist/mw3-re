@@ -524,7 +524,8 @@ GameMenuState::GameMenuState(Kind k, Handle addr) : MenuState(name_of(k), addr),
 
 // Mech3.exe 1.2 @ 0x0049ca00, the multiplayer state's destructor (0x0049c9e0 the deleting one): the three
 // screens its constructor made are deleted (+0x1c, +0x20, +0x24, each vt+0x08(1)) and +0x0c, whichever of them
-// was shown, cleared before the shell's own (0x0048eb80). (Until 2026-11-10 the port had no such destructor, so
+// was shown, cleared before the shell's own (0x0048eb80). Pirate's Moon 1.0 @ 0x004a0230 (deleting form
+// 0x004a0210) is the same but for the screens' deleting destructor, one slot on in PM's screens (vt+0x0c). (Until 2026-11-10 the port had no such destructor, so
 // the three screens stayed each time the main menu's state was left: after every mission.)
 GameMenuState::~GameMenuState() {
   if (kind != kMultiplayer) return;
