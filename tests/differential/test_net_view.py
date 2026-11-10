@@ -12,6 +12,8 @@ Every field must match bit for bit at the emulator's (Direct3D's) 24 bits. MW3_P
 full precision, where the exe keeps the transform's sums in the x87's registers and the port rounds each to a
 float: there every state, flag and hit must match, a drawn point (the line's ends, the heads', a circle's
 place) may be a pixel off (counted), and the largest gap between the floats is printed.
+With MW3_EXE=pm, Pirate's Moon's (by the address map, its vtables from its ctors, its clip setter 0x5bb1f0
+cdecl), at 53 bits by default.
 Breaks, made by hand in the port, each must fail: the depth cut (twod_shapes.cpp clip_depth) moving the far
 ends first; the heads' points (znet_view.cpp head) rounded without the half; a circle's hit by its radius
 alone, not times its ring.
@@ -25,6 +27,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+# PM's exe at its reference runtime's 53 bits (CLAUDE.md, as PM's AI): its build keeps and spills the x87's
+# values elsewhere than MW3's, so at 24 bits its floats land 1-3 ulps from MW3's (and the port's).
+if os.environ.get('MW3_EXE') == 'pm':
+    os.environ.setdefault('MW3_PRECISION', '53')
 from calltrace import load_probe  # noqa: E402
 from original import FTOL, IAT_FTOL, Original  # noqa: E402
 
@@ -33,6 +39,9 @@ IDENT_PTR, SLOT_PTR = 0x5eda8c, 0x5eda90
 FX, FY, CX, CY = 0x73fb9c, 0x73fba0, 0x73fb88, 0x73fb8c
 HEIGHT = 0x730804
 VT_MARK, VT_AHEAD, VT_BACK = 0x5cf150, 0x5cf1d0, 0x5cf2d8
+PM = os.environ.get('MW3_EXE') == 'pm'  # PM's exe by the address map (docs/editor.md, Pirate's Moon's net view)
+if PM:  # from PM's ctors (0x5ae3c0, 0x5aec80, 0x5b0b16): the map has 0x5f16e0 for the arrow's, 4 off
+    VT_MARK, VT_AHEAD, VT_BACK = 0x5f1660, 0x5f16dc, 0x5f17dc
 HIDDEN = 0x10
 
 probe = load_probe()
@@ -130,7 +139,10 @@ class Exe:
         o.u32(self.ident, cam['ident'])
         self.wf(FX, [cam['fx']]), self.wf(FY, [cam['fy']]), self.wf(CX, [cam['cx']]), self.wf(CY, [cam['cy']])
         self.wf(self.mn, cam['mn']), self.wf(self.mx, cam['mx'])
-        o.call(SET_CLIP, ecx=self.mn, edx=self.mx)
+        if PM:  # PM's build passes them on the stack (cdecl), MW3's in ECX and EDX
+            o.call(SET_CLIP, stack_args=(self.mn, self.mx))
+        else:
+            o.call(SET_CLIP, ecx=self.mn, edx=self.mx)
         self.wf(HEIGHT, [cam['height']])
         self.marks = []
         for e in (a, b):
