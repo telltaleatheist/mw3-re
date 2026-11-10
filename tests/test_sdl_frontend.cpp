@@ -1,5 +1,6 @@
 // The SDL front end's pieces that run without a window (docs/program.md):
 // the DirectInput stand-in and the GDI text on SDL3_ttf.
+#include <sstream>
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -5180,6 +5181,112 @@ TEST(sdl_program_launcher_checks_mechwarrior3) {
   EXPECT(text.find("note: The missions of operation 2") != std::string::npos && text.find("notes shown") == std::string::npos && starts() == 3);
   for (const char* k : {"MW3_GAME_BIN", "MW3_NO_IMPORT", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);
   fs::remove_all(dir, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// Owen's hard rule for the combined package (2026-11-09): reinstalling never touches a player's mods, pilots, saves,
+// settings or imported data. A package's program folder (launcher, mw3, mw3pm) used, then replaced by a new one as an
+// installer or a dragged app does, and both games started from each through PLAY: MechWarrior 3's data folder (moved
+// elsewhere by its pointer, MY DATA FOLDER) and Pirate's Moon's settings folder keep every file byte for byte, and
+// every mw3.cfg line; only logs and the launcher's own new keys are added.
+TEST(sdl_program_package_upgrade_keeps_the_players_files) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  if (!fs::is_regular_file(fs::path(MW3_GAME_DIR).parent_path() / "pm" / "Mech3.exe", ec)) return;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "package upgrade";
+  fs::remove_all(root, ec);
+  const fs::path usual = root / "MicroProse" / "MechWarrior 3", pm_wd = root / "MicroProse" / "Pirate's Moon", data = root / "My MW3 Data";
+  const auto put = [&](const fs::path& p, const std::string& bytes) {
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream(p, std::ios::binary) << bytes;
+  };
+  put(usual / mech3::data_folder::kPointer, data.string() + "\n");
+  put(data / mech3::data_folder::kMarker, "moved here by MY DATA FOLDER\n");
+  put(data / "mw3.cfg", "install=" + std::string(MW3_GAME_DIR) + "\npm_install=" + (fs::path(MW3_GAME_DIR).parent_path() / "pm").string() +
+                            "\nmod=one\nmouse=2.5\n");
+  put(data / "pilots" / "Ace.pil", std::string(400, 'p'));
+  put(data / "configs" / "madcat.mw3", "a loadout");
+  put(data / "mods" / "one" / "mod.txt", "name=One\n");
+  put(data / "video" / "c1.fmv", std::string(1000, 'v'));
+  put(data / "music" / "track02.wav", std::string(800, 'm'));
+  put(pm_wd / "mw3.cfg", "mod=pmmod\nsound=0.8\n");
+  put(pm_wd / "pilots" / "Corsair.pil", std::string(300, 'c'));
+  put(pm_wd / "mods" / "pmmod" / "mod.txt", "name=PM mod\nfor=mw3pm\n");
+  put(pm_wd / "zbd" / "soundsH.zbd", "the disc's, added from it");
+  // Every file the player has now, by its bytes.
+  const auto snapshot = [&]() {
+    std::map<std::string, std::string> m;
+    for (const fs::path& top : {usual, pm_wd, data})
+      for (const auto& e : fs::recursive_directory_iterator(top, ec))
+        if (e.is_regular_file()) {
+          std::ifstream f(e.path(), std::ios::binary);
+          m[e.path().string()] = std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        }
+    return m;
+  };
+  const std::map<std::string, std::string> before = snapshot();
+  const auto make_app = [&](const char* version) {  // a package's program folder: the launcher and two games
+    const fs::path app = root / "Program";
+    fs::remove_all(app, ec);
+    fs::create_directories(app, ec);
+    fs::copy_file(MW3_LAUNCHER_BIN, app / "mw3launcher", ec);
+    for (const char* game : {"mw3", "mw3pm"}) {
+      std::ofstream(app / game) << "#!/bin/sh\necho " << version << " " << game << " >> \"" << (root / "started.txt").string() << "\"\nexit 0\n";
+      fs::permissions(app / game, fs::perms::owner_all, ec);
+    }
+    return app;
+  };
+  setenv("MW3_USUAL_FOLDER", usual.c_str(), 1);
+  setenv("MW3_NO_IMPORT", "1", 1);
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_GAME_BIN");
+  unsetenv("MW3_PM_WRITE_DIR");
+  int runs = 0;
+  for (const char* version : {"old", "new"}) {
+    const fs::path app = make_app(version);  // the old folder gone, the new one in its place
+    for (const char* flag : {"--launcher-play", "--launcher-pm"}) {
+      const pid_t pid = spawn_bin((app / "mw3launcher").c_str(), {flag, "--window", "640x480", "--hidden", "--nosound"},
+                                  (root / ("run" + std::to_string(++runs) + ".log")).string());
+      int status = 0;
+      const bool ok = pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+      if (!ok) {  // what it said
+        std::ifstream lf(root / ("run" + std::to_string(runs) + ".log"));
+        std::printf("  run %d (%s %s) ended %d:\n%s\n", runs, version, flag, status,
+                    std::string((std::istreambuf_iterator<char>(lf)), std::istreambuf_iterator<char>()).substr(0, 1500).c_str());
+      }
+      EXPECT(ok);
+    }
+  }
+  unsetenv("MW3_USUAL_FOLDER");
+  unsetenv("MW3_NO_IMPORT");
+  std::ifstream sf(root / "started.txt");
+  const std::string started((std::istreambuf_iterator<char>(sf)), std::istreambuf_iterator<char>());
+  std::printf("  started: %s", started.c_str());
+  EXPECT(started == "old mw3\nold mw3pm\nnew mw3\nnew mw3pm\n");
+  const std::map<std::string, std::string> after = snapshot();
+  int same = 0, changed = 0, gone = 0;
+  for (const auto& [path, bytes] : before) {
+    const auto it = after.find(path);
+    if (it == after.end()) {
+      ++gone, std::printf("  gone: %s\n", path.c_str());
+    } else if (it->second == bytes) {
+      ++same;
+    } else if (fs::path(path).filename() == "mw3.cfg") {  // each line kept; the launcher's own keys may be added
+      std::istringstream was(bytes);
+      for (std::string l; std::getline(was, l);)
+        if (it->second.find(l + "\n") == std::string::npos) ++changed, std::printf("  %s lost \"%s\"\n", path.c_str(), l.c_str());
+      ++same;
+    } else {
+      ++changed, std::printf("  changed: %s\n", path.c_str());
+    }
+  }
+  for (const auto& [path, bytes] : after)
+    if (!before.count(path) && fs::path(path).extension() != ".log")
+      std::printf("  added: %s\n", path.c_str());
+  std::printf("  the player's files: %d kept, %d changed, %d gone\n", same, changed, gone);
+  EXPECT(same == static_cast<int>(before.size()) && changed == 0 && gone == 0);
+  if (!std::getenv("MW3_KEEP")) fs::remove_all(root, ec);
 }
 #endif
 
