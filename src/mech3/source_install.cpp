@@ -109,7 +109,8 @@ struct Pass {
     return true;
   }
 
-  // A disc's files from `r`, under `root`: DATA1.HDR, DATA1.CAB, VIDEO\.
+  // A disc's files from `r`, under `root`: DATA1.HDR, DATA1.CAB, VIDEO\, and
+  // a loose MECH3.EXE (Pirate's Moon's is beside its cabinet, not in it).
   bool disc_files(ArchiveReader& r, const std::string& root, const fs::path& disc, const fs::path& video) {
     ArchiveReader::Entry e;
     const std::string lroot = lower(root);
@@ -118,8 +119,9 @@ struct Pass {
       const std::string l = lower(e.path);
       if (l.compare(0, lroot.size(), lroot) != 0) continue;
       const std::string rel = l.substr(lroot.size());
-      if (rel == "data1.hdr" || rel == "data1.cab") {
-        if (!write(r, e, disc, rel == "data1.hdr" ? "DATA1.HDR" : "DATA1.CAB", 0, false)) return false;
+      if (rel == "data1.hdr" || rel == "data1.cab" || rel == "mech3.exe") {
+        if (!write(r, e, disc, rel == "data1.hdr" ? "DATA1.HDR" : rel == "data1.cab" ? "DATA1.CAB" : "MECH3.EXE", 0, false))
+          return false;
         ++s.files;
       } else if (rel.rfind("video/", 0) == 0 && rel.find('/', 6) == std::string::npos) {
         const std::string name = safe_relative(e.path.substr(e.path.rfind('/') + 1));

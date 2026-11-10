@@ -3,6 +3,7 @@
 // zip, 7z, a zip inside a zip, an ISO 9660 image, the same as raw 2352-byte
 // sectors, an ISO inside a 7z, and a damaged archive.
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
@@ -452,6 +453,96 @@ TEST(setup_install_leaves_nothing_when_it_stops) {
   mech3::source::space_spare() = keep;
   std::printf("  no room: %s\n", c.summary.c_str());
   EXPECT(!c.ok && c.summary.find("free space") != std::string::npos && calls == 0 && nothing(tmp + "/c"));
+}
+
+// Pirate's Moon from its disc (docs/launcher.md, Pirate's Moon): the image's
+// cue on disk, its music from track 2, and the image zipped (staged, its
+// loose MECH3.EXE kept). The result is the extracted install's files, read
+// back by the map as Pirate's Moon; no 1.2 patch, whatever is passed.
+TEST(setup_install_pirates_moon_from_its_disc) {
+  if (!have_games()) return;
+  namespace fs = std::filesystem;
+  namespace su = mech3::setup;
+  using mech3::source::Found;
+  const std::string tmp = std::string(MW3_TEST_TMP) + "/pm-install";
+  std::error_code ec;
+  fs::remove_all(tmp, ec);
+  fs::create_directories(tmp, ec);
+  // Every file of game/pm (assembled from the same disc) there with its size.
+  auto same_as_pm = [&](const std::string& dir) {
+    int n = 0, bad = 0;
+    for (const auto& e : fs::recursive_directory_iterator(kGame + "/pm")) {
+      if (!e.is_regular_file()) continue;
+      const fs::path rel = fs::relative(e.path(), kGame + "/pm");
+      ++n;
+      if (!fs::exists(fs::path(dir) / rel, ec) || fs::file_size(fs::path(dir) / rel, ec) != e.file_size())
+        ++bad, std::printf("  differs: %s\n", rel.string().c_str());
+    }
+    return n > 100 && bad == 0;
+  };
+  auto read_back = [&](const std::string& dir) {
+    const Found f = mech3::source::map_source(dir);
+    return f.kind == Found::kInstall && f.game == Found::kPiratesMoon && f.on_disk;
+  };
+
+  const std::string cue = kGame + "/pm-disc/MechWarrior 3 - Pirate's Moon (Expansion Pack) (USA).cue";
+  const Found f = mech3::source::map_source(cue);
+  EXPECT(f.kind == Found::kDisc && f.game == Found::kPiratesMoon && f.on_disk && f.audio.size() == 1);
+  const su::Result a = su::install_from_source(f, tmp + "/a", kGame + "/patch-1.2/MechWarrior-3_Patch_Win_EN_Patch-12-US",
+                                               tmp + "/music", tmp + "/write", nullptr);
+  std::printf("  cue: %s\n", a.summary.c_str());
+  for (const std::string& w : a.warnings) std::printf("  warning: %s\n", w.c_str());
+  EXPECT(a.ok && a.pirates_moon && a.version == "1.0" && a.music_tracks == 1 && a.warnings.empty() &&
+         a.summary.find("Pirate's Moon 1.0 is installed") != std::string::npos);
+  EXPECT(fs::exists(tmp + "/music/track02.wav", ec) && !fs::exists(tmp + "/music/track03.wav", ec));
+  EXPECT(slurp(tmp + "/a/Mech3.exe") == slurp(kGame + "/pm/Mech3.exe"));
+  EXPECT(slurp(tmp + "/a/zbd/reader.zbd") == slurp(kGame + "/pm/zbd/reader.zbd"));
+  EXPECT(same_as_pm(tmp + "/a") && read_back(tmp + "/a"));
+  // An installed copy on disk is used where it is.
+  const su::Result b = su::install_from_source(mech3::source::map_source(tmp + "/a"), tmp + "/unused", "", "", tmp + "/write",
+                                               nullptr);
+  EXPECT(b.ok && b.pirates_moon && b.install_dir == tmp + "/a" && !fs::exists(tmp + "/unused", ec));
+
+  // The image in a zip (stored: the test's own write), read out in one pass.
+  const std::string zip = tmp + "/Pirate's Moon.zip";
+  {
+    archive* w = archive_write_new();
+    archive_write_set_format_zip(w);
+    archive_write_set_format_option(w, "zip", "compression", "store");
+    EXPECT(archive_write_open_filename(w, zip.c_str()) == ARCHIVE_OK);
+    const std::string iso = slurp(kGame + "/pm-disc/pm.iso");
+    archive_entry* e = archive_entry_new();
+    archive_entry_set_pathname(e, "PM/pm.iso");
+    archive_entry_set_size(e, static_cast<la_int64_t>(iso.size()));
+    archive_entry_set_filetype(e, AE_IFREG);
+    archive_entry_set_perm(e, 0644);
+    archive_write_header(w, e);
+    archive_write_data(w, iso.data(), iso.size());
+    archive_entry_free(e);
+    archive_write_close(w);
+    archive_write_free(w);
+  }
+  const Found g = mech3::source::map_source(zip);
+  EXPECT(g.kind == Found::kDisc && g.game == Found::kPiratesMoon && !g.on_disk);
+  const su::Result c = su::install_from_source(g, tmp + "/c", "", tmp + "/music-c", tmp + "/write", nullptr);
+  std::printf("  zip: %s\n", c.summary.c_str());
+  EXPECT(c.ok && c.pirates_moon && c.version == "1.0" && c.music_tracks == 0 && !fs::exists(tmp + "/write/setup-staging", ec));
+  EXPECT(slurp(tmp + "/c/Mech3.exe") == slurp(kGame + "/pm/Mech3.exe"));
+  EXPECT(same_as_pm(tmp + "/c") && read_back(tmp + "/c"));
+  // A Pirate's Moon disc installs as Pirate's Moon only when told: MW3's
+  // checks on it are not 1.0's (the plain disc install, for mw3 --install-from).
+  const mech3::DiscInstall d = mech3::install_from_disc(kGame + "/pm-disc/pm.iso", tmp + "/d", "", "", nullptr);
+  EXPECT(d.ok && d.version == "unknown" && !fs::exists(tmp + "/d/Mech3.exe", ec));
+  // Played to a frame of its menu by Pirate's Moon itself, when one is named
+  // (MW3_PM_BIN: mw3pm is built on the pm branch, not here).
+  if (const char* pm = std::getenv("MW3_PM_BIN"); pm && *pm) {
+    const std::string line = "\"" + std::string(pm) + "\" --install \"" + tmp + "/c\" --write-dir \"" + tmp +
+                             "/pm-write\" --no-launcher --nosound --hidden --frames 90 --shot \"" + tmp + "/shot.bmp\"";
+    const int rc = std::system(line.c_str());
+    std::printf("  mw3pm on the install: %d, shot %s\n", rc, fs::exists(tmp + "/shot.bmp", ec) ? "made" : "missing");
+    EXPECT(rc == 0 && fs::exists(tmp + "/shot.bmp", ec));
+  }
+  fs::remove_all(tmp, ec);
 }
 
 // The real thing, when the backups are here (a long read: MW3_SETUP_LONG=1):

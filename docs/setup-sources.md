@@ -102,7 +102,8 @@ zip (a long run).
 3. Sitting 3 (2026-10-31): `mech3/source_install` (`stage_source`) and
    `setup::install_from_source`. One forward pass through the archives down
    to the game: an installed copy's files straight into `out_dir`.new; a
-   disc's DATA1.HDR, DATA1.CAB and VIDEO\ files into
+   disc's DATA1.HDR, DATA1.CAB, VIDEO\ files and a loose MECH3.EXE (Pirate's
+   Moon's; 2026-11-09) into
    `write_dir`/setup-staging (from a folder in an archive, or an image read
    sector by sector from its entry); a cue's audio tracks, found beside the
    image, straight to trackNN.wav from their INDEX 01. The disc then installs

@@ -71,7 +71,8 @@ std::string version_of(const std::string& dir, const std::string& overlay) {
   return "unknown";
 }
 
-std::string version_words(const std::string& v) {
+std::string version_words(const std::string& v, bool pirates_moon = false) {
+  if (pirates_moon) return v.empty() ? "MechWarrior 3: Pirate's Moon" : "MechWarrior 3: Pirate's Moon " + v;
   if (v == "1.2" || v == "1.0") return "MechWarrior 3 " + v;
   if (v == "1.0 with 1.2 files") return "MechWarrior 3 (partly patched to 1.2)";
   return "MechWarrior 3 (a version we don't know, perhaps modded)";
@@ -82,24 +83,28 @@ ProgressFn forward_only(const ProgressFn& p) { return p ? p : [](const Progress&
 }  // namespace
 
 Result install_from_disc(const std::string& source, const std::string& out_dir, const std::string& patch,
-                         const std::string& music_dir, const ProgressFn& progress, const std::string& movies_from) {
+                         const std::string& music_dir, const ProgressFn& progress, const std::string& movies_from,
+                         bool pirates_moon) {
   const ProgressFn p = forward_only(progress);
   const DiscInstall d = mech3::install_from_disc(
       source, out_dir, patch, music_dir,
-      [&](const std::string& stage, double f, const std::string& msg) { return p(Progress{stage, f, msg}); }, movies_from);
+      [&](const std::string& stage, double f, const std::string& msg) { return p(Progress{stage, f, msg}); }, movies_from,
+      pirates_moon);
   Result r;
+  r.pirates_moon = pirates_moon;
   r.ok = d.ok, r.cancelled = d.failure == DiscInstall::kCancelled;
   r.install_dir = out_dir, r.version = d.version;
-  if (d.ok && d.version == "unknown") r.version = version_of(out_dir, "");  // not the 1.0 disc's: by size and CRC
+  if (d.ok && d.version == "unknown" && !pirates_moon) r.version = version_of(out_dir, "");  // not the 1.0 disc's: by size and CRC
   r.files = d.files, r.movies = d.movies, r.music_tracks = d.music, r.bytes = d.bytes;
   for (const std::string& l : d.log) r.detail += l + "\n";
   if (d.ok) {
-    r.summary = version_words(r.version) + " is installed in " + out_dir + " (" + std::to_string(d.files) +
-                " files and " + std::to_string(d.movies) + " movies, " + mb(d.bytes) + ").";
+    r.summary = version_words(r.version, pirates_moon) + " is installed in " + out_dir + " (" +
+                std::to_string(d.files) + " files" + (pirates_moon ? "" : " and " + std::to_string(d.movies) + " movies") +
+                ", " + mb(d.bytes) + ").";
     if (d.music)
       r.summary += d.music == 1 ? " The disc's music track was added too."
                                 : " The disc's " + std::to_string(d.music) + " music tracks were added too.";
-    if (r.version == "1.0") r.warnings.push_back("This is version 1.0. Applying the official 1.2 patch is recommended.");
+    if (r.version == "1.0" && !pirates_moon) r.warnings.push_back("This is version 1.0. Applying the official 1.2 patch is recommended.");
     if (r.version == "unknown")
       r.warnings.push_back(mod_note());
     for (const std::string& w : d.warnings)
@@ -114,7 +119,8 @@ Result install_from_disc(const std::string& source, const std::string& out_dir, 
                   "is in the drive, or that the image file is complete.";
       break;
     case DiscInstall::kNotMw3:
-      r.summary = "That does not look like the MechWarrior 3 disc: it has no MechWarrior 3 installer data on it.";
+      r.summary = pirates_moon ? "That does not look like the Pirate's Moon disc: it has no Pirate's Moon installer data on it."
+                               : "That does not look like the MechWarrior 3 disc: it has no MechWarrior 3 installer data on it.";
       break;
     case DiscInstall::kDamaged:
       r.summary = "Part of the disc could not be read correctly, so nothing was installed. Clean the disc and try "
@@ -142,12 +148,14 @@ Result install_from_source(const source::Found& found, const std::string& out_di
   const ProgressFn p = forward_only(progress);
   Result r;
   r.detail = found.detail;
-  if (found.game != Found::kMw3) {
+  const bool pm = found.game == Found::kPiratesMoon;
+  if (found.game != Found::kMw3 && !pm) {
     r.summary = found.summary.empty() ? source::game_words(found) : found.summary;
     return r;
   }
-  if (found.on_disk && found.kind == Found::kInstall) return check_install(found.path, write_dir);
-  if (found.on_disk) return install_from_disc(found.path, out_dir, patch, music_dir, progress);
+  const std::string patch_for = pm ? std::string() : patch;
+  if (found.on_disk && found.kind == Found::kInstall) return check_install(found.path, write_dir, pm);
+  if (found.on_disk) return install_from_disc(found.path, out_dir, patch_for, music_dir, progress, "", pm);
 
   const fs::path out(out_dir), staging = fs::path(write_dir) / "setup-staging";
   std::error_code ec;
@@ -211,20 +219,20 @@ Result install_from_source(const source::Found& found, const std::string& out_di
       return abandon("The installation was cancelled. Nothing was changed.");
     }
     if (!swap_in_folder(tmp, out.string(), ec)) return abandon("The game could not be written to " + out_dir + ": " + ec.message() + ".");
-    r = check_install(out_dir, write_dir);
+    r = check_install(out_dir, write_dir, pm);
     r.detail = found.detail;
     for (const std::string& l : s.log) r.detail += l + "\n";
     r.files = s.files, r.bytes = s.bytes;
-    if (r.ok) r.summary = version_words(r.version) + " is installed in " + out_dir + " (" + std::to_string(s.files) +
+    if (r.ok) r.summary = version_words(r.version, pm) + " is installed in " + out_dir + " (" + std::to_string(s.files) +
                           " files, " + mb(s.bytes) + "), copied from " + fs::path(found.path).filename().string() + ".";
     p(Progress{"Done", 1, ""});
     return r;
   }
 
   // A disc: installed from the staged cabinet, then its movies and music moved in.
-  r = install_from_disc((staging / "disc").string(), out_dir, patch, "",
+  r = install_from_disc((staging / "disc").string(), out_dir, patch_for, "",
                         [&](const Progress& q) { return p(Progress{q.stage, share + q.fraction * (0.97 - share), q.message}); },
-                        s.video_dir);
+                        s.video_dir, pm);
   r.detail = found.detail + r.detail;
   for (const std::string& l : s.log) r.detail += l + "\n";
   auto move_in = [&](const std::string& from, const fs::path& to) {
@@ -244,8 +252,8 @@ Result install_from_source(const source::Found& found, const std::string& out_di
   if (r.ok) {
     if (!music_dir.empty()) r.music_tracks = move_in(s.music_dir, music_dir);
     if (r.music_tracks < s.music && !music_dir.empty()) r.warnings.push_back("Some of the music could not be copied.");
-    r.summary = version_words(r.version) + " is installed in " + out_dir + " (" + std::to_string(r.files) + " files and " +
-                std::to_string(r.movies) + " movies), from " + fs::path(found.path).filename().string() + ".";
+    r.summary = version_words(r.version, pm) + " is installed in " + out_dir + " (" + std::to_string(r.files) + " files" +
+                (pm ? "" : " and " + std::to_string(r.movies) + " movies") + "), from " + fs::path(found.path).filename().string() + ".";
     if (r.music_tracks)
       r.summary += r.music_tracks == 1 ? " The disc's music track was added too."
                                        : " The disc's " + std::to_string(r.music_tracks) + " music tracks were added too.";
@@ -425,12 +433,17 @@ Result add_music(const std::string& cue, const std::string& music_dir, const Pro
   return r;
 }
 
-Result check_install(const std::string& dir, const std::string& write_dir) {
+Result check_install(const std::string& dir, const std::string& write_dir, bool pirates_moon) {
   Result r;
-  r.install_dir = dir;
+  r.install_dir = dir, r.pirates_moon = pirates_moon;
   std::error_code ec;
   if (zutl::any_case(dir, "zbd/reader.zbd").empty()) {
-    r.summary = "No MechWarrior 3 was found in " + dir + ": it has no zbd folder with the game's data.";
+    r.summary = std::string("No ") + (pirates_moon ? "Pirate's Moon" : "MechWarrior 3") + " was found in " + dir + ": it has no zbd folder with the game's data.";
+    return r;
+  }
+  if (pirates_moon) {  // one release, no patch and no movies (docs/launcher.md, Pirate's Moon)
+    r.ok = true;
+    r.summary = "Found " + version_words("", true) + " at " + dir + ".";
     return r;
   }
   const std::string overlay = write_dir.empty() ? std::string() : write_dir + "/patch12";

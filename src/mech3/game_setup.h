@@ -29,7 +29,8 @@ struct Result {
   std::string detail;                 // the technical reason (a log, a "details" box)
   std::vector<std::string> warnings;  // plain words, each a sentence
   std::string install_dir;            // install_from_disc and check_install: the folder
-  std::string version;                // "1.0", "1.2", "1.0 with 1.2 files", "unknown"
+  std::string version;                // "1.0", "1.2", "1.0 with 1.2 files", "unknown"; Pirate's Moon's "1.0" or ""
+  bool pirates_moon = false;          // the game is Pirate's Moon (docs/launcher.md, Pirate's Moon)
   int files = 0, movies = 0, music_tracks = 0;
   uint64_t bytes = 0;
 };
@@ -38,9 +39,11 @@ struct Result {
 // installed into `out_dir` (to `out_dir`.new, then renamed: a failure or a
 // cancel leaves nothing). With `patch` (the patch's ZIP, folder, data1.hdr or
 // loose files) its data becomes 1.2's in the same step. A .cue's CD audio
-// becomes music_dir/trackNN.wav when `music_dir` is given.
+// becomes music_dir/trackNN.wav when `music_dir` is given. `pirates_moon`:
+// the Pirate's Moon disc (no patch, disc_install.h).
 Result install_from_disc(const std::string& source, const std::string& out_dir, const std::string& patch,
-                         const std::string& music_dir, const ProgressFn& progress, const std::string& movies_from = "");
+                         const std::string& music_dir, const ProgressFn& progress, const std::string& movies_from = "",
+                         bool pirates_moon = false);
 
 // Whatever map_source found (source_map.h), installed. An installed copy on
 // disk is used where it is (check_install); a disc or image on disk goes to
@@ -48,7 +51,8 @@ Result install_from_disc(const std::string& source, const std::string& out_dir, 
 // (source_install.h): an installed copy's files into `out_dir`.new, a disc's
 // cabinet and movies staged in `write_dir`/setup-staging (removed after) and
 // installed from there, its CD audio as music_dir/trackNN.wav. `out_dir`
-// appears only once complete, its mw3-install.txt written last.
+// appears only once complete, its mw3-install.txt written last. Either game:
+// a Pirate's Moon source installs as Pirate's Moon (`patch` unused).
 Result install_from_source(const source::Found& found, const std::string& out_dir, const std::string& patch,
                            const std::string& music_dir, const std::string& write_dir, const ProgressFn& progress);
 
@@ -86,6 +90,6 @@ std::vector<DiscSource> find_discs();
 
 // Whether `dir` holds MechWarrior 3 (zbd/reader.zbd), and which data
 // version: 1.2 with `write_dir`/patch12 in front of it when that exists.
-Result check_install(const std::string& dir, const std::string& write_dir);
+Result check_install(const std::string& dir, const std::string& write_dir, bool pirates_moon = false);
 
 }  // namespace mech3::setup
