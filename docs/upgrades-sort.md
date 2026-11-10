@@ -26,8 +26,8 @@ lobby would send them as it sends the mods' check.
 
 | Switch | What it changes | Rows | In multiplayer |
 |---|---|---|---|
-| MFB regroup after repair | The field bases come back to you as soon as a repair is done, and a lancemate can use them too (Owen's). | 2 | The host's, where a multiplayer map has field bases (to check: none expected). |
-| Improved AI | Lancemates find their way round walls, rivers and corners; turrets, vehicles and scripted AI as the data meant (Owen's). | 15 | The host's, for any AI in the game (turrets or vehicles on a multiplayer map; lancemates are single-player only). |
+| MFB regroup after repair | The field bases come back to you as soon as a repair is done, and a lancemate can use them too (Owen's). | 2 | The host's. Multiplayer has field bases: MW3's c1 map 1 lists three mobile HQs (`mobilehq_01..03` in its readermp1 aiv.zrd), and the lobby's mobile bases option puts repair stations on every map's waynet points (`program_set_mp_mobile_bases`; their repairs use the same dock). PM's maps list no mobile HQ, but every one carries a waynet_mp file as MW3's station maps do, so the option's stations may apply there too (PM's lobby side not read yet). |
+| Improved AI | Lancemates find their way round walls, rivers and corners; turrets, vehicles and scripted AI as the data meant (Owen's). | 15 | The host's, and it touches little: a network game has no turrets (starting one clears the app's turret flag, [0x608e3a] = 0 at 0x0047fd72; ending it sets it again at 0x0047fd91), no lancemates, and the only AI vehicles are MW3's c1 map 1's three mobile HQs; every other map of both games lists only the players (`remote_N`) and the stealth object. |
 | Water movement | Deep water slows a mech smoothly instead of stopping it (Owen's). | 1 | The host's for everyone: it changes how fast every mech moves. |
 | Artemis tracking | Artemis FCS missiles get their extra tracking (Owen's). | 1 | The host's for everyone: it changes hits. |
 | Weapons and combat | Typos and slips in weapons and damage: TAG, beams, the reticle's reach, the plain PPC, heat-sink loss said. | 8 | The host's for everyone: it changes damage and hits. |
