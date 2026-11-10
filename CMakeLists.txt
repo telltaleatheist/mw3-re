@@ -335,6 +335,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/mod_needs.cpp
   src/upgrades/mods/campaign_entries.cpp
   src/upgrades/mods/entry_pilot_copy.cpp
+  src/upgrades/mods/entry_run.cpp
   src/upgrades/mods/starter_mods.cpp
   src/upgrades/update/update.cpp
   src/upgrades/reference/reference.cpp
@@ -745,6 +746,7 @@ if(SDL3_FOUND)
     endif()
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
+      src/frontend/sdl/sdl_restart.cpp
       src/frontend/sdl/run_log.cpp
       src/frontend/sdl/crash_report.cpp
       src/frontend/sdl/launcher.cpp
@@ -832,6 +834,7 @@ if(SDL3_FOUND)
       tests/main.cpp
       tests/test_sdl_frontend.cpp
       src/frontend/sdl/sdl_update.cpp
+      src/frontend/sdl/sdl_restart.cpp
       tests/test_net_enet.cpp
       tests/test_net_upnp.cpp
     )

@@ -9,8 +9,8 @@
 // Action, each campaign a mod brings and each copy the player saved. Each
 // entry has a folder of ours, <write dir>/campaigns/<id>/ (our marker in it),
 // holding its ticked asset mods (mods.txt, mod= lines in the order they win),
-// its pilots and their saves (pilots/, the original's layout) and, for
-// Instant Action, its own settings. Mods mount only for an entry (--entry);
+// its pilots and their saves (pilots/, the original's layout) and its saved
+// loadouts (configs/, the mech lab's and Instant Action's). Mods mount only for an entry (--entry);
 // nothing here removes a folder but campaign_entry_remove, on the player's
 // confirm, and only one with our marker.
 namespace mech3 {
@@ -49,7 +49,9 @@ const CampaignEntry* find_entry(const std::vector<CampaignEntry>& all, const std
 // original's separators, as set_pilots_folder takes it).
 std::string entry_dir(const std::string& write_dir, const std::string& id);
 std::string entry_pilots_folder(const std::string& id);
-// Its folder made with our marker and pilots\games (one already there kept
+// Its saved loadouts' folder the same way (set_configs_folder): its own, empty at first.
+std::string entry_configs_folder(const std::string& id);
+// Its folder made with our marker, pilots\games and configs (one already there kept
 // when it has the marker or is empty; one holding other files refused, `why`).
 bool entry_ensure(const std::string& write_dir, const CampaignEntry& e, std::string* why);
 

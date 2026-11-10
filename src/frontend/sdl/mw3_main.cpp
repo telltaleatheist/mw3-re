@@ -74,6 +74,8 @@
 #include "frontend/sdl/crash_report.h"
 #include "frontend/sdl/data_folder_start.h"
 #include "frontend/sdl/run_log.h"
+#include "frontend/sdl/sdl_restart.h"
+#include "upgrades/mods/entry_run.h"
 #include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
@@ -174,6 +176,9 @@ struct Args {
   bool mods_given = false, no_mods = false, list_mods = false;
   // --entry ID (ours, upgrades/mods/campaign_entries.h): a MODS campaign entry's mods and pilots for this run.
   std::string entry;
+  // Its screen opened at once (upgrades/mods/entry_run.h), a plain start with MODS open, and a start made by
+  // the program itself (sdl_restart.h): no intro movies.
+  bool entry_play = false, entry_ia = false, open_mods = false, restarted = false;
   std::string check_mod;  // --check-mod DIR
   std::string mod_report;  // --mod-report DIR (ours, upgrades/mods/mod_report.h): the check as sentences
   std::string build_anim;  // --build-anim DIR: its def files merged for the original game (upgrades/mods/anim_defs)
@@ -264,7 +269,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia]] [--open-mods] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -284,6 +289,10 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--mod" && next(1)) a.mods.emplace_back(argv[++i]), a.mods_given = true;
     else if (s == "--no-mods") a.no_mods = true;
     else if (s == "--entry" && next(1)) a.entry = argv[++i];
+    else if (s == "--entry-play") a.entry_play = true;
+    else if (s == "--entry-ia") a.entry_ia = true;
+    else if (s == "--open-mods") a.open_mods = true;
+    else if (s == "--restarted") a.restarted = true;
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
     else if (s == "--mod-report" && next(1)) a.mod_report = argv[++i];
@@ -634,7 +643,28 @@ std::string codec_path(const std::string& install) {
 
 }  // namespace
 
+namespace {
+int program(int argc, char** argv);
+}
+
+// Ours (sdl_restart.h): the run, then, when it asked, the program again into
+// a MODS campaign entry or back out of one, once everything of the run (its
+// log, SDL, its helpers) is gone.
 int main(int argc, char** argv) {
+  const int result = program(argc, argv);
+  sdlfe::RestartTo to;
+  if (!sdlfe::restart_asked(&to)) return result;
+  // What the run left open (a library's own; ours are closed): said, and closed at the exec.
+  for (int fd : sdlfe::restart_open_handles())
+    std::fprintf(stderr, "mw3: starting again: handle %d still open: %s\n", fd, sdlfe::restart_handle_name(fd).c_str());
+  std::string why;
+  sdlfe::restart_into(argv[0], sdlfe::restart_args(std::vector<std::string>(argv + 1, argv + argc), to), &why);
+  std::fprintf(stderr, "mw3: could not start again: %s\n", why.c_str());
+  return result ? result : 1;
+}
+
+namespace {
+int program(int argc, char** argv) {
   if (sdlfe::crash_box_main(argc, argv)) return 0;
   // In order with the log on stderr. Windows' CRT has no line buffering (and takes size 0 as
   // an invalid argument): unbuffered there.
@@ -759,10 +789,22 @@ int main(int argc, char** argv) {
       a.entry.clear();
     } else {
       a.mods = mech3::entry_mount_list(a.write_dir, *e);
-      if (e->campaign.empty()) mech3::set_pilots_folder(mech3::entry_pilots_folder(e->id));  // a mod's campaign: when entered
+      // Its own pilots and saved loadouts from the start: the main menu's are never read or written inside an entry.
+      mech3::set_pilots_folder(mech3::entry_pilots_folder(e->id));
+      mech3::set_configs_folder(mech3::entry_configs_folder(e->id));
       std::printf("mw3: entry %s (%s): %zu mods\n", e->id.c_str(), e->name.c_str(), a.mods.size());
+      // Its screen alone (--entry-play, --entry-ia): the main menu opens it and its BACK leaves.
+      if (a.entry_play || a.entry_ia) {
+        mech3::EntryRun& run = mech3::entry_run();
+        const bool ia = a.entry_ia || e->kind == mech3::CampaignEntry::kInstantAction;
+        run.screen = ia ? mech3::EntryRun::kInstantAction : mech3::EntryRun::kPlay;
+        run.id = e->id, run.mod = e->mod, run.campaign = e->campaign;
+      }
     }
+    // One that cannot be played: the player back on MODS, where it is listed.
+    if (a.entry.empty() && (a.entry_play || a.entry_ia)) a.open_mods = true;
   }
+  if (a.open_mods) mech3::mods_menu_reopen() = true, std::printf("mw3: the main menu opens on MODS (--open-mods)\n");
   // Every play-changing bug fix off with --original or bugfixes=0 (ours; the
   // platform fixes that let it run stay on: fixes.md, The bug fixes switch).
   zfix::options().bugs = !a.play_original && a.cfg_bugfixes != 0;
@@ -953,6 +995,7 @@ int main(int argc, char** argv) {
   SDL_Quit();  // after every SDL object above is gone
   return result;
 }
+}  // namespace
 
 namespace {
 
@@ -1694,6 +1737,16 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       if (debug) app.post_intro_ = debug.get();
       if (!a.movie.empty()) app.lobby_flow_ = 1;  // the Intro state's own movies skipped
       if (launch) app.post_intro_ = &mech3::states().load;
+      if (a.restarted) app.lobby_flow_ = 1;  // ours (sdl_restart.h): the program's own start again, no intro movies
+      // Ours (upgrades/mods/entry_run.h): the entry left: the game closed as QUIT closes it, then started again on MODS.
+      if (mech3::entry_run().screen != mech3::EntryRun::kNone)
+        mech3::entry_run().leave = [&app] {
+          std::printf("mw3: entry %s left: starting again on MODS\n", mech3::entry_run().id.c_str());
+          sdlfe::RestartTo to;
+          to.open_mods = true;
+          sdlfe::restart_ask(to);
+          app.replace(app.state(4), 0);
+        };
       // --briefing c1m2 (ours, for checking the front end): a pilot "Briefing"
       // whose newest saved campaign stands at that mission (pilot.md: the
       // newest save is the pilot's game), then the clicks a player makes:
