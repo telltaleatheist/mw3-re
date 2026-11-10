@@ -46,6 +46,10 @@ class AiParams {
   void to_file_units();                       // 0x004d9b20: ranges back to plain, the yaw to degrees
   void finish();                              // 0x004d9b70: ranges squared, the yaw in radians
 
+  // The vehicle editor's compares (docs/editor.md, The vehicle editor):
+  bool same_numbers(const AiParams& o) const;  // 0x004df1b0 (the store's 0x004bbd70..0x004bc110 alike)
+  bool same_vlist(const AiParams& o) const;    // 0x004d91d0 -> 0x004d9090 (entries 0x004d9140)
+
   template <class T>
   T get(int off) const {
     T v;
@@ -76,6 +80,9 @@ class AiParams {
   char* pilot = nullptr;                      // +0xd4  localized
   char* sound_tag = nullptr;                  // +0xd8  the radio voice: "dom", "alan", "epona"
 };
+
+// 0x0049d2f0: two names equal; none (null) is never equal, not even to none.
+bool same_name(const char* a, const char* b);
 
 int32_t team_side(int32_t which);             // 0x004d5af0: 0 -> 1, 1 -> 2, else 0
 int32_t team_for_name(const char* name);      // 0x004d5b10: "player" 1, "stealth" or none 0, else 2

@@ -718,21 +718,21 @@ void CampaignGame::merge_salvage() {
 // settled in place: the slots' mechs and loadouts listed in +0x50 (docs/campaign.md 4).
 CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
   PilotHooks& h = pilot_hooks();
-  int32_t m = mission_number(), op = operation();
-  const bool over = campaign_advance(op, m);
+  int32_t m = mission, op = campaign, bases = a8;
+  const bool over = advance(op, m, bases);
   if (next_one) {
     if (over) {  // Pirate's Moon 1.0 @ 0x004359e0: the salvage merged all the same
       merge_salvage();
       return nullptr;
     }
-    auto* g = new CampaignGame(pilot, op, m);
+    auto* g = new_campaign_game(pilot, op, m);
     g->store.assign(store);
     g->store.add_all(store64);
     std::memcpy(g->b4, b4, sizeof b4);
     if (Store* salvage = h.mission_salvage()) g->store3c.assign(*salvage);
     else g->store3c.clear();  // [0x00609990] is always set in the exe
     g->slot.copy_from(slot);
-    g->a8 = a8;  // Pirate's Moon 1.0 @ 0x004359e0: no resets
+    g->a8 = bases;  // Pirate's Moon 1.0 @ 0x004359e0: no resets (advance gives a8; a mod's list its bases=)
     g->c4 = c4;
     g->copy_lancemates(*this);
     if (save && !campaign_fresh_world(m)) h.save_world(g->path(), 2);
@@ -754,6 +754,14 @@ CampaignGame* CampaignGame::next_mission(bool next_one, bool save) {
   store78.clear();
   b0 = 0;
   return this;
+}
+
+// Inline in 0x00434e00: the advance (0x00484870, campaign_advance) and the
+// next game's +0xa8.
+bool CampaignGame::advance(int32_t& op, int32_t& m, int32_t& bases) const {
+  const bool over = campaign_advance(op, m);  // Pirate's Moon 1.0 @ 0x00435dc0
+  bases = a8;  // Pirate's Moon 1.0 @ 0x004359e0: no reset at a world's start (MW3's 3)
+  return over;
 }
 
 // Mech3.exe 1.2 @ 0x00435110
@@ -803,16 +811,20 @@ void CampaignGame::copy_lancemates(const CampaignGame& from) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00434950
+// Mech3.exe 1.2 @ 0x00434950 (ours: in pilots_folder())
 const char* CampaignGame::path_for(const char* pilot_name) {
   char buf[0x200];
-  std::snprintf(buf, sizeof buf, "pilots//games//%s%02d.mw3", pilot_name, mission_number());  // PM 0x00435680
+  // PM 0x00435680 (ours: in pilots_folder(); the raw number, a mod campaign's place in its list)
+  std::snprintf(buf, sizeof buf, "%s//games//%s%02d.mw3", pilots_folder().c_str(), pilot_name, mission);
   text = buf;
   return text.c_str();
 }
 
 // Mech3.exe 1.2 @ 0x00434980
 const char* CampaignGame::path() { return path_for(pilot->name); }
+
+// Pirate's Moon 1.0 @ 0x00435de0 (vt+0x54; MW3's 0x00435350 by the operation): by the mission number.
+int32_t CampaignGame::world_index() const { return campaign_world(mission_number()); }
 
 // Mech3.exe 1.2 @ 0x00435330 (0x00576080: _access)
 bool CampaignGame::readable() { return zutl::exists(path()); }

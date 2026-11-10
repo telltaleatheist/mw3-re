@@ -521,3 +521,13 @@ in the file (texture +0x24, material +0x10/+0x24, node +0x38/+0x3c/+0x58/
 +0x60, the list arrays). A 64-bit port needs separate in-memory structs with
 the file layout kept for reading (the ports keep the bytes and add typed
 pointer fields; mechlib models share the world pool since 2026-10-20).
+
+**A partition's middle height (2026-11-09, gamez JSON).** Each world
+partition's record holds the middle of its box, `(max.y + min.y) / 2`. On the
+six 1.2 worlds a float sum and a double one give the same bits for every
+partition (c3: 738). mech3ax patches about a hundred c3 partitions from a
+table of shipped bits, but none of that table's partition pointers occur in
+the 1.2 c3 file, so it is for another release. The JSON reader sums in
+double and rounds once (gamez_json.cpp); which the original's tools did is
+not shown by these files. Its diagonal is mech3ax's approximate square root
+of a sum taken in double.

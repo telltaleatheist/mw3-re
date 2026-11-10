@@ -164,6 +164,111 @@ for Pirate's Moon the same folder picker, which also keeps MY DATA FOLDER, ADD
 FROM MY DISC and SETUP out of it (later items). Installing from a disc and its
 music (the image's track 2) are later too.
 
+### Pirate's Moon as MechWarrior 3 (plan, 2026-11-09; toward the combined 1.1.0)
+
+The lead, from Owen: the launcher does for Pirate's Moon everything it does for
+MechWarrior 3. Owen's rules for all of it: open and easy (players may replace
+the games' programs or data; no integrity or hash refusals, no automatic
+repair: the launcher re-detects what is there, shows it, and explains plainly
+only what truly cannot run); nothing it does touches a player's mods, pilots,
+saves, settings or imported data; each game still starts on its own, and the
+single-game packages stay. One sitting each, each with its tests:
+
+1. **Found by itself.** `sdlfe::install_candidates` takes the game: Pirate's
+   Moon's registry key (HKLM `SOFTWARE\MicroProse\MechWarrior 3 EP1\1.0`
+   "Program", both views and the VirtualStore copies), its default and usual
+   folders, and the same Wine, Proton and Lutris prefixes as MechWarrior 3's,
+   plus the Mac's (CrossOver and Whisky bottles, both games). Each candidate
+   through `map_source`, so neither game's folder is taken for the other's.
+   The launcher looks when mw3.cfg's `pm_install=` is empty or no longer
+   holds the game, and saves what it finds. Tests: a fake HOME with prefixes
+   and bottles (each game found in its own, an MW3 folder never taken as
+   PM's, the saved one first); Windows' registry part by the mingw build.
+   **Done (2026-11-09):** `install_candidates(pirates_moon)`, `Launcher::find_pm`;
+   `sdl_program_launcher_finds_pirates_moon` (MW3's data under PM's folder
+   name in the prefix searched first, never taken; PM in a CrossOver bottle
+   found, saved as pm_install= and started there). Breaks: the game check
+   dropped, the bottles dropped, PM's folder name changed: each caught.
+   MechWarrior 3's search is a superset of what it was (the bottles added).
+2. **Installed from the disc or an image** (.iso, .cue/.bin, a zip or 7z of
+   either) into the rebuild's own folder, as MW3's SETUP does, music from
+   the image's track 2. `setup::install_from_source` taking a Pirate's Moon
+   source (today refused: "Its support comes later"). Tests on game/pm-disc
+   (the image), the result read by `map_source` as PM and played to its
+   first frame by mw3pm.
+   **Done (2026-11-09):** `install_from_disc(..., pirates_moon)` and
+   `setup::install_from_source` taking a PM source: from the disc, its image,
+   its cue (track 2 as `music/track02.wav`) or an archive of any of them; no
+   1.0 checks and no patch (PM had one release, "1.0"), `zbd\reader.zbd` and
+   `zbd\c1\readersa1.zbd` required, the disc's loose `MECH3.EXE` (beside the
+   cabinet, not in it) copied in as `Mech3.exe` and staged from an archive
+   too; an installed PM copy on disk used where it is. The folder it goes to
+   is the launcher's choice (sitting 4: PM's own settings folder).
+   `setup_install_pirates_moon_from_its_disc`: the cue and a zip of the image
+   each give game/pm's files at their sizes, the exe and reader.zbd byte for
+   byte, read back by `map_source` as PM; with `MW3_PM_BIN`, mw3pm plays the
+   result to a frame. Breaks: the loose exe dropped, the game not passed,
+   the exe not staged: each caught.
+3. **Checks before the first game**, in plain words: missing files; an
+   empty `zbd\soundsH.zbd` (the disc's copy put in Pirate's Moon's settings
+   folder, never into the install); anything else that blocks a start.
+   Tests: each case made in a copy, the words checked, the install untouched.
+   **Done (2026-11-09):** `setup::check_install(dir, write_dir, true)` and
+   `Launcher::start_pm`. What blocks was measured on copies of game/pm with
+   one file gone, mw3pm run to its menu and into c1m1: only an empty or
+   missing `zbd\reader.zbd` and a missing `Mech3Msg.dll` stop it starting
+   (refused, in words, nothing started). Missing `interp.zbd`, `mechlib.zbd`
+   or `motion.zbd` stop the missions ("Failed to Interpret: c1.gs -- Mission
+   Load Aborted"), and an operation without its `gamez.zbd` or `reader.zbd`
+   crashes on its load (MW3's mw3 too): notes naming them. An empty or
+   missing `soundsH.zbd` only drops to soundsL's 11 kHz sounds: a note.
+   A file in PM's settings folder counts (searched before the install). The
+   notes show once on BEFORE YOU PLAY (their CRC kept as `pm_notes=` in
+   mw3.cfg; new ones show again), then only in the log. `setup::add_pm_sounds`
+   takes the disc's `zbd\soundsH.zbd` from its cabinet into PM's settings
+   folder's `zbd\` (one already there kept), for sitting 4's ADD FROM MY
+   DISC. The launcher finds PM's settings folder as mw3pm does
+   (`data_folder_at_start(..., "Pirate's Moon")`; `MW3_PM_WRITE_DIR` for
+   checks) and writes nothing there. Tests: `setup_pirates_moon_checks_before_a_start`
+   (each case by links, the words, the disc's sounds added and the install's
+   listing unchanged, a cancel), `sdl_program_launcher_checks_pirates_moon`
+   (refused, notes once, then logged, a new note shown, the settings
+   folder's sounds counted). Breaks: the Mech3Msg.dll check dropped, the
+   settings folder not read, the notes always shown, operation 4 missed:
+   each caught.
+4. **GAME FILES for Pirate's Moon**: its folder, ADD FROM MY DISC (the
+   music), SETUP, and MY DATA FOLDER where it applies, the same screens as
+   MW3's acting on the game last clicked. Tests: each button through the
+   screens on PM, MW3's files untouched.
+   **Done (2026-11-09):** GAME FILES opens on the game last clicked
+   (`files_pm_`), and PIRATE'S MOON with none found opens its find screen
+   as MECHWARRIOR 3 does (it asked for a folder before). On PM every screen
+   uses PM's own settings folder: "MicroProse/Pirate's Moon" beside MW3's
+   usual one, as SDL_GetPrefPath makes it for mw3pm (worked out here, not
+   created), or where its pointer leads.
+   - FIND THE GAME searches as at the start (sitting 1, plus its own
+     `install\`), then a disc in a drive, then the picker. A pick is
+     installed into `<PM settings>\install`, its music into `music\`. An
+     installed copy is used where it is. MechWarrior 3 picked there is said
+     ("This is MechWarrior 3, not Pirate's Moon: give it under MECHWARRIOR
+     3's GAME FILES"), and PM picked in MW3's is said the other way
+     (`game_words`).
+   - ADD FROM MY DISC (`setup::add_pm_from_disc`) adds the music from a
+     .cue and the soundsH.zbd (sitting 3), each only when missing.
+   - MY DATA FOLDER moves PM's folder (its pointer in PM's usual one, a
+     "Pirate's Moon Data" folder inside a drive's root), its install with
+     it (`pm_install=` follows). MW3's folder and settings are untouched.
+   - PM's notes before a start add MW3's no-music note.
+   Checks: `MW3_LAUNCHER_FILES=pm` (GAME FILES on PM), `MW3_LAUNCHER_ADD`
+   (ADD FROM MY DISC's pick), and `--launcher-pm` with `MW3_LAUNCHER_PICK`
+   and none found (its find screen, the pick installed, then started).
+   `sdl_program_launcher_game_files_pirates_moon` runs install, MW3 picked,
+   add, move, and the start from the moved folder. Breaks: the wanted game
+   ignored, the install into MW3's folder, PM's add dropped, PM's move not
+   followed: each caught.
+5. **Versions**: each entry shows its game's data version and its program's
+   version. Test: the launcher's text for both games.
+
 ## Installed anywhere (2026-11-06, a player's request)
 
 Nothing keeps where the programs are. They find each other beside themselves;

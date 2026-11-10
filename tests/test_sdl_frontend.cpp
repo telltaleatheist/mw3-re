@@ -24,7 +24,12 @@
 #include <vector>
 
 #include "check.h"
+#include "mech3/source_map.h"
+#include "mech3/mods.h"
 #include "mech3/data_folder.h"
+#include "frontend/sdl/editor_imgui.h"
+#include "upgrades/editor/form.h"
+#include "imgui.h"
 #include "frontend/sdl/gdi_font_size.h"
 #include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/font_search.h"
@@ -4643,7 +4648,7 @@ TEST(sdl_program_launcher_screens) {
     int edge_x, edge_y;
   };
   for (const Shot& s : {Shot{"main", false, "screen main: MECHWARRIOR 3, PIRATE'S MOON, GAME FILES, MODS, QUIT\n", "hover MECHWARRIOR 3: ripple\n", -1, -1},
-                        Shot{"mods", false, "screen mods: Alpha 1.0, Beta, broken, UP, DOWN, CHECK, <, >, BACK\n", "hover Alpha 1.0: edge\n", 427, 104},
+                        Shot{"mods", false, "screen mods: Alpha 1.0, Beta, broken, IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, UP, DOWN, CHECK, <, >, BACK\n", "hover Alpha 1.0: edge\n", 427, 104},
                         Shot{"setup", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
                         Shot{"pick", true, "screen find: FIND THE GAME, BACK\n", "hover FIND THE GAME: edge\n", 427, 222},
                         Shot{"work", false, "launcher: Found MechWarrior 3", "hover CANCEL: edge\n", 427, 372},
@@ -4681,6 +4686,47 @@ TEST(sdl_program_launcher_screens) {
     EXPECT(text.find(s.hover) != std::string::npos && edge);
     if (img) SDL_DestroySurface(img);
   }
+}
+
+// The launcher's ADD MOD (docs/modding.md, ADD MOD): the same add as the
+// game's MODS screen (mech3::mod_add_run), --launcher-pick standing for the
+// picker: a folder added into mods\, turned on in mw3.cfg, said; one named
+// CON goes in as CON_; one holding a name Windows cannot hold refused.
+TEST(launcher_add_mod_by_pick) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_add_mod";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd/mods/alpha", ec);
+  std::ofstream(dir + "/wd/mods/alpha/mod.txt") << "name=Alpha\n";
+  std::ofstream(dir + "/wd/mw3.cfg") << "mod=alpha\n";
+  std::filesystem::create_directories(dir + "/src/Sand Pack/zbd/t1", ec);
+  std::ofstream(dir + "/src/Sand Pack/zbd/t1/notes.txt") << "sand";
+  std::filesystem::create_directories(dir + "/src/CON", ec);  // its files name no game: MechWarrior 3 in a scripted run
+  std::ofstream(dir + "/src/CON/notes.txt") << "x";
+  std::filesystem::create_directories(dir + "/src/Bad/zbd", ec);
+  std::ofstream(dir + "/src/Bad/zbd/aux.txt") << "x";
+  struct Case {
+    const char* pick;
+    const char* says;
+  };
+  for (const Case& k : {Case{"/src/Sand Pack", "mods: Added Sand Pack: on from the next start.\n"},
+                        Case{"/src/CON", "mods: Added CON: on from the next start.\n"},
+                        Case{"/src/Bad", "mods: Not added: it holds a name Windows cannot hold (zbd/aux.txt)"}}) {
+    const std::string log = dir + "/add.log";
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-shot", dir + "/mods.bmp", "--launcher-screen", "mods",
+                                      "--launcher-pick", dir + k.pick},
+                                     log);
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    std::printf("  %s: %d\n", k.pick, text.find(k.says) != std::string::npos);
+    EXPECT(text.find(k.says) != std::string::npos);
+  }
+  EXPECT(std::filesystem::is_regular_file(dir + "/wd/mods/Sand Pack/zbd/t1/notes.txt"));
+  EXPECT((mech3::mods_enabled(dir + "/wd") == std::vector<std::string>{"alpha", "Sand Pack", "CON_"}));
+  EXPECT(std::filesystem::is_regular_file(dir + "/wd/mods/CON_/notes.txt") && !std::filesystem::exists(dir + "/wd/mods/CON"));  // never a device's name
+  EXPECT(!std::filesystem::exists(dir + "/wd/mods/Bad"));
 }
 
 // A plain mw3 start (docs/games-layout.md): straight into the game when an
@@ -5041,9 +5087,9 @@ TEST(sdl_program_launcher_mods_by_keys) {
   const std::string text((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
   std::printf("MODS by keys: focus MODS %d, alpha off %d, beta on %d; cfg:\n%s", seen(a.log, "focus MODS\n"),
               seen(a.log, "launcher: mods: alpha off\n"), seen(a.log, "launcher: mods: beta on\n"), text.c_str());
-  EXPECT(a.exited && seen(a.log, "focus MODS\n") && seen(a.log, "screen mods: Alpha, Beta, UP, DOWN, CHECK, <, >, BACK\n"));
+  EXPECT(a.exited && seen(a.log, "focus MODS\n") && seen(a.log, "screen mods: Alpha, Beta, IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, UP, DOWN, CHECK, <, >, BACK\n"));
   EXPECT(seen(a.log, "launcher: mods: alpha off\n") && seen(a.log, "launcher: mods: beta on\n"));
-  EXPECT(seen(a.log, "screen mods: > Beta, Alpha, UP, DOWN, CHECK, <, >, BACK\n"));
+  EXPECT(seen(a.log, "screen mods: > Beta, Alpha, IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, UP, DOWN, CHECK, <, >, BACK\n"));
   EXPECT(text == std::string("install=") + MW3_GAME_DIR + "\nwidemenus=1\nmod=beta\n");
 }
 
@@ -5219,6 +5265,7 @@ TEST(sdl_program_launcher_starts_pirates_moon) {
   std::error_code ec;
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir + "/wd", ec);
+  setenv("MW3_PM_WRITE_DIR", (dir + "/pmwd").c_str(), 1);  // never the player's own
   std::filesystem::path install = std::filesystem::path(MW3_GAME_DIR).parent_path() / "pm";
   const bool have_pm = std::filesystem::is_regular_file(install / "Mech3.exe", ec);
   if (!have_pm) {
@@ -5262,16 +5309,279 @@ TEST(sdl_program_launcher_starts_pirates_moon) {
   EXPECT(args.size() >= 3 && args[0] == "--install" && args[1] == install.string() && args[2] == "--no-launcher");
   for (const std::string& a : args) EXPECT(a != "--write-dir" && a.find(dir + "/wd") == std::string::npos);
 
-  // A folder that is not there: no start, the setting left alone.
+  // A folder that is not there: no start, the setting left alone (with no
+  // Pirate's Moon anywhere the search looks: an empty HOME).
   std::filesystem::remove(dir + "/args.txt", ec);
   cfg(dir + "/gone");
+  const std::string home_was = std::getenv("HOME") ? std::getenv("HOME") : "";
+  std::filesystem::create_directories(dir + "/emptyhome", ec);
+  setenv("HOME", (dir + "/emptyhome").c_str(), 1);
   EXPECT(run("gone").find("not there") != std::string::npos);
+  setenv("HOME", home_was.c_str(), 1);
   EXPECT(!std::filesystem::exists(dir + "/args.txt", ec));
   std::ifstream kept(dir + "/wd/mw3.cfg");
   std::string line;
   std::getline(kept, line);
   EXPECT(line == "pm_install=" + dir + "/gone");
   unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_PM_WRITE_DIR");
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// Pirate's Moon found by itself (docs/launcher.md, Pirate's Moon as MechWarrior
+// 3, sitting 1): a HOME with a Wine prefix holding MechWarrior 3 and, under
+// Pirate's Moon's folder name, MechWarrior 3's data again (searched first),
+// and a Mac CrossOver bottle holding Pirate's Moon. Each game's search lists its own places; read by
+// map_source, Pirate's Moon is the bottle's and never the MW3 copy. The
+// launcher with no pm_install= finds it, saves it, and starts it there.
+TEST(sdl_program_launcher_finds_pirates_moon) {
+  namespace fs = std::filesystem;
+  const fs::path mw3 = fs::path(MW3_GAME_DIR), pmdir = mw3.parent_path() / "pm";
+  std::error_code ec;
+  if (!fs::is_regular_file(pmdir / "Mech3.exe", ec)) {
+    std::printf("launcher finds pm: no game/pm: skipped\n");
+    return;
+  }
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher finds pm", home = dir + "/home";
+  fs::remove_all(dir, ec);
+  const fs::path wine = fs::path(home) / ".wine/drive_c/Program Files/MicroProse/MechWarrior 3";
+  const fs::path bottle = fs::path(home) / "Library/Application Support/CrossOver/Bottles/Games/drive_c/Program Files/MicroProse/MechWarrior 3 Pirate's Moon";
+  // MW3's data under a PM name, in the prefix searched first: never taken.
+  const fs::path decoy = fs::path(home) / ".wine/drive_c/Program Files/MicroProse/MechWarrior 3 Pirate's Moon";
+  for (const fs::path& p : {wine, bottle, decoy}) fs::create_directories(p.parent_path(), ec);
+  fs::create_directory_symlink(fs::canonical(mw3, ec), wine, ec);
+  fs::create_directory_symlink(fs::canonical(pmdir, ec), bottle, ec);
+  fs::create_directory_symlink(fs::canonical(mw3, ec), decoy, ec);
+  const std::string home_was = std::getenv("HOME") ? std::getenv("HOME") : "";
+  setenv("HOME", home.c_str(), 1);
+  const std::vector<std::string> pm_places = sdlfe::install_candidates(true), mw3_places = sdlfe::install_candidates(false);
+  auto has = [](const std::vector<std::string>& v, const fs::path& p) { return std::find(v.begin(), v.end(), p.string()) != v.end(); };
+  EXPECT(has(pm_places, bottle) && has(pm_places, decoy) && !has(pm_places, wine));
+  EXPECT(has(mw3_places, wine) && !has(mw3_places, bottle));
+  std::string found;
+  for (const std::string& d : pm_places) {
+    const mech3::source::Found f = mech3::source::map_source(d);
+    if (found.empty() && f.kind == mech3::source::Found::kInstall && f.game == mech3::source::Found::kPiratesMoon && f.on_disk)
+      found = d;
+  }
+  std::printf("launcher finds pm: %zu places for PM, %zu for MW3; PM read in %s\n", pm_places.size(), mw3_places.size(), found.c_str());
+  EXPECT(found == bottle.string());
+  // The launcher, mw3.cfg without pm_install=: found, saved, started there.
+  fs::create_directories(dir + "/wd", ec);
+  const std::string pm = dir + "/mw3pm";
+  {
+    std::ofstream sh(pm);
+    sh << "#!/bin/sh\nfor a in \"$@\"; do echo \"$a\"; done > \"" << dir << "/args.txt\"\nexit 0\n";
+  }
+  fs::permissions(pm, fs::perms::owner_all, ec);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  setenv("MW3_PM_WRITE_DIR", (dir + "/pmwd").c_str(), 1);
+  const std::string log = dir + "/launcher.log";
+  const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-pm", "--window", "640x480", "--hidden", "--nosound"}, log);
+  int status = 0;
+  EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_PM_WRITE_DIR");
+  setenv("HOME", home_was.c_str(), 1);
+  std::ifstream lf(log);
+  const std::string text((std::istreambuf_iterator<char>(lf)), std::istreambuf_iterator<char>());
+  std::ifstream cf(dir + "/wd/mw3.cfg");
+  const std::string cfg((std::istreambuf_iterator<char>(cf)), std::istreambuf_iterator<char>());
+  std::vector<std::string> args;
+  {
+    std::ifstream af(dir + "/args.txt");
+    for (std::string a; std::getline(af, a);) args.push_back(a);
+  }
+  EXPECT(text.find("Pirate's Moon found at " + bottle.string()) != std::string::npos);
+  EXPECT(cfg.find("pm_install=" + bottle.string()) != std::string::npos);
+  EXPECT(args.size() >= 2 && args[0] == "--install" && args[1] == bottle.string());
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// GAME FILES for Pirate's Moon (docs/launcher.md, Pirate's Moon, sitting 4),
+// each button on PM's own folder ("MicroProse/Pirate's Moon" beside the usual
+// MechWarrior 3 folder), MechWarrior 3's settings and install untouched:
+// PIRATE'S MOON with none found installs the picked disc image and starts it;
+// MechWarrior 3 picked there is said, not taken; ADD FROM MY DISC brings back
+// the music and the sounds; MY DATA FOLDER moves PM's folder, its install with it.
+TEST(sdl_program_launcher_game_files_pirates_moon) {
+  namespace fs = std::filesystem;
+  const fs::path game = fs::path(MW3_GAME_DIR).parent_path();
+  const std::string cue = (game / "pm-disc" / "MechWarrior 3 - Pirate's Moon (Expansion Pack) (USA).cue").string();
+  std::error_code ec;
+  if (!fs::is_regular_file(cue, ec) || !fs::is_regular_file(game / "pm" / "zbd" / "soundsH.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher pm files";
+  fs::remove_all(dir, ec);
+  const std::string wd = dir + "/wd", usual = dir + "/usual/MechWarrior 3", pmwd = dir + "/usual/Pirate's Moon";
+  for (const std::string& d : {wd, usual, dir + "/home"}) fs::create_directories(d, ec);
+  std::ofstream(wd + "/mw3.cfg") << "install=" << MW3_GAME_DIR << "\n";
+  const std::string pm = dir + "/mw3pm";
+  std::ofstream(pm) << "#!/bin/sh\nfor a in \"$@\"; do echo \"$a\"; done > \"" << dir << "/args.txt\"\nexit 0\n";
+  fs::permissions(pm, fs::perms::owner_all, ec);
+  const std::string home_was = std::getenv("HOME") ? std::getenv("HOME") : "";
+  setenv("HOME", (dir + "/home").c_str(), 1);  // no Pirate's Moon for the search to find
+  setenv("MW3_USUAL_FOLDER", usual.c_str(), 1);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  setenv("MW3_NO_IMPORT", "1", 1);
+  auto text = [](const std::string& path) {
+    std::ifstream in(path);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  auto run = [&](const char* name, const std::vector<std::pair<const char*, std::string>>& env, bool play) {
+    for (const auto& [k, v] : env) setenv(k, v.c_str(), 1);
+    std::vector<std::string> args = {"--write-dir", wd, "--window", "640x480", "--hidden", "--nosound"};
+    if (play) args.push_back("--launcher-pm");
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    const pid_t pid = spawn_launcher(args, log);
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    for (const auto& [k, v] : env) unsetenv(k);
+    return text(log);
+  };
+  auto args = [&]() {
+    std::vector<std::string> a;
+    std::ifstream af(dir + "/args.txt");
+    for (std::string l; std::getline(af, l);) a.push_back(l);
+    return a;
+  };
+  const std::string install = pmwd + "/install";
+
+  // PIRATE'S MOON, none found: its find screen, the image installed into its own folder, started there.
+  std::string log = run("install", {{"MW3_LAUNCHER_PICK", cue}, {"MW3_LAUNCHER_FRAMES", "7200"}}, true);
+  std::printf("  install: %s\n", log.find("Pirate's Moon 1.0 is installed") != std::string::npos ? "installed" : "?");
+  EXPECT(log.find("MechWarrior 3: Pirate's Moon 1.0 is installed in " + install) != std::string::npos);
+  EXPECT(fs::exists(install + "/mw3-install.txt", ec) && fs::exists(pmwd + "/music/track02.wav", ec));
+  EXPECT(args().size() >= 2 && args()[0] == "--install" && args()[1] == install);
+  EXPECT(text(wd + "/mw3.cfg").find("pm_install=" + install) != std::string::npos &&
+         text(wd + "/mw3.cfg").find("install=" + std::string(MW3_GAME_DIR)) != std::string::npos);
+  EXPECT(!fs::exists(wd + "/install", ec) && !fs::exists(wd + "/music", ec) && !fs::exists(usual + "/install", ec));
+
+  // MechWarrior 3 picked in Pirate's Moon's GAME FILES: said, not taken.
+  log = run("mw3", {{"MW3_LAUNCHER_FILES", "pm"}, {"MW3_LAUNCHER_PICK", MW3_GAME_DIR}, {"MW3_LAUNCHER_FRAMES", "60"}}, false);
+  EXPECT(log.find("This is MechWarrior 3, not Pirate's Moon") != std::string::npos &&
+         text(wd + "/mw3.cfg").find("pm_install=" + install) != std::string::npos);
+
+  // ADD FROM MY DISC: no music and an empty soundsH.zbd in the install; both from the image, the install untouched.
+  fs::remove_all(pmwd + "/music", ec);
+  fs::remove(install + "/zbd/soundsH.zbd", ec);
+  std::fclose(std::fopen((install + "/zbd/soundsH.zbd").c_str(), "wb"));
+  log = run("add", {{"MW3_LAUNCHER_FILES", "pm"}, {"MW3_LAUNCHER_ADD", cue}, {"MW3_LAUNCHER_FRAMES", "2400"}}, false);
+  std::printf("  add: %s\n", log.find("sounds were added") != std::string::npos ? "sounds added" : "?");
+  EXPECT(log.find("Pirate's Moon's sounds were added from the disc") != std::string::npos);
+  EXPECT(fs::exists(pmwd + "/music/track02.wav", ec) && fs::file_size(install + "/zbd/soundsH.zbd", ec) == 0 &&
+         fs::file_size(pmwd + "/zbd/soundsH.zbd", ec) == fs::file_size(game / "pm" / "zbd" / "soundsH.zbd", ec));
+  EXPECT(!fs::exists(wd + "/zbd", ec) && !fs::exists(wd + "/music", ec));
+
+  // MY DATA FOLDER: Pirate's Moon's moved, its install with it; MechWarrior 3's left where it is.
+  const std::string to = dir + "/drive/pm";
+  log = run("move", {{"MW3_LAUNCHER_FILES", "pm"}, {"MW3_LAUNCHER_MOVE_TO", to}, {"MW3_LAUNCHER_MOVE_OLD", "remove"},
+                     {"MW3_LAUNCHER_FRAMES", "600"}}, false);
+  EXPECT(text(pmwd + "/" + mech3::data_folder::kPointer) == to + "\n");
+  EXPECT(fs::exists(to + "/install/mw3-install.txt", ec) && fs::exists(to + "/zbd/soundsH.zbd", ec) && !fs::exists(install, ec));
+  EXPECT(text(wd + "/mw3.cfg").find("pm_install=" + to + "/install") != std::string::npos);
+  EXPECT(!fs::exists(usual + "/" + mech3::data_folder::kPointer, ec) &&
+         text(wd + "/mw3.cfg").find("install=" + std::string(MW3_GAME_DIR)) != std::string::npos);
+  // And started from there, its notes none (the sounds and music came along).
+  fs::remove(dir + "/args.txt", ec);
+  log = run("after", {}, true);
+  EXPECT(args().size() >= 2 && args()[1] == to + "/install" && log.find("note: Its zbd") == std::string::npos);
+
+  setenv("HOME", home_was.c_str(), 1);
+  unsetenv("MW3_USUAL_FOLDER");
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_NO_IMPORT");
+  fs::remove_all(dir, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// Pirate's Moon checked before it starts (docs/launcher.md, Pirate's Moon,
+// sitting 3), each case game/pm by links with a file gone or emptied: what
+// stops it is said and nothing starts; notes are shown once (BEFORE YOU PLAY,
+// its OK pressed by --launcher-pm), then only logged; the disc's soundsH.zbd
+// in PM's settings folder counts. Neither the install nor that folder written.
+TEST(sdl_program_launcher_checks_pirates_moon) {
+  namespace fs = std::filesystem;
+  const fs::path game = fs::path(MW3_GAME_DIR).parent_path() / "pm";
+  std::error_code ec;
+  if (!fs::is_regular_file(game / "Mech3.exe", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher pm checks";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/wd", ec);
+  auto copy = [&](const std::string& name, const std::string& gone, const std::string& empty) {
+    const fs::path to = fs::path(dir) / name;
+    fs::create_directories(to);
+    for (const auto& e : fs::recursive_directory_iterator(game)) {
+      const std::string rel = fs::relative(e.path(), game).generic_string();
+      if (rel == gone) continue;
+      if (e.is_directory()) fs::create_directories(to / rel);
+      else if (rel == empty) std::fclose(std::fopen((to / rel).string().c_str(), "wb"));
+      else fs::create_symlink(e.path(), to / rel);
+    }
+    return to.string();
+  };
+  const std::string pm = dir + "/mw3pm";
+  {
+    std::ofstream sh(pm);
+    sh << "#!/bin/sh\necho started >> \"" << dir << "/started.txt\"\nexit 0\n";
+  }
+  fs::permissions(pm, fs::perms::owner_all, ec);
+  setenv("MW3_PM_BIN", pm.c_str(), 1);
+  setenv("MW3_PM_WRITE_DIR", (dir + "/pmwd").c_str(), 1);
+  auto starts = [&]() {
+    std::ifstream f(dir + "/started.txt");
+    int n = 0;
+    for (std::string l; std::getline(f, l);) ++n;
+    return n;
+  };
+  auto run = [&](const std::string& install, const char* name) {
+    {
+      std::ofstream c(dir + "/wd/mw3.cfg", std::ios::app);
+      c << "pm_install=" << install << "\n";
+    }
+    const std::string log = dir + "/" + name + ".log";
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-pm", "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto listing = [&](const std::string& d) {
+    std::string out;
+    for (const auto& e : fs::recursive_directory_iterator(d, ec)) out += e.path().string() + "\n";
+    return out;
+  };
+
+  // What stops it: said, nothing started.
+  std::string text = run(copy("nomsg", "Mech3Msg.dll", ""), "nomsg");
+  EXPECT(text.find("cannot start") != std::string::npos && text.find("no Mech3Msg.dll") != std::string::npos && starts() == 0);
+  // A note: shown once with its OK, then started; the next start only logs it.
+  const std::string quiet = copy("quiet", "", "zbd/soundsH.zbd"), before = listing(quiet);
+  text = run(quiet, "first");
+  EXPECT(text.find("note: Its zbd\\soundsH.zbd is empty") != std::string::npos &&
+         text.find("Pirate's Moon's notes shown") != std::string::npos && starts() == 1);
+  std::ifstream cf(dir + "/wd/mw3.cfg");
+  const std::string cfg((std::istreambuf_iterator<char>(cf)), std::istreambuf_iterator<char>());
+  EXPECT(cfg.find("pm_notes=") != std::string::npos);
+  text = run(quiet, "second");
+  EXPECT(text.find("note: Its zbd\\soundsH.zbd") != std::string::npos && text.find("notes shown") == std::string::npos &&
+         starts() == 2);
+  // Another note is shown again.
+  text = run(copy("noop", "zbd/c3/gamez.zbd", "zbd/soundsH.zbd"), "noop");
+  EXPECT(text.find("Operation 3's missions") != std::string::npos && text.find("notes shown") != std::string::npos && starts() == 3);
+  // The disc's sounds in PM's settings folder: no note.
+  EXPECT(!fs::exists(dir + "/pmwd", ec));  // nothing written there by the launcher
+  fs::create_directories(dir + "/pmwd/zbd", ec);
+  fs::create_symlink(game / "zbd" / "soundsH.zbd", dir + "/pmwd/zbd/soundsH.zbd", ec);
+  text = run(quiet, "sounds");
+  EXPECT(text.find("soundsH") == std::string::npos && text.find("Found MechWarrior 3: Pirate's Moon") != std::string::npos &&
+         starts() == 4);
+  EXPECT(listing(quiet) == before && fs::file_size(quiet + "/zbd/soundsH.zbd", ec) == 0);
+  unsetenv("MW3_PM_BIN");
+  unsetenv("MW3_PM_WRITE_DIR");
+  fs::remove_all(dir, ec);
 }
 #endif
 
@@ -5313,6 +5623,7 @@ TEST(sdl_program_launcher_follows_a_moved_folder) {
   };
   unsetenv("MW3_PM_BIN");
   unsetenv("MW3_GAME_BIN");
+  setenv("MW3_PM_WRITE_DIR", (dir + "/pmwd").c_str(), 1);  // never the player's own
   for (const std::string& at : {before, after}) {
     if (at == after) std::filesystem::rename(before, after, ec);
     EXPECT(!ec);
@@ -5322,8 +5633,11 @@ TEST(sdl_program_launcher_follows_a_moved_folder) {
     EXPECT(first_two("mw3") == at + "/mw3|" + MW3_GAME_DIR);
     std::filesystem::remove(dir + "/mw3.txt", ec), std::filesystem::remove(dir + "/mw3pm.txt", ec);
   }
+  unsetenv("MW3_PM_WRITE_DIR");
   std::ifstream c(dir + "/wd/mw3.cfg");
-  const std::string kept((std::istreambuf_iterator<char>(c)), std::istreambuf_iterator<char>());
+  std::string kept;  // pm_notes= (the PM notes last shown) is not where anything is
+  for (std::string l; std::getline(c, l);)
+    if (l.rfind("pm_notes=", 0) != 0) kept += l + "\n";
   std::printf("launcher moved: settings %s\n", kept == cfg_text ? "as they were" : "changed");
   EXPECT(kept == cfg_text);
 }
@@ -5945,3 +6259,168 @@ TEST(pm_net_attack_defend_two_bases) {
   EXPECT(a2 == pm_line(r.b, "lobby entered 2, scores: ", 1));
 }
 #endif
+// Ours (docs/editor.md, Dear ImGui for the editor's dialogs): while the game
+// editor is up, its ImGui sees each event first. A mouse event goes on to
+// zInput only when ImGui does not want the mouse, a key only when it wants
+// neither the keyboard nor text. With the editor down, ImGui is never made and
+// every event is the game's.
+TEST(sdl_editor_imgui_routes_input) {
+  SDL_Event m{};
+  m.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+  SDL_Event k{};
+  k.type = SDL_EVENT_KEY_DOWN;
+  SDL_Event q{};
+  q.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+  EXPECT(sdlfe::editor_event_to_game(m, false, true, true) && !sdlfe::editor_event_to_game(m, true, false, false));
+  EXPECT(sdlfe::editor_event_to_game(k, true, false, false) && !sdlfe::editor_event_to_game(k, false, true, false) &&
+         !sdlfe::editor_event_to_game(k, false, false, true));
+  EXPECT(sdlfe::editor_event_to_game(q, true, true, true));
+
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 editor ui test", 640, 480);
+  bool up = false;
+  sdlfe::EditorUi ui(w.sdl(), w.device(), [&] { return up; });
+  bool field = false;
+  ui.draw = [&] {
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(200, 100));
+    ImGui::Begin("test");
+    static char text[32];
+    if (field) {
+      ImGui::SetKeyboardFocusHere();
+      ImGui::InputText("name", text, sizeof text);
+    }
+    ImGui::End();
+  };
+  sdlfe::SdlInput in;
+  in.set_cooperative_level(platform::Input::kKeyboard, 10);
+  EXPECT(in.open(platform::Input::kKeyboard) && in.acquire(platform::Input::kKeyboard) == 0);
+  sdlfe::SdlPump pump(&in, nullptr);
+  pump.overlay_event = [&](const SDL_Event& e) { return ui.event(e); };
+  const Uint32 id = SDL_GetWindowID(w.sdl());
+  const auto move = [&](float x, float y) {
+    SDL_Event e{};
+    e.type = SDL_EVENT_MOUSE_MOTION, e.motion.windowID = id, e.motion.x = x, e.motion.y = y;
+    return ui.event(e);
+  };
+  const auto press = [&](SDL_Scancode sc) {
+    SDL_Event e{};
+    e.key.windowID = id, e.key.scancode = sc, e.key.key = SDL_GetKeyFromScancode(sc, SDL_KMOD_NONE, false);
+    e.type = SDL_EVENT_KEY_DOWN, e.key.down = true;
+    pump.handle(e);
+    e.type = SDL_EVENT_KEY_UP, e.key.down = false;
+    pump.handle(e);
+    platform::KeyEvent got[8];
+    uint32_t n = 8;
+    in.keyboard_data(got, &n);
+    return n;
+  };
+  const auto frames = [&](int n) {
+    for (int i = 0; i < n; ++i) ui.step();
+  };
+  // Down: nothing of ImGui, the key is the game's.
+  EXPECT(!move(50, 50) && press(SDL_SCANCODE_W) == 2 && !ui.started());
+  up = true;
+  move(50, 50);
+  frames(2);
+  SDL_Event b{};
+  b.type = SDL_EVENT_MOUSE_BUTTON_DOWN, b.button.windowID = id, b.button.button = SDL_BUTTON_LEFT, b.button.down = true;
+  b.button.x = 50, b.button.y = 50;
+  const bool over = ui.event(b);  // over the window: ImGui's
+  b.type = SDL_EVENT_MOUSE_BUTTON_UP, b.button.down = false;
+  ui.event(b);
+  frames(2);
+  move(500, 400);
+  frames(2);
+  b.type = SDL_EVENT_MOUSE_BUTTON_DOWN, b.button.down = true, b.button.x = 500, b.button.y = 400;
+  const bool away = ui.event(b);  // off every window: the game's (the reticle's pick)
+  b.type = SDL_EVENT_MOUSE_BUTTON_UP, b.button.down = false;
+  ui.event(b);
+  frames(2);
+  const uint32_t keys_no_field = press(SDL_SCANCODE_W);
+  field = true;
+  frames(3);
+  const uint32_t keys_field = press(SDL_SCANCODE_W);  // typed into the field, not flying the stealth
+  std::printf("editor ui: click over %d, away %d; keys to the game %u without a field, %u with one\n", over, away,
+              keys_no_field, keys_field);
+  EXPECT(ui.started() && over && !away && keys_no_field == 2 && keys_field == 0);
+}
+
+// Ours (docs/editor.md, S7b): the editor's forms (upgrades/editor/form.h) as
+// ImGui draws them, clicked through SDL's mouse events on a hidden window. A
+// check box writes its field at once and posts its `changed`; a button's
+// press is posted too, and both run only at the editor's next frame
+// (form_run_posted), not while the view draws. A modal form takes every
+// click until it is answered.
+TEST(sdl_editor_forms_click_through_imgui) {
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) return;
+  sdlfe::SdlWindow w;
+  EXPECT(w.init(true));
+  w.create("mw3 editor forms test", 640, 480);
+  sdlfe::EditorUi ui(w.sdl(), w.device(), [] { return true; });
+  const Uint32 id = SDL_GetWindowID(w.sdl());
+  int applied = 0, changed = 0, asked = 0;
+  uint8_t on = 0;
+  int32_t pick = 0;
+  std::string name = "a";
+  mech3::EditorForm f;
+  f.title = "View test";
+  mech3::FormField flag{"on", mech3::FormField::kFlag};
+  flag.flag = &on, flag.changed = [&] { ++changed; };
+  mech3::FormField text{"name", mech3::FormField::kText};
+  text.text = &name;
+  mech3::FormField list{"list", mech3::FormField::kChoice};
+  list.i = &pick, list.choices = {"one", "two", "three"};
+  f.fields = {flag, text, list};
+  f.buttons = {{"Apply", [&] { ++applied; }}};
+  mech3::form_show(&f);
+  const auto frames = [&](int n) {
+    for (int i = 0; i < n; ++i) ui.step();
+  };
+  const auto click = [&](const mech3::EditorForm& form, const char* label) {
+    float r[4];
+    if (!sdlfe::editor_item_rect(&form, label, r)) return false;
+    const float x = (r[0] + r[2]) / 2, y = (r[1] + r[3]) / 2;
+    SDL_Event e{};
+    e.type = SDL_EVENT_MOUSE_MOTION, e.motion.windowID = id, e.motion.x = x, e.motion.y = y;
+    ui.event(e);
+    frames(1);
+    SDL_Event b{};
+    b.type = SDL_EVENT_MOUSE_BUTTON_DOWN, b.button.windowID = id, b.button.button = SDL_BUTTON_LEFT, b.button.down = true;
+    b.button.x = x, b.button.y = y;
+    ui.event(b);
+    frames(1);
+    b.type = SDL_EVENT_MOUSE_BUTTON_UP, b.button.down = false;
+    ui.event(b);
+    frames(1);
+    return true;
+  };
+  frames(2);
+  EXPECT(click(f, "Apply"));
+  const int before_run = applied;
+  mech3::form_run_posted();
+  EXPECT(before_run == 0 && applied == 1);
+  EXPECT(click(f, "on"));
+  const bool written = on == 1 && changed == 0;
+  mech3::form_run_posted();
+  EXPECT(written && changed == 1);
+  // A modal question: a click on the form under it does nothing; its OK answers.
+  mech3::EditorForm m;
+  m.title = "Question";
+  m.modal = true;
+  m.fields = {{"Sure?", mech3::FormField::kLabel}};
+  m.buttons = {{"OK", [&] { ++asked, mech3::form_hide(&m); }}};
+  mech3::form_show(&m);
+  frames(3);
+  click(f, "Apply");
+  mech3::form_run_posted();
+  const int applied_under_modal = applied;
+  EXPECT(click(m, "OK"));
+  mech3::form_run_posted();
+  std::printf("editor forms: applied %d (under the modal %d), changed %d, asked %d, shown %zu\n", applied,
+              applied_under_modal, changed, asked, mech3::editor_forms().size());
+  EXPECT(applied_under_modal == 1 && asked == 1 && !mech3::form_shown(&m));
+  mech3::form_hide(&f);
+}

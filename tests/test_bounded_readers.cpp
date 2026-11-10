@@ -11,13 +11,16 @@
 #include <vector>
 
 #include "check.h"
+#include "zip_write.h"
 #include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zsiscript/si_script.h"
+#include "gamez/zsiscript/si_script_json.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mods.h"
@@ -499,5 +502,176 @@ TEST(bounded_readers_take_more_than_shipped) {
     std::printf("  gamez: c1 %d slots, %d live (pool %d); with %d more: read %d, %d live (pool %d); array past the file: %d\n", size,
                 live0, cap0, kMore, r1, live1, cap1, r2);
     EXPECT(r0 == 0 && r1 == 0 && live1 == live0 && cap1 >= size + kMore && r2 == -1);
+  }
+}
+
+// A mod's motion as unzbd's JSON (docs/modding.md): the folder's zbd/motion/<name>.json, then unzbd's zbd/motion.zip,
+// then the archives; a later mod's not reached past a mod with its own motion.zbd. One that does not read is refused
+// and the archive's motion read, as a broken copy is.
+TEST(bounded_motion_json_in_a_folder_or_a_zip) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/motion.zbd", ec)) return;
+  const zutl::Mounts saved = zutl::mounts();
+  const auto put = [](const std::string& path, const std::string& text) {
+    std::error_code e;
+    fs::create_directories(fs::path(path).parent_path(), e);
+    std::ofstream(path, std::ios::binary) << text;
+  };
+  const char* kName = "vulture_walk";
+  std::string json;
+  {
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    EXPECT(zutl_zar::open(a, (install + "/zbd/motion.zbd").c_str()));
+    uint32_t length = 0;
+    std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, kName), &length);
+    std::vector<uint8_t> entry(length);
+    EXPECT(f && std::fread(entry.data(), 1, length, f) == length && zsis::motion_to_json(entry.data(), entry.size(), &json));
+    zutl_zar::destroy(a);
+  }
+  const auto with_loop = [&](const char* t) {
+    std::string j = json;
+    const size_t at = j.find("\"loop_time\": ");
+    const size_t end = j.find(',', at);
+    return j.replace(at, end - at, std::string("\"loop_time\": ") + t);
+  };
+  const std::string wd = std::string(MW3_TEST_TMP) + "/mods_motion_json";
+  fs::remove_all(wd, ec);
+  const std::string mod = wd + "/mods/motionmod", later = wd + "/mods/later";
+  put(mod + "/mod.txt", "name=Motion\n");
+  put(later + "/mod.txt", "name=Later\n");
+  put(later + "/zbd/motion/vulture_walk.json", with_loop("9.0"));
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"motionmod", "later"}, {install});
+  zutl::mount(install);
+  const auto loop = [&]() {
+    EXPECT(mech3::open_motions("zbd/motion.zbd"));
+    zsis::Script sc;
+    const bool ok = mech3::load_motion(sc, kName);
+    const float t = ok ? sc.loop_time : -1.0f;
+    mech3::script_free_parts(sc);
+    mech3::close_motions();
+    return t;
+  };
+  const float shipped = loop();
+  EXPECT(shipped == 9.0f);  // only the later mod has one
+  write_stored_zip(mod + "/zbd/motion.zip", {{"VULTURE_WALK.JSON", with_loop("3.5")}});
+  EXPECT(loop() == 3.5f);
+  put(mod + "/zbd/motion/vulture_walk.json", with_loop("4.25"));
+  EXPECT(loop() == 4.25f);  // the folder before the zip
+  put(mod + "/zbd/motion/vulture_walk.json", with_loop("-1.0"));
+  const float refused = loop();
+  put(mod + "/zbd/motion/vulture_walk.json", "{\"loop_time\": 2.0,\n \"frame_count\": 3, \"parts\": [{\"name\": \"hip\", \"frames\": []}]}");
+  const float cut = loop();
+  fs::remove_all(mod + "/zbd/motion", ec);
+  fs::remove(mod + "/zbd/motion.zip", ec);
+  fs::create_directories(mod + "/zbd", ec);
+  fs::copy_file(install + "/zbd/motion.zbd", mod + "/zbd/motion.zbd", ec);
+  const float own = loop();  // the mod's own archive stops the search: the later mod's JSON not read
+  std::printf("  later mod 9 -> %.2f; zip 3.5, folder 4.25; refused -> %.3f, %.3f; own archive -> %.3f\n", shipped, refused, cut, own);
+  EXPECT(refused != -1.0f && refused != 9.0f && refused > 0.0f);  // the archive's
+  EXPECT(cut == refused && own == refused);
+  zutl::mounts() = saved;
+}
+
+// One node, Initial, one model of three vertices (the second's y given) and one polygon: a mechlib model as
+// unzbd writes one, the least it holds.
+std::string tiny_model_json(const char* y) {
+  const std::string box = "{\"a\": {\"x\": 0, \"y\": 0, \"z\": 0}, \"b\": {\"x\": 1, \"y\": 1, \"z\": 1}}";
+  const std::string v = "{\"x\": 0, \"y\": 0, \"z\": 0}";
+  return "{\"nodes\": [{\"name\": \"tiny.flt\", \"flags\": {\"active\": true, \"bbox_node\": true, \"tree_valid\": true}, \"update_flags\": 1,"
+         " \"zone_id\": -1, \"model_index\": 0, \"area_partition\": null, \"virtual_partition\": null, \"parent_indices\": [],"
+         " \"child_indices\": [], \"active_bbox\": \"Node\", \"node_bbox\": " + box + ", \"model_bbox\": " + box + ", \"child_bbox\": " + box +
+         ", \"field192\": 0, \"field196\": 160, \"field200\": 0, \"field204\": 0, \"data\": {\"Object3d\": {\"opacity\": null, \"color\": null,"
+         " \"unk\": 0.0, \"transform\": \"Initial\", \"signs\": 0}}, \"data_ptr\": 1, \"parent_array_ptr\": 0, \"child_array_ptr\": 0, \"index\": 1}],"
+         " \"models\": [{\"model_type\": \"Default\", \"facade_mode\": \"CylindricalY\", \"flags\": {\"lighting\": true}, \"parent_count\": 1,"
+         " \"vertices\": [" + v + ", {\"x\": 1, \"y\": " + y + ", \"z\": 0}, {\"x\": 0, \"y\": 1, \"z\": 1}], \"normals\": [], \"morphs\": [], \"lights\": [],"
+         " \"polygons\": [{\"flags\": {}, \"priority\": 0, \"zone_set\": [], \"vertex_indices\": [0, 1, 2], \"normal_indices\": null,"
+         " \"vertex_colors\": [{\"r\": 255, \"g\": 255, \"b\": 255}, {\"r\": 255, \"g\": 255, \"b\": 255}, {\"r\": 255, \"g\": 255, \"b\": 255}],"
+         " \"materials\": [{\"material_index\": 0, \"uv_coords\": null}], \"vertex_indices_ptr\": 1, \"normal_indices_ptr\": 0, \"uvs_ptr\": 0,"
+         " \"vertex_colors_ptr\": 1, \"matl_refs_ptr\": 0, \"materials_ptr\": 0}], \"texture_scroll\": {\"u\": 0, \"v\": 0},"
+         " \"bbox_mid\": " + v + ", \"bbox_diag\": 1.5, \"polygons_ptr\": 1, \"vertices_ptr\": 1, \"normals_ptr\": 0, \"lights_ptr\": 0,"
+         " \"morphs_ptr\": 0, \"material_refs_ptr\": 0}]}";
+}
+
+// A mod's mechlib model as unzbd's JSON (docs/modding.md): one the archive lacks, as a new mech's would be, from the
+// folder's zbd/mechlib/<model>.flt.json, then unzbd's zbd/mechlib.zip, read by the archive's bounded reader; one that
+// does not read refused; a mod's own mechlib.zbd stopping the search.
+TEST(bounded_mechlib_json_in_a_folder_or_a_zip) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const zutl::Mounts saved = zutl::mounts();
+  const auto put = [](const std::string& path, const std::string& text) {
+    std::error_code e;
+    fs::create_directories(fs::path(path).parent_path(), e);
+    std::ofstream(path, std::ios::binary) << text;
+  };
+  const std::string wd = std::string(MW3_TEST_TMP) + "/mods_mechlib_json";
+  fs::remove_all(wd, ec);
+  const std::string mod = wd + "/mods/mechmod", later = wd + "/mods/later";
+  put(mod + "/mod.txt", "name=Mech\n");
+  put(later + "/mod.txt", "name=Later\n");
+  put(later + "/zbd/mechlib/tiny.flt.json", tiny_model_json("9.0"));
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"mechmod", "later"}, {install});
+  zutl::mount(install);
+  const auto second_y = [&]() {
+    zmod::models() = zmod::ModelPool{};
+    zmod::reset_pool();
+    zcls::MechLib lib;
+    zutl_zar::init(lib.archive);
+    float y = -1;
+    if (zcls::mechlib_open(lib, "zbd\\mechlib.zbd"))
+      if (zcls::Node* n = zcls::mechlib_load(lib, "tiny.flt"); n && n->model && n->model->count(0x14) == 3) y = n->model->vertices[4];
+    zcls::mechlib_close(lib);
+    return y;
+  };
+  EXPECT(second_y() == 9.0f);  // only the later mod has it
+  write_stored_zip(mod + "/zbd/mechlib.zip", {{"TINY.FLT.JSON", tiny_model_json("3.5")}});
+  EXPECT(second_y() == 3.5f);
+  put(mod + "/zbd/mechlib/tiny.flt.json", tiny_model_json("4.25"));
+  EXPECT(second_y() == 4.25f);  // the folder before the zip
+  put(mod + "/zbd/mechlib/tiny.flt.json", tiny_model_json("\"high\""));
+  EXPECT(second_y() == -1.0f);  // refused, and the archive has none: no model
+  fs::remove_all(mod + "/zbd/mechlib", ec);
+  fs::remove(mod + "/zbd/mechlib.zip", ec);
+  fs::copy_file(install + "/zbd/mechlib.zbd", mod + "/zbd/mechlib.zbd", ec);
+  EXPECT(second_y() == -1.0f);  // the mod's own archive stops the search: the later mod's not read
+  zutl::mounts() = saved;
+}
+
+// What a mechlib model's JSON refuses, with its line and place (docs/modding.md).
+TEST(bounded_mechlib_json_errors_name_the_place) {
+  std::vector<uint8_t> bytes;
+  std::string why;
+  const std::string good = tiny_model_json("1.0");
+  EXPECT(zcls::mechlib_model_from_json(good, &bytes, &why) && bytes.size() == 208 + 144 + 92 + 3 * 12 + 36 + 3 * 4 + 3 * 12);
+  const auto with = [&](const char* from, const char* to) {
+    std::string t = good;
+    const size_t at = t.find(from);
+    return at == std::string::npos ? std::string("missing ") + from : t.replace(at, std::strlen(from), to);
+  };
+  const std::pair<std::string, const char*> cases[] = {
+      {with("\"model_index\": 0", "\"model_index\": 3"), "(at $.nodes[0].model_index): no model 3"},
+      {with("\"child_indices\": []", "\"child_indices\": [0]"), "(at $.nodes[0]): reached twice"},
+      {with("\"Object3d\"", "\"Camera\""), "(at $.nodes[0].data): not an Object3d"},
+      {with("\"transform\": \"Initial\"", "\"transform\": \"Spin\""), "(at $.nodes[0].data.Object3d.transform): not \"Initial\""},
+      {with("\"bbox_node\": true", "\"bbox_nod\": true"), "(at $.nodes[0].flags.bbox_nod): not a flag this format has"},
+      {with("\"facade_mode\": \"CylindricalY\"", "\"facade_mode\": \"Round\""), "(at $.models[0].facade_mode): not one of"},
+      {with("\"priority\": 0", "\"priority\": 51"), "(at $.models[0].polygons[0].priority): 51: past -50..50"},
+      {with("\"materials\": [{\"material_index\": 0, \"uv_coords\": null}]", "\"materials\": []"), "(at $.models[0].polygons[0].materials): no material"},
+      {with("\"name\": \"tiny.flt\"", "\"name\": \"a_name_far_longer_than_the_record_holds\""), "(at $.nodes[0].name): longer than 35"},
+      {with("\"lights\": []", "\"lights\": [{}]"), "(at $.models[0].lights): a mechlib model's lights are not read"},
+      {with("{\"x\": 1, \"y\": 1.0", "{\"x\": 1,\n \"y\": true"), "line 2 (at $.models[0].vertices[1].y): not a number"},
+  };
+  for (const auto& [text, want] : cases) {
+    why.clear();
+    const bool ok = zcls::mechlib_model_from_json(text, &bytes, &why);
+    std::printf("  -> %s\n", why.c_str());
+    EXPECT(!ok && why.find(want) != std::string::npos);
   }
 }

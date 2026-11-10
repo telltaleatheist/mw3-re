@@ -155,6 +155,8 @@ bool ArchiveReader::next(Entry* out) {
   std::replace(out->path.begin(), out->path.end(), '\\', '/');
   out->size = archive_entry_size_is_set(e) ? archive_entry_size(e) : -1;
   out->dir = archive_entry_filetype(e) == AE_IFDIR;
+  out->other = (!out->dir && archive_entry_filetype(e) != AE_IFREG) || archive_entry_hardlink(e) != nullptr ||
+               archive_entry_symlink(e) != nullptr;
   impl_->in_entry = true;
   return true;
 }

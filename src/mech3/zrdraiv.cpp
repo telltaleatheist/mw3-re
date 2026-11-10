@@ -151,12 +151,17 @@ AivFile::~AivFile() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x004df5f0 (0x004df5d0 empties the cache)
+// Mech3.exe 1.2 @ 0x004df5d0
+void AivFile::empty_cache() {
+  if (!cache) return;
+  std::map<std::string, AivRecord*> gone;
+  gone.swap(*cache);  // each record's dtor releases the file: the map is out of its way
+  for (auto& [k, r] : gone) delete r;
+}
+
+// Mech3.exe 1.2 @ 0x004df5f0
 int32_t AivFile::unload() {
-  if (cache) {
-    for (auto& [k, r] : *cache) delete r;
-    cache->clear();
-  }
+  empty_cache();
   return RdrFile::unload();
 }
 
@@ -165,6 +170,26 @@ AivRecord* AivFile::cached(const char* n) const {
   if (!cache || !n) return nullptr;
   auto it = cache->find(n);
   return it == cache->end() ? nullptr : it->second;
+}
+
+// Mech3.exe 1.2 @ 0x004defc0
+int32_t AivFile::edit(const char* n, const AivRecord& r) {
+  AivRecord* kept = cached(n);  // 0x004def10
+  if (!n) return 0;             // the exe reads a null key's characters: not reached by its one caller
+  if (kept && same_name(kept->pilot, r.pilot) && same_name(kept->sound_tag, r.sound_tag) && kept->same_vlist(r) &&
+      kept->same_numbers(r))
+    return 0;
+  if (!cache) cache = new std::map<std::string, AivRecord*>;
+  auto it = cache->find(n);
+  if (it == cache->end()) {
+    auto* copy = new AivRecord;  // 0x004d9940: the settings copied
+    static_cast<AiParams&>(*copy) = r;
+    copy->mech3_set = r.mech3_set, copy->mech3 = r.mech3;
+    return cache->emplace(n, copy).second ? 1 : 0;
+  }
+  static_cast<AiParams&>(*it->second) = r;  // 0x004d99e0
+  it->second->mech3_set = r.mech3_set, it->second->mech3 = r.mech3;
+  return 1;
 }
 
 // Mech3.exe 1.2 @ 0x004e0490
@@ -240,7 +265,7 @@ uint8_t with(uint8_t byte, int bit, bool on) {
 
 namespace {
 // Pirate's Moon 1.0 @ 0x004f10bf: _stricmp, where MW3's inlined strcmp (0x004dffb8) is exact; PM's records are lowercase.
-bool same_name(const char* a, const char* b) {
+bool same_record_name(const char* a, const char* b) {
   for (; *a && *b; ++a, ++b)
     if (std::tolower(static_cast<unsigned char>(*a)) != std::tolower(static_cast<unsigned char>(*b))) return false;
   return *a == *b;
@@ -363,14 +388,14 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
     // The three lancemates' radio voices when the file names none: any case in
     // PM, so its lowercase records get them (docs/discoveries.md).
     if (!sound_tag && name) {
-      if (same_name(name, "Epona_Rhi"))
+      if (same_record_name(name, "Epona_Rhi"))
         sound_tag = dup("epona");
-      else if (same_name(name, "Alan_Mattila") ||
+      else if (same_record_name(name, "Alan_Mattila") ||
                // FIX (bug): two records misspell him (c1 Instant Action map 1,
                // c3 mission 6), so he had no radio voice there (Owen, 2026-10-20).
-               (zfix::options().bugs && (same_name(name, "Alan_Mattilla") || same_name(name, "Alan_Matilla"))))
+               (zfix::options().bugs && (same_record_name(name, "Alan_Mattilla") || same_record_name(name, "Alan_Matilla"))))
         sound_tag = dup("alan");
-      else if (same_name(name, "Dominic_Paine"))
+      else if (same_record_name(name, "Dominic_Paine"))
         sound_tag = dup("dom");
     }
     if ((f = find("skin"))) put_raw(0xc8, w(f, 1));

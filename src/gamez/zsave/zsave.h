@@ -58,7 +58,8 @@ bool load(const char* path, int32_t kind);
 int32_t kind_of(const char* path);  // 0x005a90d0: -1 without a good header
 // 0x005a8a50 (0x005a9140): an entry "<owner>/<sub>".
 void write(Context& ctx, const char* sub, const void* data, uint32_t size);
-std::FILE* temp();                  // 0x005a8ab0: tmpfile(), null before init
+std::FILE* temp();                  // 0x005a8ab0: tmpfile(), null before init; FIX (A): a ScratchFile when it gives none
+void set_tmpfile(std::FILE* (*fn)());  // ours, for the tests: what stands for tmpfile() (null: tmpfile)
 // 0x005a8ad0 (0x005a9210): the temporary file's bytes as an entry, then every
 // temporary file removed (_rmtmp).
 void write_temp(std::FILE* f, Context& ctx, const char* sub);

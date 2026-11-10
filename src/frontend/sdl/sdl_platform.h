@@ -160,6 +160,9 @@ class SdlPump : public platform::MessagePump {
   bool stays_active = false;
   // Ours: Alt+Enter, swallowed before the game sees the Enter.
   std::function<void()> toggle_fullscreen;
+  // Ours: the game editor's ImGui sees each event first while it is up; true
+  // keeps the event from zInput (editor_imgui.h). Window events go on as ever.
+  std::function<bool(const SDL_Event&)> overlay_event;
 
   void handle(const SDL_Event& e);  // public for the tests
 

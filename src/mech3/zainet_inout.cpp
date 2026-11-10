@@ -1,5 +1,6 @@
 #include "pm/gamez/zmodel/gmod_const.h"
 #include "mech3/zainet_inout.h"
+#include "mech3/zainet_inout_view.h"
 
 #include <cfloat>
 #include <cmath>
@@ -810,6 +811,10 @@ void inout_mission_end() {
   // mission without one (multiplayer, or a world without `inout`) then pulls
   // the AI's destinations with freed memory (docs/ai.md section 11).
   g_inout.current = nullptr;
+  // FIX (bug): the boundary's drawing ([0x0060b334], under the world) is
+  // kept by the exe past the world's end, so the next Show InOut takes it as
+  // still drawn and its taking down reaches freed nodes; forgotten here.
+  inout_view() = nullptr;
 }
 
 }  // namespace mech3::ai

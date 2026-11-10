@@ -29,7 +29,7 @@ foreach ($exe in @('mw3pm.exe')) {
   if (-not (Test-Path -LiteralPath (Join-Path $Dist $exe))) { $missing += "$exe (the program itself)" }
 }
 # The libraries linked into mw3.exe carry no file of their own: their licences must be there.
-foreach ($lib in 'libarchive-*', 'zlib-*', 'xz-*') {
+foreach ($lib in 'libarchive-*', 'zlib-*', 'xz-*', 'imgui') {
   $dir = Get-ChildItem -LiteralPath (Join-Path $Dist 'licenses') -Directory -Filter $lib -ErrorAction SilentlyContinue
   if (-not $dir -or -not (Get-ChildItem -LiteralPath $dir[0].FullName -File)) { $missing += "licenses\$lib (its licence)" }
 }

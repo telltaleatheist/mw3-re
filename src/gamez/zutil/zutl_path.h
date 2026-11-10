@@ -55,6 +55,8 @@ bool is_mod_dir(const std::string& dir);     // a mod's root or a folder under o
 bool mod_may_serve(const std::string& host_path);
 // The first mod's copy of a game path (host form, from a mod's root), "" if none.
 std::string find_in_mods(const std::string& host_path);
+// Mod `i`'s copy (Mounts::mods' order), "" if none; the same refusals.
+std::string find_in_mod(size_t i, const std::string& host_path);
 void set_write_dir(const std::string& dir);
 // FIX (A): the original's names meet Windows, where case does not matter; an
 // install on a case-sensitive disk may be in any case (a tool's lower case, a
@@ -69,6 +71,8 @@ std::string any_case(const std::string& root, const std::string& rel);
 std::string host(const char* path);
 // UTF-8 text in the game's code page (Windows-1252); false for a character it lacks.
 bool game_text(const std::string& utf8, std::string* out);
+// The game's text (Windows-1252) as UTF-8.
+std::string utf8_text(const std::string& game);
 std::string find(const char* path);          // the host path in the first mount that has it, "" if none
 // Ours: every mount's copy of a game path, in the order find() looks (the
 // write dir, then the mounts; a mod's only where it may serve).

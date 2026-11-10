@@ -52,6 +52,23 @@ class CZAiNetEdit : public AiNet {
   AiNet* as_compiled() override { return net ? net->as_compiled() : nullptr; }  // +0x34 0x004bcf80
   Region* as_region() override { return net ? net->as_region() : nullptr; }     // +0x44 0x004bcfc0
   void drop_net();                          // 0x004bf4b0
+  // 0x004befc0 -> 0x004bef80: an edited node's record into its file's cache
+  // (0x004dc2b0, keyed node_NN by its number), the edit dirty; only while
+  // editing, never for the placeholder.
+  void fold(NetNode* n, bool gone = false);  // gone: 0x004bef80(n, 0), the key marked gone
+  // The editing calls (the net's vt+0x50, +0x54, +0x58): a node added, by
+  // `n` or a new one of the defaults (0x004bd1f0 -> 0x004c6e60), into the
+  // first placeholder's slot or after the last, numbered by its slot; a node
+  // deleted (0x004bd290 -> 0x00403c00: its links and every link to it
+  // first, the slot back to the placeholder, the key marked gone; never the
+  // net's only node); the link from `a` to `b` taken off (0x004bd310).
+  NetNode* add_node(NetNode* n);
+  bool delete_node(NetNode* n);
+  bool delete_link(NetNode* a, NetNode* b);
+  // 0x004bd100 (the save's first step, 0x004bd340): the header and every
+  // node folded, a file record whose node is gone marked so, dirty when the
+  // file then differs from what it read.
+  void fold_edits();
 
   bool loop(NetLoop* out);                  // 0x004bf000: the nodes form one closed loop
   Region* make_region(Region* r, const NetLoop& l);  // 0x004bf1b0: the loop's edges into `r`

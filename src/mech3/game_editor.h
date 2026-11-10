@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <functional>
 
 #include "gamez/zgame/unported.h"
 #include "gamez/zinput/zinput.h"
@@ -78,8 +79,28 @@ class EditorHooks : public zgame::Unported {
   virtual void debug_lines_show(bool on) { unported(on ? "0x0040f890" : "0x0040f8b0", {}); }
   // The net editor's (after v1.0): its 0.1 s step in modes 1..3
   // (0x00403140) and its frame (0x00404290, nothing without a net editor).
-  virtual void net_step(float dt) { unported("0x00403140", {zgame::bits(dt)}); }
-  virtual void net_frame(bool editing) { (void)editing; }
+  virtual void net_step(float dt);  // game_editor_net.cpp: net_editor_step
+  virtual void net_frame(bool editing);  // game_editor_net.cpp: net_editor_frame_all
+  // The net editor's (sitting 3a): the view's vehicle put at a place (its
+  // vt+0xdc, GOTO Net).
+  virtual void view_vehicle_place(const float p[3]) { unported("view vehicle.vt+0xdc", {zgame::bits(p[0]), zgame::bits(p[2])}); }
+  // Its frame's (sitting 3b, 0x00403160): the player view's camera set again
+  // (0x004b51f0), the screen's size (0x00558080), the camera's clip planes
+  // (0x004f3b00 / 0x004f3a70; a far of 0: none to keep), its place and pitch
+  // (its data +0x14, +0x20), the view vehicle's pick (vt+0xf8: the stealth's
+  // reticle point, 0x004a5170; false without its overlay) and the world's
+  // segment query (0x004eed90 on [0x00608c84] +4: true when it crosses
+  // nothing; false without a world).
+  virtual void view_refresh() {}
+  virtual void screen_size(int32_t* w, int32_t* h) { *w = 640, *h = 480; }
+  virtual void camera_clip(float* near_z, float* far_z) { *near_z = 1.0f, *far_z = 0.0f; }
+  virtual void set_camera_clip(float near_z, float far_z) { (void)near_z, (void)far_z; }
+  virtual const float* camera_pos() { return nullptr; }
+  virtual float camera_pitch() { return 0.0f; }
+  virtual bool ground_pick(float out[3]) { (void)out; return false; }
+  virtual bool clear_line(const float* a, const float* b) { (void)a, (void)b; return false; }
+  // The world node ([0x00608c84] +4, a zcls::Node; the Tree View's); null without one.
+  virtual void* world_node() { return nullptr; }
   virtual void not_ported(const char* what);  // a row whose editor comes after v1.0: said in the log
 };
 void set_editor_hooks(EditorHooks* h);  // null: the defaults
@@ -89,7 +110,10 @@ void editor_fill(EditorPanel& p, const EditorMenu& m);         // 0x0040e6a0
 void editor_install(int32_t mode, const EditorMenu& m);       // 0x0040e7b0
 void editor_main_menu();                                       // 0x0040e7d0
 void editor_enter();                                           // 0x0040e430: command 0x9a's
-void editor_exit(int32_t y = 0);                               // 0x0040e7f0: EXIT GAME EDIT's (ours: the view back)
+void editor_exit(int32_t y = 0);
+// Ours: called at the end of the exit when set (MODS's EDIT: back to MODS;
+// upgrades/editor/mods_edit.h).
+std::function<void()>& editor_after_exit();                               // 0x0040e7f0: EXIT GAME EDIT's (ours: the view back)
 void editor_frame();                                           // 0x0040e4b0, each frame from the HUD's
 // Ours (docs/editor.md S4): command 0x9a, Shift+F12 under --debug-camera
 // (debugcamera=1): the editor's entry, or its exit when it is up.

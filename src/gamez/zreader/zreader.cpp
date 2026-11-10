@@ -1,6 +1,8 @@
 #include "gamez/zreader/zreader.h"
+#include "upgrades/reference/reference.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -13,6 +15,7 @@
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "gamez/zutil/zutl_zip.h"
 
 namespace zrdr {
 
@@ -102,6 +105,7 @@ uint32_t read_node(std::FILE* file, Node* node) {
 
 // Mech3.exe 1.2 @ 0x00556840. Walks slot 0 too; it is an Int, so nothing happens.
 void free_contents(Node* node) {
+  upgrades::reference::freed(node);  // ours: the reference test's observer (null in play)
   if (node->type == String) {
     std::free(node->s);
     node->s = nullptr;
@@ -139,10 +143,14 @@ Node* find(Node* node, const char* key, int start) {
 }
 
 // Mech3.exe 1.2 @ 0x005569e0
-Node* find(Node* node, const char* key) { return find(node, key, 1); }
+Node* find(Node* node, const char* key) {
+  upgrades::reference::seen(key, node);  // ours: the modding reference's test observer (null in play)
+  return find(node, key, 1);
+}
 
 // Mech3.exe 1.2 @ 0x005568a0
 Node* find_flat(Node* node, const char* key, int start) {
+  upgrades::reference::seen(key, node);  // ours: the modding reference's test observer (null in play)
   if (!node || node->type != List) return nullptr;
   int32_t count = node->list[0].i;
   for (int i = start; i < count; ++i) {
@@ -665,6 +673,47 @@ Node* parse_list(std::FILE* f) {
 }
 }  // namespace
 
+std::string text_error(std::FILE* f) {
+  int32_t line = 1, quote_line = 0;
+  std::vector<int32_t> open;  // the line of each '(' still open
+  bool comment = false, quote = false, cr = false;
+  int ch;
+  std::string why;
+  while (why.empty() && (ch = std::fgetc(f)) != EOF) {
+    const char c = static_cast<char>(ch);
+    if (c == '\n' && !cr) ++line;
+    if (c == '\r') ++line;
+    cr = c == '\r';
+    switch (c) {
+      case '\n':
+      case '\r':
+        if (!quote) comment = false;
+        break;
+      case '"':
+        if (!comment) quote = !quote, quote_line = line;
+        break;
+      case '(':
+        if (!quote && !comment) open.push_back(line);
+        break;
+      case ')':
+        if (!quote && !comment) {
+          if (open.empty()) why = "line " + std::to_string(line) + ": a ')' with no '(' before it";
+          else open.pop_back();
+        }
+        break;
+      case ';':
+        if (!quote) comment = true;
+        break;
+      default:
+        break;
+    }
+  }
+  if (why.empty() && quote) why = "line " + std::to_string(quote_line) + ": a quote never closed";
+  if (why.empty() && !open.empty()) why = "line " + std::to_string(open.front()) + ": a '(' never closed";
+  std::fseek(f, 0, SEEK_SET);
+  return why;
+}
+
 // Mech3.exe 1.2 @ 0x005563d0
 Node* parse_text(std::FILE* file) {
   if (!balanced(file)) return nullptr;
@@ -680,22 +729,62 @@ void set_load_hook(LoadHook hook) { g_load_hook = hook; }
 MissingHook g_missing_hook = nullptr;
 void set_missing_hook(MissingHook hook) { g_missing_hook = hook; }
 
-// Ours (docs/modding.md): a mod's loose text copy of an archive's entry, in
-// the mod at the archive's own folder (zbd\c1\world.zrd for zbd\c1\reader.zbd's
-// world.zrd), read instead of the entry; "" without one. Each such file is
-// said once in the log.
-std::string mod_loose(const zutl_zar::Archive& a, const char* name) {
-  if (zutl::mounts().mods.empty() || !a.path) return {};
+// Ours (docs/modding.md, Readable files read directly): a mod's own copy of
+// an archive's entry, at the archive's own folder (zbd\\c1\\ for the c1
+// world's reader): per mod, first to last, a loose `<entry>` (text, as
+// 0x005563d0 reads), then mech3ax's JSON, `<archive>\\<entry>.json` (the
+// folder unzbd's zip unpacks to), then `<archive>.zip` holding `<entry>.json`.
+// The first found is the one; one that does not read is said once, with its
+// line, and null comes back (the entry read instead). Null without one.
+bool same_name(const std::string& a, const std::string& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i)
+    if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
+  return true;
+}
+Node* mod_copy(const zutl_zar::Archive& a, const char* name) {
+  if (zutl::mounts().mods.empty() || !a.path) return nullptr;
   std::string dir = zutl::host(a.path);
   const size_t slash = dir.rfind('/');
+  std::string stem = slash == std::string::npos ? dir : dir.substr(slash + 1);
   dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
-  const std::string found = zutl::find_in_mods(dir + zutl::host(name));
-  static std::vector<std::string> said;
-  if (!found.empty() && std::find(said.begin(), said.end(), found) == said.end()) {
-    said.push_back(found);
-    std::printf("mw3: mod: %s instead of %s's entry\n", found.c_str(), a.path);
+  if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
+  const std::string entry = zutl::host(name);
+  static std::vector<std::string> said;  // each copy said once in the log, again if why it reads (or not) changes
+  auto say = [&](const std::string& what, const char* fmt, const std::string& why) {
+    const std::string key = what + '\n' + why;
+    if (std::find(said.begin(), said.end(), key) != said.end()) return;
+    said.push_back(key);
+    std::printf(fmt, what.c_str(), why.c_str(), a.path);
+  };
+  auto took = [&](const std::string& what, Node* root) {
+    say(what, "mw3: mod: %s%s instead of %s's entry\n", "");
+    if (g_load_hook) g_load_hook(a.path, g_fname, root);
+    return root;
+  };
+  for (size_t m = 0; m < zutl::mounts().mods.size(); ++m) {
+    if (const std::string loose = zutl::find_in_mod(m, dir + entry); !loose.empty()) {
+      std::FILE* t = std::fopen(loose.c_str(), "rb");
+      if (!t) return nullptr;
+      std::string why = text_error(t);
+      Node* root = why.empty() ? zgame::game().zrdr_parse_text(t) : nullptr;  // the game's text reader (PM's on pm)
+      std::fclose(t);
+      if (root) return took(loose, root);
+      say(loose, "mw3: mod: %s: %s; %s's entry read instead\n", why.empty() ? "it does not read" : why);
+      return nullptr;
+    }
+    std::string text, what, why;
+    const int got = zutl_zip::mod_json(m, dir, stem, entry + ".json", &text, &what, &why);
+    if (got == 0) continue;  // none here: the next mod's, or the entry
+    if (got < 0) {
+      say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
+      return nullptr;
+    }
+    if (Node* root = parse_json(text, &why)) return took(what, root);
+    say(what, "mw3: mod: %s: %s; %s's entry read instead\n", why);
+    return nullptr;
   }
-  return found;
+  return nullptr;
 }
 
 Node* load(const char* path) {
@@ -707,13 +796,8 @@ Node* load(const char* path) {
     uint32_t length = 0;
     std::FILE* f = zutl_zar::seek(*a, zutl_zar::find(*a, g_fname), &length);
     if (!f) continue;
-    if (const std::string loose = mod_loose(*a, g_fname); !loose.empty()) {
-      if (std::FILE* t = std::fopen(loose.c_str(), "rb")) {
-        Node* root = zgame::game().zrdr_parse_text(t);
-        std::fclose(t);
-        if (root) return root;
-      }
-    }
+    // A mod's own copy (mod_copy), given to the load hook as the entry is.
+    if (Node* root = mod_copy(*a, g_fname)) return upgrades::reference::loaded(g_fname, root);  // ours: the reference test's observer
     Node* root = new_nodes(List, 1);
     g_entry_end = std::ftell(f) + static_cast<long>(length), g_depth = 0, g_broken = false;
     read_node(f, root);
@@ -724,13 +808,13 @@ Node* load(const char* path) {
       return g_missing_hook ? g_missing_hook(g_fname) : nullptr;
     }
     if (g_load_hook) g_load_hook(a->path, g_fname, root);
-    return root;
+    return upgrades::reference::loaded(g_fname, root);
   }
   std::FILE* f = zutl::open(path, "rb");
   if (!f) return g_missing_hook ? g_missing_hook(g_fname) : nullptr;
   Node* root = zgame::game().zrdr_parse_text(f);
   std::fclose(f);
-  return root;
+  return upgrades::reference::loaded(g_fname, root);
 }
 
 }  // namespace zrdr

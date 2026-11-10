@@ -3150,4 +3150,10 @@ bool mech_torso_jolt(void* mech, MechJolt* out) {
   out->drawn_err = err;
   return true;
 }
+
+void* program_ai_mech_brain(void* controls) {
+  auto* c = dynamic_cast<AiControls*>(static_cast<MechControls*>(controls));
+  return c ? c->brain.get() : nullptr;
+}
+
 }  // namespace mech3

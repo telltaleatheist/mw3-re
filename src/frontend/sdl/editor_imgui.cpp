@@ -1,0 +1,315 @@
+// Ours, not original code (docs/editor.md, Dear ImGui for the editor's dialogs).
+#include "frontend/sdl/editor_imgui.h"
+
+#include <cstdio>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "imgui.h"
+#include "backends/imgui_impl_sdl3.h"
+#include "backends/imgui_impl_sdlgpu3.h"
+#include "upgrades/editor/ddx.h"
+#include "upgrades/editor/form.h"
+#include "upgrades/editor/help.h"
+
+namespace sdlfe {
+
+namespace {
+// Where the last frame drew each form's items, by label (the tests' clicks).
+std::map<std::pair<const mech3::EditorForm*, std::string>, ImVec4> g_rects;
+void note_rect(const mech3::EditorForm* f, const std::string& label) {
+  const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+  g_rects[{f, label}] = ImVec4(a.x, a.y, b.x, b.y);
+}
+// The help's tip (upgrades/editor/help.h) for the item just drawn.
+void tip(const mech3::EditorForm& f, const std::string& item) {
+  if (!ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip)) return;
+  if (const char* t = mech3::help_tip(f.title, item)) ImGui::SetItemTooltip("%s", t);
+}
+
+// One form, as ImGui widgets over its fields (form.h). A change writes the
+// field at once (the form's own copy); its `changed` and the buttons' presses
+// are posted to the game's next editor frame.
+void tree_items(mech3::FormTree& t) {
+  ImGui::SetNextItemOpen(t.open);
+  const ImGuiTreeNodeFlags flags = t.kids.empty() ? ImGuiTreeNodeFlags_Leaf : 0;
+  t.open = ImGui::TreeNodeEx(&t, flags, "%s", t.text.c_str());
+  if (!t.open) return;
+  for (mech3::FormTree& k : t.kids) tree_items(k);
+  ImGui::TreePop();
+}
+
+void field(mech3::EditorForm& form, mech3::FormField& f) {
+  bool changed = false;
+  switch (f.kind) {
+    case mech3::FormField::kLabel:
+      ImGui::TextUnformatted(f.label.c_str());
+      break;
+    case mech3::FormField::kInt:
+      changed = ImGui::InputInt(f.label.c_str(), f.i);
+      break;
+    case mech3::FormField::kFloat: {
+      bool on = !f.on || *f.on;
+      if (f.on) {
+        ImGui::PushID(f.label.c_str());
+        if (ImGui::Checkbox("##on", &on)) *f.on = on ? 1 : 0, changed = true;
+        ImGui::PopID();
+        ImGui::SameLine();
+      }
+      ImGui::BeginDisabled(!on);
+      changed |= ImGui::InputFloat(f.label.c_str(), f.f, 0.0f, 0.0f, "%.3f");
+      ImGui::EndDisabled();
+      break;
+    }
+    case mech3::FormField::kFlag: {
+      bool v = *f.flag != 0;
+      if (ImGui::Checkbox(f.label.c_str(), &v)) *f.flag = v ? 1 : 0, changed = true;
+      break;
+    }
+    case mech3::FormField::kTri: {
+      int v = !*f.set ? 0 : *f.flag ? 1 : 2;
+      if (ImGui::Combo(f.label.c_str(), &v, "as the default\0yes\0no\0")) {
+        *f.set = v != 0, *f.flag = v == 1;
+        changed = true;
+      }
+      break;
+    }
+    case mech3::FormField::kText: {
+      char buf[256];
+      std::snprintf(buf, sizeof buf, "%s", f.text->c_str());
+      const int32_t lim = f.limit && *f.limit > 0 && *f.limit < 255 ? *f.limit + 1 : static_cast<int32_t>(sizeof buf);
+      const ImGuiInputTextFlags fl = f.read_only ? ImGuiInputTextFlags_ReadOnly : 0;
+      if (ImGui::InputText(f.label.c_str(), buf, static_cast<size_t>(lim), fl)) *f.text = buf, changed = !f.left;
+      if (f.left && ImGui::IsItemDeactivated()) {
+        mech3::EditorForm* fp = &form;
+        std::function<void()> left = f.left;
+        mech3::form_post([fp, left] {
+          if (mech3::form_shown(fp)) left();
+        });
+      }
+      break;
+    }
+    case mech3::FormField::kCheck: {
+      // A check box; a three-state one (BS_AUTO3STATE) shows 2 as mixed and
+      // a click goes 0, 1, 2, 0 as Win32's does.
+      bool v = *f.i == 1;
+      if (*f.i == 2) ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, true);
+      const bool clicked = ImGui::Checkbox(f.label.c_str(), &v);
+      if (*f.i == 2) ImGui::PopItemFlag();
+      if (clicked) *f.i = f.max == 2 ? (*f.i + 1) % 3 : (*f.i ? 0 : 1), changed = true;
+      break;
+    }
+    case mech3::FormField::kRadio: {
+      ImGui::TextUnformatted(f.label.c_str());
+      ImGui::PushID(f.label.c_str());
+      for (int32_t k = 0; k < static_cast<int32_t>(f.choices.size()); ++k) {
+        ImGui::SameLine();
+        if (ImGui::RadioButton(f.choices[size_t(k)].c_str(), *f.i == k)) *f.i = k, changed = true;
+      }
+      ImGui::PopID();
+      break;
+    }
+    case mech3::FormField::kButton:
+      changed = ImGui::Button(f.label.c_str());
+      break;
+    case mech3::FormField::kChoice: {
+      std::vector<std::string> live;
+      if (f.combo) live = f.combo->texts();
+      const std::vector<std::string>& names = f.combo ? live : f.choices;
+      std::vector<const char*> items;
+      for (const std::string& c : names) items.push_back(c.c_str());
+      if (f.text) {
+        // A list typed into (CBS_DROPDOWN): its edit part; typing clears the
+        // pick, Enter sends the name (`left`).
+        char buf[256];
+        std::snprintf(buf, sizeof buf, "%s", f.text->c_str());
+        ImGui::PushID(f.label.c_str());
+        if (ImGui::InputText("##edit", buf, sizeof buf)) *f.text = buf, *f.i = -1;
+        if (f.left && ImGui::IsItemDeactivatedAfterEdit()) {
+          mech3::EditorForm* fp = &form;
+          std::function<void()> left = f.left;
+          mech3::form_post([fp, left] {
+            if (mech3::form_shown(fp)) left();
+          });
+        }
+        ImGui::PopID();
+      }
+      const int32_t was = *f.i;
+      if (items.size() > 8)
+        changed = ImGui::ListBox(f.label.c_str(), f.i, items.data(), static_cast<int>(items.size()), 12);
+      else
+        changed = ImGui::Combo(f.label.c_str(), f.i, items.data(), static_cast<int>(items.size()));
+      if (changed && f.text && *f.i >= 0 && *f.i != was) *f.text = names[size_t(*f.i)];  // the edit part follows
+      break;
+    }
+    case mech3::FormField::kTree:
+      if (f.tree) tree_items(*f.tree);
+      break;
+    case mech3::FormField::kTabs:
+      if (ImGui::BeginTabBar(f.label.c_str())) {
+        for (int32_t k = 0; k < static_cast<int32_t>(f.choices.size()); ++k)
+          if (ImGui::BeginTabItem(f.choices[size_t(k)].c_str())) {
+            tip(form, "tab " + f.choices[size_t(k)]);
+            if (*f.i != k) *f.i = k, changed = true;
+            ImGui::EndTabItem();
+          } else {
+            tip(form, "tab " + f.choices[size_t(k)]);
+          }
+        ImGui::EndTabBar();
+      }
+      break;
+  }
+  if (f.kind != mech3::FormField::kTree) note_rect(&form, f.label);
+  if (f.kind != mech3::FormField::kTabs && f.kind != mech3::FormField::kLabel) tip(form, f.label);
+  if (changed && f.changed) {
+    mech3::FormField* p = &f;
+    mech3::EditorForm* fp = &form;
+    mech3::form_post([fp, p] {
+      if (mech3::form_shown(fp)) fp->changed(*p);
+    });
+  }
+}
+
+void form(mech3::EditorForm& f, int n) {
+  ImGui::PushID(&f);
+  if (f.modal) {
+    ImGui::OpenPopup(f.title.c_str());
+    if (!ImGui::BeginPopupModal(f.title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::PopID();
+      return;
+    }
+  } else {
+    ImGui::SetNextWindowPos(ImVec2(260.0f + 24 * n, 40.0f + 24 * n), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin(f.title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::End();
+      ImGui::PopID();
+      return;
+    }
+  }
+  int32_t page = -1;  // the page the form's tabs show
+  for (mech3::FormField& x : f.fields) {
+    if (x.page >= 0 && x.page != page) continue;
+    field(f, x);
+    if (x.kind == mech3::FormField::kTabs && x.i) page = x.first + *x.i;
+  }
+  for (size_t i = 0; i < f.buttons.size(); ++i) {
+    if (i) ImGui::SameLine();
+    const bool pressed = ImGui::Button(f.buttons[i].label.c_str());
+    note_rect(&f, f.buttons[i].label);
+    tip(f, f.buttons[i].label);
+    if (pressed) {
+      mech3::EditorForm* fp = &f;
+      const std::string label = f.buttons[i].label;
+      mech3::form_post([fp, label] {
+        if (mech3::form_shown(fp)) fp->press(label);
+      });
+    }
+  }
+  if (f.modal)
+    ImGui::EndPopup();
+  else
+    ImGui::End();
+  ImGui::PopID();
+}
+}  // namespace
+
+bool editor_item_rect(const mech3::EditorForm* f, const std::string& label, float r[4]) {
+  const auto it = g_rects.find({f, label});
+  if (it == g_rects.end()) return false;
+  r[0] = it->second.x, r[1] = it->second.y, r[2] = it->second.z, r[3] = it->second.w;
+  return true;
+}
+
+void draw_editor_forms() {
+  const std::vector<mech3::EditorForm*> forms = mech3::editor_forms();  // a copy: a press may change the list
+  int n = 0;
+  for (mech3::EditorForm* f : forms) form(*f, n++);
+  // The editor panel's row under the mouse (the game's own menu, not ImGui's).
+  if (!ImGui::GetIO().WantCaptureMouse)
+    if (const char* t = mech3::editor_row_tip()) ImGui::SetTooltip("%s", t);
+}
+
+bool editor_event_to_game(const SDL_Event& e, bool want_mouse, bool want_keyboard, bool want_text) {
+  switch (e.type) {
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+    case SDL_EVENT_MOUSE_WHEEL:
+      return !want_mouse;
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP:
+    case SDL_EVENT_TEXT_INPUT:
+    case SDL_EVENT_TEXT_EDITING:
+      return !want_keyboard && !want_text;
+    default:
+      return true;
+  }
+}
+
+EditorUi::EditorUi(SDL_Window* window, SDL_GPUDevice* device, std::function<bool()> up)
+    : window_(window), device_(device), up_(std::move(up)) {
+  draw = draw_editor_forms;
+}
+
+EditorUi::~EditorUi() {
+  if (!started_) return;
+  ImGui_ImplSDLGPU3_Shutdown();
+  ImGui_ImplSDL3_Shutdown();
+  ImGui::DestroyContext();
+}
+
+bool EditorUi::start() {
+  if (started_) return true;
+  if (!window_ || !device_) return false;
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO& io = ImGui::GetIO();
+  io.IniFilename = nullptr;  // no imgui.ini beside the game; window places are not kept
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  ImGui::StyleColorsDark();
+  const float scale = SDL_GetWindowDisplayScale(window_);
+  if (scale > 0) ImGui::GetStyle().ScaleAllSizes(scale), ImGui::GetStyle().FontScaleDpi = scale;
+  ImGui_ImplSDL3_InitForSDLGPU(window_);
+  ImGui_ImplSDLGPU3_InitInfo info;
+  info.Device = device_;
+  info.ColorTargetFormat = SDL_GetGPUSwapchainTextureFormat(device_, window_);
+  info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;
+  ImGui_ImplSDLGPU3_Init(&info);
+  started_ = true;
+  return true;
+}
+
+bool EditorUi::event(const SDL_Event& e) {
+  if (!up_ || !up_() || !start()) return false;
+  ImGui_ImplSDL3_ProcessEvent(&e);
+  const ImGuiIO& io = ImGui::GetIO();
+  return !editor_event_to_game(e, io.WantCaptureMouse, io.WantCaptureKeyboard, io.WantTextInput);
+}
+
+bool EditorUi::step() {
+  if (!up_ || !up_() || !start()) return false;
+  ImGui_ImplSDLGPU3_NewFrame();
+  ImGui_ImplSDL3_NewFrame();
+  ImGui::NewFrame();
+  if (draw) draw();
+  ImGui::Render();
+  return true;
+}
+
+void EditorUi::overlay(SDL_GPUCommandBuffer* cmd, SDL_GPUTexture* target, Uint32, Uint32) {
+  if (!step()) return;
+  ImDrawData* d = ImGui::GetDrawData();
+  if (!d || d->DisplaySize.x <= 0 || d->DisplaySize.y <= 0) return;
+  ImGui_ImplSDLGPU3_PrepareDrawData(d, cmd);
+  SDL_GPUColorTargetInfo t{};
+  t.texture = target;
+  t.load_op = SDL_GPU_LOADOP_LOAD;  // over the game's frame
+  t.store_op = SDL_GPU_STOREOP_STORE;
+  SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &t, 1, nullptr);
+  ImGui_ImplSDLGPU3_RenderDrawData(d, cmd, pass);
+  SDL_EndGPURenderPass(pass);
+  if (!drawn_) std::printf("mw3: the editor's dialogs drawn over the game (%d lists)\n", d->CmdListsCount), drawn_ = true;
+}
+
+}  // namespace sdlfe

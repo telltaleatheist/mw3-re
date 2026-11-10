@@ -363,6 +363,51 @@ NetNodeRec* NetFile::node_named(const char* k) {
   return current = value ? read_node(&scratch, value, k) : nullptr;
 }
 
+// Mech3.exe 1.2 @ 0x004dc2b0 (none: 0x004ddc90). A record not cached is kept
+// when the file has no such key or it differs from the file's (0x004c6bb0);
+// a cached one, when it differs from the copy, is the copy's new value
+// unless it matches the file's again, when the copy goes. None: a copy goes,
+// and a null record marks the key gone (the save drops it). FIX (bug): the
+// exe's copy is a new record assigned (0x004da790, 0x004c63a0), which drops
+// the auxname, so a saved edit lost it; here a copy keeps it (fixes.md).
+void NetFile::edit(const char* k, const NetNodeRec* rec) {
+  if (!k) return;
+  current = nullptr;
+  auto it = cache.find(k);
+  value = find(k);  // 0x004ded60
+  key = nullptr;
+  const NetNodeRec* own = value ? read_node(&scratch, value, k) : nullptr;
+  if (!rec) {
+    if (it != cache.end()) delete it->second;
+    if (it != cache.end() && !own) cache.erase(it);
+    else cache[k] = nullptr;
+    return;
+  }
+  if (it == cache.end()) {
+    if (!own || !rec->same(*own)) cache[k] = current = new NetNodeRec(*rec);
+    return;
+  }
+  if (it->second && rec->same(*it->second)) return;
+  if (own && rec->same(*own)) {
+    delete it->second;
+    cache.erase(it);
+    current = &scratch;
+    return;
+  }
+  delete it->second;
+  it->second = current = new NetNodeRec(*rec);
+}
+
+// Mech3.exe 1.2 @ 0x004da100: no tree counts as edited.
+bool NetFile::edited() {
+  if (!cache.empty()) return true;
+  if (!tree) return true;
+  NetHeader read;
+  read.net = header.net;  // 0x004da155: the number kept
+  read.parse(tree->type == zrdr::List ? &tree->list[1] : nullptr, base_name());  // 0x004da900, as parse() does
+  return !(read == header);
+}
+
 // --- the cache by name ---------------------------------------------------
 
 std::map<std::string, NetFile*>& net_files() {
@@ -377,6 +422,114 @@ void net_files_clear() {
   }
   net_files().clear();
 }
+
+// Mech3.exe 1.2 @ 0x004dad10. 105 has no netparams; 107 and 108 name the file
+// when no name was read, the rest net_NN.
+int NetHeader::write(std::FILE* f, const char* base) const {
+  int n = std::fprintf(f, "  version ( %d )    ;;reader file version\n", version);
+  const auto params = [&] {
+    return std::fprintf(f, "netparams ( pos ( %6.1f %6.1f %6.1f ) )\n", pos[0], pos[1], pos[2]);
+  };
+  if (version == 0x69) return n + std::fprintf(f, "  name ( %s )\n", name ? name : net_name(net));
+  if (version >= 0x6b && version <= 0x6c) {
+    if (has_pos) n += params();
+    return n + std::fprintf(f, "  name ( %s )\n", name ? name : base);
+  }
+  n += std::fprintf(f, "  name ( %s )\n", name ? name : net_name(net));
+  if (has_pos) n += params();
+  return n;
+}
+
+// Mech3.exe 1.2 @ 0x004da1d0
+int NetFile::write_header(std::FILE* f) { return header.write(f, base_name()); }
+
+// Mech3.exe 1.2 @ 0x004da7e0 -> 0x004db8d0. Version 105 ("BS style") keeps
+// three links, padded with -1; the rest writes each property that differs
+// from the defaults (0x005e8af4) on its own line, indented 14 spaces. The
+// sound is never written, and a valveunion item has a comma (editor.md).
+int NetFile::write_record(const NetNodeRec& r, std::FILE* f, const char* k) const {
+  static const NetNodeRec d;
+  const char* in = "              ";
+  // fcomp's equal: C3, which an unordered (NaN) compare sets too.
+  const auto same = [](float a, float b) { return !(a < b) && !(a > b); };
+  const int links = static_cast<int>(r.links.size());
+  if (header.version == 0x69) {
+    int n = std::fprintf(f, "  node_%02d ( 12 ( %6.1f %6.1f %6.1f ) ( ", r.index, r.pos[0], r.pos[1], r.pos[2]);
+    int m = links;
+    if (m > 3) {
+      report(0x311, "net %d %s has too many connections for a BS style net: %d > 3", header.net, k, m);
+      m = 3;
+    }
+    for (int i = 0; i < m; ++i) n += std::fprintf(f, " %2d", r.links[static_cast<size_t>(i)]);
+    for (int i = m; i < 3; ++i) n += std::fprintf(f, " %2d", -1);
+    return n + std::fprintf(f, " ) )\n");
+  }
+  int n = 0;
+  if (r.kind == 0)
+    n = std::fprintf(f, "  node_%02d ( 12 ( %6.1f %6.1f %6.1f ) ( ", r.index, r.pos[0], r.pos[1], r.pos[2]);
+  else if (r.kind == 1)
+    n = std::fprintf(f, "  node_%02d ( ( ", r.index);
+  for (int32_t l : r.links) n += std::fprintf(f, " %2d", l);
+  n += std::fprintf(f, " )");
+  const int head = n;
+  if (r.name) n += std::fprintf(f, "\n%sname ( \"%s\" )", in, r.name);
+  if (r.speed_on != d.speed_on || !same(r.speed, d.speed))
+    n += std::fprintf(f, "\n%sspeed ( %d %6.3f )", in, r.speed_on, r.speed);
+  if (r.wait_interval_on != d.wait_interval_on || !same(r.wait_interval, d.wait_interval))
+    n += std::fprintf(f, "\n%swait_interval ( %d %6.3f )", in, r.wait_interval_on, r.wait_interval);
+  if (r.wait_time_on != d.wait_time_on || !same(r.wait_time, d.wait_time))
+    n += std::fprintf(f, "\n%swait_time ( %d %6.3f )", in, r.wait_time_on, r.wait_time);
+  if (r.valve && (r.valve_on != d.valve_on || r.valve != d.valve || r.valve_has_value != d.valve_has_value ||
+                  (r.valve_has_value && r.valve_value != d.valve_value))) {
+    if (!r.valve_has_value) n += std::fprintf(f, "\n%svalve ( %d \"%s\" )", in, r.valve_on, r.valve->name);
+    else n += std::fprintf(f, "\n%svalve ( %d \"%s\" %d )", in, r.valve_on, r.valve->name, r.valve_value);
+  }
+  if (r.canleave[0] != d.canleave[0] || r.canleave[1] != d.canleave[1])
+    n += std::fprintf(f, "\n%scanleave ( %d %d )", in, r.canleave[0], r.canleave[1]);
+  if (r.jump_on != d.jump_on || !same(r.jump, d.jump)) n += std::fprintf(f, "\n%sjump ( %d %6.3f )", in, r.jump_on, r.jump);
+  if (r.scan_aim[0] != d.scan_aim[0] || r.scan_aim[1] != d.scan_aim[1])
+    n += std::fprintf(f, "\n%sscan_aim ( %d %d )", in, r.scan_aim[0], r.scan_aim[1]);
+  if (r.scan_time[0] != d.scan_time[0] || r.scan_time[1] != d.scan_time[1])
+    n += std::fprintf(f, "\n%sscan_time ( %d %d )", in, r.scan_time[0], r.scan_time[1]);
+  if (r.scan_hit[0] != d.scan_hit[0] || r.scan_hit[1] != d.scan_hit[1])
+    n += std::fprintf(f, "\n%sscan_hit ( %d %d )", in, r.scan_hit[0], r.scan_hit[1]);
+  const auto flag = [&](uint8_t set, uint8_t v, uint8_t dset, uint8_t dv, const char* what) {
+    if (set != dset || v != dv) n += std::fprintf(f, "\n%s%s ( %d )", in, what, v != 0);
+  };
+  flag(r.hidden_set, r.hidden, d.hidden_set, d.hidden, "hidden");
+  flag(r.fixed_set, r.fixed, d.fixed_set, d.fixed, "fixed");
+  flag(r.autonext_set, r.autonext, d.autonext_set, d.autonext, "autonext");
+  flag(r.visible_set, r.visible, d.visible_set, d.visible, "visible");
+  // FIX (bug): the exe reads deploy's, mcbwait's and valve_assign's valves
+  // through their pointers whatever they hold; a null one crashed it. Such a
+  // line is left out (a node read from a file always has its valves).
+  if ((r.deploy_set != d.deploy_set || r.deploy_valve_a != d.deploy_valve_a || r.deploy_a != d.deploy_a ||
+       r.deploy_valve_b != d.deploy_valve_b || r.deploy_b != d.deploy_b || r.deploy_c != d.deploy_c) &&
+      r.deploy_valve_a && r.deploy_valve_b)
+    n += std::fprintf(f, "\n%sdeploy ( \"%s\" %d \"%s\" %d %d )", in, r.deploy_valve_a->name, r.deploy_a,
+                      r.deploy_valve_b->name, r.deploy_b, r.deploy_c);
+  if ((r.mcbwait_set != d.mcbwait_set || r.mcbwait_valve != d.mcbwait_valve || r.mcbwait_b != d.mcbwait_b ||
+       !same(r.mcbwait_time, d.mcbwait_time)) &&
+      r.mcbwait_valve)
+    n += std::fprintf(f, "\n%smcbwait ( \"%s\" %d %6.3f )", in, r.mcbwait_valve->name, r.mcbwait_b, r.mcbwait_time);
+  if (r.arrange_set) n += std::fprintf(f, "\n%sarrangenodes ( %6.3f )", in, r.arrange);
+  if (r.backup != d.backup) n += std::fprintf(f, "\n%sbackup ( )", in);
+  if (r.gate) n += std::fprintf(f, "\n%sgate ( \"%s\" )", in, r.gate);
+  if (r.shunt != d.shunt) n += std::fprintf(f, "\n%sshunt ( )", in);
+  if (r.valve_union) {
+    n += std::fprintf(f, "\n%svalveunion (", in);
+    for (const ValveCount& v : r.valve_union->valves)
+      if (v.valve) n += std::fprintf(f, "\n%s  ( 1 \"%s\", %d )", in, v.valve->name, v.count);
+    n += std::fprintf(f, "\n%s)", in);
+  }
+  if (r.valve_assign && r.valve_assign->valve)  // FIX (bug), as deploy's
+    n += std::fprintf(f, "\n%svalve_assign ( \"%s\" %d )", in, r.valve_assign->valve->name, r.valve_assign->value);
+  if (r.auxname) n += std::fprintf(f, "\n%sauxname ( \"%s\" )", in, r.auxname);
+  if (n != head) n += std::fprintf(f, "\n%s", in);
+  return n + std::fprintf(f, " )\n");
+}
+
+const char* net_localize(const char* s) { return localize(s); }
 
 // Mech3.exe 1.2 @ 0x004d5280
 const char* net_name(int32_t net) {

@@ -43,6 +43,10 @@
 //   --nosound            no audio device (a silent DirectSound stand-in)
 //   --hidden             keep the window hidden
 //   --windowed           a window, not fullscreen (also --window, or windowed=1 in mw3.cfg)
+//   --pick PATH          the MODS screen's IMPORT picker answered with PATH, no dialog (ours)
+//   --save-pick PATH     the MODS screen's EXPORT save box answered with PATH, no dialog (ours)
+//   --reference FILE     the modding reference (docs/modding-reference.md) written to FILE (ours)
+//   --editor-guide FILE  the editor's guide (docs/editor-guide.md) written to FILE, from its tooltips (ours)
 //   --verbose            list every unported function reached at exit
 #include "mech3/mech_ids.h"
 #include "crt/msvc_rand.h"
@@ -64,6 +68,7 @@
 #include <vector>
 
 #include "frontend/sdl/campaign_chain.h"
+#include "frontend/sdl/editor_imgui.h"
 #include "frontend/sdl/modes_chain.h"
 #include "frontend/sdl/debug_states.h"
 #include "frontend/sdl/first_run_import.h"
@@ -73,6 +78,9 @@
 #include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
+#include "upgrades/editor/help.h"
+#include "upgrades/reference/reference.h"
+#include "mech3/game_editor.h"
 #include "mech3/options_menu.h"
 #include "mech3/game_setup.h"
 #include "frontend/sdl/sdl_force.h"
@@ -93,6 +101,8 @@
 #include "mech3/app.h"
 #include "mech3/mods.h"
 #include "mech3/zai_wire_pm.h"
+#include "mech3/mods_menu.h"
+#include "frontend/sdl/sdl_mods.h"
 #include "mech3/app_engine.h"
 #include "mech3/app_hud.h"
 #include "mech3/app_keys.h"
@@ -155,6 +165,10 @@ struct Args {
   std::vector<std::string> mods, cfg_mods;
   bool mods_given = false, no_mods = false, list_mods = false;
   std::string check_mod;  // --check-mod DIR
+  std::string reference;  // --reference FILE: the modding reference written (upgrades/reference)
+  std::string editor_guide;  // --editor-guide FILE: the editor's guide written (upgrades/editor/help)
+  std::string pick;       // --pick PATH: the MODS screen's picker answered with PATH (ours, for scripted runs)
+  std::string save_pick;  // --save-pick PATH: EXPORT's save box answered with PATH
 
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
   // The bug fixes (zfix bugs; fixes.md, The bug fixes switch): mw3.cfg's
@@ -246,7 +260,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--check-mod DIR] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -270,6 +284,10 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-mods") a.no_mods = true;
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
+    else if (s == "--reference" && next(1)) a.reference = argv[++i];
+    else if (s == "--editor-guide" && next(1)) a.editor_guide = argv[++i];
+    else if (s == "--pick" && next(1)) a.pick = argv[++i];
+    else if (s == "--save-pick" && next(1)) a.save_pick = argv[++i];
     else if (s == "--mission" && next(1)) a.mission = argv[++i];
     else if (s == "--fly" && next(1)) a.mission = argv[++i], a.fly = true;
     else if (s == "--variant" && next(1)) a.variant = argv[++i];
@@ -628,6 +646,20 @@ int mw3_game_main(int argc, char** argv) {
 #endif
   Args a;
   if (!parse(argc, argv, a)) return 2;
+  // docs/modding-reference.md, from the readers' registries: nothing else
+  // run (no SDL, no write dir, no log), so the player's folder is untouched.
+  if (!a.reference.empty()) {
+    std::ofstream f(a.reference, std::ios::binary);
+    f << upgrades::reference::markdown();
+    std::printf("mw3: the modding reference written to %s\n", a.reference.c_str());
+    return f ? 0 : 1;
+  }
+  if (!a.editor_guide.empty()) {  // the same: docs/editor-guide.md from the editor's tips
+    std::ofstream f(a.editor_guide, std::ios::binary);
+    f << mech3::editor_guide_markdown();
+    std::printf("mw3: the editor's guide written to %s\n", a.editor_guide.c_str());
+    return f ? 0 : 1;
+  }
   if (!a.shot.empty()) a.hidden = true;
   if (a.verbose) mech3::ai::set_pm_ai_report(true);  // the PM AI's unanswered calls, as they come and at exit
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK)) {
@@ -764,6 +796,8 @@ int mw3_game_main(int argc, char** argv) {
   if (!a.mods.empty())
     for (const std::string& line : mech3::mods_mount(a.write_dir, a.mods, {patch_dir, a.install}))
       std::printf("mw3: %s\n", line.c_str());
+  mech3::mods_menu_write_dir() = a.write_dir;  // the MODS screen's (ours)
+  mech3::mods_menu_mounted() = a.mods;
   if (!a.patch.empty()) {
     const mech3::setup::Result r = mech3::setup::apply_patch(a.patch, a.write_dir, nullptr);
     if (a.verbose) std::printf("%s", r.detail.c_str());
@@ -883,6 +917,39 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   sdlfe::SdlForceDevice force([&input] { return input.joystick(); });  // FIX (A): IFORCE2 as rumble (sdl_force.h)
   input.window = window.sdl();
   input.shape = &window.shape();       // any_resolution: the frame's rect, not 640 (sdl_fit.h)
+  // The MODS screen's ADD MOD (ours, mods_menu.h): SDL's pickers, their
+  // answer handed to the screen (it may come on another thread); the mods
+  // folder in the system's file browser; which game, when a mod cannot tell.
+  mech3::mods_menu_install() = a.install;
+  {
+    static SDL_Window* parent = nullptr;
+    parent = window.sdl();
+    mech3::ModsMenuPlatform& mp = mech3::mods_menu_platform();
+    static std::string scripted;
+    scripted = a.pick;
+    mp.pick = [](bool folder) {
+      if (!scripted.empty()) return mech3::mods_menu_picked(scripted);
+      auto done = [](void*, const char* const* list, int) { mech3::mods_menu_picked(list && list[0] ? list[0] : ""); };
+      static const SDL_DialogFileFilter filters[] = {{"Mods (.zip, .7z, .rar)", "zip;7z;rar"}};
+      if (folder) SDL_ShowOpenFolderDialog(done, nullptr, parent, nullptr, false);
+      else SDL_ShowOpenFileDialog(done, nullptr, parent, filters, 1, nullptr, false);
+    };
+    // EXPORT: the system's save box in the player's documents, the mod's
+    // "<name> <version>.zip" offered.
+    static std::string scripted_save;
+    scripted_save = a.save_pick;
+    mp.save = [](const std::string& file_name) {
+      if (!scripted_save.empty()) return mech3::mods_menu_picked(scripted_save);
+      auto done = [](void*, const char* const* list, int) { mech3::mods_menu_picked(list && list[0] ? list[0] : ""); };
+      static const SDL_DialogFileFilter filters[] = {{"Zip archive (.zip)", "zip"}};
+      const char* docs = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS);
+      static std::string start;
+      start = docs ? (std::filesystem::path(docs) / file_name).string() : file_name;
+      SDL_ShowSaveFileDialog(done, nullptr, parent, filters, 1, start.c_str());
+    };
+    mp.open_folder = [](const std::string& dir) { return sdlfe::open_folder(dir); };
+    mp.ask_game = [](const std::string& name) { return scripted.empty() ? sdlfe::ask_mod_game(parent, name) : 1; };  // --pick: no box
+  }
   window.set_auto_size(!a.window_given);
   // Fullscreen by default (ours): the desktop's size, the frame fitted in it
   // (sdl_fit.h). Checks and shots stay in a window.
@@ -1681,7 +1748,19 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
                        {100 + a.briefing_wait, 470, 320, 2}};  // CAMPAIGN, the pilot, ACCEPT
       }
 
+      // Ours: the game editor's dialogs in Dear ImGui, over the game while the
+      // editor is up only (docs/editor.md); the overlay is let go with it.
+      sdlfe::EditorUi editor_ui(window.sdl(), window.device(), [] { return mech3::editor_state().active != 0; });
+      struct OverlayOff {
+        sdlfe::SdlRender3D* r;
+        ~OverlayOff() {
+          if (r) r->overlay = nullptr;
+        }
+      } overlay_off{window.render()};
+      if (window.render())
+        window.render()->overlay = [&](SDL_GPUCommandBuffer* c, SDL_GPUTexture* t, Uint32 w, Uint32 h) { editor_ui.overlay(c, t, w, h); };
       sdlfe::SdlPump pump(&input, &app);
+      pump.overlay_event = [&](const SDL_Event& e) { return editor_ui.event(e); };
       if (clock.frame_ms || g_net_pass)
         pump.each_pass = [&] {
           if (clock.frame_ms) clock.frame();
@@ -1710,6 +1789,20 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
           ev.window.windowID = SDL_GetWindowID(window.sdl());
           SDL_PushEvent(&ev);
           std::printf("mw3: focus lost (MW3_FOCUS_LOST_AT)\n");
+        };
+      }
+      // MW3_EDITOR_AT=N (checks, with --debug-camera): the game editor brought up
+      // at the pump's Nth pass in a mission, as Shift+F12 does.
+      int editor_at = 0, editor_passes = 0;
+      if (const char* f = SDL_getenv("MW3_EDITOR_AT")) editor_at = a.debug_camera ? std::atoi(f) : 0;
+      if (editor_at > 0) {
+        auto before = pump.each_pass;
+        pump.each_pass = [&, before] {
+          if (before) before();
+          if (editor_passes < 0 || ++editor_passes < editor_at || !mech3::mission_player_mech()) return;
+          editor_passes = -1;
+          if (!mech3::editor_state().active) mech3::editor_enter();
+          std::printf("mw3: editor up (MW3_EDITOR_AT)\n");
         };
       }
       // A quit outside the Exit state returns through ExitInstance, as the exe's WM_QUIT does,

@@ -1,8 +1,13 @@
+#include "mech3/mod_campaign.h"
+#include "mech3/mods_menu.h"
+#include "upgrades/editor/mods_edit.h"
 #include "mech3/options_menu.h"
 #include "mech3/app_states.h"
 #include "mech3/mission.h"
 #include "gamez/zutil/zfix.h"
 #include "mech3/app_shadows.h"
+
+#include <cstdio>
 
 #include "crt/msvc_math.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -95,7 +100,8 @@ void AttractState::leave() {
 
 // Mech3.exe 1.2 @ 0x0047a9b0: the movie whatever the -nofmv setting.
 bool WinMovieState::enter() {
-  movie_ = start_movie(e(), "c4win");
+  const char* end = e().campaign_end_movie();  // ours: "c4win", or a mod campaign's
+  movie_ = end ? start_movie(e(), end) : 0;
   return true;
 }
 
@@ -436,6 +442,7 @@ bool CoreState::frame() {
 // picks the drawing path again.
 bool CoreState::update() {
   Engine& en = e();
+  if (mods_edit_leave(en)) return false;  // ours: MODS's EDIT left by EXIT GAME EDIT
   if (frame()) a().push(a().state(3), 0);
   if (en.vmode() != globals().last_vmode) {
     pick_renderer();
@@ -962,6 +969,7 @@ bool MainState::enter() {
   en.screen_refresh(screen_);
   for (const auto& m : kMenus) en.poke32(m.global, en.construct(m.ctor, {}));
   if (options_upgrades_page()) options_upgrades_state() = en.construct(kUpgradesStateCtor, {});  // ours
+  if (mods_menu_page()) mods_menu_state() = en.construct(kModsStateCtor, {});  // ours
   en.twod_reset(en.peek32(0x609854));
   reset_idle();
   Mech3App& ap = a();
@@ -976,6 +984,13 @@ bool MainState::enter() {
     ap.reopen_credits() = 0;
     en.vcall(screen_ + kButtonCredits, 0x30, {});
   }
+  // Ours: a mission entered by MODS's EDIT is over however it ended; MODS
+  // again when the editor's exit asked for it.
+  mods_edit_end();
+  if (mods_menu_reopen()) {
+    mods_menu_reopen() = false;
+    if (const Handle m = mods_menu_state()) en.push_state(m, 0);
+  }
   return true;
 }
 
@@ -983,6 +998,11 @@ bool MainState::enter() {
 // hotkeys press the screen's buttons.
 bool MainState::update() {
   Engine& en = e();
+  // Ours: the main menu up again lets a custom campaign's pilots go (MODS's
+  // ENTER). Not on a resume: the Campaign State's pop on its way to the
+  // mission and ENTER's pop of MODS resume it in the same batch as the next
+  // command, so it never updates between.
+  if (entered_campaign()) campaign_leave();
   const bool r = ShellState::update();
   idle_ = idle_ - en.frame_dt();
   const Handle s = screen_;
@@ -1014,6 +1034,7 @@ void MainState::leave() {
     en.poke32(m.global, 0);
   }
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
+  if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
   if (save_pilots_) en.pilot_delete("mechlab");
 }
 
@@ -1130,9 +1151,13 @@ bool LoadState::update() {
   char name[256];
   // Pirate's Moon 0x00404fa6: one format, the folder and the game's block (vt+0x58; Missions::block_name),
   // "brief_c1m1" in briefing.zrd and sounds.zrd, where MW3's had three and no "m".
-  char block[0x20];
-  missions().block_name(mission, block);
-  en.format("brief_%s%s", {dir, block}, name, sizeof name);
+  if (const char* b = en.campaign_briefing()) {
+    std::snprintf(name, sizeof name, "%s", b);  // ours: a mod campaign's line's briefing=
+  } else {
+    char block[0x20];
+    missions().block_name(mission, block);
+    en.format("brief_%s%s", {dir, block}, name, sizeof name);
+  }
   en.sounds_nop(en.app_sounds(), 0);  // an empty function, called with a stray argument
   if (en.app_flag_1c3() == 0) en.voice_start(name);
   en.sounds_load(en.app_sounds(), "briefing sounds", 1);
@@ -1189,7 +1214,7 @@ bool WinState::enter() {
   en.twod_set_cursor(0);
   const int32_t type = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x2c, {}));
   if (type == 1) {
-    if (!lost && clean) campaign_won_ = mission == kCampaignLastMission ? 1 : 0;
+    if (!lost && clean) campaign_won_ = en.campaign_ends_at(0, mission) ? 1 : 0;  // PM: the last mission, no operation (ours: a hook)
     else en.mission_results(1, 1);
   }
   screen_ = en.construct(0x47b430, {addr(), mission, addr() + 0x10});  // new(0x13dbc)

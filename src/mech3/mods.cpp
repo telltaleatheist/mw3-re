@@ -1,4 +1,5 @@
 #include "mech3/mods.h"
+#include "mech3/mod_install.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -9,15 +10,21 @@
 #include <filesystem>
 #include <functional>
 #include <fstream>
+#include <map>
 #include <sstream>
 
 #include "gamez/zclass/cls_mechlib.h"
+#include "gamez/zclass/cls_mechlib_json.h"
+#include "gamez/zeffect/zeff_anim_json.h"
+#include "upgrades/json/gamez_json.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zutl_zip.h"
+#include "gamez/zsiscript/si_script_json.h"
 #include "gamez/zsiscript/si_script.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zutl_path.h"
@@ -26,6 +33,8 @@
 #include "mech3/mech_names.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mission.h"
+#include "mech3/mod_campaign.h"
+#include "upgrades/reference/reference.h"
 
 namespace mech3 {
 
@@ -36,6 +45,17 @@ bool open_motions(const char* path);
 void close_motions();
 bool load_motion(zsis::Script& s, const char* name);
 void script_free_parts(zsis::Script& s);
+
+namespace {
+// A world's file in a mod's folder: its gamez.zbd, or unzbd's JSON of it (a gamez\\ folder or gamez.zip,
+// docs/modding.md), any case.
+bool mod_world_file(const std::string& root, const std::string& world) {
+  std::error_code ec;
+  for (const char* rel : {"/gamez.zbd", "/gamez/metadata.json", "/gamez.zip"})
+    if (fs::is_regular_file(zutl::any_case(root, "zbd/" + world + rel), ec)) return true;
+  return false;
+}
+}  // namespace
 
 namespace {
 std::string trim(const std::string& s) {
@@ -58,15 +78,16 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     const size_t eq = line.find('=');
     if (eq == std::string::npos) continue;
     const std::string key = lower(trim(line.substr(0, eq))), value = trim(line.substr(eq + 1));
-    if (key == "name") out->name = value;
-    else if (key == "version") out->version = value;
-    else if (key == "author") out->author = value;
-    else if (key == "for") out->game = value;
-    else if (key == "description") out->description = value;
-    else if (key == "world" && !value.empty()) out->worlds.push_back(value);
-    else if (key == "mech" && !value.empty()) out->mechs.push_back(value);
-    else if (key == "weapon" && !value.empty()) out->weapons.push_back(value);
-    else if (key == "ia_world" && !value.empty()) {
+    if (upgrades::reference::key_is(key, "name")) out->name = value;
+    else if (upgrades::reference::key_is(key, "version")) out->version = value;
+    else if (upgrades::reference::key_is(key, "author")) out->author = value;
+    else if (upgrades::reference::key_is(key, "for")) out->game = value;
+    else if (upgrades::reference::key_is(key, "description")) out->description = value;
+    else if (upgrades::reference::key_is(key, "world") && !value.empty()) out->worlds.push_back(value);
+    else if (upgrades::reference::key_is(key, "mech") && !value.empty()) out->mechs.push_back(value);
+    else if (upgrades::reference::key_is(key, "weapon") && !value.empty()) out->weapons.push_back(value);
+    else if (upgrades::reference::key_is(key, "campaign") && !value.empty()) out->campaigns.push_back(value);
+    else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
     }
@@ -107,8 +128,19 @@ namespace {
 // install's), or as a loose file beside it (`loose`, a reader file's).
 bool archive_has(const std::vector<std::string>& roots, const std::string& rel, const std::string& entry, bool loose) {
   std::error_code ec;
+  const fs::path archive(rel);
+  const std::string json = entry + ".json";  // mech3ax's, in a folder named as the archive or its zip (docs/modding.md)
   for (const std::string& root : roots) {
     if (loose && fs::is_regular_file(fs::path(root) / "zbd" / entry, ec)) return true;
+    const fs::path dir = fs::path(root) / archive.parent_path();
+    if (fs::is_regular_file(dir / archive.stem() / json, ec)) return true;
+    if (zutl_zip::Zip zip; fs::is_regular_file(dir / (archive.stem().string() + ".zip"), ec) &&
+                           zip.open(dir / (archive.stem().string() + ".zip")))
+      for (const zutl_zip::Zip::Entry& e : zip.entries)
+        if (e.name.size() == json.size() && std::equal(e.name.begin(), e.name.end(), json.begin(), [](char x, char y) {
+              return std::tolower(static_cast<unsigned char>(x)) == std::tolower(static_cast<unsigned char>(y));
+            }))
+          return true;
     const fs::path a = fs::path(root) / rel;
     if (!fs::is_regular_file(a, ec)) continue;
     zutl_zar::Archive z;
@@ -144,6 +176,8 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
   free_dfns_above(kBuiltinMechs);
   mech_rows_clear();
   weapon_rows_clear();
+  mod_campaigns().clear();
+  std::vector<ModCampaign> campaigns;  // checked against the worlds once every mod's are known
   std::vector<std::string> done;
   for (const std::string& want : enabled) {
     if (std::find(done.begin(), done.end(), want) != done.end()) continue;  // named twice: the first place counts
@@ -164,7 +198,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       std::error_code wec;
       if (mission_dir_index(w.c_str()) >= 0) {
         log.push_back("  world " + w + ": there is a world " + w + " already, left out");
-      } else if (w.find_first_of("/\\. ") != std::string::npos || !fs::is_regular_file(fs::path(it->path) / "zbd" / w / "gamez.zbd", wec)) {
+      } else if (w.find_first_of("/\\. ") != std::string::npos || !mod_world_file(it->path, w)) {
         log.push_back("  world " + w + ": no zbd/" + w + "/gamez.zbd in the mod, left out");
       } else {
         mod_worlds().push_back(w);
@@ -172,6 +206,13 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       }
     }
     for (const auto& [folder, name] : it->ia_worlds) ia.push_back({want, ModIaWorld{folder, name.empty() ? folder : name}});
+    for (const std::string& file : it->campaigns) {
+      ModCampaign c;
+      const bool ok = campaign_load(it->path, want, file, &c);  // a folder's pilots: one id per mod, whatever its case
+      if (!ok) log.push_back("  campaign " + file + ": " + c.error + ", left out");
+      else if (std::any_of(campaigns.begin(), campaigns.end(), [&](const ModCampaign& o) { return o.mod == want && lower(o.id) == lower(c.id); })) log.push_back("  campaign " + file + ": the mod has a campaign " + c.id + " already, left out");
+      else campaigns.push_back(c);
+    }
     // Its new mechs, after the exe's and any earlier mod's; each one's
     // definition and model where the game will look (the enabled mods in
     // order, the first wins, then the patch and the install).
@@ -209,7 +250,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     std::sort(files.begin(), files.end());
     int replaced = 0, added = 0, ignored = 0;
     for (const std::string& rel : files) {
-      if (lower(rel) == "mod.txt") continue;
+      if (mod_own_file(rel)) continue;
       if (!zutl::mod_may_serve(rel)) {
         log.push_back("  " + rel + ": the player's own kind of file, ignored");
         ++ignored;
@@ -231,6 +272,30 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     }
     mod_ia_worlds().push_back(w);
     log.push_back("mod " + mod + ": Instant Action world \"" + w.name + "\" on " + w.folder);
+  }
+  // The campaigns, each mission's world one that has its files somewhere mounted.
+  std::vector<std::string> roots;
+  for (const std::string& m : done)
+    if (const auto f = std::find_if(found.begin(), found.end(), [&](const ModInfo& x) { return x.folder == m; });
+        f != found.end() && f->error.empty())
+      roots.push_back(f->path);
+  roots.insert(roots.end(), later.begin(), later.end());
+  auto known = [&](const std::string& w) {
+    std::error_code ec;
+    if (mission_dir_index(w.c_str()) < 0) return false;
+    for (const std::string& r : roots)
+      if (mod_world_file(r, w)) return true;
+    return false;
+  };
+  for (const ModCampaign& c : campaigns) {
+    if (const CampaignMission* m = campaign_missing_world(c, known)) {
+      log.push_back("mod " + c.mod + ": campaign " + c.file + ": line " + std::to_string(m->line) + ": no world " + m->world +
+                    " in an enabled mod or the game, the campaign left out");
+      continue;
+    }
+    mod_campaigns().push_back(c);
+    log.push_back("mod " + c.mod + ": campaign \"" + c.name + "\" (" + c.file + ", " + std::to_string(c.missions.size()) +
+                  " missions) added");
   }
   return log;
 }
@@ -324,7 +389,7 @@ std::vector<std::string> mod_files(const std::string& path) {
   for (fs::recursive_directory_iterator f(path, ec), end; !ec && f != end; f.increment(ec))
     if (f->is_regular_file(ec)) {
       const std::string rel = lower(fs::relative(f->path(), path, ec).generic_string());
-      if (rel != "mod.txt") files.push_back(rel);
+      if (!mod_own_file(rel)) files.push_back(rel);
     }
   std::sort(files.begin(), files.end());
   return files;
@@ -577,7 +642,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
   }
   for (const std::string& w : m.worlds) {
     if (mission_dir_index(w.c_str()) >= 0) error("world " + w + ": there is a world " + w + " already");
-    else if (w.find_first_of("/\\. ") != std::string::npos || !fs::is_regular_file(fs::path(dir) / "zbd" / w / "gamez.zbd", ec))
+    else if (w.find_first_of("/\\. ") != std::string::npos || !mod_world_file(dir, w))
       error("world " + w + ": no zbd/" + w + "/gamez.zbd");
     else if (!fs::is_regular_file(fs::path(dir) / (w + ".gs"), ec))
       error("world " + w + ": no " + w + ".gs (its build script) at the mod's root");
@@ -587,6 +652,30 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     const bool own = std::find(m.worlds.begin(), m.worlds.end(), folder) != m.worlds.end();
     if (!own && mission_dir_index(folder.c_str()) < 0) error("ia_world " + folder + ": no such world");
     else out.push_back("ia_world " + folder + " \"" + (name.empty() ? folder : name) + "\": ok");
+  }
+  std::vector<std::string> ids;
+  for (const std::string& file : m.campaigns) {
+    ModCampaign c;
+    if (!campaign_load(dir, fs::path(dir).filename().string(), file, &c)) {
+      error("campaign " + file + ": " + c.error);
+      continue;
+    }
+    if (std::find(ids.begin(), ids.end(), lower(c.id)) != ids.end()) {
+      error("campaign " + file + ": the mod has a campaign " + c.id + " already");
+      continue;
+    }
+    ids.push_back(lower(c.id));
+    out.push_back("campaign " + file + " \"" + c.name + "\": " + std::to_string(c.missions.size()) + " missions");
+    // Each world the mod's own or the game's; another mod's is known only when mounted.
+    for (const CampaignMission& cm : c.missions) {
+      const bool own = std::find(m.worlds.begin(), m.worlds.end(), cm.world) != m.worlds.end() &&
+                       mod_world_file(dir, cm.world);
+      const bool game = mission_dir_index(cm.world.c_str()) >= 0 &&
+                        (install.empty() || fs::is_regular_file(zutl::any_case(install, "zbd/" + cm.world + "/gamez.zbd"), ec));
+      if (!own && !game)
+        out.push_back("warning: campaign " + file + ": line " + std::to_string(cm.line) + ": no world " + cm.world +
+                      " in the mod or the game: it plays only with a mod that adds it");
+    }
   }
   for (const std::string& line : m.mechs) {
     ModMech r;
@@ -616,7 +705,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
   int archives = 0, entries = 0;
   for (const std::string& rel : files) {
     const std::string low = lower(rel);
-    if (low == "mod.txt") continue;
+    if (mod_own_file(low)) continue;
     if (!zutl::mod_may_serve(rel)) {
       out.push_back(rel + ": the player's own kind of file, which a mod cannot replace (ignored)");
       continue;
@@ -732,8 +821,158 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       zrdr::close_archives(true);
     } else if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zrd") == 0) {
       zrdr::init();
-      if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
+      std::string why;
+      if (std::FILE* t = std::fopen(host.c_str(), "rb")) why = zrdr::text_error(t), std::fclose(t);
+      if (!why.empty()) error(rel + ": " + why + " (not read; an archive's entry of that name is)");
+      else if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
       else error(rel + ": not a text .zrd the reader can read");
+    } else if (name == "metadata.json" && low.size() > 20 && low.compare(low.size() - 20, 20, "/gamez/metadata.json") == 0) {
+      // a world as unzbd's JSON: its five files read whole, as the game reads them
+      const std::string folder = host.substr(0, host.size() - std::strlen("metadata.json"));
+      std::vector<uint8_t> zbd;
+      std::string why;
+      ++entries;
+      const auto file = [&](const std::string& n) {
+        std::ifstream in(folder + n, std::ios::binary);
+        std::stringstream t;
+        t << in.rdbuf();
+        return t.str();
+      };
+      if (!zcls::gamez_from_json(file, &zbd, &why)) error(rel.substr(0, rel.size() - std::strlen("metadata.json")) + ": " + why + " (not read; the gamez.zbd is)");
+      else out.push_back("  its world read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
+    } else if (name == "gamez.zip") {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its world not read; the gamez.zbd is)");
+        continue;
+      }
+      const auto file = [&](const std::string& n) {
+        for (const zutl_zip::Zip::Entry& e : z.entries) {
+          std::string l = e.name;
+          for (char& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+          std::vector<uint8_t> d;
+          std::string err;
+          if (l == n && z.read(e, &d, &err)) return std::string(d.begin(), d.end());
+        }
+        return std::string();
+      };
+      std::vector<uint8_t> zbd;
+      std::string why;
+      ++entries;
+      if (!zcls::gamez_from_json(file, &zbd, &why)) error(rel + ": " + why + " (not read; the gamez.zbd is)");
+      else out.push_back("  its world read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
+    } else if (name == "metadata.json" && low.size() > 19 && low.compare(low.size() - 19, 19, "/anim/metadata.json") == 0) {
+      // a world's animations as unzbd's JSON: the folder read whole, as the game reads it
+      const std::string folder = host.substr(0, host.size() - std::strlen("metadata.json"));
+      std::vector<uint8_t> zbd;
+      std::string why;
+      ++entries;
+      const auto file = [&](const std::string& n) {
+        std::ifstream in(folder + n, std::ios::binary);
+        std::stringstream t;
+        t << in.rdbuf();
+        return t.str();
+      };
+      if (!zeff::anim_from_json(file, &zbd, nullptr, &why)) error(rel.substr(0, rel.size() - std::strlen("metadata.json")) + ": " + why + " (not read; the anim.zbd is)");
+      else out.push_back("  its animations read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
+    } else if (name == "anim.zip") {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its animations not read; the anim.zbd's are)");
+        continue;
+      }
+      std::map<std::string, const zutl_zip::Zip::Entry*> by_name;
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        std::string l = e.name;
+        for (char& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        by_name[l] = &e;
+      }
+      const auto file = [&](const std::string& n) {
+        std::string l = n;
+        for (char& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        std::vector<uint8_t> d;
+        std::string err;
+        const auto hit = by_name.find(l);
+        return hit != by_name.end() && z.read(*hit->second, &d, &err) ? std::string(d.begin(), d.end()) : std::string();
+      };
+      std::vector<uint8_t> zbd;
+      std::string why;
+      ++entries;
+      if (!zeff::anim_from_json(file, &zbd, nullptr, &why)) error(rel + ": " + why + " (not read; the anim.zbd is)");
+      else out.push_back("  its animations read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
+    } else if (low.rfind("zbd/mechlib/", 0) == 0 && name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0) {  // mechlib's
+      std::ifstream in(host, std::ios::binary);
+      std::stringstream text;
+      text << in.rdbuf();
+      std::string why;
+      std::vector<uint8_t> entry;
+      ++entries;
+      const bool ok = name == "materials.json" ? zcls::mechlib_materials_from_json(text.str(), &entry, &why)
+                                               : zcls::mechlib_model_from_json(text.str(), &entry, &why);
+      if (!ok) error(rel + ": " + why + " (not read; the archive's entry is)");
+    } else if (low == "zbd/mechlib.zip") {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its entries not read; the archive's are)");
+        continue;
+      }
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        std::string lower = e.name;
+        for (char& c : lower) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (lower.size() <= 5 || lower.compare(lower.size() - 5, 5, ".json") != 0 || lower == "manifest.json") continue;
+        ++entries;
+        std::vector<uint8_t> data, entry;
+        std::string why;
+        const std::string text = z.read(e, &data, &why) ? std::string(data.begin(), data.end()) : std::string();
+        const bool ok = !text.empty() && (lower == "materials.json" ? zcls::mechlib_materials_from_json(text, &entry, &why)
+                                                                     : zcls::mechlib_model_from_json(text, &entry, &why));
+        if (!ok) error(rel + ":" + e.name + ": " + why + " (not read; the archive's entry is)");
+      }
+    } else if (low.rfind("zbd/motion/", 0) == 0 && name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0) {  // a motion as unzbd's JSON
+      std::ifstream in(host, std::ios::binary);
+      std::stringstream text;
+      text << in.rdbuf();
+      std::string why;
+      std::vector<uint8_t> entry;
+      ++entries;
+      if (!zsis::motion_from_json(text.str(), &entry, &why)) error(rel + ": " + why + " (not read; the archive's motion is)");
+    } else if (low == "zbd/motion.zip") {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its motions not read; the archive's are)");
+        continue;
+      }
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        if (e.name.size() <= 5 || e.name.compare(e.name.size() - 5, 5, ".json") != 0 || e.name == "manifest.json") continue;
+        ++entries;
+        std::vector<uint8_t> data, entry;
+        std::string why;
+        if (!(z.read(e, &data, &why) && zsis::motion_from_json(std::string(data.begin(), data.end()), &entry, &why)))
+          error(rel + ":" + e.name + ": " + why + " (not read; the archive's motion is)");
+      }
+    } else if (name.size() > 9 && name.compare(name.size() - 9, 9, ".zrd.json") == 0) {  // mech3ax's JSON, beside its archive
+      std::ifstream in(host, std::ios::binary);
+      std::stringstream text;
+      text << in.rdbuf();
+      std::string why;
+      ++entries;
+      if (zrdr::Node* n = zrdr::parse_json(text.str(), &why)) zrdr::free_node(n);
+      else error(rel + ": " + why + " (not read; an archive's entry of that name is)");
+    } else if (name.rfind("reader", 0) == 0 && name.size() > 4 && name.compare(name.size() - 4, 4, ".zip") == 0) {
+      zutl_zip::Zip z;
+      if (!z.open(host)) {
+        error(rel + ": not a zip the game can read (its entries not read; the archive's are)");
+        continue;
+      }
+      for (const zutl_zip::Zip::Entry& e : z.entries) {
+        if (e.name.size() <= 9 || e.name.compare(e.name.size() - 9, 9, ".zrd.json") != 0) continue;
+        ++entries;
+        std::vector<uint8_t> data;
+        std::string why;
+        zrdr::Node* n = z.read(e, &data, &why) ? zrdr::parse_json(std::string(data.begin(), data.end()), &why) : nullptr;
+        if (n) zrdr::free_node(n);
+        else error(rel + ":" + e.name + ": " + why + " (not read; an archive's entry of that name is)");
+      }
     }
   }
   // strings.txt, as the game would take it.

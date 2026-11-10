@@ -95,6 +95,20 @@ Node* parse_text(std::FILE* file);
 // 0x00556690: a token's node, an int or float when unquoted and strtol or
 // strtod reads it whole, else a string (Pirate's Moon's reader uses it too).
 Node* token_value(const char* s, bool quoted);
+// Ours (docs/modding.md, Readable files): why parse_text refuses a text file,
+// with its line, as the balance check counts ( and ) outside quotes and ';'
+// comments: "line N: a '(' never closed" (the outermost one left open),
+// "line N: a ')' with no '(' before it", "line N: a quote never closed";
+// "" when it would read. The file is left at its start.
+std::string text_error(std::FILE* file);
+// Ours (docs/modding.md): an entry as mech3ax's JSON (unzbd's
+// `<entry>.zrd.json`): the tree one to one, an array a list, null an empty
+// one, a number with '.' or an exponent a float, else an int. Null with
+// `why` "line N (at $[0][5]): ..." when it does not read.
+Node* parse_json(const std::string& text, std::string* why);
+// The tree as that JSON (the shortest float text that reads back the same);
+// false for a float JSON cannot hold (not finite).
+bool to_json(const Node& root, std::string* out);
 
 // 0x00556740: reads the named data file. The directory is ignored for archives:
 // "foo\\bar\\detail.zrd" is looked up as "detail.zrd". Not in an archive, the

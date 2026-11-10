@@ -191,6 +191,7 @@ void* program_vehicle_named(const char* name);  // zEntity's by name (0x005a8210
 void program_vehicle_destroy(void* v);          // vt+0x70 0x004ad2d0
 void* program_vehicle_brain(void* controls);    // a program vehicle's AI controls' brain (ai::Brain*), else null
 std::vector<void*> program_vehicles();    // this mission's, as made
+std::vector<void*> program_ai_brains();   // every AI mech's and vehicle's brain (ai::Brain*)
 // What the headless tests check of one.
 struct VehicleSummary {
   const char* name = nullptr;  // its node's

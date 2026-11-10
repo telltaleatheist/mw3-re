@@ -3,16 +3,22 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <set>
+#include <string>
 #include <vector>
 
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "gamez/zutil/zutl_zip.h"
 
 namespace zcls {
 
@@ -48,6 +54,38 @@ uint32_t u32_at(const uint8_t* p, int off) {
 
 bool materials_fit(const MechLib& lib, const Node* node);
 
+namespace {
+// Ours (docs/modding.md, mech3ax's JSON): the entry as unzbd's JSON in an
+// enabled mod, first mod first, up to the first with its own copy of the
+// archive: zbd\mechlib\<entry>.json, then unzbd's zbd\mechlib.zip. Its bytes
+// in `bytes`; false for none, or for one refused (said once in the log), when
+// the archive's entry is read.
+bool mod_entry(const MechLib& lib, const std::string& entry, std::vector<uint8_t>* bytes) {
+  if (zutl::mounts().mods.empty() || !lib.archive.path) return false;
+  std::string dir = zutl::host(lib.archive.path);
+  const size_t slash = dir.rfind('/');
+  std::string stem = slash == std::string::npos ? dir : dir.substr(slash + 1);
+  dir = slash == std::string::npos ? std::string{} : dir.substr(0, slash + 1);
+  if (const size_t dot = stem.rfind('.'); dot != std::string::npos) stem.resize(dot);
+  static std::set<std::string> said;
+  for (size_t m = 0; m < zutl::mounts().mods.size(); ++m) {
+    std::string text, what, why;
+    const int got = zutl_zip::mod_json(m, dir, stem, entry + ".json", &text, &what, &why);
+    if (got > 0 && (entry == "materials" ? mechlib_materials_from_json(text, bytes, &why) : mechlib_model_from_json(text, bytes, &why))) {
+      if (said.insert(what + "\n").second) std::printf("mw3: mod: %s instead of %s's entry\n", what.c_str(), lib.archive.path);
+      return true;
+    }
+    if (got != 0) {
+      if (said.insert(what + "\n" + why).second)
+        std::printf("mw3: mod: %s: %s; %s's entry read instead\n", what.c_str(), why.c_str(), lib.archive.path);
+      return false;
+    }
+    if (!zutl::find_in_mod(m, dir + stem + ".zbd").empty()) return false;  // this mod's own archive comes first
+  }
+  return false;
+}
+}  // namespace
+
 bool& mechlib_post_process() {
   static bool on = false;
   return on;
@@ -74,7 +112,11 @@ bool mw3_mechlib_open(MechLib& lib, const char* path) {
 // the entry; a broken table leaves none (said in the log).
 bool mechlib_read_materials(MechLib& lib) {
   uint32_t length = 0;
-  std::FILE* f = zutl_zar::seek(lib.archive, zutl_zar::find(lib.archive, "materials"), &length);
+  std::vector<uint8_t> json;
+  const bool from_mod = mod_entry(lib, "materials", &json);
+  std::unique_ptr<zutl_zip::ScratchFile> scratch(from_mod ? new zutl_zip::ScratchFile(json.data(), json.size()) : nullptr);
+  std::FILE* f = from_mod ? scratch->file : zutl_zar::seek(lib.archive, zutl_zar::find(lib.archive, "materials"), &length);
+  if (from_mod) length = static_cast<uint32_t>(json.size());
   if (!f) return false;
   g_end = std::ftell(f) + static_cast<long>(length), g_broken = false;
   uint32_t count = 0;
@@ -108,7 +150,11 @@ Node* mechlib_find(MechLib& lib, const char* name) {
 Node* mw3_mechlib_load(MechLib& lib, const char* name) {
   if (Node* hit = mechlib_find(lib, name)) return hit;
   uint32_t length = 0;
-  std::FILE* f = zutl_zar::seek(lib.archive, zutl_zar::find(lib.archive, name), &length);
+  std::vector<uint8_t> json;
+  const bool from_mod = mod_entry(lib, name, &json);
+  std::unique_ptr<zutl_zip::ScratchFile> scratch(from_mod ? new zutl_zip::ScratchFile(json.data(), json.size()) : nullptr);
+  std::FILE* f = from_mod ? scratch->file : zutl_zar::seek(lib.archive, zutl_zar::find(lib.archive, name), &length);
+  if (from_mod) length = static_cast<uint32_t>(json.size());
   if (f) g_end = std::ftell(f) + static_cast<long>(length), g_broken = false;
   Node* root = read_tree(lib.reader, f, nullptr);
   g_end = -1;

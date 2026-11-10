@@ -76,6 +76,52 @@ NetNodeRec& NetNodeRec::operator=(const NetNodeRec& o) {
   return *this;
 }
 
+namespace {
+bool same_text(const char* a, const char* b) { return a == b || (a && b && std::strcmp(a, b) == 0); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004c6680: kind and number, the place (kind 0), the names,
+// the properties, the gate, the valve union and assignment, the links.
+// FIX (bug): the exe leaves out wait_time and the valve, so an edit of only
+// those reads as the file's own and the cache drops it (docs/fixes.md).
+bool NetNodeRec::same(const NetNodeRec& o) const {
+  if (kind != o.kind || index != o.index) return false;
+  if (kind == 0 ? !(pos[0] == o.pos[0] && pos[1] == o.pos[1] && pos[2] == o.pos[2]) : kind != 1) return false;
+  if (!same_text(name, o.name) || !same_text(auxname, o.auxname)) return false;
+  if (speed_on != o.speed_on || speed != o.speed || wait_interval_on != o.wait_interval_on || wait_interval != o.wait_interval)
+    return false;
+  if (wait_time_on != o.wait_time_on || wait_time != o.wait_time) return false;  // ours
+  if (valve_on != o.valve_on || valve != o.valve || valve_has_value != o.valve_has_value || valve_value != o.valve_value)
+    return false;  // ours
+  if (canleave[0] != o.canleave[0] || canleave[1] != o.canleave[1] || scan_aim[0] != o.scan_aim[0] ||
+      scan_aim[1] != o.scan_aim[1] || scan_time[0] != o.scan_time[0] || scan_time[1] != o.scan_time[1] ||
+      scan_hit[0] != o.scan_hit[0] || scan_hit[1] != o.scan_hit[1] || jump_on != o.jump_on || jump != o.jump)
+    return false;
+  if (hidden_set != o.hidden_set || hidden != o.hidden || fixed_set != o.fixed_set || fixed != o.fixed ||
+      autonext_set != o.autonext_set || autonext != o.autonext || visible_set != o.visible_set || visible != o.visible)
+    return false;
+  if (deploy_set != o.deploy_set || deploy_valve_a != o.deploy_valve_a || deploy_a != o.deploy_a ||
+      deploy_valve_b != o.deploy_valve_b || deploy_b != o.deploy_b || deploy_c != o.deploy_c)
+    return false;
+  if (mcbwait_set != o.mcbwait_set || mcbwait_valve != o.mcbwait_valve || mcbwait_b != o.mcbwait_b ||
+      mcbwait_time != o.mcbwait_time || arrange_set != o.arrange_set || arrange != o.arrange)
+    return false;
+  if (sound != o.sound || backup != o.backup || !same_text(gate, o.gate) || shunt != o.shunt) return false;
+  if (valve_union != o.valve_union) {  // 0x004c7530 -> 0x004d4630
+    if (!valve_union || !o.valve_union || valve_union->valves.size() != o.valve_union->valves.size()) return false;
+    for (size_t i = 0; i < valve_union->valves.size(); ++i)
+      if (valve_union->valves[i].valve != o.valve_union->valves[i].valve ||
+          valve_union->valves[i].count != o.valve_union->valves[i].count)
+        return false;
+  }
+  if (valve_assign != o.valve_assign) {  // 0x004c7570
+    if (!valve_assign || !o.valve_assign || valve_assign->valve != o.valve_assign->valve ||
+        valve_assign->value != o.valve_assign->value)
+      return false;
+  }
+  return links == o.links;
+}
+
 // Mech3.exe 1.2 @ 0x004c62d0
 NetNodeRec::~NetNodeRec() {
   std::free(name);

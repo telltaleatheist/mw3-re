@@ -5,6 +5,29 @@ without any change to the exe later"; small, "nothing big and dramatic").
 With no mods enabled nothing is mounted and nothing in play changes; nothing
 is ever written into the install or into a mod.
 
+Every key each file a mod can change takes, with its type, default and
+limits: `docs/modding-reference.md`, generated from `src/upgrades/reference/`
+(`mw3 --reference docs/modding-reference.md`; the test `reference_*` fails
+when a reader and its registry disagree or the document is stale). The
+check runs every campaign mission and t1 for 30 frames with zrdr's
+observers on: each file loaded is mapped node by node (until freed), and
+each lookup counts for the file whose node it searched, so every module
+that reads a file is covered, not only its reader; a file's own names (a
+weapon's, a record's) are declared per file and left out. A key the code
+reads but no shipped mission reaches is marked unchecked in the document.
+Covered so far: mod.txt, custom campaigns, weapons.zrd, the mech
+definitions, aiv.zrd, targets.zrd, the AI nets and regions, valves.zrd,
+objectives.zrd, aiTurrets.zrd, vehicle.zrd, world.zrd, landmines.zrd,
+hud.zrd, sounds.zrd, the dialogs (the check also opens every main menu
+screen and the options' pages for them), the script commands, and mech3ax's
+JSON forms (motion, mechlib, anim, gamez: the members our readers take,
+recorded while they read unzbd's export of every shipped file, listed
+compactly since their meanings are mech3ax's schema; skipped without
+mech3ax beside the checkout). A file's own names are declared per file (`names_at`: a path,
+`@top` for a record asked of the root by name, `m<n>` for the missions'
+blocks, `any:KEY` for the list after KEY wherever it stands); a key the
+registry lists is a key wherever it stands.
+
 ## A mod (M1, 2026-11-01)
 
 A folder in the settings folder's `mods\` (the write dir: on Windows
@@ -58,7 +81,7 @@ Such files in a mod are listed as ignored.
   the c1 world's reader). The game's own rule (zreader.md) reads a loose file
   only when no archive has the name; inside a mod the loose copy comes first.
   Each such file is named in the log; one that does not parse leaves the
-  archive's entry in use.
+  archive's entry in use (Readable files read directly, below).
 - mech3ax (TerranMechworks, `unzbd` / `rezbd`) unpacks the archives to JSON
   and PNG and packs them again byte for byte: reader, image and texture,
   sound, interp, mechlib, motion, gamez and anim archives. It reads
@@ -200,6 +223,36 @@ PPC, 8, that MW3's lacked), and a mod's rows follow from 56 (`weapon_count()`
 is 56 and the rows). A name taken (the PPC's too) is refused. The
 rows are gameplay data in the hash as the mechs' are (name, ammo, tech).
 
+**Both ways (Owen, 2026-11-09).** Mods must load in ours as they are, and a
+mod made for ours must not break the original where it ships files the
+original reads too. A mech or weapon row adds only entries the original never
+asks for, read by name into tables sized from the data:
+
+- **weapons.zrd** (a weapon row's definition): zWeapon's reader 0x583880
+  counts BALLISTICS' pairs, `(items - 1) / 2`, and allocates that many
+  definitions, `calloc(1, count * 500)`, each read from the file; the game
+  finds a definition by name (0x581ed0) for the 37 weapons it knows. An extra
+  entry is read into its own slot and never asked for. Run on the original
+  (`test_weapons_zrd.py`, `mod_weapon_appended`): the shipped file with ERPPC
+  copied as ERPPC_B at the end of BALLISTICS reads 50 definitions with no
+  error, the port byte for byte the same, and the original's mech lab view of
+  its 37 weapons unchanged. (Put a new weapon at the end: a definition's
+  index, +0x10, is its place in the list.)
+- **reader.zbd's dfn_<name>.zrd** (a mech row's definition): the archive's
+  table is read whole whatever its count (0x5767b0, grown by 0x576690's
+  `realloc(count * 0x94)`), and the mech
+  reader 0x46ba40 opens `dfn_<name>.zrd` only for the 19 names of its own
+  table (0x5e6078). An extra entry is never opened.
+- **mechlib.zbd's mech_<model>.flt and motion.zbd's motions**: models and
+  motions are opened by name (0x4fc8f0, 0x5a9ad0); mechlib's materials table
+  is sized from its own count (0x4fc9e0, `operator new(count * 4)`), so a
+  mod's mechlib with more materials reads in the original as in ours.
+- **configs\<name>.mw3**: only read for a mech the original lists.
+
+So nothing a row adds can overflow or break the original, and no separate
+file is needed. Files only ours reads (mod.txt, strings.txt, campaign files,
+mech3ax JSON beside an archive) the original never opens.
+
 Equipment has no rows: each of the 15 kinds (AMS, jump jets, ECM, the heat
 sinks...) is code as well as a name (its weight and slots by kind,
 `equip_weight`, `equip_slots`, and what the mech does with it), so a new
@@ -301,6 +354,303 @@ On request, `--check-mod`'s count of what the game would refuse. Turning a
 mod on or off or moving it rewrites mw3.cfg's `mod=` lines in the new order
 at the first old one's place, every other line kept. Test:
 `mods_list_for_the_launcher`. The screen itself waits.
+
+## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
+
+The plan and what the original takes from code: `custom-campaigns.md`. A
+`campaign=<file>` line in mod.txt names a text file in the mod (several
+lines, several campaigns); the file's name without `.txt` is the
+campaign's id and its pilots' folder, `pilots\mods\<mod>\<id>\`, so no
+two campaigns share pilots (letters, digits, `_` and `-`, up to 32; two
+with the same id in one mod, any case: the second left out). The file:
+
+```
+name=Hard Rain
+stock=default
+movie_start=campaign
+op=Operation 1 bases=3
+mission=c1 1 brief_c11 c1m1
+mission=mymod_w1 1
+op=Operation 2 bases=3
+mission=c4 4 - c4m4
+mission=c4b 4 bases=3
+movie_end=c4win
+```
+
+- `name=` (required) the campaign's name; `stock=default` the original's
+  new-campaign stock (the only one for now); `movie_start=`, `movie_end=`
+  fmv.zrd's names, each optional.
+- `op=<heading> [bases=N]` a heading over the missions after it; with
+  `bases=` the field bases (0 to 3) are set to N at its first mission.
+- `mission=<world> <n> [briefing] [movie] [bases=N]` one mission in play
+  order: its world (a folder, the game's or a mod's `world=`), its `m<n>`
+  block and start animation, briefing.zrd's block (else
+  `brief_<world><n>`, `-` for that), fmv.zrd's movie before the briefing
+  (`-` or none for none), and its own reset of the field bases.
+- `#` starts a comment line. Every line must read: a misspelt key or a
+  missing number refuses the whole campaign, naming the line (a dropped
+  mission would change the campaign silently).
+- At mount, once every enabled mod's worlds are added, each mission's world
+  must have its `zbd\<world>\gamez.zbd` in an enabled mod, the patch or the
+  install; a line naming one that does not is refused, named in the log, and
+  the whole campaign is left out (a mod that needs another mod's world plays
+  only with that mod enabled). `--check-mod` reports each campaign, refuses
+  a line that does not read, and warns about a world neither the mod's nor
+  the install's.
+- The game never deletes a campaign's pilots' folder on its own: removing it
+  is the player's choice, behind a confirm, and only for a folder with our
+  marker (custom-campaigns.md).
+
+Tests: `mods_campaign_file`, `mods_campaigns_mounted`,
+`mods_check_mod_reads_campaigns`.
+
+Step 2 (2026-11-09), the game and its pilots (`mod_campaign.cpp`,
+`ModCampaignGame` in `pilot.h`):
+
+- Entering a campaign (`campaign_enter`, for the MODS screen to call) lets
+  the original's pilots go (saved first), makes the campaign's folder in the
+  write dir with our marker `mw3-campaign.txt`, and lists only the pilots
+  there; leaving (`campaign_leave`) brings the original's back. A folder of
+  that name holding files the game did not put there is never entered.
+  Everything the pilot module names goes through `pilots_folder()`: the
+  pilot files and their saved games in its `games\`.
+- While entered, every campaign game a pilot makes or reads is a
+  `ModCampaignGame`: the original's campaign game (the kind the original's
+  code and the scripts see is still the campaign's, 1, so every screen
+  between missions is the original's) whose `mission` is its place in the
+  list and `campaign` 1, so its saved games are `<pilot>01<place>.mw3`. The
+  mission sees the line as the original's would (vt+0x48, +0x4c, +0x54,
+  virtual in the exe too): the world's operation (c1..c3 1..3, c4 and c4b 4,
+  any other world 4, the six-mission count the AI's in/out names take), the
+  line's `m<n>`, its folder. Its name is the `op=` heading and the mission's
+  place under it ("Op A, Mission 2"). A saved game's world is restored except
+  at a world's start: the first mission and any whose world differs from the
+  one before (the original's Op N Mission 1 and Op 4 Mission 4).
+- Removing a campaign's pilots (`campaign_pilots_remove`) happens only on
+  the player's yes, never for the campaign entered, and only for a folder
+  holding our marker. The pilot screen's DELETE of one pilot asks as the
+  original does ("Ok to delete pilot?") and removes its files only.
+
+Test: `mod_campaign_pilots_and_games`.
+
+Step 3 (2026-11-09), the advance and the movies by line:
+
+- A mission won goes on to the list's next line, whatever its world (the
+  original's walk by operations, `next_mission`'s `campaign_advance`, is a
+  virtual `advance` the mod game replaces). The last line won ends the
+  campaign as Op 4 Mission 6 does: the Win Movie state, then the credits.
+  A failed or cheated mission is played again with its world loaded afresh
+  at a world's start on the list (the first line, or a world other than the
+  line before's: the original's Op N Mission 1 and Op 4 Mission 4), the same
+  rule as a saved game's restore. The Win State and the debriefing ask the
+  engine (`campaign_ends_at`, `campaign_world_start`), which answers the
+  original's way for the original's campaign. What a mission itself decides
+  by its operation and number (Op 4 Mission 4's salvage of allies' mechs,
+  the voices) follows the line's world and `m<n>`, as the mission sees them.
+- The field bases: a line's `bases=`, or for an `op=` heading's first line
+  the heading's, sets them there (the first line's at the campaign's start);
+  everywhere else they carry on, one lost each time a field base dies. The
+  original's resets at each operation's first mission and at Op 4 Mission 4
+  are not applied to a mod's list: write `bases=` where you want them.
+- The movies: `movie_start=` before the first line's briefing, in place of
+  the original's "campaign" (which plays only before Op 1 Mission 1); a
+  line's movie before its briefing in place of `c<op>m<n>` (none when the
+  line names none); `movie_end=` in place of `c4win` (none when not set). A
+  line's briefing names briefing.zrd's block (and its voice) in place of
+  `brief_<world><n>`.
+
+Tests: `mod_campaign_advance_over_the_list`,
+`mod_campaign_advance_and_end_headless` (the real screens: the pilot screen,
+the briefing, a won mission, the debriefing, the next briefing, the ending).
+
+### The MODS screen (begun 2026-11-09)
+
+Ours, from the game's own pieces (`mods_menu`, `mods_tables.h`): a MODS
+button on the main menu and its screen, both our records in dialog.zrd
+(`patch12::apply_ours`, as the options' UPGRADES): the button after QUIT in
+the original's look (`circlebtn_small`, a red label, OPTIONS' line), placed
+for Owen to choose (at the bottom continuing the left column, or on the
+right under the circle); the screen, MODSDIALOG, on the pilot screen's art
+and widgets, with the pilot screen's groups at 16:9. Bound only where the
+program turns it on (`mods_menu_page`), so the probes see the original's
+menu. The screen is made when MODS is pressed and reads dialog.zrd itself
+(the main menu's tree is not the file's by then).
+
+- CAMPAIGNS (Owen, 2026-11-09: a plain list as MODS, not the pilots' six
+  bars): the games' list in a copy of the games' box at the left, lined up
+  with MODS (`campaign_lines`: the pilot screen's lines, the six bars' box
+  taken out, the same size and place so 16:9 stretches it the same); a row
+  for each `campaign=` of every mod in the write dir's `mods\`, by its
+  `name=`, ` !` after one whose mod is off in this run or that cannot be
+  played (the note line says which); DETAILS shows its author and version. A mod of campaigns only is not in MODS; one that also adds
+  mechs, weapons or Instant Action worlds is in both.
+- MODS (the games' box): every other mod, `[x]` on or `[ ]` off, the
+  enabled ones first in mw3.cfg's order (`mods_list`, the launcher's), a
+  ` !` after one with a conflict or that cannot be used; chosen, the line
+  under the tabs says why it cannot be used, or what it shares with which
+  earlier mod ("Shares 1 file with Green HUD, which wins").
+- ON/OFF (an off mod goes to the end of the order), UP and DOWN (earlier
+  wins a shared file) write mw3.cfg's `mod=` lines at once
+  (`mods_save_enabled`) and take hold at the next start, which the screen
+  says while mw3.cfg differs from the run.
+- ENTER on a campaign whose mod is on in this run: `campaign_enter` (its own
+  pilots), MODS popped and the Campaign State pushed on the main menu, so
+  the stack is CAMPAIGN's: once a pilot is chosen the Campaign State pops
+  itself and replaces the main menu with the mission's state, nothing left
+  under the mission. (With MODS left under it, that pop resumed MODS and the
+  replace swapped MODS out, keeping the main menu under the mission; found
+  in review, 2026-11-09.) The campaign's pilots are let go when the main
+  menu updates again (`MainState::update`: after QUIT, the campaign's end,
+  or CANCEL on its pilot screen), never on a resume, which the Campaign
+  State's own pop makes on its way to the mission. A campaign whose mod is
+  off is never started half-mounted: ENTER turns the mod on for the next
+  start and says so ("its mod is turned on; restart to play it").
+- EDITOR: EDIT (editor.md, The way in from MODS): the selected campaign's or mod's missions in the campaigns' box, ENTER opening one in the game editor, saves going into the mod itself.
+- BACK: the main menu.
+
+Tests: `mods_screen_tables_order_and_conflicts` (the tables from five mods:
+the campaign rows with a broken file, the rows' marks and notes, UP moving
+the conflict to the other mod, ON/OFF and the save) and
+`mods_screen_enter_campaign_and_back_headless` (MODS, ENTER, a pilot in the
+campaign's folder, the first mission, the pause's options and QUIT, the main
+menu, MODS, BACK: the stack at each step, nothing under the mission, the
+pilots kept until the main menu). The button's place: the bottom left, as
+shown (Owen, 2026-11-09). Left: a live remount.
+
+### ADD MOD (2026-11-09; IMPORT since the evening)
+
+Ours (`mod_install`, the MODS screen's IMPORT, EXPORT, ADD FOLDER and MODS
+FOLDER tabs beside EDITOR; IMPORT was ADD MOD, EXPORT is the next section).
+IMPORT opens the system's file picker for an archive,
+ADD FOLDER its folder picker (SDL's dialogs: one dialog cannot offer both);
+the answer comes back on the screen's next update (`mods_menu_picked`, as it
+may come on another thread). MODS FOLDER opens the write dir's `mods\` in the
+system's file browser (`SDL_OpenURL` on its file:// URL). `--pick PATH`
+answers the picker for scripted runs and shots.
+
+- Archives: whatever the build's libarchive reads (the SETUP layer,
+  `source_archive`): .zip, .7z and .rar now, not a later step. A build without
+  libarchive adds folders only and says so.
+- Names Windows cannot hold are refused on every system, so a mod added on
+  the Mac still works on the PC: a device name in any part (CON, PRN, AUX,
+  NUL, COM1-9, LPT1-9, with any extension, any case), a trailing dot or
+  space, < > " | ? *; two files whose names differ only in case (one would
+  overwrite the other on Windows and the Mac). A mod's folder is never given
+  a device's name (`con` becomes `con_`). (2026-11-09, second sitting.)
+- Unpacked into a staging folder of ours (`<write dir>\mod-staging\<n>\`, the
+  marker `mw3-mod-staging.txt` in it), never into `mods\` directly. Every
+  entry is checked first: an absolute path, a drive or any ':' (an alternate
+  stream), a ".." part, a link (symbolic or hard) or another special file
+  refuses the archive whole, as does going past the caps (20,000 files, 4 GB
+  unpacked); a folder with a link in it too. On any refusal the staging
+  folder is removed (only with its marker; staging folders left by a run that
+  stopped halfway are cleared the same way at the next ADD).
+- The root: the shallowest folder with a mod.txt, else with the game's own
+  folders (zbd, video, music) or Mech3.exe, else a lone folder followed down;
+  what sits beside it (a pack's readme) is left behind.
+- A whole install (Mech3.exe in its root) is cut to the files that differ
+  from the player's install (byte for byte, names in any case); programs
+  (.exe, .dll: an exe patch cannot apply) and the player's own kind of file
+  (pilots, configs, saves) are left out. All the same: nothing to add.
+- An archive holding only a program (a mod shipped as its own installer):
+  refused, saying to run it and add the folder it makes.
+- No mod.txt: one is written, its name the archive's or folder's and for=
+  from the names only one game ships (MW3's c4b and t1 worlds and its own
+  mission readers, Pirate's Moon's readersa and readeria4); when they cannot
+  tell, a message box asks MechWarrior 3 or Pirate's Moon (Cancel: not added).
+- Checked as `--check-mod` does (`mod_check`): anything the game would refuse
+  and it is not added, the first such line said.
+- Moved into `mods\<name>\` (mod.txt's name, else the archive's) or, when a
+  folder of that name exists in any case, `<name> (2)` and on: nothing in
+  `mods\` is ever replaced or removed. The marker `mw3-mod-added.txt` in it
+  says the game made it (the only kind it may ever remove; never served from
+  the mod, nor counted as a shared file).
+- The screen says "Adding <name>..." and draws it before the add runs (on
+  its next update): a big archive takes a while, and a frame without a word
+  looked frozen. No worker thread yet.
+- On the screen: a mod that is more than a campaign is turned on for the
+  next start; a campaign-only one is listed, ENTER turning it on for the next
+  start. Said in two lines under MODS ("Added Desert Pack: on from the next
+  start.", "Not added: it holds a file that would land outside its folder
+  (../../outside.txt).").
+
+Tests: `mod_install_entry_paths`, `mod_install_refuses_escapes_and_limits`
+(zip slip, absolute, drive, link, the caps, empty, an installer only, a
+folder with a link, the game's own folders), `mod_install_finds_each_layout`
+(flat, nested with MOD.TXT, one folder down without mod.txt, a lone folder,
+a folder source; listed with no conflict from the markers),
+`mod_install_full_install_reduced`, `mod_install_name_clash_and_foreign_folders`
+(a foreign `mods\My Mod` and a foreign staging folder untouched, a case-only
+clash, a mod the check refuses), `mods_screen_add_mod_headless` (the screen
+through the hooks), and `mod_install_real_mod_env` (MW3_PM13=<a mod on this
+machine>, reported only).
+
+The launcher's MODS screen has the same three (ADD MOD, ADD FOLDER, MODS
+FOLDER, a row above UP and DOWN; five mods a page now), its own picker and
+its status line, through the same add (`mech3::mod_add_run`, which both
+call: prepared, the game asked, finished, turned on, the line to say);
+`--launcher-pick PATH` with `--launcher-screen mods` runs it for a shot.
+The SDL pieces both use (the folder opened, the game asked) are
+`frontend/sdl/sdl_mods`. In a scripted run (`--pick`, `--launcher-pick`)
+the game question answers MechWarrior 3 without a box. Test:
+`launcher_add_mod_by_pick`.
+
+### IMPORT and EXPORT (Owen, 2026-11-09; modder step 8 brought forward)
+
+IMPORT is ADD MOD renamed. EXPORT packs the selected mod (a MODS row, or a
+campaign's row: its mod) into one .zip that IMPORT takes back as the same
+mod: `src/upgrades/mods/mod_export` (ours, the first of the MODS screen's
+code in `src/upgrades/`).
+
+- **Where:** the system's save box (`SDL_ShowSaveFileDialog`) in the
+  player's documents folder, "<name> <version>.zip" offered (mod.txt's name,
+  else the folder's, made a name every system can hold). `.zip` added when
+  the box returns a name without one. Written as `<zip>.saving` and renamed
+  over the name when whole; never into the mod's own folder. "Exporting to
+  <zip>..." is drawn before the work, as IMPORT's "Adding".
+- **In it:** the mod's files under one folder named as the mod (so unzipping
+  it into `mods\` by hand makes a mod folder too), mod.txt with them, each
+  with its own time, deflated; and `mw3-checksums.txt` beside mod.txt:
+  sha256sum's lines (`<64 hex>  <path>`), one per file, so a player can check
+  it with `sha256sum -c` (or `shasum -a 256 -c`).
+- **Left out:** our markers (`mw3-mod-added.txt`, the staging marker), an old
+  checksums file (made anew), the player's own kind of file
+  (`zutl::mod_may_serve`: pilots\, configs\, saves\, mw3.cfg, logs and the
+  rest), `*.bak`, `*.saving`, and the systems' folder notes (.DS_Store,
+  Thumbs.db, desktop.ini, `._` files).
+- **Refused whole,** as IMPORT would refuse the zip: a link, a special file,
+  a name Windows cannot hold, two names differing only in case, more than
+  IMPORT's caps (20,000 files, 4 GB), nothing of its own.
+- **IMPORT's check:** a root with `mw3-checksums.txt` (any case) has every
+  file listed with its sum and nothing else beside it (the systems' folder
+  notes apart: a Finder re-zip adds them); a file changed, added or missing,
+  a damaged line or a path that leaves the folder refuses the zip, named.
+  Matched, the list is removed (a mod folder keeps no list that goes stale
+  as the modder edits it). A zip without one is taken as before. sha256sum's
+  binary mark (` *path`), CRLF lines and `#` comments are read.
+- **The launcher's MODS list:** IMPORT, EXPORT, ADD FOLDER, MODS FOLDER in
+  one row, EXPORT on the selected mod through the same `mech3::mod_export`
+  and its own save box. `--save-pick PATH` (the game) and
+  `--launcher-save-pick PATH` answer the save box in scripted runs.
+- **Both ways:** the zip holds only the mod's own files and our checksums
+  text, which neither game reads, so the original takes an unzipped export
+  as it took the mod.
+
+Tests: `mod_export_round_trip` (a mod with JSON folders and every kind of
+left-out file, and files beside it in mods\: the zip holds only the mod's,
+the sums are sha256sum's, IMPORT takes it back byte for byte with the same
+mod.txt, and exporting that again gives the same files),
+`mod_export_checksums_refuse_a_changed_zip` (changed, added, gone, mod.txt
+changed, a damaged list, a list naming outside: refused; a Finder re-zip, a
+hand-made list in binary form with CRLF: taken; no list: taken),
+`mod_export_refusals` (into its own folder, nothing of its own, gone, a name
+Windows cannot hold, a link, a case clash, a zip replaced whole),
+`mod_export_sha256_in_pieces`, and `mods_screen_add_mod_headless` (EXPORT
+through the screen's save hook, and the box cancelled).
+
+Open: whether SDL's native pickers and the game question show above the
+game's fullscreen window on Windows (the PC, a night check). Left: archives
+inside an archive.
 
 ## Broken files and checking a mod (M3, begun 2026-11-01)
 
@@ -501,6 +851,405 @@ The other archives hold 0 there and are never checked. It doesn't matter
 for our port: the check is a protection trap we leave out (FIX (trap)), and
 a mod's archive loads with any CRC. MechWarrior 3's archives (version 1)
 have none.
+
+## Readable files read directly (modder-friendly step 1, begun 2026-11-09)
+
+A modder edits a reader entry as text and runs, without repacking reader.zbd.
+
+**Which lookup.** Ours, `mod_copy` in `zreader.cpp`: when an archive has the
+entry, `zutl::find_in_mods` is asked for the archive's own folder plus the
+entry's name (`zbd\weapons.zrd` for `zbd\reader.zbd`, `zbd\c1\world.zrd` for
+the c1 world's reader), in the enabled mods only, first mod first. The
+original has a loose-file lookup, but not one that can do this: `zrdr::load`
+(0x00556740) asks the archives first and takes the text branch (the search
+path 0x00556240, then the text reader 0x005563d0) only for a name no archive
+has. Our text branch keeps that rule for the install; the mod's copy is the one
+case where a loose file wins over an entry, and only inside a mod (an
+install's stray `.zrd` changes nothing).
+
+**The same reader.** The loose file goes through the original's text reader
+(0x005563d0, `parse_text`), as the game's own loose files do, and then through
+the load hook as an archive entry does, with the archive's name: the official
+1.2 patch's edits (`patch12`) and the rebuild's own records (the MODS button,
+MODSDIALOG; `patch12_edits.cpp`) are applied to it, so a mod's edited
+dialog.zrd keeps the MODS screen.
+
+**Errors.** Before it is parsed, `zrdr::text_error` reads the file's brackets
+and quotes, skipping `;` comments: "line N: a '(' never closed" (the outermost
+one), "line N: a ')' with no '(' before it", "line N: a quote never closed".
+A file with one is refused, said once in the log ("mw3: mod: FILE: line 3: a
+'(' never closed; zbd\reader.zbd's entry read instead"), and the archive's entry
+is read: a broken edit never leaves the game without the entry. `--check-mod`
+gives the same line as an error ("zbd/weapons.zrd: line 3: a '(' never closed
+(not read; an archive's entry of that name is)"). A loose copy that reads is
+named in the log once ("FILE instead of ARCHIVE's entry").
+
+Tests (`test_mods.cpp`): `mods_loose_weapons_zrd_read_directly` (the PPC's
+VELOCITY as zwep::init reads it: 900 shipped, 1234.5 with the loose copy, also
+when the mod has its own reader.zbd beside it, 900 again with the copy broken
+on line 3, which `--check-mod` names; each error's line),
+`mods_loose_dialog_zrd_keeps_our_records` (MODSDIALOG through the hook, for the
+entry and the loose copy, none without the hook),
+`mods_loose_zrd_beats_the_archives_entry` (no mod: the archive's). Breaks
+caught: the line count, the outer '(' (a case with two open), the hook skipped,
+the fallback dropped, the check's line dropped, the loose lookup off.
+
+**mech3ax's reader JSON (built 2026-11-09).** A mod may hold a reader entry
+as unzbd writes it: `zbd\reader\weapons.zrd.json` (a folder named as the
+archive without `.zbd`, the entry's name plus `.json`, as unzbd's
+`replace_ext` names it), or unzbd's zip itself beside the archive,
+`zbd\reader.zip`, holding `weapons.zrd.json` (its name matched in any case,
+as the archive's are; `manifest.json` and anything else in it ignored). Per
+mod, first match wins: the loose `.zrd`, then the folder's JSON, then the zip,
+then the mod's own archive; mods first to last; never the install's. The JSON
+(`zrdr::parse_json`, `zreader_json.cpp`) is the tree one to one: an array a
+list, `null` an empty one, a string (UTF-8, kept only if Windows-1252 holds
+it, as the game's text), a number with '.' or an exponent a float, else an
+int. Objects and `true`/`false` are refused: mech3ax writes neither.
+
+*Exact numbers.* An int must fit 32 bits and is read as written. A float is
+read straight to a float (`strtof`, rounded once): mech3ax writes each f32 as
+the shortest text that reads back to it (serde's), so its bits come back; a
+hand-written 0.1 rounds to the nearest float as the text reader does. (Read
+as a double and then narrowed, a rare value would round twice and miss by
+one bit.) `to_json` writes the shortest text that reads back to the same
+float. `mods_reader_json_round_trips_every_shipped_entry` writes every reader
+entry MW3 ships (55 archives, 1,268 entries) as JSON and reads it back to the
+same tree, every float to the bit; with mech3ax's unzbd beside the checkout
+(`../mech3ax/target/release`, or `MECH3AX_UNZBD`; the part skipped and said
+without it) it exports each archive and reads unzbd's own files too: all
+1,268 the same trees.
+
+*Errors* name the line and the value's place, as a JSON path: "line 2 (at
+$[1][1]): true or false: the reader has none (write 1 or 0)", "line 1 (at
+$[0]): 2147483648: past the game's 32-bit integers", "a '[' never closed",
+lists past 64 deep. A refused copy is said in the log ("mw3: mod: FILE: line
+2 (at $[1][1]): ...; zbd\reader.zbd's entry read instead") and the archive's
+entry is read; a zip that does not open, the same. A good copy goes through
+the load hook, as the archive's entry does. `--check-mod` reads every
+`*.zrd.json` and every entry of a `reader*.zip` the same way and gives the
+same lines as errors ("zbd/reader.zip:fmv.zrd.json: line 1 (at $): a '['
+never closed (not read; an archive's entry of that name is)"). Tests:
+`mods_reader_json_errors_name_the_line_and_place`,
+`mods_reader_json_entry_in_a_folder_or_a_zip` (the order, the refusals, the
+hook), `mods_check_mod_reports_what_the_game_would_refuse`.
+
+**mech3ax's motion JSON (built 2026-11-09).** A mod may hold a motion as
+unzbd writes it: `zbd\motion\madcat_walk.json` (a folder named as the
+archive, the motion's name plus `.json`), or unzbd's `zbd\motion.zip` itself
+(matched in any case; `manifest.json` ignored). `load_motion` asks the enabled
+mods first to last: the folder's JSON, then the zip's, stopping at the first
+mod with its own `zbd\motion.zbd` (that archive is then read as before, its
+broken motions from the next copy). The JSON (`zsis::motion_from_json`,
+`si_script_json.cpp`; documents through `zutl_json`) becomes the entry's own
+bytes: version 4, `loop_time`, `frame_count`, the part count, then -1.0 and
+1.0 (stride and multiplier, the same in every motion; unzbd checks them and
+leaves them out), each part's name, flags 12, its `frame_count` + 1
+translations and rotations (the last key the first's again, which unzbd leaves
+out); unzbd's quaternion `x, y, z, w` is the file's order. Those bytes go
+through `Script::read`, the archive's bounded reader. Floats are read with
+`strtof`, so unzbd's shortest texts come back to the bits.
+
+`mods_motion_json_round_trips_every_shipped_motion` writes each of MW3's 258
+motions as JSON (`motion_to_json`) and reads it back to the entry's own bytes,
+each read by `Script::read`; with unzbd (as above) it reads unzbd's own 258
+files too, all the same bytes. Errors name the line and place: "line 2 (at
+$.parts[0].frames[1].rotation): no \"w\"", "(at $.parts[0].frames): 2
+frames, where frame_count says 3", "(at $.loop_time): not above 0", syntax
+errors too ("line 2 (at $.parts[0].frames[1]): the file ends where a value
+should be"). A refused motion is said in the log ("mw3: mod: FILE: ...;
+zbd/motion.zbd's motion read instead") and the archives' is read, not a later
+mod's JSON. `--check-mod` reads every `zbd/motion/*.json` and `motion.zip`
+entry the same way. Tests: those two, `mods_motion_json_errors_name_the_line_and_place`,
+`bounded_motion_json_in_a_folder_or_a_zip` (`test_bounded_readers.cpp`: the
+order, the refusals, the own-archive stop),
+`mods_check_mod_reports_what_the_game_would_refuse`.
+
+**mech3ax's mechlib JSON (built 2026-11-09).** A mod may hold mechlib's
+entries as unzbd writes them: `zbd\mechlib\mech_thor.flt.json` (a model's
+node tree) and `zbd\mechlib\materials.json` (the shared materials), or
+unzbd's `zbd\mechlib.zip` itself. `mechlib_load` and the materials' read ask
+the enabled mods first to last, the folder then the zip, stopping at a mod
+with its own `zbd\mechlib.zbd`; a model the archive lacks is served too, so a
+new mech's model needs no repacked mechlib.zbd, and a `mech=` row finds its
+`dfn_<name>.zrd` and `mech_<model>.flt` as JSON (a folder's or a zip's) as it
+finds them in an archive. The JSON (`zcls::mechlib_model_from_json`,
+`mechlib_materials_from_json`, `cls_mechlib_json.cpp`) becomes the entry's
+bytes as mech3ax's writer lays them out: from node 0 down, each node's 0xd0
+record (its name over "Default_node_name", flags from the named booleans,
+the node's `index` in the model slot, as unzbd keeps it), its object3d (0x90:
+`Initial`, a `Matrix`, or `RotateTranslateScale` built as mech3ax builds it,
+unzbd's `original` matrix where the sums differ, the zero signs), its model
+(0x5c, then vertices, normals, morphs, the polygons' 0x24 records, then each
+polygon's indices, UVs and colours), then its children. Those bytes go
+through the archive's own bounded readers (`read_tree`, `read_material`)
+from a `ScratchFile`. Lights in a mechlib model are refused (none ship).
+
+*The shipped bits.* `mods_mechlib_json_is_every_entrys_bytes`: with
+unzbd found beside the checkout (`../mech3ax`, or `MECH3AX_UNZBD`; skipped and said without it) and run on the install, every one of MW3's 57 models and the
+materials come to the archive entry's own bytes. The matrix's sines and
+cosines are rounded once from double: mech3ax's f32 `sin_cos` on the Mac is
+Apple's `__sincosf`, and `cosf` can miss it by one bit (the Blackhawk's
+lcalf: cos 0.855211 is 0x3f27f37b in the file and in truth, 0x3f27f37c from
+`cosf`); the true value, rounded, is the file's on every system. Errors name
+the place: "(at $.nodes[0].model_index): no model 3", "(at
+$.models[0].polygons[0].priority): 51: past -50..50", "(at $.nodes[0]):
+reached twice (a loop in child_indices)", an unknown flag's name.
+`--check-mod` reads `zbd/mechlib/*.json` and `mechlib.zip`. Tests:
+`bounded_mechlib_json_in_a_folder_or_a_zip` (a model the archive lacks, the
+order, a refusal, the own-archive stop), `bounded_mechlib_json_errors_name_the_place`,
+`mods_mech_row_files_as_json`, the check test. A self-contained round trip
+needs a writer of mechlib JSON as well (not written; the unzbd run stands for
+it).
+
+**mech3ax's anim JSON (built 2026-11-09).** A mod may hold a world's
+animations as unzbd writes them: the folder `zbd\c1\anim\` (its
+`metadata.json`, a `<def>.json` per anim def, a `si-script-NNN.zan.json` per
+motion script), or unzbd's `zbd\c1\anim.zip`. The file is read whole, as
+the game reads anim.zbd: the enabled mods first to last, the folder then the
+zip, stopping at a mod with its own `zbd\c1\anim.zbd`. The JSON
+(`zeff::anim_from_json`, `zeff_anim_json.cpp`) becomes the anim.zbd it
+stands for, laid out as mech3ax's writer lays it (header, the source list,
+the globals with mech3ax's per-world pointers, def 0, then each def's 0x13c
+record, its lists, prerequisites, anim refs, reset state and sequences, each
+sequence a blob of events), read through a `ScratchFile` by the anim reader
+0x0050a0e0 and bound by the post-load pass as the shipped file is.
+
+*Names past their NUL.* The shipped files keep, after many names' NULs, what
+the original tools' buffers held. mech3ax restores those bytes from tables of
+its own built from the shipped files (its anim-names crate); we keep no
+game-derived tables (Owen's rule), so our names are zero after their NUL.
+Those bytes are never read: the reader and the runtime take names to their
+NUL. Our file therefore differs from the shipped one only past names' NULs.
+Where unzbd keeps a name's trailing bytes in the JSON (the source list's
+`garbage`, the static sounds' and anim refs' `pad`), they are written back
+exactly, and node names keep mech3ax's "Default_node_name" padding.
+
+`mods_anim_json_is_every_worlds_file` runs unzbd on all six worlds and
+compares our file with the shipped one, every name masked past its NUL: c1
+5,228,852 bytes (24,975 names), c2, c3, c4, c4b and t1 all the same. Events:
+all 39 of MechWarrior 3's types. The six no shipped world uses but the
+runtime runs (Effect, ObjectDeleteChild, CameraState, CameraFromTo,
+FbfxCsinwaveFromTo, AnimVerbose) are checked against mech3ax's own writer
+(`rezbd`) on the same JSON (`mods_anim_json_unused_events_as_mech3ax_writes_them`);
+Effect, which mech3ax refuses for MechWarrior 3, needs a def's `effects`
+list (written after the static sounds, as the reader takes it) and is checked
+by its layout. Errors name the file, line and place ("box.json: line 2 (at
+$.sequences[0].events[0].data.ObjectActiveState.node): no node \"lid\" in
+the def's nodes", an unknown event's name, a world mech3ax does not know). A
+refused world is said in the log and its anim.zbd read; `--check-mod` reads
+an `anim\` folder or `anim.zip` the same way. Tests: those two,
+`mods_anim_json_in_a_folder_or_a_zip` (the order, a refusal, the own-archive
+stop), `mods_anim_json_errors_name_the_place`, the check test.
+
+**mech3ax's other JSON, mapped (not built).** `unzbd` writes one zip per archive,
+with `manifest.json` (the entries' names, order and the bytes needed to pack
+them again) and one JSON per entry, or per file for gamez:
+
+| Archive | unzbd's files | Our reader that would take them |
+|---|---|---|
+| `reader*.zbd` | `<entry>.zrd.json` | built, above |
+| `mechlib.zbd` | `materials.json`, `<model>.flt.json` (`format`, `version` not needed) | built, above |
+| `motion.zbd` | `<motion>.json` per motion | built, above |
+| `zbd\<world>\anim.zbd` | `metadata.json`, `<def>.json` per anim def, `<script>.zan.json` per script | built, above |
+| `zbd\<world>\gamez.zbd` | `metadata.json`, `textures.json`, `materials.json`, `models.json`, `nodes.json` | built, "gamez JSON" |
+
+Proposed naming: a mod holds unzbd's output unzipped in a folder named for the
+archive without `.zbd` (`zbd\mechlib\`, `zbd\motion\`, `zbd\c1\anim\`,
+`zbd\c1\gamez\`; the reader's `zbd\reader\weapons.zrd.json`, built), or the zip itself beside it
+(`zbd\mechlib.zip`, as unzbd wrote it). For reader, mechlib and motion each
+entry stands alone: a folder with one model's JSON replaces that model and
+the archive gives the rest, and `manifest.json` is not needed. Anim and gamez
+are read whole, so their folder needs all its files or is refused (said by
+`--check-mod`), and the archive is used. Within one mod: a loose `.zrd`, then
+the JSON folder, then the zip, then the mod's archive; mods first to last as
+now. JSON is read only from a mod, never the install.
+
+Order, smallest and most edited first: (1) reader JSON, (2) motion, (3)
+mechlib, (4) anim, (5) gamez: all done. Each with a test against unzbd's own output on
+every shipped entry, run by itself when mech3ax's unzbd is beside the
+checkout. PM's archives the same where its formats match (mech3ax's `pm`
+readers), on `pm` after pm-v1.0.0.
+
+## Animations a def at a time (design, proposal only, 2026-11-09)
+
+Owen's ask: animations moddable, and easy, with every old mod working
+exactly as before. Today a mod replaces a world's whole anim.zbd (or its
+whole JSON, above). Adding one weapon effect, say a heavy gauss rifle's
+`hgaus_fire` with its trail, muzzle flash and flyby loops, means editing all
+six worlds' anim.zbd and gamez.zbd, and two mods that touch animations
+cannot both be on. This is the plan to fix that. Nothing here is built yet.
+
+**What the engine already allows (from the code).**
+- Defs find each other by name. CallAnimation keeps the target's name and
+  looks it up the first time it runs (0x506640: a search over all defs by
+  name, the index cached in the event at +0x30). Stop, reset and invalidate
+  find their def by name too (0x506d60..0x506ea0), as do `anim_find`
+  (0x50b450) and the prerequisites' type 1 (0x508950). So a def added under a
+  new name is reachable by any def that names it, and a def replaced under its
+  own name is what its callers get.
+- An anim ref (a def's own list, 0x48 bytes) is a slot the calling def fills
+  at run time. It holds no index into the set, so merging does not touch it.
+- Within a def, events index only that def's own lists: nodes, lights,
+  puffers, sounds, effects, scripts. A def's JSON stands alone, apart from the
+  .zan scripts it names by index. Those come with it (below).
+- The fixup (0x50a0e0) binds each def to a world node by name: +0x20, with a
+  run of defs of the same node name taking that name's successive nodes.
+  The post-load pass (0x50ae60) then works on each def alone (loops 1-4).
+  Neither cares where in the list a def sits, except for those runs, so
+  appended defs keep the shipped defs' bindings.
+- Saved games are the one place the index matters. A running animation is
+  saved as "Running%03d" with its def's index (0x50be30), and read back by
+  index (0x50c250). Activation records are saved by name.
+
+**1. A def at a time.** A mod may hold:
+- `zbd\c1\anim\<node>-<anim>.json`: one def for one world, the file unzbd
+  writes for it;
+- `zbd\anim\<node>-<anim>.json`: one def for every world;
+- a script it names, `si-script-<name>.zan.json`, beside it. The def's
+  `index` in ObjectMotionSiScript then names its own file
+  (`"script": "si-script-<name>.zan"`, our addition), so no global script
+  numbering is shared between mods.
+
+No `metadata.json` means "merge into the world's set", not "the whole file"
+(the whole-file form, above, keeps metadata.json). The world's set is built
+from three things:
+- the base: the world's own anim.zbd, or the first enabled mod's whole file
+  (below);
+- each def file: it replaces the base def of the same key (the file's
+  `<node>-<anim>` name, which unzbd makes from the def's node name and anim
+  name), or it is added;
+- per key, the first enabled mod that has it wins, as for every other file
+  (mods first to last; the first wins). The lead's brief said "later
+  winning"; this keeps our one rule. Within one mod, the world's own folder
+  beats the world-less one.
+
+Order and indices: replaced defs keep their base index. Added defs go after
+the base's last def, in the order of the mods and then by name, so the
+shipped defs keep their indices and their node runs. Two fixes come with it:
+- a saved running animation is checked by name as well as index on load,
+  where today only the index is used. A save made under another mod set then
+  drops the anims that moved, said in the log, instead of starting the wrong
+  def;
+- the save records the mods' identity (`mods_identity`, which today only the
+  multiplayer lobby compares), and the load tells the player when it differs.
+
+The bytes: each def is written with the anim JSON's def writer
+(`zeff_anim_json.cpp`'s, unchanged), and each base def's bytes are spliced in
+from the base file. A def's bytes are self-contained: its record, its lists,
+its reset state and its sequences. Then the header's def count is set and the
+file is read by 0x50a0e0 as now.
+
+**2. The nodes a def needs.** A weapon effect's def drives its own nodes:
+`hgaus_trc.flt` and its tracer, a muzzle-flash model. Today they live in each
+world's gamez.zbd, which is why an effect means six gamez edits. Proposal: a
+def may come with its node tree as a mechlib-style model,
+`zbd\anim\<node>.flt.json` (the format of `mechlib_model_from_json`, above).
+- It is loaded the way a mech's parts are: read_tree, mechlib_resolve onto the
+  world's materials, its textures by name from the texture archives.
+- It is put into the world inactive before the fixup, under its node name, so
+  0x50a0e0's search finds it. Effects are made active and placed by their own
+  defs (CallAnimation's at-node and the motion events), as the shipped ones
+  are.
+- Its materials: a mechlib model indexes mechlib's shared list, so the file
+  carries a `materials` list of its own (our addition), appended to the
+  world's list as mechlib's are resolved.
+- A texture of its own needs a texture library, which this does not cover;
+  for now the shipped textures, or a mod's whole rtexture file.
+- Open: whether any shipped effect def relies on a gamez-only node class
+  (lights, LODs). Lights come from the def's own light list, made at load.
+  To check per shipped effect def before building.
+
+**3. Conflicts on the MODS screen.** The list's model (`mods_list`, above)
+already reports the files an enabled mod shares with one before it. Def
+files get the same treatment, keyed by world and def: "Heavy Gauss's
+hgaus_fire (all worlds) is Other Mod's, which comes first". It also reports
+when a whole-file mod sets the base for a world in which another mod adds
+defs, so a modder sees which defs take effect. `--check-mod` reads each def
+file alone through the def writer and names its errors by file and place, as
+it does for the whole JSON.
+
+**4. Old mods, and the two forms together.**
+- A mod's whole anim.zbd (or whole JSON folder or zip) is still the base,
+  exactly as today: with no def files anywhere, nothing changes.
+- With both kinds enabled: the base is the first enabled mod's whole file for
+  that world (else the install's). Def files from mods listed before that mod
+  replace or add defs over it. Def files from mods after it only add defs the
+  base lacks, and never replace that mod's own. So a whole-file mod keeps what
+  it shipped against anything listed after it, as it does now, and a
+  def-at-a-time mod listed ahead of it can still put its defs in.
+- Two whole-file mods for one world cannot be merged, as now; the first
+  wins, and the screen says so.
+
+**5. Both ways.** The original reads only a world's anim.zbd (and gamez.zbd);
+it never sees def files or node files. A modder targeting both games ships:
+- the def files, for ours;
+- a whole anim.zbd per world built from the install's plus those defs, for
+  the original. We would give this a tool: `--build-anim <mod>` writes each
+  world's merged file into the mod's `original\` folder, with the same
+  splicing as the loader;
+- the effect's nodes in each world's gamez.zbd, for the original only (it has
+  no other way to get them).
+
+In such a mod, mod.txt's `anim=defs` tells ours to use the def files and
+ignore that mod's own whole files, so two both-ways mods still combine in
+ours. Without it a whole file wins as in point 4, and old mods are unchanged.
+The `original\` folder is the modder's to copy over an original install.
+Ours would ignore it, added to what `mod_own_file` skips as mod.txt is.
+
+Order of work, when Owen agrees, one sitting each:
+1. the merge and the def files, with a test that adding and replacing defs on
+   all six worlds leaves every other def's bytes as shipped, plus the save's
+   name check;
+2. the MODS screen's conflicts and `--check-mod`;
+3. `--build-anim` and `anim=defs`;
+4. the node files, after the per-def check of the shipped effect defs.
+
+## gamez JSON (built 2026-11-09)
+
+A mod may hold a world as unzbd writes it: the folder `zbd\c1\gamez\`
+(`metadata.json`, `textures.json`, `materials.json`, `models.json`,
+`nodes.json`) or unzbd's `zbd\c1\gamez.zip`. The game opens it as the
+world's gamez.zbd (`open_zbd` 0x4ff6a0, used by the load 0x4ff520 and the
+re-read alike, the 1.2 patch's open hook still applied): the enabled mods
+first to last, the folder then the zip, stopping at a mod with its own
+`zbd\c1\gamez.zbd`. A world a mod declares (`world=`) may be its JSON too.
+The JSON (`zcls::gamez_from_json`, `src/upgrades/json/gamez_json.cpp`)
+becomes the file it stands for, laid out as mech3ax's writer lays it: the
+header, the texture directory (each name's last '.' a NUL, its suffix kept),
+the materials with their free slots and cycles, the model array (each
+model's record and its data's offset, the free slots chained, then the
+models' data, through mechlib's model writer with lights), then the node
+array (each node's 0xd0 record and its data's offset, an empty node's its
+one parent's index, the free slots, then each node's class data, parents and
+children). Every class: empty, camera, world (fog, area, the virtual
+partition's constants, lights, sounds and every partition), window, display,
+object3d, lod and light. The file is read through a `ScratchFile`, kept
+until the next open since the reader reads on from it. Fields unzbd leaves
+out take its defaults.
+
+*Size.* models.json is 41 MB for c1, too big for one tree:
+`zutl_json::Pull` walks the models and nodes lists and reads each item as
+its own small tree, with the same line-and-path errors.
+
+*Byte for byte.* `mods_gamez_json_is_every_worlds_file` runs unzbd on all
+six worlds: every file is the shipped one byte for byte, with no masks (c1
+11,412,064 bytes). mech3ax keeps a table of about a hundred c3 partitions
+whose middle height its float sum misses; its partitions' pointers are not
+in the 1.2 c3 file (another release's, it seems), and on all six 1.2 worlds a
+float sum and a double one give the same bits, so neither the table nor the
+way of summing matters for these files. Ours sums in double and rounds once,
+as the original's tools likely did (unverified: no file here tells them
+apart). Errors name the file, line and place ("nodes.json:
+line 2 (at $[0].data): not a node class this format has: Portal", "an empty
+node has one parent", an unknown flag's name). Tests: that one,
+`mods_gamez_json_in_a_folder_or_a_zip` (the order, a refusal, the
+own-archive stop), `mods_gamez_json_errors_name_the_place`,
+`mods_json_pull_walks_and_names_the_place`, the check test,
+`mods_worlds_declared`.
+
+For mods, gamez is whole-world only: no per-node merging. New nodes for
+animations come from point 2 of "Animations a def at a time".
 
 ## Planned
 - M3 (v1.0), the rest: bounded readers for mechlib, motion and anim

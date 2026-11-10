@@ -632,6 +632,12 @@ void set_line_clip(const float* min, const float* max);  // 0x0059b2f0
 // 0x0059b490 (0x0059b4d0 by x, then 0x0059b640 by y): the segment within the
 // box, false when it misses (the flags set for a clipped end, never read).
 bool clip_line(float* a, float* b);
+// 0x0059b370 (ECX a, EDX b): the segment within the box's depth, min[2] to
+// max[2], an end beyond moved along it by 0x0059b450; false when both ends
+// are on one side.
+bool clip_depth(float* a, float* b);
+bool in_depth(const float* p);  // 0x0059b7b0: min[2] <= z <= max[2]
+bool in_box(const float* p);    // 0x0059b7e0: x and y within the box
 bool clip_round(const Rect& r, const int32_t* p0, const int32_t* p1, int32_t* o0, int32_t* o1);  // 0x005a3580
 
 // An image that blinks or swaps with another (0x005a6d10 its update; the

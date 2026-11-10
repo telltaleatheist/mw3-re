@@ -35,6 +35,8 @@
 #include "mech3/mainmenu.h"
 #include "mech3/menu_states.h"
 #include "mech3/mission.h"
+#include "mech3/mod_campaign.h"
+#include "mech3/mods_menu.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
@@ -190,6 +192,9 @@ const std::vector<ScreenGroups>& screen_groups() {
       // The main menu: its column of buttons at the left edge, CREDITS and
       // QUIT and the version line at the right.
       {0x486260, {{0, 0, 330, 480, kLeft}, {380, 330, 640, 480, kRight}}},
+      // Ours: the MODS screen, the pilot screen's groups; its tabs along the
+      // bottom (EDITOR, ADD MOD, ADD FOLDER, MODS FOLDER) kept together at the left.
+      {kModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
       {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
@@ -425,6 +430,10 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return screen(sizeof(UpgradesScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new UpgradesScreen(e, s); });
     case kUpgradesStateCtor:
       return state([](Handle h) -> MenuState* { return new OptionsState(OptionsState::kUpgrades, h); });
+    case kModsScreenCtor:  // ours: the MODS screen
+      return screen(sizeof(ModsScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new ModsScreen(e, s); });
+    case kModsStateCtor:
+      return state([](Handle h) -> MenuState* { return new ModsState(h); });
     case 0x42a590: {  // the controls screen, new(0x16c94): its popups' states sit at its offsets
       const Handle h = alloc_block(0x16c94);
       screens_[h] = {nullptr, 0x16c94};
@@ -745,9 +754,11 @@ bool launch_player();  // 0x00491150 (mech3/mission_launch.h, whose mech headers
 
 namespace {
 BriefingScreen* briefing_of(const GameEngine& e, Handle s) { return dynamic_cast<BriefingScreen*>(e.screen_of(s)); }
-
-// Pirate's Moon 1.0 @ 0x00435de0 (a campaign's vt+0x54): the mission directory.
-int32_t campaign_dir(const CampaignGame& c) { return campaign_world(c.mission_number()); }
+// The launch's mod campaign game: the chosen pilot's, from the menus (a debug start's is not).
+const ModCampaignGame* mod_game(const GameEngine::Launch& l) {
+  const Pilot* p = l.keep_pilot ? current_pilot() : nullptr;
+  return p ? dynamic_cast<const ModCampaignGame*>(p->current) : nullptr;
+}
 }  // namespace
 
 // The Load state from the menus: its game is the chosen pilot's (the
@@ -764,7 +775,7 @@ void GameEngine::load_state_enter() {
   if (auto* c = dynamic_cast<CampaignGame*>(g)) {
     l.number = c->mission_number();
     l.op = c->operation();
-    l.index = campaign_dir(*c);
+    l.index = c->world_index();  // Pirate's Moon 1.0 @ 0x00435de0 (vt+0x54); a mod campaign's line's world
   } else if (auto* st = dynamic_cast<StandaloneGame*>(g)) {
     st->start();  // vt+0x64 at 0x00407f38; Missions::start's stays out (game_open_reader)
     l.number = st->number();
@@ -843,16 +854,41 @@ uint8_t GameEngine::briefing_has_movie() { return app().fmv(); }
 // the main window and fmv.zrd's "c<op>m<n>" of the pilot's game (0x004099c0),
 // played when it loads: the mission's briefing movie, an operation's opener
 // at its first mission. Nothing shows until zFMV is ported.
+// Ours: a mod campaign's line's movie, none when it names none.
 void GameEngine::briefing_play_movie(uint32_t state) {
   if (state != states().load.addr()) return Engine::briefing_play_movie(state);
   const Handle m = states().load.movie_;
   const Handle game = pilot_game(pilot());
   char name[32];
-  std::snprintf(name, sizeof name, "c%dm%d", static_cast<int32_t>(vcall(game, 0x48, {})),
-                static_cast<int32_t>(vcall(game, 0x4c, {})));
+  if (const ModCampaignGame* mod = mod_game(launch_)) {
+    if (!mod->movie()) return;
+    std::snprintf(name, sizeof name, "%s", mod->movie());
+  } else {
+    std::snprintf(name, sizeof name, "c%dm%d", static_cast<int32_t>(vcall(game, 0x48, {})),
+                  static_cast<int32_t>(vcall(game, 0x4c, {})));
+  }
   const Handle frame = app().frame_;
   if (const Handle hwnd = frame ? frame_hwnd(frame) : 0) movie_set_window(m, hwnd);  // 0x0040a7d0
   if (movie_load(m, "fmv.zrd", name) != -1) movie_play(m);
+}
+
+const char* GameEngine::campaign_briefing() {
+  const ModCampaignGame* mod = mod_game(launch_);
+  return mod ? mod->briefing() : nullptr;
+}
+const char* GameEngine::campaign_end_movie() {
+  const ModCampaign* c = entered_campaign();
+  if (!c) return "c4win";
+  return c->movie_end.empty() ? nullptr : c->movie_end.c_str();
+}
+
+bool GameEngine::campaign_ends_at(int32_t op, int32_t mission) {
+  const ModCampaignGame* mod = mod_game(launch_);
+  return mod ? mod->last() : Engine::campaign_ends_at(op, mission);
+}
+bool GameEngine::campaign_world_start(int32_t op, int32_t mission) {
+  const ModCampaignGame* mod = mod_game(launch_);
+  return mod ? mod->world_start() : Engine::campaign_world_start(op, mission);
 }
 
 void GameEngine::briefing_script_start(Handle s) {

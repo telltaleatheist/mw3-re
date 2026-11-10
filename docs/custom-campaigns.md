@@ -99,6 +99,26 @@ movie_end=c4win
    the save names to PM's (its message 0x21d is "Mission %1", fixed on pm,
    pirates-moon.md).
 
+## Decided (the lead's review, 2026-11-09)
+
+The format and the pilots' folder stand, with three additions:
+
+1. A mod may hold more than one campaign (one `campaign=` line each); each
+   one's pilots go in `pilots\mods\<mod>\<campaign>\`, its id the file's
+   name, so a mod's campaigns never share pilots.
+2. Our code never deletes that folder on its own: removing it is the
+   player's choice, behind a confirm, and only for a folder with our marker.
+3. A mission line naming a world no enabled mod or the install has is
+   refused at mount, naming the line, and the whole campaign is left out.
+
+The file as built is in modding.md, Custom campaigns (the shape above with
+`-` for a default briefing, and no comments after a value).
+
+Built: step 1 the file (modding.md, Custom campaigns), step 2 the game
+type and its pilots, step 3 the advance over the list, the field bases and
+the movies by line (the same section); entering one from the MODS screen
+(modding.md, The MODS screen).
+
 ## Next, after the review
 
 The parser and its checks (mod.txt's `campaign=`, `--check-mod`), the
