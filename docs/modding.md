@@ -1168,7 +1168,43 @@ So a node file holding object3d trees in mechlib's model form is enough for
 any effect. A def naming a camera can name the world's. The four names with
 no def in any world are in fixes.md, Candidates for Owen.
 
-Step 4 below (the node files) is still to build.
+**Built (step 4, 2026-11-10): the node files.**
+- A node file is `<node>.flt.json` beside the def files (`zbd\<world>\anim\`
+  or `zbd\anim\`). It is a tree in mechlib's model form as unzbd writes one
+  (`{"nodes": [...], "models": [...]}`), plus `"materials"`: its own list in
+  mechlib's materials.json form, which its polygons' `material_index`
+  indexes. Copy an unzbd mechlib model and its materials.json into one to
+  start.
+- With the world loaded, before the fixup (`anim_read_zbd`), the enabled
+  mods' node files are read (`load_mod_node_files`). Per node name the first
+  mod's counts, its world folder before its world-less one, and only a name
+  the world lacks is read: a node already there is the world's, said once.
+- Each tree is read as mechlib's are (read_tree on its bytes, every
+  polygon's material within its own list, resolved onto the world's
+  materials) and left parentless and as its flags say, as the shipped
+  effects' nodes are (gaus_muzl.flt and the rest have no parent). The
+  fixup's search by name (list_find_by_name over every node) finds it.
+- Then each def file's nodes (its own, its root, its object and node lists)
+  must be in the world or among its own lights and sounds
+  (`def_nodes_found`). A def naming one that is not is left out, said in
+  the log. The original's fixup stops at a def it cannot bind and leaves
+  every later def unbound, so one typo would otherwise break the world's
+  animations from there on.
+- `--check-mod` reads each node file's two halves without a world.
+  `--build-anim` says, for each node file, that the original reads nodes
+  only from the world's gamez.zbd.
+
+Test: `mods_anim_node_files_bind_their_defs`, on c1's world. A node file
+(mechlib's smallest model renamed mod_muz.flt, mechlib's materials as its
+own) and a one-node effect def on it:
+- the read runs to its end, every one of the 1,770 defs bound, mod_blast on
+  mod_muz.flt;
+- a def naming a node no world has is left out;
+- --check-mod passes the node file and names one with no materials list;
+- --build-anim notes the node file.
+
+Breaks caught: no node files read (the def then left out); no node check
+(the read stops at the bad def, -1, later defs unbound).
 
 
 Owen's ask: animations moddable, and easy, with every old mod working

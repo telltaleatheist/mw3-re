@@ -909,6 +909,11 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       ++entries;
       if (!zcls::gamez_from_json(file, &zbd, &why)) error(rel + ": " + why + " (not read; the gamez.zbd is)");
       else out.push_back("  its world read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
+    } else if (anim_defs::is_node_file(rel)) {  // a def's own node (modding.md, step 4): its tree and materials read
+      ++entries;
+      std::string why;
+      if (!anim_defs::node_file_reads(host, &why)) error(rel + ": " + why + " (this node left out, and the defs on it)");
+      else out.push_back("  a node of its own for its animations, read in a world that has none of that name");
     } else if (std::string world; anim_defs::is_def_file(dir, rel, &world)) {
       // one animation (modding.md, Animations a def at a time): read alone, as the merge reads it
       ++entries;

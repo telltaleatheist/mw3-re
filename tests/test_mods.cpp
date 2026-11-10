@@ -28,6 +28,8 @@
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "upgrades/mods/anim_defs.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/list.h"
 #include "gamez/zsave/zsave.h"
 #include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zeffect/zeff_anim_json.h"
@@ -1645,6 +1647,111 @@ TEST(mods_anim_defs_only_and_build_anim) {
   std::vector<mech3::anim_defs::DefSpan> now;
   EXPECT(mech3::anim_defs::def_spans(built.data(), built.size(), &now) && now.size() == spans.size() + 1 && now.back().key.find("both_added") != std::string::npos);
   EXPECT(fs::exists(m + "/original/zbd/t1/anim.zbd.bak"));  // the one there before
+}
+
+// The nodes a def needs (docs/modding.md, Animations a def at a time, step 4), on c1's world: a node file (mechlib's
+// smallest model from unzbd, renamed mod_muz.flt, mechlib's materials list as its own) and a def file for a one-node
+// effect on it: read into the world, the def bound to it by the fixup, which runs to the end; a def file naming a node
+// no world has is left out (the fixup would stop at it), the world's defs bound as shipped.
+TEST(mods_anim_node_files_bind_their_defs) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/gamez.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> anims, mechlib;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/c1/anim.zbd", &anims));
+  EXPECT(unzbd_export(unzbd, "mechlib", install + "/zbd/mechlib.zbd", &mechlib));
+  // The smallest model, as the node file, with mechlib's materials as its own list.
+  std::string model, model_name;
+  for (const auto& [n, t] : mechlib)
+    if (n.size() > 9 && n.compare(n.size() - 9, 9, ".flt.json") == 0 && (model.empty() || t.size() < model.size())) model = t, model_name = n;
+  zutl_json::Value doc, mats;
+  std::string why;
+  EXPECT(zutl_json::parse(model, &doc, &why) && zutl_json::parse(mechlib["materials.json"], &mats, &why));
+  const zutl_json::Value* nodes0 = doc.get("nodes");
+  const std::string root0 = nodes0 && !nodes0->items.empty() && nodes0->items[0].get("name") ? nodes0->items[0].get("name")->text : "";
+  EXPECT(!root0.empty());
+  std::string node_file = model;
+  node_file.replace(node_file.find("\"" + root0 + "\""), root0.size() + 2, "\"mod_muz.flt\"");
+  node_file.replace(node_file.rfind('}'), 1, ",\n\"materials\": " + mechlib["materials.json"] + "\n}");
+  // A one-node effect def: no node or object lists, its root its own node.
+  std::string def;
+  zutl_json::Value meta;
+  EXPECT(zutl_json::parse(anims["metadata.json"], &meta, &why));
+  for (const zutl_json::Value& n : meta.get("anim_def_names")->items) {
+    zutl_json::Value d;
+    if (!zutl_json::parse(anims[n.text + ".json"], &d, &why)) continue;
+    const zutl_json::Value *nm = d.get("name"), *rt = d.get("anim_root_name"), *ns = d.get("nodes"), *os = d.get("objects");
+    const auto empty = [](const zutl_json::Value* v) { return !v || v->kind == zutl_json::Value::Null || v->items.empty(); };
+    if (nm && rt && nm->text == rt->text && empty(ns) && empty(os) && anims[n.text + ".json"].find("ObjectMotionSiScript") == std::string::npos) {
+      def = anims[n.text + ".json"];
+      break;
+    }
+  }
+  EXPECT(!def.empty());
+  if (def.empty() || root0.empty()) return;
+  const auto renamed = [&](const std::string& node, const char* anim) {
+    std::string t = json_with(def, "name", "\"" + node + "\"");
+    t = json_with(t, "anim_root_name", "\"" + node + "\"");
+    return json_with(t, "anim_name", std::string("\"") + anim + "\"");
+  };
+  SavedMounts keep;
+  const std::string wd = tmp("mods_anim_node_files"), m = wd + "/mods/fx";
+  put(m + "/mod.txt", "name=Effects\n");
+  put(m + "/zbd/anim/mod_muz.flt.json", node_file);
+  put(m + "/zbd/anim/mod_muz-mod_blast.json", renamed("mod_muz.flt", "mod_blast"));
+  put(m + "/zbd/anim/nowhere.json", renamed("no_such_node.flt", "bad_one"));
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"fx"}, {install});
+  zutl::mount(install);
+  // The program's hooks for what the fixup makes (puffers, sounds, effects), as stand-ins; restored after.
+  const zeff::AnimHooks hooks_were = zeff::anim_hooks();
+  static int puffer;
+  zeff::anim_hooks().create_puffer = [] { return static_cast<void*>(&puffer); };
+  zeff::anim_hooks().find_sound = [](const char*) -> void* { return nullptr; };
+  zeff::anim_hooks().effect_index = [](const char*) { return 0; };
+  zcls::lists() = zcls::Lists{};
+  EXPECT(zcls::read_zbd((install + "/zbd/c1/gamez.zbd").c_str()) == 0);
+  zeff::anim() = zeff::AnimState{};
+  zeff::anim_allow_loading(1);
+  zeff::anim_set_zbd_path("zbd\\c1\\anim.zbd");
+  zeff::anim_set_world(zcls::list_head(zcls::kWorlds) ? zcls::list_head(zcls::kWorlds)->node : nullptr);
+  const int r = zeff::anim_read_zbd();
+  const int32_t count = zeff::anim().def_count();
+  const zeff::AnimDef* last = count > 0 && zeff::anim().defs ? &zeff::anim().defs[count - 1] : nullptr;
+  int bound = 0;
+  for (int32_t i = 1; i < count; ++i) bound += zeff::anim().defs[i].node != nullptr;
+  std::printf("  node file from %s; read %d, %d defs (%d bound), the last %s on %s\n", model_name.c_str(), r, count, bound,
+              last ? last->name() : "-", last && last->node ? last->node->name() : "nothing");
+  EXPECT(r == 0 && count == static_cast<int32_t>(meta.get("anim_def_names")->items.size()) + 2);  // def 0, the shipped, mod_blast
+  EXPECT(last && std::strcmp(last->name(), "mod_blast") == 0 && last->node && std::strcmp(last->node->name(), "mod_muz.flt") == 0);
+  EXPECT(bound == count - 1);
+  EXPECT(!zeff::anim_find("bad_one"));
+  for (int32_t i = 1; i < count; ++i)  // the stand-in puffers are no real ones: not freed
+    for (int k = 1; k < zeff::anim().defs[i].count(0x10c); ++k) zeff::anim().defs[i].puffers[k].made = nullptr;
+  zeff::anim_free_all();
+  zeff::anim() = zeff::AnimState{};
+  zcls::lists() = zcls::Lists{};
+  zeff::anim_hooks() = hooks_were;
+  // --check-mod reads the node file (both halves, no world needed) and names one without its materials;
+  // --build-anim says the original needs the node in gamez.zbd.
+  int errors = 0;
+  std::string report;
+  for (const std::string& l : mech3::mod_check(m, install, &errors)) report += l + "\n";
+  const bool node_ok = report.find("a node of its own") != std::string::npos;
+  put(wd + "/mods/broken/mod.txt", "name=B\n");
+  put(wd + "/mods/broken/zbd/anim/x.flt.json", model);
+  int broken_errors = 0;
+  std::string broken;
+  for (const std::string& l : mech3::mod_check(wd + "/mods/broken", install, &broken_errors)) broken += l + "\n";
+  std::vector<std::string> lines;
+  mech3::anim_defs::build_for_original(m, install, &lines);
+  bool noted = false;
+  for (const std::string& l : lines) noted = noted || l.find("mod_muz.flt.json is a node file") != std::string::npos;
+  std::printf("  check: node %d, broken %d (%s)\n", node_ok, broken_errors, broken.find("no materials") != std::string::npos ? "no materials" : "?");
+  EXPECT(node_ok && broken_errors == 1 && broken.find("no materials list") != std::string::npos && noted);
 }
 
 // What a world's anim JSON refuses, with the file, line and place (docs/modding.md).
