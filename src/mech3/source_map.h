@@ -52,10 +52,6 @@ using MapProgress = std::function<bool(double fraction, const std::string& entry
 // header (DATA1.HDR, about 200 MB in on the MW3 disc) and no further.
 Found map_source(const std::string& path, const MapProgress& progress = nullptr);
 
-// What this build can play where it is: an installed Pirate's Moon in a plain folder. A disc
-// isn't installed from here (the installer's tables are MechWarrior 3's), nor MechWarrior 3 played.
-bool usable(const Found& f);
-
 // Plain words for a game found, for the player.
 std::string game_words(const Found& f);
 
