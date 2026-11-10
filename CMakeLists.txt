@@ -620,6 +620,7 @@ add_executable(mw3tests
   tests/test_entry_pilot_copy.cpp
   tests/test_mod_copy_report.cpp
   tests/test_net_save.cpp
+  tests/test_save_entry.cpp
   tests/test_new_weapon.cpp
   tests/test_teleport.cpp
   tests/test_bounded_readers.cpp

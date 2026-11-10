@@ -136,3 +136,33 @@ what is certain is: what the copy replaces in the mods still there (a file
 nothing above the gap has may have been the missing campaign's, so neither
 "adds" nor the game's files are claimed). A chain that comes round to
 itself ends. Tests: `mod_copy_report_*` (tests/test_mod_copy_report.cpp).
+
+## Built: the save's entry (2026-11-10)
+
+"A saved game belongs to its entry", in `upgrades/mods/save_mods`. The
+program makes one call once an entry's mods are mounted,
+`mech3::save_entry_set(write_dir, entry)` (a plain start leaves it empty);
+it fills `save_entry()`: the entry's id and name, the entries it is built on
+(by `base=`, nearest first), the gameplay hash of its ticks in their order
+(`mods_gameplay_hash`, so a looks-only tick changes nothing) with their
+names, and the same hash of everything it mounts (`entry_mount_list`: its
+own mod and its bases' count there). A game saved in an entry that mounts
+something of gameplay holds one more zSave entry, `Mods/entry` (text:
+`entry`, `name`, `base`, `ticks`, `tick`, `mounted` lines), in place of the
+mod list `Mods/identity`; an entry that mounts nothing of gameplay (the
+game's own with no gameplay tick) writes nothing, the original's save. The
+load's note, on the loading screen and in the log, once:
+
+- saved in another entry: "Saved in another campaign (X); this is Y";
+- the ticks changed: "This campaign's mods changed since the save: then A,
+  B; now A" (or, the same ticks with other files, "A mod of this campaign
+  changed since the save (A)");
+- the same ticks, the entry's own or its bases' files changed: "This
+  campaign's own files changed since the save";
+- saved outside an entry (a pilot copied over from the main menu):
+  "Saved without mods; the campaign Y now has: A" (or "its own files");
+- saved in an entry, loaded where nothing is mounted: "Saved in the
+  campaign X with its mods; none now".
+
+Outside an entry the mod list is written and compared as before (`--mod`, a
+developer's start). Tests: `save_entry_*` (tests/test_save_entry.cpp).

@@ -1501,6 +1501,11 @@ animations' 0x32..0x34):
   still loads: the animations are matched by name (above), so what moved is
   dropped rather than run as the wrong one.
 
+Inside a MODS campaign entry the save records the entry in place of the mod
+list (`Mods/entry`: the entry, what it is built on, its ticks), and the
+load's note speaks of the campaign and its ticks (`save_entry_set`,
+docs/mods-campaigns-plan.md, Built: the save's entry).
+
 Tests: `mods_saved_game_records_its_mods` (a world mod, two of them, a
 textures mod: the entry only with gameplay; each pairing said or not, once;
 the text read back), and `campaign_menus_to_c1m1_through_the_briefing_headless`
