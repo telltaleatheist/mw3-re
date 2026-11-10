@@ -48,7 +48,10 @@ std::string mods_row_text(const ModsListEntry& m) {
 
 std::string mods_row_note(const ModsListEntry& m, const std::vector<ModsListEntry>& all) {
   if (!m.info.error.empty()) return "Cannot be used: " + m.info.error;
-  if (m.conflicts_with.empty()) return "";
+  const std::string unread = m.anims_unread > 0 ? std::to_string(m.anims_unread) + (m.anims_unread == 1 ? " animation file" : " animation files") +
+                                                      " Pirate's Moon does not read"
+                                                : std::string();
+  if (m.conflicts_with.empty()) return unread;
   std::string names;
   for (const std::string& f : m.conflicts_with) {
     std::string n = f;
@@ -64,9 +67,11 @@ std::string mods_row_note(const ModsListEntry& m, const std::vector<ModsListEntr
   if (anims) what += (what.empty() ? "" : " and ") + std::to_string(anims) + (anims == 1 ? " animation" : " animations");
   std::string bases;
   for (const std::string& w : m.anim_bases) bases += (bases.empty() ? "" : ", ") + w;
-  if (what.empty()) return "Its animations only add to " + bases + ": " + names + " has the whole world's";
-  if (!bases.empty()) return "Shares " + what + " with " + names + ", which wins; its animations only add to " + bases;
-  return "Shares " + what + " with " + names + ", which wins";
+  std::string note;
+  if (what.empty()) note = "Its animations only add to " + bases + ": " + names + " has the whole world's";
+  else if (!bases.empty()) note = "Shares " + what + " with " + names + ", which wins; its animations only add to " + bases;
+  else note = "Shares " + what + " with " + names + ", which wins";
+  return unread.empty() ? note : note + "; " + unread;
 }
 
 std::string mods_campaign_row_text(const ModsCampaignRow& c) {
