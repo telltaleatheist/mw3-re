@@ -26937,3 +26937,72 @@ TEST(mission_c1m1_vehicle_editor_applies_to_a_brain_headless) {
   EXPECT(std::find(names.begin(), names.end(), "player") != names.end() && names.size() > 1);
   EXPECT(!picked.empty() && brain_pilot == "Tester" && cached_pilot == "Tester" && ran >= 60 && closed);
 }
+
+// The vehicle editor's p2 in play (S7d, docs/editor.md, The vehicle
+// editor's pages): a made vehicle's page shows its home net; Show checked
+// and Apply puts a second net editor on that net (0x004044c0, on the frame's
+// list); a place typed, Apply and Send home put the vehicle there
+// (0x004bc960); Show unchecked frees the editor again.
+TEST(mission_c1m1_vehicle_editor_p2_shows_the_net_and_sends_home_headless) {
+  if (!have_game()) return;
+  std::string picked, net_name;
+  bool shown = false, freed = false, on_net = false;
+  float target[3] = {}, before[3] = {}, after[3] = {};
+  int32_t at = -1, home = -1;
+  mech3::app_key_calls().debug_camera = true;
+  cheat_mission("vehicle_editor_p2", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
+    if (f < 30) return false;
+    mech3::VehicleEditor* e = mech3::vehicle_editor();
+    if (at < 0) {
+      mech3::editor_key(mech3::kEditorCommand);
+      mech3::edit_vehicles(0);
+      e = mech3::vehicle_editor();
+      if (!e) return true;
+      mech3::VehicleSummary sm;
+      for (size_t i = 0; i < e->items.size() && picked.empty(); ++i)
+        if (mech3::describe_vehicle(e->items[i].vehicle, &sm) && sm.ai_controls &&
+            mech3::vehicle_editor_hooks().brain_params(e->items[i].vehicle)) {
+          *e->form.fields[0].i = static_cast<int32_t>(i);
+          e->form.changed(e->form.fields[0]);
+          picked = e->items[i].name;
+          for (int k = 0; k < 3; ++k) before[k] = sm.pos[k];
+        }
+      if (picked.empty()) return true;
+      mech3::vehicle_editor_tab(mech3::kPageP2);
+      mech3::Dialog& p2 = e->pages[mech3::kPageP2];
+      home = e->params.get<int32_t>(0x04);
+      const mech3::DlgCombo& nets = p2.at(1238).combo;
+      if (nets.cur >= 0) net_name = nets.items[size_t(nets.cur)].text;
+      p2.at(1249).check = 1;  // Show
+      target[0] = before[0] + 20.0f, target[1] = before[1], target[2] = before[2] + 20.0f;
+      p2.at(1200).text = std::to_string(target[0]);
+      p2.at(1202).text = std::to_string(target[2]);
+      e->form.press("Apply");
+      shown = e->shown && e->shown->net && e->shown->net->net && e->shown->net->net->get_id() == home;
+      e->form.changed(*e->form.field("Send home"));
+      at = f;
+      return false;
+    }
+    if (f < at + 30) return false;
+    mech3::VehicleSummary sm;
+    if (e && mech3::describe_vehicle(e->items[size_t(e->selected)].vehicle, &sm))
+      for (int k = 0; k < 3; ++k) after[k] = sm.pos[k];
+    if (e) {
+      if (mech3::ai::AiParams* b = mech3::vehicle_editor_hooks().brain_params(e->items[size_t(e->selected)].vehicle))
+        on_net = b->get<int32_t>(0x04) == home;
+      e->pages[mech3::kPageP2].at(1249).check = 0;
+      e->form.press("Apply");
+      freed = !e->shown;
+      e->form.press("OK");
+    }
+    mech3::editor_key(mech3::kEditorCommand);
+    return true;
+  });
+  mech3::app_key_calls().debug_camera = false;
+  std::printf("  picked %s, home net %d (%s); Show's editor %d; sent from %.1f,%.1f to %.1f,%.1f (wanted %.1f,%.1f); "
+              "on its net %d; freed %d\n",
+              picked.c_str(), home, net_name.c_str(), shown, before[0], before[2], after[0], after[2], target[0],
+              target[2], on_net, freed);
+  EXPECT(!picked.empty() && !net_name.empty() && shown && freed && on_net);
+  EXPECT(std::fabs(after[0] - target[0]) < 2.0f && std::fabs(after[2] - target[2]) < 2.0f);
+}

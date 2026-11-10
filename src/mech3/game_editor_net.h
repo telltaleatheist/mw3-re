@@ -91,6 +91,13 @@ void net_params_open(int32_t y);      // 0x004036f0 -> 0x004bd330 -> 0x004bf670
 void net_window_open(const char* name);  // 0x00404570 on the window's slot
 void net_window_free();                  // 0x00404420
 void net_editor_frame_all(bool editing); // 0x00404290
+void net_window_show();                  // 0x004bf670 with no file (the vehicle editor's Net Edit too)
+// The frame's list of editor slots ([0x005f4c60]; the main one is first).
+void net_editor_slot_add(NetEditor** slot);     // 0x004043c0
+void net_editor_slot_remove(NetEditor** slot);  // 0x00404420
+void net_editor_slot_free(NetEditor*& slot);    // 0x00404490(0)
+bool net_editor_showing(const ai::AiNet* net);  // 0x00404270
+void net_editor_show(NetEditor*& slot, ai::AiNet* net);  // 0x004044c0
 
 // Ours: a line under the panel's rows (the save's folder, "no network to
 // save"), said in the log too; the next menu clears it.

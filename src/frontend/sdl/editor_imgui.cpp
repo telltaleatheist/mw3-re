@@ -9,6 +9,7 @@
 #include "imgui.h"
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlgpu3.h"
+#include "upgrades/editor/ddx.h"
 #include "upgrades/editor/form.h"
 
 namespace sdlfe {
@@ -71,12 +72,47 @@ void field(mech3::EditorForm& form, mech3::FormField& f) {
     case mech3::FormField::kText: {
       char buf[256];
       std::snprintf(buf, sizeof buf, "%s", f.text->c_str());
-      if (ImGui::InputText(f.label.c_str(), buf, sizeof buf)) *f.text = buf, changed = true;
+      const int32_t lim = f.limit && *f.limit > 0 && *f.limit < 255 ? *f.limit + 1 : static_cast<int32_t>(sizeof buf);
+      const ImGuiInputTextFlags fl = f.read_only ? ImGuiInputTextFlags_ReadOnly : 0;
+      if (ImGui::InputText(f.label.c_str(), buf, static_cast<size_t>(lim), fl)) *f.text = buf, changed = !f.left;
+      if (f.left && ImGui::IsItemDeactivated()) {
+        mech3::EditorForm* fp = &form;
+        std::function<void()> left = f.left;
+        mech3::form_post([fp, left] {
+          if (mech3::form_shown(fp)) left();
+        });
+      }
       break;
     }
+    case mech3::FormField::kCheck: {
+      // A check box; a three-state one (BS_AUTO3STATE) shows 2 as mixed and
+      // a click goes 0, 1, 2, 0 as Win32's does.
+      bool v = *f.i == 1;
+      if (*f.i == 2) ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, true);
+      const bool clicked = ImGui::Checkbox(f.label.c_str(), &v);
+      if (*f.i == 2) ImGui::PopItemFlag();
+      if (clicked) *f.i = f.max == 2 ? (*f.i + 1) % 3 : (*f.i ? 0 : 1), changed = true;
+      break;
+    }
+    case mech3::FormField::kRadio: {
+      ImGui::TextUnformatted(f.label.c_str());
+      ImGui::PushID(f.label.c_str());
+      for (int32_t k = 0; k < static_cast<int32_t>(f.choices.size()); ++k) {
+        ImGui::SameLine();
+        if (ImGui::RadioButton(f.choices[size_t(k)].c_str(), *f.i == k)) *f.i = k, changed = true;
+      }
+      ImGui::PopID();
+      break;
+    }
+    case mech3::FormField::kButton:
+      changed = ImGui::Button(f.label.c_str());
+      break;
     case mech3::FormField::kChoice: {
+      std::vector<std::string> live;
+      if (f.combo) live = f.combo->texts();
+      const std::vector<std::string>& names = f.combo ? live : f.choices;
       std::vector<const char*> items;
-      for (const std::string& c : f.choices) items.push_back(c.c_str());
+      for (const std::string& c : names) items.push_back(c.c_str());
       if (items.size() > 8)
         changed = ImGui::ListBox(f.label.c_str(), f.i, items.data(), static_cast<int>(items.size()), 12);
       else

@@ -2,6 +2,9 @@
 // docs/editor.md S4) with its calls out stubbed: the order of the entry's
 // and exit's calls, the main menu's rows, the hovered row lit and a press
 // dispatched to its row.
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -13,6 +16,7 @@
 #include "mech3/zainet.h"
 #include "mech3/zainetedit.h"
 #include "mech3/game_editor_vehicles.h"
+#include "mech3/mech_config.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
@@ -657,12 +661,114 @@ TEST(vehicle_editor_shell_loads_and_applies) {
   e = mech3::vehicle_editor();
   EXPECT(e && e->selected == 2 && e->items.size() == 3);
   // Pause's box asks the app; OK applies and closes.
-  e->pause_box = 1;
+  e->main.at(1218).check = 1;  // the box clicked
   for (mech3::FormField& f : e->form.fields)
     if (f.label == "Pause") e->form.changed(f);
   EXPECT(h.pauses == 1);
   EXPECT(e->form.press("OK"));
   EXPECT(!mech3::vehicle_editor());
+  mech3::set_vehicle_editor_hooks(nullptr);
+  mech3::ai::aiv_file_reset();
+}
+
+// The pages p1 and p2 (S7d; docs/editor.md, The vehicle editor's pages): the
+// controls are filled from the settings when a page is shown and read back
+// by MFC's rules on Apply; a field that does not read stops the pass with
+// its box; p2's lists (nets, loadouts, chassis) and its handlers.
+namespace {
+struct PageStub : VehStub {
+  mech3::ConfigList loadouts{9, 3};
+  int homes = 0;
+  float home_at[4] = {};
+  mech3::ai::AiNet* home_net = nullptr;
+  PageStub() {
+    loadouts.configs = {new mech3::Config(9, "Standard"), new mech3::Config(9, "mine"), new mech3::Config(9, "Assault")};
+    loadouts.configs[1]->player_made = 1;
+  }
+  const mech3::ConfigList* configs(void* v) override { return v == &a_tag ? &loadouts : nullptr; }
+  void send_home(void*, mech3::ai::AiNet* n, const float at[3], float yaw) override {
+    ++homes, home_net = n, home_at[0] = at[0], home_at[1] = at[1], home_at[2] = at[2], home_at[3] = yaw;
+  }
+};
+mech3::FormField* field_named(mech3::VehicleEditor* e, const char* label) { return e->form.field(label); }
+}  // namespace
+
+TEST(vehicle_editor_pages_show_and_take_back) {
+  mech3::ai::aiv_file_reset();
+  mech3::ai::AiNet net7(7), net3(3);
+  PageStub h;
+  h.a.put<int32_t>(0x04, 7);         // its home net
+  h.a.put<float>(0x08, 12.5f);       // x
+  h.a.put<float>(0x14, 1.5707964f);  // the yaw, radians in play
+  h.a.put<int32_t>(0x18, 2);
+  h.a.put<int32_t>(0xbc, 2);         // loadout 2, Assault
+  h.a.put<int32_t>(0xc4, 9);         // madcat
+  h.a.put<int32_t>(0xc8, 40);        // the skin
+  h.a.put<int32_t>(0x8c, 1);         // range to the player
+  h.a.pilot = strdup("Dom");
+  mech3::set_vehicle_editor_hooks(&h);
+  mech3::edit_vehicles(0);
+  mech3::VehicleEditor* e = mech3::vehicle_editor();
+  EXPECT(e && e->page == mech3::kPageP1);
+  if (!e) return;
+  mech3::Dialog& p1 = e->pages[mech3::kPageP1];
+  mech3::Dialog& p2 = e->pages[mech3::kPageP2];
+  EXPECT(p1.at(1229).combo.cur == 0 && p1.at(1257).check == 2);  // "player"; Enable Now "as the brain has it"
+  // p2 is filled when it is shown: the place, the yaw back in degrees, the pilot, the lists.
+  *field_named(e, "##pages")->i = mech3::kPageP2;
+  e->form.changed(*field_named(e, "##pages"));
+  EXPECT(e->page == mech3::kPageP2);
+  EXPECT(p2.at(1200).text == "12.5" && p2.at(1203).text == "90" && p2.at(1243).text == "Dom" && p2.at(1243).limit == 32);
+  EXPECT(p2.at(1284).text == "40" && p2.at(1111).text == "2" && p2.at(1197).check == 1);  // team 2: Foe
+  const mech3::DlgCombo& nets = p2.at(1238).combo;
+  EXPECT(nets.texts() == std::vector<std::string>({"net_03", "net_07"}) && nets.cur == 1);
+  const mech3::DlgCombo& cfg = p2.at(1273).combo;
+  EXPECT(cfg.texts() == std::vector<std::string>({"Assault", "Standard"}) && cfg.cur == 0 && cfg.data(0) == 2);
+  const mech3::DlgCombo& ch = p2.at(1274).combo;
+  EXPECT(ch.items.size() == 20 && ch.cur >= 0 && ch.items[size_t(ch.cur)].text == "madcat");
+  // Typed and picked, then Apply: on the brain in play units.
+  p2.at(1200).text = " 30 ";
+  p2.at(1203).text = "180";
+  p2.at(1243).text = "Alan";
+  p2.at(1273).combo.cur = 1;  // Standard
+  e->form.changed(*field_named(e, "Configuration"));
+  EXPECT(e->params.get<int32_t>(0xbc) == 0);
+  p2.at(1238).combo.cur = 0;  // net_03
+  e->form.changed(*field_named(e, "Home Net"));
+  EXPECT(e->params.get<int32_t>(0x04) == 3 && p2.at(1117).text == "3");
+  e->form.press("Apply");
+  EXPECT(h.a.get<float>(0x08) == 30.0f && std::fabs(h.a.get<float>(0x14) - 3.14159265f) < 1e-5f);
+  EXPECT(h.a.pilot && std::string(h.a.pilot) == "Alan" && h.a.get<int32_t>(0xbc) == 0 && h.a.get<int32_t>(0x04) == 3);
+  // The Friend radio: the first of the player's allies (2: team 1).
+  p2.at(1197).check = 0;
+  e->form.changed(*field_named(e, "Team"));
+  EXPECT(e->params.team() == 1 && p2.at(1111).text == "1");
+  // A text that is no number stops the pass at its field, with MFC's box;
+  // the fields before it are taken.
+  p2.at(1201).text = "5";
+  p2.at(1202).text = "-0";  // MFC refuses a zero read from anything but '0'
+  p2.at(1284).text = "77";
+  e->form.press("Apply");
+  EXPECT(mech3::form_shown(&e->message));  // (the show pass after the store clears ddx_message)
+  EXPECT(e->message.fields.size() == 1 && e->message.fields[0].label == "Please enter a number.");
+  EXPECT(h.a.get<float>(0x0c) == 5.0f && h.a.get<int32_t>(0xc8) == 40);  // y taken, the skin not
+  e->message.press("OK");
+  EXPECT(!mech3::form_shown(&e->message));
+  // Send home: at the place last exchanged, on the home net.
+  e->form.changed(*field_named(e, "Send home"));
+  EXPECT(h.homes == 1 && h.home_net == &net3 && h.home_at[0] == 30.0f && h.home_at[3] == 180.0f);
+  // p1: Enable Now checked is put on the brain's +0x3c at Apply, then reset.
+  *field_named(e, "##pages")->i = mech3::kPageP1;
+  e->form.changed(*field_named(e, "##pages"));
+  p2.at(1202).text = "0";
+  EXPECT(e->page == mech3::kPageP1);
+  p1.at(1257).check = 1;
+  p1.at(1229).combo.cur = 1;  // "nearest enemy"
+  e->form.press("Apply");
+  EXPECT(h.a.get<int32_t>(0x3c) == 1 && e->keep[4] == 2 && h.a.get<int32_t>(0x8c) == 0);
+  EXPECT(e->form.press("OK") && !mech3::vehicle_editor());
+  std::free(h.a.pilot), h.a.pilot = nullptr;
+  for (mech3::Config*& c : h.loadouts.configs) delete c, c = nullptr;
   mech3::set_vehicle_editor_hooks(nullptr);
   mech3::ai::aiv_file_reset();
 }

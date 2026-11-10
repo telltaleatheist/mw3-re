@@ -958,8 +958,9 @@ lists:
 - the Attack strategy's two fixed strings.
 
 It then selects the first vehicle (0x004b8df0) and shows the first page of
-each tab. When the mission has no "ionet" (0x004c4a20, 0x004c4a40), +0x1d1
-is set. Which list is which, regions, valves or targets, is S7c's to read.
+each tab. +0x1d1 (Show InOut) is set when the mission's boundary is already
+drawn ([0x0060b334], 0x004c4a20 says whether it is empty; S7d). Which list
+is which, regions, valves or targets, is S7e's to read.
 
 **The pages**, as made by the constructor 0x004b80f0. Each page has its own
 vtable and its DoDataExchange at vt+0x8c:
@@ -1048,8 +1049,9 @@ meant, as ours in `src/upgrades/editor/`.
   - the list: zEntity's list in order, each mech (an AI one by its aiv
     record's name, the player's "player") and each made vehicle with AI
     controls (by its node's name, its record's). The exe's own test
-    (0x004bb200: vt+0x2c, vt+0x40, vt+0x50, or the controls' vt+0x54) is
-    left to read with the pages.
+    (0x004bb200: each entity's vt+0x2c then vt+0x40; kept when it is a mech,
+    vt+0x50, or its controls, vt+0x140, answer vt+0x54; the item's text the
+    entity's +0x04 name) is the one the hooks follow.
   - each one's brain's settings (vt+0x140 -> vt+0x90);
   - the masks (+0xc0..+0xc8);
   - the player's allies and enemies;
@@ -1076,6 +1078,178 @@ meant, as ours in `src/upgrades/editor/`.
   - test_aiv_edit.py adds 0x004d71a0 (3000 masks, 0 differ).
   - Breaks: no assignment to the brain (both tests fail); no cache edit
     (the mission test fails).
+
+### The vehicle editor's pages: p1 and p2 (S7d, 2026-11-09)
+
+**How the dialog exchanges.** Every page is a child dialog with its own
+DoDataExchange (vt+0x8c). The main dialog's (0x004b8680) does the team
+round trip (0x004bc260) when showing, then only the page shown on the main
+tab (+0x4e0), then Pause (1218). Switching tabs (0x004b7c80) gathers the
+page leaving and shows the one coming. So a page not shown keeps what it
+showed last until it comes back. Apply, a new pick, Pause and Net Edit
+gather the page shown first. A float field goes through MFC's text form
+("%.6g") whenever its page is gathered: 12.3456789 comes back as 12.3457.
+
+**The MFC stand-in** (`upgrades/editor/ddx`, FIX (A)): MFC's DDX_* and
+DDV_* (mfc42.dll, not in the exe) on controls kept as data: an edit's
+text, a button's check, a radio group's choice, a combo's items and
+selection. A ported DoDataExchange runs on it line for line, and the ImGui
+form draws the controls. What it keeps of MFC 4.2 (dlgdata.cpp) and
+MSVCRT:
+- **Numbers:** a float is shown as "%.6g", with MSVC's three exponent
+  digits ("1e+012") and its "1.#INF", "-1.#IND" texts. A float is read
+  back with MSVC's strtod, which also takes 'd' for the exponent
+  (`crt::msvc_strtod`). Ints use "%d" and "%u" with strtol / strtoul.
+- **What MFC refuses:** spaces and tabs are allowed round a number. A 0 read
+  from anything but a leading '0' is refused, so "+0", "-0" and ".0" all
+  fail. "%u" refuses a leading '-'. The text is cut to 31 characters before
+  it is read (MFC's buffer).
+- **A field that fails** gets MFC's box ("Please enter a number.", "Please
+  enter an integer.", "Please enter a positive integer.", "Please enter no
+  more than 32 characters.", "Please enter an integer between 0 and 100.").
+  The pass then stops there, as pDX->Fail() throws. The fields before it are
+  taken, the rest are not, and the store runs anyway: 0x004b8dc0 ignores
+  UpdateData's answer.
+- **DDX_Check:** a value outside 0..2 is shown as 0 and set to 0.
+  BM_SETCHECK puts a two-state box's 2 at 1.
+- **DDV_MaxChars** also limits the edit (EM_LIMITTEXT).
+- **CB_SELECTSTRING** finds the first item the text begins, with no case,
+  and leaves the selection alone when none does.
+- **CBS_SORT** sorts with no case. Windows' word sort, which skips hyphens
+  and apostrophes, is not modelled: no shipped name has either.
+- **Notifications:** none are sent while a page exchanges. MFC locks its
+  notifications out during UpdateData.
+
+The MFC thunks the pages call: DDX_Control 0x005abd86, DDX_Text float
+0x005abd80, int 0x005abfea, UINT 0x005abff6, CString 0x005abdc2,
+DDX_Check 0x005abdce, DDX_Radio 0x005abff0, DDV_MaxChars 0x005ac04a,
+DDV_MinMaxInt 0x005ac044 (Ghidra's names for the last two are swapped),
+CString = 0x005abdbc, UpdateData 0x005abd8c.
+
+**p1** (template 167, 0x004b8bc0), as offsets in the settings (+0x64):
+
+| Control | Field |
+|---|---|
+| Always active, check 1231 | +0x88 |
+| the range in Activation, edit 1209 | +0x1c |
+| Range to, list 1229 ("player", "nearest enemy") | +0x8c: 1 for player (item 0) |
+| Enable Initial, check 1217 | +0x3c, the record's |
+| Enable Now, three-state 1257 | the editor's +0x984 (2: as the brain has it) |
+| Leave Net Range to Target, 1210 | +0x20 |
+| Return to Net Range from Net, 1211 | +0x24 |
+| Approach Range to Target, 1212 | +0x28 |
+| Minimum Range to Target, 1214 | +0x2c |
+| Disable, check 1251 | +0x54 |
+
+**Enable Initial and Enable Now.** Enable Initial goes into the aiv record.
+Enable Now goes only on the brain: the store's first "as the brain has it"
+word replaces +0x3c on the brain.
+
+**p2** (template 166, 0x004b8eb0):
+
+| Control | Field |
+|---|---|
+| Team, radios 1197..1199 | the editor's +0x4dc |
+| the team, edit 1111 (read only) | +0x18 (UINT) |
+| x, y, z, yaw, 1200..1203 | +0x08, +0x0c, +0x10, +0x14 (the yaw in degrees) |
+| Net ID, edit 1117 (read only) | +0x04, the home net |
+| Pilot Name, 1243 (at most 32) | the page's CString, into +0xd4 (0x0049d250; empty: none) |
+| Show, three-state 1249 | the editor's +0x1cc |
+| Objective Conditional 1275, Shutdown on start 1276 | +0xcc bits 4 and 5 (through the page's +0x64 / +0x68) |
+| can configure 1279 | +0xcc bit 7 |
+| Show InOut 1282 | the editor's +0x1d1 |
+| Lancemate, three-state 1283 | +0xcd: bit 1 set shows 2; 2 sets bit 1 and clears bit 0, else bit 1 cleared and bit 0 the check |
+| Skin 1284 (0..100) | +0xc8 |
+| Configuration 1273, Default Chassis 1274, Home Net 1238 | the lists below |
+
+**p2's lists** are filled at load (0x004bc140) and when p2 is shown. They are
+read back when p2 is gathered: the chassis (0x004bc8f0), the loadout
+(0x004bc750), then the home net (0x004bc4e0), each only when an item is
+picked.
+- **Home Net** (0x004bc480, at OnInitDialog and Refresh): every object on
+  znet's registry by its net's name ("net_02"), its id as the item's data.
+- **Configuration** (0x004bc640 at load; shown by 0x004bc790): the
+  vehicle's mech's loadouts (+0x684, 0x00432940: its definition's +0x20)
+  except the player's own (+0x1c), each by its index. Nothing for a vehicle
+  that is not a mech.
+- **Default Chassis** (0x004bc860): "default" (-1) and the 19 chassis
+  (0x00484650).
+- **The chassis shown** (0x004bc930): chosen by name. A number past the 19
+  names "notmech", which matches nothing, so the list keeps what it
+  showed.
+- **The home net shown** (0x004bc570), the same pass: Show's editor goes on
+  the net (or is freed), and the boundary is drawn or taken down.
+
+**p2's handlers** (its message map 0x005c9538):
+- **The team box** (1111) answers EN_KILLFOCUS (0x004b9270), not EN_CHANGE:
+  it is read only, but clicking into it and out again gathers p2, rounds the
+  team (0x004bc260) and shows it again.
+- **The radios** (0x004b9290) gather p2. When the choice changed, the team
+  becomes the first of the player's allies (Friend), enemies (Foe) or
+  neither (Other), or -1 when there is none (0x004bc300). With no player
+  they do nothing.
+- **Home Net, Configuration, Default Chassis** (CBN_SELCHANGE: 0x004b9f30,
+  0x004b9fb0, 0x004b9fd0): gather p2, take the pick, show p2 again.
+- **Net Edit** (1250, 0x004b9f50): the whole dialog gathered, then window
+  181 shown with no file (0x004bf670 with ECX 0). It is the same window as
+  Change Net Params, and here it opens even without the net editor.
+- **Send home** (1255, 0x004b9f70 -> 0x004bc960): no gather first. The
+  vehicle's brain lets go of the home net (the controls' vt+0x64,
+  0x004e9100), the vehicle is put at x, y, z and the yaw last exchanged
+  (vt+0xdc: 0x00418f30 for a mech, 0x004a3630 for others), and the brain
+  takes the net again (vt+0x04, 0x004e9380). Nothing without the net.
+
+**Show** (the editor's +0x1c8) is a second net editor slot, put on the frame's
+list by the editor's constructor (0x004043c0) and taken off by its
+destructor (0x00404420).
+- **The list** ([0x005f4c60]) holds the main editor's slot first (0x00404140),
+  then window 181's and Show's, in the order they were made. Each frame
+  steps them all (0x00404290).
+- **0x004044c0** puts an editor on the home net, on a new CZAiNetEdit of its
+  id, unless the slot shows it already or another editor on the list does
+  (0x00404270 -> 0x00404200). A null net frees it (0x00404490).
+
+**Show InOut** ([0x0060b334], 0x004c4950: 0x004c4730 draws the mission's
+boundary from the "ionet" net, 0x004c41b0 takes it down) is not ported yet.
+The check box and its field work; drawing is the hooks' `show_inout`,
+empty for now.
+
+**Ported** in `mech3/game_editor_vehicles` and `game_editor_net` (the slot list):
+- the pages' controls, p1 and p2 exchanged as above, and the main
+  dialog's exchange;
+- the tab switch, the fills, gathers and handlers;
+- Show's editor;
+- the team round trip with the player's presence (`has_player`; before, no
+  allies and no enemies stood in for no player).
+
+The form draws each page's controls (`FormField` kCheck for two- and
+three-state boxes, kRadio, kButton, kChoice on a combo, kText with a limit,
+read only and a focus-lost call).
+
+**Tests:**
+- `test_vehicle_ddx.py`: 3000 random passes of p1 and p2, both directions.
+  The exe's 0x004b8bc0 / 0x004b8eb0 run in Unicorn with MFC's calls stood in
+  for by a Python model of MFC 4.2 on a table of controls, the port on its
+  stand-in. Each pass compares the fields, the controls' texts, checks and
+  limits, the controls exchanged in order, the list fills called in order,
+  and a failing field's control and message. The conversions are also
+  checked alone on hand-picked texts. 0 differ.
+- Breaks, each fails: x and z swapped (201 of 600); Lancemate's bit 1 kept
+  (39 of 3000); no 31-character cut (6 of 600); the skin's top 101 (4 of 600).
+- `vehicle_editor_pages_show_and_take_back`, with stub hooks:
+  - p1 and p2 filled from the settings, and the lists: nets, loadouts but
+    the player's, chassis;
+  - typed and picked fields put on the brain at Apply;
+  - Friend's team;
+  - "-0" stopping the pass with its box, the fields before it taken;
+  - Send home;
+  - Enable Now on the brain's +0x3c.
+- `mission_c1m1_vehicle_editor_p2_shows_the_net_and_sends_home_headless`:
+  - mobilehq_01's home net 2 ("net_02") shown;
+  - Show and Apply put a second editor on net_02;
+  - x and z typed 20 m off, then Apply and Send home: the vehicle is there 30
+    frames on, its brain on net 2;
+  - Show unchecked frees the editor.
 
 ## Dear ImGui for the editor's dialogs (lead, 2026-11-09)
 
@@ -1215,11 +1389,11 @@ frame hook, after the game's update and before present.
    - A mission test on c1m1: open the editor, pick a vehicle, change a value
      and Apply; the brain's settings change and the cache holds the record.
    - Pirate's Moon's differences counted.
-4. **S7d The pages, part 1:** p2, the vehicle, with its handlers (team, home
-   net and Net Edit into window 181, Send home, configuration, chassis), and
-   p1. Each page's DDX becomes a field table on the model, its gather and
-   scatter checked against the exe's DDX. The exe's DDX runs in Unicorn with
-   MFC's DDX_* calls hooked to a field table.
+4. **S7d The pages, part 1** (done, above): p2, the vehicle, with its
+   handlers (team, home net and Net Edit into window 181, Send home,
+   configuration, chassis), and p1. Each page's DDX runs on an MFC stand-in,
+   checked against the exe's DDX in Unicorn with MFC's calls modelled. Left
+   from it: Show InOut's drawing (0x004c4730, 0x004c41b0).
 5. **S7e The pages, part 2:** Attack and its strategy tab (Circle, Direct,
    Jump, Zig Zag, Random Move on Circle's DDX), Retreat, p5, Fire and Valve,
    with the valve combo.

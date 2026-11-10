@@ -31,6 +31,8 @@
 #include "mech3/mech_objective.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_parts.h"
+#include "mech3/mech_reader.h"
+#include "mech3/mech_config.h"
 #include "mech3/mech_waynet.h"
 #include "mech3/player_view.h"
 #include "mech3/zainetedit.h"
@@ -506,16 +508,37 @@ struct WiredVehicleEditor : VehicleEditorHooks {
     }
     return out;
   }
-  ai::AiParams* brain_params(void* v) override {
+  // vt+0x140's brain: an AI mech's, or a made vehicle's AI controls'.
+  static ai::Brain* brain_of(void* v) {
     int32_t n = 0;
     const AiMechMade* made = mission_ai_mechs(&n);
     for (int32_t i = 0; i < n; ++i)
       if (made[i].mech == v && made[i].controls)
-        if (auto* b = static_cast<ai::Brain*>(program_ai_mech_brain(made[i].controls))) return &b->params;
+        if (auto* b = static_cast<ai::Brain*>(program_ai_mech_brain(made[i].controls))) return b;
     if (std::find(g_order.begin(), g_order.end(), static_cast<Vehicle*>(v)) != g_order.end())
       if (auto* c = dynamic_cast<ai::AiVehicleControls*>(static_cast<BasicVehicle*>(static_cast<Vehicle*>(v))->controls))
-        if (c->brain) return &c->brain->params;
+        return c->brain.get();
     return nullptr;
+  }
+  ai::AiParams* brain_params(void* v) override {
+    ai::Brain* b = brain_of(v);
+    return b ? &b->params : nullptr;
+  }
+  bool has_player() override { return mech_mission_player() != nullptr; }
+  const ConfigList* configs(void* v) override {  // +0x684 -> 0x00432940
+    if (!entity_is_mech(v)) return nullptr;
+    const MechData* d = static_cast<const Mech*>(v)->pilot;
+    const MechDfn* dfn = d ? mech_dfn(d->roster) : nullptr;
+    return dfn ? dfn->configs : nullptr;
+  }
+  void send_home(void* v, ai::AiNet* net, const float at[3], float yaw) override {
+    ai::Brain* b = brain_of(v);
+    if (b) b->clear_if_object(net);  // vt+0x64
+    if (entity_is_mech(v))
+      move_mech(v, at, yaw);  // vt+0xdc 0x00418f30
+    else
+      vehicle_place(*static_cast<BasicVehicle*>(static_cast<Vehicle*>(v)), at, yaw);  // 0x004a3630
+    if (b) b->set_net(net);  // vt+0x04
   }
   void set_masks(void* v, uint32_t team, uint32_t allies, uint32_t enemies) override {
     if (entity_is_mech(v)) {

@@ -24,6 +24,9 @@ namespace mech3 {
 namespace {
 NetDialog g_dialog;
 NetEditor* g_editor = nullptr;  // [0x005f4c6c]
+// [0x005f4c60]'s list after the main editor's slot (0x00404140 puts it
+// first): the other slots in the order they were made (0x004043c0).
+std::vector<NetEditor**> g_slots;
 EditorForm g_dialog_form;  // FIX (A): the dialog as a form (form.h), drawn by ImGui
 std::string g_status;
 
@@ -544,7 +547,7 @@ void net_window_free() {
   form_hide(&g_window_form);
   form_hide(&g_open_form);
   if (!g_window) return;
-  delete g_window->hosted;
+  net_editor_slot_remove(&g_window->hosted);
   delete g_window;
   g_window = nullptr;
 }
@@ -557,9 +560,53 @@ void net_window_free() {
 // (0x004d5610 / 0x004d55f0 -> 0x004bf6f0).
 void net_params_open(int32_t) {
   if (!g_editor) return;
-  if (!g_window) g_window = new NetWindow;
+  net_window_show();
+}
+
+// Mech3.exe 1.2 @ 0x004bf670 with ECX 0: the window made once (0x004bf550,
+// its slot on the frame's list) and shown, its editor freed (0x004bf650).
+void net_window_show() {
+  if (!g_window) {
+    g_window = new NetWindow;
+    net_editor_slot_add(&g_window->hosted);
+  }
   net_window_open(nullptr);
   window_build();
+}
+
+// Mech3.exe 1.2 @ 0x004043c0: a slot on the frame's list.
+void net_editor_slot_add(NetEditor** slot) { g_slots.push_back(slot); }
+
+// Mech3.exe 1.2 @ 0x00404420: the slot's editor freed (0x00404490) and the
+// slot off the list.
+void net_editor_slot_remove(NetEditor** slot) {
+  net_editor_slot_free(*slot);
+  g_slots.erase(std::remove(g_slots.begin(), g_slots.end(), slot), g_slots.end());
+}
+
+// Mech3.exe 1.2 @ 0x00404490 (with 0)
+void net_editor_slot_free(NetEditor*& slot) {
+  delete slot;
+  slot = nullptr;
+}
+
+// Mech3.exe 1.2 @ 0x00404270 -> 0x00404200: an editor on the list (the main
+// one too) whose net was built from this one (+0x14's +0x34).
+bool net_editor_showing(const ai::AiNet* net) {
+  const auto on = [net](const NetEditor* e) { return e && e->net && e->net->net == net; };
+  if (on(g_editor)) return true;
+  for (NetEditor** s : g_slots)
+    if (on(*s)) return true;
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x004044c0: the slot shows `net` (an editor on a new edit
+// of it, 0x004bd360 then 0x00402f40), unless it shows it already or another
+// editor does; the old one freed first; null frees it.
+void net_editor_show(NetEditor*& slot, ai::AiNet* net) {
+  if (slot && net && slot->net && slot->net->net == net) return;
+  net_editor_slot_free(slot);
+  if (net && !net_editor_showing(net)) slot = new NetEditor(new ai::CZAiNetEdit(net->get_id(), nullptr, 0), 0);
 }
 
 // Mech3.exe 1.2 @ 0x00404290: every editor on the list, the window's too,
@@ -567,7 +614,9 @@ void net_params_open(int32_t) {
 // editor's menus are up (their own step runs it then).
 void net_editor_frame_all(bool editing) {
   if (!editing && g_editor) net_editor_step(0.1f);
-  if (g_window && g_window->hosted) net_editor_step_slot(g_window->hosted, 0.1f);
+  const std::vector<NetEditor**> slots = g_slots;  // a step may free a slot's owner
+  for (NetEditor** s : slots)
+    if (*s && std::find(g_slots.begin(), g_slots.end(), s) != g_slots.end()) net_editor_step_slot(*s, 0.1f);
 }
 void EditorHooks::net_frame(bool editing) { net_editor_frame_all(editing); }
 
