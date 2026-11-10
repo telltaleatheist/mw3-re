@@ -268,6 +268,14 @@ single-game packages stay. One sitting each, each with its tests:
    add, move, and the start from the moved folder. Breaks: the wanted game
    ignored, the install into MW3's folder, PM's add dropped, PM's move not
    followed: each caught.
+   **MechWarrior 3 too (2026-11-10, lead):** the check is `setup::start_check(dir, write_dir, game)`, both games'.
+   MW3's folders are c1-c4, c4b ("operation 4's second part") and t1 ("training"); measured on copies of
+   game/mw3-1.2 the same two files stop it starting. MW3's PLAY (`Launcher::mw3_ready`) shows its new notes once
+   (`mw3_notes=`), on the same screen as a first start's notes when there is one (`mw3_notes_seen`), and leaves a
+   blocker to mw3, which says it in its own box as the original does ("Cannot read mech3Msg.dll from the game
+   folder.", "No MechWarrior 3 install at ..."): a second refusal in the launcher added nothing. PM's launcher
+   refuses (mw3pm's own line is less plain). `setup_mechwarrior3_checks_before_a_start`,
+   `sdl_program_launcher_checks_mechwarrior3` (breaks: training left out, the notes always shown: caught).
 5. **Versions**: each entry shows its game's data version and its program's
    version. Test: the launcher's text for both games.
    **Done (2026-11-09):** "Ready: data 1.2, program v1.1.0, <folder>", PM's

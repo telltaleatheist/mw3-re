@@ -551,11 +551,6 @@ Result add_pm_sounds(const std::string& source, const std::string& write_dir, co
   return r;
 }
 
-// Pirate's Moon before a start (docs/launcher.md, Pirate's Moon): one release,
-// no patch and no movies. Only what stops mw3pm starting refuses (measured: no
-// reader.zbd, no Mech3Msg.dll); what stops its missions loading and an empty
-// soundsH.zbd (it falls back to soundsL's 11 kHz sounds) are notes. A file in
-// the settings folder counts: it is searched before the install.
 // Pirate's Moon has one version, 1.0: its main files as the disc has them
 // (branch pm's data_version.cpp kPmFiles, which mw3pm checks at its start).
 struct PmFile {
@@ -572,7 +567,13 @@ constexpr PmFile kPmFiles[] = {
     {"Mech3Msg.dll", 143360, 0xb03b93b6},       {"force_eff.ifr", 2166, 0x136eae86},
 };
 
-static Result& check_pm(const std::string& dir, const std::string& write_dir, Result& r) {
+// Either game before a start (docs/launcher.md, Pirate's Moon, sitting 3; measured on copies of both installs
+// with a file gone): only what stops it starting refuses (no reader.zbd, no Mech3Msg.dll); what stops its
+// missions loading and an empty soundsH.zbd (soundsL's 11 kHz sounds then) are notes. A file in the settings
+// folder counts: it is searched before the install.
+Result start_check(const std::string& dir, const std::string& write_dir, bool pirates_moon) {
+  Result r;
+  r.install_dir = dir, r.pirates_moon = pirates_moon;
   std::error_code ec;
   auto size_of = [&](const std::string& rel) -> int64_t {  // -1 when not there
     for (const std::string& d : {write_dir, dir}) {
@@ -582,16 +583,55 @@ static Result& check_pm(const std::string& dir, const std::string& write_dir, Re
     }
     return -1;
   };
-  const std::string name = version_words("", true);
+  const std::string name = pirates_moon ? version_words("", true) : "MechWarrior 3";
   if (size_of("zbd/reader.zbd") <= 0 || zutl::any_case(dir, "Mech3Msg.dll").empty()) {
-    const char* what = size_of("zbd/reader.zbd") <= 0 ? "an empty zbd\\reader.zbd (its menus and words)"
+    const char* what = size_of("zbd/reader.zbd") <= 0 ? "an empty or missing zbd\\reader.zbd (its menus and words)"
                                                         : "no Mech3Msg.dll (its messages)";
     r.summary = name + " cannot start: " + dir + " has " + what + ". Reinstall it from its disc, or pick another copy.";
     return r;
   }
   r.ok = true;
   r.summary = "Found " + name + " at " + dir + ".";
-  // The data's version as mw3pm measures it, the settings folder's files first.
+  std::string core;
+  for (const char* f : {"zbd/interp.zbd", "zbd/mechlib.zbd", "zbd/motion.zbd"})
+    if (size_of(f) <= 0) core += std::string(core.empty() ? "" : ", ") + "zbd\\" + (f + 4);
+  if (!core.empty())
+    r.warnings.push_back("Its missions will not load: " + core + (core.find(',') == std::string::npos ? " is" : " are") +
+                         " missing or empty. Reinstall " + name + " from its disc.");
+  // Each world folder with its world and its reader: PM's four operations; MW3's, its training and Op 4's second.
+  // The operations by number ("operations 2 and 4"), then MW3's Op 4 second part and its training.
+  const auto lost = [&](const char* folder) {
+    const std::string op = std::string("zbd/") + folder + "/";
+    return size_of(op + "gamez.zbd") <= 0 || size_of(op + "reader.zbd") <= 0;
+  };
+  const auto join = [](const std::vector<std::string>& v) {  // "a", "a and b", "a, b and c"
+    std::string s;
+    for (size_t i = 0; i < v.size(); ++i) s += (i == 0 ? "" : i + 1 == v.size() ? " and " : ", ") + v[i];
+    return s;
+  };
+  std::vector<std::string> nums, parts;
+  for (const char* c : {"c1", "c2", "c3", "c4"})
+    if (lost(c)) nums.push_back(c + 1);
+  if (!nums.empty()) parts.push_back((nums.size() == 1 ? "operation " : "operations ") + join(nums));
+  if (!pirates_moon && lost("c4b")) parts.push_back("operation 4's second part");
+  if (!pirates_moon && lost("t1")) parts.push_back("training");
+  if (!parts.empty())
+    r.warnings.push_back("The missions of " + join(parts) + " are missing or empty, so " +
+                         (nums.size() + parts.size() - !nums.empty() > 1 ? "they" : "it") + " cannot be played.");
+  if (size_of("zbd/soundsH.zbd") <= 0)
+    r.warnings.push_back("Its zbd\\soundsH.zbd is " + std::string(size_of("zbd/soundsH.zbd") < 0 ? "missing" : "empty") +
+                         ", so the game plays its lower-quality sounds. " +
+                         (pirates_moon ? "ADD FROM MY DISC puts the disc's copy in your settings folder (your install is not changed)."
+                                       : "Reinstall MechWarrior 3 from its disc to have them back."));
+  return r;
+}
+
+namespace {
+// Pirate's Moon's install: the start check, then its data's version as mw3pm measures it, the settings folder's
+// files first.
+Result check_pm(const std::string& dir, const std::string& write_dir) {
+  Result r = start_check(dir, write_dir, true);
+  if (!r.ok) return r;
   int same = 0, missing = 0;
   std::vector<uint8_t> bytes;
   for (const PmFile& k : kPmFiles) {
@@ -602,29 +642,9 @@ static Result& check_pm(const std::string& dir, const std::string& write_dir, Re
     else if (bytes.size() == k.size && zutl_zar::crc32(0, bytes.data(), bytes.size()) == k.crc) ++same;
   }
   r.version = same == static_cast<int>(std::size(kPmFiles)) ? "1.0" : missing ? "incomplete" : "unknown";
-  std::string core;
-  for (const char* f : {"zbd/interp.zbd", "zbd/mechlib.zbd", "zbd/motion.zbd"})
-    if (size_of(f) <= 0) core += std::string(core.empty() ? "" : ", ") + "zbd\\" + (f + 4);
-  if (!core.empty())
-    r.warnings.push_back("Its missions will not load: " + core + (core.find(',') == std::string::npos ? " is" : " are") +
-                         " missing or empty. Reinstall " + name + " from its disc.");
-  std::vector<int> gone;
-  for (int c = 1; c <= 4; ++c) {
-    const std::string op = "zbd/c" + std::to_string(c) + "/";
-    if (size_of(op + "gamez.zbd") <= 0 || size_of(op + "reader.zbd") <= 0) gone.push_back(c);
-  }
-  const int n_ops = static_cast<int>(gone.size());
-  std::string ops;  // "2", "2 and 4", "1, 2 and 4"
-  for (int i = 0; i < n_ops; ++i) ops += (i == 0 ? "" : i + 1 == n_ops ? " and " : ", ") + std::to_string(gone[i]);
-  if (n_ops)
-    r.warnings.push_back((n_ops == 1 ? "Operation " + ops + "'s missions are" : "The missions of operations " + ops + " are") +
-                         " missing or empty, so " + (n_ops == 1 ? "it" : "they") + " cannot be played.");
-  if (size_of("zbd/soundsH.zbd") <= 0)
-    r.warnings.push_back("Its zbd\\soundsH.zbd is " + std::string(size_of("zbd/soundsH.zbd") < 0 ? "missing" : "empty") +
-                         ", so the game plays its lower-quality sounds. ADD FROM MY DISC puts the disc's copy in your "
-                         "settings folder (your install is not changed).");
   return r;
 }
+}  // namespace
 
 Result check_install(const std::string& dir, const std::string& write_dir, bool pirates_moon) {
   Result r;
@@ -634,7 +654,7 @@ Result check_install(const std::string& dir, const std::string& write_dir, bool 
     r.summary = std::string("No ") + (pirates_moon ? "Pirate's Moon" : "MechWarrior 3") + " was found in " + dir + ": it has no zbd folder with the game's data.";
     return r;
   }
-  if (pirates_moon) return check_pm(dir, write_dir, r);
+  if (pirates_moon) return check_pm(dir, write_dir);
   const std::string overlay = write_dir.empty() ? std::string() : write_dir + "/patch12";
   r.version = version_of(dir, fs::is_directory(overlay, ec) ? overlay : std::string());
   r.ok = true;

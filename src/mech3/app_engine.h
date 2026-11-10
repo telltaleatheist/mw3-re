@@ -393,6 +393,7 @@ class GameEngine : public Engine {
   static const char* known_unported(const std::string& key);
   void print_unported_summary() const;
   bool quiet = false;  // no log lines (tests)
+  bool may_ask = true;  // ours: a box may wait for the player (off for checks, shots and hidden runs)
   int lobby_entries() const { return lobby_entries_; }  // ours: the lobby's page entered this many times
 
   // The memory of modules not ported: what is poked reads back.

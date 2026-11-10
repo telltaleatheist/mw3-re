@@ -4262,3 +4262,12 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   mouse turning the torso instead of moving the reticle until L was pressed
   again. The rebuild keeps keys typed into a box out of the game. (Found from
   a playtest and the code: 0x0051a5d0, Mech::update's view key. docs/input.md)
+- **A missing mission file crashes the game, or quietly sends you back.** If an
+  operation's world file (zbd\c1\gamez.zbd and the like) is missing, starting
+  any of its missions crashes the original MechWarrior 3: the loader carries on
+  without a world and trips over it while setting up the animations. If the
+  mission scripts can't be read (zbd\interp.zbd missing), the load gives up and
+  puts you back at the briefing without saying anything: the game's error
+  messages are switched off in the released build. The rebuild stops the load in
+  both cases and says what is missing. (From the code: 0x0048faf0, 0x0050ae60,
+  the empty report 0x0049bfd0; found while making the launcher's checks)

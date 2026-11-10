@@ -103,9 +103,14 @@ std::vector<DiscSource> find_discs();
 
 // Whether `dir` holds MechWarrior 3 (zbd/reader.zbd), and which data
 // version: 1.2 with `write_dir`/patch12 in front of it when that exists.
-// `pirates_moon`: refused only when mw3pm cannot start (no reader.zbd or
-// Mech3Msg.dll); missions that cannot load and an empty soundsH.zbd are
-// `warnings`, a file in `write_dir` counting as there.
+// `pirates_moon`: start_check's, with its data's version ("1.0", "unknown",
+// "incomplete").
 Result check_install(const std::string& dir, const std::string& write_dir, bool pirates_moon = false);
+
+// Before a start, either game (the launcher's PLAY): `ok` false only when the game cannot start (an empty or
+// missing zbd/reader.zbd, no Mech3Msg.dll), with `summary` saying so; `warnings` the missions that cannot load
+// (their core files, each world folder's gamez.zbd and reader.zbd) and an empty soundsH.zbd. A file in `write_dir`
+// counts as there.
+Result start_check(const std::string& dir, const std::string& write_dir, bool pirates_moon);
 
 }  // namespace mech3::setup

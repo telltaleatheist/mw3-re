@@ -5129,6 +5129,61 @@ TEST(sdl_program_launcher_finds_pirates_moon) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
+// MechWarrior 3's PLAY checked before it starts, as Pirate's Moon's (lead 2026-11-10): an install without
+// Mech3Msg.dll is logged and handed to mw3, which says so in its own box; one missing a world shows its note once
+// (its OK pressed by --launcher-play) and starts, the next start only logging it.
+TEST(sdl_program_launcher_checks_mechwarrior3) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher mw3 checks";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/wd", ec);
+  auto copy = [&](const std::string& name, const std::string& gone) {
+    const fs::path to = fs::path(dir) / name;
+    fs::create_directories(to);
+    for (const auto& e : fs::recursive_directory_iterator(MW3_GAME_DIR)) {
+      const std::string rel = fs::relative(e.path(), MW3_GAME_DIR).generic_string();
+      if (rel == gone) continue;
+      if (e.is_directory()) fs::create_directories(to / rel);
+      else fs::create_symlink(e.path(), to / rel);
+    }
+    return to.string();
+  };
+  const std::string game = dir + "/mw3";
+  std::ofstream(game) << "#!/bin/sh\necho started >> \"" << dir << "/started.txt\"\nexit 0\n";
+  fs::permissions(game, fs::perms::owner_all, ec);
+  setenv("MW3_GAME_BIN", game.c_str(), 1);
+  setenv("MW3_NO_IMPORT", "1", 1);
+  setenv("MW3_LAUNCHER_FRAMES", "300", 1);  // a refused start ends here
+  auto starts = [&]() {
+    std::ifstream f(dir + "/started.txt");
+    int n = 0;
+    for (std::string l; std::getline(f, l);) ++n;
+    return n;
+  };
+  auto run = [&](const std::string& install, const char* name) {
+    std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "install=" << install << "\n";
+    const std::string log = dir + "/" + name + ".log";
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-play", "--window", "640x480", "--hidden", "--nosound"}, log);
+    int status = 0;
+    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status));
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  std::string text = run(copy("nomsg", "Mech3Msg.dll"), "nomsg");
+  EXPECT(text.find("MechWarrior 3 cannot start") != std::string::npos && starts() == 1);  // mw3's own box says it
+  const std::string noc2 = copy("noc2", "zbd/c2/gamez.zbd");
+  text = run(noc2, "first");
+  EXPECT(text.find("note: The missions of operation 2 are missing") != std::string::npos &&
+         text.find("MechWarrior 3's notes shown") != std::string::npos && starts() == 2);
+  text = run(noc2, "second");
+  EXPECT(text.find("note: The missions of operation 2") != std::string::npos && text.find("notes shown") == std::string::npos && starts() == 3);
+  for (const char* k : {"MW3_GAME_BIN", "MW3_NO_IMPORT", "MW3_LAUNCHER_FRAMES"}) unsetenv(k);
+  fs::remove_all(dir, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // Each game's line with its data's version and its program's (docs/launcher.md,
 // Pirate's Moon, sitting 5): each program's version read from its file
 // (mw3_version_tag), never by running it; a file without one left out. A tag
@@ -5358,7 +5413,7 @@ TEST(sdl_program_launcher_checks_pirates_moon) {
          starts() == 2);
   // Another note is shown again.
   text = run(copy("noop", "zbd/c3/gamez.zbd", "zbd/soundsH.zbd"), "noop");
-  EXPECT(text.find("Operation 3's missions") != std::string::npos && text.find("notes shown") != std::string::npos && starts() == 3);
+  EXPECT(text.find("The missions of operation 3") != std::string::npos && text.find("notes shown") != std::string::npos && starts() == 3);
   // The disc's sounds in PM's settings folder: no note.
   EXPECT(!fs::exists(dir + "/pmwd", ec));  // nothing written there by the launcher
   fs::create_directories(dir + "/pmwd/zbd", ec);

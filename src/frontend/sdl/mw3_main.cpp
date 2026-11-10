@@ -1047,6 +1047,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   int result = 1;
   {
     mech3::GameEngine engine(p, "mech3.exe" + a.original);
+    engine.may_ask = !a.hidden && a.frames == 0 && a.shot.empty() && a.chain.empty() && a.modes.empty();
     sdlfe::SdlTwodHost host(&engine, &input, &window);
     ztwod::set_host(&host);
     mech3::reset_states();
