@@ -185,3 +185,44 @@ load's note, on the loading screen and in the log, once:
 
 Outside an entry the mod list is written and compared as before (`--mod`, a
 developer's start). Tests: `save_entry_*` (tests/test_save_entry.cpp).
+
+## Built: the restart on Windows (2026-11-10)
+
+The `_WIN32` side of `sdlfe::restart_into` (`frontend/sdl/sdl_restart.cpp`).
+Windows has no exec, so the program is started as a new process and this
+one ends:
+
+- its own file by `GetModuleFileNameW`, the buffer grown until the name fits
+  (long paths);
+- the command line by `win_command_line` (`frontend/sdl/win_cmdline`, plain
+  string code built on every system): the program's path in plain quotes,
+  each argument quoted by the rules `CommandLineToArgvW` splits by (as it is
+  without a space, tab, newline or quote; else in quotes, a quote written
+  `\"`, the backslashes before a quote or before the closing one doubled, an
+  empty argument `""`);
+- `CreateProcessW` with no inherited handles, the same working directory and
+  environment, made suspended;
+- the log: with no console stdout and stderr are `<write dir>\mw3.log`
+  (`log_to_file`), and the next start renames that file and opens a new one.
+  So this process writes its last line ("starting again as process N: ..."),
+  closes stdout and stderr, and only then lets the new process run
+  (`ResumeThread`); the new one cannot reach the log while the old one holds
+  it. `AllowSetForegroundWindow` lets its window come to the front. Then
+  `ExitProcess(0)`.
+
+Nothing waits on the old process: the launcher ends at the game's first
+frame on Windows (`Launcher::watch_game`; it stays, waiting on the process,
+only for an AppImage). One case is left as it is: a game whose first frame
+took longer than the launcher's wait leaves the launcher up and watching,
+and it would then show itself when the first process ends at a restart.
+
+Tests: `win_cmdline_quotes_by_the_documented_rules` (a table, and a whole
+line) and `win_cmdline_round_trips_through_the_splitting_rules` (3,906
+arguments of the characters that matter split again by those rules), in
+tests/test_win_cmdline.cpp, run on every system. `tests/win/restart_check.cpp`
+is the Windows check without the game: `restart_check.exe DIR` starts itself
+again with arguments that are hard to quote and writes `DIR\check.log`,
+ending "restart check: OK" when the second run got the same arguments and
+working directory and could rename the first run's log. Build (the mingw
+cross compiler, or any Windows one):
+`x86_64-w64-mingw32-g++ -std=c++17 -Isrc tests/win/restart_check.cpp src/frontend/sdl/sdl_restart.cpp src/frontend/sdl/win_cmdline.cpp -o restart_check.exe -static -luser32`.

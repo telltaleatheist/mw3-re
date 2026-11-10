@@ -5,7 +5,12 @@
 #include <cstring>
 #include <string>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+#include "frontend/sdl/win_cmdline.h"
+#else
 #include <fcntl.h>
 #include <unistd.h>
 #if defined(__APPLE__)
@@ -55,14 +60,79 @@ bool restart_asked(RestartTo* to) {
 
 #if defined(_WIN32)
 
-// The Windows side (CreateProcessW of our own path, the arguments quoted, then
-// this process's end) is not written yet: the start is refused, said.
-std::string restart_own_path() { return {}; }
+namespace {
+std::wstring wide(const std::string& s) {
+  if (s.empty()) return {};
+  const int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), nullptr, 0);
+  std::wstring w(static_cast<size_t>(n > 0 ? n : 0), L'\0');
+  if (n > 0) MultiByteToWideChar(CP_UTF8, 0, s.data(), static_cast<int>(s.size()), w.data(), n);
+  return w;
+}
+std::string narrow(const std::wstring& w) {
+  if (w.empty()) return {};
+  const int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr, 0, nullptr, nullptr);
+  std::string s(static_cast<size_t>(n > 0 ? n : 0), '\0');
+  if (n > 0) WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), s.data(), n, nullptr, nullptr);
+  return s;
+}
+// This program's file, whatever its length (a long path: the buffer grown until the name fits).
+std::wstring own_path_wide() {
+  std::wstring buf(MAX_PATH, L'\0');
+  for (;;) {
+    const DWORD n = GetModuleFileNameW(nullptr, buf.data(), static_cast<DWORD>(buf.size()));
+    if (n == 0) return {};
+    if (n < buf.size()) return buf.substr(0, n);
+    if (buf.size() >= 32768) return {};  // past the longest path Windows has
+    buf.assign(buf.size() * 2, L'\0');
+  }
+}
+std::string last_error_words() {
+  const DWORD code = GetLastError();
+  wchar_t* text = nullptr;
+  FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, code, 0,
+                 reinterpret_cast<wchar_t*>(&text), 0, nullptr);
+  std::string s = text ? narrow(text) : std::string();
+  if (text) LocalFree(text);
+  while (!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ' || s.back() == '.')) s.pop_back();
+  return (s.empty() ? std::string("error") : s) + " (" + std::to_string(code) + ")";
+}
+}  // namespace
+
+std::string restart_own_path() { return narrow(own_path_wide()); }
+// Nothing to list: the next start is given none of this one's handles (CreateProcessW's bInheritHandles FALSE).
 std::vector<int> restart_open_handles() { return {}; }
 std::string restart_handle_name(int) { return {}; }
-bool restart_into(const std::string&, const std::vector<std::string>&, std::string* why) {
-  if (why) *why = "starting again is not there yet on Windows";
-  return false;
+
+// Windows has no exec: the program is started as a new process and this one
+// ends. The arguments are quoted as its own splitting reads them
+// (win_cmdline.h); the working directory and the environment are this
+// process's; no handle is inherited. The new process is made suspended, so
+// it cannot reach <write dir>/mw3.log (which it renames to mw3.old.log and
+// opens anew) while this one still holds it: with no console stdout and
+// stderr are that file (log_to_file), and they are closed here before the
+// new process runs a single instruction. The launcher has closed by then
+// (it ends at the game's first frame), so nothing waits on this PID.
+bool restart_into(const std::string&, const std::vector<std::string>& args, std::string* why) {
+  const std::wstring exe = own_path_wide();
+  if (exe.empty()) {
+    if (why) *why = "the program's own file cannot be told";
+    return false;
+  }
+  std::wstring line = wide(win_command_line(narrow(exe), args));  // CreateProcessW may write into it
+  STARTUPINFOW si{};
+  si.cb = sizeof si;
+  PROCESS_INFORMATION pi{};
+  if (!CreateProcessW(exe.c_str(), line.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED, nullptr, nullptr, &si, &pi)) {
+    if (why) *why = "cannot start " + narrow(exe) + ": " + last_error_words();
+    return false;
+  }
+  std::printf("mw3: starting again as process %lu: %s\n", static_cast<unsigned long>(pi.dwProcessId), narrow(line).c_str());
+  std::fflush(nullptr);
+  std::fclose(stdout), std::fclose(stderr);    // the log let go before the new start renames it
+  AllowSetForegroundWindow(pi.dwProcessId);     // its window may come to the front as ours did
+  ResumeThread(pi.hThread);
+  CloseHandle(pi.hThread), CloseHandle(pi.hProcess);
+  ExitProcess(0);  // the run is over (main has closed it); nothing more of this process is wanted
 }
 
 #else

@@ -747,6 +747,7 @@ if(SDL3_FOUND)
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
       src/frontend/sdl/sdl_restart.cpp
+      src/frontend/sdl/win_cmdline.cpp
       src/frontend/sdl/run_log.cpp
       src/frontend/sdl/crash_report.cpp
       src/frontend/sdl/launcher.cpp
@@ -833,8 +834,10 @@ if(SDL3_FOUND)
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
+      tests/test_win_cmdline.cpp
       src/frontend/sdl/sdl_update.cpp
       src/frontend/sdl/sdl_restart.cpp
+      src/frontend/sdl/win_cmdline.cpp
       tests/test_net_enet.cpp
       tests/test_net_upnp.cpp
     )
