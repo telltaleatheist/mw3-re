@@ -95,6 +95,27 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 - **MODS, CAMPAIGNS lists campaigns only**: Instant Action has no row there.
   Underneath it is still the entry `ia` (its folder, ticks and loadouts).
 
+## Deleting and resetting (Owen, 2026-11-10)
+
+- **Edits are saved as a copy.** The editor never writes the game's own
+  campaign or a mod someone else made: the first save makes a copy of the
+  player's own, and later saves go into it.
+- **DELETE on the MODS screen**, by what is chosen, each with a confirm that
+  says what goes:
+  - a copy of the player's own: the copy, with its pilots and saved games;
+  - a mod the game imported: the mod. An asset mod's ticks are left, so a
+    campaign that had it ticked shows "!" until it is turned off or imported
+    again. An imported campaign's pilots and saved games are kept, so importing
+    it again goes on where it stopped;
+  - what is left of a campaign whose mod is gone: its pilots and saved games.
+- **RESET on the game's own campaign** (it cannot be deleted): its ticked mods
+  are cleared and its pilots and saved games on the MODS screen go; the row
+  stays, as on a first start. The main game's pilots are not changed.
+- **Not deleted by the game:** the game's own files, and a mod folder put in
+  the mods folder by hand (no marker of ours). MODS FOLDER opens the folder so
+  the player can remove it.
+- The standing rule holds: code removes only folders it made and marked.
+
 ## Settled in the lead's review (2026-11-10)
 
 - **Inside a campaign entry** the player gets that entry's own screen only:
