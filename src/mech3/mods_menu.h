@@ -55,6 +55,13 @@ struct ModsEditRow {
   int32_t number = 0;
 };
 std::vector<ModsEditRow> mods_edit_rows(const ModInfo& m);
+// TEST's (ours, docs/modding.md, Quick testing): the program's start of a
+// mission to play with the mods on (EDIT's start without the editor; MODS
+// again when the main menu comes back), and its missions: the mod's own
+// (mods_edit_rows), then every campaign mission of the install's worlds
+// (zbd\<world>\readerm<N>.zbd, the game's world order), each once.
+ModsEditStart& mods_menu_test_start();
+std::vector<ModsEditRow> mods_test_rows(const ModInfo& m, const std::string& install);
 void mods_menu_picked(const std::string& path);  // "" cancelled; the screen takes it on its next update
 
 class ModsScreen;
@@ -67,7 +74,7 @@ class ModsList : public FileList {
 
 class ModsScreen : public MenuScreen {
  public:
-  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport, kReport };
+  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport, kReport, kTest };
   ModsScreen(Engine& e, Handle state);
   void update(float dt) override;    // a picked mod taken in
   ~ModsScreen() override;
@@ -79,11 +86,13 @@ class ModsScreen : public MenuScreen {
   void show_details();               // the selected row's lines
   void enter_campaign();             // ENTER
   void edit();                       // EDITOR (ours): the selected mod's or campaign's missions, or back
-  void edit_start();                 // ENTER while editing: the chosen mission in the editor
+  void test();                       // TEST (ours): the same with the game's missions, to play
+  void missions(bool test);          // EDITOR's and TEST's list, or back to the tables
+  void edit_start();                 // ENTER while editing: the chosen mission in the editor (testing: played)
   void report();                     // REPORT (ours, upgrades/mods/mod_report.h): the chosen mod's sentences, or back
 
   SlideButton enter, back;           // ENTER, BACK
-  ShellButton toggle, up, down, editor;  // ON/OFF, UP, DOWN, EDITOR
+  ShellButton toggle, up, down, editor, test_btn;  // ON/OFF, UP, DOWN, EDITOR, TEST
   ShellButton add_btn, export_btn, add_folder_btn, folder_btn, report_btn;  // IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, REPORT
   ModsList campaign_list, mod_list;
   ztwod::Image lines{0}, lines2{0};
@@ -95,7 +104,8 @@ class ModsScreen : public MenuScreen {
   std::string adding;                // a pick said ("Adding ...") and added on the next update
   std::string export_folder;         // EXPORT's mod, while the save box is up
   std::string exporting;             // its zip, said ("Exporting ...") and written on the next update
-  bool editing = false;              // EDIT's list in CUSTOM CAMPAIGNS' box
+  bool editing = false;              // EDIT's (or TEST's) list in CUSTOM CAMPAIGNS' box
+  bool testing = false;              // the list is TEST's
   std::string edit_mod;              // its mod's folder
   std::vector<ModsEditRow> edit_rows;
   bool reporting = false;            // REPORT's sentences in CUSTOM CAMPAIGNS' box

@@ -506,6 +506,7 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   off is never started half-mounted: ENTER turns the mod on for the next
   start and says so ("its mod is turned on; restart to play it").
 - EDITOR: EDIT (editor.md, The way in from MODS): the selected campaign's or mod's missions in the campaigns' box, ENTER opening one in the game editor, saves going into the mod itself.
+- TEST (Quick testing, below): the same list with the game's own missions after the mod's, ENTER playing one with the mods on.
 - BACK: the main menu.
 
 Tests: `mods_screen_tables_order_and_conflicts` (the tables from five mods:
@@ -885,6 +886,37 @@ The other archives hold 0 there and are never checked. It doesn't matter
 for our port: the check is a protection trap we leave out (FIX (trap)), and
 a mod's archive loads with any CRC. MechWarrior 3's archives (version 1)
 have none.
+
+## Quick testing (modder-friendly step 4, begun 2026-11-10)
+
+**TEST on the MODS screen** (`ModsScreen::test`, `mods_test_rows`,
+`mods_menu_test_start`): a tab under the CAMPAIGNS box, at (108 336) beside
+REPORT (BACK's hit box covers the bottom row from x 452, so neither fits
+there). With a mod or a custom campaign chosen:
+- The campaigns' box lists missions, as EDITOR's does: the mod's own first
+  (its campaigns' lines, else its worlds' `readerm<N>.zbd`), then every
+  campaign mission of the install's nine worlds (`zbd\<world>\readerm<N>.zbd`
+  in the game's world order: c1 1..4, c2 1..4, c3 1..6, c4 1..3, c4b 4..6, t1
+  1..4 on MW3 1.2), each world and number once. So a mod of weapons or mechs
+  alone, which has no missions, is tested on the game's.
+- ENTER plays the chosen one with the mods on in this run, started as EDIT's
+  is (a debug start: a stand-in pilot in the Mad Cat, no briefing), the editor
+  left closed (Shift+F12 and the pause's EDITOR still reach it, saving into
+  the mod, as in any mission MODS starts). When the main menu comes back
+  (the pause's QUIT is the tested way), MODS is on top again and the chosen
+  pilot and the launch are put back (`mods_edit_begin` with `editor`
+  false).
+- A mod not on in this run is turned on for the next start instead, as EDIT
+  and ENTER do. TEST again leaves the list; EDITOR while it is up shows
+  EDIT's list of the same mod (and TEST while EDIT's is up, TEST's); BACK
+  leaves the list first.
+
+Test: `mods_screen_test_plays_a_mission_and_comes_back_headless` (a mod with
+no missions: TEST's 24 rows from c1 1 to t1 4; EDITOR then says it has none
+to edit; ENTER on c2 mission 1 plays it with the editor closed; the pause's
+QUIT lands on MODS, the pilot back). Breaks caught: the game's missions left
+out, the editor opened, MODS not reopened. A `--click-at` shot (MODS, the
+mod, the tab at 130,344) shows TEST's list with only TEST fired.
 
 ## Readable files read directly (modder-friendly step 1, begun 2026-11-09)
 

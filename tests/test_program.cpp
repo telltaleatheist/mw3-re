@@ -1505,6 +1505,131 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Ours (modding.md, Quick testing): MODS, a mod with no missions of its own chosen, TEST lists the game's
+// campaign missions (each once, the world order); EDITOR then has nothing to list and TEST again lists them;
+// ENTER on c2 mission 1 plays it with the editor closed; the pause's QUIT lands on MODS again, the stand-in
+// pilot let go.
+TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_test_write");
+  zutl::set_write_dir(wd);
+  std::filesystem::create_directories(wd + "/mods/wpn");
+  std::ofstream(wd + "/mods/wpn/mod.txt") << "name=Weapon Test\n";
+  mech3::mods_save_enabled(wd, {"wpn"});
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_mounted() = {"wpn"};
+  mech3::mods_menu_install() = MW3_GAME_DIR;
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  struct Keys : platform::Input {
+    std::vector<platform::KeyEvent> queue;
+    uint32_t t = 0;
+    void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+    bool open(Device) override { return true; }
+    void close(Device) override {}
+    int32_t acquire(Device) override { return 0; }
+    int32_t unacquire(Device) override { return 0; }
+    int32_t keyboard_data(platform::KeyEvent* o, uint32_t* count) override {
+      const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+      std::copy(queue.begin(), queue.begin() + n, o);
+      queue.erase(queue.begin(), queue.begin() + n);
+      *count = n;
+      return 0;
+    }
+    int32_t mouse_state(platform::MouseState* m) override { return *m = platform::MouseState{}, 0; }
+    int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+  } keys;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0, core = 0;
+    std::string listed, no_edit_note;
+    bool test_mode = false, switched = false, played = false, editor_closed = false, mods_again = false;
+    uint32_t real_pilot = 0, pilot_after = 0;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        real_pilot = engine.peek32(0x60861c);
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ms = dynamic_cast<mech3::ModsState*>(now);
+        auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+        if (!scr) return;
+        scr->mod_list.FileList::select(0);
+        scr->on_button(mech3::ModsScreen::kMods, 0, 0);
+        scr->on_button(mech3::ModsScreen::kTest, 0, 0);  // TEST
+        for (const mech3::ModsEditRow& r : scr->edit_rows) listed += r.world + " " + std::to_string(r.number) + "; ";
+        test_mode = scr->editing && scr->testing;
+        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDITOR: this mod has nothing to edit
+        no_edit_note = scr->note.text;
+        switched = !scr->editing;
+        scr->mod_list.FileList::select(0);
+        scr->on_button(mech3::ModsScreen::kMods, 0, 0);
+        scr->on_button(mech3::ModsScreen::kTest, 0, 0);
+        for (size_t i = 0; i < scr->edit_rows.size(); ++i)
+          if (scr->edit_rows[i].world == "c2" && scr->edit_rows[i].number == 1) scr->campaign_list.FileList::select(int32_t(i));
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+        stage = 2;
+      } else if (stage == 2 && now == &st.core) {
+        ++core;
+        if (core == 5) {
+          played = mech3::mods_edit_session().active && !mech3::mods_edit_session().editor;
+          editor_closed = mech3::editor_state().active == 0;
+          keys.key(1, true);  // Escape: the pause
+        }
+        if (core == 6) keys.key(1, false);
+      } else if (stage == 2 && now == &st.pause) {
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), stage = 3;
+      } else if (stage == 3 && dynamic_cast<mech3::ModsState*>(now)) {
+        mods_again = true;
+        pilot_after = engine.peek32(0x60861c);
+        stage = 4;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 8000;
+    pump.stop = [&] { return stage == 4; };
+    app.run(pump);
+    std::printf("  stage %d; TEST listed: %s\n  EDITOR: \"%s\"; played %d, the editor closed %d, MODS again %d, the pilot back %d\n",
+                stage, listed.c_str(), no_edit_note.c_str(), played, editor_closed, mods_again, pilot_after == real_pilot);
+    EXPECT(test_mode && listed.rfind("c1 1; c1 2; c1 3; c1 4; c2 1;", 0) == 0 && listed.find("c4b ") != std::string::npos);
+    EXPECT(switched && no_edit_note.find("no missions to edit") != std::string::npos);
+    EXPECT(played && editor_closed);
+    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_mounted().clear();
+  mech3::mods_menu_install().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // Ours (modding.md, The MODS screen): MODS, ENTER a custom campaign, its
 // first mission, the pause's options and QUIT, back through the menus to
 // MODS, BACK. The campaign's pilots stay up until MODS is back on top, and
