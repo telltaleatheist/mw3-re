@@ -36,7 +36,7 @@ bool g_asked = false;
 int ours(const std::string& s) {
   if (s == "--entry" || s == "--mod") return 2;
   if (s == "--click-at" || s == "--tap") return 2;  // a check's script is for the run it was given to
-  if (s == "--entry-play" || s == "--entry-ia" || s == "--open-mods" || s == "--restarted" || s == "--no-mods") return 1;
+  if (s == "--entry-play" || s == "--entry-ia" || s == "--open-mods" || s == "--open-ia" || s == "--restarted" || s == "--no-mods") return 1;
   return 0;
 }
 }  // namespace
@@ -54,6 +54,8 @@ std::vector<std::string> restart_args(const std::vector<std::string>& args, cons
     if (to.screen == RestartTo::kInstantAction) out.push_back("--entry-ia");
   } else if (to.open_mods) {
     out.push_back("--open-mods");
+  } else if (to.open_ia) {
+    out.push_back("--open-ia");
   }
   out.push_back("--restarted");
   return out;

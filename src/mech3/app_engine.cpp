@@ -31,6 +31,7 @@
 #include "mech3/controls_cfg.h"
 #include "mech3/options.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/mods/ia_mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
 #include "upgrades/mods/mod_test.h"
 #include "mech3/options_menu.h"
@@ -215,6 +216,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   options_sensitivity_slider() = true;  // ours: the options' MOUSE SENSITIVITY
   options_upgrades_page() = true;       // ours: the options' UPGRADES page
   mods_menu_page() = true;              // ours: the main menu's MODS
+  ia_mods_page() = true;                // ours: Instant Action's MODS tab
   // Ours: MODS's EDIT (upgrades/editor/mods_edit.h): the mission started as
   // a debug start is (a stand-in pilot, no briefing), the chosen pilot and
   // the launch put back when it is over.

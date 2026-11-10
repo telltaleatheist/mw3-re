@@ -473,6 +473,45 @@ asks; the run inside an entry: the pilot screen, a mission, back to the pilot
 screen, CANCEL leaves once), `mods_campaign_mission_has_the_editor_headless`,
 `net_save_into_the_editors_own_mod`, `mods_screen_add_mod_headless`.
 
+### Instant Action's own MODS (first part)
+
+Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Instant Action): Instant
+Action takes mods from its own screen, not from MODS's list.
+
+- **The tab** (`ActionScreen` 0x00488bc0, button 5; our record `IAMODS`
+  inserted after ACTIONDIALOG's CANCEL, patch12_edits.cpp): MODS at (420,172)
+  under the scenario's description, the pilot screen's tab image, and a line
+  right of it saying what this run has on: "MODS: off", "MODS: 2 on"
+  (`ia_mods_line`). Bound only where the program turns it on
+  (`ia_mods_page`); the probes run the original's dialog.
+- **The tick list** (`upgrades/mods/ia_mods_menu`, the "IA Mods State" pushed
+  over Instant Action's; our record IAMODSDIALOG from MODSDIALOG's): the MODS
+  list with ON/OFF, UP, DOWN, ALL OFF at the top left under a line that
+  follows the ticks as they stand, the chosen row's note (why it cannot be
+  used, what it needs, what it shares with which earlier mod), ACCEPT and
+  BACK. The left box of the MODS screen's lines is not drawn.
+- **The widget** (`upgrades/mods/mods_tick_list`, `ModTickList`): the list,
+  its three buttons, the ticks in winning order and the note, for any screen
+  whose dialog has MODLIST, TOGGLE, MOVEUP and MOVEDOWN; step 3's CAMPAIGNS
+  screen uses the same one.
+- **ACCEPT** (`ia_mods_step`): the entry `ia`'s ticks are saved. A plain run:
+  none ticked goes back, any ticked starts the program again into the entry
+  (`--entry ia --entry-ia`; an entry missing a mod is refused, said). Inside
+  the entry: unchanged goes back, changed starts again with the new set, none
+  left starts again plain on Instant Action (`--open-ia`: the main menu
+  presses INSTANT ACTION at once, the app's reopen flag). ALL OFF is ALL OFF
+  then ACCEPT.
+- **Leaving** modded Instant Action by its pilot screen's CANCEL starts again
+  on the main menu of a plain run (no `--open-mods`: the player came from the
+  main menu).
+- Not yet (the second part): INSTANT ACTION on the main menu going straight
+  into the modded one when mods are ticked, the chosen pilot carried over
+  (the copy-over offer) so the restart lands on the same screen, and the
+  "MODS: 1 missing" case. Until then the entry opens on its own pilot screen.
+
+Tests: `sdl_program_instant_action_mods` (three runs, each one process),
+`ia_mods_accept_steps_and_line`, `sdl_restart_args_are_the_starts_own`.
+
 ## Custom campaigns (after PM, modding step 1, begun 2026-11-09)
 
 The plan and what the original takes from code: `custom-campaigns.md`. A

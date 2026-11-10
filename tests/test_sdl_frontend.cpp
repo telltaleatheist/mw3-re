@@ -4693,6 +4693,10 @@ TEST(sdl_restart_args_are_the_starts_own) {
   const V back = sdlfe::restart_args(in, out);
   EXPECT((back == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-mods", "--restarted"}));
   EXPECT((sdlfe::restart_args(back, sdlfe::RestartTo{}) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--restarted"}));
+  sdlfe::RestartTo plain_ia;
+  plain_ia.open_ia = true;
+  EXPECT((sdlfe::restart_args(in, plain_ia) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-ia", "--restarted"}));
+  EXPECT((sdlfe::restart_args({"--open-ia", "--restarted"}, ia) == V{"--entry", "ia", "--entry-ia", "--restarted"}));
   EXPECT((sdlfe::restart_args({"--entry"}, sdlfe::RestartTo{}) == V{"--restarted"}));  // a flag cut short: nothing read past the end
   // The request is taken once.
   sdlfe::RestartTo got;
@@ -4705,7 +4709,7 @@ TEST(sdl_restart_args_are_the_starts_own) {
 // The whole way, in one process (the same PID: execv): a start into the
 // Instant Action entry opens its screen with the entry's own (empty) pilots,
 // not the main menu; CANCEL there closes the game and starts it again plain,
-// on MODS; nothing of ours is still open at the exec, and the main menu's
+// on the main menu (Instant Action is entered from there; a campaign's entry goes back to MODS); nothing of ours is still open at the exec, and the main menu's
 // pilots folder is not made by the run inside the entry. An entry that is not
 // there puts the player on MODS.
 TEST(sdl_program_restarts_into_and_out_of_an_entry) {
@@ -4722,14 +4726,15 @@ TEST(sdl_program_restarts_into_and_out_of_an_entry) {
   std::ifstream f(log);
   const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   auto at = [&](const char* what, size_t from = 0) { return text.find(what, from); };
-  const size_t entered = at("mw3: entry ia (Instant Action): 0 mods"), left = at("mw3: entry ia left: starting again on MODS"),
-               closed = at("mw3: closed, result 0"), mods = at("mw3: the main menu opens on MODS (--open-mods)");
-  std::printf("  entered %d, left %d, closed %d, on MODS %d\n", entered != std::string::npos, left != std::string::npos,
+  const size_t entered = at("mw3: entry ia (Instant Action): 0 mods"), left = at("mw3: entry ia left: starting again on the main menu"),
+               closed = at("mw3: closed, result 0"), mods = closed == std::string::npos ? closed : at("mw3: install ", closed);  // the second run
+  std::printf("  entered %d, left %d, closed %d, started again %d\n", entered != std::string::npos, left != std::string::npos,
               closed != std::string::npos, mods != std::string::npos);
   EXPECT(entered != std::string::npos && left != std::string::npos && closed != std::string::npos && mods != std::string::npos);
   EXPECT(entered < left && left < closed && closed < mods);
   EXPECT(mods != std::string::npos && at("mw3: closed, result 0", mods) != std::string::npos);  // the second run, to its end
   EXPECT(at("mw3: entry", mods == std::string::npos ? 0 : mods) == std::string::npos);  // plain: no entry
+  EXPECT(at("opens on MODS") == std::string::npos && at("opens on Instant Action") == std::string::npos);  // Instant Action came from the main menu
   EXPECT(at("could not start again") == std::string::npos);
   // What was still open at the exec is the system's or the install's, never the write dir's (the log, pilots, settings).
   for (size_t i = at("still open: "); i != std::string::npos; i = at("still open: ", i + 1)) {
@@ -4825,6 +4830,64 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   }
   EXPECT(fs::is_regular_file(pilot) && fs::file_size(pilot) > 0);
   std::printf("  left %d, on MODS %d, the pilot kept %d\n", left != none, mods != none, fs::is_regular_file(pilot));
+  fs::remove_all(dir, ec);
+}
+
+// Instant Action's own MODS (upgrades/mods/ia_mods_menu.h), each run one
+// process. A: a plain run, Instant Action (a pilot made), the MODS tab, a mod
+// ticked, ACCEPT: the game starts again into the entry ia with that mod
+// mounted; the main menu's pilot stays where it was and the entry has none.
+// B: inside the entry, the MODS tab and ALL OFF: it starts again plain, on
+// Instant Action. C: inside the entry, CANCEL on its pilot screen: it starts
+// again on the main menu, not on MODS.
+TEST(sdl_program_instant_action_mods) {
+  namespace fs = std::filesystem;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/ia mods";  // a space in the path
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel) << text;
+  };
+  put("wd/mods/hud/mod.txt", "name=Green HUD\n");
+  put("wd/mods/weps/mod.txt", "name=Weps\nweapon=GAUSS2 ammo=yes tech=sphere\n");
+  auto run = [&](const std::vector<std::string>& extra, const char* name) {
+    std::vector<std::string> args = {"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
+                                     "--frame-ms", "33", "--seed", "1", "--frames", "500"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    EXPECT(waited(spawn_mw3(args, log), &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto text_of = [&](const std::string& rel) {
+    std::ifstream f(dir + "/" + rel);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const size_t none = std::string::npos;
+  // INSTANT ACTION, a pilot "a" typed and ACCEPTed, the MODS tab, ON/OFF on the first row (Green HUD), ACCEPT.
+  const std::string a = run({"--click-at", "60,210@120", "--tap", "30@170", "--click-at", "420,320@200", "--click-at", "440,180@300",
+                             "--click-at", "425,255@340", "--click-at", "420,320@380"}, "a");
+  const size_t asked = a.find("mw3: Instant Action's MODS: starting again into entry ia"), entered = a.find("mw3: entry ia (Instant Action): 1 mods");
+  std::printf("  A: asked %d, entered %d, mounted %d\n", asked != none, entered != none, a.find("mod hud (Green HUD) mounted") != none);
+  EXPECT(asked != none && entered != none && asked < entered && a.find("mod hud (Green HUD) mounted", entered) != none);
+  EXPECT(a.substr(0, asked == none ? 0 : asked).find("mounted") == none);  // the first run was the original
+  EXPECT(entered != none && a.find("mw3: closed, result 0", entered) != none && a.find("could not start again") == none);
+  EXPECT(text_of("wd/campaigns/ia/mods.txt") == "mod=hud\n");
+  EXPECT(fs::is_regular_file(dir + "/wd/pilots/a.mw3") && !fs::exists(dir + "/wd/campaigns/ia/pilots/a.mw3"));
+  // Inside the entry (its pilot screen first: a pilot "a" of its own), the MODS tab, ALL OFF.
+  const std::string b = run({"--entry", "ia", "--entry-ia", "--tap", "30@120", "--click-at", "420,320@160", "--click-at", "440,180@260",
+                             "--click-at", "120,63@300"}, "b");
+  const size_t off = b.find("mw3: Instant Action's MODS: starting again plain, on Instant Action"), ia = b.find("mw3: the main menu opens on Instant Action (--open-ia)");
+  std::printf("  B: all off asked %d, plain on Instant Action %d\n", off != none, ia != none);
+  EXPECT(off != none && ia != none && off < ia && b.find("mw3: entry", ia) == none && b.find("mounted", ia) == none);
+  EXPECT(text_of("wd/campaigns/ia/mods.txt").empty() && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
+  // Inside the entry, CANCEL on the pilot screen: the main menu of a plain run.
+  const std::string c = run({"--entry", "ia", "--entry-ia", "--click-at", "495,405@150"}, "c");
+  const size_t left = c.find("mw3: entry ia left: starting again on the main menu");
+  EXPECT(left != none && c.find("--open-mods", left) == none && c.find("--open-ia", left) == none && c.find("mw3: closed, result 0", left + 60) != none);
+  std::printf("  C: left to the main menu %d\n", left != none);
   fs::remove_all(dir, ec);
 }
 
