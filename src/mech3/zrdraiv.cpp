@@ -166,6 +166,26 @@ AivRecord* AivFile::cached(const char* n) const {
   return it == cache->end() ? nullptr : it->second;
 }
 
+// Mech3.exe 1.2 @ 0x004defc0
+int32_t AivFile::edit(const char* n, const AivRecord& r) {
+  AivRecord* kept = cached(n);  // 0x004def10
+  if (!n) return 0;             // the exe reads a null key's characters: not reached by its one caller
+  if (kept && same_name(kept->pilot, r.pilot) && same_name(kept->sound_tag, r.sound_tag) && kept->same_vlist(r) &&
+      kept->same_numbers(r))
+    return 0;
+  if (!cache) cache = new std::map<std::string, AivRecord*>;
+  auto it = cache->find(n);
+  if (it == cache->end()) {
+    auto* copy = new AivRecord;  // 0x004d9940: the settings copied
+    static_cast<AiParams&>(*copy) = r;
+    copy->mech3_set = r.mech3_set, copy->mech3 = r.mech3;
+    return cache->emplace(n, copy).second ? 1 : 0;
+  }
+  static_cast<AiParams&>(*it->second) = r;  // 0x004d99e0
+  it->second->mech3_set = r.mech3_set, it->second->mech3 = r.mech3;
+  return 1;
+}
+
 // Mech3.exe 1.2 @ 0x004e0490
 AivRecord::AivRecord() { aiv_file().add_ref(); }
 
