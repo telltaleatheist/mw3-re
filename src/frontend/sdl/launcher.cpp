@@ -28,10 +28,6 @@
 #include "gamez/zrender/zrndr_tint.h"
 #include "mech3/game_setup.h"
 #include "mech3/mods.h"
-#include "upgrades/mods/mod_needs.h"
-#include "mech3/mod_install.h"
-#include "upgrades/mods/mod_export.h"
-#include "frontend/sdl/sdl_mods.h"
 #include "frontend/sdl/sdl_update.h"
 #include "mech3/source_map.h"
 #include "gamez/zutil/zutl_path.h"
@@ -361,13 +357,8 @@ enum Id {
   kGo = 30, kCancel, kNotesOk,
   kData = 40, kDataPick, kDataUsual, kMoveGo, kRemoveOld, kKeepOld,
   kUpdates = 49,
-  kMods = 50, kModUp, kModDown, kModCheck, kModPrev, kModNext, kModAdd, kModAddFolder, kModFolder,
-  kModExport,
-  kModRow = 60,  // kModRow + i: the page's i-th mod (kModsPerPage)
   kUpdateGo = 80, kUpdateNotNow, kUpdatePrev, kUpdateNext,
-  kReportPrev, kReportNext,  // the mod report's pages (ours, upgrades/mods/mod_report.h)
 };
-constexpr int kModsPerPage = 5;
 
 struct Install {
   bool ok = false;
@@ -459,7 +450,6 @@ class Launcher {
   void activate(int id);
   void ask_file(int what, const SDL_DialogFileFilter* filters, int n);
   void ask_folder(int what);
-  void ask_save(int what, const std::string& file_name);
   void picked(int what, const std::string& path);
   void finish_work();
   void look_at(const std::string& path);
@@ -485,22 +475,7 @@ class Launcher {
   SDL_Surface* canvas_ = nullptr;
   Art art_;
   Text text_;
-  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kModsScreen, kUpdateScreen, kModReportScreen } screen_ = kMain;
-  // The MODS screen (docs/launcher.md, Mods): the list as mech3::mods_list
-  // gives it, the one selected (UP, DOWN), the page, whether CHECK ran.
-  std::vector<mech3::ModsListEntry> mods_;
-  int mod_sel_ = -1, mod_page_ = 0;
-  bool mods_checked_ = false;
-  void mods_refresh();
-  void mods_save(std::vector<std::string> enabled, const std::string& said);
-  void mods_add_pending();
-  std::string pending_add_;  // IMPORT's pick, added once "Adding ..." is drawn
-  bool add_drawn_ = false;
-  std::string export_folder_;   // EXPORT's mod, while the save box is up
-  std::string pending_export_;  // its zip, written once "Exporting ..." is drawn
-  bool export_drawn_ = false;
-  void mods_export_pending();
-  std::string mod_line(const mech3::ModsListEntry& e) const;
+  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kUpdateScreen } screen_ = kMain;
   std::vector<std::string> notes_;  // the first start's (launcher_notes)
   std::vector<Button> buttons_;
   int hot_ = -1, focus_ = -1;
@@ -523,7 +498,6 @@ class Launcher {
   bool pm_last_ = false;  // the game last clicked: GAME FILES acts on it
   bool files_pm_ = false;  // GAME FILES' screens are Pirate's Moon's (pm_last_ when they opened)
   bool pm_lacks_music_ = false, pm_lacks_sounds_ = false;  // pm_refresh
-  bool mods_pm_ = false;  // MODS works on Pirate's Moon's mods (the game last clicked)
   std::shared_ptr<upgrades::update::Verdict> update_;  // the last CHECK FOR UPDATES' verdict
   std::vector<std::string> update_lines_;  // its release's notes wrapped to the screen (show_update)
   std::shared_ptr<std::string> update_file_;  // after DOWNLOAD AND INSTALL: the program to start next (empty: none)
@@ -531,16 +505,6 @@ class Launcher {
   static constexpr int kUpdateTop = 150, kUpdateBottom = 322, kUpdateWidth = 500;
   size_t update_per_page() { return static_cast<size_t>(std::max(1, (kUpdateBottom - kUpdateTop) / std::max(1, text_.line_skip(13)))); }
   void show_update();
-  ModsTarget mods_here() {
-    if (mods_pm_) pm_wd();
-    return mods_target(o_, mods_pm_);
-  }
-  std::string mods_install() const { return mods_pm_ ? pm_dir_ : install_.dir; }
-  // CHECK on a chosen mod (modding.md, Plain errors on the MODS screen): its sentences wrapped, a page at a time.
-  void show_mod_report(const mech3::ModsListEntry& e);
-  std::vector<std::string> report_lines_;
-  std::string report_title_;
-  size_t report_page_ = 0;
   std::string pm_data_;                  // ... its data's version ("1.0", "unknown", "incomplete")
   std::vector<std::string> mw3_check_notes_;  // start_check's for MW3, part of notes_ (notes_refresh)
   std::string mw3_program_, pm_program_;  // each game's program's version (--version), once at the start
@@ -645,13 +609,6 @@ std::string versions_words(const std::string& data, const std::string& program, 
   if (mods) s += (mods == 1 ? std::string("a mod") : std::to_string(mods) + " mods") + " on, ";
   return s;
 }
-
-// The game a mod's for= must name, for one MODS operation (mech3::mods_game), put back after it.
-struct GameOfMods {
-  std::string was;
-  explicit GameOfMods(const std::string& g) : was(mech3::mods_game()) { mech3::mods_game() = g; }
-  ~GameOfMods() { mech3::mods_game() = was; }
-};
 
 // A program's version as its file holds it ("MW3-PROGRAM-VERSION:v1.1.0",
 // mw3_main.cpp's mw3_version_tag), read, never run: a game started only to
@@ -1006,10 +963,9 @@ void Launcher::layout() {
       }
       // GAME FILES (Owen, 2026-11-02): the find screen at any time, to pick
       // or refresh the game's files; QUIT for fullscreen (Escape too).
-      add(kFiles, {68, 384, 120, 34}, "GAME FILES");
-      add(kMods, {196, 384, 120, 34}, "MODS");
-      add(kUpdates, {324, 384, 120, 34}, "UPDATES");  // CHECK FOR UPDATES (docs/launcher.md, Updates)
-      add(kQuit, {452, 384, 120, 34}, "QUIT");
+      add(kFiles, {68, 384, 160, 34}, "GAME FILES");
+      add(kUpdates, {240, 384, 160, 34}, "UPDATES");  // CHECK FOR UPDATES (docs/launcher.md, Updates)
+      add(kQuit, {412, 384, 160, 34}, "QUIT");
       break;
     }
     case kSetupScreen: {
@@ -1051,49 +1007,14 @@ void Launcher::layout() {
       add(kUpdateNotNow, {438, 384, 132, 34}, "NOT NOW");
       break;
     }
-    case kModReportScreen: {
-      const size_t pages = (report_lines_.size() + update_per_page() - 1) / update_per_page();
-      add(kReportPrev, {70, 384, 50, 34}, "<", {}, report_page_ > 0);
-      add(kReportNext, {126, 384, 50, 34}, ">", {}, report_page_ + 1 < pages);
-      add(kBack, {440, 384, 130, 34}, "BACK");
-      break;
-    }
     case kNotes:
       if (files_pm_ ? pm_lacks_music_ || pm_lacks_sounds_ : lacks_music_ || lacks_movies_)  // what the install lacks, from the disc (lead, 2026-11-02)
         add(kAddDisc, {130, 318, 380, 46}, "ADD FROM MY DISC", "A disc in a drive first, else its image or any file of the disc");
       add(kNotesOk, {250, 384, 140, 34}, "OK");
       break;
-    case kModsScreen: {
-      // A row a mod (click: on or off), UP and DOWN for the selected one,
-      // CHECK (what the game would refuse in each; with a mod chosen, its
-      // report), the pages, BACK.
-      const int first = mod_page_ * kModsPerPage;
-      for (int i = 0; i < kModsPerPage && first + i < static_cast<int>(mods_.size()); ++i) {
-        const mech3::ModsListEntry& e = mods_[first + i];
-        const std::string name = e.info.name.empty() ? e.info.folder : e.info.name + (e.info.version.empty() ? "" : " " + e.info.version);
-        add(kModRow + i, {70, 104 + i * 42, 500, 38}, (first + i == mod_sel_ ? "> " : "") + name, mod_line(e), e.info.error.empty());
-      }
-      const bool sel = mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size()) && mods_[mod_sel_].on;
-      // ADD MOD (an archive), ADD FOLDER and MODS FOLDER (docs/modding.md, ADD MOD).
-      // IMPORT (an archive; ADD MOD before), EXPORT (the selected mod as a .zip),
-      // ADD FOLDER and MODS FOLDER (docs/modding.md, IMPORT and EXPORT).
-      const bool idle = !asking_ && pending_add_.empty() && pending_export_.empty();
-      const bool chosen = mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size());
-      add(kModAdd, {70, 318, 112, 34}, "IMPORT", "A .zip, .7z or .rar", idle);
-      add(kModExport, {188, 318, 112, 34}, "EXPORT", "The mod as a .zip", idle && chosen);
-      add(kModAddFolder, {306, 318, 128, 34}, "ADD FOLDER", "A mod's folder", idle);
-      add(kModFolder, {440, 318, 130, 34}, "MODS FOLDER", "In the file browser");
-      add(kModUp, {70, 384, 70, 34}, "UP", {}, sel && mod_sel_ > 0);
-      add(kModDown, {146, 384, 70, 34}, "DOWN", {}, sel && mod_sel_ + 1 < static_cast<int>(mods_.size()) && mods_[mod_sel_ + 1].on);
-      add(kModCheck, {222, 384, 100, 34}, "CHECK", {}, !mods_.empty());
-      add(kModPrev, {328, 384, 50, 34}, "<", {}, mod_page_ > 0);
-      add(kModNext, {384, 384, 50, 34}, ">", {}, (mod_page_ + 1) * kModsPerPage < static_cast<int>(mods_.size()));
-      add(kBack, {440, 384, 130, 34}, "BACK");
-      break;
-    }
   }
   {  // the screen and its plates (the checks follow them)
-    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "mods", "update", "report"};
+    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "update"};
     std::string labels;
     for (const Button& b : buttons_) labels += (labels.empty() ? "" : ", ") + b.label;
     std::printf("mw3: launcher: screen %s: %s\n", kNames[screen_], labels.c_str());
@@ -1232,27 +1153,6 @@ void Launcher::draw(float dt) {
       text_.draw_wrapped(canvas_, ask, 13, status_.empty() || status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 338, 500);
       break;
     }
-    case kModReportScreen: {  // the chosen mod's report, a page at a time
-      text_.draw(canvas_, text_.fit(report_title_, 22, W - 64), 22, kAmber, W / 2, 124);
-      const int lh = text_.line_skip(13);
-      const size_t per = update_per_page(), first = report_page_ * per;
-      for (size_t i = first; i < report_lines_.size() && i < first + per; ++i)
-        text_.draw(canvas_, report_lines_[i], 13, kWhite, kX + 70, kUpdateTop + static_cast<int>(i - first) * lh, -1);
-      break;
-    }
-    case kModsScreen: {
-      // Below the banner, as the other screens: the rows, the status under
-      // them, the folder in the footer.
-      const std::string where = mods_here().write_dir + "/mods";
-      text_.draw(canvas_, text_.fit(std::string(mods_pm_ ? "Pirate's Moon's mods in " : "Mods in ") + where + ", in the order they win", 12, W - 32),
-                 12, kDim, 16, H - 24, -1);
-      if (mods_.empty())
-        text_.draw_wrapped(canvas_, "No mods yet. A mod is a folder in the mods folder below with a mod.txt (docs/modding.md).", 14,
-                           kWhite, W / 2, 180, 460);
-      if (!status_.empty())
-        text_.draw(canvas_, text_.fit(status_, 12, 560), 12, status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 367);
-      break;
-    }
     case kDataScreen: {
       text_.draw_wrapped(canvas_, "Your settings, pilots, saved games and converted movies are in:", 16, kWhite, W / 2, 130, 480);
       text_.draw_wrapped(canvas_, text_.fit(files_wd(), 14, 480), 14, kAmber, W / 2, 176, 480);
@@ -1333,42 +1233,12 @@ void Launcher::ask_folder(int what) {
   SDL_ShowOpenFolderDialog(Pick::done, &pick_, win_, nullptr, false);
 }
 
-void Launcher::ask_save(int what, const std::string& file_name) {
-  {
-    std::lock_guard<std::mutex> g(pick_.m);
-    pick_.what = what, pick_.path.clear(), pick_.answered = pick_.cancelled = false;
-  }
-  asking_ = true, ask_shown_ = false, ask_at_ = SDL_GetTicksNS();
-  std::printf("mw3: launcher: the save box asked for\n");
-  static const SDL_DialogFileFilter filters[] = {{"Zip archive (.zip)", "zip"}};
-  const char* docs = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS);
-  static std::string start;
-  start = docs ? (fs::path(docs) / file_name).string() : file_name;
-  SDL_ShowSaveFileDialog(Pick::done, &pick_, win_, filters, 1, start.c_str());
-}
-
 // A picked path: what the button that asked does with it.
 void Launcher::picked(int what, const std::string& path) {
   using namespace mech3::setup;
   // Before Windows 10 1903 such a name cannot be used (docs/program.md, Names on Windows).
   if (!zutl::narrow_paths_utf8() && !std::all_of(path.begin(), path.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; })) {
     status_ = "This version of Windows needs a folder with plain English letters in its name.", status_good_ = false;
-    layout();
-    return;
-  }
-  if (what == kModExport) {  // said, drawn, then written (mods_export_pending)
-    std::string zip = path;
-    if (fs::path(zip).extension().empty()) zip += ".zip";  // a save box that did not add it
-    status_ = "Exporting to " + fs::path(zip).filename().string() + "...", status_good_ = true;
-    pending_export_ = zip, export_drawn_ = false;
-    layout();
-    return;
-  }
-  if (what == kModAdd || what == kModAddFolder) {  // said, drawn, then added (mods_add_pending)
-    fs::path shown(path);
-    while (!shown.empty() && shown.filename().empty()) shown = shown.parent_path();
-    status_ = "Adding " + shown.filename().string() + "...", status_good_ = true;
-    pending_add_ = path, add_drawn_ = false;
     layout();
     return;
   }
@@ -1892,138 +1762,8 @@ void Launcher::finish_work() {
   layout();
 }
 
-void Launcher::mods_refresh() {
-  const ModsTarget t = mods_here();
-  const GameOfMods as(t.game);
-  // game_version= against the game the mods are for: this build's, or mw3pm's own (read from its file).
-  mech3::mods_program_version() = mods_pm_ ? pm_program_ : std::string(MW3_VERSION);
-  // CHECK reads the install with this program's readers: MechWarrior 3's only (mw3pm --check-mod checks PM's).
-  mods_ = mech3::mods_list(t.write_dir, mech3::mods_enabled(t.write_dir), mods_checked_ && !mods_pm_, mods_install());
-  if (mod_sel_ >= static_cast<int>(mods_.size())) mod_sel_ = static_cast<int>(mods_.size()) - 1;
-  if (mod_page_ * kModsPerPage >= static_cast<int>(mods_.size())) mod_page_ = 0;
-}
-
-// CHECK with a mod chosen: its report (upgrades/mods/mod_report.h), the check
-// and this start's mount as sentences. A Pirate's Moon mod's from mw3pm's own
-// readers (mw3pm --mod-report, which touches no write dir), else this program's.
-void Launcher::show_mod_report(const mech3::ModsListEntry& e) {
-  std::vector<std::string> sentences = e.report;
-  if (mods_pm_) {
-    sentences.clear();
-    std::string said;
-    std::vector<std::string> args = {o_.pm_bin, "--mod-report", e.info.path};
-    if (!mods_install().empty()) args.push_back("--install"), args.push_back(mods_install());
-    const int code = o_.pm_bin.empty() ? -1 : sdlfe::run_program(args, 60, &said);
-    for (size_t at = 0; at < said.size();) {
-      size_t end = said.find('\n', at);
-      if (end == std::string::npos) end = said.size();
-      std::string line = said.substr(at, end - at);
-      if (!line.empty() && line.back() == '\r') line.pop_back();
-      if (!line.empty()) sentences.push_back(line);
-      at = end + 1;
-    }
-    if (code < 0 || sentences.empty()) sentences = {"Pirate's Moon could not check this mod (its program did not answer)."};
-  }
-  sentences.insert(sentences.begin(), e.needs.begin(), e.needs.end());  // what it needs first (mod_needs.h)
-  report_lines_.clear();
-  for (const std::string& s : sentences)
-    for (const std::string& w : text_.wrap(s, 13, kUpdateWidth)) report_lines_.push_back(w);
-  report_title_ = "REPORT: " + (e.info.name.empty() ? e.info.folder : e.info.name);
-  for (const std::string& l : report_lines_) std::printf("mw3: launcher: mod report: %s\n", l.c_str());
-  report_page_ = 0, status_.clear();
-  screen_ = kModReportScreen, layout();
-}
-
-// The new order (the enabled, as they win) written to mw3.cfg; the list read again.
-void Launcher::mods_save(std::vector<std::string> enabled, const std::string& said) {
-  const bool ok = mech3::mods_save_enabled(mods_here().write_dir, enabled);
-  std::printf("mw3: launcher: mods: %s\n", ok ? said.c_str() : "mw3.cfg could not be written");
-  status_ = ok ? said + ". It counts from the next start of the game." : "Could not write mw3.cfg: nothing changed.";
-  status_good_ = ok;
-  mods_refresh();
-}
-
-// A row's second line: on or off, then why it cannot be used, what an
-// earlier mod takes from it, or CHECK's verdict.
-// ADD MOD's pick, once "Adding ..." has been drawn: the game's own add
-// (mech3::mod_add_run), the mod shown selected and the result said.
-void Launcher::mods_add_pending() {
-  const std::string path = pending_add_;
-  pending_add_.clear();
-  const ModsTarget t = mods_here();
-  const GameOfMods as(t.game);
-  std::vector<std::string> on = mech3::mods_enabled(t.write_dir);
-  const mech3::ModAddDone d =
-      mech3::mod_add_run(t.write_dir, path, mods_install(),
-                         [this](const std::string& n) { return o_.shot.empty() ? ask_mod_game(win_, n) : 1; },  // a scripted run: no box
-                         &on);
-  std::printf("mw3: launcher: mods: %s\n", d.message.c_str());
-  status_ = d.message, status_good_ = d.ok;
-  mods_refresh();
-  for (size_t k = 0; k < mods_.size(); ++k)
-    if (mods_[k].info.folder == d.folder) mod_sel_ = static_cast<int>(k), mod_page_ = mod_sel_ / kModsPerPage;
-  layout();
-}
-
-// EXPORT's zip, once "Exporting ..." has been drawn: the game's own export
-// (mech3::mod_export) of the mod chosen when the save box opened.
-void Launcher::mods_export_pending() {
-  const std::string zip = pending_export_;
-  pending_export_.clear();
-  const ModsTarget t = mods_here();
-  const GameOfMods as(t.game);
-  // Checked first (modder step 8) with this program's readers: MechWarrior 3's mods (mw3pm checks PM's).
-  const mech3::ModExportResult r =
-      mech3::mod_export((fs::path(t.write_dir) / "mods" / export_folder_).string(), zip, mods_install(), !mods_pm_);
-  export_folder_.clear();
-  std::printf("mw3: launcher: mods: %s\n", r.message.c_str());
-  status_ = r.message, status_good_ = r.ok;
-  layout();
-}
-
-std::string Launcher::mod_line(const mech3::ModsListEntry& e) const {
-  if (!e.info.error.empty()) return "Not usable: " + e.info.error;
-  std::string s = e.on ? "ON" : "OFF";
-  s += " - " + e.info.folder;
-  if (!e.conflicts_with.empty()) {
-    std::string with;
-    for (const std::string& c : e.conflicts_with) with += (with.empty() ? "" : ", ") + c;
-    s += " - shares " + std::to_string(e.shadowed.size() + e.rows_taken.size() + e.anims_taken.size() + e.anim_bases.size()) +
-         " with " + with + " (above wins)";
-  }
-  if (e.on && !e.needs.empty())
-    s += " - " + std::to_string(e.needs.size()) + (e.needs.size() == 1 ? " warning" : " warnings") + " (CHECK)";
-  if (e.anims_unread > 0)
-    s += " - " + std::to_string(e.anims_unread) + (e.anims_unread == 1 ? " animation file" : " animation files") + " Pirate's Moon does not read";
-  if (e.check_errors == 0) s += " - check: fine";
-  else if (e.check_errors > 0) s += " - check: " + std::to_string(e.check_errors) + " the game would refuse (mw3.log)";
-  return s;
-}
-
 void Launcher::activate(int id) {
   sounds_.play(Sounds::kSelect);
-  if (id >= kModRow && id < kModRow + kModsPerPage) {  // a mod's row: selected, and turned on or off
-    const int i = mod_page_ * kModsPerPage + (id - kModRow);
-    if (i >= static_cast<int>(mods_.size())) return;
-    mod_sel_ = i;
-    std::vector<std::string> on;
-    for (const mech3::ModsListEntry& e : mods_)
-      if (e.on && &e != &mods_[i]) on.push_back(e.info.folder);
-    const bool now = !mods_[i].on;
-    const std::string folder = mods_[i].info.folder;
-    if (now) on.push_back(folder);  // turned on: last, below the others
-    mods_save(on, folder + (now ? " on" : " off"));
-    for (size_t k = 0; k < mods_.size(); ++k)
-      if (mods_[k].info.folder == folder) mod_sel_ = static_cast<int>(k);
-    // Ours (mod_needs.h): turned on all the same; what it needs said on the status line.
-    if (now && mod_sel_ >= 0 && !mods_[static_cast<size_t>(mod_sel_)].needs.empty()) {
-      const std::vector<std::string>& w = mods_[static_cast<size_t>(mod_sel_)].needs;
-      status_ = w[0] + (w.size() > 1 ? " (" + std::to_string(w.size() - 1) + " more: CHECK)" : ""), status_good_ = false;
-      std::printf("mw3: launcher: mods: %s warns: %s\n", folder.c_str(), w[0].c_str());
-    }
-    layout();
-    return;
-  }
   static const SDL_DialogFileFilter kZip[] = {{"The 1.2 patch (.zip, .exe)", "zip;exe"}, {"All files", "*"}};
   switch (id) {
     case kMw3:
@@ -2059,12 +1799,6 @@ void Launcher::activate(int id) {
     case kKeepOld:
       status_ = "The old copy stays in " + move_from_ + ".", status_good_ = true;
       from_files_ = false, screen_ = kMain, layout();
-      break;
-    case kReportPrev:
-    case kReportNext:
-      if (id == kReportPrev && report_page_ > 0) --report_page_;
-      if (id == kReportNext && (report_page_ + 1) * update_per_page() < report_lines_.size()) ++report_page_;
-      layout();
       break;
     case kUpdatePrev:
     case kUpdateNext:
@@ -2115,68 +1849,6 @@ void Launcher::activate(int id) {
       screen_ = kWorking, layout();
       break;
     }
-    case kMods:
-      mods_pm_ = pm_last_ && !o_.pm_bin.empty() && !pm_dir_.empty();  // the game last clicked
-      screen_ = kModsScreen, status_.clear(), mods_checked_ = false, mod_sel_ = -1, mod_page_ = 0;
-      mods_refresh();
-      layout();
-      break;
-    case kModUp:
-    case kModDown: {  // the selected (enabled) mod a place earlier or later in mw3.cfg
-      std::vector<std::string> on;
-      for (const mech3::ModsListEntry& e : mods_)
-        if (e.on) on.push_back(e.info.folder);
-      if (mod_sel_ < 0 || mod_sel_ >= static_cast<int>(on.size())) break;
-      const int to = mod_sel_ + (id == kModUp ? -1 : 1);
-      if (to < 0 || to >= static_cast<int>(on.size())) break;
-      std::swap(on[mod_sel_], on[to]);
-      mod_sel_ = to;
-      mods_save(on, on[to] + (id == kModUp ? " moved up" : " moved down"));
-      mod_page_ = mod_sel_ / kModsPerPage;
-      layout();
-      break;
-    }
-    case kModAdd: {
-      static const SDL_DialogFileFilter filters[] = {{"Mods (.zip, .7z, .rar)", "zip;7z;rar"}};
-      ask_file(kModAdd, filters, 1);
-      break;
-    }
-    case kModAddFolder:
-      ask_folder(kModAddFolder);
-      break;
-    case kModExport:
-      if (mod_sel_ < 0 || mod_sel_ >= static_cast<int>(mods_.size())) break;
-      export_folder_ = mods_[mod_sel_].info.folder;
-      if (!o_.save_pick.empty()) {  // --launcher-save-pick: no box
-        picked(kModExport, o_.save_pick);
-        break;
-      }
-      ask_save(kModExport, mech3::mod_export_file_name(mods_[mod_sel_].info));
-      break;
-    case kModFolder: {
-      const std::string where = mods_here().write_dir + "/mods";
-      std::error_code ec;
-      fs::create_directories(where, ec);
-      if (!open_folder(where)) status_ = "The mods folder: " + where, status_good_ = true, layout();
-      break;
-    }
-    case kModCheck:
-      mods_checked_ = true;
-      mods_refresh();
-      if (mod_sel_ >= 0 && mod_sel_ < static_cast<int>(mods_.size())) {  // a mod chosen: its report
-        show_mod_report(mods_[static_cast<size_t>(mod_sel_)]);
-        break;
-      }
-      status_ = mods_pm_ ? "Choose a mod, then CHECK: Pirate's Moon reads it and says what it does"
-                         : "Checked: each mod read as the game would read it. Choose one, then CHECK, for its report";
-      status_good_ = true;
-      layout();
-      break;
-    case kModPrev:
-    case kModNext:
-      mod_page_ = std::max(0, mod_page_ + (id == kModNext ? 1 : -1));
-      layout();
-      break;
     case kFiles:  // the find screen at any time (Owen): repick or refresh the game's files
       files_pm_ = pm_last_ && !o_.pm_bin.empty();  // the game last clicked
       if (files_pm_) pm_refresh();
@@ -2208,7 +1880,6 @@ void Launcher::activate(int id) {
       else if (screen_ == kConfirm && confirm_go_ == 2) screen_ = kDataScreen, layout();
       else if (screen_ == kConfirm) screen_ = kSetupScreen, layout();
       else if (screen_ == kDataScreen) screen_ = kSetupScreen, status_.clear(), layout();
-      else if (screen_ == kModReportScreen) screen_ = kModsScreen, layout();
       else screen_ = kMain, from_files_ = false, status_.clear(), layout();
       break;
     case kNotesOk:
@@ -2317,8 +1988,6 @@ LauncherChoice Launcher::run() {
       update_ = std::make_shared<upgrades::update::Verdict>(check_for_updates(MW3_VERSION));
       if (update_->kind == upgrades::update::Verdict::kNewer) show_update();
     }
-    if (o_.screen == "mods") screen_ = kModsScreen, mods_refresh();
-    if (o_.screen == "mods" && !o_.pick.empty()) pending_add_ = o_.pick, mods_add_pending();  // --launcher-pick
     if (o_.screen == "disc") status_ = "No disc in a drive. Pick its image (.cue .iso) or any file of the disc.";
     if (o_.screen == "work") {
       screen_ = kWorking;
@@ -2365,8 +2034,6 @@ LauncherChoice Launcher::run() {
   Uint64 last = SDL_GetTicks();
   SDL_InitSubSystem(SDL_INIT_GAMEPAD);  // a pad steps through the plates too (nav)
   if (o_.play) auto_ok_ = true, activate(kMw3);  // its notes' OK pressed too
-  // Checks: MODS opened on Pirate's Moon, as after a click on it (then the NAV steps act there).
-  if (const char* g = SDL_getenv("MW3_LAUNCHER_MODS"); g && std::strcmp(g, "pm") == 0) pm_last_ = true, activate(kMods);
   // Checks: keys or a pad as a list ("next,next,press"), each step logged.
   if (const char* steps = SDL_getenv("MW3_LAUNCHER_NAV")) {
     std::string all = steps;
@@ -2482,14 +2149,6 @@ LauncherChoice Launcher::run() {
     draw(dt);
     const Uint64 tb = SDL_GetTicksNS();
     present();
-    if (!pending_add_.empty()) {  // IMPORT: a frame with "Adding ..." shown first
-      if (add_drawn_) mods_add_pending();
-      else add_drawn_ = true;
-    }
-    if (!pending_export_.empty()) {  // EXPORT: a frame with "Exporting ..." shown first
-      if (export_drawn_) mods_export_pending();
-      else export_drawn_ = true;
-    }
     const Uint64 tc = SDL_GetTicksNS();
     if (!frames_) std::printf("mw3: launcher: first frame shown %.0f ms after the start\n", ms(t0, tc));
     ++frames_, draw_ms_ += ms(ta, tb), present_ms_ += ms(tb, tc);
@@ -2531,11 +2190,6 @@ LauncherChoice Launcher::run() {
 LauncherChoice run_launcher(const LauncherOptions& o) {
   Launcher l(o);
   return l.run();
-}
-
-ModsTarget mods_target(const LauncherOptions& o, bool pm) {
-  if (pm) return {o.pm_write_dir, "mw3pm"};  // Pirate's Moon's own settings folder (Launcher::pm_wd fills it)
-  return {o.write_dir, "mw3"};
 }
 
 }  // namespace sdlfe
