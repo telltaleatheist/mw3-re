@@ -622,7 +622,7 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
   EXPECT(text.find("weapon ppc ammo=no tech=any: there is a weapon ppc already, left out") != std::string::npos);
   EXPECT(text.find("weapon AC2 ammo=yes tech=any: there is a weapon AC2 already, left out") != std::string::npos);
   for (bool bugs : {true, false}) {
-    zfix::options().bugs = bugs;
+    zfix::set_all(bugs);
     EXPECT(mech3::weapon_count() == 40);
     EXPECT(mech3::weapon_index("laser_huge") == 38 && mech3::weapon_index("Rail") == 39 && mech3::weapon_index("AC2") == 0);
     EXPECT(std::string(mech3::weapon_name(39)) == "Rail" && std::string(mech3::weapon_title(38)) == "Huge Laser" &&
@@ -635,7 +635,7 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
   }
   // The lab's whole stock (0x00471f40's) with the fixes off and a row there:
   // the row's weapon (and Rail's ammo), never the plain PPC (37) nor its ammo.
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   {
     mech3::Store all;
     all.fill_all();
@@ -655,7 +655,7 @@ TEST(mods_weapon_rows_after_the_ppcs_place) {
   for (const std::string& l : mech3::mods_mount(wd, {"m", "w"}, {})) text += l + "\n";
   EXPECT(text.find("mech scout added (mech 20") != std::string::npos && text.find("weapon Rail added (weapon 39)") != std::string::npos);
   for (const std::string& l : mech3::mods_mount(wd, {}, {})) text += l + "\n";
-  EXPECT(mech3::mech_count() == 19 && mech3::weapon_count() == (saved.bugs ? 38 : 37) && mech3::weapon_index("Rail") == -1);
+  EXPECT(mech3::mech_count() == 19 && mech3::weapon_count() == (saved.small_fixes ? 38 : 37) && mech3::weapon_index("Rail") == -1);
   // The gameplay hash: the weapon rows as data.
   put(wd + "/mods/w2/mod.txt", "name=W2\nweapon=Rail ammo=yes tech=clan title=Other\n");
   put(wd + "/mods/w3/mod.txt", "name=W3\nweapon=Rail ammo=no tech=clan\n");

@@ -7,12 +7,15 @@ original address, the evidence, how each fix is tested) is
 [`docs/fixes.md`](docs/fixes.md). In the code each change is marked `FIX`
 next to the function it touches.
 
-**To play with every bug fix off:** start `mw3 --original`, or put
-`bugfixes=0` in `mw3.cfg` in your settings folder. That puts back every
-change under "Bug fixes that change play" below except the frame-rate ones
-(the game still plays at the same pace on any computer), and keeps the
-fixes that let the game run at all and the crash fixes. `bugfixes=1`, or no
-line, keeps them on.
+**To play the game as it shipped:** the options' UPGRADES page has five
+switches, all on to start: WATER MOVEMENT, MFB REGROUP, IMPROVED AI, ARTEMIS
+TRACKING and SMALL FIXES (the page lists what the small fixes are). Turn one
+off and that part plays as in 1999; `mw3 --original` turns all five off for
+one run. Crash fixes, the fixes that let the game run today, and the
+restored sounds, pictures, voice lines and text stay on (Owen's rule,
+2026-11-10). In a network game everyone plays on the host's switches. Which
+change sits under which switch: [`docs/upgrades-sort.md`](docs/upgrades-sort.md).
+A 1.0 `mw3.cfg`'s `bugfixes=` line becomes the five switches the first time.
 
 The rule: keep everything as the original did it, quirks that players know
 and plan around included. Change only what stops the game running on today's
@@ -21,6 +24,7 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **The Small Pulse Laser has its muzzle flash.** Its weapon data named a flash no mission has, so it fired with none; it now shows the Small Laser's blue flash, as every other laser uses its size's colour.
 - **Typing in the cheat box or the chat no longer moves your view.** A key you type into a box still counted for the game when you let it go after pressing Enter, as you do when typing fast; L is the hold-to-look key, so "operation cwal" left the mouse turning the torso instead of moving the reticle. Keys typed into a box are the box's now.
 - **Artemis works in a side torso.** The rebuild looked for Artemis on the torso as one piece, so a launcher and its Artemis in the same side torso (some stock mechs have them there) never got it. Now, as in the original, a locked shot from that launcher tracks at double rate and hugs the ground.
 

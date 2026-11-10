@@ -376,7 +376,7 @@ Group* read_group(zrdr::Node* node, LoadFn fn) {
       } else if (std::strcmp(s, "EXTRA") == 0) {
         ++i;
         if (fn) g->extra = fn(g, &items[i]);
-      } else if (zfix::options().bugs && std::strcmp(s, "PLAY_COUNT") == 0) {
+      } else if (zfix::options().fixed && std::strcmp(s, "PLAY_COUNT") == 0) {
         // FIX (bug): six ammo groups put this entry keyword at group level and
         // the exe takes it as the group's name; here it applies to each entry.
         if (v.type == zrdr::Int) group_count = static_cast<int16_t>(v.i);

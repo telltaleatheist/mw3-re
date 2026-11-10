@@ -53,7 +53,7 @@ int finish(uint8_t* out, int cap) {
 }  // namespace
 
 extern "C" void probe_ski_begin(uint32_t seed) {
-  zfix::options().bugs = false;  // the original path (the colinear drop's FIX)
+  zfix::set_all(false);  // the original path (the colinear drop's FIX)
   zerr::set_sink(sink);
   zmod::materials() = zmod::MaterialTable{};
   std::memset(g_model.header, 0, sizeof g_model.header);

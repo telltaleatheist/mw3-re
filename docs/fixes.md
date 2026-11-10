@@ -7,34 +7,35 @@ Windows without helpers such as DDrawCompat, plus real bugs that break play
 anti-tamper traps (Owen, 2026-10-20, `protection.md`), marked `FIX (trap)`.
 Each change is also marked `FIX` in the code next to the original address.
 
-## The bug fixes switch
+## The Upgrades switches (1.1.0; was the bug fixes switch)
 
-`zfix::options().bugs` holds every play-changing `FIX (bug)`: a player turns
-them all off with `bugfixes=0` in mw3.cfg or `mw3 --original` (which wins over
-mw3.cfg), and mw3 says so at the start (Owen, 2026-10-30; the probes run with
-it off, so the differential tests check the original's path). Off means the
-original's play: each fix that CHANGES.md lists under "Bug fixes that change
-play" goes back to the exe's way, except the frame-rate ones. What stays on
-either way:
-- the platform fixes the game needs to run at all, FIX (A) and FIX (B):
-  `nested_lock`, `any_resolution`, the 53-bit rounding (`fpu53`), and every
-  unflagged (A)/(B) row below;
-- the frame timings, `per_second` (Owen, 2026-10-20: per-frame steps go to
-  time at the 30 fps pace; not a bug fix and not switched);
-- the crash and memory fixes, where the exe would crash, read freed or stray
-  memory or loop for ever (a null checked, a buffer bounded, a freed record
-  kept: the vehicles' fire floor, the craters' overlap test, an animation
-  instance's borrowed tree), since the original's behaviour there is no
-  behaviour to restore.
+Owen's rule (2026-11-10; `docs/upgrades-sort.md` sorts every row): missing
+content restored, corrected graphics, and the sound, HUD and text fixes stay
+on for good, as do crash, memory and lost-data fixes and the port's (A) / (B);
+gameplay changes go behind a switch. So `zfix::options()` holds:
 
-Folded into `bugs` on 2026-10-30 (until then on always):
-the deep-water curve (its own `deep_water` until then), the heat-sink
-critical's callout, the particle fade-in typo, the animations' last-def
-search, and the animations' missing-prerequisite fix (its own
-`fix_prerequisites` remains as a test seam, acting only with `bugs`). The
-in-game options screen has no line for it: its dialog comes from the
-player's own data (reader.zbd's dlgGameOptions), which the rebuild does not
-change.
+- `fixed`: every always-on fix. The game never turns it off, not even
+  `--original`; only the probes and tests do, so the differential tests still
+  run the exe's own path;
+- the Upgrades page's five, each on by default and each saved in mw3.cfg:
+  `water` (`upgrade_water=`), `mfb_regroup` (`upgrade_mfb_regroup=`),
+  `improved_ai` (`upgrade_improved_ai=`, with W58's `nav_allies`), `artemis`
+  (`upgrade_artemis=`), and `small_fixes` (`upgrade_small_fixes=`), whose list
+  the page shows (`upgrades/settings/upgrades.cpp`, the sort's in-game list);
+- `per_second`, `nested_lock`, `any_resolution`, `fpu53` and the wide menus as
+  before (not upgrades).
+
+1.0.x's `bugfixes=0/1` is read once as all five and replaced by the five keys
+at that start. `mw3 --original` turns the five off for the run and saves
+nothing; mw3 says so at the start. In a network game the host's five carry to
+everyone (the lobby's player data, after the mods block: "UPGR" and the five
+as bits); a joiner's page shows them greyed with a line saying so, and the
+joiner's own come back as the network game ends (`GameEngine::network_set`).
+A host before 1.1.0 sends none: each side then plays on its own, and the
+joiner is told (multiplayer-port.md).
+
+The rows below say "behind `bugs`" where they were written before 1.1.0;
+upgrades-sort.md names the switch each now reads.
 
 ## The changes
 
@@ -220,6 +221,7 @@ change.
 | Sound duplicates, 0x56e2d0 | A new duplicate voice is `malloc`ed and only two fields set | (bug) its position and has-position flag are whatever the heap held, which can place a later volume change in 3D | Zeroed (the test's emulator heap hands out zeroed memory, so both sides agree) |
 | Sound cue points, 0x56dfb0 | After the last cue the index steps past the array and is compared with the heap beyond it | (A) out of bounds in C++ | Read as 0, what the exe's heap most likely holds there (the next array's start): one more call with index = count, then the walk ends |
 | Weapon effect blocks, 0x584bb0 | `SOUND` and `BOUNCE_SOUND` lists are copied into four slots each with no bound | (bug) a fifth sound writes over the next fields | At most four are kept (no shipped weapon has more); the test keeps its variants within four |
+| The Small Pulse Laser's muzzle flash, weapons.zrd read by 0x584bb0 (fixes.md, Candidates: effects no world has) | PulseLaser_Small's ANIMATION is `plaser_blue_muz.flt`, an animation in none of the six worlds, so nothing plays at the barrel | (data) a graphic missing. Every other laser's muzzle goes by its size's colour, Large red, Medium green, Small blue: Laser_Small and ERLaser_Small use `laser_blue_muz.flt`, PulseLaser_Large and _Medium the red and green lasers' own (`laser_red_muz.flt`, `laser_green_muz.flt`), and PulseLaser_Small's beam is the Small Laser's `laser_blue.flt`; so the blue Small Laser's flash is the one meant (its impact, `plaser_impact_blue.flt`, does exist) | When the name finds no animation, `laser_blue_muz.flt` (zwep_init `read_effect`); `fixed`, always on (Owen 2026-11-10); a mod that adds `plaser_blue_muz.flt` keeps its own; `mission_start_reads_c1m1_vehicles_headless` |
 | Damage animations, 0x58459c | `DAMAGE_ANIM_ON_HEALTH` pairs are copied into room for four with no bound | (bug) more overwrite the destroy and kill animations | At most four are kept (no shipped weapon has any) |
 | Projectile pool size, 0x58468e | A def's shots in the air are counted from a local only `RANGE` sets | (bug) a def without RANGE uses the previous def's range, the first one stack garbage | The def's own range (500 by default); every shipped weapon has RANGE, so the pool is the same 164. The test patches the original the same way |
 | LOCK_ON_LEAD, 0x583fb9 | The second value is read when the first value's bits exceed 3, not when the list has two values | (bug) a typo: `[eax+0xc]` for `[eax+4]` | The count decides; no shipped weapon has LOCK_ON_LEAD. The test patches the original the same way |
@@ -664,10 +666,9 @@ Kept:
   - `mine_turr`'s `laser_dummygreen.flt` and LANDMINE's `smokepuff_trail`
     (no shipped mission fires either).
 
-  Pointing the Small Pulse Laser at `laser_blue_muz.flt` (a reader-side
-  substitute behind the bug fixes, or a weapons.zrd edit in a mod) would
-  give it a muzzle flash like its siblings. Whether one was meant (a typo)
-  or left out is a guess, so it is not changed.
+  Done for the Small Pulse Laser (Owen, 2026-11-10: a corrected graphic,
+  always on): its row is in the table, "The Small Pulse Laser's muzzle flash".
+  The other three stay as they are.
 
 - **Weapon-destroyed voices missing from the data** (pm-tests item 22; data, not code): the autocannons', LB-X's and machine guns' NAMESOUND `wep_autocannon_name` is not in sounds.zrd (`wep_cannon_name` and `wep_mgun_name` are), `mech_part_destroy` (the "destroyed" word, 0x004b3020) is not there either, and TAG's names `wep_las_name`; the LB-X family is 0, no critical voice (0x004853c0). Both games. Options: leave it (the original's silence), or point the names at the sounds that exist (a data patch the importer could make), and give LB-X the autocannon family.
 

@@ -486,7 +486,7 @@ void net_state_apply(NetMech& m, const uint8_t* msg, size_t size) {
       const double gap = static_cast<double>(now - m.heard);
       // FIX (bug): the latency (seconds) in milliseconds, as the gap is; the
       // exe adds the seconds, a correction of about 0.1%.
-      const double lag = zfix::options().bugs ? m.latency * 1000.0 : m.latency;
+      const double lag = zfix::options().fixed ? m.latency * 1000.0 : m.latency;
       const double f = gap > 1.0 ? (lag + gap) / gap : 1.0;
       for (int i = 0; i < 3; ++i) use[i] = static_cast<float>((qn[i] - m.aim_q[i]) * f + m.aim_q[i]);
       use[3] = 0.0f;
@@ -621,7 +621,7 @@ void net_ping_in(NetMech& m, const uint8_t* msg, size_t size) {
     // bad packet) made 2^32 ms, and their mech's arms flailed (the aim's
     // extrapolation by it) until the next ping (fixes.md).
     const uint32_t trip = now - m.ping_sent - w[4];
-    const double t = zfix::options().bugs ? static_cast<double>(static_cast<int32_t>(trip)) : static_cast<double>(trip);
+    const double t = zfix::options().fixed ? static_cast<double>(static_cast<int32_t>(trip)) : static_cast<double>(trip);
     const double l = (t - static_cast<double>(g_net.acked_time - w[3])) * 0.0005;  // [0x005c3408]
     m.latency = l <= 0.0 ? 0.0f : static_cast<float>(l);
   } else {
@@ -789,7 +789,7 @@ void net_shove_in(NetMech& from, const uint8_t* msg, size_t size) {
   if (!p || size < 16) return;
   float f[3];
   std::memcpy(f, msg + 4, 12);
-  if (zfix::options().bugs) p->attacker = &from;
+  if (zfix::options().fixed) p->attacker = &from;
   else from.attacker = &from;
   if (p->torso) p->torso->apply_damage(f[0], 0);  // vt+0x38
   p->velocity.x += f[1];

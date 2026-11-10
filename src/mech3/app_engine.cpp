@@ -843,7 +843,7 @@ void GameEngine::video_clear_b(Handle) {
   if (!p_.render) return;
   uint8_t r, g, b;
   zmod::fog_frame_fill(&r, &g, &b);
-  p_.render->clear(zfix::options().bugs, r, g, b);
+  p_.render->clear(zfix::options().fixed, r, g, b);
 }
 // 0x00579840: the cursor's on/off, the old state back. The menus draw their own.
 uint32_t GameEngine::video_show_cursor(uint32_t on) {

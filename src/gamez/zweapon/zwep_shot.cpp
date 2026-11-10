@@ -530,7 +530,7 @@ void home(WeaponDef* def, Projectile* p) {
   // The exe reads the global, which spawn has reset to 1, not the shot's copy
   // (+0x5c0, 2 when fired locked with Artemis FCS): FIX (bug) the copy
   // (fixes.md, docs/weapons.md Homing).
-  const float track = zfix::options().bugs ? p->track_scale[0] : f.track_scale[0];
+  const float track = zfix::options().artemis ? p->track_scale[0] : f.track_scale[0];
   const float turn = def->turn_rate * track * factor * dt;
   if ((def->flags & kTetherGuided) || p->terrain_follow) {
     HitList g;

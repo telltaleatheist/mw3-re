@@ -86,6 +86,7 @@
 #include "upgrades/mods/starter_mods.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/reference/reference.h"
+#include "upgrades/settings/upgrades.h"
 #include "mech3/game_editor.h"
 #include "mech3/options_menu.h"
 #include "mech3/game_setup.h"
@@ -189,10 +190,11 @@ struct Args {
   std::string save_pick;  // --save-pick PATH: EXPORT's save box answered with PATH
 
   std::string original;  // -nofmv -seasick -cdN, passed on as the command line
-  // The bug fixes (zfix bugs; fixes.md, The bug fixes switch): mw3.cfg's
-  // bugfixes=0/1 (default 1), --original turns them off whatever it says.
+  // The Upgrades page's switches (ours, upgrades/settings): mw3.cfg's
+  // upgrade_<name>=0/1 (default 1; 1.0.x's bugfixes= read once as all five),
+  // --original turns all five off for the run whatever it says.
   bool play_original = false;
-  int cfg_bugfixes = 1;
+  upgrades::Config cfg_upgrades;
   int cfg_throttle_reverse = 1;  // mw3.cfg's throttle_reverse= (ours, W56: zfix.h)
   bool first_start = false;   // the install found by the search, not mw3.cfg's (ours: the first start's notes)
   float pos[3] = {0, 60, 0};
@@ -454,8 +456,8 @@ void read_config(const std::string& dir, Args& a) {
     else if (line.rfind("joystick=", 0) == 0) a.cfg_joystick = line.substr(9);
     else if (line.rfind("joystick_axes=", 0) == 0) a.cfg_joystick_axes = line.substr(14);
     else if (line == "windowed=1") a.windowed = true;
-    else if (line == "bugfixes=0") a.cfg_bugfixes = 0;
-    else if (line == "bugfixes=1") a.cfg_bugfixes = 1;
+    else if (upgrades::read_line(line, a.cfg_upgrades)) {
+    }
     else if (line == "widemenus=0") a.cfg_wide_menus = 0;
     else if (line == "widemenus=1") a.cfg_wide_menus = 1;
     else if (line == "throttle_reverse=0") a.cfg_throttle_reverse = 0;
@@ -805,21 +807,30 @@ int program(int argc, char** argv) {
     if (a.entry.empty() && (a.entry_play || a.entry_ia)) a.open_mods = true;
   }
   if (a.open_mods) mech3::mods_menu_reopen() = true, std::printf("mw3: the main menu opens on MODS (--open-mods)\n");
-  // Every play-changing bug fix off with --original or bugfixes=0 (ours; the
-  // platform fixes that let it run stay on: fixes.md, The bug fixes switch).
-  zfix::options().bugs = !a.play_original && a.cfg_bugfixes != 0;
+  // The five switches from mw3.cfg, all off with --original (ours; the
+  // always-on fixes stay: zfix.h's `fixed`, docs/upgrades-sort.md). 1.0.x's
+  // bugfixes= becomes the five keys at once.
+  sdlfe::apply_upgrades_config(a.write_dir, a.cfg_upgrades, a.play_original);
+  // Tests only (not a player's switch): MW3_EXE_PATHS=1 runs the exe's own
+  // path everywhere, the always-on fixes too, for the tests that compare a
+  // child mw3 with the original (zfix.h's `fixed`).
+  if (const char* x = std::getenv("MW3_EXE_PATHS"); x && std::strcmp(x, "1") == 0) {
+    zfix::set_all(false);
+    std::printf("mw3: MW3_EXE_PATHS=1: every fix off, the exe's own paths (tests)\n");
+  }
   // The menus' 16:9 (a display choice, kept by --original): the command
   // line's, else mw3.cfg's widemenus=, else on.
   zfix::options().wide_menus = a.wide_menus >= 0 ? a.wide_menus != 0 : a.cfg_wide_menus != 0;
-  zfix::options().throttle_reverse = a.cfg_throttle_reverse != 0;  // with bugs (lever_reverse_on)
+  zfix::options().throttle_reverse = a.cfg_throttle_reverse != 0;  // with fixed (lever_reverse_on)
   // The options' UPGRADES page saves its switches here, beside the rest of mw3.cfg (ours).
-  mech3::options_upgrades_saver() = [wd = a.write_dir](const char* key, bool on) {
+  // --original's five stay off for the run only: nothing of them saved.
+  mech3::options_upgrades_saver() = [wd = a.write_dir, original = a.play_original](const char* key, bool on) {
+    if (original && std::strncmp(key, "upgrade_", 8) == 0) return;
     if (!wd.empty()) sdlfe::save_config_value(wd, key, on ? "1" : "0");
   };
   mech3::app_key_calls().debug_camera = a.debug_camera;
   if (a.debug_camera) std::printf("mw3: --debug-camera: the game editor on Shift+F12 (docs/editor.md)\n");
-  if (!zfix::options().bugs)
-    std::printf("mw3: bug fixes off (%s): the original's play\n", a.play_original ? "--original" : "bugfixes=0 in mw3.cfg");
+  if (a.play_original) std::printf("mw3: --original: the five upgrades off, the game as it shipped (the always-on fixes stay)\n");
   // The launcher (ours: launcher.h, docs/launcher.md, games-layout.md): a
   // player's plain start goes straight into the game when an install is
   // found, else to the find screen alone and on into the game once there is

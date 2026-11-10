@@ -346,7 +346,7 @@ TEST(nav_is_on_for_the_players_side_with_bugs_and_off_in_network_games) {
   zfix::Options& o = zfix::options();
   const zfix::Options keep = o;
   const bool mp = mech3::options().multiplayer;
-  o.bugs = true, o.nav_allies = true, o.nav_enemies = false;
+  o.improved_ai = true, o.nav_allies = true, o.nav_enemies = false;
   mech3::options().multiplayer = 0;
   EXPECT(nav::on_for(true) && !nav::on_for(false));
   o.nav_enemies = true;
@@ -354,7 +354,7 @@ TEST(nav_is_on_for_the_players_side_with_bugs_and_off_in_network_games) {
   mech3::options().multiplayer = 1;
   EXPECT(!nav::on_for(true) && !nav::on_for(false));
   mech3::options().multiplayer = 0;
-  o.bugs = false;
+  o.improved_ai = false;
   EXPECT(!nav::on_for(true));
   o = keep;
   mech3::options().multiplayer = mp;

@@ -383,7 +383,7 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
       else if (std::strcmp(name, "Alan_Mattila") == 0 ||
                // FIX (bug): two records misspell him (c1 Instant Action map 1,
                // c3 mission 6), so he had no radio voice there (Owen, 2026-10-20).
-               (zfix::options().bugs && (std::strcmp(name, "Alan_Mattilla") == 0 || std::strcmp(name, "Alan_Matilla") == 0)))
+               (zfix::options().fixed && (std::strcmp(name, "Alan_Mattilla") == 0 || std::strcmp(name, "Alan_Matilla") == 0)))
         sound_tag = dup("alan");
       else if (std::strcmp(name, "Dominic_Paine") == 0)
         sound_tag = dup("dom");
@@ -411,11 +411,11 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
       e.f10 = word_f(s[14]);
       e.flags = with(fl, 0, nz(s, 15));
       const char* valve_name = text(s[16]);
-      // FIX (bug), behind bugs: two c4b boundaries name what is not there
+      // FIX (bug), behind small_fixes: two c4b boundaries name what is not there
       // (docs/ai.md section 8): mission 6's regions ..._c4m7 ship as
       // ..._c4bm7, mission 5's outside entry sets a valve named after its
       // region where the fail objective watches outside_c4m5.
-      if (zfix::options().bugs) {
+      if (zfix::options().small_fixes) {
         if (region_name && std::strcmp(region_name, "reg_inside_c4m7") == 0) region_name = "reg_inside_c4bm7";
         if (region_name && std::strcmp(region_name, "reg_outside_c4m7") == 0) region_name = "reg_outside_c4bm7";
         if (valve_name && std::strcmp(valve_name, "reg_outside_c4m5") == 0) valve_name = "outside_c4m5";
@@ -430,7 +430,7 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
         if (f[k].type != zrdr::List) continue;  // FIX (bug)
         add_order(f[k].list);
       }
-    } else if (zfix::options().bugs) {
+    } else if (zfix::options().small_fixes) {
       // FIX (bug): two Instant Action records on c4 (Enemy_12 in readeria1,
       // Enemy_06 in readeria2) list their orders loose in the record, with no
       // "vlist" around them; the exe skips them (Owen, 2026-10-20).

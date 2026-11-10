@@ -562,9 +562,9 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
     lab.lab_screen_ = 0;  // (set once the screen is made, as the test's [0x00605a58])
   }
   const bool per_second = zfix::options().per_second;
-  const bool bugs = zfix::options().bugs;
+  const bool bugs = zfix::all();
   zfix::options().per_second = false;  // the original's path (zfix.h)
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   zrdr::init();
   zrdr::close_archives(true);
   zrdr::open_archive(reader, true);
@@ -682,7 +682,7 @@ int probe_lab_run(const char* reader, const char* setup, const char* plan, char*
   }
   zrdr::close_archives(true);
   zfix::options().per_second = per_second;
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   mech3::set_app(nullptr);
   ztwod::set_host(nullptr);
   if (static_cast<int>(dump.size()) >= size) return -1;

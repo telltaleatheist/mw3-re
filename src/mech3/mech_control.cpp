@@ -263,7 +263,7 @@ float AxisBinding::value(const void* j, const void* m) const {
 }
 
 bool lever_reverse_on(const AxisBinding& b) {
-  if (!zfix::options().bugs || !zfix::options().throttle_reverse || b.source < 1 || b.source > 8) return false;
+  if (!zfix::options().fixed || !zfix::options().throttle_reverse || b.source < 1 || b.source > 8) return false;
   // No stick: the original's reading (its axes then read the offset).
   if (!(g_calls.joy_present ? g_calls.joy_present() : zin::joy_present())) return false;
   return !(g_calls.joy_gamepad ? g_calls.joy_gamepad() : zin::joy_gamepad());
@@ -305,7 +305,7 @@ void PlayerControls::read_axes(float dt, float* thr, float* tn, float* p, float*
   // FIX (bug): with no stick a saved file's stick axes stay bound (only the stock
   // file is moved off it, 0x00480570) and read their offset each frame: the mech
   // walked and its torso turned by itself (docs/fixes.md).
-  const bool no_stick = zfix::options().bugs && !(g_calls.joy_present ? g_calls.joy_present() : zin::joy_present());
+  const bool no_stick = zfix::options().fixed && !(g_calls.joy_present ? g_calls.joy_present() : zin::joy_present());
   const auto bound = [&](const AxisBinding& a) { return a.source != 0 && !(no_stick && a.source <= 8); };
   if (bound(ax[3])) *tn = ax[3].value(j, m);
   if (bound(ax[0])) {

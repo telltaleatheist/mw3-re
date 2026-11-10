@@ -66,7 +66,7 @@ struct DockSummary {
   int32_t states = -1;
   bool idle_first = false, begin_next = false, drive = true, deploy_valve = false;
   // The front state: 0 idle, 1 places, 2 contact, 3 deploy, 4 repair, 5 close, 6 reset, 7 parked
-  // (ours, after a repair with bugs on); -1 none.
+  // (ours, after a repair with mfb_regroup on); -1 none.
   int32_t front = -1;
   bool busy = false;
   void* requester = nullptr;

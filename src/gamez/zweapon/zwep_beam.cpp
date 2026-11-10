@@ -272,9 +272,9 @@ void beam_sort_targets(Beam* b, float* along, Vec3f3* far_dir) {
 }
 
 // FIX (bug): the hold counted in whole milliseconds; the exe's float sum of
-// 60 x (1/60) falls short of 1.0 and costs a frame (zfix bugs, weapons.md TAG).
+// 60 x (1/60) falls short of 1.0 and costs a frame (zfix fixed, weapons.md TAG).
 bool designate_held(float timer, float hold) {
-  if (!zfix::options().bugs) return timer >= hold;
+  if (!zfix::options().fixed) return timer >= hold;
   return std::floor(timer * 1000.0f + 0.5f) >= std::floor(hold * 1000.0f + 0.5f);
 }
 

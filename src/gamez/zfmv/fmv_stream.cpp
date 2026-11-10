@@ -225,7 +225,7 @@ int32_t Stream::audio_frame() {
     // a device's 10 ms steps land on 0 at each wrap: a frame from 2 s before
     // flashed every 2 s (docs/fmv.md section 5). The start (only the first
     // half read) keeps the exe's reading.
-    const bool wrapped = cursor == 0 && zfix::options().bugs && read > half_samples;
+    const bool wrapped = cursor == 0 && zfix::options().fixed && read > half_samples;
     if ((cursor > 0 || wrapped) && cursor < half) {
       refill(half, half);
       fill_second = false;

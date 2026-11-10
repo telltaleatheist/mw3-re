@@ -3,9 +3,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <string>
 
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/ztwod/twod_host.h"
+#include "upgrades/settings/upgrades.h"
 #include "mech3/options.h"
 #include "mech3/controls_cfg.h"
 
@@ -107,7 +110,7 @@ GameOptionsScreen::GameOptionsScreen(Engine& e, Handle s)
 // player's sensitivity kept and only its sign set (fixes.md, Decided); a zero
 // one takes the original's 1.3.
 float mouse_y_accel(float current, bool inverted) {
-  if (!zfix::options().bugs) return inverted ? static_cast<float>(-1.3) : static_cast<float>(1.3);
+  if (!zfix::options().fixed) return inverted ? static_cast<float>(-1.3) : static_cast<float>(1.3);
   float mag = std::fabs(current);
   if (mag == 0.0f) mag = 1.3f;
   return inverted ? -mag : mag;
@@ -184,15 +187,16 @@ void UpgradesScreen::AcceptButton::on_left_up() {
 }
 
 UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
-    : MenuScreen(e, s), accept(e), back(e), bug_fixes(e), wide_menus(e) {
+    : MenuScreen(e, s), accept(e), back(e), water(e), mfb_regroup(e), improved_ai(e), artemis(e), small_fixes(e),
+      wide_menus(e), small_list(e) {
   target_buffers(e);
   const bool moving = !e.fast_menu();
   if (load("dlgOptions.zrd", "UPGRADES_DIALOG", moving)) {
     borrow_background(true);
     bind_primitive(&lines, "LINES");
     bind_primitive(&lines1, "LINES1");
-    bind_primitive(&box1, "BOX1");
-    bind_primitive(&box2, "BOX2");
+    char name[8];
+    for (int k = 0; k < 6; ++k) std::snprintf(name, sizeof(name), "BOX%d", k + 1), bind_primitive(&box[k], name);
     bind_button(&accept, "ACCEPT");
     bind_button(&back, "BACK");
     if (!moving) {
@@ -200,31 +204,49 @@ UpgradesScreen::UpgradesScreen(Engine& e, Handle s)
       remove(&background);
       remove(&lines);
       remove(&lines1);
-      remove(&box1);
-      remove(&box2);
+      for (ztwod::Image& b : box) remove(&b);
       accept.set_baked(true);
       back.set_baked(true);
     }
-    bind_button(&bug_fixes, "BUG_FIXES");
+    static const char* const kNames[5] = {"WATER", "MFB_REGROUP", "IMPROVED_AI", "ARTEMIS", "SMALL_FIXES"};
+    for (int k = 0; k < 5; ++k) bind_button(five[k], kNames[k]);
     bind_button(&wide_menus, "WIDE_MENUS");
+    bind_button(&small_list, "SMALL_LIST");
     unload();
   }
+  small_list.clear_items();
+  for (const char* line : upgrades::small_fixes_list()) small_list.add_item(line, 0);
+  small_list.layout();
+  note.set_font(ztwod::host().font_find("ia_dark_grey"));
+  note.set_pos(64, 290);
+  const bool hosts = upgrades::hosts();
+  note.set_text("%s", hosts ? "In this network game the switches are the host's." : "Each switch off plays that part as the game shipped.");
+  if (note.needs_render) note.render();
+  add(&note);
   set_flags_all(0);
   set_active(1);
+  if (hosts)
+    for (OnOffCycle* c : five) c->enabled = 0, c->refresh();
 }
 
-// The bug fixes take hold at once, and wide menus too (ACCEPT's menu_mode_picked).
+// The switches take hold at once, and wide menus too (ACCEPT's
+// menu_mode_picked). A joiner's, the host's while the game lasts, are neither
+// changed nor saved.
 void UpgradesScreen::apply(int32_t to_options) {
   zfix::Options& o = zfix::options();
+  const auto& sw = upgrades::switches();
   if (!to_options) {
-    bug_fixes.select(o.bugs);
+    for (size_t k = 0; k < sw.size(); ++k) five[k]->select(o.*sw[k].field);
     wide_menus.select(o.wide_menus);
     return;
   }
-  o.bugs = bug_fixes.selected_value() != 0;
+  const bool hosts = upgrades::hosts();
+  if (!hosts)
+    for (size_t k = 0; k < sw.size(); ++k) o.*sw[k].field = five[k]->selected_value() != 0;
   o.wide_menus = wide_menus.selected_value() != 0;
   if (auto& save = options_upgrades_saver()) {
-    save("bugfixes", o.bugs);
+    if (!hosts)
+      for (size_t k = 0; k < sw.size(); ++k) save((std::string("upgrade_") + sw[k].key).c_str(), o.*sw[k].field);
     save("widemenus", o.wide_menus);
   }
 }
