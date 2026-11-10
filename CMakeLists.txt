@@ -239,9 +239,11 @@ add_library(mw3core STATIC
   src/upgrades/editor/help_menus.cpp
   src/upgrades/editor/help_nets.cpp
   src/upgrades/editor/help_vehicles.cpp
+  src/upgrades/editor/help_weapons.cpp
   src/upgrades/editor/mods_edit.cpp
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp
+  src/upgrades/editor/new_weapon.cpp
   src/upgrades/editor/aiv_save.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
@@ -353,6 +355,8 @@ add_library(mw3core STATIC
   src/mech3/mods_menu.cpp
   src/mech3/mod_install.cpp
   src/upgrades/mods/mod_export.cpp
+  src/upgrades/mods/anim_defs.cpp
+  src/upgrades/update/update.cpp
   src/upgrades/reference/reference.cpp
   src/upgrades/reference/reference_mods.cpp
   src/upgrades/reference/reference_weapons.cpp
@@ -551,6 +555,7 @@ add_library(mw3probe SHARED
   tests/probe_vehicle_ddx.cpp
   tests/probe_inout_view.cpp
   tests/probe_aiv_save.cpp
+  tests/probe_new_weapon.cpp
   tests/probe_aiv_add.cpp
   tests/probe_zinput.cpp
   tests/probe_settings.cpp
@@ -619,6 +624,7 @@ add_executable(mw3tests
   tests/test_lance.cpp
   tests/test_nav.cpp
   tests/test_setup_sources.cpp
+  tests/test_update.cpp
   tests/test_data_folder.cpp
   tests/test_patch12.cpp
   tests/test_video_device.cpp
@@ -636,6 +642,7 @@ add_executable(mw3tests
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_net_save.cpp
+  tests/test_new_weapon.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp
   tests/test_bounded_media.cpp
@@ -697,6 +704,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mods.cpp
     tests/test_net_save.cpp  # the editor's net save on PM's nets
     tests/test_editor.cpp  # the editor's menus, net and vehicle editors on PM's logic
+    tests/test_update.cpp  # the updater (main's, shared): its versions, sums and swap
   )
   target_include_directories(mw3pmtests PRIVATE tests)
   target_link_libraries(mw3pmtests PRIVATE pmcore mw3core)
@@ -878,6 +886,7 @@ if(SDL3_FOUND)
       src/frontend/sdl/run_log.cpp
       src/frontend/sdl/crash_report.cpp
       src/frontend/sdl/launcher.cpp
+      src/frontend/sdl/sdl_update.cpp
       src/frontend/sdl/debug_states.cpp
       src/frontend/sdl/campaign_chain.cpp
       src/frontend/sdl/modes_chain.cpp
@@ -922,6 +931,7 @@ if(SDL3_FOUND)
     add_executable(mw3launcher
       src/frontend/sdl/launcher_main.cpp
       src/frontend/sdl/launcher.cpp
+      src/frontend/sdl/sdl_update.cpp
       src/frontend/sdl/run_log.cpp
       src/frontend/sdl/crash_report.cpp
     )
@@ -963,6 +973,7 @@ if(SDL3_FOUND)
         src/frontend/sdl/run_log.cpp
         src/frontend/sdl/crash_report.cpp
         src/frontend/sdl/launcher.cpp
+        src/frontend/sdl/sdl_update.cpp
         src/frontend/sdl/debug_states.cpp
         src/frontend/sdl/campaign_chain.cpp
         src/frontend/sdl/modes_chain.cpp
@@ -1003,6 +1014,7 @@ if(SDL3_FOUND)
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
+      src/frontend/sdl/sdl_update.cpp
       tests/test_net_enet.cpp
       tests/test_net_upnp.cpp
     )
@@ -1022,7 +1034,7 @@ if(SDL3_FOUND)
     # PM's platform tests (input, window, render, text, net), in the same files. MW3_PM_SUITE
     # leaves out those that read MW3's data or start MW3's programs; a PM version comes with its feature.
     if(MW3_BUILD_PM AND NOT MW3_BUILD_MW3)
-      add_executable(mw3pmsdltests tests/main.cpp tests/test_sdl_frontend.cpp tests/test_net_enet.cpp tests/test_net_upnp.cpp)
+      add_executable(mw3pmsdltests tests/main.cpp tests/test_sdl_frontend.cpp src/frontend/sdl/sdl_update.cpp tests/test_net_enet.cpp tests/test_net_upnp.cpp)
       target_link_libraries(mw3pmsdltests PRIVATE mw3text mw3sdl pmcore mw3core SDL3::SDL3)
       target_compile_definitions(mw3pmsdltests PRIVATE MW3_PM_SUITE=1 MW3_GAME_DIR="${MW3PM_GAME_DIR}"
                                                        MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"

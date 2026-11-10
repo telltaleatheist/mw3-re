@@ -40,6 +40,9 @@ change.
 
 | Where | Original | Why it changes | Rebuild |
 |---|---|---|---|
+| A mission without its world, the mission load 0x0048faf0 (lead, 2026-11-10, from the PM launcher's checks) | The world node is looked up after the script and used unchecked; with the operation's `zbd\cN\gamez.zbd` missing or unreadable the script's GameZReadZBDFile fails, every node command after it reports a null node, and the anim load's tree walk (0x0050ae60, 0x004f9e00) reads through the null node: an access violation | (bug) a crash on starting any mission of an operation whose world file is gone | No world after the script ends the load as a failed script does (0x800 "No world in cN.gs ... -- Mission Load Aborted", the cleanup, back to the briefing), with the box below. `mission_with_its_files_gone_fails_with_a_box_headless` |
+| CycleTextureSetOn with no current node, the script dispatcher 0x00591300 (lead, 2026-11-10) | Reports and returns, leaving the cycled-texture model (0x00730c18) as the last command set it; the CycleTextureSet* commands after use it | (bug) a mission whose nodes are missing (its world unread), loaded after another mission, writes into that mission's freed model: a crash in ours, memory corruption in the exe | The model cleared on that return, so the setters after it see none (as in a fresh start). Found by `mission_with_its_files_gone_fails_with_a_box_headless` run after another mission test |
+| A mission load that fails, GameEngine::missions_start after 0x0048faf0 | The abort's report (0x0049bfd0) is empty in this build, so a failed load (a script that cannot be read: no `zbd\interp.zbd`, a broken one) goes back to the briefing without a word | (bug) the player is put back at the briefing with no idea why | A "Warning" box saying the mission could not be loaded, what was missing, and to install the game files again (the launcher's GAME FILES); not in checks, shots or hidden runs (`may_ask`), where the log keeps the line. `mission_with_its_files_gone_fails_with_a_box_headless` |
 | The saves' temporary files, zSave 0x005a8ab0 and 0x005a8af0 (Owen's PC: UCRT's tmpfile.cpp read, 2026-11-09) | `tmpfile()`; UCRT builds its name in GetTempPathW's folder, but refuses a temp path past 238 characters (L_tmpnam - 22) and gives none | (A) a save would fail with a very deep %TMP% | tmpfile first; where it gives none, a file of our own name in the temp folder (`zutl_zip::ScratchFile`), closed and removed with the rest by 0x005a8b10. `save_temp_falls_back_to_a_scratch_file` |
 | A key typed into a text field, zInput's read 0x0051a5d0 (input.md; pm-tests 36, Owen 2026-11-09) | The key's press and release are marked in its state whatever takes the characters; only the key callbacks wait for no text callback | (bug) a key let go after the Enter that closes a line (the cheat box, the chat) read as released to the game: L, the hold-to-look key (Mech::update's 0x17), put the reticle's view in the free look, the mouse turning the torso, after "operation cwal" | A key whose press goes to a text field is the field's, its release too (`typed`): neither in its state nor its callback; behind the bug-fix switch |
 | A stick's throttle lever, PlayerControls' axes 0x00427870 (W56; Reddit v1.0, a T.16000M: "I can accelerate but can't go in reverse with the slider"; Owen, 2026-11-03) | The throttle axis is scale x reading + offset, the defaults' 0..1 stop to full, times -1 while THROTTLE_REV (Backspace, button 10) has set the reverse flag; written straight into the target | (bug, Owen's call) a lever had no reverse of its own: a player had to find Backspace | With bugs and mw3.cfg's throttle_reverse (on by default): a stick's lever (sources 1..8, not a gamepad's triggers) covers full reverse at its stop end to full ahead at the other, stop at 37.5% of the travel (reverse runs at 0.6 of the speed, Gait 0x004181c0, so a kph is the same travel both ways), 5% either side reading stop (`lever_throttle`); a first reading in reverse is taken as the last one, so a lever left at its end does not back the mech off (ahead it drives at once, as the original's). `fix_throttle_lever_reaches_reverse` |
@@ -702,6 +705,25 @@ Kept:
   and MW3's own 0x0057c700 queued them too. A lit coloured model fading out vanishes at once
   where an unlit one fades. Ported as written. Options: keep it (as played), or queue them as
   MW3 does.
+
+- **Effects named in weapons.zrd that no world has** (data, not code; found
+  2026-11-10 by the check below in modding.md, Animations a def at a time,
+  step 4). Four of the 64 animation names weapons.zrd uses have no
+  animation in any of the six worlds, so nothing plays there:
+  - the Small Pulse Laser's muzzle flash `plaser_blue_muz.flt`. The Small
+    Laser's `laser_blue_muz.flt` exists, and the Medium and Large Pulse
+    Lasers use the green and red lasers' muzzles; the pulse laser's own blue
+    impact `plaser_impact_blue.flt` exists;
+  - the LB-X submunitions' (lb2xburst .. lb20xburst) FLYOUT MODEL_ANIMATION
+    `mac_fire` (their `mac_trc.flt` model still flies);
+  - `mine_turr`'s `laser_dummygreen.flt` and LANDMINE's `smokepuff_trail`
+    (no shipped mission fires either).
+
+  Pointing the Small Pulse Laser at `laser_blue_muz.flt` (a reader-side
+  substitute behind the bug fixes, or a weapons.zrd edit in a mod) would
+  give it a muzzle flash like its siblings. Whether one was meant (a typo)
+  or left out is a guess, so it is not changed.
+
 - **Weapon-destroyed voices missing from the data** (pm-tests item 22; data, not code): the autocannons', LB-X's and machine guns' NAMESOUND `wep_autocannon_name` is not in sounds.zrd (`wep_cannon_name` and `wep_mgun_name` are), `mech_part_destroy` (the "destroyed" word, 0x004b3020) is not there either, and TAG's names `wep_las_name`; the LB-X family is 0, no critical voice (0x004853c0). Both games. Options: leave it (the original's silence), or point the names at the sounds that exist (a data patch the importer could make), and give LB-X the autocannon family.
 
 - A mobile field base's centroid is on the ground (dev, 2026-10-31, W34,

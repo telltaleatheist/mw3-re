@@ -360,6 +360,17 @@ std::string Sha256::hex() {
   return s;
 }
 
+std::string sha256_file_hex(const std::string& path) {
+  std::FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) return {};
+  Sha256 s;
+  std::vector<uint8_t> buf(1 << 20);
+  for (size_t n; (n = std::fread(buf.data(), 1, buf.size(), f)) > 0;) s.add(buf.data(), n);
+  const bool bad = std::ferror(f) != 0;
+  std::fclose(f);
+  return bad ? std::string() : s.hex();
+}
+
 std::string sha256_hex(const uint8_t* data, size_t n) {
   Sha256 s;
   s.add(data, n);

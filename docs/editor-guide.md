@@ -6,7 +6,7 @@ MechWarrior 3 shipped with the developers' own editor still inside: a menu over 
 
 ## Quick start
 
-1. Open the editor: on the MODS screen pick a mod or custom campaign, then EDITOR and a mission (its saves go into that mod). Or, started with --debug-camera, press Shift+F12 in any mission (its saves go into a mod of its own, "editor edits").
+1. Open the editor from the MODS screen: pick a mod or custom campaign, then EDITOR and a mission, and it opens with the editor up. A custom campaign played from MODS (ENTER) has it in every mission too: EDITOR in the pause menu, or Shift+F12. Its saves go into that mod. The game's own campaign, Pirate Missions, Instant Action, training and multiplayer have no editor.
 2. The menu is on the left; point at a row and click (or press Space). The view is a free camera: fly it with the movement keys.
 3. EDIT AI NETS: pick a net. Its nodes and links are drawn in the world. Click a node to pick it; picking a second one links the first to it. Move Node, Delete Node, Node Params and Add veh to node work on the first picked node.
 4. EDIT VEHICLES: pick a vehicle, change its pages, then Apply (the running mission takes it at once) and Save (it is written for the next start).
@@ -21,8 +21,9 @@ MechWarrior 3 shipped with the developers' own editor still inside: a menu over 
 3. Change the AI's paths: EDIT AI NETS, pick a net (net_01 is usually the main one). Pick a node and move it (Move Node, then press the mouse, drag, let go), link nodes (pick one, then the next), delete what is not wanted, set a node's speed or wait (Node Params). Save Changes.
 4. Add a vehicle: pick a node, Add veh to node, choose its type and side, OK. It is made at once and written into the mission's vehicle list (aiv.zrd).
 5. Change a vehicle's AI: EDIT VEHICLES, pick it, set its pages (when it wakes, how far it follows, how it attacks and retreats, what valve it sets), Apply to try it in the running mission, Save to keep it.
-6. Try it: EXIT GAME EDIT goes back to MODS. Play the campaign (ENTER on the MODS screen) to see the changes as a player would.
-7. Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save.
+6. Add a weapon: EDIT WEAPONS (in a mission opened from MODS, EDITOR), pick the weapon to copy, set its name and numbers, OK. It is written into the mod (mod.txt and zbd\reader.zbd); the mech lab offers it from the next start.
+7. Try it: EXIT GAME EDIT goes back to MODS. Play the campaign (ENTER on the MODS screen) to see the changes as a player would.
+8. Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save.
 
 ## The editor's menu
 
@@ -33,9 +34,9 @@ The menu over the mission when the editor is up (the original's, with HELP added
 | PICK A COMMAND | The menu's title. Point at a row and click, or press Space. |
 | EDIT AI NETS | Edit the AI's paths: pick a net, then move, link, add and delete its nodes. Opens the net editor's menu. |
 | EDIT VEHICLES | The Mech AI window: pick one of the mission's vehicles and change its AI settings. |
-| EDIT WEAPONS | Empty in the original game: it does nothing (yet). |
+| EDIT WEAPONS | New Weapon: a weapon copied from one the game knows, its name and numbers set, written into the mod (opened from MODS, EDITOR only). Empty in the original game; ours. |
 | HELP | This quick start, in a window. Ours: the original had none. |
-| EXIT GAME EDIT | Close the editor. From MODS it goes back to the MODS screen; after Shift+F12 the view goes back to your mech. |
+| EXIT GAME EDIT | Close the editor. From MODS's EDITOR it goes back to the MODS screen; in a custom campaign's mission the view goes back to your mech and the mission goes on. |
 
 ## The net editor's menu
 
@@ -283,3 +284,35 @@ When a box does not read, the original's message, and the page stops at that box
 | Item | What it does |
 |---|---|
 | OK | Close the message; correct the box and Apply again. |
+
+## New Weapon (EDIT WEAPONS)
+
+A new weapon for the mod the editor was opened on from MODS, EDITOR. It starts as a copy of a weapon the game knows, under a free name; set its row, its main numbers, its effects and sounds, then OK. Every other number is the copy's. An effect or sound is picked from those the game's weapons use, and shown once where the view points when picked. OK writes the weapon= line into the mod's mod.txt (the old file kept as mod.txt.bak) and the definition at the end of BALLISTICS in the mod's zbd\reader.zbd (weapons.zrd; the archive it replaced kept as .bak), or, when the mod has its own zbd\weapons.zrd text file, into that file (its own text kept, the old one as .bak). The mech lab offers it from the next start. The original game reads the file too and leaves the extra weapon alone.
+
+| Item | What it does |
+|---|---|
+| copy of | The weapon it starts from: every number below, and all the rest, are this one's. |
+| name | The weapon's name in weapons.zrd and mod.txt, up to 31 letters, digits, _ and -. A name any weapon already has is refused. |
+| ammo | yes: the lab sells rounds for it and its bin empties as it fires. no: it never runs out. |
+| tech | The techs the lab offers it in: Clan, Inner Sphere, any, or none (as TAG). |
+| title | The name the lab shows; empty or the same as the name: the name. |
+| damage | The damage of a hit (DAMAGE). |
+| heat | The heat a shot adds to the mech that fires it (HEAT's first value). |
+| range | How far it reaches, in metres (RANGE). |
+| fire rate | Shots a second (FIRE_RATE): 0.25 is one every four seconds. |
+| velocity | How fast its shot flies, metres a second (VELOCITY). A beam's own is kept: not written. |
+| Clan tons | Its weight in a Clan mech's lab (MASS clan); written when it is offered to the Clans. |
+| Clan slots | The critical slots it takes in a Clan mech (MASS clan). |
+| Inner Sphere tons | Its weight in an Inner Sphere mech's lab (MASS sphere); written when offered there. |
+| Inner Sphere slots | The critical slots it takes in an Inner Sphere mech (MASS sphere). |
+| rounds a ton | With ammo: the rounds one ton of its ammo holds (MASS ammo). |
+| muzzle | The animation at the firing end as it fires (FIRE ANIMATION). Shown where the view points. |
+| firing sound | The sound of a shot (FIRE SOUND). Played where the view points. |
+| projectile | The model that flies (FLYOUT MODEL): a shell, a missile, a beam's model. Not shown here. |
+| projectile animation | The animation on the flying model (FLYOUT MODEL_ANIMATION). |
+| trail | The trail behind the shot (FLYOUT ANIMATION). |
+| flyby sound | The sound while it flies, or a beam's while it is on (FLYOUT SOUND). |
+| impact | The animation where it hits (IMPACT default ANIMATION); the other soils' are the copy's. |
+| impact sound | The sound where it hits (IMPACT default SOUND). |
+| OK | Write it into the mod (mod.txt and zbd\reader.zbd, or its own zbd\weapons.zrd), each file's earlier copy kept as .bak. |
+| Cancel | Close it; nothing is written. |

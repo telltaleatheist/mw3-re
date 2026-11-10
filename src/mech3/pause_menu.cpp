@@ -3,6 +3,7 @@
 
 #include "mech3/app.h"
 #include "mech3/pilot.h"
+#include "upgrades/editor/mods_edit.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -21,7 +22,8 @@ constexpr Handle kEndWinState = 0x6099a0;  // the missions object's +0xd0
 // Mech3.exe 1.2 @ 0x00492750: the sounds paused and the playing groups taken
 // away before the frame behind is grabbed; no FastMenu bake.
 PauseScreen::PauseScreen(Engine& e, Handle s)
-    : MenuScreen(e, s), resume(e, kResume), quit(e, kQuit), options(e, kOptions), replay(e, kReplay), title(e) {
+    : MenuScreen(e, s), resume(e, kResume), quit(e, kQuit), options(e, kOptions), replay(e, kReplay), title(e),
+      editor(e, kEditor) {
   sounds = e.sound_listener();
   e.sound_stop_all(sounds);
   groups = e.sound_take_playing();
@@ -36,6 +38,7 @@ PauseScreen::PauseScreen(Engine& e, Handle s)
     bind_button(&resume, "RESUME");
     bind_button(&options, "OPTIONS");
     if (e.game_kind() == kCampaign || e.game_kind() == kInstantAction || e.game_kind() == kStandalone) bind_button(&replay, "REPLAY");
+    if (editor_reachable()) has_editor = bind_button(&editor, "EDITOR");  // ours (patch12_edits.cpp)
     unload();
   }
   // [0x006099c4] is never written: OPTIONS always stays.
@@ -86,6 +89,10 @@ void PauseScreen::on_button(int32_t id, int32_t a, int32_t b) {
     case kReplay:
       e.pop_state(0);
       e.mission_abort();
+      return;
+    case kEditor:  // ours: as RESUME, then the editor
+      on_button(kResume, 0, 0);
+      editor_from_level();
       return;
     default:
       return;

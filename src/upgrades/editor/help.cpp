@@ -26,6 +26,7 @@ const std::vector<HelpForm>& help_forms() {
     help_menus(v);
     help_nets(v);
     help_vehicles(v);
+    help_weapons(v);
     return v;
   }();
   return all;
@@ -49,9 +50,10 @@ const char* editor_row_tip() {
 
 const std::vector<std::string>& help_quick_start() {
   static const std::vector<std::string> v = {
-      "Open the editor: on the MODS screen pick a mod or custom campaign, then EDITOR and a mission (its saves go "
-      "into that mod). Or, started with --debug-camera, press Shift+F12 in any mission (its saves go into a mod of "
-      "its own, \"editor edits\").",
+      "Open the editor from the MODS screen: pick a mod or custom campaign, then EDITOR and a mission, and it opens "
+      "with the editor up. A custom campaign played from MODS (ENTER) has it in every mission too: EDITOR in the "
+      "pause menu, or Shift+F12. Its saves go into that mod. The game's own campaign, Pirate Missions, Instant "
+      "Action, training and multiplayer have no editor.",
       "The menu is on the left; point at a row and click (or press Space). The view is a free camera: fly it with "
       "the movement keys.",
       "EDIT AI NETS: pick a net. Its nodes and links are drawn in the world. Click a node to pick it; picking a "
@@ -83,6 +85,9 @@ const std::vector<std::string>& help_workflow() {
       "into the mission's vehicle list (aiv.zrd).",
       "Change a vehicle's AI: EDIT VEHICLES, pick it, set its pages (when it wakes, how far it follows, how it "
       "attacks and retreats, what valve it sets), Apply to try it in the running mission, Save to keep it.",
+      "Add a weapon: EDIT WEAPONS (in a mission opened from MODS, EDITOR), pick the weapon to copy, set its name and "
+      "numbers, OK. It is written into the mod (mod.txt and zbd\\reader.zbd); the mech lab offers it from the next "
+      "start.",
       "Try it: EXIT GAME EDIT goes back to MODS. Play the campaign (ENTER on the MODS screen) to see the changes "
       "as a player would.",
       "Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save.",

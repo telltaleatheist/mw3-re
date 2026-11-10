@@ -21,7 +21,8 @@ namespace mech3 {
 constexpr const char* kModAddedMarker = "mw3-mod-added.txt";   // in a mod folder the game made
 constexpr const char* kModStagingMarker = "mw3-mod-staging.txt";  // in a staging folder
 
-// Our own files in a mod folder (mod.txt, the marker): not the mod's data.
+// Our own files in a mod folder (mod.txt, the marker) and its original\ folder
+// (for the original game): not the mod's data.
 bool mod_own_file(const std::string& rel);
 
 struct ModAddLimits {

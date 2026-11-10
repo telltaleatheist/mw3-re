@@ -2,6 +2,7 @@
 // archives this test writes with libarchive's own writer (nothing committed):
 // zip, 7z, a zip inside a zip, an ISO 9660 image, the same as raw 2352-byte
 // sectors, an ISO inside a 7z, and a damaged archive.
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -581,7 +582,16 @@ TEST(setup_pirates_moon_checks_before_a_start) {
   };
 
   const su::Result good = su::check_install(kGame + "/pm", tmp + "/w0", true);
-  EXPECT(good.ok && good.pirates_moon && good.warnings.empty());
+  EXPECT(good.ok && good.pirates_moon && good.warnings.empty() && good.version == "1.0");
+  // Its data's version (sitting 5): a file changed, one gone.
+  EXPECT(su::check_install(copy("modded", "", "force_eff.ifr"), tmp + "/w9", true).version == "unknown");
+  const std::string same_size = copy("same size", "force_eff.ifr", "");  // its size, other bytes
+  std::string eff = slurp(kGame + "/pm/force_eff.ifr");
+  eff[eff.size() / 2] ^= 0x5a;
+  std::FILE* ef = std::fopen((same_size + "/force_eff.ifr").c_str(), "wb");
+  std::fwrite(eff.data(), 1, eff.size(), ef);
+  std::fclose(ef);
+  EXPECT(su::check_install(same_size, tmp + "/w10", true).version == "unknown");
 
   const std::string sounds = copy("sounds", "", "zbd/soundsH.zbd"), before = listing(sounds);
   const std::string wd = tmp + "/write";
@@ -614,7 +624,8 @@ TEST(setup_pirates_moon_checks_before_a_start) {
   // What stops the missions: a core file, an operation's.
   const su::Result interp = su::check_install(copy("nointerp", "zbd/interp.zbd", ""), tmp + "/w6", true);
   std::printf("  no interp.zbd: %s\n", interp.warnings.empty() ? "" : interp.warnings[0].c_str());
-  EXPECT(interp.ok && interp.warnings.size() == 1 && has(interp, "missions will not load", "zbd\\interp.zbd is missing"));
+  EXPECT(interp.ok && interp.warnings.size() == 1 && has(interp, "missions will not load", "zbd\\interp.zbd is missing") &&
+         interp.version == "incomplete");
   const std::string no_op = copy("noc2", "zbd/c2/gamez.zbd", "zbd/c4/reader.zbd");
   const su::Result ops = su::check_install(no_op, tmp + "/w7", true);
   std::printf("  operations: %s\n", ops.warnings.empty() ? "" : ops.warnings[0].c_str());
@@ -622,7 +633,43 @@ TEST(setup_pirates_moon_checks_before_a_start) {
   // A file in the settings folder counts.
   fs::create_directories(tmp + "/w8/zbd/c2", ec);
   fs::create_symlink(kGame + "/pm/zbd/c2/gamez.zbd", tmp + "/w8/zbd/c2/gamez.zbd", ec);
-  EXPECT(has(su::check_install(no_op, tmp + "/w8", true), "Operation 4's missions are", "it cannot"));
+  EXPECT(has(su::check_install(no_op, tmp + "/w8", true), "The missions of operation 4 are", "so it cannot"));
+  fs::remove_all(tmp, ec);
+}
+
+// MechWarrior 3 before a start (setup::start_check, PM's check made both games', lead 2026-11-10): the same two
+// blockers, its six world folders (Op 4's second part and training named), the sounds note pointing to its disc.
+TEST(setup_mechwarrior3_checks_before_a_start) {
+  if (!have_games()) return;
+  namespace fs = std::filesystem;
+  namespace su = mech3::setup;
+  const std::string tmp = std::string(MW3_TEST_TMP) + "/mw3-checks", game = kGame + "/mw3-1.2";
+  std::error_code ec;
+  fs::remove_all(tmp, ec);
+  auto copy = [&](const std::string& name, const std::vector<std::string>& gone, const std::string& empty) {
+    const fs::path to = fs::path(tmp) / name;
+    fs::create_directories(to);
+    for (const auto& e : fs::recursive_directory_iterator(game)) {
+      const std::string rel = fs::relative(e.path(), game).generic_string();
+      if (std::find(gone.begin(), gone.end(), rel) != gone.end()) continue;
+      if (e.is_directory()) fs::create_directories(to / rel);
+      else if (rel == empty) std::fclose(std::fopen((to / rel).string().c_str(), "wb"));
+      else fs::create_symlink(e.path(), to / rel);
+    }
+    return to.string();
+  };
+  const su::Result good = su::start_check(game, tmp + "/w", false);
+  EXPECT(good.ok && good.warnings.empty() && !good.pirates_moon);
+  const su::Result msg = su::start_check(copy("nomsg", {"Mech3Msg.dll"}, ""), tmp + "/w", false);
+  std::printf("  %s\n", msg.summary.c_str());
+  EXPECT(!msg.ok && msg.summary.find("MechWarrior 3 cannot start") != std::string::npos && msg.summary.find("Mech3Msg.dll") != std::string::npos);
+  const su::Result worlds = su::start_check(copy("worlds", {"zbd/c4b/gamez.zbd", "zbd/t1/reader.zbd"}, "zbd/soundsH.zbd"), tmp + "/w", false);
+  for (const std::string& w : worlds.warnings) std::printf("  note: %s\n", w.c_str());
+  EXPECT(worlds.ok && worlds.warnings.size() == 2 &&
+         worlds.warnings[0] == "The missions of operation 4's second part and training are missing or empty, so they cannot be played." &&
+         worlds.warnings[1].find("Reinstall MechWarrior 3 from its disc") != std::string::npos);
+  // The finding is not changed: an install the start check refuses is still an install found.
+  EXPECT(su::check_install(tmp + "/nomsg", tmp + "/w").ok);
   fs::remove_all(tmp, ec);
 }
 

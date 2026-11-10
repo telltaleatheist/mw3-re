@@ -27,6 +27,9 @@
 #include "upgrades/reference/reference.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
+#include "upgrades/mods/anim_defs.h"
+#include "gamez/zsave/zsave.h"
+#include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zeffect/zeff_anim_json.h"
 #include "gamez/zsiscript/si_script_json.h"
 #include "mech3/mech_names.h"
@@ -1341,6 +1344,304 @@ TEST(mods_anim_json_in_a_folder_or_a_zip) {
   const float own = gravity();
   std::printf("  refused -> %.2f, own archive -> %.2f\n", refused, own);
   EXPECT(refused != -9.0f && refused < 0.0f && own == refused);  // the anim.zbd's, not the later mod's
+}
+
+namespace {
+// A def's JSON with one field's value replaced (`key` its first occurrence).
+std::string json_with(std::string text, const std::string& key, const std::string& value) {
+  const size_t at = text.find("\"" + key + "\": ");
+  if (at == std::string::npos) return text;
+  const size_t from = at + key.size() + 4;
+  size_t end = from;
+  if (text[from] == '"') end = text.find('"', from + 1) + 1;
+  else end = text.find_first_of(",\n}", from);
+  return text.replace(from, end - from, value);
+}
+std::vector<uint8_t> bytes_of(const std::string& p) {
+  std::ifstream in(p, std::ios::binary);
+  return std::vector<uint8_t>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+}  // namespace
+
+// Animations a def at a time (docs/modding.md), on all six worlds: unzbd's def
+// file names are our keys, def for def; one def replaced (its health changed)
+// and one added (another's under a new anim name) leave every other def's
+// bytes, the header and what follows the defs as shipped, the count one more,
+// the replaced def where it stood and the added one last.
+TEST(mods_anim_def_files_merge_on_every_world) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  int worlds = 0, good = 0;
+  for (const char* w : {"c1", "c2", "c3", "c4", "c4b", "t1"}) {
+    const std::string zbd = install + "/zbd/" + w + "/anim.zbd";
+    if (!fs::exists(zbd, ec)) continue;
+    ++worlds;
+    std::map<std::string, std::string> exported;
+    EXPECT(unzbd_export(unzbd, "anim", zbd, &exported));
+    const std::vector<uint8_t> base = bytes_of(zbd);
+    std::vector<mech3::anim_defs::DefSpan> spans;
+    EXPECT(mech3::anim_defs::def_spans(base.data(), base.size(), &spans));
+    zutl_json::Value meta;
+    std::string why;
+    EXPECT(zutl_json::parse(exported["metadata.json"], &meta, &why));
+    const zutl_json::Value* names = meta.get("anim_def_names");
+    bool keys = names && names->items.size() + 1 == spans.size();
+    for (size_t i = 0; keys && i < names->items.size(); ++i) keys = names->items[i].text == spans[i + 1].key;
+    // The scripts the defs index, by metadata's order: a def file names its script instead.
+    const zutl_json::Value* scripts = meta.get("script_names");
+    const auto beside = [&](const std::string& n) { return exported.count(n) ? exported[n] : std::string(); };
+    // The replaced def: one with a script (ObjectMotionSiScript) where the world has one.
+    size_t k = spans.size() / 2;
+    for (size_t i = 1; i < spans.size(); ++i)
+      if (exported[spans[i].key + ".json"].find("ObjectMotionSiScript") != std::string::npos) {
+        k = i;
+        break;
+      }
+    const size_t j = spans.size() / 3;
+    const bool scripted = exported[spans[k].key + ".json"].find("ObjectMotionSiScript") != std::string::npos;
+    std::string replaced = json_with(exported[spans[k].key + ".json"], "health", "123.5");
+    std::string added = json_with(exported[spans[j].key + ".json"], "anim_name", "\"mod_added\"");
+    for (std::string* t : {&replaced, &added})  // an index into metadata's scripts as the script's own file
+      if (scripts)
+        for (size_t s = 0; s < scripts->items.size(); ++s)
+          for (size_t at; (at = t->find("\"index\": " + std::to_string(s) + "\n")) != std::string::npos;)
+            t->replace(at, 9 + std::to_string(s).size(), "\"script\": \"" + scripts->items[s].text + "\"");
+    mech3::anim_defs::DefFile a, b;
+    const bool ra = zeff::anim_def_from_json(replaced, beside, &a.bytes, &a.key, &why);
+    if (!ra) std::printf("  %s replaced: %s\n", w, why.c_str());
+    const bool rb = zeff::anim_def_from_json(added, beside, &b.bytes, &b.key, &why);
+    if (!rb) std::printf("  %s added: %s\n", w, why.c_str());
+    const std::vector<uint8_t> out = mech3::anim_defs::with_defs(base, {a, b}, &why);
+    std::vector<mech3::anim_defs::DefSpan> now;
+    const bool walks = mech3::anim_defs::def_spans(out.data(), out.size(), &now);
+    const auto part = [](const std::vector<uint8_t>& v, size_t from, size_t to) {
+      return std::vector<uint8_t>(v.begin() + static_cast<std::ptrdiff_t>(from), v.begin() + static_cast<std::ptrdiff_t>(to));
+    };
+    bool same = ra && rb && a.key == spans[k].key && b.key != spans[j].key && walks && now.size() == spans.size() + 1;
+    for (size_t i = 0; same && i < spans.size(); ++i)
+      same = i == k ? part(out, now[i].at, now[i].at + now[i].size) == a.bytes
+                    : part(out, now[i].at, now[i].at + now[i].size) == part(base, spans[i].at, spans[i].at + spans[i].size);
+    // The header the same but the count (2 bytes); the added def last; what follows the defs the same.
+    size_t head_diffs = 0;
+    for (size_t i = 0; same && i < spans[0].at; ++i) head_diffs += base[i] != out[i];
+    same = same && head_diffs <= 2 && now.back().key == b.key && part(out, now.back().at, now.back().at + now.back().size) == b.bytes;
+    const size_t base_end = spans.back().at + spans.back().size;
+    same = same && part(base, base_end, base.size()) == part(out, now.back().at + now.back().size, out.size());
+    good += same;
+    std::printf("  %s: %zu defs, keys as unzbd's %d, %s replaced%s, %s added -> %s\n", w, spans.size(), keys, a.key.c_str(),
+                scripted ? " (its script by file)" : "", b.key.c_str(), same ? "every other def as shipped" : "DIFFERS");
+    EXPECT(keys);
+  }
+  EXPECT(worlds == 6 && good == worlds);
+}
+
+// The mods' def files for a world (docs/modding.md, Animations a def at a time), on t1: per key the first mod wins, a
+// mod's world folder before its world-less one; a mod with the world's whole JSON is no def folder; a def file that
+// does not read is said and left out; a mod listed after the base's (a whole anim.zbd) only adds; and the world as the
+// game reads it (zeff::anim_read_zbd) has the added defs after the base's, the replaced one in place.
+TEST(mods_anim_def_files_by_the_mods_order) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  const std::vector<uint8_t> shipped = bytes_of(install + "/zbd/t1/anim.zbd");
+  std::vector<mech3::anim_defs::DefSpan> spans;
+  EXPECT(mech3::anim_defs::def_spans(shipped.data(), shipped.size(), &spans));
+  if (spans.size() < 10) return;
+  const std::string k1 = spans[1].key, k2 = spans[2].key;
+  const std::string& d1 = exported[k1 + ".json"];
+  SavedMounts keep;
+  const std::string wd = tmp("mods_anim_defs");
+  const std::string a = wd + "/mods/a", b = wd + "/mods/b", c = wd + "/mods/c";
+  for (const std::string& m : {a, b, c}) put(m + "/mod.txt", "name=M\n");
+  put(a + "/zbd/t1/anim/" + k1 + ".json", json_with(d1, "health", "11.0"));          // a's world folder: k1 at 11
+  put(a + "/zbd/anim/" + k1 + ".json", json_with(d1, "health", "12.0"));             // a's world-less: passed over
+  put(a + "/zbd/anim/new_one.json", json_with(d1, "anim_name", "\"a_added\""));      // added
+  put(a + "/zbd/anim/broken.json", "{ not json");                                     // said, left out
+  put(b + "/zbd/t1/anim/" + k1 + ".json", json_with(d1, "health", "13.0"));          // after a: passed over
+  put(b + "/zbd/t1/anim/" + k2 + ".json", json_with(exported[k2 + ".json"], "health", "14.0"));  // replaced
+  // c: the whole anim.zbd (the base), listed after a and b; its world-less def files only add.
+  fs::create_directories(c + "/zbd/t1", ec);
+  fs::copy_file(install + "/zbd/t1/anim.zbd", c + "/zbd/t1/anim.zbd", ec);
+  put(c + "/zbd/anim/" + spans[3].key + ".json", json_with(exported[spans[3].key + ".json"], "health", "15.0"));  // the base's own: kept
+  put(c + "/zbd/anim/c_new.json", json_with(d1, "anim_name", "\"c_added\""));
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"a", "b", "c"}, {install});
+  zutl::mount(install);
+  std::vector<std::string> notes;
+  const std::vector<mech3::anim_defs::DefFile> files = mech3::anim_defs::mod_def_files("zbd\\t1\\anim.zbd", shipped, &notes);
+  std::string keys;
+  for (const auto& f : files) keys += f.key + (f.from.find("/mods/a/") != std::string::npos ? "@a " : f.from.find("/mods/b/") != std::string::npos ? "@b " : "@c ");
+  std::printf("  files: %s\n", keys.c_str());
+  for (const std::string& n : notes) std::printf("  note: %s\n", n.c_str());
+  EXPECT(files.size() == 4 && notes.size() == 4);
+  if (files.size() == 4) {
+    EXPECT(files[0].key == k1 && files[0].from.find("/mods/a/zbd/t1/anim/") != std::string::npos);
+    EXPECT(files[1].key.find("-a_added") != std::string::npos && files[1].from.find("/mods/a/zbd/anim/") != std::string::npos);
+    EXPECT(files[2].key == k2 && files[2].from.find("/mods/b/") != std::string::npos);
+    EXPECT(files[3].key.find("c_added") != std::string::npos);
+  }
+  // As the game reads the world: 2 added after the base's defs.
+  zeff::anim() = zeff::AnimState{};
+  zeff::anim_allow_loading(1);
+  zeff::anim_set_zbd_path("zbd\\t1\\anim.zbd");
+  zeff::anim_read_zbd();
+  const int32_t count = zeff::anim().def_count();
+  std::string last = count > 0 && zeff::anim().defs ? zeff::anim().defs[count - 1].name() : "";
+  std::printf("  read: %d defs (shipped %zu), the last %s\n", count, spans.size(), last.c_str());
+  EXPECT(count == static_cast<int32_t>(spans.size()) + 2 && last == "c_added");
+  // A saved running animation (Running%03d) put back only on a def of its saved name: one saved under another
+  // set of mods, its index now another def's, is dropped, the def as it was (a matching one goes on as before:
+  // test_anim_save.py, on the missions' worlds).
+  if (count > 6) {
+    const bool had = zsave::manager() != nullptr;
+    if (!had) zsave::init();  // its temporary files
+    zsave::Context ctx{};
+    uint8_t h[0x68] = {};
+    const int32_t index = 5, none = -1;
+    std::memcpy(h, &index, 4);
+    std::strncpy(reinterpret_cast<char*>(h + 8), zeff::anim().defs[6].name(), 0x20);
+    for (int at : {0x28, 0x2c, 0x3c}) std::memcpy(h + at, &none, 4);
+    h[0x4c] = 2;
+    const zeff::AnimDef& d = zeff::anim().defs[index];
+    uint8_t was[0x13c];
+    std::memcpy(was, d.raw, sizeof was);
+    zeff::running_load(ctx, "Running005", h, sizeof h, nullptr);
+    const bool same = std::memcmp(was, d.raw, sizeof was) == 0;
+    std::printf("  a run saved as def 6's at index 5: %s\n", same ? "dropped, the def as it was" : "PUT ON IT");
+    EXPECT(same);
+    if (!had) zsave::shutdown();
+  }
+  zeff::anim_free_all();
+  zeff::anim() = zeff::AnimState{};
+}
+
+// The def files on the MODS list and in --check-mod (docs/modding.md, Animations a def at a time, step 2): on t1,
+// enabled c (a whole anim.zbd), a (k1 for every world), b (k1 for t1, and a new one): a's and b's animations only add
+// to t1 (c's is the base), b's k1 is a's; --check-mod reads each def file alone and names one that does not read.
+TEST(mods_anim_def_files_on_the_list_and_checked) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  const std::vector<uint8_t> shipped = bytes_of(install + "/zbd/t1/anim.zbd");
+  std::vector<mech3::anim_defs::DefSpan> spans;
+  EXPECT(mech3::anim_defs::def_spans(shipped.data(), shipped.size(), &spans));
+  if (spans.size() < 3) return;
+  const std::string k1 = spans[1].key;
+  const std::string& d1 = exported[k1 + ".json"];
+  SavedMounts keep;
+  const std::string wd = tmp("mods_anim_defs_list");
+  const std::string a = wd + "/mods/a", b = wd + "/mods/b", c = wd + "/mods/c", d = wd + "/mods/d";
+  for (const std::string& m : {a, b, c, d}) put(m + "/mod.txt", "name=" + m.substr(m.size() - 1) + "\n");
+  fs::create_directories(c + "/zbd/t1", ec);
+  fs::copy_file(install + "/zbd/t1/anim.zbd", c + "/zbd/t1/anim.zbd", ec);
+  put(a + "/zbd/anim/" + k1 + ".json", json_with(d1, "health", "11.0"));
+  put(b + "/zbd/t1/anim/" + k1 + ".json", json_with(d1, "health", "12.0"));
+  put(b + "/zbd/t1/anim/b_new.json", json_with(d1, "anim_name", "\"b_added\""));
+  put(d + "/zbd/anim/broken.json", json_with(d1, "activation", "\"Sometimes\""));
+  const std::vector<mech3::ModsListEntry> list = mech3::mods_list(wd, {"c", "a", "b"});
+  const auto entry = [&](const char* f) -> const mech3::ModsListEntry* {
+    for (const auto& e : list)
+      if (e.info.folder == f) return &e;
+    return nullptr;
+  };
+  const mech3::ModsListEntry *ea = entry("a"), *eb = entry("b");
+  EXPECT(ea && eb);
+  if (!ea || !eb) return;
+  const std::string na = mech3::mods_row_note(*ea, list), nb = mech3::mods_row_note(*eb, list);
+  std::printf("  a: %s\n  b: %s\n", na.c_str(), nb.c_str());
+  EXPECT(ea->anims_taken.empty() && ea->anim_bases == std::vector<std::string>({"t1"}) && ea->conflicts_with == std::vector<std::string>({"c"}));
+  EXPECT(eb->anims_taken == std::vector<std::string>({"t1 " + k1}) && eb->anim_bases == std::vector<std::string>({"t1"}));
+  EXPECT(na.find("only add to t1") != std::string::npos && nb.find("1 animation") != std::string::npos);
+  int errors = 0;
+  std::string report;
+  for (const std::string& l : mech3::mod_check(b, install, &errors)) report += l + "\n";
+  EXPECT(errors == 0 && report.find("the animation " + k1 + " for t1") != std::string::npos &&
+         report.find("b_added for t1") != std::string::npos);
+  report.clear();
+  for (const std::string& l : mech3::mod_check(d, install, &errors)) report += l + "\n";
+  std::printf("  d: %s", report.substr(report.find("zbd/anim/broken.json")).c_str());
+  EXPECT(errors == 1 && report.find("activation") != std::string::npos && report.find("left out") != std::string::npos);
+}
+
+// Both ways (docs/modding.md, Animations a def at a time, step 3): a mod with anim=defs keeps a whole anim.zbd for the
+// original (here one whose gravity differs, at zbd\t1\ and in original\) that ours passes over for the install's,
+// its def files merged in; without anim=defs the same file is the base. The MODS list takes no base from such a mod
+// and its original\ files are none of its own; --build-anim writes original\zbd\t1\anim.zbd from the install's.
+TEST(mods_anim_defs_only_and_build_anim) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/t1/anim.zbd", ec)) return;
+  const fs::path unzbd = find_unzbd();
+  if (unzbd.empty()) return;
+  std::map<std::string, std::string> exported;
+  EXPECT(unzbd_export(unzbd, "anim", install + "/zbd/t1/anim.zbd", &exported));
+  std::vector<uint8_t> shipped = bytes_of(install + "/zbd/t1/anim.zbd");
+  std::vector<mech3::anim_defs::DefSpan> spans;
+  EXPECT(mech3::anim_defs::def_spans(shipped.data(), shipped.size(), &spans));
+  if (spans.size() < 3) return;
+  // A whole file of the mod's own: the shipped one, its gravity (block +0x1c) -2.5.
+  std::vector<uint8_t> own = shipped;
+  uint32_t sources;
+  std::memcpy(&sources, own.data() + 8, 4);
+  const float g = -2.5f;
+  std::memcpy(own.data() + 0x0c + sources * 0x54 + 0x1c, &g, 4);
+  SavedMounts keep;
+  const std::string wd = tmp("mods_anim_defs_only");
+  const std::string m = wd + "/mods/both";
+  put(m + "/mod.txt", "name=Both\nanim=defs\n");
+  fs::create_directories(m + "/zbd/t1", ec);
+  fs::create_directories(m + "/original/zbd/t1", ec);
+  std::ofstream(m + "/zbd/t1/anim.zbd", std::ios::binary).write(reinterpret_cast<const char*>(own.data()), own.size());
+  std::ofstream(m + "/original/zbd/t1/anim.zbd", std::ios::binary).write(reinterpret_cast<const char*>(own.data()), own.size());
+  put(m + "/zbd/t1/anim/added.json", json_with(exported[spans[1].key + ".json"], "anim_name", "\"both_added\""));
+  const auto read = [&](float* gravity) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd);
+    mech3::mods_mount(wd, {"both"}, {install});
+    zutl::mount(install);
+    zeff::anim() = zeff::AnimState{};
+    zeff::anim_allow_loading(1);
+    zeff::anim_set_zbd_path("zbd\\t1\\anim.zbd");
+    zeff::anim_read_zbd();
+    const int32_t n = zeff::anim().def_count();
+    *gravity = n > 0 ? zeff::anim().block.get<float>(0x1c) : 0.0f;
+    zeff::anim_free_all();
+    zeff::anim() = zeff::AnimState{};
+    return n;
+  };
+  float with_defs = 0, plain = 0;
+  const int32_t n1 = read(&with_defs);
+  put(m + "/mod.txt", "name=Both\n");
+  const int32_t n2 = read(&plain);
+  std::printf("  anim=defs: %d defs, gravity %.2f; without: %d defs, gravity %.2f\n", n1, with_defs, n2, plain);
+  EXPECT(n1 == static_cast<int32_t>(spans.size()) + 1 && with_defs != g);  // the install's base, its def added
+  EXPECT(n2 == static_cast<int32_t>(spans.size()) + 1 && plain == g);      // its own whole file the base
+  put(m + "/mod.txt", "name=Both\nanim=defs\n");
+  put(wd + "/mods/later/mod.txt", "name=Later\n");
+  put(wd + "/mods/later/zbd/anim/" + spans[2].key + ".json", exported[spans[2].key + ".json"]);
+  put(wd + "/mods/later/original/zbd/t1/anim.zbd", "x");  // both have one: never shared, never ours
+  const std::vector<mech3::ModsListEntry> list = mech3::mods_list(wd, {"both", "later"});
+  for (const auto& e : list)
+    if (e.info.folder == "later") EXPECT(e.anim_bases.empty() && e.conflicts_with.empty() && e.shadowed.empty());
+  std::vector<std::string> lines;
+  EXPECT(mech3::anim_defs::build_for_original(m, install, &lines) == 0);
+  for (const std::string& l : lines) std::printf("  %s\n", l.c_str());
+  const std::vector<uint8_t> built = bytes_of(m + "/original/zbd/t1/anim.zbd");
+  std::vector<mech3::anim_defs::DefSpan> now;
+  EXPECT(mech3::anim_defs::def_spans(built.data(), built.size(), &now) && now.size() == spans.size() + 1 && now.back().key.find("both_added") != std::string::npos);
+  EXPECT(fs::exists(m + "/original/zbd/t1/anim.zbd.bak"));  // the one there before
 }
 
 // What a world's anim JSON refuses, with the file, line and place (docs/modding.md).

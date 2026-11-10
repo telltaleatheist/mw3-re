@@ -31,6 +31,7 @@
 #include "mech3/mod_install.h"
 #include "upgrades/mods/mod_export.h"
 #include "frontend/sdl/sdl_mods.h"
+#include "frontend/sdl/sdl_update.h"
 #include "mech3/source_map.h"
 #include "gamez/zutil/zutl_path.h"
 
@@ -222,10 +223,11 @@ struct Text {
     return fit_middle(s, keep, width, w_of);
   }
   // Wrapped to `width`, lines centred on x from y; the height drawn.
-  int draw_wrapped(SDL_Surface* dst, const std::string& s, int size, SDL_Color c, int x, int y, int width) {
+  // `s` as lines no wider than `width` (its own '\n's kept).
+  std::vector<std::string> wrap(const std::string& s, int size, int width) {
     TTF_Font* f = font(size);
-    if (!f) return 0;
     std::vector<std::string> lines;
+    if (!f) return lines;
     std::string line, word;
     auto fits = [&](const std::string& t) {
       int w = 0, h = 0;
@@ -246,8 +248,17 @@ struct Text {
     }
     flush_word();
     if (!line.empty()) lines.push_back(line);
-    const int lh = TTF_GetFontLineSkip(f);
-    for (size_t i = 0; i < lines.size(); ++i) draw(dst, lines[i], size, c, x, y + static_cast<int>(i) * lh);
+    return lines;
+  }
+  int line_skip(int size) {
+    TTF_Font* f = font(size);
+    return f ? TTF_GetFontLineSkip(f) : 0;
+  }
+  // `s` wrapped to `width` from (x, y), each line placed as draw's `align`; the height drawn.
+  int draw_wrapped(SDL_Surface* dst, const std::string& s, int size, SDL_Color c, int x, int y, int width, int align = 0) {
+    const std::vector<std::string> lines = wrap(s, size, width);
+    const int lh = line_skip(size);
+    for (size_t i = 0; i < lines.size(); ++i) draw(dst, lines[i], size, c, x, y + static_cast<int>(i) * lh, align);
     return static_cast<int>(lines.size()) * lh;
   }
 };
@@ -348,9 +359,11 @@ enum Id {
   kAddDisc = 20,
   kGo = 30, kCancel, kNotesOk,
   kData = 40, kDataPick, kDataUsual, kMoveGo, kRemoveOld, kKeepOld,
+  kUpdates = 49,
   kMods = 50, kModUp, kModDown, kModCheck, kModPrev, kModNext, kModAdd, kModAddFolder, kModFolder,
   kModExport,
   kModRow = 60,  // kModRow + i: the page's i-th mod (kModsPerPage)
+  kUpdateGo = 80, kUpdateNotNow, kUpdatePrev, kUpdateNext,
 };
 constexpr int kModsPerPage = 5;
 
@@ -367,7 +380,7 @@ struct Work {
   mech3::setup::Result result;
   std::atomic<bool> cancel{false}, done{false};
   std::string title;
-  enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
+  enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData, kUpdateCheck, kUpdateDownload } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
   ~Work() {
     cancel = true;
     if (th.joinable()) th.join();
@@ -421,6 +434,9 @@ class Launcher {
   void run_mw1();
   void start_game(bool pm = false);
   void start_pm();
+  bool mw3_ready();
+  void mw3_notes_seen();
+  bool notes_once(const std::vector<std::string>& notes, std::string* crc_kept, const char* key);
   void find_pm();
   // GAME FILES on Pirate's Moon (files_pm_): its settings folder as mw3pm
   // finds it, its usual one (MW3's sibling, "MicroProse/Pirate's Moon", made
@@ -467,7 +483,7 @@ class Launcher {
   SDL_Surface* canvas_ = nullptr;
   Art art_;
   Text text_;
-  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kModsScreen } screen_ = kMain;
+  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kModsScreen, kUpdateScreen } screen_ = kMain;
   // The MODS screen (docs/launcher.md, Mods): the list as mech3::mods_list
   // gives it, the one selected (UP, DOWN), the page, whether CHECK ran.
   std::vector<mech3::ModsListEntry> mods_;
@@ -505,6 +521,23 @@ class Launcher {
   bool pm_last_ = false;  // the game last clicked: GAME FILES acts on it
   bool files_pm_ = false;  // GAME FILES' screens are Pirate's Moon's (pm_last_ when they opened)
   bool pm_lacks_music_ = false, pm_lacks_sounds_ = false;  // pm_refresh
+  bool mods_pm_ = false;  // MODS works on Pirate's Moon's mods (the game last clicked)
+  std::shared_ptr<upgrades::update::Verdict> update_;  // the last CHECK FOR UPDATES' verdict
+  std::vector<std::string> update_lines_;  // its release's notes wrapped to the screen (show_update)
+  std::shared_ptr<std::string> update_file_;  // after DOWNLOAD AND INSTALL: the program to start next (empty: none)
+  size_t update_page_ = 0;
+  static constexpr int kUpdateTop = 150, kUpdateBottom = 322, kUpdateWidth = 500;
+  size_t update_per_page() { return static_cast<size_t>(std::max(1, (kUpdateBottom - kUpdateTop) / std::max(1, text_.line_skip(13)))); }
+  void show_update();
+  ModsTarget mods_here() {
+    if (mods_pm_) pm_wd();
+    return mods_target(o_, mods_pm_);
+  }
+  std::string mods_install() const { return mods_pm_ ? pm_dir_ : install_.dir; }
+  std::string pm_data_;                  // ... its data's version ("1.0", "unknown", "incomplete")
+  std::vector<std::string> mw3_check_notes_;  // start_check's for MW3, part of notes_ (notes_refresh)
+  std::string mw3_program_, pm_program_;  // each game's program's version (--version), once at the start
+  bool entries_logged_ = false;
   std::string game_name_ = "MechWarrior 3";  // the one started, for the status lines
   SDL_Process* game_ = nullptr;  // mw3, started by MECHWARRIOR 3 (game_bin)
   Uint64 game_click_ = 0;
@@ -562,6 +595,82 @@ void Launcher::find_install() {
 namespace {
 bool is_pm_install(const mech3::source::Found& f) {
   return f.kind == mech3::source::Found::kInstall && f.game == mech3::source::Found::kPiratesMoon && f.on_disk;
+}
+
+#ifndef MW3_VERSION
+#define MW3_VERSION ""
+#endif
+
+// The label on a game's line (Owen, 2026-11-10: shown, never blocking): "official" when its data is a release's
+// (MW3 1.0 or 1.2, or 1.0 with the patch's files; PM 1.0), its program a release build (its tag a bare vX.Y.Z,
+// PM's pm-vX.Y.Z); else "modified (...)" naming which. Mods are a feature, not a change to the game: they are a
+// note of their own (versions_words; lead, 2026-11-10).
+std::string official_words(const std::string& data, const std::string& program, bool pm) {
+  const bool data_ok = pm ? data == "1.0" : data == "1.0" || data == "1.2" || data == "1.0 with 1.2 files";
+  const auto release = [](const std::string& v) {  // digits and dots only after the prefix: no -N-gHASH, no -dirty
+    if (v.empty() || v.find_first_not_of("0123456789.") != std::string::npos || v.front() == '.' || v.back() == '.') return false;
+    return std::count(v.begin(), v.end(), '.') == 2;
+  };
+  const std::string prefix = pm ? "pm-v" : "v";
+  const bool program_ok = program.rfind(prefix, 0) == 0 && release(program.substr(prefix.size()));
+  std::vector<std::string> what;
+  if (!data_ok) what.push_back("data");
+  if (!program_ok) what.push_back("program");
+  if (what.empty()) return "official";
+  std::string s = "modified (";
+  for (size_t i = 0; i < what.size(); ++i) s += (i ? ", " : "") + what[i];
+  return s + ")";
+}
+
+// The package's version on the main screen's footer (lead, 2026-11-10): the launcher's own tag, the package's
+// (mw3 and the launcher come from main's tag, mw3pm from pm's), without its "v": "MechWarrior 3 Rebuild 1.1.0".
+std::string package_words() {
+  std::string v = MW3_VERSION;
+  if (v.size() > 1 && v[0] == 'v' && v[1] >= '0' && v[1] <= '9') v.erase(0, 1);
+  return v.empty() ? "MechWarrior 3 Rebuild" : "MechWarrior 3 Rebuild " + v;
+}
+
+// A game's line's versions: its data's, then its program's, then the mods on ("data 1.2, program v1.1.0,
+// 2 mods on, "); a program that did not say is left out.
+std::string versions_words(const std::string& data, const std::string& program, size_t mods) {
+  std::string s = data.empty() ? std::string() : data == "unknown" ? "data unknown (a mod?), " : "data " + data + ", ";
+  if (!program.empty()) s += "program " + program + ", ";
+  if (mods) s += (mods == 1 ? std::string("a mod") : std::to_string(mods) + " mods") + " on, ";
+  return s;
+}
+
+// The game a mod's for= must name, for one MODS operation (mech3::mods_game), put back after it.
+struct GameOfMods {
+  std::string was;
+  explicit GameOfMods(const std::string& g) : was(mech3::mods_game()) { mech3::mods_game() = g; }
+  ~GameOfMods() { mech3::mods_game() = was; }
+};
+
+// A program's version as its file holds it ("MW3-PROGRAM-VERSION:v1.1.0",
+// mw3_main.cpp's mw3_version_tag), read, never run: a game started only to
+// say its version could show Windows' box for a missing DLL. Empty when the
+// file has none (an older build, a script).
+std::string program_version(const std::string& bin) {
+  const std::string tag = std::string("MW3-PROGRAM") + "-VERSION:";  // not whole in this file's own strings
+  std::FILE* f = std::fopen(bin.c_str(), "rb");
+  if (!f) return {};
+  std::string buf, out;
+  std::vector<char> chunk(1 << 20);
+  for (size_t n; out.empty() && (n = std::fread(chunk.data(), 1, chunk.size(), f)) > 0;) {
+    buf.append(chunk.data(), n);
+    for (size_t at = buf.find(tag); at != std::string::npos; at = buf.find(tag, at + 1)) {
+      const size_t from = at + tag.size(), end = buf.find('\0', from);
+      if (end == std::string::npos) break;  // its end in the next chunk
+      const std::string v = buf.substr(from, end - from);
+      if (!v.empty() && v.size() < 64 && std::all_of(v.begin(), v.end(), [](char c) { return c > ' ' && c < 127; })) {
+        out = v;
+        break;
+      }
+    }
+    if (buf.size() > 256) buf.erase(0, buf.size() - 256);  // a tag across the chunks' edge
+  }
+  std::fclose(f);
+  return out;
 }
 
 // A MechWarrior (1989) folder: BTECH.EXE in it (any case).
@@ -665,30 +774,51 @@ void Launcher::start_pm() {
   mech3::setup::Result r;
   const std::vector<std::string> notes = pm_notes(&r);
   std::printf("mw3: launcher: %s\n", r.summary.c_str());
-  std::string all;
-  for (const std::string& w : notes) std::printf("mw3: launcher: note: %s\n", w.c_str()), all += w + "\n";
+  for (const std::string& w : notes) std::printf("mw3: launcher: note: %s\n", w.c_str());
   if (!r.ok) {
     status_ = r.summary, status_good_ = false;
     screen_ = kMain, layout();
     return;
   }
+  files_pm_ = true;  // its ADD FROM MY DISC on the notes
+  pm_after_notes_ = true;
+  if (notes_once(notes, &o_.cfg_pm_notes, "pm_notes")) return;
+  pm_after_notes_ = false;
+  start_game(true);
+}
+
+// A game's notes before a start, new ones (their CRC not `crc_kept`, saved as `key`=) shown once on BEFORE YOU PLAY,
+// whose OK starts the game (pm_after_notes_ says which); true when shown.
+bool Launcher::notes_once(const std::vector<std::string>& notes, std::string* crc_kept, const char* key) {
+  std::string all;
+  for (const std::string& n : notes) all += n + "\n";
   char crc[16];
   std::snprintf(crc, sizeof crc, "%08x", zutl_zar::crc32(0, reinterpret_cast<const uint8_t*>(all.data()), all.size()));
-  if (!notes.empty() && o_.cfg_pm_notes != crc) {
-    o_.cfg_pm_notes = crc;
-    save_config_value(o_.write_dir, "pm_notes", crc);
-    notes_ = notes, files_pm_ = true;  // its ADD FROM MY DISC on the notes
-    pm_refresh();
-    std::printf("mw3: launcher: Pirate's Moon's notes shown\n");
-    play_after_notes_ = pm_after_notes_ = true, status_.clear();
-    screen_ = kNotes, layout();
-    if (auto_ok_) {  // checks (MW3_LAUNCHER_PICK): the notes' OK pressed
-      auto_ok_ = false;
-      activate(kNotesOk);
-    }
-    return;
+  if (notes.empty() || *crc_kept == crc) return false;
+  *crc_kept = crc;
+  save_config_value(o_.write_dir, key, crc);
+  notes_ = notes;
+  std::printf("mw3: launcher: %s's notes shown\n", pm_after_notes_ ? "Pirate's Moon" : "MechWarrior 3");
+  play_after_notes_ = true, status_.clear();
+  screen_ = kNotes, layout();
+  if (auto_ok_) {  // checks (MW3_LAUNCHER_PICK, --launcher-pm, --launcher-play): the notes' OK pressed
+    auto_ok_ = false;
+    activate(kNotesOk);
   }
-  start_game(true);
+  return true;
+}
+
+// MechWarrior 3 checked before PLAY as Pirate's Moon is (start_pm, setup::start_check): its new notes once on
+// BEFORE YOU PLAY, whose OK plays. What stops it starting is left to mw3, which says it in its own box as the
+// original does ("Cannot read mech3Msg.dll from the game folder."). False: not started now.
+bool Launcher::mw3_ready() {
+  if (!install_.ok) return true;  // the find screen's own path
+  const mech3::setup::Result r = mech3::setup::start_check(install_.dir, o_.write_dir, false);
+  std::printf("mw3: launcher: %s\n", r.summary.c_str());
+  for (const std::string& w : r.warnings) std::printf("mw3: launcher: note: %s\n", w.c_str());
+  if (!r.ok) return true;
+  files_pm_ = pm_after_notes_ = false;
+  return !notes_once(r.warnings, &o_.cfg_mw3_notes, "mw3_notes");
 }
 
 // Pirate's Moon's notes before a start: the check's, and no music as
@@ -838,7 +968,8 @@ void Launcher::layout() {
     case kMain: {
       // A long folder is shortened to the plate when drawn (Text::fit), the
       // words before it kept.
-      const std::string ready = "Ready: version " + install_.version + ", ";
+      const std::string ready = "Ready, " + official_words(install_.version, mw3_program_, false) + ": " +
+                                versions_words(install_.version, mw3_program_, mech3::mods_enabled(o_.write_dir).size());
       std::string sub = install_.ok ? ready + install_.dir : "Not found yet: click to find your game";
       // The games as round badges (Owen: the ripple belongs to a circle),
       // each name and line beside its badge, the ripple from its centre.
@@ -847,14 +978,20 @@ void Launcher::layout() {
         buttons_.back().badge = badge;
       };
       game(kMw3, 0, 0, "MECHWARRIOR 3", sub, true);
+      if (!entries_logged_) std::printf("mw3: launcher: entry MECHWARRIOR 3: %s\n", sub.c_str());
       if (sub.rfind(ready, 0) == 0) buttons_.back().sub_keep = ready.size();
       // Pirate's Moon when its program is beside this one (a package with it).
       if (o_.pm_bin.empty()) {
         game(kPm, 1, 1, "PIRATE'S MOON", "Coming later", false);
       } else {
-        game(kPm, 1, 1, "PIRATE'S MOON", pm_dir_.empty() ? "Not found yet: click to find your game" : "Ready: " + pm_dir_, true);
-        if (!pm_dir_.empty()) buttons_.back().sub_keep = 7;  // "Ready: "
+        const std::string pm_ready = "Ready, " + official_words(pm_data_, pm_program_, true) + ": " +
+                                     versions_words(pm_data_, pm_program_, mech3::mods_enabled(pm_wd()).size());
+        game(kPm, 1, 1, "PIRATE'S MOON", pm_dir_.empty() ? "Not found yet: click to find your game" : pm_ready + pm_dir_, true);
+        if (!pm_dir_.empty()) buttons_.back().sub_keep = pm_ready.size();
+        if (!entries_logged_) std::printf("mw3: launcher: entry PIRATE'S MOON: %s\n", buttons_.back().sub.c_str());
       }
+      if (!entries_logged_) std::printf("mw3: launcher: footer %s\n", package_words().c_str());
+      entries_logged_ = true;  // once a run: the lines as first shown
       if (!mw1_exe_.empty()) {  // Elthial's port, credited on its line (MIT; THIRD-PARTY.txt)
         const std::string by = "Elthial's SDL port: ";
         game(kMw1, 2, 2, "MECHWARRIOR (1989)", by + (mw1_game_.empty() ? "click to pick your MechWarrior folder" : mw1_game_), true);
@@ -862,6 +999,8 @@ void Launcher::layout() {
       }
       // GAME FILES (Owen, 2026-11-02): the find screen at any time, to pick
       // or refresh the game's files; QUIT for fullscreen (Escape too).
+      // No UPDATES on branch pm: the updater takes MW3's newest vX.Y.Z and would put
+      // that package over this program; the combined package's mw3launcher updates both.
       add(kFiles, {132, 384, 120, 34}, "GAME FILES");
       add(kMods, {260, 384, 120, 34}, "MODS");
       add(kQuit, {388, 384, 120, 34}, "QUIT");
@@ -898,6 +1037,14 @@ void Launcher::layout() {
     case kWorking:
       add(kCancel, {250, 372, 140, 34}, "CANCEL");
       break;
+    case kUpdateScreen: {
+      const size_t pages = (update_lines_.size() + update_per_page() - 1) / update_per_page();
+      add(kUpdatePrev, {70, 384, 50, 34}, "<", {}, update_page_ > 0);
+      add(kUpdateNext, {126, 384, 50, 34}, ">", {}, update_page_ + 1 < pages);
+      add(kUpdateGo, {182, 384, 250, 34}, "DOWNLOAD AND INSTALL");
+      add(kUpdateNotNow, {438, 384, 132, 34}, "NOT NOW");
+      break;
+    }
     case kNotes:
       if (files_pm_ ? pm_lacks_music_ || pm_lacks_sounds_ : lacks_music_ || lacks_movies_)  // what the install lacks, from the disc (lead, 2026-11-02)
         add(kAddDisc, {130, 318, 380, 46}, "ADD FROM MY DISC", "A disc in a drive first, else its image or any file of the disc");
@@ -932,7 +1079,7 @@ void Launcher::layout() {
     }
   }
   {  // the screen and its plates (the checks follow them)
-    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "mods"};
+    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "mods", "update"};
     std::string labels;
     for (const Button& b : buttons_) labels += (labels.empty() ? "" : ", ") + b.label;
     std::printf("mw3: launcher: screen %s: %s\n", kNames[screen_], labels.c_str());
@@ -1035,6 +1182,7 @@ void Launcher::draw(float dt) {
         text_.draw(canvas_, status_, 12, status_good_ ? SDL_Color{200, 230, 200, 255} : SDL_Color{240, 190, 180, 255}, W / 2, 116);
       }
       text_.draw(canvas_, "Unofficial fan rebuild. MechWarrior is a trademark of Microsoft.", 12, kDim, 16, H - 24, -1);
+      text_.draw(canvas_, package_words(), 12, kDim, W - 16, H - 24, 1);  // the package's own version (the games' are on their lines)
       break;
     case kSetupScreen: {
       SDL_Rect box{kX + 70, 104, 500, 64};
@@ -1059,11 +1207,23 @@ void Launcher::draw(float dt) {
     case kConfirm:
       text_.draw_wrapped(canvas_, confirm_text_, 16, kWhite, W / 2, 150, 460);
       break;
+    case kUpdateScreen: {  // the newer release's notes, a page at a time, and the question
+      const std::string version = update_ ? upgrades::update::plain_version(update_->release.tag) : std::string();
+      text_.draw(canvas_, "MECHWARRIOR 3 REBUILD " + version, 22, kAmber, W / 2, 124);
+      const int lh = text_.line_skip(13);
+      const size_t per = update_per_page(), first = update_page_ * per;
+      for (size_t i = first; i < update_lines_.size() && i < first + per; ++i)
+        text_.draw(canvas_, update_lines_[i], 13, kWhite, kX + 70, kUpdateTop + static_cast<int>(i - first) * lh, -1);
+      const std::string ask = !status_.empty() ? status_ : "Download and install MechWarrior 3 Rebuild " + version + "? Your mods, pilots, saves and settings are kept.";
+      text_.draw_wrapped(canvas_, ask, 13, status_.empty() || status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 338, 500);
+      break;
+    }
     case kModsScreen: {
       // Below the banner, as the other screens: the rows, the status under
       // them, the folder in the footer.
-      const std::string where = mods_target(o_, false).write_dir + "/mods";
-      text_.draw(canvas_, text_.fit("Mods in " + where + ", in the order they win", 12, W - 32), 12, kDim, 16, H - 24, -1);
+      const std::string where = mods_here().write_dir + "/mods";
+      text_.draw(canvas_, text_.fit(std::string(mods_pm_ ? "Pirate's Moon's mods in " : "Mods in ") + where + ", in the order they win", 12, W - 32),
+                 12, kDim, 16, H - 24, -1);
       if (mods_.empty())
         text_.draw_wrapped(canvas_, "No mods yet. A mod is a folder in the mods folder below with a mod.txt (docs/modding.md).", 14,
                            kWhite, W / 2, 180, 460);
@@ -1268,6 +1428,21 @@ void Launcher::notes_refresh() {
   for (const std::string& n : launcher_notes(install_.version, !lacks_music_, !lacks_movies_, dir))
     std::printf("mw3: launcher: note: %s\n", n.c_str());
   notes_ = launcher_notes(install_.version, !lacks_music_, !lacks_movies_, text_.fit(dir, 14, 440));  // a long folder shortened
+  // The start check's notes on the same screen, so PLAY does not show a second one (mw3_ready).
+  const mech3::setup::Result c = mech3::setup::start_check(install_.dir, o_.write_dir, false);
+  mw3_check_notes_ = c.ok ? c.warnings : std::vector<std::string>{};
+  for (const std::string& n : mw3_check_notes_) std::printf("mw3: launcher: note: %s\n", n.c_str()), notes_.push_back(n);
+}
+
+// The start check's notes counted as shown (mw3_notes=, as notes_once keeps them): the notes screen has them.
+void Launcher::mw3_notes_seen() {
+  std::string all;
+  for (const std::string& n : mw3_check_notes_) all += n + "\n";
+  char crc[16];
+  std::snprintf(crc, sizeof crc, "%08x", zutl_zar::crc32(0, reinterpret_cast<const uint8_t*>(all.data()), all.size()));
+  if (mw3_check_notes_.empty() || o_.cfg_mw3_notes == crc) return;
+  o_.cfg_mw3_notes = crc;
+  save_config_value(o_.write_dir, "mw3_notes", crc);
 }
 
 // Pirate's Moon's usual settings folder: beside MechWarrior 3's under
@@ -1292,7 +1467,9 @@ void Launcher::pm_refresh() {
   const std::string wd = pm_wd();
   const std::string own = zutl::any_case(pm_dir_, "music");
   pm_lacks_music_ = !have_music({(fs::path(wd) / "music").string(), own.empty() ? (fs::path(pm_dir_) / "music").string() : own});
-  for (const std::string& w : mech3::setup::check_install(pm_dir_, wd, true).warnings)
+  const mech3::setup::Result c = mech3::setup::check_install(pm_dir_, wd, true);
+  pm_data_ = c.version;
+  for (const std::string& w : c.warnings)
     if (w.find("soundsH.zbd") != std::string::npos) pm_lacks_sounds_ = true;
 }
 
@@ -1337,9 +1514,27 @@ std::string Launcher::in_use() const {
   return s;
 }
 
+// A newer release found: its notes as plain lines wrapped to the screen, the first page, the question.
+void Launcher::show_update() {
+  update_lines_.clear();
+  for (const std::string& line : upgrades::update::notes_lines(update_->release.notes)) {
+    if (line.empty()) {
+      update_lines_.emplace_back();
+      continue;
+    }
+    for (const std::string& w : text_.wrap(line, 13, kUpdateWidth)) update_lines_.push_back(w);
+  }
+  if (update_lines_.empty()) update_lines_.push_back("(No notes with this release.)");
+  for (const std::string& l : update_lines_) std::printf("mw3: launcher: update notes: %s\n", l.c_str());
+  update_page_ = 0, status_.clear();
+  screen_ = kUpdateScreen, layout();
+  if (SDL_getenv("MW3_LAUNCHER_UPDATE_GO")) activate(kUpdateGo);  // checks: DOWNLOAD AND INSTALL pressed
+}
+
 // MechWarrior 3 started: by mw3launcher as the game's own program, else
 // (a plain mw3 start, or no game_bin) the window handed on.
 void Launcher::play() {
+  if (!mw3_ready()) return;
   // The movies converted here first, with the bar (Owen: a first start sat
   // 44 s on "Starting MechWarrior 3..." while mw3 did it); mw3's own import
   // stays the fallback for a start without the launcher.
@@ -1511,6 +1706,7 @@ void Launcher::use_install(const std::string& dir, const std::string& version, c
   }
   if (!notes_.empty()) {
     play_after_notes_ = true, status_.clear();
+    mw3_notes_seen();
     screen_ = kNotes, layout();
     if (auto_ok_) {  // checks (MW3_LAUNCHER_PICK): the notes' OK pressed
       auto_ok_ = false;
@@ -1594,6 +1790,24 @@ void Launcher::finish_work() {
     return;
   }
   if (kind == Work::kMoveData) return moved(r);
+  if (kind == Work::kUpdateCheck) {  // a newer release: its notes and the question; else the verdict on the main screen
+    std::printf("mw3: launcher: update: %s\n", r.summary.c_str());
+    status_ = r.summary, status_good_ = r.ok;
+    if (update_ && update_->kind == upgrades::update::Verdict::kNewer) return show_update();
+    screen_ = kMain, layout();
+    return;
+  }
+  if (kind == Work::kUpdateDownload) {  // installed: the new launcher started and this one gone; else why, on the screen
+    std::printf("mw3: launcher: update: %s\n", r.summary.c_str());
+    status_ = r.summary, status_good_ = r.ok || r.cancelled;
+    screen_ = kUpdateScreen, layout();
+    if (r.ok && !SDL_getenv("MW3_UPDATE_NO_RESTART")) {  // checks keep this launcher
+      const std::string next = update_file_ ? *update_file_ : std::string();
+      if (!next.empty() && !start_detached(next)) status_ = "Installed. Start MechWarrior 3 Rebuild again.";
+      else done_ = true;  // Windows: the Setup replaces this program once it is gone
+    }
+    return;
+  }
   if (kind == Work::kConvert) {  // on where it was going
     std::function<void()> then = std::move(after_convert_);
     after_convert_ = nullptr;
@@ -1657,15 +1871,17 @@ void Launcher::finish_work() {
 }
 
 void Launcher::mods_refresh() {
-  const ModsTarget t = mods_target(o_, false);
-  mods_ = mech3::mods_list(t.write_dir, mech3::mods_enabled(t.write_dir), mods_checked_, install_.dir);
+  const ModsTarget t = mods_here();
+  const GameOfMods as(t.game);
+  // CHECK reads the install with this program's readers: MechWarrior 3's only (mw3pm --check-mod checks PM's).
+  mods_ = mech3::mods_list(t.write_dir, mech3::mods_enabled(t.write_dir), mods_checked_ && !mods_pm_, mods_install());
   if (mod_sel_ >= static_cast<int>(mods_.size())) mod_sel_ = static_cast<int>(mods_.size()) - 1;
   if (mod_page_ * kModsPerPage >= static_cast<int>(mods_.size())) mod_page_ = 0;
 }
 
 // The new order (the enabled, as they win) written to mw3.cfg; the list read again.
 void Launcher::mods_save(std::vector<std::string> enabled, const std::string& said) {
-  const bool ok = mech3::mods_save_enabled(mods_target(o_, false).write_dir, enabled);
+  const bool ok = mech3::mods_save_enabled(mods_here().write_dir, enabled);
   std::printf("mw3: launcher: mods: %s\n", ok ? said.c_str() : "mw3.cfg could not be written");
   status_ = ok ? said + ". It counts from the next start of the game." : "Could not write mw3.cfg: nothing changed.";
   status_good_ = ok;
@@ -1679,10 +1895,11 @@ void Launcher::mods_save(std::vector<std::string> enabled, const std::string& sa
 void Launcher::mods_add_pending() {
   const std::string path = pending_add_;
   pending_add_.clear();
-  const ModsTarget t = mods_target(o_, false);
+  const ModsTarget t = mods_here();
+  const GameOfMods as(t.game);
   std::vector<std::string> on = mech3::mods_enabled(t.write_dir);
   const mech3::ModAddDone d =
-      mech3::mod_add_run(t.write_dir, path, install_.dir,
+      mech3::mod_add_run(t.write_dir, path, mods_install(),
                          [this](const std::string& n) { return o_.shot.empty() ? ask_mod_game(win_, n) : 1; },  // a scripted run: no box
                          &on);
   std::printf("mw3: launcher: mods: %s\n", d.message.c_str());
@@ -1698,7 +1915,8 @@ void Launcher::mods_add_pending() {
 void Launcher::mods_export_pending() {
   const std::string zip = pending_export_;
   pending_export_.clear();
-  const ModsTarget t = mods_target(o_, false);
+  const ModsTarget t = mods_here();
+  const GameOfMods as(t.game);
   const mech3::ModExportResult r = mech3::mod_export((fs::path(t.write_dir) / "mods" / export_folder_).string(), zip);
   export_folder_.clear();
   std::printf("mw3: launcher: mods: %s\n", r.message.c_str());
@@ -1713,7 +1931,8 @@ std::string Launcher::mod_line(const mech3::ModsListEntry& e) const {
   if (!e.conflicts_with.empty()) {
     std::string with;
     for (const std::string& c : e.conflicts_with) with += (with.empty() ? "" : ", ") + c;
-    s += " - shares " + std::to_string(e.shadowed.size() + e.rows_taken.size()) + " with " + with + " (above wins)";
+    s += " - shares " + std::to_string(e.shadowed.size() + e.rows_taken.size() + e.anims_taken.size() + e.anim_bases.size()) +
+         " with " + with + " (above wins)";
   }
   if (e.check_errors == 0) s += " - check: fine";
   else if (e.check_errors > 0) s += " - check: " + std::to_string(e.check_errors) + " the game would refuse (mw3.log)";
@@ -1774,7 +1993,57 @@ void Launcher::activate(int id) {
       status_ = "The old copy stays in " + move_from_ + ".", status_good_ = true;
       from_files_ = false, screen_ = kMain, layout();
       break;
+    case kUpdatePrev:
+    case kUpdateNext:
+      if (id == kUpdatePrev && update_page_ > 0) --update_page_;
+      if (id == kUpdateNext && (update_page_ + 1) * update_per_page() < update_lines_.size()) ++update_page_;
+      layout();
+      break;
+    case kUpdateNotNow:
+      status_.clear(), screen_ = kMain, layout();
+      break;
+    case kUpdateGo: {  // the platform's package and SHA256SUMS on the worker, the package checked against its line
+      if (!update_) break;
+      work_ = std::make_unique<Work>();
+      work_->kind = Work::kUpdateDownload;
+      const upgrades::update::Release release = update_->release;
+      auto file = update_file_ = std::make_shared<std::string>();
+      std::error_code ec;
+      const std::string dir = (fs::temp_directory_path(ec) / "MW3-Rebuild-update").string();  // ours alone, never a settings folder
+      work_->start("DOWNLOADING THE UPDATE", [release, dir, file](const mech3::setup::ProgressFn& f) {
+        const Downloaded d = download_update(release, dir, [&](double x) {
+          return f(mech3::setup::Progress{"Downloading MechWarrior 3 Rebuild " + upgrades::update::plain_version(release.tag), x * 0.9, ""});
+        });
+        mech3::setup::Result r;
+        r.ok = d.ok, r.cancelled = d.cancelled, r.summary = d.words;
+        if (!d.ok) return r;
+        std::printf("mw3: launcher: update: %s\n", d.words.c_str());
+        f(mech3::setup::Progress{"Installing", 0.95, ""});  // sitting 4: the platform's own way
+        const Installed in = install_update(d.path);
+        r.ok = in.ok, r.summary = in.words;
+        *file = in.restart;
+        return r;
+      });
+      screen_ = kWorking, layout();
+      break;
+    }
+    case kUpdates: {  // GitHub's releases asked on the worker (the system's curl), the verdict on the status line
+      work_ = std::make_unique<Work>();
+      work_->kind = Work::kUpdateCheck;
+      auto verdict = update_ = std::make_shared<upgrades::update::Verdict>();
+      work_->start("CHECKING FOR UPDATES", [verdict](const mech3::setup::ProgressFn& f) {
+        f(mech3::setup::Progress{"Asking GitHub for the newest release", 0.3, ""});
+        *verdict = check_for_updates(MW3_VERSION);
+        mech3::setup::Result r;
+        r.ok = verdict->kind != upgrades::update::Verdict::kFailed;
+        r.summary = verdict->words;
+        return r;
+      });
+      screen_ = kWorking, layout();
+      break;
+    }
     case kMods:
+      mods_pm_ = pm_last_ && !o_.pm_bin.empty() && !pm_dir_.empty();  // the game last clicked
       screen_ = kModsScreen, status_.clear(), mods_checked_ = false, mod_sel_ = -1, mod_page_ = 0;
       mods_refresh();
       layout();
@@ -1812,7 +2081,7 @@ void Launcher::activate(int id) {
       ask_save(kModExport, mech3::mod_export_file_name(mods_[mod_sel_].info));
       break;
     case kModFolder: {
-      const std::string where = mods_target(o_, false).write_dir + "/mods";
+      const std::string where = mods_here().write_dir + "/mods";
       std::error_code ec;
       fs::create_directories(where, ec);
       if (!open_folder(where)) status_ = "The mods folder: " + where, status_good_ = true, layout();
@@ -1821,7 +2090,9 @@ void Launcher::activate(int id) {
     case kModCheck:
       mods_checked_ = true;
       mods_refresh();
-      status_ = "Checked: each mod read as the game would read it", status_good_ = true;
+      status_ = mods_pm_ ? "Pirate's Moon checks its own mods: start it with --check-mod and the mod's folder (docs/modding.md)"
+                         : "Checked: each mod read as the game would read it";
+      status_good_ = true;
       layout();
       break;
     case kModPrev:
@@ -1942,6 +2213,15 @@ LauncherChoice Launcher::run() {
   const Uint64 t_install = SDL_GetTicksNS();
   find_mw1();
   find_pm();
+  pm_refresh();
+  // Each game's program's own version, read from its file (the package's
+  // programs come from different tags: mw3 and this one from main's, mw3pm
+  // from pm's).
+  mw3_program_ = o_.game_bin.empty() ? std::string(MW3_VERSION) : program_version(o_.game_bin);
+  if (!o_.pm_bin.empty()) pm_program_ = program_version(o_.pm_bin);
+  std::printf("mw3: launcher: programs: MechWarrior 3 %s", mw3_program_.empty() ? "unknown" : mw3_program_.c_str());
+  if (!o_.pm_bin.empty()) std::printf(", Pirate's Moon %s", pm_program_.empty() ? "unknown" : pm_program_.c_str());
+  std::printf("\n");
   std::printf("mw3: launcher: art %.0f ms, font %.0f ms, the install search %.0f ms\n", ms(t0, t_art), ms(t_art, t_font),
               ms(t_font, t_install));
   sounds_on_ = o_.sound && !shot;
@@ -1955,6 +2235,10 @@ LauncherChoice Launcher::run() {
     if (o_.screen == "pick") status_ = "Not found on this computer or in a disc drive. Pick it: a disc image, a download, or Mech3.exe.";
     if (o_.screen == "notes" || o_.screen == "disc") screen_ = kNotes;
     if (o_.screen == "data") screen_ = kDataScreen;
+    if (o_.screen == "update") {  // the check (MW3_UPDATE_API in shots) and a newer release's screen
+      update_ = std::make_shared<upgrades::update::Verdict>(check_for_updates(MW3_VERSION));
+      if (update_->kind == upgrades::update::Verdict::kNewer) show_update();
+    }
     if (o_.screen == "mods") screen_ = kModsScreen, mods_refresh();
     if (o_.screen == "mods" && !o_.pick.empty()) pending_add_ = o_.pick, mods_add_pending();  // --launcher-pick
     if (o_.screen == "disc") status_ = "No disc in a drive. Pick its image (.cue .iso) or any file of the disc.";
@@ -1981,7 +2265,7 @@ LauncherChoice Launcher::run() {
   // A game without its files opens the find screen only when it is chosen;
   // a plain mw3 start that found none shows that screen alone.
   if (o_.setup_only) screen_ = kSetupScreen;
-  else if (install_.ok && first_start) screen_ = kNotes;
+  else if (install_.ok && first_start) screen_ = kNotes, mw3_notes_seen();
   layout();
   // Not high pixel density: the game takes this window (one window into the
   // game), and its sizes are the window's points (SdlWindow, SdlInput).
@@ -2002,7 +2286,9 @@ LauncherChoice Launcher::run() {
   SDL_SetTextureScaleMode(tex_, SDL_SCALEMODE_LINEAR);
   Uint64 last = SDL_GetTicks();
   SDL_InitSubSystem(SDL_INIT_GAMEPAD);  // a pad steps through the plates too (nav)
-  if (o_.play) activate(kMw3);
+  if (o_.play) auto_ok_ = true, activate(kMw3);  // its notes' OK pressed too
+  // Checks: MODS opened on Pirate's Moon, as after a click on it (then the NAV steps act there).
+  if (const char* g = SDL_getenv("MW3_LAUNCHER_MODS"); g && std::strcmp(g, "pm") == 0) pm_last_ = true, activate(kMods);
   // Checks: keys or a pad as a list ("next,next,press"), each step logged.
   if (const char* steps = SDL_getenv("MW3_LAUNCHER_NAV")) {
     std::string all = steps;

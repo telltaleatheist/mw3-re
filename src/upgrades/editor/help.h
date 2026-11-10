@@ -8,7 +8,8 @@
 // Ours (docs/editor-guide.md): the editor's help, one source for the
 // tooltips on every form's fields and buttons and every menu row, the Help
 // window and the guide (generated: build/mw3 --editor-guide). The tables sit
-// beside the forms' models: help_menus.cpp, help_nets.cpp, help_vehicles.cpp.
+// beside the forms' models: help_menus.cpp, help_nets.cpp, help_vehicles.cpp,
+// help_weapons.cpp.
 namespace mech3 {
 
 struct HelpTip {
@@ -29,6 +30,7 @@ const std::vector<HelpForm>& help_forms();
 void help_menus(std::vector<HelpForm>& out);     // help_menus.cpp
 void help_nets(std::vector<HelpForm>& out);      // help_nets.cpp
 void help_vehicles(std::vector<HelpForm>& out);  // help_vehicles.cpp
+void help_weapons(std::vector<HelpForm>& out);   // help_weapons.cpp
 
 // An item's tip on a form ("Node Parameters: node_03" finds "Node
 // Parameters"), null when the table has none.

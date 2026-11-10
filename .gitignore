@@ -1,5 +1,5 @@
 # Never commit original game files or anything converted from them
-game/
+/game/
 imported/
 *.zbd
 *.exe

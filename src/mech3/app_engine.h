@@ -401,6 +401,7 @@ class GameEngine : public Engine {
   void print_unported_summary() const;
   bool quiet = false;  // no log lines (tests)
   bool quiet_log() override { return quiet; }
+  bool may_ask = true;  // ours: a box may wait for the player (off for checks, shots and hidden runs)
   int lobby_entries() const { return lobby_entries_; }  // ours: the lobby's page entered this many times
 
   // The memory of modules not ported: what is poked reads back.
