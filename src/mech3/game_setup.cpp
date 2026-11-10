@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <iterator>
 #include <system_error>
 
 #include "gamez/zutil/zutl_zar.h"
@@ -35,6 +36,16 @@ std::string lower(std::string s) {
 }
 
 std::string mb(uint64_t bytes) { return std::to_string((bytes + (1u << 19)) >> 20) + " MB"; }
+bool read_file(const std::string& path, std::vector<uint8_t>* out) {
+  std::FILE* f = std::fopen(path.c_str(), "rb");
+  if (!f) return false;
+  out->clear();
+  uint8_t buf[1 << 16];
+  for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) out->insert(out->end(), buf, buf + n);
+  const bool ok = !std::ferror(f);
+  std::fclose(f);
+  return ok;
+}
 
 bool slurp(const fs::path& p, std::vector<uint8_t>* out) {
   std::FILE* f = std::fopen(p.string().c_str(), "rb");
@@ -545,6 +556,22 @@ Result add_pm_sounds(const std::string& source, const std::string& write_dir, co
 // reader.zbd, no Mech3Msg.dll); what stops its missions loading and an empty
 // soundsH.zbd (it falls back to soundsL's 11 kHz sounds) are notes. A file in
 // the settings folder counts: it is searched before the install.
+// Pirate's Moon has one version, 1.0: its main files as the disc has them
+// (branch pm's data_version.cpp kPmFiles, which mw3pm checks at its start).
+struct PmFile {
+  const char* path;
+  uint32_t size, crc;
+};
+constexpr PmFile kPmFiles[] = {
+    {"zbd/reader.zbd", 2626134, 0x28710a57},    {"zbd/interp.zbd", 85092, 0xb57a74c0},
+    {"zbd/mechlib.zbd", 3073867, 0xfde62efe},   {"zbd/motion.zbd", 7618091, 0xf05a8c9f},
+    {"zbd/c1/reader.zbd", 485505, 0x0acd7252},  {"zbd/c2/reader.zbd", 212199, 0x987e89b9},
+    {"zbd/c3/reader.zbd", 226890, 0xfc6e555d},  {"zbd/c4/reader.zbd", 339727, 0x6edd9861},
+    {"zbd/c1/gamez.zbd", 7050008, 0x88a2e151},  {"zbd/c2/gamez.zbd", 5659600, 0xcfa65b10},
+    {"zbd/c3/gamez.zbd", 4294816, 0x2e9b5feb},  {"zbd/c4/gamez.zbd", 5936192, 0xb67263b3},
+    {"Mech3Msg.dll", 143360, 0xb03b93b6},       {"force_eff.ifr", 2166, 0x136eae86},
+};
+
 static Result& check_pm(const std::string& dir, const std::string& write_dir, Result& r) {
   std::error_code ec;
   auto size_of = [&](const std::string& rel) -> int64_t {  // -1 when not there
@@ -564,6 +591,17 @@ static Result& check_pm(const std::string& dir, const std::string& write_dir, Re
   }
   r.ok = true;
   r.summary = "Found " + name + " at " + dir + ".";
+  // The data's version as mw3pm measures it, the settings folder's files first.
+  int same = 0, missing = 0;
+  std::vector<uint8_t> bytes;
+  for (const PmFile& k : kPmFiles) {
+    std::string f;
+    for (const std::string& d : {write_dir, dir})
+      if (f.empty() && !d.empty()) f = zutl::any_case(d, k.path);
+    if (f.empty() || !read_file(f, &bytes)) ++missing;
+    else if (bytes.size() == k.size && zutl_zar::crc32(0, bytes.data(), bytes.size()) == k.crc) ++same;
+  }
+  r.version = same == static_cast<int>(std::size(kPmFiles)) ? "1.0" : missing ? "incomplete" : "unknown";
   std::string core;
   for (const char* f : {"zbd/interp.zbd", "zbd/mechlib.zbd", "zbd/motion.zbd"})
     if (size_of(f) <= 0) core += std::string(core.empty() ? "" : ", ") + "zbd\\" + (f + 4);

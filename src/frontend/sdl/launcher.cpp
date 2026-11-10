@@ -505,6 +505,9 @@ class Launcher {
   bool pm_last_ = false;  // the game last clicked: GAME FILES acts on it
   bool files_pm_ = false;  // GAME FILES' screens are Pirate's Moon's (pm_last_ when they opened)
   bool pm_lacks_music_ = false, pm_lacks_sounds_ = false;  // pm_refresh
+  std::string pm_data_;                  // ... its data's version ("1.0", "unknown", "incomplete")
+  std::string mw3_program_, pm_program_;  // each game's program's version (--version), once at the start
+  bool entries_logged_ = false;
   std::string game_name_ = "MechWarrior 3";  // the one started, for the status lines
   SDL_Process* game_ = nullptr;  // mw3, started by MECHWARRIOR 3 (game_bin)
   Uint64 game_click_ = 0;
@@ -562,6 +565,45 @@ void Launcher::find_install() {
 namespace {
 bool is_pm_install(const mech3::source::Found& f) {
   return f.kind == mech3::source::Found::kInstall && f.game == mech3::source::Found::kPiratesMoon && f.on_disk;
+}
+
+#ifndef MW3_VERSION
+#define MW3_VERSION ""
+#endif
+
+// A game's line's versions: its data's, then its program's ("data 1.2,
+// program v1.1.0, "); a program that did not say is left out.
+std::string versions_words(const std::string& data, const std::string& program) {
+  std::string s = data.empty() ? std::string() : data == "unknown" ? "data unknown (a mod?), " : "data " + data + ", ";
+  if (!program.empty()) s += "program " + program + ", ";
+  return s;
+}
+
+// A program's version as its file holds it ("MW3-PROGRAM-VERSION:v1.1.0",
+// mw3_main.cpp's mw3_version_tag), read, never run: a game started only to
+// say its version could show Windows' box for a missing DLL. Empty when the
+// file has none (an older build, a script).
+std::string program_version(const std::string& bin) {
+  const std::string tag = std::string("MW3-PROGRAM") + "-VERSION:";  // not whole in this file's own strings
+  std::FILE* f = std::fopen(bin.c_str(), "rb");
+  if (!f) return {};
+  std::string buf, out;
+  std::vector<char> chunk(1 << 20);
+  for (size_t n; out.empty() && (n = std::fread(chunk.data(), 1, chunk.size(), f)) > 0;) {
+    buf.append(chunk.data(), n);
+    for (size_t at = buf.find(tag); at != std::string::npos; at = buf.find(tag, at + 1)) {
+      const size_t from = at + tag.size(), end = buf.find('\0', from);
+      if (end == std::string::npos) break;  // its end in the next chunk
+      const std::string v = buf.substr(from, end - from);
+      if (!v.empty() && v.size() < 64 && std::all_of(v.begin(), v.end(), [](char c) { return c > ' ' && c < 127; })) {
+        out = v;
+        break;
+      }
+    }
+    if (buf.size() > 256) buf.erase(0, buf.size() - 256);  // a tag across the chunks' edge
+  }
+  std::fclose(f);
+  return out;
 }
 
 // A MechWarrior (1989) folder: BTECH.EXE in it (any case).
@@ -838,7 +880,7 @@ void Launcher::layout() {
     case kMain: {
       // A long folder is shortened to the plate when drawn (Text::fit), the
       // words before it kept.
-      const std::string ready = "Ready: version " + install_.version + ", ";
+      const std::string ready = "Ready: " + versions_words(install_.version, mw3_program_);
       std::string sub = install_.ok ? ready + install_.dir : "Not found yet: click to find your game";
       // The games as round badges (Owen: the ripple belongs to a circle),
       // each name and line beside its badge, the ripple from its centre.
@@ -847,14 +889,18 @@ void Launcher::layout() {
         buttons_.back().badge = badge;
       };
       game(kMw3, 0, 0, "MECHWARRIOR 3", sub, true);
+      if (!entries_logged_) std::printf("mw3: launcher: entry MECHWARRIOR 3: %s\n", sub.c_str());
       if (sub.rfind(ready, 0) == 0) buttons_.back().sub_keep = ready.size();
       // Pirate's Moon when its program is beside this one (a package with it).
       if (o_.pm_bin.empty()) {
         game(kPm, 1, 1, "PIRATE'S MOON", "Coming later", false);
       } else {
-        game(kPm, 1, 1, "PIRATE'S MOON", pm_dir_.empty() ? "Not found yet: click to find your game" : "Ready: " + pm_dir_, true);
-        if (!pm_dir_.empty()) buttons_.back().sub_keep = 7;  // "Ready: "
+        const std::string pm_ready = "Ready: " + versions_words(pm_data_, pm_program_);
+        game(kPm, 1, 1, "PIRATE'S MOON", pm_dir_.empty() ? "Not found yet: click to find your game" : pm_ready + pm_dir_, true);
+        if (!pm_dir_.empty()) buttons_.back().sub_keep = pm_ready.size();
+        if (!entries_logged_) std::printf("mw3: launcher: entry PIRATE'S MOON: %s\n", buttons_.back().sub.c_str());
       }
+      entries_logged_ = true;  // once a run: the lines as first shown
       if (!mw1_exe_.empty()) {  // Elthial's port, credited on its line (MIT; THIRD-PARTY.txt)
         const std::string by = "Elthial's SDL port: ";
         game(kMw1, 2, 2, "MECHWARRIOR (1989)", by + (mw1_game_.empty() ? "click to pick your MechWarrior folder" : mw1_game_), true);
@@ -1292,7 +1338,9 @@ void Launcher::pm_refresh() {
   const std::string wd = pm_wd();
   const std::string own = zutl::any_case(pm_dir_, "music");
   pm_lacks_music_ = !have_music({(fs::path(wd) / "music").string(), own.empty() ? (fs::path(pm_dir_) / "music").string() : own});
-  for (const std::string& w : mech3::setup::check_install(pm_dir_, wd, true).warnings)
+  const mech3::setup::Result c = mech3::setup::check_install(pm_dir_, wd, true);
+  pm_data_ = c.version;
+  for (const std::string& w : c.warnings)
     if (w.find("soundsH.zbd") != std::string::npos) pm_lacks_sounds_ = true;
 }
 
@@ -1942,6 +1990,15 @@ LauncherChoice Launcher::run() {
   const Uint64 t_install = SDL_GetTicksNS();
   find_mw1();
   find_pm();
+  pm_refresh();
+  // Each game's program's own version, read from its file (the package's
+  // programs come from different tags: mw3 and this one from main's, mw3pm
+  // from pm's).
+  mw3_program_ = o_.game_bin.empty() ? std::string(MW3_VERSION) : program_version(o_.game_bin);
+  if (!o_.pm_bin.empty()) pm_program_ = program_version(o_.pm_bin);
+  std::printf("mw3: launcher: programs: MechWarrior 3 %s", mw3_program_.empty() ? "unknown" : mw3_program_.c_str());
+  if (!o_.pm_bin.empty()) std::printf(", Pirate's Moon %s", pm_program_.empty() ? "unknown" : pm_program_.c_str());
+  std::printf("\n");
   std::printf("mw3: launcher: art %.0f ms, font %.0f ms, the install search %.0f ms\n", ms(t0, t_art), ms(t_art, t_font),
               ms(t_font, t_install));
   sounds_on_ = o_.sound && !shot;
