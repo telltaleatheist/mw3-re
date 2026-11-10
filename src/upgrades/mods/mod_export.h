@@ -32,12 +32,18 @@ std::string mod_export_file_name(const ModInfo& info);
 struct ModExportResult {
   bool ok = false;
   int files = 0, left_out = 0;
+  int refused = -1;           // ours (modder step 8): what the check before packing found the game would refuse (-1 unchecked)
+  bool made_mod_txt = false;  // a folder without one: a mod.txt written into the zip (never into the folder)
   std::string message;  // one line for the screen
 };
 // `mod_dir` into `zip_path`, written beside it as <zip_path>.saving and
 // renamed over it when whole (the system's save box asked about replacing).
-// Never into the mod's own folder.
-ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_path);
+// Never into the mod's own folder. Ours (modder step 8, the pack): with
+// `check`, mod_check against `install` first, its count of what the game
+// would refuse said in the message (the zip made all the same); a folder
+// without a mod.txt gets one in the zip (name= its folder, for= this game).
+ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_path, const std::string& install = "",
+                           bool check = false);
 
 // IMPORT's check of a mod's checksums file at `root`, when it has one: every
 // file listed there with its sum, nothing else beside it (our files apart).

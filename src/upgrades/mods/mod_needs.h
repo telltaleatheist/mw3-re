@@ -17,7 +17,8 @@ std::string& mods_program_version();
 // The warnings for `m` were it on with `enabled` (folder names, in order;
 // `m` among them or not): each needs= mod missing, off or older than asked,
 // each conflicting mod on (its own conflicts= or theirs naming it), and a
-// game_version= newer than this program. `all` is every mod found.
+// game_version= newer than this program (Pirate's Moon's mods against
+// mw3pm's own versions, "pm-" dropped). `all` is every mod found.
 std::vector<std::string> mod_needs_warnings(const ModInfo& m, const std::vector<ModInfo>& all,
                                             const std::vector<std::string>& enabled);
 

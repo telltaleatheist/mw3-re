@@ -1973,7 +1973,9 @@ void Launcher::mods_export_pending() {
   pending_export_.clear();
   const ModsTarget t = mods_here();
   const GameOfMods as(t.game);
-  const mech3::ModExportResult r = mech3::mod_export((fs::path(t.write_dir) / "mods" / export_folder_).string(), zip);
+  // Checked first (modder step 8) with this program's readers: MechWarrior 3's mods (mw3pm checks PM's).
+  const mech3::ModExportResult r =
+      mech3::mod_export((fs::path(t.write_dir) / "mods" / export_folder_).string(), zip, mods_install(), !mods_pm_);
   export_folder_.clear();
   std::printf("mw3: launcher: mods: %s\n", r.message.c_str());
   status_ = r.message, status_good_ = r.ok;

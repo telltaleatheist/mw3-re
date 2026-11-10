@@ -59,9 +59,13 @@ std::vector<std::string> mod_needs_warnings(const ModInfo& m, const std::vector<
     for (const std::string& name : o.conflicts)
       if (lower(name) == lower(m.folder) || (!m.name.empty() && lower(name) == lower(m.name))) conflict(o);
   const std::string& have = mods_program_version();
-  if (!m.game_version.empty() && !have.empty() && upgrades::update::compare_versions(have, m.game_version) < 0)
-    out.push_back("It needs MechWarrior 3 Rebuild " + m.game_version + " or later; this is " +
-                  upgrades::update::plain_version(have) + ".");
+  if (!m.game_version.empty() && !have.empty() && upgrades::update::compare_versions(have, m.game_version) < 0) {
+    // The game the mods are for: Pirate's Moon's program counts its own versions (pm-v1.0.2).
+    const bool pm = mods_game() == "mw3pm";
+    std::string shown_have = have.rfind("pm-", 0) == 0 ? have.substr(3) : have;
+    out.push_back(std::string("It needs ") + (pm ? "Pirate's Moon Rebuild " : "MechWarrior 3 Rebuild ") + m.game_version +
+                  " or later; this is " + upgrades::update::plain_version(shown_have) + ".");
+  }
   return out;
 }
 
