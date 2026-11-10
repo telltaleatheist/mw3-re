@@ -5221,6 +5221,15 @@ TEST(sdl_program_launcher_shows_each_games_versions) {
   const std::string pm_line = "entry PIRATE'S MOON: Ready, official: data 1.0, program pm-v8.8.8, " + pm_game.string();
   std::printf("  %s\n  %s\n", mw3_line.c_str(), pm_line.c_str());
   EXPECT(text.find(mw3_line) != std::string::npos && text.find(pm_line) != std::string::npos);
+  // The package's own version on the footer: the launcher's tag (its log's first line) without its "v".
+  {
+    const std::string head = "mw3launcher (MechWarrior 3 rebuild) ";
+    const size_t at = text.find(head);
+    std::string v = at == std::string::npos ? std::string() : text.substr(at + head.size(), text.find(',', at) - at - head.size());
+    if (v.size() > 1 && v[0] == 'v') v.erase(0, 1);
+    std::printf("  footer: MechWarrior 3 Rebuild %s\n", v.c_str());
+    EXPECT(!v.empty() && text.find("footer MechWarrior 3 Rebuild " + v + "\n") != std::string::npos);
+  }
   // A program file without one (a script, an older build): left out, and never run.
   setenv("MW3_PM_BIN", program("mw3pm", "#!/bin/sh\necho ran > \"" + dir + "/ran.txt\"\n").c_str(), 1);
   text = run("none");

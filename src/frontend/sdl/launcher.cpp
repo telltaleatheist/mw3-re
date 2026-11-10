@@ -596,6 +596,14 @@ std::string official_words(const std::string& data, const std::string& program, 
   return s + ")";
 }
 
+// The package's version on the main screen's footer (lead, 2026-11-10): the launcher's own tag, the package's
+// (mw3 and the launcher come from main's tag, mw3pm from pm's), without its "v": "MechWarrior 3 Rebuild 1.1.0".
+std::string package_words() {
+  std::string v = MW3_VERSION;
+  if (v.size() > 1 && v[0] == 'v' && v[1] >= '0' && v[1] <= '9') v.erase(0, 1);
+  return v.empty() ? "MechWarrior 3 Rebuild" : "MechWarrior 3 Rebuild " + v;
+}
+
 // A game's line's versions: its data's, then its program's, then the mods on ("data 1.2, program v1.1.0,
 // 2 mods on, "); a program that did not say is left out.
 std::string versions_words(const std::string& data, const std::string& program, size_t mods) {
@@ -949,6 +957,7 @@ void Launcher::layout() {
         if (!pm_dir_.empty()) buttons_.back().sub_keep = pm_ready.size();
         if (!entries_logged_) std::printf("mw3: launcher: entry PIRATE'S MOON: %s\n", buttons_.back().sub.c_str());
       }
+      if (!entries_logged_) std::printf("mw3: launcher: footer %s\n", package_words().c_str());
       entries_logged_ = true;  // once a run: the lines as first shown
       if (!mw1_exe_.empty()) {  // Elthial's port, credited on its line (MIT; THIRD-PARTY.txt)
         const std::string by = "Elthial's SDL port: ";
@@ -1130,6 +1139,7 @@ void Launcher::draw(float dt) {
         text_.draw(canvas_, status_, 12, status_good_ ? SDL_Color{200, 230, 200, 255} : SDL_Color{240, 190, 180, 255}, W / 2, 116);
       }
       text_.draw(canvas_, "Unofficial fan rebuild. MechWarrior is a trademark of Microsoft.", 12, kDim, 16, H - 24, -1);
+      text_.draw(canvas_, package_words(), 12, kDim, W - 16, H - 24, 1);  // the package's own version (the games' are on their lines)
       break;
     case kSetupScreen: {
       SDL_Rect box{kX + 70, 104, 500, 64};
