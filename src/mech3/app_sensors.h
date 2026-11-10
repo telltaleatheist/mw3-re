@@ -36,6 +36,7 @@ bool hud_object_classed(const void* o);  // an entity class the sensors know (it
 void* hud_object_blip(const void* o, int32_t kind);
 bool hud_object_is_field_base(const void* o);  // for the HUD's report
 bool hud_object_is_target(const void* o);      // a targets.zrd object (or trap)
+bool hud_object_aim_entity(const void* o);     // PM's vt+0x48 not none: not a target, a trap or a turret (0x00406ce0)
 bool hud_object_hidden(const void* o);
 bool hud_object_active(const void* o);  // zEntity's +0x08 (PM's aim ray, 0x00445c60)
 void* hud_object_mech(const void* o);

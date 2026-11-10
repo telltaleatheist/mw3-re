@@ -24,7 +24,6 @@ it is clear what the designers meant.
 - **Pirate's Moon's HUD static thickens the worse your mech is hurt.** The original works out how
   strong the static should be and then, on a 3D card, draws it at full strength however hurt you are;
   now it grades with your health, as MechWarrior 3's does: faint at 15% health, a full sheet near death.
-- **A shot-down aircraft or turret no longer leaves an invisible wall.** In Pirate's Moon, a turret your reticle had passed over, such as the Anhur aircraft over c3m6's land bridge, kept an invisible box from where it died down to its wreck, which stopped shots and mechs in empty air. The wreck is solid only where its pieces are now.
 - **Typing in the cheat box or the chat no longer moves your view.** A key you type into a box still counted for the game when you let it go after pressing Enter, as you do when typing fast; L is the hold-to-look key, so "operation cwal" left the mouse turning the torso instead of moving the reticle. Keys typed into a box are the box's now.
 - **Artemis works in a side torso.** The rebuild looked for Artemis on the torso as one piece, so a launcher and its Artemis in the same side torso (some stock mechs have them there) never got it. Now, as in the original, a locked shot from that launcher tracks at double rate and hugs the ground.
 

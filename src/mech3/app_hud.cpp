@@ -361,12 +361,12 @@ struct ProgramHudHooks : HudHooks {
     out[0] = o.x, out[1] = o.y, out[2] = o.z;
   }
   void node_set_intersect(uint32_t, bool) override {}  // handles are 64-bit here: see mech_node
-  // PM's aim ray (0x00445c60): a contact's entity is its object's vt+0x48: itself for a mech or a vehicle
-  // (0x00402250), none for a targets.zrd object (0x00406ce0, MW3's 0x0040bae0 too), whose node so keeps its
-  // mesh test: in its box test a beam stopped on the target's own node, which holds no damage handler (that's on
-  // its destroy animation's node), and lasers never hurt it (pm-tests item 14, c2m3's cargo tanker).
+  // PM's aim ray (0x00445c60): a contact's entity is its object's vt+0x48: itself for a mech, a vehicle, the
+  // stealth object or a field base (0x00402250), none for a targets.zrd object or a turret (0x00406ce0), whose
+  // node so keeps its mesh test and is never boxed. A target boxed stopped beams on its own node, which holds no
+  // damage handler (pm-tests item 14); a turret boxed and then killed left its box as a wall (pm-tests 37).
   float contact_dist_sq(void* c) override { return static_cast<ai::Contact*>(c)->dist2; }
-  void* vehicle_entity(void* v) override { return hud_object_is_target(v) ? nullptr : v; }
+  void* vehicle_entity(void* v) override { return hud_object_aim_entity(v) ? v : nullptr; }
   bool entity_active(void* e) override { return hud_object_active(e); }
   void node_set_intersect_bbox(uint32_t h, bool on) override {
     if (zcls::Node* n = node(h)) zcls::node_set_intersect_bbox(n, on ? 1 : 0);

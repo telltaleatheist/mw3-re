@@ -479,6 +479,10 @@ bool hud_object_is_target(const void* o) {
   const EntityClass c = entity_facts().class_of(handle(o));
   return c == EntityClass::target || c == EntityClass::trap;
 }
+bool hud_object_aim_entity(const void* o) {
+  const EntityClass c = entity_facts().class_of(handle(o));
+  return c != EntityClass::target && c != EntityClass::trap && c != EntityClass::turret;
+}
 bool hud_object_is_field_base(const void* o) {
   void* v = vehicle(handle(o));
   return v && program_is_field_base(v);
