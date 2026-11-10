@@ -372,9 +372,18 @@ storage, no screen yet.
   `campaigns\` whose mod is gone (`missing`: its saves stay listed). A copy is
   a mod whose mod.txt has `base=<entry>`.
 - **A mod's kind** (`mod_is_campaign`): mod.txt's `kind=campaign|assets`
-  when given; else a campaign with `campaign=`, `world=` or `base=` lines or
-  files under the game's own worlds (`zbd\c1\` .. `zbd\t1\`, any case),
-  an asset mod otherwise.
+  when given; else a campaign only when it brings one of its own
+  (`campaign=` lines) or is a copy of one (`base=`). Every other mod is an
+  asset mod, also one laid over the game's own files: a mission's reader,
+  a world's files (`zbd\c1\` .. `zbd\t1\`), the main `reader.zbd`, new
+  worlds (`world=`). It is ticked for whichever campaigns it should change,
+  the game's own (both of Pirate's Moon's), an imported one, a copy, and for
+  Instant Action (Owen, 2026-11-10, after a real mod that changes the
+  campaign's missions, the Pirate Missions and Instant Action at once: as one
+  campaign row its other changes could not be reached). `kind=campaign`
+  still makes it a row of its own, the game's campaign over its files. A
+  folder `campaigns\<mod>` an earlier build of ours made for such a mod is
+  left alone and shows as a "!" row.
 - **Each entry's folder**, `<write dir>\campaigns\<id>\` (`entry_ensure`):
   our marker `mw3-campaign.txt`, `pilots\` (the original's layout, saves in
   `pilots\games\`), `configs\` (its saved loadouts), `mods.txt` (its ticks, `mod=` lines in winning order,
@@ -382,6 +391,11 @@ storage, no screen yet.
   and not empty is never taken. Mods never serve `campaigns\` files
   (`zutl::mod_may_serve`). A mod's campaign entered from MODS keeps its pilots
   there now (`campaign_pilots_dir`: `campaigns/<mod>~<id>/pilots`).
+- **Who wins a shared file**: the order is the mount list's, first wins.
+  A campaign's own mod (and what it is built on and needs) comes before its
+  ticks, so the campaign's own files win over a ticked overlay; among ticks,
+  the earlier. The tick list's note on the later one says it ("Shares 1 file
+  with Camp, which wins").
 - **What an entry mounts** (`entry_mount_list`): its own mod, its bases'
   (a copy over what it was saved from), what those `needs=`, then its ticks;
   the first part is locked. `entry_missing_mods`: a tick or a base that is
@@ -503,8 +517,8 @@ records, ENTER relabelled PLAY).
   (`--entry <id> --entry-play`), whichever table has the focus; one that
   cannot be played is refused with the reason.
 - **IMPORT** adds a mod unticked: "Added <name>: tick it for a campaign, then
-  PLAY."; a campaign: "Added <name>: its campaign is listed.", its row
-  chosen. Nothing changes for any campaign until the player ticks it. (The
+  PLAY." (a mod laid over the game's own files too); a mod with a campaign
+  of its own: "Added <name>: its campaign is listed.", its row chosen. Nothing changes for any campaign until the player ticks it. (The
   editor's saves inside a campaign's run still tick their mod for that
   campaign, `current_entry`.)
 - REPORT, EXPORT, ADD FOLDER and MODS FOLDER as before, on the chosen

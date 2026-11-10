@@ -35,8 +35,12 @@ struct CampaignEntry {
 std::vector<CampaignEntry> official_entries();
 
 // A mod's kind: kind=campaign or kind=assets when mod.txt says; else a
-// campaign when it has campaign= or world= lines or files of the game's own
-// worlds (zbd\c1\.. zbd\t1\), an asset mod otherwise.
+// campaign only when it brings one of its own (campaign= lines) or is a copy
+// of one (base=). Every other mod is an asset mod, a tick for any campaign
+// and Instant Action, also one laid over the game's own files (its campaign's
+// missions, its worlds, the main reader): it changes whichever campaign it is
+// ticked for. kind=campaign in mod.txt still makes a row of its own, the
+// game's campaign over the mod's files.
 bool mod_is_campaign(const ModInfo& m);
 
 // Every entry: the game's own, then the mods' (by folder; a campaign mod's

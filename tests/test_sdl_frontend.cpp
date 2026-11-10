@@ -4857,6 +4857,7 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   // The game's own campaign with a mod ticked on the screen: MODS, the second row of its mods (Green HUD; Weps,
   // moved from mw3.cfg, is the first), ON/OFF, PLAY: its mods.txt written, the entry's run mounts both.
   put("wd/mods/hud/mod.txt", "name=Green HUD\n");
+  put("wd/mods/hud/zbd/c1/notes.txt", "laid over one of the game's own worlds: an asset mod all the same, a tick for the campaign\n");
   const std::string c = run({"--click-at", "135,435@130", "--click-at", "470,62@170", "--click-at", "425,255@190", "--click-at", "420,320@220"}, "c");
   const size_t own = has(c, "mw3: MODS: starting again into entry mw3"), in = has(c, "mw3: entry mw3 (MechWarrior 3): 2 mods");
   std::printf("  the game's own with a tick: asked %d, entered with both %d\n", own != none, in != none);
@@ -4895,6 +4896,7 @@ TEST(sdl_program_instant_action_mods) {
     std::ofstream(dir + "/" + rel) << text;
   };
   put("wd/mods/hud/mod.txt", "name=Green HUD\n");
+  put("wd/mods/hud/zbd/c1/notes.txt", "laid over one of the game's own worlds: an asset mod all the same, ticked here for Instant Action\n");
   put("wd/mods/weps/mod.txt", "name=Weps\nweapon=GAUSS2 ammo=yes tech=sphere\n");
   setenv("MW3_BOX_ANSWER", "2", 1);  // no box is expected: one that came would be answered and said, and fail below
   auto run = [&](const std::vector<std::string>& extra, const char* name) {
