@@ -4719,6 +4719,11 @@ TEST(sdl_restart_args_are_the_starts_own) {
   const V on_mods = sdlfe::restart_args(tested, back_to);
   EXPECT((on_mods == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-mods", "--mods-entry", "camp~night", "--restarted"}));
   EXPECT((sdlfe::restart_args(on_mods, sdlfe::RestartTo{}) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--restarted"}));
+  sdlfe::RestartTo edit = test;
+  edit.screen = sdlfe::RestartTo::kEdit;
+  const V edited = sdlfe::restart_args(tested, edit);
+  EXPECT((edited == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--entry", "camp~night", "--entry-edit", "c2", "3", "--restarted"}));
+  EXPECT((sdlfe::restart_args(edited, sdlfe::RestartTo{}) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--restarted"}));
   EXPECT((sdlfe::restart_args({"--entry-test", "c1"}, sdlfe::RestartTo{}) == V{"--restarted"}));  // cut short: nothing read past the end
   EXPECT((sdlfe::restart_args({"--entry"}, sdlfe::RestartTo{}) == V{"--restarted"}));  // a flag cut short: nothing read past the end
   // The request is taken once.
@@ -4869,6 +4874,13 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   std::printf("  TEST: asked %d, entered %d, the mission loading %d\n", test_asked != none, test_in != none, loading != none);
   EXPECT(test_asked != none && test_in != none && loading != none && test_asked < test_in && test_in < loading);
   EXPECT(has(t, "mw3: closed, result 0", loading == none ? 0 : loading) != none && has(t, "mission load failed") == none);
+  // EDITOR through the entry (step 4b): MODS, EDITOR, PLAY: again into the campaign, the mission loading for the editor.
+  const std::string ed = run({"--click-at", "135,435@130", "--click-at", "90,446@170", "--click-at", "420,320@220"}, "ed");
+  const size_t edit_asked = has(ed, "mw3: MODS: starting again into entry mw3 to edit c1 mission 1"),
+               edit_loading = edit_asked == none ? none : has(ed, "mw3: load: Loading [ c1 ]", edit_asked);
+  std::printf("  EDITOR: asked %d, the mission loading %d\n", edit_asked != none, edit_loading != none);
+  EXPECT(edit_asked != none && edit_loading != none && has(ed, "mw3: closed, result 0", edit_loading == none ? 0 : edit_loading) != none);
+  EXPECT(!fs::exists(dir + "/wd/mods/MechWarrior 3, my edit"));  // nothing saved: no copy made by opening the editor
   EXPECT(own != none && in != none && own < in && has(c, "mod hud (Green HUD) mounted", in) != none && has(c, "mod weps (Weps) mounted", in) != none);
   {
     std::ifstream t(dir + "/wd/campaigns/mw3/mods.txt");

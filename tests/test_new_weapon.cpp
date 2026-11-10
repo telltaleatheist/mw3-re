@@ -169,6 +169,7 @@ TEST(new_weapon_form_writes_into_the_mod) {
   const fs::path mod = fs::path(wd) / "mods" / "mine";
   fs::create_directories(mod);
   { std::ofstream(mod / "mod.txt") << "name=Mine\n"; }
+  { std::ofstream(mod / "mw3-editor.txt") << "the editor's own (a copy it made): the only kind it writes (save_as.h)\n"; }
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd);
   mech3::mods_mount(wd, {"mine"}, {install});
@@ -302,6 +303,7 @@ TEST(new_weapon_form_effects_and_loose_file) {
   const fs::path mod = fs::path(wd) / "mods" / "loose";
   fs::create_directories(mod / "zbd");
   { std::ofstream(mod / "mod.txt") << "name=Loose\n"; }
+  { std::ofstream(mod / "mw3-editor.txt") << "the editor's own (a copy it made): the only kind it writes (save_as.h)\n"; }
   { std::ofstream(mod / "zbd" / "weapons.zrd") << "; a modder's file\n" << whole.substr(1, whole.size() - 2) << "\n"; }
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd);

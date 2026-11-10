@@ -60,6 +60,7 @@ ModsPlay& mods_menu_play();
 // (--entry ID --entry-test WORLD N). The campaign MODS opens on (--mods-entry ID: the one just left).
 using ModsTestRestart = std::function<bool(const std::string& entry, const std::string& world, int32_t number, std::string* why)>;
 ModsTestRestart& mods_menu_test_restart();
+ModsTestRestart& mods_menu_edit_restart();  // EDITOR's (step 4b): --entry ID --entry-edit WORLD N
 std::string& mods_menu_open_entry();
 ModsEditStart& mods_menu_edit_start();
 bool& mods_menu_reopen();

@@ -11,12 +11,13 @@
 namespace sdlfe {
 
 struct RestartTo {
-  enum Screen { kNone, kPlay, kInstantAction, kTest };
+  enum Screen { kNone, kPlay, kInstantAction, kTest, kEdit };
   std::string entry;       // the MODS campaign entry's id; "" a plain start
   Screen screen = kNone;   // the entry's screen: its pilots (--entry-play) or Instant Action (--entry-ia)
   bool open_mods = false;  // a plain start with MODS open (--open-mods)
   bool open_ia = false;    // a plain start on Instant Action (--open-ia)
-  std::string test_world;  // kTest: the mission played at once (--entry-test WORLD N), then MODS's test mode in the entry
+  std::string test_world;  // kTest: the mission played at once (--entry-test WORLD N), then MODS's test mode in the entry;
+                           // kEdit: opened in the editor at once (--entry-edit WORLD N)
   int test_number = 0;
   std::string mods_entry;  // with open_mods: the campaign chosen on MODS (--mods-entry ID)
   std::string pilot;       // Instant Action's pilot picked at once (--entry-pilot NAME), so its screen opens, not the pilot screen
@@ -24,7 +25,7 @@ struct RestartTo {
 
 // The next start's arguments from this start's (without the program's name):
 // what a start into an entry adds taken out (--entry, --entry-play,
-// --entry-ia, --entry-test, --entry-pilot, --open-mods, --mods-entry, --open-ia, --restarted) with --mod and --no-mods and a
+// --entry-ia, --entry-test, --entry-edit, --entry-pilot, --open-mods, --mods-entry, --open-ia, --restarted) with --mod and --no-mods and a
 // check's scripted input (--click-at, --tap), the rest kept in order, then `to`'s and --restarted (no intro movies).
 std::vector<std::string> restart_args(const std::vector<std::string>& args, const RestartTo& to);
 

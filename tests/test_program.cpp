@@ -124,6 +124,7 @@
 #include "upgrades/mods/mod_report.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/mods/campaign_entries.h"
+#include "upgrades/editor/save_as.h"
 #include "upgrades/mods/entry_run.h"
 #include "mech3/mod_campaign.h"
 #include "gamez/zutil/zutl_zar.h"
@@ -1373,12 +1374,17 @@ TEST(campaign_operation_end_and_campaign_end_headless) {
   }
 }
 
-// Ours (editor.md, The way in from MODS): MODS, a custom campaign chosen,
-// EDITOR lists its missions, ENTER opens c1 mission 1 with the editor up (no
-// Shift+F12); net_01's node_00 moved and saved goes into the mod itself, its
-// own readerm1.zbd replaced and the old one kept as .bak; EXIT GAME EDIT
-// lands on MODS again, the stand-in pilot let go. The vehicle editor's Save
-// (S7f) goes into the mod too, the net's save kept as the .bak.
+// Ours (editor.md, The way in from MODS; modding.md, EDITOR through entries,
+// step 4b). On a plain run: MODS, a custom campaign chosen, EDITOR lists its
+// missions, PLAY asks the program to start again into the campaign with c1
+// mission 1 in the editor, and opens nothing in place. Then the run inside
+// the entry, as --entry ed~ed --entry-edit c1 1: the editor is up at once (no
+// Shift+F12); net_01's node_00 moved and saved asks the copy's name once and
+// goes into the copy ("Edit Campaign, my edit": its own readerm1.zbd, the
+// imported mod's file and folder as they were, no "editor edits"); the
+// vehicle editor's Save (S7f) goes into the same copy, nothing asked, the
+// net's save kept as its .bak; EXIT GAME EDIT leaves the entry (MODS is not
+// shown inside it) with the copy to be chosen on MODS, the stand-in pilot let go.
 TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1397,7 +1403,6 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   const std::string before = bytes(own);
   mech3::mods_mount(wd, {"ed"}, {MW3_GAME_DIR});
   zutl::mount(MW3_GAME_DIR);
-  mech3::entry_mods_save(wd, {"ed"});
   mech3::mods_menu_write_dir() = wd;
   mech3::mods_menu_mounted() = {"ed"};
   mech3::reset_states();
@@ -1422,8 +1427,25 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
     int stage = 0, frames = 0, rows = 0;
     bool listed = false, editor_up = false, moved = false, saved_into_mod = false, kept_bak = false, mods_again = false;
     std::string status, row0, vehicle_status;
-    bool vehicle_into_mod = false;
+    bool vehicle_into_mod = false, nothing_in_place = false, mod_untouched = false;
     uint32_t real_pilot = 0, pilot_after = 0;
+    int left = 0, names_asked = 0;
+    std::vector<std::string> asked;
+    const std::string copy = wd + "/mods/Edit Campaign, my edit", copy_file = copy + "/zbd/c1/readerm1.zbd";
+    mech3::mods_menu_edit_restart() = [&](const std::string& entry, const std::string& world, int32_t number, std::string*) {
+      return asked.push_back(entry + " " + world + " " + std::to_string(number)), true;
+    };
+    mech3::save_as_ask_hook() = [&](std::string*) { return ++names_asked, true; };  // the default name taken
+    const auto tree = [&](const std::string& dir) {
+      std::string t;
+      std::error_code ec;
+      std::vector<std::filesystem::path> all;
+      for (std::filesystem::recursive_directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) all.push_back(it->path());
+      std::sort(all.begin(), all.end());
+      for (const auto& f : all) t += f.string() + (std::filesystem::is_regular_file(f, ec) ? ":" + std::to_string(std::filesystem::file_size(f, ec)) : "") + "\n";
+      return t;
+    };
+    const std::string mod_before = tree(wd + "/mods/ed");
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
@@ -1438,8 +1460,16 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
         scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
         scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDIT
         rows = int(scr->edit_rows.size());
-        listed = scr->editing && rows == 1 && scr->edit_rows[0].world == "c1" && scr->edit_rows[0].number == 1;
-        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+        listed = scr->editing && !scr->testing && rows >= 1 && scr->edit_rows[0].world == "c1" && scr->edit_rows[0].number == 1;  // the campaign's own first
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY: the restart asked for
+        nothing_in_place = !mech3::mods_edit_session().active;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        // The run inside the entry, as the program sets it for --entry ed~ed --entry-edit c1 1.
+        mech3::EntryRun& run = mech3::entry_run();
+        run = mech3::EntryRun{};
+        run.screen = mech3::EntryRun::kEdit, run.id = "ed~ed", run.mod = "ed", run.campaign = "ed", run.world = "c1", run.number = 1;
+        run.leave = [&] { ++left; };
         stage = 2;
       } else if (stage == 2 && now == &st.core) {
         if (++frames < 5) return;
@@ -1456,10 +1486,11 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
           mech3::net_editor_save(0);
           status = mech3::editor_panel().rows[24]->text;
         }
-        saved_into_mod = bytes(own) != before && !std::filesystem::exists(wd + "/mods/editor edits");
-        kept_bak = std::filesystem::exists(own + ".bak") && bytes(own + ".bak") == before;
-        // The vehicle editor's Save (S7f) goes into the mod too, over the net's save.
-        const std::string after_net = bytes(own);
+        saved_into_mod = std::filesystem::is_regular_file(copy_file) && bytes(copy_file) != before && names_asked == 1 &&
+                         std::filesystem::is_regular_file(copy + "/mw3-editor.txt") && !std::filesystem::exists(wd + "/mods/editor edits");
+        kept_bak = bytes(own) == before && !std::filesystem::exists(own + ".bak");  // the imported mod's own file, never written
+        // The vehicle editor's Save (S7f) goes into the same copy, over the net's save, nothing asked.
+        const std::string after_net = bytes(copy_file);
         mech3::edit_vehicles(0);
         if (mech3::VehicleEditor* v = mech3::vehicle_editor()) {
           for (size_t i = 0; i < v->items.size(); ++i)
@@ -1470,15 +1501,14 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
           vehicle_status = v->saved;
           v->form.press("OK");
         }
-        vehicle_into_mod = bytes(own) != after_net && bytes(own + ".bak") == after_net &&
+        vehicle_into_mod = bytes(copy_file) != after_net && bytes(copy_file + ".bak") == after_net && names_asked == 1 &&
                            !std::filesystem::exists(wd + "/mods/editor edits");
+        mod_untouched = tree(wd + "/mods/ed") == mod_before && bytes(own) == before;
         mech3::net_editor_exit(0);
         mech3::editor_exit(0);  // EXIT GAME EDIT
         stage = 3;
-      } else if (stage == 3) {
-        auto* ms = dynamic_cast<mech3::ModsState*>(now);
-        if (!ms) return;
-        mods_again = true;
+      } else if (stage == 3 && left) {
+        mods_again = left == 1 && !dynamic_cast<mech3::ModsState*>(now) && mech3::entry_run().choose == "Edit Campaign, my edit";
         pilot_after = engine.peek32(0x60861c);
         stage = 4;
       }
@@ -1490,11 +1520,21 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
     std::printf("  stage %d; EDIT listed %d (%d rows), the editor up %d, moved %d, saved into the mod %d, .bak kept %d; "
                 "\"%s\"; MODS again %d, the pilot back %d\n", stage, listed, rows, editor_up, moved, saved_into_mod,
                 kept_bak, status.c_str(), mods_again, pilot_after == real_pilot);
+    EXPECT((asked == std::vector<std::string>{"ed~ed c1 1"}) && nothing_in_place);
     EXPECT(listed && editor_up && moved && saved_into_mod && kept_bak);
-    EXPECT(status.find("mods\\ed\\") != std::string::npos);
+    EXPECT(status.find("mods\\Edit Campaign, my edit\\") != std::string::npos);
     std::printf("  the vehicle editor's Save: \"%s\", into the mod %d\n", vehicle_status.c_str(), vehicle_into_mod);
-    EXPECT(vehicle_into_mod && vehicle_status.find("mods\\ed\\") != std::string::npos);
-    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    EXPECT(vehicle_into_mod && vehicle_status.find("mods\\Edit Campaign, my edit\\") != std::string::npos && mod_untouched);
+    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active && mech3::save_as_session().entry.empty());
+    {
+      std::ifstream txt(copy + "/mod.txt");
+      const std::string t((std::istreambuf_iterator<char>(txt)), std::istreambuf_iterator<char>());
+      EXPECT(t.find("name=Edit Campaign, my edit\n") == 0 && t.find("kind=campaign\nbase=ed~ed\n") != std::string::npos);
+    }
+    mech3::entry_run() = mech3::EntryRun{};
+    mech3::mods_menu_edit_restart() = nullptr;
+    mech3::save_as_ask_hook() = nullptr;
+    mech3::current_entry() = mech3::official_entries().front().id;
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -1592,9 +1632,10 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
         scr->on_button(mech3::ModsScreen::kTest, 0, 0);  // TEST
         for (const mech3::ModsEditRow& r : scr->edit_rows) listed += r.world + " " + std::to_string(r.number) + "; ";
         test_list = scr->editing && scr->testing && !scr->test_mode;
-        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDITOR: step 4b
-        no_edit_note = scr->note.text;
-        switched = !scr->editing;
+        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDITOR: the same campaign's list, to edit
+        no_edit_note = std::string(scr->note.text) + " " + scr->restart.text;
+        switched = scr->editing && !scr->testing;
+        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // closed
         scr->on_button(mech3::ModsScreen::kTest, 0, 0);
         for (size_t i = 0; i < scr->edit_rows.size(); ++i)
           if (scr->edit_rows[i].world == "c2" && scr->edit_rows[i].number == 1) scr->campaign_list.FileList::select(int32_t(i));
@@ -1653,7 +1694,7 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
                 title.c_str(), mods_again, other_note.c_str(), reloaded && second_played, second_back, left);
     EXPECT(untick_note.find("Tick Weapon Test for MechWarrior 3 to test it there.") == 0);
     EXPECT(test_list && listed.rfind("c1 1; c1 2; c1 3; c1 4; c2 1;", 0) == 0 && listed.find("c4b ") != std::string::npos);
-    EXPECT(switched && no_edit_note == "EDITOR is not available from MODS yet.");
+    EXPECT(switched && no_edit_note.find("Choose a mission; PLAY starts the game again in MechWarrior 3 with it open in the editor.") == 0);
     EXPECT((asked == std::vector<std::string>{"mw3 c2 1"}) && nothing_in_place);
     EXPECT(played && editor_closed && plays == 2);
     EXPECT(mods_again && title == "TEST in MechWarrior 3" && pilot_after == real_pilot && !mech3::mods_edit_session().active);
@@ -2474,6 +2515,7 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
         run = mech3::EntryRun{};
         run.screen = mech3::EntryRun::kPlay, run.id = "lost~lost", run.mod = "lost", run.campaign = "lost";
         mech3::current_entry() = "lost~lost";
+        mech3::save_as_ask_hook() = [](std::string*) { return true; };  // the copy's default name taken
         stage = 2;
       } else if (stage == 2) {
         auto* ps = dynamic_cast<mech3::PilotState*>(now);
@@ -2533,7 +2575,9 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
                 "opened %d\n",
                 stage, entered, shift_opened, shift_closed, status.c_str(), pause_offers, pause_opened);
     EXPECT(entered && !left_early && stage == 10);
-    EXPECT(shift_opened && shift_closed && status.find("mods\\lost\\") != std::string::npos);
+    EXPECT(shift_opened && shift_closed && status.find("mods\\Lost Frontier, my edit\\") != std::string::npos);  // a copy, never the imported mod
+    EXPECT(!std::filesystem::exists(wd + "/mods/lost/zbd") && std::filesystem::is_regular_file(wd + "/mods/Lost Frontier, my edit/mw3-editor.txt"));
+    mech3::save_as_ask_hook() = nullptr;
     EXPECT(pause_offers && pause_opened);
     mech3::entry_run() = mech3::EntryRun{};
     mech3::current_entry() = mech3::official_entries().front().id;
@@ -28095,7 +28139,9 @@ TEST(mission_c1m1_teleport_moves_the_player_headless) {
   cheat_mission("teleport", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
     if (f < 30) return false;
     mech3::editor_key(mech3::kEditorCommand);
-    mech3::ai::net_save_into_mod() = "tp";
+    mech3::ai::net_save_into_mod() = "tp";  // the editor's own folder (a copy it made): the only kind it writes (save_as.h)
+    std::filesystem::create_directories(zutl::mounts().write + "/mods/tp");
+    std::ofstream(zutl::mounts().write + "/mods/tp/mw3-editor.txt") << "the editor's\n";
     mech3::teleport_open(0);
     mech3::EditorForm& form = mech3::teleport_form();
     mech3::FormField* place = form.field("place");
