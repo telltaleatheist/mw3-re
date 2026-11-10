@@ -477,10 +477,12 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
 }
 
 ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, const std::string& install,
-                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled) {
+                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled,
+                       const std::string& from) {
   ModAddDone d;
   ModAdd a = mod_add_prepare(write_dir, source, install);
   if (!a.error.empty()) return d.message = "Not added: " + a.error + ".", d;
+  if (!from.empty()) a.source = from;  // the marker's "Added by the game from ..." 
   ModGame game = a.game;
   if (game == ModGame::kUnknown) {
     const int g = ask ? ask(a.name) : 1;
