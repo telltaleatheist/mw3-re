@@ -4691,14 +4691,18 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   to switch the aircraft off when its fall ends, but that line sits inside the
   fall's settings and was never built into the mission, so the aircraft stays
   on forever. (Found from a playtest's hit log and the code: 0x00445c60,
-  0x004a7620, anhur.zrd; docs/pm-tests.md item 37)
+  0x004a7620, anhur.zrd; docs/pm-tests.md item 37) In the original, Owen
+  shot the Anhur down the same way and found no wall in the air over the
+  channel. Nobody saw where its wreck fell, so it isn't certain.
 - **The Anhur drops c3m6's land bridge (Pirate's Moon).** The bridge before
   nav Able gives way once it has taken 20 points of harm. Standing on it alone
   doesn't do it: in the rebuild, a mech left on the deck with the Anhur shot
   down early stood there for good, while with the Anhur still flying the deck
   went under it about 27 seconds in. So it's the Anhur's attack on you that
-  brings the bridge down. (Seen in the rebuild, the original still to be
-  checked: landbridges.zrd, hide_slid0* on the deck hslid0*)
+  brings the bridge down. (Seen in the rebuild: landbridges.zrd, hide_slid0*
+  on the deck hslid0*.) In the original, with the Anhurs already shot down,
+  Owen's lasers brought the deck down; standing on it after an early kill
+  is still to be tried there.
 - **Typing in the chat can move your view.** The letters you type into the
   chat (or, in the rebuild, the cheat box) still reach the game's keys. If you
   are still holding the last letter when you press Enter, which is normal
