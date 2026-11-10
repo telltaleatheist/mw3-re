@@ -32,6 +32,10 @@
 #include "mech3/pilot_menu.h"
 #include "mech3/salvage_screen.h"
 
+namespace mech3 {
+const char* mech_name(int32_t mech);  // mech_names.h (its Engine clashes with the app's)
+}
+
 namespace sdlfe {
 
 namespace {
@@ -218,6 +222,16 @@ void CampaignChain::on_state(const void* s) {
   if (dynamic_cast<const mech3::CreditsState*>(ms)) ++credits_entered_;
   std::printf("mw3: chain state %s (frame %d, credits flag %d)\n", ms ? ms->name() : "none", frames_,
               app_.reopen_credits());
+  if (s == &mech3::states().lab) {  // what the lab lists: the store it was opened with, and the pilot's game
+    const mech3::Store* st = e_.store_of(mech3::states().lab.store_);
+    mech3::Pilot* p = mech3::current_pilot();
+    std::string mechs;
+    if (st)
+      for (const mech3::ConfigItem* it : st->items)
+        if (it->kind() == 0) mechs += std::string(" ") + mech3::mech_name(it->id()) + "x" + std::to_string(it->count);
+    std::printf("mw3: chain lab store {%s} mechs [%s ], the pilot's game type %d\n", st ? store_line(*st).c_str() : "none",
+                mechs.c_str(), p && p->current ? p->current->type() : -1);
+  }
 }
 
 // Every enemy the player could shoot, hit once a frame by a shot of the
@@ -712,6 +726,20 @@ void CampaignChain::frame() {
     // kills and standalone-kills: a mission that failed by shooting everything (a convoy it must keep, as op 3
     // mission 6's trucks) is played again and won as --win.
     const bool shoot_it = o_.kills && std::find(failed_.begin(), failed_.end(), launched_) == failed_.end();
+    if (core_frames_ == 29) {  // the mechs at the start: the lance beside the player (pm-tests 43)
+      mech3::LaunchedMech me{};
+      const bool have = mech3::describe_mech(mech3::mech_mission_player(), &me);
+      std::string line;
+      for (const mech3::ChainSide& c : mech3::chain_everyone()) {
+        mech3::LaunchedMech m{};
+        if (std::strcmp(c.t.kind, "mech") != 0 || !mech3::describe_mech(mech3::chain_object(c.t.h), &m)) continue;
+        const float dx = m.pos[0] - me.pos[0], dz = m.pos[2] - me.pos[2];
+        char buf[160];
+        std::snprintf(buf, sizeof buf, " %s team %u %.0f m;", c.t.name.c_str(), c.team, have ? std::sqrt(dx * dx + dz * dz) : -1.0f);
+        line += buf;
+      }
+      std::printf("mw3: chain mechs at the start of %s:%s\n", launched_.c_str(), line.c_str());
+    }
     if (shoot_it) {
       if (++core_frames_ == 30 && fitted_weapon_ >= 0) {  // the lab's fit, in the mission
         int32_t n = 0;

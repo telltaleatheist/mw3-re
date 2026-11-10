@@ -446,6 +446,21 @@ struct WiredPlayerHooks : PlayerHooks {
     if (StandaloneGame* st = stand()) st->set_lancemate(i, s, as<Config>(config));
     else delete s;
   }
+  Handle lance_game() override {
+    if (CampaignGame* c = launch_campaign(e)) return e->handle_of(c);
+    StandaloneGame* st = stand();
+    return st ? e->handle_of(st) : 0;
+  }
+  Handle lance_slot(Handle g, int32_t i) override {
+    StandaloneGame* st = stand();
+    if (st && g == e->handle_of(st)) return slot_handle(st->slot_at(i));
+    return campaign_slot(g, i);
+  }
+  int32_t lance_slot_count(Handle g) override {
+    StandaloneGame* st = stand();
+    if (st && g == e->handle_of(st)) return st->slot_count();
+    return campaign_slot_count(g);
+  }
   void standalone_set_lancemates(Handle, int32_t n) override {
     if (StandaloneGame* st = stand()) st->set_lancemate_count(n);
   }

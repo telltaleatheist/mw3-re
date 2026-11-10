@@ -55,6 +55,12 @@ class PlayerHooks : public zgame::Unported {
   virtual Handle game_slot(int32_t i) { return unported("game.vt+0x34", {i}); }
   virtual Handle campaign_slot(Handle c, int32_t i) { return unported("campaign.vt+0x34", {c, i}); }
   virtual int32_t campaign_slot_count(Handle c) { return static_cast<int32_t>(unported("campaign.vt+0x38", {c})); }
+  // Pirate's Moon's launch (0x004a17d0): the pilot's current game whatever its
+  // kind ([0x0062c40c] +0x6c: a campaign's or a Pirate Missions game's), its
+  // slot i (vt+0x30; 0 the player's) and their count (vt+0x34).
+  virtual Handle lance_game() { return campaign(); }
+  virtual Handle lance_slot(Handle g, int32_t i) { return campaign_slot(g, i); }
+  virtual int32_t lance_slot_count(Handle g) { return campaign_slot_count(g); }
   // aiv.zrd (mech3/zrdraiv): the record object's reads, and the file's count.
   virtual ai::AivRecord* aiv_read_named(ai::AivRecord& rec, const char* name);  // 0x004e0680
   virtual ai::AivRecord* aiv_read(ai::AivRecord& rec, int32_t i, const char** name);  // 0x004e0600

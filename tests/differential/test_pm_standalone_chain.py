@@ -81,6 +81,18 @@ def main():
         # The lancemates' mechs: PM's 25, not clamped to MW3's 19 (0x4a19c0).
         mates = [int(m) for line in re.findall(r'slots \[ (.*?) \]', out) for m in re.findall(r'(-?\d+)\+cfg', line)[1:]]
         bad += check('a lancemate past MW3\'s roster', max(mates) > 18, True)
+        # pm-tests 43: each mission starts with its lance. PM's launch (0x4a17d0) makes the
+        # lancemates of the pilot's current game, a Pirate Missions game too; MW3's (0x49e5e0)
+        # only a campaign's, so none came.
+        lance = [len(re.findall(r'(-?\d+)\+cfg', line)) - 1 for line in re.findall(r'chain briefing row \d+ c\dsa\d: .*slots \[ (.*?) \]', out)]
+        starts = re.findall(r'^mw3: chain mechs at the start of row (\d+) (c\dsa\d):(.*)$', out, re.M)
+        def mates_at(line):
+            mechs = re.findall(r' (\S+) team (\d+) (-?\d+) m;', line)
+            player = [t for n, t, _ in mechs if n == 'player']
+            return [n for n, t, _ in mechs if player and t == player[0] and n != 'player']
+        made = [len(mates_at(line)) for _, _, line in starts]
+        bad += check('each start has its lance', made, lance[:len(made)])
+        bad += check('lances checked', len(made) == 11 and sum(made) > 0, True)
         whole_titles = len(titles(out))
 
         # Saved and read back partway, a reached mission replayed, the rest played from the file.
