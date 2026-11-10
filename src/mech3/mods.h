@@ -25,6 +25,10 @@ struct ModInfo {
   std::vector<std::string> weapons; // weapon=<row>: a new weapon (weapon_row_parse)
   std::vector<std::string> campaigns;  // campaign=<file>: a custom campaign (mod_campaign.h)
   bool anim_defs_only = false;  // anim=defs: its animations by its def files alone, its whole anim files not ours
+  // Ours (upgrades/mods/mod_needs.h, modder step 7): what it says it needs, warned of, never enforced.
+  std::vector<std::pair<std::string, std::string>> needs;  // needs=<mod> [version]: another mod (folder or name), its least version
+  std::vector<std::string> conflicts;  // conflicts=<mod>: a mod it does not work with
+  std::string game_version;            // game_version=<version>: the least MechWarrior 3 Rebuild version it needs
 };
 // An Instant Action world a mod adds: its folder (any world's) and the name shown.
 struct ModIaWorld {
@@ -33,7 +37,7 @@ struct ModIaWorld {
 std::vector<ModIaWorld>& mod_ia_worlds();
 
 // mod.txt: key=value lines (name, version, author, for, description, world,
-// ia_world, mech, weapon, campaign, anim), # a comment; `name` required, `for` mw3 when given. False
+// ia_world, mech, weapon, campaign, anim, needs, conflicts, game_version), # a comment; `name` required, `for` mw3 when given. False
 // with `out->error`.
 bool mod_parse(const std::string& text, ModInfo* out);
 // The game a mod's for= must name (its first word): "mw3" here; the launcher's MODS sets "mw3pm" while it works on
@@ -114,6 +118,7 @@ struct ModsListEntry {
   std::vector<std::string> conflicts_with;  // those mods' folders
   int check_errors = -1;
   std::vector<std::string> report;  // ours (mod_report.h), with `check`: the check and this start's mount as sentences
+  std::vector<std::string> needs;   // ours (mod_needs.h): its needs=, conflicts= and game_version= warnings (an off mod's were it on)
 };
 std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::vector<std::string>& enabled, bool check = false,
                                      const std::string& install = "");

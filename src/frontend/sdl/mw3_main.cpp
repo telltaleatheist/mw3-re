@@ -79,6 +79,7 @@
 #include "frontend/sdl/sdl_install.h"
 #include "upgrades/editor/help.h"
 #include "upgrades/mods/anim_defs.h"
+#include "upgrades/mods/mod_needs.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/reference/reference.h"
 #include "mech3/game_editor.h"
@@ -660,6 +661,7 @@ int main(int argc, char** argv) {
     return refused ? 1 : 0;
   }
   if (!a.shot.empty()) a.hidden = true;
+  mech3::mods_program_version() = MW3_VERSION;  // game_version= in mod.txt (upgrades/mods/mod_needs.h)
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK)) {
     sdlfe::fatal_box(std::string("MechWarrior 3 cannot start: ") + SDL_GetError(), a.hidden);
     return 1;

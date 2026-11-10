@@ -1755,6 +1755,88 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Modder step 7 (modding.md, Requirements in mod.txt): ON/OFF on a mod whose
+// needs= is missing turns it on all the same (mw3.cfg's mod= line) and says
+// why under the table; its row is flagged, its REPORT starts with it.
+TEST(mods_screen_turning_on_warns_never_blocks_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_needs_write");
+  zutl::set_write_dir(wd);
+  std::filesystem::create_directories(wd + "/mods/x");
+  std::ofstream(wd + "/mods/x/mod.txt") << "name=X\nneeds=gone\n";
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_install() = MW3_GAME_DIR;
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0;
+    std::string note, row, first;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();
+        stage = 1;
+        return;
+      }
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+      if (stage == 1 && scr) {
+        scr->mod_list.FileList::select(0);
+        scr->on_button(mech3::ModsScreen::kMods, 0, 0);
+        scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
+        note = scr->note.text;
+        row = scr->mod_list.items.empty() ? "" : scr->mod_list.items[0]->text;
+        scr->on_button(mech3::ModsScreen::kReport, 0, 0);
+        first = scr->campaign_list.items.empty() ? "" : scr->campaign_list.items[0]->text;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        stage = 2;
+      } else if (stage == 2 && now == &st.main && app.depth() == 0) {
+        stage = 3;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    std::ifstream cfg(wd + "/mw3.cfg");
+    const std::string text((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
+    std::printf("  stage %d; note \"%s\", row \"%s\", report's first line \"%s\"; mw3.cfg:\n%s", stage, note.c_str(), row.c_str(),
+                first.c_str(), text.c_str());
+    EXPECT(stage == 3 && note.rfind("It needs the mod gone,", 0) == 0);
+    EXPECT(row == "[x] X !" && first.rfind("It needs the mod gone,", 0) == 0);
+    EXPECT(text.find("mod=x\n") != std::string::npos);  // turned on all the same
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_install().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // Ours (Owen, 2026-11-09; editor.md, The way in): a custom campaign's mission
 // launched from MODS has the editor: Shift+F12 opens it and a net saved goes
 // into the campaign's mod; the pause offers EDITOR, which resumes and opens it.

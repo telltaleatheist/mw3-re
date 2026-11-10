@@ -551,6 +551,38 @@ wrap, a mod checked and mounted), `mods_screen_report_shows_a_mods_sentences_hea
 `sdl_program_launcher_mod_report_in_sentences` (MW3's from the check, PM's
 from mw3pm's answer, BACK to MODS).
 
+### Requirements in mod.txt (modder step 7, 2026-11-10)
+
+Ours (`upgrades/mods/mod_needs`). Three mod.txt keys, warned of and never
+enforced (open and easy: a mod is always turned on when asked):
+- `needs=<mod> [version]`, repeatable: another mod by folder or `name=`, any
+  case; the last word is the least version when it starts with a digit (or
+  `v` and a digit), so `needs=Green HUD 1.2` works.
+- `conflicts=<mod>`, repeatable: a mod it does not work with. Either side
+  naming the other is enough; each pair is said once.
+- `game_version=<version>`: the least MechWarrior 3 Rebuild version. Checked
+  against the program's own (`mods_program_version`, set by mw3 at its
+  start; the launcher sets mw3pm's from its file for a Pirate's Moon mod);
+  unknown, unchecked.
+
+`mods_list` gives each mod its warnings (`ModsListEntry::needs`), an off
+mod's as if it were turned on: "It needs Base, which is off.", "It needs
+Green HUD 1.2 or later; that mod is 1.1.", "It needs the mod gone, which is
+not in the mods folder.", "It conflicts with Red HUD, which is on.", "It
+needs MechWarrior 3 Rebuild 1.1.0 or later; this is 1.0.5.".
+- In the game: ON/OFF turning a mod on says its first warning under the
+  table (and how many more, REPORT); an on mod with one is flagged ` !` and
+  its note starts with them; an off mod's note says "Turned on: ...";
+  REPORT lists them first.
+- In the launcher: a row turned on says its first warning on the status
+  line; an on mod's line ends "N warnings (CHECK)"; its report lists them first.
+
+Tests: `mods_needs_warn_never_block` (the keys, every warning, an off mod's,
+a conflict named back, the program unknown),
+`mods_screen_turning_on_warns_never_blocks_headless` and
+`sdl_program_launcher_mod_needs_warn_never_block` (turned on all the same,
+said, mw3.cfg written).
+
 ### ADD MOD (2026-11-09; IMPORT since the evening)
 
 Ours (`mod_install`, the MODS screen's IMPORT, EXPORT, ADD FOLDER and MODS
@@ -1534,7 +1566,8 @@ animations come from point 2 of "Animations a def at a time".
   6. **A modder mode**: the developer tools behind one switch (free camera, spawning a
      unit, AI paths and nav points, hit boxes), with the Battlesport editor below.
   7. **Requirements in mod.txt**: needs another mod, conflicts with one, the game
-     version it needs; the MODS screen warns before a mod is turned on.
+     version it needs; the MODS screen warns before a mod is turned on. Built 2026-11-10
+     (above, Requirements in mod.txt).
   8. **A pack button**: a mod folder to a shareable zip with its mod.txt and checksums.
 - The Battlesport editor as the mission editor (Owen, 2026-11-08, the after-PM order's
   step 4): the original developers' in-game editor (editor.md: the AI net and vehicle
