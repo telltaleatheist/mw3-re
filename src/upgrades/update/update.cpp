@@ -202,7 +202,11 @@ bool parse_releases(const std::string& json, std::vector<Release>* out, std::str
     rel.prerelease = bool_of(j.at("prerelease"));
     if (const Json* assets = j.at("assets"); assets && assets->type == Json::kArray)
       for (const Json& a : assets->items)
-        if (a.type == Json::kObject) rel.assets.push_back({text_of(a.at("name")), text_of(a.at("browser_download_url"))});
+        if (a.type == Json::kObject) {
+          const Json* size = a.at("size");
+          rel.assets.push_back({text_of(a.at("name")), text_of(a.at("browser_download_url")),
+                                size && size->type == Json::kNumber ? std::strtoull(size->s.c_str(), nullptr, 10) : 0});
+        }
     if (!rel.tag.empty()) out->push_back(std::move(rel));
   }
   return true;
@@ -283,6 +287,52 @@ std::vector<std::string> notes_lines(const std::string& markdown) {
   }
   while (!out.empty() && out.back().empty()) out.pop_back();
   return out;
+}
+
+Platform this_platform() {
+#if defined(_WIN32)
+  return Platform::kWindows;
+#elif defined(__APPLE__)
+  return Platform::kMac;
+#else
+  return Platform::kLinux;
+#endif
+}
+
+const Asset* platform_asset(const Release& r, Platform p) {
+  const auto ends = [](const std::string& s, const char* e) {
+    const size_t n = std::strlen(e);
+    return s.size() >= n && s.compare(s.size() - n, n, e) == 0;
+  };
+  for (const Asset& a : r.assets) {
+    const bool ours = p == Platform::kWindows ? a.name.rfind("MW3-Rebuild-Setup-", 0) == 0 && ends(a.name, ".exe")
+                      : p == Platform::kMac   ? a.name.rfind("MW3-Rebuild-", 0) == 0 && ends(a.name, "-mac.dmg")
+                                              : a.name.rfind("MW3-Rebuild-", 0) == 0 && ends(a.name, "-x86_64.AppImage");
+    if (ours && !a.url.empty()) return &a;
+  }
+  return nullptr;
+}
+
+const char* platform_package_words(Platform p) {
+  return p == Platform::kWindows ? "the Windows Setup" : p == Platform::kMac ? "the Mac app (.dmg)" : "the Linux AppImage";
+}
+
+std::string sums_line(const std::string& sums, const std::string& name) {
+  size_t at = 0;
+  while (at < sums.size()) {
+    const size_t nl = sums.find('\n', at);
+    std::string line = sums.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
+    at = nl == std::string::npos ? sums.size() : nl + 1;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.size() < 66) continue;
+    std::string hash = line.substr(0, 64);
+    for (char& ch : hash) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    if (hash.find_first_not_of("0123456789abcdef") != std::string::npos || line[64] != ' ') continue;
+    std::string file = line.substr(65);
+    if (!file.empty() && (file[0] == ' ' || file[0] == '*')) file.erase(0, 1);  // "  name" (text) or " *name" (binary)
+    if (file == name) return hash;
+  }
+  return {};
 }
 
 std::string plain_version(const std::string& tag) {

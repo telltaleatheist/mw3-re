@@ -576,12 +576,30 @@ program files are replaced.
    `update_notes_as_plain_lines`, `sdl_program_launcher_checks_for_updates`
    (the screen's plates and notes; none for same, older or broken). Break:
    no screen for a newer release: caught.
-3. **The download and its check**: the platform's asset (the
-   `-win64-Setup.exe`, the `-mac.dmg`, the `-x86_64.AppImage`) and the
+3. **The download and its check**: the platform's asset
+   (`MW3-Rebuild-Setup-<v>.exe`, `MW3-Rebuild-<v>-mac.dmg`,
+   `MW3-Rebuild-<v>-x86_64.AppImage`, the packaging's names) and the
    release's `SHA256SUMS`, over HTTPS by curl into the system's temp folder,
    with the bar and CANCEL; the asset's SHA-256 (patch_import's) against its
    line. A mismatch, a missing line or a cut download installs nothing and
    says so. Tests: good, wrong sum, no sums file, cancelled, cut short.
+   **Done (2026-11-10):** `upgrades::update::platform_asset` (the games' own
+   downloads on the release are other names, never taken), `sums_line` (text
+   and binary forms, any case), `sdlfe::curl_download` (to `.part`, renamed when
+   complete; no total limit, a minute without data ends it; the bar from the
+   file's size against the asset's; CANCEL kills curl and removes the part),
+   `download_update` (SHA256SUMS first, then the package, hashed by
+   `mech3::sha256_file_hex` a megabyte at a time). DOWNLOAD AND INSTALL runs it
+   on the worker into `<temp>/MW3-Rebuild-update` (never a settings folder);
+   every failure removes the file and says why ("did not match its checksum,
+   so nothing was installed", "has no SHA256SUMS", "has no line for ...",
+   curl's reason). Tests: `update_picks_the_platforms_package_and_its_sum`,
+   `sdl_update_download_and_its_check` (good, wrong sum, no line, no sums, no
+   package, cancelled, gone), `sdl_program_launcher_checks_for_updates` (the
+   newer release downloaded and checked through the screen, into the test's
+   own TMPDIR). Breaks: the sum not compared: caught; a cancel keeping the
+   part file: not caught (a local copy ends before the cancel can meet a part
+   file; the cancel's words and nothing kept are tested).
 4. **The install, each platform's normal way**: Windows runs the new Setup
    (Inno Setup, the same AppId, upgrading in place; the launcher quits
    first); the Mac replaces the whole app (the downloaded DMG attached with

@@ -1,8 +1,11 @@
 #include "frontend/sdl/sdl_update.h"
 
+#include "mech3/patch_import.h"
+
 #include <SDL3/SDL.h>
 
 #include <cstdio>
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -97,6 +100,102 @@ bool curl_get(const std::string& url, int seconds, std::string* out, std::string
     return *error = said.empty() ? "curl stopped (" + std::to_string(code) + ")" : said, false;
   }
   return true;
+}
+
+bool curl_download(const std::string& url, const std::string& to, uint64_t size, const std::function<bool(double)>& progress,
+                   std::string* error, bool* cancelled, bool allow_file) {
+  *cancelled = false;
+  const std::string curl = curl_path();
+  if (curl.empty()) return *error = "this computer has no curl to download with", false;
+  const bool file = url.rfind("file://", 0) == 0;
+  if (file && !allow_file) return *error = "not an https address", false;
+  std::error_code ec;
+  const std::string part = to + ".part";
+  fs::remove(part, ec);
+  const std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--connect-timeout", "20",
+                                         "--speed-limit", "1024", "--speed-time", "60", "--proto", file ? "=file" : "=https",
+                                         "--proto-redir", "=https", "--user-agent", "MW3-Rebuild-launcher", "--output", part, url};
+  std::vector<const char*> argv;
+  for (const std::string& a : args) argv.push_back(a.c_str());
+  argv.push_back(nullptr);
+  const SDL_PropertiesID props = SDL_CreateProperties();
+  SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, argv.data());
+  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+  SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+  SDL_Process* p = SDL_CreateProcessWithProperties(props);
+  SDL_DestroyProperties(props);
+  if (!p) return *error = std::string("curl could not be started (") + SDL_GetError() + ")", false;
+  std::string said;
+  int code = -1;
+  SDL_IOStream* io = SDL_GetProcessOutput(p);
+  for (;;) {  // the bar (and a cancel) asked before each wait, so even a quick copy can be stopped
+    const uint64_t got = fs::exists(part, ec) ? static_cast<uint64_t>(fs::file_size(part, ec)) : 0;
+    if (progress && !progress(size ? std::min(1.0, static_cast<double>(got) / static_cast<double>(size)) : 0.0)) {
+      SDL_KillProcess(p, true);
+      SDL_WaitProcess(p, true, &code);
+      SDL_DestroyProcess(p);
+      fs::remove(part, ec);
+      *cancelled = true;
+      return *error = "cancelled", false;
+    }
+    if (SDL_WaitProcess(p, false, &code)) break;
+    char buf[256];
+    const size_t n = io ? SDL_ReadIO(io, buf, sizeof buf) : 0;
+    said.append(buf, n);
+    if (n == 0) SDL_Delay(50);
+  }
+  if (io)
+    for (char buf[256]; const size_t n = SDL_ReadIO(io, buf, sizeof buf);) said.append(buf, n);
+  SDL_DestroyProcess(p);
+  if (code != 0) {
+    fs::remove(part, ec);
+    while (!said.empty() && (said.back() == '\n' || said.back() == '\r')) said.pop_back();
+    if (said.rfind("curl: ", 0) == 0) said.erase(0, 6);
+    if (const size_t paren = said.find(") "); said.rfind("(", 0) == 0 && paren != std::string::npos) said.erase(0, paren + 2);
+    return *error = said.empty() ? "curl stopped (" + std::to_string(code) + ")" : said, false;
+  }
+  fs::remove(to, ec);
+  fs::rename(part, to, ec);
+  if (ec) {
+    fs::remove(part, ec);
+    return *error = "the download could not be kept: " + ec.message(), false;
+  }
+  return true;
+}
+
+Downloaded download_update(const upgrades::update::Release& r, const std::string& dir, const std::function<bool(double)>& progress) {
+  namespace u = upgrades::update;
+  Downloaded d;
+  const bool allow_file = std::getenv("MW3_UPDATE_API") != nullptr;  // checks: a fixture's file:// assets
+  const u::Platform platform = u::this_platform();
+  const u::Asset* package = u::platform_asset(r, platform);
+  if (!package) return d.words = std::string("This release has no ") + u::platform_package_words(platform) + " to download.", d;
+  const u::Asset* sums = nullptr;
+  for (const u::Asset& a : r.assets)
+    if (a.name == "SHA256SUMS") sums = &a;
+  if (!sums) return d.words = "This release has no SHA256SUMS to check the download against, so nothing was downloaded.", d;
+  std::string list, error;
+  if (!curl_get(sums->url, 60, &list, &error, allow_file)) return d.words = "Could not download the release's SHA256SUMS: " + error + ".", d;
+  const std::string want = u::sums_line(list, package->name);
+  if (want.empty()) return d.words = "The release's SHA256SUMS has no line for " + package->name + ", so nothing was downloaded.", d;
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  const std::string path = (fs::path(dir) / package->name).string();
+  bool cancelled = false;
+  if (!curl_download(package->url, path, package->size, progress, &error, &cancelled, allow_file)) {
+    d.cancelled = cancelled;
+    return d.words = cancelled ? "The download was cancelled. Nothing was installed." : "The download stopped: " + error + ". Nothing was installed.", d;
+  }
+  const std::string got = mech3::sha256_file_hex(path);
+  if (got != want) {
+    fs::remove(path, ec);
+    std::printf("mw3: launcher: update: %s is %s, SHA256SUMS says %s\n", package->name.c_str(), got.c_str(), want.c_str());
+    return d.words = "The download did not match its checksum, so nothing was installed. Try again; if it happens again, download it from the release's page.", d;
+  }
+  d.ok = true, d.path = path;
+  d.words = "Downloaded and checked: " + package->name + ".";
+  return d;
 }
 
 upgrades::update::Verdict check_for_updates(const std::string& current) {

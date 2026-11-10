@@ -26,6 +26,7 @@
 
 #include "check.h"
 #include "mech3/source_map.h"
+#include "mech3/patch_import.h"
 #include "frontend/sdl/sdl_update.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
@@ -5262,6 +5263,67 @@ TEST(sdl_update_fetch_by_curl) {
   fs::remove_all(dir, ec);
 }
 
+// The updater's download (sitting 3) on file:// fixtures: this platform's package and the release's SHA256SUMS
+// fetched, the package checked against its line; a wrong sum, no sums, no line, no package and a cancel each
+// install nothing, leave nothing behind, and say why.
+TEST(sdl_update_download_and_its_check) {
+  namespace fs = std::filesystem;
+  namespace u = upgrades::update;
+  std::error_code ec;
+  const fs::path dir = fs::path(MW3_TEST_TMP) / "update_download";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir / "release", ec);
+  const char* names[] = {"MW3-Rebuild-Setup-9.0.0.exe", "MW3-Rebuild-9.0.0-mac.dmg", "MW3-Rebuild-9.0.0-x86_64.AppImage"};
+  const std::string ours = names[u::this_platform() == u::Platform::kWindows ? 0 : u::this_platform() == u::Platform::kMac ? 1 : 2];
+  const std::string bytes(300000, 'p');
+  std::ofstream(dir / "release" / ours, std::ios::binary) << bytes;
+  const std::string sum = mech3::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+  const auto sums = [&](const std::string& text) { std::ofstream(dir / "release" / "SHA256SUMS") << text; };
+  const auto url = [&](const std::string& n) { return "file://" + (dir / "release" / n).string(); };
+  u::Release r;
+  r.tag = "v9.0.0";
+  r.assets = {{"mw3-9.0.0-win64.zip", url("nothing"), 1}, {ours, url(ours), bytes.size()}, {"SHA256SUMS", url("SHA256SUMS"), 0}};
+  setenv("MW3_UPDATE_API", "file:///fixture", 1);  // checks: file:// assets allowed
+  const std::string to = (dir / "download").string();
+  const auto leftovers = [&]() {
+    int n = 0;
+    for (const auto& e : fs::directory_iterator(to, ec)) ++n, (void)e;
+    return n;
+  };
+  // Good.
+  sums(sum + "  " + ours + "\n");
+  int calls = 0;
+  sdlfe::Downloaded d = sdlfe::download_update(r, to, [&](double) { return ++calls, true; });
+  std::printf("  good: %s (%d progress calls)\n", d.words.c_str(), calls);
+  EXPECT(d.ok && d.path == (fs::path(to) / ours).string() && fs::file_size(d.path, ec) == bytes.size() && calls > 0 && leftovers() == 1);
+  // A wrong sum: removed.
+  sums(std::string(64, 'f') + "  " + ours + "\n");
+  d = sdlfe::download_update(r, to, nullptr);
+  EXPECT(!d.ok && d.words.find("did not match its checksum") != std::string::npos && leftovers() == 0);
+  // SHA256SUMS without its line; no SHA256SUMS on the release; no package for this platform.
+  sums(sum + "  other.dmg\n");
+  d = sdlfe::download_update(r, to, nullptr);
+  EXPECT(!d.ok && d.words.find("has no line for " + ours) != std::string::npos && leftovers() == 0);
+  u::Release no_sums = r;
+  no_sums.assets.pop_back();
+  EXPECT(sdlfe::download_update(no_sums, to, nullptr).words.find("no SHA256SUMS") != std::string::npos);
+  u::Release no_package = r;
+  no_package.assets.erase(no_package.assets.begin() + 1);
+  EXPECT(sdlfe::download_update(no_package, to, nullptr).words.rfind("This release has no ", 0) == 0);
+  // Cancelled at once: nothing kept, said so.
+  sums(sum + "  " + ours + "\n");
+  d = sdlfe::download_update(r, to, [](double) { return false; });
+  std::printf("  cancelled: %s\n", d.words.c_str());
+  EXPECT(!d.ok && d.cancelled && d.words.find("cancelled") != std::string::npos && leftovers() == 0);
+  // The package gone from the release's place: curl's reason.
+  fs::remove(dir / "release" / ours, ec);
+  d = sdlfe::download_update(r, to, nullptr);
+  std::printf("  gone: %s\n", d.words.c_str());
+  EXPECT(!d.ok && d.words.rfind("The download stopped: ", 0) == 0 && leftovers() == 0);
+  unsetenv("MW3_UPDATE_API");
+  fs::remove_all(dir, ec);
+}
+
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // UPDATES on the main screen (sitting 1): the releases list asked (MW3_UPDATE_API, a fixture), its verdict on the
 // status line: a newer package release, none newer, an answer that isn't one; PM's releases and drafts left out.
@@ -5276,7 +5338,18 @@ TEST(sdl_program_launcher_checks_for_updates) {
     return std::string("{\"tag_name\":\"") + tag + "\",\"draft\":" + (draft ? "true" : "false") +
            ",\"prerelease\":false,\"body\":\"## Fixes\\r\\n- **Lasers** hit again\\n- The `c1m2` crash\",\"assets\":[]}";
   };
-  std::ofstream(dir / "newer.json") << "[" << rel("pm-v99.0.0", false) << "," << rel("v99.0.0", true) << "," << rel("v98.1.0", false) << "]";
+  // The newer release with this platform's package and its SHA256SUMS (sitting 3: DOWNLOAD AND INSTALL pressed).
+  namespace u = upgrades::update;
+  const char* names[] = {"MW3-Rebuild-Setup-98.1.0.exe", "MW3-Rebuild-98.1.0-mac.dmg", "MW3-Rebuild-98.1.0-x86_64.AppImage"};
+  const std::string ours = names[u::this_platform() == u::Platform::kWindows ? 0 : u::this_platform() == u::Platform::kMac ? 1 : 2];
+  const std::string bytes(5000, 'n');
+  std::ofstream(dir / ours, std::ios::binary) << bytes;
+  std::ofstream(dir / "SHA256SUMS") << mech3::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()) << "  " << ours << "\n";
+  std::string newest = rel("v98.1.0", false);
+  newest.replace(newest.find("\"assets\":[]"), 11, "\"assets\":[{\"name\":\"" + ours + "\",\"size\":5000,\"browser_download_url\":\"file://" +
+                                                   (dir / ours).string() + "\"},{\"name\":\"SHA256SUMS\",\"browser_download_url\":\"file://" +
+                                                   (dir / "SHA256SUMS").string() + "\"}]");
+  std::ofstream(dir / "newer.json") << "[" << rel("pm-v99.0.0", false) << "," << rel("v99.0.0", true) << "," << newest << "]";
   std::ofstream(dir / "older.json") << "[" << rel("v0.0.1", false) << "]";
   std::ofstream(dir / "broken.json") << "<html>API rate limit exceeded</html>";
   setenv("MW3_LAUNCHER_FRAMES", "240", 1);
@@ -5284,10 +5357,18 @@ TEST(sdl_program_launcher_checks_for_updates) {
   unsetenv("MW3_PM_BIN");
   auto run = [&](const char* name) {
     setenv("MW3_UPDATE_API", ("file://" + (dir / (std::string(name) + ".json")).string()).c_str(), 1);
+    if (std::string(name) == "newer") setenv("MW3_LAUNCHER_UPDATE_GO", "1", 1);
+    else unsetenv("MW3_LAUNCHER_UPDATE_GO");
+    const std::string tmp_was = std::getenv("TMPDIR") ? std::getenv("TMPDIR") : "";
+    fs::create_directories(dir / "tmp", ec);
+    setenv("TMPDIR", (dir / "tmp").c_str(), 1);  // the download's folder in the test's own place
     const std::string log = (dir / (std::string(name) + ".log")).string();
     const pid_t pid = spawn_launcher({"--write-dir", (dir / "wd").string(), "--window", "640x480", "--hidden", "--nosound"}, log);
     int status = 0;
     EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    if (tmp_was.empty()) unsetenv("TMPDIR");
+    else setenv("TMPDIR", tmp_was.c_str(), 1);
+    if (std::string(name) == "newer") EXPECT(fs::exists(dir / "tmp" / "MW3-Rebuild-update" / ours, ec));
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     if (text.find("launcher: update: ") == std::string::npos)  // where the steps went
@@ -5299,7 +5380,8 @@ TEST(sdl_program_launcher_checks_for_updates) {
     if (std::string(name) == "newer")  // sitting 2: the notes and the question
       EXPECT(text.find("screen update: <, >, DOWNLOAD AND INSTALL, NOT NOW\n") != std::string::npos &&
              text.find("update notes: Fixes\n") != std::string::npos && text.find("update notes: \xe2\x80\xa2 Lasers hit again\n") != std::string::npos &&
-             text.find("update notes: \xe2\x80\xa2 The c1m2 crash\n") != std::string::npos);
+             text.find("update notes: \xe2\x80\xa2 The c1m2 crash\n") != std::string::npos &&
+             text.find("launcher: update: Downloaded and checked: " + ours + ".\n") != std::string::npos);
     else
       EXPECT(text.find("screen update:") == std::string::npos);
     return said;
@@ -5307,7 +5389,7 @@ TEST(sdl_program_launcher_checks_for_updates) {
   EXPECT(run("newer").rfind("MechWarrior 3 Rebuild 98.1.0 is out (this is ", 0) == 0);
   EXPECT(run("older").rfind("This is the newest MechWarrior 3 Rebuild (", 0) == 0);
   EXPECT(run("broken").find("GitHub's answer could not be read") != std::string::npos);
-  for (const char* k : {"MW3_LAUNCHER_FRAMES", "MW3_LAUNCHER_NAV", "MW3_UPDATE_API"}) unsetenv(k);
+  for (const char* k : {"MW3_LAUNCHER_FRAMES", "MW3_LAUNCHER_NAV", "MW3_UPDATE_API", "MW3_LAUNCHER_UPDATE_GO"}) unsetenv(k);
   fs::remove_all(dir, ec);
 }
 #endif

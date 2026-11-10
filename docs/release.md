@@ -231,8 +231,8 @@ the Linux AppDir. Left, and why:
       launcher's UPDATES installs nothing without its line (docs/launcher.md,
       Updates). `shasum -a 256 <files> > SHA256SUMS` (or `sha256sum`), one
       `<hash>  <name>` line each. The packages' names stay
-      `...-win64-Setup.exe`, `...-mac.dmg`, `...-x86_64.AppImage`, which the
-      updater looks for; the games' own downloads may go on the same release
+      `MW3-Rebuild-Setup-<version>.exe`, `MW3-Rebuild-<version>-mac.dmg`,
+      `MW3-Rebuild-<version>-x86_64.AppImage`, which the updater looks for; the games' own downloads may go on the same release
       as extra assets. Not a draft and not a prerelease once published (the
       updater skips both); the Latest flag does not matter to it.
 - [ ] Each upload downloaded again and its checksum checked.

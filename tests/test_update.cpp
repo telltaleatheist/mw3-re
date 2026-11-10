@@ -89,3 +89,21 @@ TEST(update_notes_as_plain_lines) {
   EXPECT(lines == want);
   EXPECT(u::notes_lines("").empty() && u::notes_lines("\n\n").empty());
 }
+
+TEST(update_picks_the_platforms_package_and_its_sum) {
+  u::Release r;
+  r.tag = "v1.2.0";
+  for (const char* n : {"mw3-1.2.0-win64.zip", "MW3-Rebuild-Setup-1.2.0.exe", "MW3-Rebuild-1.2.0-mac.dmg", "MW3-Rebuild-1.2.0-x86_64.AppImage",
+                        "mw3pm-1.0.2-mac.zip", "SHA256SUMS"})
+    r.assets.push_back({n, std::string("https://x/") + n, 100});
+  EXPECT(u::platform_asset(r, u::Platform::kWindows)->name == "MW3-Rebuild-Setup-1.2.0.exe");  // not the game alone's zip
+  EXPECT(u::platform_asset(r, u::Platform::kMac)->name == "MW3-Rebuild-1.2.0-mac.dmg");
+  EXPECT(u::platform_asset(r, u::Platform::kLinux)->name == "MW3-Rebuild-1.2.0-x86_64.AppImage");
+  r.assets.erase(r.assets.begin() + 1, r.assets.begin() + 4);
+  EXPECT(!u::platform_asset(r, u::Platform::kMac) && !u::platform_asset(r, u::Platform::kWindows));
+  const std::string h1(64, 'a'), h2 = "0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef";
+  const std::string sums = h1 + "  MW3-Rebuild-1.2.0-mac.dmg\r\n" + h2 + " *MW3-Rebuild-Setup-1.2.0.exe\nnot a line\n" + std::string(63, 'b') + "  short.dmg\n";
+  EXPECT(u::sums_line(sums, "MW3-Rebuild-1.2.0-mac.dmg") == h1);
+  EXPECT(u::sums_line(sums, "MW3-Rebuild-Setup-1.2.0.exe") == "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");  // binary mode, lower case
+  EXPECT(u::sums_line(sums, "MW3-Rebuild-1.2.0-x86_64.AppImage").empty() && u::sums_line(sums, "short.dmg").empty());
+}

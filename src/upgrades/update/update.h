@@ -2,6 +2,7 @@
 // Ours, not the original's: the launcher's CHECK FOR UPDATES (docs/launcher.md, Updates; Owen 2026-11-09, no
 // signing). This part is the logic only: GitHub's releases list read, the newest package release picked, versions
 // compared, what to say. The fetching (the system's curl) is the front end's (frontend/sdl/sdl_update.h).
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,7 @@ namespace upgrades::update {
 
 struct Asset {
   std::string name, url;  // assets[].name, assets[].browser_download_url
+  uint64_t size = 0;      // assets[].size
 };
 struct Release {
   std::string tag;    // tag_name: "v1.2.0"
@@ -42,6 +44,17 @@ Verdict judge(const std::string& current, const std::string& json, const std::st
 // A release's notes (markdown) as plain lines for the launcher's screen: headings without their #, "- " and "* "
 // items as "• ", **bold**, *italic* and `code` marks dropped, [text](url) as its text, blank runs as one.
 std::vector<std::string> notes_lines(const std::string& markdown);
+
+// The package each platform installs (docs/release.md, the packages' names): Windows' MW3-Rebuild-Setup-<v>.exe,
+// the Mac's MW3-Rebuild-<v>-mac.dmg, Linux's MW3-Rebuild-<v>-x86_64.AppImage. The games' own downloads on the same
+// release are other names, never taken.
+enum class Platform { kWindows, kMac, kLinux };
+Platform this_platform();
+const Asset* platform_asset(const Release& r, Platform p);
+const char* platform_package_words(Platform p);  // "the Windows Setup", for the words when it is missing
+
+// The SHA-256 SHA256SUMS gives `name` ("<64 hex>  <name>" or "<hex> *<name>"), lower case; empty when none.
+std::string sums_line(const std::string& sums, const std::string& name);
 
 // The version as a player reads it: "1.2.0" from "v1.2.0".
 std::string plain_version(const std::string& tag);

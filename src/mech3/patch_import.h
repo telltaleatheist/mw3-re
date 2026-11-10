@@ -48,6 +48,8 @@ struct PatchImport {
 PatchImport import_patch_12(const std::string& source, const std::string& out_dir);
 
 std::string sha256_hex(const uint8_t* data, size_t n);
+// A file's SHA-256 as hex, read a megabyte at a time; empty when it cannot be read.
+std::string sha256_file_hex(const std::string& path);
 // The same over data given in pieces (a mod's files, EXPORT and IMPORT);
 // hex() once, at the end.
 struct Sha256 {

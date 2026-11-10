@@ -380,7 +380,7 @@ struct Work {
   mech3::setup::Result result;
   std::atomic<bool> cancel{false}, done{false};
   std::string title;
-  enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData, kUpdateCheck } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
+  enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData, kUpdateCheck, kUpdateDownload } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
   ~Work() {
     cancel = true;
     if (th.joinable()) th.join();
@@ -524,6 +524,7 @@ class Launcher {
   bool mods_pm_ = false;  // MODS works on Pirate's Moon's mods (the game last clicked)
   std::shared_ptr<upgrades::update::Verdict> update_;  // the last CHECK FOR UPDATES' verdict
   std::vector<std::string> update_lines_;  // its release's notes wrapped to the screen (show_update)
+  std::shared_ptr<std::string> update_file_;  // the checked download (sitting 3), installed by sitting 4
   size_t update_page_ = 0;
   static constexpr int kUpdateTop = 150, kUpdateBottom = 322, kUpdateWidth = 500;
   size_t update_per_page() { return static_cast<size_t>(std::max(1, (kUpdateBottom - kUpdateTop) / std::max(1, text_.line_skip(13)))); }
@@ -1213,7 +1214,7 @@ void Launcher::draw(float dt) {
       for (size_t i = first; i < update_lines_.size() && i < first + per; ++i)
         text_.draw(canvas_, update_lines_[i], 13, kWhite, kX + 70, kUpdateTop + static_cast<int>(i - first) * lh, -1);
       const std::string ask = !status_.empty() ? status_ : "Download and install MechWarrior 3 Rebuild " + version + "? Your mods, pilots, saves and settings are kept.";
-      text_.draw_wrapped(canvas_, ask, 13, status_.empty() ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 338, 500);
+      text_.draw_wrapped(canvas_, ask, 13, status_.empty() || status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 338, 500);
       break;
     }
     case kModsScreen: {
@@ -1528,6 +1529,7 @@ void Launcher::show_update() {
   for (const std::string& l : update_lines_) std::printf("mw3: launcher: update notes: %s\n", l.c_str());
   update_page_ = 0, status_.clear();
   screen_ = kUpdateScreen, layout();
+  if (SDL_getenv("MW3_LAUNCHER_UPDATE_GO")) activate(kUpdateGo);  // checks: DOWNLOAD AND INSTALL pressed
 }
 
 void Launcher::play() {
@@ -1794,6 +1796,13 @@ void Launcher::finish_work() {
     screen_ = kMain, layout();
     return;
   }
+  if (kind == Work::kUpdateDownload) {  // back on the UPDATE screen, saying what came of it (sitting 4 installs)
+    std::printf("mw3: launcher: update: %s\n", r.summary.c_str());
+    status_ = r.ok ? r.summary + " Installing it comes with the launcher's next sitting." : r.summary;
+    status_good_ = r.ok || r.cancelled;
+    screen_ = kUpdateScreen, layout();
+    return;
+  }
   if (kind == Work::kConvert) {  // on where it was going
     std::function<void()> then = std::move(after_convert_);
     after_convert_ = nullptr;
@@ -1987,10 +1996,26 @@ void Launcher::activate(int id) {
     case kUpdateNotNow:
       status_.clear(), screen_ = kMain, layout();
       break;
-    case kUpdateGo:  // sitting 3: the download and its SHA256SUMS check
-      status_ = "The download comes with the launcher's next sitting (docs/launcher.md, Updates).", status_good_ = false;
-      layout();
+    case kUpdateGo: {  // the platform's package and SHA256SUMS on the worker, the package checked against its line
+      if (!update_) break;
+      work_ = std::make_unique<Work>();
+      work_->kind = Work::kUpdateDownload;
+      const upgrades::update::Release release = update_->release;
+      auto file = update_file_ = std::make_shared<std::string>();
+      std::error_code ec;
+      const std::string dir = (fs::temp_directory_path(ec) / "MW3-Rebuild-update").string();  // ours alone, never a settings folder
+      work_->start("DOWNLOADING THE UPDATE", [release, dir, file](const mech3::setup::ProgressFn& f) {
+        const Downloaded d = download_update(release, dir, [&](double x) {
+          return f(mech3::setup::Progress{"Downloading MechWarrior 3 Rebuild " + upgrades::update::plain_version(release.tag), x, ""});
+        });
+        mech3::setup::Result r;
+        r.ok = d.ok, r.cancelled = d.cancelled, r.summary = d.words;
+        *file = d.path;
+        return r;
+      });
+      screen_ = kWorking, layout();
       break;
+    }
     case kUpdates: {  // GitHub's releases asked on the worker (the system's curl), the verdict on the status line
       work_ = std::make_unique<Work>();
       work_->kind = Work::kUpdateCheck;
