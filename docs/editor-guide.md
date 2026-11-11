@@ -11,7 +11,7 @@ MechWarrior 3 shipped with the developers' own editor still inside: a menu over 
 3. EDIT AI NETS: pick a net. Its nodes and links are drawn in the world. Click a node to pick it; picking a second one links the first to it. Move Node, Delete Node, Node Params and Add veh to node work on the first picked node.
 4. EDIT VEHICLES: pick a vehicle, change its pages, then Apply (the running mission takes it at once) and Save (it is written for the next start).
 5. The editor only saves as. The first save (Save Changes in the net menu, the vehicle editor's Save, Add veh to node, New Weapon, Teleport's OK) asks for a name and makes a copy of the campaign under it, a mod of your own: mods\<the name>. That save and every later one go into the copy, and each says where. The campaign you opened, the game's own files and a mod you imported are never changed. A copy of yours opened in the editor is saved into itself, nothing asked.
-6. EXIT GAME EDIT goes back to MODS, your copy chosen at the left when a save made one. There PLAY plays it, TEST plays one of its missions at once, EDITOR opens it again, REPORT says what it changes, EXPORT packs it into a zip to give away, and DELETE removes it with its pilots and saved games.
+6. EXIT GAME EDIT (or Shift+F12, or PLAY MISSION on the pause menu) closes the editor and you play the mission as it now is; the same key or EDIT MISSION opens the editor again. QUIT on the pause menu goes back to MODS, your copy chosen at the left when a save made one. There PLAY plays it, TEST plays one of its missions at once, EDITOR opens it again, REPORT says what it changes, EXPORT packs it into a zip to give away, and DELETE removes it with its pilots and saved games.
 7. To undo a save, the file it replaced in your copy is kept beside it as <file>.bak (the save before, one kept): put the .bak back in its place. To undo everything, DELETE the copy on MODS: the campaign it was made from is as it was.
 8. Every field, button and row has a tip: hold the mouse over it. The full guide is docs/editor-guide.md.
 
@@ -24,7 +24,7 @@ MechWarrior 3 shipped with the developers' own editor still inside: a menu over 
 5. Add a vehicle: pick a node, Add veh to node, choose its type and side, OK. It is made at once and written into the mission's vehicle list (aiv.zrd) in your copy.
 6. Change a vehicle's AI: EDIT VEHICLES, pick it, set its pages (when it wakes, how far it follows, how it attacks and retreats, what valve it sets), Apply to try it in the running mission, Save to keep it.
 7. Add a weapon: EDIT WEAPONS, pick the weapon to copy, set its name and numbers, OK. It is written into your copy (mod.txt and zbd\reader.zbd) and is part of that campaign; the mech lab offers it from the next start.
-8. Try it: EXIT GAME EDIT goes back to MODS with your copy chosen. TEST, a mission, PLAY plays that mission at once with a stand-in pilot; when it ends a list plays the others, and BACK leaves. PLAY plays the campaign as a player would: its pilot screen lists the copy's own pilots and your main-game pilots, and picking one of yours copies it in (the main game's pilot is never changed).
+8. Try it: EXIT GAME EDIT puts you in the mission at once. Or quit to MODS, your copy chosen: TEST, a mission, PLAY plays that mission at once with a stand-in pilot; when it ends a list plays the others, and BACK leaves. PLAY plays the campaign as a player would: its pilot screen lists the copy's own pilots and your main-game pilots, and picking one of yours copies it in (the main game's pilot is never changed).
 9. Go on: choose the copy, EDITOR, a mission, PLAY. Its saves go into the copy itself.
 10. Give it away: EXPORT packs the copy into one zip that IMPORT takes. A copy of a mod's campaign needs that mod on the other machine too; there it is an imported mod, which that player's editor copies and never writes.
 11. Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save. DELETE on MODS removes a copy whole, with its pilots and saved games; RESET, on the game's own campaign, clears its ticks and its pilots there. Neither touches the game's files or your main-game pilots.
@@ -41,7 +41,7 @@ The menu over the mission when the editor is up (the original's, with HELP added
 | EDIT WEAPONS | New Weapon: a weapon copied from one the game knows, its name and numbers set, written into your copy of the campaign (in a mission opened from MODS, EDITOR only). Empty in the original game; ours. |
 | HELP | This quick start, in a window. Ours: the original had none. |
 | TELEPORT | Move your mech to a place: the mission's nav points, the world's saved places, or one you type in. The developers' own tool, which the original never let you reach; ours. |
-| EXIT GAME EDIT | Close the editor. From MODS's EDITOR the game goes back to the MODS screen, your copy chosen when a save made one; in a campaign's mission (Shift+F12, the pause menu's EDITOR) the view goes back to your mech and the mission goes on. |
+| EXIT GAME EDIT | Close the editor: the view goes back to your mech and the mission goes on in play. Shift+F12 does the same, and opens the editor again; so does the pause menu's switch (EDIT MISSION, PLAY MISSION). Quitting the mission from the pause menu goes back to the MODS screen, your copy chosen when a save made one. |
 
 ## Teleport
 

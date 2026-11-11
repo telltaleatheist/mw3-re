@@ -448,6 +448,7 @@ void ModsScreen::heading(const char* words) {
   std::string spaced;
   for (const char* c = words; *c; ++c) spaced += *c, spaced += c[1] ? " " : "";
   say(*campaign_list.labels[0], spaced);
+  if (shown_heading != words) shown_heading = words, std::printf("mw3: mods: the left box shows %s\n", words);  // for the checks
 }
 
 void ModsScreen::refill() {

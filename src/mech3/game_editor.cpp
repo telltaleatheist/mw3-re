@@ -142,12 +142,6 @@ void editor_exit(int32_t) {
   if (g_state.debug_lines) h.debug_lines_show(true);
   g_state.active = 0;
   h.view_on_pilot();  // ours
-  if (editor_after_exit()) editor_after_exit()();  // ours
-}
-
-std::function<void()>& editor_after_exit() {
-  static std::function<void()> f;
-  return f;
 }
 
 // Mech3.exe 1.2 @ 0x0040e4b0, each frame: while the editor is up, the row

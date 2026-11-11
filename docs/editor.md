@@ -802,14 +802,15 @@ The editor is reached only through the MODS screen:
 - **MODS -> EDITOR:** a mod's or custom campaign's mission, opened with the
   editor up. Its saves go into that mod, one .bak kept (below).
 - **A custom campaign played from MODS (ENTER):** every mission of it has the
-  editor in the level, by Shift+F12 and the pause menu's EDITOR (ours: a
-  button under OPTIONS, patch12_edits.cpp, bound only there). Its saves go
+  editor in the level, by Shift+F12 and the pause menu's switch (ours: a
+  button under OPTIONS, patch12_edits.cpp, bound only there; The switch,
+  below). Its saves go
   into the campaign's mod, one .bak kept, as EDITOR's do (`editor_from_level`
   sets `net_save_into_mod` from the campaign entered). EXIT GAME EDIT goes
   back to the mission.
 - **Everywhere else** there is no editor: the original's campaign, Pirate
   Missions, Instant Action, training and multiplayer. Shift+F12 is bound
-  but does nothing there, and the pause has no EDITOR (`editor_reachable`,
+  but does nothing there, and the pause has no switch (`editor_reachable`,
   mods_edit.h).
 - **`--debug-camera`** is a developer's command-line flag and no player
   reaches it. It opens the editor in any mission, saving into "editor
@@ -819,8 +820,8 @@ The editor is reached only through the MODS screen:
 - **Tests:**
   - `mods_campaign_mission_has_the_editor_headless`: MODS, ENTER on a
     campaign, its first mission. Shift+F12 opens the editor and closes it
-    again; a net saved goes into mods\lost\; the pause offers EDITOR, which
-    resumes and opens it.
+    again; a net saved goes into mods\lost\; the pause offers EDIT MISSION,
+    which resumes and opens it.
   - `campaign_menus_to_c1m1_through_the_briefing_headless`: from the main
     menu's CAMPAIGN, editor_reachable is false and Shift+F12's command opens
     nothing.
@@ -851,7 +852,36 @@ screen's `edit` and `edit_start`, the program's start in app_engine.cpp).
   `.bak` of the file it replaces; for mods this replaces the "<mod> edits"
   side folder (editor_mod). Never into the install.
 - **Exit Net Editor / EXIT GAME EDIT return to the MODS screen** when the
-  editor came from it (not to the mission).
+  editor came from it (not to the mission). Replaced 2026-11-11: the exit
+  goes on with the mission in play (The switch, below).
+
+### The switch (Owen, 2026-11-11, playtest W2)
+
+Owen pressed the pause's EDITOR with the editor up: it closed the editor,
+which then left the mission for MODS, and that MODS screen took no clicks
+on his PC (not reproduced on the Mac: the hidden program on the same path
+comes back to a MODS screen that takes real mouse events). His decision:
+one switch between playing and editing, which never leaves the mission.
+
+- The editor's exit, by any way (EXIT GAME EDIT, Shift+F12, the pause's
+  button), puts the view back on the mech and the mission goes on. The
+  hook that left for MODS (`editor_after_exit`, `mods_edit_leave`, the
+  session's `leave`) is gone.
+- The pause's button says what a press does: PLAY MISSION with the editor
+  up, EDIT MISSION in play (two records at one place in dlgpause.zrd,
+  EDITMISSION and PLAYMISSION, one bound: `editor_switch_edits`). A press
+  resumes and flips. Where the editor cannot be reached the pause menu is
+  the original's.
+- MODS comes back when the mission is left (the pause's QUIT) or ends, for
+  EDITOR's missions as for TEST's (`mods_menu_reopen` set at the session's
+  start for both).
+- Tests: `sdl_program_mission_switch_stays_and_mods_comes_back_alive` (the
+  real program: the switch down and up in the mission, QUIT, the game
+  started again on MODS, a click there answered; `--then` carries the
+  script past the restart), `mods_screen_edit_opens_the_editor_and_saves_
+  into_the_mod_headless`. The won way stops at the debriefing in a scripted
+  run (its Continue takes no scripted click) and is not in the program
+  test.
 - **Later**: our own dialogs for most things, weapons first (Our modding
   dialogs, planned), in `src/upgrades/`; editing files the old way keeps
   working beside them.
@@ -875,8 +905,8 @@ Test: `mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless`
 (a mod with a campaign on c1 mission 1 and its own copy of readerm1.zbd:
 EDIT lists one row, ENTER opens the mission with the editor up, node_00 of
 net_01 moved and saved into `mods\ed\zbd\c1\readerm1.zbd`, the old file as
-`.bak`, no "editor edits" folder, EXIT GAME EDIT back on MODS with the
-original pilot). Breaks: the save into the side folder, no editor on the
+`.bak`, no "editor edits" folder, EXIT GAME EDIT back in the mission and
+the pause's QUIT back on MODS with the original pilot). Breaks: the save into the side folder, no editor on the
 first frame, MODS not opened again.
 
 ## Our modding dialogs (planned; a sketch for Owen, 2026-11-09)
@@ -939,7 +969,7 @@ sitting. Built in `upgrades/editor/new_weapon` with its tips in
 **The row.** EDIT WEAPONS (the release's empty 0x004bf620; the row's text
 and place kept) calls `new_weapon_open`. In a mission the MODS screen's
 EDITOR opened (`mods_edit_session().active`) it opens the form. Anywhere
-else, a custom campaign's Shift+F12 and the pause's EDITOR included, the
+else, a custom campaign's Shift+F12 and the pause's switch included, the
 line under the menu says "EDIT WEAPONS writes into a mod: open one from
 MODS, EDITOR".
 
@@ -1742,7 +1772,8 @@ source so the two cannot drift.
   docs/modding.md's steps 3 and 4: MODS, a campaign at the left, EDITOR, a
   mission, PLAY; the editor only saves as (the first save names a copy; the
   campaign opened, the game's files and imported mods never written); EXIT
-  GAME EDIT back to MODS on the copy; TEST, PLAY, REPORT, EXPORT, DELETE and
+  GAME EDIT into the mission in play, the pause's QUIT back to MODS on the
+  copy; TEST, PLAY, REPORT, EXPORT, DELETE and
   RESET there; IMPORT's warning count and REPORT's three groups and file.
   `save_as_form()` gives the box to the view's tips and the check. Break:
   Save as's "Name" tip renamed fails both tests.

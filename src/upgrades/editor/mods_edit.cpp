@@ -25,7 +25,7 @@ void mods_edit_begin(const std::string& mod, std::function<void()> finish, bool 
   ModsEditSession& s = mods_edit_session();
   s = ModsEditSession{};
   s.active = true, s.mod = mod, s.finish = std::move(finish), s.editor = editor;
-  if (!editor) mods_menu_reopen() = true;  // TEST's: back to MODS at the main menu
+  mods_menu_reopen() = true;  // back to MODS at the main menu, however the mission is left
   ai::net_save_into_mod() = mod;
   // Inside a campaign entry the saves go into a copy of it (save_as.h): the entry's own mod when that is a copy
   // of ours, else none yet (the first save asks its name).
@@ -33,9 +33,6 @@ void mods_edit_begin(const std::string& mod, std::function<void()> finish, bool 
     save_as_begin(mods_menu_write_dir(), entry_run().id);
     s.mod = ai::net_save_into_mod();
   }
-  editor_after_exit() = [] {
-    if (mods_edit_session().active) mods_edit_session().leave = true;
-  };
 }
 
 void mods_edit_frame() {
@@ -43,7 +40,7 @@ void mods_edit_frame() {
   // MW3_EDIT_SAVE_AT=N (checks only): at the editor's Nth frame net_01 is opened and saved, the Save as box
   // answered with the name it offers, and the editor left; ImGui's box cannot be pressed by a scripted click.
   static int frames = 0;
-  if (const char* at = s.active && s.entered && !s.leave && s.editor ? std::getenv("MW3_EDIT_SAVE_AT") : nullptr; at && ++frames == std::atoi(at)) {
+  if (const char* at = s.active && s.entered && s.editor ? std::getenv("MW3_EDIT_SAVE_AT") : nullptr; at && ++frames == std::atoi(at)) {
     save_as_ask_hook() = [](std::string* name) { return std::printf("mw3: Save as answered with \"%s\" (MW3_EDIT_SAVE_AT)\n", name->c_str()), true; };
     edit_ai_nets(0);
     NetDialog& d = net_dialog();
@@ -57,19 +54,9 @@ void mods_edit_frame() {
     editor_exit(0);
     return;
   }
-  if (!s.active || s.entered || s.leave || !s.editor) return;
+  if (!s.active || s.entered || !s.editor) return;
   s.entered = true;
   if (!editor_state().active) editor_enter();
-}
-
-bool mods_edit_leave(Engine& en) {
-  ModsEditSession& s = mods_edit_session();
-  if (!s.active || !s.leave) return false;
-  en.mission_cleanup(1);  // 0x00491780
-  mods_edit_end();
-  mods_menu_reopen() = true;
-  en.replace_state(2);  // the main menu, which opens MODS again
-  return true;
 }
 
 namespace {
@@ -81,6 +68,8 @@ const ModCampaign* campaign_mission() {
   return c && p && dynamic_cast<const ModCampaignGame*>(p->current) ? c : nullptr;
 }
 }  // namespace
+
+bool editor_switch_edits() { return !editor_state().active; }
 
 bool editor_reachable() { return mods_edit_session().active || campaign_mission() || app_key_calls().debug_camera; }
 
@@ -106,7 +95,6 @@ void mods_edit_end() {
   if (!s.active) return;
   if (s.finish) s.finish();
   ai::net_save_into_mod().clear();
-  editor_after_exit() = nullptr;
   s = ModsEditSession{};
 }
 

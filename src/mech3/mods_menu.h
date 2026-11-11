@@ -94,6 +94,7 @@ class ModsScreen : public MenuScreen {
   void export_mod(const std::string& zip);  // EXPORT's answer: the chosen mod packed (upgrades/mods/mod_export.h), said
   void tell(const std::string& text);     // the two lines under MODS, the text wrapped
   void heading(const char* words);        // the left box's: CAMPAIGNS, REPORT, TEST, EDITOR
+  std::string shown_heading;
   void show_details();               // the selected row's lines
   void enter_campaign();             // PLAY
   void choose_entry();               // the campaign chosen at the left: MODS filled with its ticks

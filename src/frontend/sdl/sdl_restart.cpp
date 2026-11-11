@@ -36,7 +36,7 @@ bool g_asked = false;
 int ours(const std::string& s) {
   if (s == "--entry-test" || s == "--entry-edit") return 3;
   if (s == "--entry" || s == "--mod" || s == "--entry-pilot" || s == "--mods-entry") return 2;
-  if (s == "--click-at" || s == "--tap") return 2;  // a check's script is for the run it was given to
+  if (s == "--click-at" || s == "--tap" || s == "--mouse-at") return 2;  // a check's script is for the run it was given to
   if (s == "--entry-play" || s == "--entry-ia" || s == "--open-mods" || s == "--open-ia" || s == "--restarted" || s == "--no-mods") return 1;
   return 0;
 }
@@ -44,7 +44,18 @@ int ours(const std::string& s) {
 
 std::vector<std::string> restart_args(const std::vector<std::string>& args, const RestartTo& to) {
   std::vector<std::string> out;
+  bool later = false;  // past --then: the script for the run this restart starts, kept
   for (size_t i = 0; i < args.size(); ++i) {
+    if (!later && args[i] == "--then") {
+      later = true;
+      continue;
+    }
+    const bool script = args[i] == "--click-at" || args[i] == "--tap" || args[i] == "--mouse-at";
+    if (later && (script || args[i] == "--then")) {
+      out.push_back(args[i]);
+      if (script && i + 1 < args.size()) out.push_back(args[++i]);
+      continue;
+    }
     const int n = ours(args[i]);
     if (n >= 2) i += static_cast<size_t>(n - 1);
     if (n == 0) out.push_back(args[i]);

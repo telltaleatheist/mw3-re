@@ -445,7 +445,6 @@ bool CoreState::frame() {
 // picks the drawing path again.
 bool CoreState::update() {
   Engine& en = e();
-  if (mods_edit_leave(en)) return false;  // ours: MODS's EDIT left by EXIT GAME EDIT
   if (frame()) a().push(a().state(3), 0);
   if (en.vmode() != globals().last_vmode) {
     pick_renderer();

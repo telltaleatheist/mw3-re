@@ -1430,6 +1430,7 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
     bool listed = false, editor_up = false, moved = false, saved_into_mod = false, kept_bak = false, mods_again = false;
     std::string status, row0, vehicle_status;
     bool vehicle_into_mod = false, nothing_in_place = false, mod_untouched = false;
+    bool stayed = false, switch_in = false, switch_out = false;
     uint32_t real_pilot = 0, pilot_after = 0;
     int left = 0, names_asked = 0;
     std::vector<std::string> asked;
@@ -1507,8 +1508,24 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
                            !std::filesystem::exists(wd + "/mods/editor edits");
         mod_untouched = tree(wd + "/mods/ed") == mod_before && bytes(own) == before;
         mech3::net_editor_exit(0);
-        mech3::editor_exit(0);  // EXIT GAME EDIT
-        stage = 3;
+        mech3::editor_exit(0);  // EXIT GAME EDIT: the mission goes on in play (the switch, editor.md)
+        stage = 30, frames = 0;
+      } else if (stage == 30 && now == &st.core) {
+        if (++frames < 3) return;
+        stayed = mech3::editor_state().active == 0 && left == 0 && mech3::mods_edit_session().active;
+        app.push(app.state(3), 0), stage = 31;  // Escape's: the pause
+      } else if ((stage == 31 || stage == 33 || stage == 35) && now == &st.pause) {
+        auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
+        if (!ps) return;
+        if (stage == 31) switch_in = ps->has_editor && mech3::editor_switch_edits(), ps->on_button(mech3::PauseScreen::kEditor, 0, 0);  // EDIT MISSION
+        else if (stage == 33) switch_out = ps->has_editor && !mech3::editor_switch_edits(), ps->on_button(mech3::PauseScreen::kEditor, 0, 0);  // PLAY MISSION
+        else ps->on_button(mech3::PauseScreen::kQuit, 0, 0);
+        stage = stage == 35 ? 3 : stage + 1, frames = 0;
+      } else if ((stage == 32 || stage == 34) && now == &st.core) {
+        if (++frames < 3) return;
+        if (stage == 32) switch_in = switch_in && mech3::editor_state().active == 1 && left == 0;
+        else switch_out = switch_out && mech3::editor_state().active == 0 && left == 0;
+        app.push(app.state(3), 0), ++stage;
       } else if (stage == 3 && left) {
         mods_again = left == 1 && !dynamic_cast<mech3::ModsState*>(now) && mech3::entry_run().choose == "Edit Campaign, my edit";
         pilot_after = engine.peek32(0x60861c);
@@ -1527,6 +1544,8 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
     EXPECT(status.find("mods\\Edit Campaign, my edit\\") != std::string::npos);
     std::printf("  the vehicle editor's Save: \"%s\", into the mod %d\n", vehicle_status.c_str(), vehicle_into_mod);
     EXPECT(vehicle_into_mod && vehicle_status.find("mods\\Edit Campaign, my edit\\") != std::string::npos && mod_untouched);
+    std::printf("  EXIT GAME EDIT stays in the mission %d; the pause's EDIT MISSION opens the editor %d, its PLAY MISSION closes it %d\n", stayed, switch_in, switch_out);
+    EXPECT(stayed && switch_in && switch_out);  // never out of the mission; QUIT is the way back
     EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active && mech3::save_as_session().entry.empty());
     {
       std::ifstream txt(copy + "/mod.txt");

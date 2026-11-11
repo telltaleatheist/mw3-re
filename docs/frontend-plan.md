@@ -25,7 +25,8 @@ so they are estimates.
 N (the cursor put there through zInput's 0x0051b440, then the press and
 the release a frame apart), `--mouse-at X,Y@N[c]` moves the system's mouse
 to a window point as SDL reports it (through SdlInput; c: and clicks;
-editor.md, The pointer), `--tap DIK@N[:M]` presses a key, `--shot F.bmp
+editor.md, The pointer), `--then` gives the script after it to the run
+after the next restart (sdl_restart.h), `--tap DIK@N[:M]` presses a key, `--shot F.bmp
 --shot-frame N [--shot-series K]` writes frames. The walk used here:
 
 ```
