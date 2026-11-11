@@ -292,6 +292,40 @@ TEST(mods_report_file_goes_in_a_marked_folder_of_ours) {
   EXPECT(back.size() == 2 && back[1].where == "zbd/old.zbd" && back[1].w.wrong == "wrong" && back[1].w.item.empty());
 }
 
+// REPORT says which of the game's own missions a mod laid over the game's files replaces: a mission's own archive
+// by its operation and number, a world's own files once for every mission on it; nothing for other files, for
+// new files, or for a world no mission plays on.
+TEST(mods_report_names_the_games_missions_a_mod_replaces) {
+  mech3::ModFindings f;
+  f.against_install = true, f.replaces = 5;
+  f.missions = {"c1 2", "c4b 5", "t1 1", "zz 3"}, f.mission_worlds = {"c2"};
+  std::vector<std::string> s = mech3::mod_sentences(f);
+  for (const std::string& l : s) std::printf("  %s\n", l.c_str());
+  EXPECT(s.size() > 1 && s[0] == "It replaces 5 of the game's files." &&
+         s[1] == "Of the game's own missions it replaces Operation 1 Mission 2 (c1 2), Operation 4 Mission 5 (c4b 5), Training Mission 1 (t1 1) "
+                 "and zz 3; and the world's own files of Operation 2 (c2), which every mission there plays on.");
+  f.missions.clear();
+  s = mech3::mod_sentences(f);
+  EXPECT(s.size() > 1 && s[1] == "It replaces the world's own files of Operation 2 (c2), which every mission there plays on.");
+  // From the check, against an install built here (the files' names are what counts).
+  const std::string root = tmp("mods_report_missions"), install = root + "/install", mod = root + "/mod";
+  for (const char* rel : {"zbd/c1/readerm1.zbd", "zbd/c1/readerm2.zbd", "zbd/c1/gamez.zbd", "zbd/c3/readerm10.zbd", "zbd/c3/readerm1.zbd",
+                          "zbd/c3/anim.zbd", "zbd/lab/gamez.zbd", "zbd/c1/readermp1.zbd", "zbd/reader.zbd", "zbd/c1/texture.zbd"})
+    put(install + "/" + rel, "the game's");
+  for (const char* rel : {"zbd/c1/ReaderM2.zbd", "zbd/c3/readerm10.zbd", "zbd/c3/anim.zbd", "zbd/c3/gamez.zbd", "zbd/lab/gamez.zbd",
+                          "zbd/c1/readermp1.zbd", "zbd/reader.zbd", "zbd/c1/texture.zbd", "zbd/c1/readerm7.zbd"})
+    put(mod + "/" + rel, "the mod's");
+  int errors = 0;
+  mech3::ModFindings facts;
+  mech3::mod_check(mod, install, &errors, &facts);
+  std::string got;
+  for (const std::string& m : facts.missions) got += m + "|";
+  got += "/";
+  for (const std::string& w : facts.mission_worlds) got += w + "|";
+  std::printf("  %s\n", got.c_str());
+  EXPECT(got == "c1 2|c3 10|/c3|");  // c3's gamez is new (added): not a replacement; lab has no missions; readerm7 is new
+}
+
 // Modder step 3 (modding.md, Plain errors on the MODS screen): a mod's check
 // and this start's mount as sentences, what it replaces and adds, what it adds
 // by mod.txt, what is ignored, each thing refused and why.

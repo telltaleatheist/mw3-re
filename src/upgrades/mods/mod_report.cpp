@@ -66,6 +66,27 @@ std::vector<std::string> mod_sentences(const ModFindings& f) {
   } else if (!f.against_install && f.files) {
     out.push_back(sentence("It holds " + counted(f.files, "game file", "game files")));
   }
+  // Which of the game's own missions that is, for a player who ticks it for the game's campaign.
+  if (!f.missions.empty() || !f.mission_worlds.empty()) {
+    const auto place = [](const std::string& world) -> std::string {
+      if (world == "c1" || world == "c2" || world == "c3") return "Operation " + world.substr(1);
+      if (world == "c4" || world == "c4b") return "Operation 4";
+      if (world == "t1") return "Training";
+      return "";
+    };
+    std::vector<std::string> ms, ws;
+    for (const std::string& m : f.missions) {
+      const std::string world = m.substr(0, m.find(' ')), n = m.substr(m.find(' ') + 1), p = place(world);
+      ms.push_back(p.empty() ? m : p + " Mission " + n + " (" + m + ")");
+    }
+    for (const std::string& w : f.mission_worlds) ws.push_back(place(w).empty() ? w : place(w) + " (" + w + ")");
+    std::string s;
+    if (!ms.empty()) s = "Of the game's own missions it replaces " + listed(ms);
+    if (!ws.empty())
+      s += (ms.empty() ? "It replaces the world's own files of " : "; and the world's own files of ") + listed(ws) +
+           ", which every mission there plays on";
+    out.push_back(sentence(s));
+  }
   std::vector<std::string> adds;
   auto add = [&](const std::vector<std::string>& v, const char* one, const char* many, bool quote) {
     if (v.empty()) return;

@@ -26,6 +26,10 @@ struct ModFindings {
   bool against_install = false;  // replaces and adds counted (an install to compare with)
   int files = 0, replaces = 0, adds = 0, ignored = 0, unread_anims = 0;
   std::vector<std::string> mechs, weapons, worlds, ia_worlds, campaigns;
+  // Of the game's own missions, what the mod's files replace (against an install): "c1 2" for a mission's own
+  // archive (zbd\c1\readerm2.zbd), and the worlds whose own files it replaces (gamez, anim or reader.zbd:
+  // every mission on that world plays on them), each once, in the files' order.
+  std::vector<std::string> missions, mission_worlds;
   std::vector<std::string> refused;   // "<what>: <why>", --check-mod's errors: the mod's as a whole (it is not added)
   std::vector<std::string> warnings;  // "<what>: <why>", --check-mod's warnings, as its lines
   std::vector<ModNote> notes;         // the same warnings in their parts, in the check's order

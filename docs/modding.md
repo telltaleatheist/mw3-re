@@ -1262,6 +1262,19 @@ EXPORT leaves that file out of the zip.
 them. Tick it for a campaign, then PLAY." (one: "1 warning: REPORT says
 what."; the tail is whatever the line ends with when there are none) Refused: "Not added: the game would refuse this mod: <why>."
 
+**Which of the game's missions (2026-11-11).** A mod laid over the game's
+files is a tick, played in the campaign it is ticked for. So that a player
+knows what that changes, the report's second sentence names the game's own
+missions the mod replaces: a mission's own archive (`zbd\<world>\readerm<N>.zbd`)
+by operation and number with the campaign file's words beside it
+("Operation 1 Mission 2 (c1 2)", "Training Mission 1 (t1 1)"), and a world
+whose own files it replaces (gamez, anim or reader.zbd of a world that has
+missions) once: "the world's own files of Operation 2 (c2), which every
+mission there plays on". Only files the install has (a new file replaces
+nothing). `ModFindings::missions`, `mission_worlds`, filled by `mod_check`.
+Test: `mods_report_names_the_games_missions_a_mod_replaces`; break: new
+files counted too.
+
 **The report.** `mod_sentences` puts a totals line after what the mod
 changes ("11 warnings, none of which refuses the mod: 2 stop part of the
 mod working, 4 work here but may crash the original game and 5 are slips
