@@ -362,10 +362,19 @@ void Mech::select_gait(float dt) {
   const float h = height;
   const bool ff = this == world().mission_player && world().force_feedback;
   if (d > h * kWadeStart) {
-    // Quirk: never above 0.6 at any depth, so wading is a flat 60% (fixes.md, a candidate).
-    const float line = ((kWade - 1.0f) / h) * d + kWade;
-    const float x = line > 1.0f ? 1.0f : line < kWade ? kWade : line;
-    speed_target = x * speed_target;
+    if (zfix::options().water) {
+      // Ours, behind WATER (Owen, 2026-11-10; fixes.md): from full speed at a tenth of the height down to Pirate's
+      // Moon's own 60% at full depth, where the exe drops to 60% in one step. Not MW3's fix (its 0.7 and the curve
+      // that fell to a standstill): Pirate's Moon's exe has no such curve to mend.
+      float frac = (d - h * kWadeStart) / (h - h * kWadeStart);
+      frac = frac > 1.0f ? 1.0f : frac;
+      speed_target = (1.0f - (1.0f - kWade) * frac) * speed_target;
+    } else {
+      // Quirk: never above 0.6 at any depth, so wading is a flat 60% (fixes.md).
+      const float line = ((kWade - 1.0f) / h) * d + kWade;
+      const float x = line > 1.0f ? 1.0f : line < kWade ? kWade : line;
+      speed_target = x * speed_target;
+    }
     if (ff && !wading) {
       if (g_calls.wading_effect) g_calls.wading_effect(1);
       wading = true;

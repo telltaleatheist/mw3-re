@@ -834,3 +834,25 @@ starts it again plain on Instant Action. The clicks are MW3's (PM's main menu ha
 the tab and its screen are our records). Seen in a windowed 16:9 run (canvas 853 x 480): the tab and its "MODS: off"
 line sit under the scenario's description inside the right bracket. Not covered on PM: the offer to copy a pilot
 answered yes, and the straight-in start with mods ticked (MW3's second test).
+
+## The water survey and the WATER switch (2026-11-10)
+
+`PM_WATER_SURVEY=1 PM_WATER_HEIGHTS=6.32,12.78 MW3_TEST=pm_water_survey_env build/mw3pmtests` loads each of the ten
+missions and samples its world with the ground query every 20 m over the box round the start, the nav points and the
+AI mechs (plus 1 km): a sample's depth is the water surface (a hit whose soil is water) less the highest ground under
+it. `PM_WATER_SURVEY=heights` prints the 26 mechs' heights (6.32 to 12.78 m; one of 3.71 m), so wading (past a
+tenth of the height) starts at 0.63 m for the shortest and 1.28 m for the tallest. About ten minutes; nothing checked.
+
+| Mission | Water | Deepest | Past 0.63 m | Past 1.28 m | Nearest to the start | To the nav points |
+|---|---|---|---|---|---|---|
+| c1: 1, 2, 5 | none | | | | | |
+| c2 mission 3 | 5.6 km² | 13.2 m | 5.6 km² | 0.9 km² | 8 m (the tallest's 546 m) | Able 84, Baker 85, Charlie 128 m |
+| c2 mission 4 | 5.9 km² | 13.2 m | 5.2 km² | 0.86 km² | 143 m (460 m) | Able 65, DOG 86, Baker 157, Charlie 215 m |
+| c2 mission 8 | 7.1 km² | 13.2 m | 7.0 km² | 1.0 km² | 322 m (362 m) | Able 108, Baker 128 m |
+| c3: 6, 7 | none | | | | | |
+| c4: 9, 10 | 1.0, 1.1 km² | 80 m at every sample | all | all | 546 m | 426 m and more |
+
+So the WATER switch (fixes.md, On Pirate's Moon) is felt in c2 only: most of its water is between 0.63 and 1.28 m
+deep, where light mechs wade and the tallest do not. c4's is one flat sheet 80 m over its floor, 400 m and more from
+any nav point; whether a mech can reach it is not checked. `test_pm_water.py` checks the switch on and off;
+`test_pm_gait.py` the off path against the exe.

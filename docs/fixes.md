@@ -39,16 +39,22 @@ upgrades-sort.md names the switch each now reads.
 
 ### On Pirate's Moon (this branch)
 
-The page shows four switches, not five: no WATER. MW3's water change corrects
-a speed curve Pirate's Moon's exe no longer has (the row "Deep water, gait"
-below), so the switch would turn nothing on or off here. The `water` field
-and its `upgrade_water=` key stay (shared code, and a folder may hold one
-from MW3): the page never writes the key, so a player's line is left as it
-is, and a network host's five bits are taken whole with the water bit unused.
-The fifth follows (Owen, 2026-11-10): the gradual slowing made for MW3,
-ported to Pirate's Moon behind WATER, the original's flat 60% with it off;
-the bit's place in the settings, the page's order and the host's word are
-kept for it.
+The page shows the five switches, as MW3's. WATER here gates a change of
+Pirate's Moon's own (Owen, 2026-11-10; `mech_move.cpp`, Pirate's Moon
+0x00418fc0): the exe drops a wading mech to 60% in one step once the water
+passes a tenth of its height (the row "Deep water, gait" below); with WATER
+on the speed falls evenly from full at a tenth of the height to Pirate's
+Moon's own 60% at full depth, and stays 60% deeper. With it off the exe's
+three lines run exactly as they did. On by default, as MW3's (asserted in
+`pm_upgrades_page_has_five_switches_headless` alone).
+Not to be "aligned" with main's: main mends MW3's curve (its 0.7, which fell
+to a standstill near full depth and jumped back); Pirate's Moon's exe has no
+such curve, so this branch keeps Pirate's Moon's 0.6 and only eases the step
+in. Tests: `test_pm_gait.py` pins the off path to the exe (depths either side
+of a tenth of the height and of full depth); `test_pm_water.py` the switch on
+and off at ten depths. Where it is felt: only c2's missions (3, 4, 8) have
+water to wade in (`PM_WATER_SURVEY=1 MW3_TEST=pm_water_survey_env
+build/mw3pmtests`; pm-tests.md).
 
 What each Pirate's Moon-own change reads:
 
@@ -298,7 +304,7 @@ fire, and the port runs that.
 | Drowning (Pirate's Moon 0x41a100) | Under 25 m a mech's structure goes to 0.75 of its health each frame | (B) at 144 fps a mech drowns in about a fifth of the time | 0.75 per 1/30 s behind `per_second`; equal to the exe at dt = 1/30 |
 | A firepoint's aim cone (Pirate's Moon 0x4a6ee0) | A pitch range past straight up or down is clamped, but the top compares with -pi/2 (0x5ea7b4), so any top becomes pi/2 | a typo for 0x5ea7b0; the firepoint can aim higher than its limit | **Not changed** (Owen 2026-11-10: a quirk that changes a firepoint's aim limit, a balance change as much as a bug; it was compared with pi/2 behind `bugs` until 1.1.0). The port runs the exe's compare, which the test checks |
 | A wreck thinning out (Pirate's Moon 0x41d730) | Its own opacity moves 0.1 a frame | (B) at 144 fps it thins in about a fifth of the time | 0.1 per 1/30 s behind `per_second`; equal to the exe at dt = 1/30 |
-| Deep water, gait (MW3 0x4181c0; Pirate's Moon 0x418fc0) | On `main`: a FIX for MW3's speed factor falling to a standstill near full depth. Pirate's Moon's exe no longer has that curve, so the FIX is gone from `pm` | Candidate for Owen, not changed: PM's line is `(0.6 - 1) / H * d + 0.6`, clamped to 0.6..1, which is 0.6 at every depth; `+ 1` at the end would make it fall from full speed to 60%, a guess at the intent | As the exe: a flat 60% past a tenth of the height |
+| Deep water, gait (MW3 0x4181c0; Pirate's Moon 0x418fc0) | On `main`: a FIX for MW3's speed factor falling to a standstill near full depth. Pirate's Moon's exe no longer has that curve: its line is `(0.6 - 1) / H * d + 0.6`, clamped to 0.6..1, which is 0.6 at every depth | (design, eased) a wading mech drops from full speed to 60% in one step at a tenth of its height | Behind WATER (`zfix water`, on by default; Owen 2026-11-10): full speed at a tenth of the height falling evenly to 60% at full depth. Off: as the exe, a flat 60% (`test_pm_gait.py`). On: `test_pm_water.py` |
 | Throttle keys, 0x427d60 (and the lance command mode's own, 0x46b0a0) | CMD_THROTTLE_UP / DOWN move the throttle target 0.025 each frame they are held | (B) at 144 fps the throttle opens almost five times as fast (full in 0.28 s instead of 1.3 s) | 0.025 per 1/30 s (`zfix::frame_steps`), equal to the exe's at 30 fps; off in the probes; `tests/test_fixes.cpp` |
 | The throttle's snap, 0x00426960 | Within 0.009 of its target the throttle takes it, else eases | (B) with the keys' step per 1/30 s, that step falls inside 0.009 below 12 ms: above about 83 fps the throttle took its target every frame with no easing, and a mech reached the same wall 1.85 s sooner (ours, since the keys' fix) | 0.009 per 1/30 s (`zfix::frame_steps`), at most 0.009, so 30 fps and slower are the exe's; off in the probes. `fix_throttle_easing_same_at_any_rate` |
 | Beam recharge, 0x4b4230 | Adds ftol(rate x dt) (dt times the heat factor 0.5..1) to a beam's charge each frame it is not firing | (B) the fraction is lost every frame, so the faster the game runs the slower beams recharge: TAG (166.7 a second) refills in 67 s at 30 fps, 83 s at 60, 69 s at 144, and never above 166 fps, or at 144 fps once heat passes 0.58 (emulator, `test_tag.py`; weapons.md, "TAG, end to end"); plain lasers stop recharging above 420 fps | The 30 fps frame's whole units, ftol(rate x / (30 dt)), spread over the frame with the fraction carried (`mech3::beam_recharge`): the exe's amount at 30 fps, the same per second at any rate; `zfix::options().per_second`, off in the probes; `tests/test_fixes.cpp` |
