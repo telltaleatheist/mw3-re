@@ -355,9 +355,10 @@ another game's `for=`) listed with why, as the mount says it. For each
 enabled mod, what it shares with an enabled one before it: the files that
 one wins (any case) and the `mech=` and `weapon=` names it already adds
 (this mod's rows then refused as taken), with the mods it shares them with.
-On request, `--check-mod`'s count of what the game would refuse. Turning a
-mod on or off or moving it rewrites mw3.cfg's `mod=` lines in the new order
-at the first old one's place, every other line kept. Test:
+On request, `--check-mod`'s count of what the game would refuse.
+(`mods_save_enabled` rewrites mw3.cfg's `mod=` lines in a new order at the
+first old one's place, every other line kept; since mods by campaign nothing
+in play reads those lines, and a campaign's ticks are its own `mods.txt`.) Test:
 `mods_list_for_the_launcher`.
 
 ## Mods by campaign: the entries (step 1 of docs/mods-campaigns-plan.md, 2026-11-10)
@@ -931,7 +932,9 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   (`entry_mods_save`; mw3.cfg's `mod=` lines until step 2b); ENTER with this
   table in focus plays that campaign with them (Starting again into an
   entry, step 2b).
-- ENTER on a campaign whose mod is on in this run: `campaign_enter` (its own
+- (Before mods by campaign; kept for the stack's reasons, which the entry's
+  run still follows. PLAY now starts the program again into the campaign:
+  The CAMPAIGNS screen, above.) ENTER on a campaign whose mod is on in this run: `campaign_enter` (its own
   pilots), MODS popped and the Campaign State pushed on the main menu, so
   the stack is CAMPAIGN's: once a pilot is chosen the Campaign State pops
   itself and replaces the main menu with the mission's state, nothing left
@@ -943,7 +946,7 @@ menu. The screen is made when MODS is pressed and reads dialog.zrd itself
   State's own pop makes on its way to the mission. A campaign whose mod is
   off is never started half-mounted: ENTER turns the mod on for the next
   start and says so ("its mod is turned on; restart to play it").
-- EDITOR: EDIT (editor.md, The way in from MODS): the selected campaign's or mod's missions in the campaigns' box, ENTER opening one in the game editor, saves going into the mod itself.
+- EDITOR: the chosen campaign's missions in the campaigns' box, PLAY starting the game again into it with the mission in the editor; its saves make a copy (EDITOR through entries: Save as only, above).
 - TEST (Quick testing, below; since step 4a through the chosen campaign's entry: TEST through entries): the chosen campaign's missions, PLAY starting the game again into it and the mission.
 - BACK: the main menu.
 - ENTER and BACK hit where they are drawn (`ModsSlideButton`, lead 2026-11-10):
@@ -1103,8 +1106,8 @@ answers the picker for scripted runs and shots.
   looked frozen. No worker thread yet.
 - On the screen: a mod that is more than a campaign is ticked for the run's
   entry (the game's own campaign on a plain run); a campaign-only one is
-  listed, ENTER playing it. Said in two lines under MODS ("Added Desert Pack: on from the next
-  start.", "Not added: it holds a file that would land outside its folder
+  listed, PLAY playing it. Said in two lines under MODS ("Added Desert Pack: tick it for a
+  campaign, then PLAY.", "Not added: it holds a file that would land outside its folder
   (../../outside.txt).").
 
 Tests: `mod_install_entry_paths`, `mod_install_refuses_escapes_and_limits`
@@ -1405,9 +1408,9 @@ there). With a mod or a custom campaign chosen:
   (the pause's QUIT is the tested way), MODS is on top again and the chosen
   pilot and the launch are put back (`mods_edit_begin` with `editor`
   false).
-- A mod not mounted in this run (any, on a plain run, since step 2b): "TEST
-  is not available from MODS yet." until step 4 starts again into it;
-  `--mod NAME` mounts it meanwhile. TEST again leaves the list; EDITOR while it is up shows
+- On a plain run PLAY starts the program again into the campaign for the
+  mission (TEST through entries, above); the in-place start described here is
+  the one the entry's test mode uses. TEST again leaves the list; EDITOR while it is up shows
   EDIT's list of the same mod (and TEST while EDIT's is up, TEST's); BACK
   leaves the list first.
 

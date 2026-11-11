@@ -40,16 +40,21 @@ You need your own copy of each game you play (an installed copy, the disc, or a 
 
 ### Mods
 
-- **A MODS button on the main menu.** Its screen lists custom campaigns, which you enter with ENTER, and your other mods, which you turn on and off and reorder there. When two mods change the same file, it says which one wins.
-- **Custom campaigns.** A mod can bring its own campaign (`campaign=` in its mod.txt): missions in order on any world, with their own pilots and saves kept apart from the original campaign's.
+- **The main menu always plays the original game.** Starting the game applies no mod, so CAMPAIGN, INSTANT ACTION and multiplayer on the main menu use the game's own files. Nobody can lose their campaign to a mod or need to restore game files.
+- **Mods are played by campaign, from MODS.** The MODS screen lists campaigns at the left: the game's own first, then every campaign you imported and every copy you made. Choose one and its mods are at the right, each with a checkbox. Every campaign keeps its own ticks, so a weapons mod can be on for one and off for another. PLAY closes the game and starts it again in that campaign with its mods. When two ticked mods change the same file, the list says which one wins, and you can reorder them.
+- **Each campaign from MODS has its own pilots, saved games and saved mechs.** Its pilot screen also lists your main-game pilots: pick one and it is copied in at that moment, and your main-game pilot is never changed. In the game's own campaign the copy carries on from where you are; in a different campaign it starts at that campaign's first mission.
+- **Instant Action has its own MODS button.** Tick the mods to play it with and ACCEPT; the ticks are remembered, the screen says what is on, and ALL OFF goes back to the original.
+- **A mod made for the original game works as a tick.** One that is laid over the game's files (missions, weapons and Instant Action scenarios in one) can be ticked for the campaign, for a copy, or for Instant Action. A mod that ships as an installer can be imported from the game folder it was installed over: what differs from your own install becomes the mod.
+- **Custom campaigns.** A mod can bring its own campaign (`campaign=` in its mod.txt): missions in order on any world. It gets its own row in CAMPAIGNS.
 - **New mechs and weapons from mod.txt** (`mech=`, `weapon=`). They come after the game's own, appear in Instant Action, the lobby and the mech lab, and count toward multiplayer's check that everyone has the same mods. A pilot that uses one remembers it, so reordering mods doesn't mix it up.
 - **mech3ax's files read as they are.** Worlds, animations, mech models, motions and reader entries can be unzbd's JSON in the mod, so there's no repacking. A loose `.zrd` works too. Anything that doesn't read is named with its line in the log.
 - **Animations one at a time.** A single animation file replaces that animation or adds a new one, so two animation mods can be on together.
 - **IMPORT and EXPORT.** IMPORT takes a mod's .zip, .7z or .rar (or its folder) whatever its layout. EXPORT packs a mod into one .zip with checksums, checks it first, and says what the game would refuse.
 - **REPORT.** It says in plain sentences what a mod replaces and adds, the mechs, weapons, worlds and campaigns it brings, and what the game refuses in it and why.
-- **TEST.** Play any mission straight away with your mods on, then come back to MODS. Edits to a mod's weapons and mechs are in the next TEST without a restart.
-- **A mod can say what it needs** (`needs=`, `conflicts=`, `game_version=`). MODS warns when something is missing; the mod is still turned on.
-- **The game editor the original hid**, for mods: from MODS (EDITOR), or Shift+F12 in a custom campaign. It edits AI nets, vehicles and new weapons, saved into your mod, never into the game's files.
+- **TEST.** Choose a campaign, TEST, pick a mission and PLAY: the game starts again in that campaign and goes straight into the mission. Afterwards a short list lets you play another at once, with edits to a mod's weapons and mechs read again, no restart.
+- **A mod can say what it needs** (`needs=`, `conflicts=`, `game_version=`). MODS warns when something is missing; the mod is still ticked.
+- **The game editor the original hid**, for mods: from MODS (EDITOR), or Shift+F12 in a campaign played from MODS. It edits AI nets, vehicles and new weapons, and it only ever saves as a copy: the first save asks for a name and makes a campaign of your own holding just what you changed. The campaign you opened, the game's files and mods you imported are never changed.
+- **DELETE and RESET.** DELETE removes a campaign you made, a mod you imported, or what is left of a campaign whose mod is gone, and says first what goes with it. On the game's own campaign the button is RESET: its ticks and its pilots on the MODS screen are cleared. The game never deletes its own files, your main-game pilots, or a folder you put in the mods folder by hand.
 - **Starter mods.** `--make-starter mech`, `weapon`, `translation` or `mission` makes a small example mod from your own game, each with a short guide.
 - **A modding reference** (`docs/modding-reference.md`): every key the game's and the mods' files take.
 
@@ -69,7 +74,7 @@ You need your own copy of each game you play (an installed copy, the disc, or a 
 - **One launcher for both games.** Click MECHWARRIOR 3 or PIRATE'S MOON. Each game shows its data's and its program's version, and whether it is "official" or "modified" (just a label: modified games start as before).
 - **Checks before a game starts.** It says in plain words what is missing (an operation's missions, an empty sounds file). It refuses only when a game can't start at all.
 - **GAME FILES** finds, installs, or adds music and sounds from the disc for either game, and moves its data folder. One game's files are never touched by the other's.
-- **Mods are managed in each game**, on its own MODS screen. The launcher says how many mods each game has on.
+- **Mods are managed in each game**, on its own MODS screen. A game started from the launcher is always the original.
 - **UPDATES** asks GitHub for the newest release. If there is one, it shows the notes and asks before downloading and installing it. Your mods, pilots, saves and settings are kept.
 - The package's version is at the bottom of its main screen.
 
