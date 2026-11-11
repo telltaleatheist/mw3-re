@@ -856,3 +856,20 @@ So the WATER switch (fixes.md, On Pirate's Moon) is felt in c2 only: most of its
 deep, where light mechs wade and the tallest do not. c4's is one flat sheet 80 m over its floor, 400 m and more from
 any nav point; whether a mech can reach it is not checked. `test_pm_water.py` checks the switch on and off;
 `test_pm_gait.py` the off path against the exe.
+
+## The own marker's end (2026-11-10)
+
+A lancemate's own command marker (0x004eae70, the brain's +0x2cc) is freed in two places in the exe, and nowhere
+else: when the pilot stops being a lancemate (0x004e5f90: its deleting destructor, +0x2cc cleared), and at a
+mission's end, where zEntity's list is emptied (0x004a0dd0 -> 0x005caf00: each entry's vt+0x30, then each deleted
+through vt+0x00). The brain's destructor does not free it and its constructor only zeroes the field (0x004dd1e0).
+The destructor (0x004eaf70 -> 0x004eaf90, AiTarget's 0x004e86c0, zEntity3d's end 0x004e5c20) unbinds the node, frees
+the caster and takes the entry off the list.
+
+The port freed it only at the first, so each mission's end left one per lancemate: the object, its place in
+`g_own`, its handle, and the node still pointing at it; the list's emptying logged it once as the unported
+"entity vt+0x0". Now `program_pocket_marker_end` (the emptying's call, before the world is cleared) deletes it as
+the exe does, and the free unbinds its node (the node's owner and bit 16) on both paths. `release_shadow` reads
+only the caster, not the node. At the program's end (`wire_pocket(nullptr)`) any left by a start cut short are
+freed without touching their nodes. `pm_own_marker_goes_with_the_mission_c1m1_headless`: c1 mission 1 ended twice
+in one process, a marker in play, none after, its handle naming nothing, no unported delete.

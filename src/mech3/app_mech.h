@@ -249,7 +249,8 @@ struct PocketMarker;
 PocketMarker* program_pocket_marker(uint32_t h);
 namespace ai { class Brain; }
 void program_own_marker(ai::Brain& b, bool on);  // Pirate's Moon: a lancemate's own marker, 0x004eae70
-bool program_pocket_marker_end(uint32_t h);  // the mission's end: its caster freed
+bool program_pocket_marker_end(uint32_t h);  // the mission's end: its caster freed; an own marker deleted (PM 0x004eaf70)
+size_t program_own_marker_count(std::vector<uint32_t>* handles = nullptr);  // the lancemates' own markers alive (tests)
 // The weapons' hooks (app_weapons.cpp): the manager's, zWeapon's, the
 // queries; and a mech's damage handler (0x005833b0 with 0x004161a0).
 void wire_weapons(uint32_t (*unported)(const char* key));  // what is not ported, logged once

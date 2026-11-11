@@ -145,6 +145,11 @@ struct Played {
   bool core = false, made = false;
   int frames = 0;
   mech3::LaunchedMech mech;
+  // The lancemates' own command markers (app_pocket.cpp): alive in play, left after the mission's end, whether
+  // their handles still name an object then, and the unported "entity vt+0x0" deletes the end fell to.
+  size_t own_in_play = 0, own_after = 99;
+  bool own_handles_live = true;
+  uint32_t unported_deletes = 99;
 };
 Played play_c1m1(int32_t mech, int frames, bool network = false, size_t* turrets = nullptr) {
   Played out;
@@ -176,6 +181,7 @@ Played play_c1m1(int32_t mech, int frames, bool network = false, size_t* turrets
     l.mech = mech;
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
+    std::vector<uint32_t> own_handles;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
       out.core = true;
@@ -183,6 +189,8 @@ Played play_c1m1(int32_t mech, int frames, bool network = false, size_t* turrets
         out.made = mech3::launched_mech(&out.mech);
         if (turrets) *turrets = mech3::tur::turret_list().size();
       }
+      own_handles.clear();
+      out.own_in_play = mech3::program_own_marker_count(&own_handles);
     };
     Pump pump;
     pump.limit = 4000;
@@ -192,6 +200,10 @@ Played play_c1m1(int32_t mech, int frames, bool network = false, size_t* turrets
     // The world unloaded (0x00490480) as the game does before another world: a
     // second launch in the process then starts from no world, not beside this one.
     mech3::missions().cleanup(true);
+    out.own_after = mech3::program_own_marker_count();
+    out.own_handles_live = false;
+    for (const uint32_t h : own_handles) out.own_handles_live = out.own_handles_live || engine.object_of(h) != nullptr;
+    out.unported_deletes = engine.unported_counts().count("entity vt+0x0") ? engine.unported_counts().at("entity vt+0x0") : 0;
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -785,6 +797,28 @@ TEST(pm_starter_mods_made_checked_and_loaded) {
   mech3::free_dfns();
   zwep::init_hooks() = hooks;
   zgame::set_game(zgame::mw3_table());
+}
+
+// A lancemate's own command marker (Pirate's Moon 0x004eae70) goes at the mission's end with zEntity's list, as
+// the exe's emptying deletes it (0x005caf00 -> 0x004eaf70): c1 mission 1 played and ended twice in one process,
+// each time a marker alive in play, none left after the end, its handle naming nothing, and no entity fallen to
+// the unported delete.
+TEST(pm_own_marker_goes_with_the_mission_c1m1_headless) {
+  in_child("pm_own_marker_goes_with_the_mission_c1m1_headless", [] {
+    MountsBack back;
+    zgame::set_game(pm::table());
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir((std::string(MW3_TEST_TMP_ROOT) + "/pm_own_marker").c_str());
+    zutl::mount(MW3PM_GAME_DIR);
+    for (int run = 0; run < 2; ++run) {
+      const Played p = play_c1m1(9, 40);
+      std::printf("  run %d: core %d, own markers in play %zu, after the end %zu (handles still live %d), unported deletes %u\n", run,
+                  p.core, p.own_in_play, p.own_after, p.own_handles_live, p.unported_deletes);
+      EXPECT(p.core && p.own_in_play >= 1);
+      EXPECT(p.own_after == 0 && !p.own_handles_live && p.unported_deletes == 0);
+    }
+    zgame::set_game(zgame::mw3_table());
+  });
 }
 
 // The network switch on PM (0x004822f0, multiplayer-port.md, The network switch's other half): c1m1 loaded inside a
