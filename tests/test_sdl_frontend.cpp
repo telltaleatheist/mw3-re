@@ -5112,6 +5112,33 @@ TEST(sdl_program_restarts_into_and_out_of_an_entry) {
   fs::remove_all(dir, ec);
 }
 
+// mw3launcher --version (found missing by a package dry run): the build's version on one line, exit 0, with no
+// window and nothing made, wherever it stands among the arguments; mw3's and the launcher's are the same build.
+TEST(sdl_program_launcher_says_its_version) {
+  namespace fs = std::filesystem;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher version";
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir, ec);
+  auto out_of = [&](const pid_t pid, const std::string& log, int* code) {
+    int status = 0;
+    EXPECT(waited(pid, &status, 60) && WIFEXITED(status));
+    *code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  int code = -1;
+  const std::string a = out_of(spawn_launcher({"--version"}, dir + "/a.log"), dir + "/a.log", &code);
+  std::printf("  %s", a.c_str());
+  const std::string head = "mw3launcher (MechWarrior 3 rebuild) ";
+  EXPECT(code == 0 && a.rfind(head, 0) == 0 && a.size() > head.size() + 1 && a.back() == '\n' && a.find('\n') == a.size() - 1);
+  const std::string b = out_of(spawn_launcher({"--write-dir", dir + "/wd", "--version"}, dir + "/b.log"), dir + "/b.log", &code);
+  EXPECT(code == 0 && b == a && !fs::exists(dir + "/wd", ec));
+  const std::string g = out_of(spawn_mw3({"--version"}, dir + "/g.log"), dir + "/g.log", &code);
+  EXPECT(code == 0 && g.rfind("mw3 (MechWarrior 3 rebuild) ", 0) == 0 && a.substr(head.size()) == g.substr(std::strlen("mw3 (MechWarrior 3 rebuild) ")));
+  fs::remove_all(dir, ec);
+}
+
 // IMPORT on the MODS screen, in the real program, of a folder mod holding a reader archive: the program confines
 // its names to its folders (zutl::Mounts::confined), and IMPORT's check reads the staged copy by its host path.
 // The check ran confined, so inside the game (and only there) every archive of a mod read as "not an archive" and

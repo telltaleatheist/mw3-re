@@ -475,6 +475,10 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
 
 ## The two programs (2026-11-01, the launcher split; games-layout.md)
 
+`mw3launcher --version` prints the build's version on one line and ends with 0, as `mw3 --version` does, before
+anything is opened or made (2026-11-11: a package check wants all three programs' versions without a window;
+`sdl_program_launcher_says_its_version`).
+
 - `mw3launcher` (`launcher_main.cpp` over the same `launcher.cpp`): the
   main icon. Windows: mw3launcher.exe, "MW3 Rebuild" in its version
   resource, no console in any build (its output in the write dir's

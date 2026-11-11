@@ -427,7 +427,7 @@ uint32_t GameEngine::message_dll_load(const char* name) {
   patch12::messages(dll_);
   // Ours: the mods' strings.txt over the table (docs/modding.md).
   if (!zutl::mounts().mods.empty())
-    for (const std::string& line : mods_apply_strings(dll_.text, dll_.ids)) std::printf("mw3: %s\n", line.c_str());
+    for (const std::string& line : mods_apply_strings(dll_.text, dll_.ids, &dll_.ids)) std::printf("mw3: %s\n", line.c_str());
   zutl::install_messages(&dll_);
   return 1;
 }

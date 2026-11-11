@@ -35,7 +35,9 @@ struct ImportFolder {
   int other = 0;             // loose at the top, or in a folder the install does not have: left
   // From an installer program (import_installer_prepare):
   bool installer = false;    // the source was a mod's installer, read as an archive
-  bool msg_dll = false;      // it carries Mech3Msg.dll (the texts): left, and said by name
+  bool msg_dll = false;      // it carries a Mech3Msg.dll (the texts) that is not the player's: staged for the add,
+                             // which takes its texts into strings.txt (import_texts.h) and drops the dll
+  ImportTexts texts;         // what the add made of it (set by import_folder_run)
   int nested = 0;            // installers it carries inside: left, each to import on its own
   std::vector<std::string> same_names;  // the files left as the player's own already (an installer's)
   std::string title;         // its own name for the mod, when it has one

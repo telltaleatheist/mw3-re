@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "upgrades/mods/import_texts.h"
 #include "mech3/mods.h"
 
 // Ours (Owen, 2026-11-08; docs/modding.md, ADD MOD): a mod added from a .zip
@@ -41,8 +42,10 @@ struct ModAdd {
   bool full_install = false; // a whole install (Mech3.exe in it), cut to what differs
   int same_dropped = 0;      // files the same as the install's, left out
   int other_dropped = 0;     // programs and the player's own kind of file, left out
+  int bare_zbd = 0;          // packed as the zbd folder's contents (no zbd folder): its top items put under zbd
   bool checksums = false;    // it had an export's checksums file, and they matched
   ModGame game = ModGame::kUnknown;  // from its files (mod.txt's for= when it has one)
+  ImportTexts texts;         // its Mech3Msg.dll's texts, taken into strings.txt (upgrades/mods/import_texts.h)
   std::string error;         // why it was refused, "" when it was not (staging then gone)
 };
 
@@ -97,6 +100,7 @@ struct ModAddDone {
   bool ok = false;
   std::string folder, name, message;
   int warnings = 0, left_out = 0;  // the check's warnings; the files left out of the copy added
+  ImportTexts texts;           // what came of its Mech3Msg.dll, when it carried one
   bool campaign_only = false;  // only campaigns: listed, not turned on (entered from the MODS screen)
 };
 // `from`, when given, is what the marker names as the mod's source (an import's

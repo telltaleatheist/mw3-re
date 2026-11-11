@@ -126,7 +126,8 @@ the game's path is built into the programs.
 `build-win\dist\mw3-<version>-win64\`, its `.zip`, and
 `MW3-Rebuild-Setup-<version>.exe` (Inno Setup).
 
-- [ ] `mw3.exe --version` names the version.
+- [ ] `mw3.exe --version` names the version (and `mw3launcher.exe --version`, `mw3pm.exe --version` in the
+      combined package).
 - [x] The folder has `mw3.exe`, `mw3indeo.exe`, `mw3import.exe`, the SDL and
       FFmpeg DLLs, the Visual C++ runtime, `README.txt`, `THIRD-PARTY.txt`,
       `licenses\`, `assets\launcher\`.
@@ -156,6 +157,9 @@ the game's path is built into the programs.
 `tools/deps/build_deps.sh linux` (JOBS=6 under WSL), then
 `tools/linux/make-appimage.sh build-deps/linux/prefix <tools dir>`
 (docs/linux.md) makes `build-linux-pkg/dist/MW3-Rebuild-<version>-x86_64.AppImage`.
+PREFIX must be build_deps.sh's own prefix, which has FFmpeg as well as SDL: a
+prefix with SDL alone made v1.0.5's AppImage without `mw3import`. The script
+now refuses such a prefix.
 
 - [x] `AppDir/usr/lib` has SDL3, SDL3_ttf, SDL3_sound and the four FFmpeg
       libraries; `ldd` on `mw3` and `mw3import` finds them there, and nothing
@@ -210,7 +214,8 @@ Moon.app".
 
 - [ ] Each platform from the two tags, in clean worktrees of their own:
       `tools/package/combined.sh mac v1.1.0 pm-v1.0.2 --deps` on the Mac,
-      `tools/package/combined.sh linux v1.1.0 pm-v1.0.2 PREFIX TOOLS` in WSL,
+      `tools/package/combined.sh linux v1.1.0 pm-v1.0.2 PREFIX TOOLS` in WSL
+      (PREFIX: `build-deps/linux/prefix`, the one with FFmpeg),
       `tools\package\combined.cmd v1.1.0 pm-v1.0.2` on the PC. Each makes the
       three packages in `build-pkg/dist/<platform>/` with their SHA256SUMS and
       runs the platform's own checks (section 3) on each.
