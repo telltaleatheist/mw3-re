@@ -64,6 +64,13 @@ std::vector<std::string> files_in_zbd(const fs::path& root) {
   std::sort(out.begin(), out.end());
   return out;
 }
+// The archives here are opened by host paths of ours (a staging copy, a mod's folder, the install), which the
+// running game's confined names refuse (zutl::Mounts::confined, as mod_check's): unconfined for the call.
+struct Unconfined {
+  bool was = zutl::mounts().confined;
+  Unconfined() { zutl::mounts().confined = false; }
+  ~Unconfined() { zutl::mounts().confined = was; }
+};
 uint64_t mix(uint64_t h, const std::string& s) {
   for (unsigned char c : s) h = (h ^ c) * 1099511628211ull;
   return (h ^ 0xff) * 1099511628211ull;
@@ -91,6 +98,7 @@ bool record_archive(const std::string& rel) {
 
 bool archive_read_entries(const std::string& host, std::vector<ArchiveEntry>* out) {
   out->clear();
+  const Unconfined unconfined;
   std::error_code ec;
   const uintmax_t size = fs::file_size(host, ec);
   if (ec) return false;
@@ -125,6 +133,7 @@ std::vector<std::string> archive_entry_names(const std::string& host) {
 
 EntriesCut entries_cut(const std::string& mod_file, const std::string& own_file) {
   EntriesCut r;
+  const Unconfined unconfined;
   std::vector<ArchiveEntry> theirs, mine;
   if (!archive_read_entries(mod_file, &theirs)) return r.why = "its table does not read", r;
   if (!archive_read_entries(own_file, &mine)) return r.why = "the game's own does not read to compare it with", r;
@@ -289,11 +298,20 @@ std::string entries_merge(const std::string& write_dir, const std::vector<std::s
         ++laid;
       }
     }
-    const fs::path to = out / fs::path(rel);
+    // Whole under another name first, then renamed: never a half-written archive where the game looks. One that
+    // cannot be built is not there at all, so the game reads the first mod's whole archive or its own.
+    const fs::path to = out / fs::path(rel), part = to.string() + ".part";
     fs::create_directories(to.parent_path(), ec);
-    if (!ok || !write_bytes(to, bytes)) {
-      fs::remove(to, ec);
-      said.push_back("mods: " + rel + ": the game's archive could not take the mods' entries (its table), left as the game's");
+    fs::remove(to, ec);  // one left by a build that stopped: ours, in our marked folder
+    bool written = ok && write_bytes(part, bytes);
+    if (written) {
+      fs::rename(part, to, ec);
+      written = !ec;
+    }
+    if (!written) {
+      fs::remove(part, ec);
+      said.push_back("mods: " + rel + ": " + (ok ? "could not be written into " + out.generic_string() : "the game's archive could not take the mods' entries (its table)") +
+                     "; the mods' changed entries of it are not applied, the game's own is read");
       continue;
     }
     ++built;

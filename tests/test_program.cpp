@@ -122,6 +122,8 @@
 #include "mech3/mods.h"
 #include "upgrades/settings/upgrades.h"
 #include "upgrades/mods/mod_report.h"
+#include "upgrades/mods/entry_archives.h"
+#include "mech3/mod_install.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/mods/campaign_entries.h"
 #include "upgrades/editor/save_as.h"
@@ -5908,6 +5910,123 @@ TEST(mods_weapon_row_mounts_and_fires_c1m1_headless) {
   mech3::missions() = mech3::Missions{};
   mech3::mech_types_forget();
   mech3::options() = mech3::Options{};
+}
+
+// Archives by their changed entries (upgrades/mods/entry_archives.h): two mods made as the original's are, each a
+// whole zbd\reader.zbd of the game's with one thing of its own (one a new weapon's definition in weapons.zrd, the
+// other a new mech's dfn that carries that weapon), added by IMPORT with the program's confinement on. Each is
+// kept as the one entry it changes. Ticked together, in either order, c1 mission 1 launches the one's mech with
+// the other's weapon mounted, and it fires: before this the first mod's whole archive hid the other's entry.
+TEST(mods_two_imported_mods_of_one_archive_both_play_c1m1_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  const std::string install = MW3_GAME_DIR, wd = temp_dir("mods_two_entries_write"), src = temp_dir("mods_two_entries_src");
+  {
+    std::error_code ec;
+    std::filesystem::create_directories(src + "/Guns", ec), std::filesystem::create_directories(src + "/Mechs", ec);
+    std::ofstream(src + "/Guns/mod.txt") << "name=Guns\nweapon=ERPPC_B ammo=no tech=any title=ER PPC B\n";
+    std::ofstream(src + "/Mechs/mod.txt") << "name=Mechs\nmech=thor_b tech=clan mass=70 class=heavy model=thor\n";
+  }
+  bool weapon_copied = false, dfn_copied = false;
+  EXPECT(reader_with(install, src + "/Guns/zbd/reader.zbd", [&](std::vector<std::pair<std::string, std::string>>& e) {
+    for (size_t i = 0, n = e.size(); i < n; ++i) {
+      if (crt::msvc_stricmp(e[i].first.c_str(), "weapons.zrd") != 0) continue;
+      const char* p = e[i].second.data();
+      Zrd root = zrd_read(p);
+      for (Zrd& top : root.list)
+        for (size_t k = 0; k + 1 < top.list.size(); k += 2)
+          for (size_t w = 0; w + 1 < top.list[k + 1].list.size(); w += 2)
+            if (top.list[k + 1].list[w].text == "ERPPC") {
+              Zrd name = top.list[k + 1].list[w], def = top.list[k + 1].list[w + 1];
+              name.text = "ERPPC_B";
+              top.list[k + 1].list.push_back(name), top.list[k + 1].list.push_back(def);
+              weapon_copied = true;
+              break;
+            }
+      e[i].second.clear();
+      zrd_write(root, e[i].second);
+    }
+  }));
+  EXPECT(reader_with(install, src + "/Mechs/zbd/reader.zbd", [&](std::vector<std::pair<std::string, std::string>>& e) {
+    for (size_t i = 0, n = e.size(); i < n; ++i) {
+      if (crt::msvc_stricmp(e[i].first.c_str(), "dfn_thor.zrd") != 0) continue;
+      const char* p = e[i].second.data();
+      Zrd root = zrd_read(p);
+      zrd_rename(root, "ERPPC", "ERPPC_B");
+      std::string bytes;
+      zrd_write(root, bytes);
+      e.emplace_back("dfn_thor_b.zrd", bytes), dfn_copied = true;
+    }
+  }));
+  EXPECT(weapon_copied && dfn_copied);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mounts().confined = true;  // as the program has it when IMPORT runs
+  const mech3::ModAddDone guns = mech3::mod_add_run(wd, src + "/Guns", install, nullptr, nullptr);
+  const mech3::ModAddDone mechs = mech3::mod_add_run(wd, src + "/Mechs", install, nullptr, nullptr);
+  std::printf("  %s\n  %s\n", guns.message.c_str(), mechs.message.c_str());
+  EXPECT(guns.ok && guns.cut.archives == 1 && guns.cut.entries == 1 && mechs.ok && mechs.cut.archives == 1 && mechs.cut.entries == 1);
+  EXPECT(mech3::archive_entry_names(wd + "/mods/" + guns.folder + "/zbd/reader.zbd.entries") == std::vector<std::string>{"weapons.zrd"});
+  EXPECT(mech3::archive_entry_names(wd + "/mods/" + mechs.folder + "/zbd/reader.zbd.entries") == std::vector<std::string>{"dfn_thor_b.zrd"});
+  EXPECT(!std::filesystem::exists(wd + "/mods/" + guns.folder + "/zbd/reader.zbd") && !std::filesystem::exists(wd + "/mods/" + mechs.folder + "/zbd/reader.zbd"));
+  const auto play = [&](const std::vector<std::string>& order) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd);
+    mech3::mech_rows_clear(), mech3::weapon_rows_clear();
+    std::string log;
+    for (const std::string& l : mech3::mods_mount(wd, order, {install})) log += l + "\n";
+    zutl::mount(install);
+    EXPECT(log.find("weapon ERPPC_B added (weapon 38)") != std::string::npos && log.find("mech thor_b added (mech 20") != std::string::npos);
+    EXPECT(log.find("mods: zbd/reader.zbd: 2 changed entries laid over the game's") != std::string::npos ||
+           log.find("as built before") != std::string::npos);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;
+      l.mech = 20;
+      engine.set_launch(l);
+      engine.missions_start(0x6098d0);
+      EXPECT(!mech3::missions().failed);
+      mech3::LaunchedMech m;
+      EXPECT(mech3::launched_mech(&m) && m.roster == 20 && m.weapons > 0);
+      void* me = mech3::mech_mission_player();
+      std::string groups;
+      for (int g = 0; me && g < 5; ++g) groups += mech3::mech_group_names(me, g) + " | ";
+      const int32_t fired = me ? mech3::program_fire_at(me, "ERPPC_B", 2, 100.0f) : -1;
+      std::printf("  %s first: groups: %s; fired %d\n", order[0].c_str(), groups.c_str(), fired);
+      EXPECT(groups.find("ERPPC_B") != std::string::npos && fired == 2);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::free_dfns();
+    mech3::mech_rows_clear();
+    mech3::weapon_rows_clear();
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+  };
+  play({guns.folder, mechs.folder});
+  play({mechs.folder, guns.folder});
 }
 
 // Mods' mechs with a file missing (item 3): a row with no dfn_<name>.zrd and

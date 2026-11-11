@@ -1,6 +1,7 @@
 // Archives by their changed entries (upgrades/mods/entry_archives.h; docs/modding.md): IMPORT's cut and the
 // mount's merge, on archives made here in the test's folders.
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -33,22 +34,33 @@ void put(const fs::path& p, const std::string& text) {
   fs::create_directories(p.parent_path(), ec);
   std::ofstream(p, std::ios::binary) << text;
 }
-void archive(const fs::path& p, const Entries& entries) {
+// An entry the reader takes: a list of one text, in zrd's binary form (a type, then the value; a list's count
+// with itself; a text's length and letters).
+std::string zrd(const std::string& text) {
+  auto u32 = [](uint32_t v) { return std::string(reinterpret_cast<const char*>(&v), 4); };
+  return u32(4) + u32(2) + u32(3) + u32(static_cast<uint32_t>(text.size())) + text;
+}
+void archive(const fs::path& p, const Entries& made) {
+  Entries entries;
+  for (const auto& [name, text] : made) entries.emplace_back(name, zrd(text));
   std::error_code ec;
   fs::create_directories(p.parent_path(), ec);
+  const bool confined = zutl::mounts().confined;  // the test's own file, by its host path
+  zutl::mounts().confined = false;
   zutl_zar::Archive a;
   zutl_zar::init(a);
   zutl_zar::create(a, p.string().c_str());
   for (const auto& [name, data] : entries) zutl_zar::add(a, name.c_str(), data.data(), static_cast<uint32_t>(data.size()));
   zutl_zar::close(a);
   zutl_zar::destroy(a);
+  zutl::mounts().confined = confined;
 }
 // "name=data|" for each entry in the table's order; "(unreadable)".
 std::string read(const std::string& host) {
   std::vector<mech3::ArchiveEntry> all;
   if (!mech3::archive_read_entries(host, &all)) return "(unreadable)";
   std::string s;
-  for (const mech3::ArchiveEntry& e : all) s += e.name + "=" + std::string(e.data.begin(), e.data.end()) + "|";
+  for (const mech3::ArchiveEntry& e : all) s += e.name + "=" + (e.data.size() >= 16 ? std::string(e.data.begin() + 16, e.data.end()) : "?") + "|";
   return s;
 }
 std::map<std::string, std::string> snapshot(const std::string& dir) {
@@ -125,7 +137,7 @@ TEST(entry_archives_names_and_the_cut_of_one_archive) {
   EXPECT(there.what == mech3::EntriesCut::kLeft && fs::exists(dir + "/ok.zbd") && snapshot(dir).at("ok.zbd.entries") == "the player's");
   // An entry whose length runs past the file: the table does not read.
   std::string cut = snapshot(dir).at("own.zbd");
-  cut[cut.size() - 8 - 0x94 + 4] = 0x7f;  // the last entry's length
+  cut[cut.size() - 8 - 0x94 + 7] = 0x7f;  // the last entry's length: far past the file
   put(dir + "/long.zbd", cut);
   EXPECT(read(dir + "/long.zbd") == "(unreadable)" && left("long.zbd", "own.zbd"));
 }
@@ -140,7 +152,7 @@ TEST(entry_archives_two_imported_mods_both_apply) {
   archive(one + "/zbd/reader.zbd", {{"a.zrd", "A"}, {"b.zrd", "B1"}, {"c.zrd", "C"}, {"d.zrd", "D1"}});
   archive(one + "/zbd/c1/readerm1.zbd", {{"x.zrd", "X"}, {"y.zrd", "Y"}});            // every entry the game's
   archive(one + "/zbd/new/reader.zbd", {{"n.zrd", "N"}});                              // an archive the game lacks: whole
-  put(one + "/zbd/c1/gamez.zbd", "another world");                                     // not a reader archive: whole
+  put(one + "/video/intro.avi", "a movie");                                            // not a reader archive: as it is
   archive(two + "/zbd/reader.zbd", {{"a.zrd", "A"}, {"b.zrd", "B2"}, {"c.zrd", "C2"}});
   put(two + "/zbd/c1/readerm1.zbd", "not an archive");                                 // its table does not read: whole
   const auto before = std::make_pair(snapshot(inst), snapshot(src));
@@ -152,7 +164,7 @@ TEST(entry_archives_two_imported_mods_both_apply) {
   EXPECT(b.ok && b.cut.archives == 1 && b.cut.entries == 2 && b.cut.same == 0 && b.cut.whole == 1);
   const std::string m1 = wd + "/mods/" + a.folder, m2 = wd + "/mods/" + b.folder;
   std::printf("  %s\n  %s\n", names(m1).c_str(), names(m2).c_str());
-  EXPECT(names(m1) == std::string("mod.txt|") + mech3::kModAddedMarker + "|zbd/c1/gamez.zbd|zbd/new/reader.zbd|zbd/reader.zbd.entries|");
+  EXPECT(names(m1) == std::string("mod.txt|") + mech3::kModAddedMarker + "|video/intro.avi|zbd/new/reader.zbd|zbd/reader.zbd.entries|");
   EXPECT(read(m1 + "/zbd/reader.zbd.entries") == "b.zrd=B1|d.zrd=D1|" && read(m2 + "/zbd/reader.zbd.entries") == "b.zrd=B2|c.zrd=C2|");
   EXPECT(fs::exists(m2 + "/zbd/c1/readerm1.zbd") == false);  // the unreadable one: left out by the check, as before this
   EXPECT(snapshot(inst) == before.first && snapshot(src) == before.second);
