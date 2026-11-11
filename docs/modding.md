@@ -1422,7 +1422,10 @@ answers the picker for scripted runs and shots.
 - No mod.txt: one is written, its name the archive's or folder's and for=
   from the names only one game ships (MW3's c4b and t1 worlds and its own
   mission readers, Pirate's Moon's readersa and readeria4); when they cannot
-  tell, a message box asks MechWarrior 3 or Pirate's Moon (Cancel: not added).
+  tell, a message box asks MechWarrior 3 or Pirate's Moon (Cancel: not added). The word written is the game's own (`mw3`, `mw3pm`), the
+  one mod.txt's reader takes; until 2026-11-11 Pirate's Moon's was written
+  `pm`, which that game's own check then refused, so no mod without a
+  mod.txt could be added there (`mod_install_writes_the_games_own_word_in_mod_txt`).
 - Checked as `--check-mod` does (`mod_check`): a mod refused whole (What a
   faulty file does to a mod) is not added, and why is said; a file the game
   cannot use is left out of the copy and the mod added, with the count of
