@@ -109,11 +109,14 @@ class SdlInput : public platform::Input {
   // The focus as the system and SDL have it, for the log's lines.
   std::function<std::string()> focus_report;
   std::function<uint64_t()> now_ns;  // tests: the clock (unset: SDL's)
-  // Held with no motion seen since it was taken, a key or button press lets
+  // Held with no motion seen since it was taken, a mouse button press lets
   // the mouse go and takes it again, the game none the wiser: what cures a
-  // stuck one by hand (the quit box, Alt+Tab). At most kHeals times a capture,
-  // kHealGapNs apart, and never once motion has come.
+  // stuck one by hand (the quit box, Alt+Tab). A key press does so only after
+  // kQuietNs with no motion (a player holding a key at a mission's start,
+  // the mouse not yet touched, sees no flicker). At most kHeals times a
+  // capture, kHealGapNs apart, and never once motion has come.
   static constexpr int kHeals = 8;
+  static constexpr int kNudges = 10;  // nudge_focus asked this many times running, a second apart
   static constexpr uint64_t kHealGapNs = 1000000000ull;
   static constexpr uint64_t kQuietNs = 3000000000ull;  // "no motion in 3 s", said once a capture
   int heals() const { return heals_total_; }
@@ -152,7 +155,8 @@ class SdlInput : public platform::Input {
   void focus_gained(uint64_t ns);
   void focus_lost();
   void check_focus();
-  void heal(const char* by);
+  void heal(const char* by, bool key);
+  int nudges_ = 0;
   uint64_t clock() const;
   uint64_t captured_ns_ = 0, healed_ns_ = 0, nudged_ns_ = 0;
   bool motion_seen_ = false, quiet_said_ = false;

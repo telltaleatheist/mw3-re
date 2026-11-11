@@ -523,9 +523,17 @@ plays its movies first: a guess at why one shows it more.
   The mouse is taken only when it is true and when it becomes true, with or
   without an event; a focus event that is not yet true is not believed.
 - A window in front that SDL has not noted gets an activation message posted
-  (`window_focus_nudge`), on which SDL looks again. Should that do nothing
-  for two seconds the system's word alone is taken, so the keyboard never
-  waits on SDL.
+  (`window_focus_nudge`), on which SDL looks again; asked again each second,
+  ten times running at most. Should that do nothing for two seconds the
+  system's word alone is taken for the keyboard, so it never waits on SDL;
+  the mouse is not cured by that (SDL gives motion only to its own focus
+  window), the log says "the keyboard taken on the system's word; the mouse
+  still waits on SDL", and the asking goes on. The posted message's side
+  effects in SDL and Windows (dev 4's review): `DefWindowProc` sets the
+  keyboard focus to our own window, SDL reads the lock keys again, and a
+  mouse button held at that moment is taken as the click that brought the
+  focus (`focus_click_pending`); it is posted only when the window is
+  already the foreground one, so none of them changes what the player sees.
 - The other way round (dev 4's reading of the same source, 2026-11-11): a
   loss SDL missed leaves it holding raw input and a one-point cursor clip at
   the window's centre while another program is in front, and raw input then
@@ -533,10 +541,12 @@ plays its movies first: a guess at why one shows it more.
   foreground is not ours), so the mouse is let go, which ends SDL's mode, and
   a clip still at a point is released (`window_unclip_behind`); it is taken
   again when the window is the foreground one.
-- Held with no motion seen since it was taken, a key or button press lets the
+- Held with no motion seen since it was taken, a mouse button press lets the
   mouse go and takes it again (`heal`): once a press, a second apart, eight a
-  capture at most, never after the first motion. The game still gets the
-  press.
+  capture at most, never after the first motion. A key press does the same
+  only after three seconds with no motion, so a player holding a key as a
+  mission starts, the mouse not yet touched, gets no flicker. The game still
+  gets the press.
 - The log names the state: "mouse: taken (...)" with SDL's keyboard and mouse
   focus, the window's flags, the foreground window ours or not and the
   cursor's clip; "first motion N ms after it was taken" or "no motion in 3 s

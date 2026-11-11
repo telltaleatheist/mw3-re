@@ -748,7 +748,11 @@ TEST(sdl_input_mouse_waits_for_the_real_focus_and_heals) {
     EXPECT(in.mouse_state(&s) == 0 && !in.captured());
     focus = true;
     EXPECT(in.mouse_state(&s) == 0 && in.captured() && in.heals() == 0);
-    // No motion yet: a press lets go and takes again; once a second; a button too.
+    // No motion yet: a key press in the first three seconds is left alone (a key held as a mission starts);
+    // after them it lets go and takes again; once a second; a button press at any time.
+    in.on_event(key);
+    EXPECT(in.heals() == 0);
+    t += sdlfe::SdlInput::kQuietNs;
     in.on_event(key);
     EXPECT(in.heals() == 1 && in.captured());
     in.on_event(key);
@@ -768,12 +772,24 @@ TEST(sdl_input_mouse_waits_for_the_real_focus_and_heals) {
     sdlfe::SdlInput in;
     focus = true;
     EXPECT(make(in, 1) && in.acquire(platform::Input::kMouse) == 0 && in.captured());
+    in.on_event(button);  // a button at once
+    EXPECT(in.heals() == 1);
     for (int i = 0; i < 20; ++i) t += sdlfe::SdlInput::kHealGapNs, in.on_event(key);
     EXPECT(in.heals() == sdlfe::SdlInput::kHeals);
     in.unacquire(platform::Input::kMouse);
     EXPECT(!in.captured() && in.acquire(platform::Input::kMouse) == 0 && in.captured());
-    t += sdlfe::SdlInput::kHealGapNs, in.on_event(key);
+    t += sdlfe::SdlInput::kHealGapNs, in.on_event(button);
     EXPECT(in.heals() == sdlfe::SdlInput::kHeals + 1);
+  }
+  {  // SDL shown a window it has not noted: once a second, kNudges times running, whatever has_focus says
+    sdlfe::SdlInput in;
+    focus = true;  // the system's word taken (FocusWatch's two seconds)
+    int asked = 0;
+    in.nudge_focus = [&] { return ++asked, true; };
+    EXPECT(make(in, 1) && in.acquire(platform::Input::kMouse) == 0 && asked == 1);
+    EXPECT(in.mouse_state(&s) == 0 && asked == 1);  // not twice in a second
+    for (int i = 0; i < 30; ++i) t += sdlfe::SdlInput::kHealGapNs, in.mouse_state(&s);
+    EXPECT(asked == sdlfe::SdlInput::kNudges);
   }
   {  // no probe (tests, a hidden window): SDL's events alone, focused from the start, and no heal without a capture
     sdlfe::SdlInput in;

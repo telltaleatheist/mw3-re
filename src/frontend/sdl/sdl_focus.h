@@ -31,7 +31,8 @@ bool window_focus_nudge(SDL_Window* w);
 // The focus for SdlInput::has_focus: window_has_focus, and, should SDL not
 // note a window the system has had in front for kFrontNs (the nudge did
 // nothing), the system's word alone, so the keyboard is never kept waiting on
-// SDL's.
+// SDL's. The mouse is not cured by that: SDL gives motion only to the window
+// it holds as its focus, so the nudge goes on (SdlInput::check_focus).
 struct FocusWatch {
   static constexpr Uint64 kFrontNs = 2000000000ull;
   SDL_Window* window = nullptr;

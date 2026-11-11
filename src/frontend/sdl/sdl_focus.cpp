@@ -40,7 +40,9 @@ bool FocusWatch::operator()() {
   const Uint64 now = SDL_GetTicksNS();
   if (!front_since) front_since = now ? now : 1;
   if (now - front_since < kFrontNs) return false;
-  if (!said) std::printf("mw3: focus: the window has been in front 2 s and SDL still has not noted it: taken as focused (%s)\n", window_focus_report(window).c_str());
+  if (!said)
+    std::printf("mw3: focus: the window has been in front 2 s and SDL still has not noted it: the keyboard taken on the system's word; "
+                "the mouse still waits on SDL (%s)\n", window_focus_report(window).c_str());
   said = true;
   return true;
 }
