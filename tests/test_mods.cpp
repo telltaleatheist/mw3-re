@@ -211,8 +211,8 @@ TEST(mods_report_says_one_fault_in_many_items_once) {
   mech3::ModFindings f;
   for (int i = 0; i < 3; ++i)
     f.notes.push_back({"zbd/rmechtex.zbd: texture t" + std::to_string(i),
-                       {"its table entry names palette 0 of the file, and the file has no palettes", "loaded it without one",
-                        "crashes when it loads this texture", "set the last 4 bytes of its table entry to ff ff ff ff",
+                       {"its table entry names palette 0 of the file, and the file has no palettes", "loads it without one",
+                        "crashes if it ever loads this texture (it loads a texture only when something asks for it by name)", "set the last 4 bytes of its table entry to ff ff ff ff",
                         "table entry " + std::to_string(40 + i)},
                        mech3::ModWarningGroup::kMayCrash, false});
   const std::vector<std::string> s = mech3::mod_sentences(f);
@@ -227,8 +227,8 @@ TEST(mods_report_says_one_fault_in_many_items_once) {
       "3. zbd/rmechtex.zbd: texture t2 (table entry 42)",
       "For 1 to 3: wrong: its table entry names palette 0 of the file, and the file has no palettes.",
       "For 1 to 3: to fix it: set the last 4 bytes of its table entry to ff ff ff ff.",
-      "For 1 to 3: the rebuild: loaded it without one.",
-      "For 1 to 3: the original game: crashes when it loads this texture."};
+      "For 1 to 3: the rebuild: loads it without one.",
+      "For 1 to 3: the original game: crashes if it ever loads this texture (it loads a texture only when something asks for it by name)."};
   EXPECT(s == want);
   // The check's own line carries it too, after the place.
   EXPECT(mech3::mod_warning_line(f.notes[0].where, f.notes[0].w).rfind("zbd/rmechtex.zbd: texture t0 (table entry 40): its table entry names", 0) == 0);

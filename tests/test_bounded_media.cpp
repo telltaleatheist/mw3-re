@@ -210,7 +210,7 @@ TEST(bounded_textures_survive_broken_copies) {
     zimg::Texture* t = zimg::load(one.lib, name);
     // an offset outside the file's textures: refused; a palette the file lacks on a texture needing none: loaded, said
     if (at == 0x18 + 32) entries += t == nullptr && zimg::load_notes().size() == 1;
-    else entries += t != nullptr && zimg::load_notes().size() == 1 && zimg::load_notes()[0].did == "loaded it without one";
+    else entries += t != nullptr && zimg::load_notes().size() == 1 && zimg::load_notes()[0].did == "loads it without one";
     if (t) zimg::free_texture(t);
   }
   EXPECT(tables == 4 && entries == 4);
@@ -561,20 +561,20 @@ TEST(bounded_textures_palette_field_slip) {
       if (!zimg::load_notes().empty()) {
         const mech3::ModWarning w = zimg::load_notes()[0];
         EXPECT(w.wrong.find(std::string("names palette ") + (name[3] == '0' ? "0" : "5")) != std::string::npos &&
-               w.wrong.find("the texture needs none") != std::string::npos && w.did == "loaded it without one" &&
-               w.original.find("crashes when it loads this texture") != std::string::npos);
+               w.wrong.find("the texture needs none") != std::string::npos && w.did == "loads it without one" &&
+               w.original.find("crashes if it ever loads this texture (it loads a texture only when something asks for it by name)") != std::string::npos);
       }
       if (t) zimg::free_texture(t);
     }
     EXPECT(zimg::load(one.lib, "eight0") == nullptr && zimg::load_notes().size() == 1 &&
-           zimg::load_notes()[0].did == "left this texture out");
+           zimg::load_notes()[0].did == "leaves this texture out");
     zimg::Texture* again = zimg::load(one.lib, "PLAIN");  // the notes are the last load's
     EXPECT(again != nullptr && zimg::load_notes().empty());
     if (again) zimg::free_texture(again);
     zfix::options().fixed = false;  // the exe's path faults here; the port refuses
     for (const char* name : {"pal0", "pal5", "eight0"}) {
       EXPECT(zimg::load(one.lib, name) == nullptr && zimg::load_notes().size() == 1 &&
-             zimg::load_notes()[0].did == "left this texture out");
+             zimg::load_notes()[0].did == "leaves this texture out");
     }
     if (plain) zimg::free_texture(plain);
   }
@@ -589,7 +589,7 @@ TEST(bounded_textures_palette_field_slip) {
          out.find("warning: zbd/rimage.zbd: texture pal5 (table entry 2): its table entry names palette 5") != std::string::npos &&
          out.find("warning: zbd/rimage.zbd: texture eight0 (table entry 4): its table entry names palette 0") != std::string::npos &&
          out.find("To fix it: set the last 4 bytes of its table entry (each entry is 40 bytes) to ff ff ff ff.") != std::string::npos &&
-         out.find("The rebuild: left this texture out. The original game: crashes when it loads this texture") != std::string::npos &&
+         out.find("The rebuild: leaves this texture out. The original game: crashes if it ever loads this texture (it loads a texture only when something asks for it by name)") != std::string::npos &&
          out.find("texture plain") == std::string::npos);
   EXPECT(zfix::options().fixed == keep.fixed);
 }

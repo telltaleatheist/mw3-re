@@ -1679,7 +1679,9 @@ on:
 - each is said once in the log and as a warning from `--check-mod`, REPORT
   and IMPORT in the four parts above: the file, the texture and its table
   entry's number; the palette named and how many the file has; what was
-  done; that the original crashes when it loads this texture.
+  done; that the original crashes if it ever loads this texture (it loads
+  a texture only when something asks for it by name, which is why a mod
+  whose textures no skin list names gets by there).
 
 The check's findings in a texture library are warnings, never errors (a
 texture left out, or a library whose table does not read and is left out of
