@@ -33,10 +33,6 @@ bool inside_entry() { return entry_run().screen == EntryRun::kInstantAction && e
 }  // namespace
 
 std::string ia_mods_line(const std::string& write_dir, int ticked) {
-  if (ticked < 0 && !inside_entry()) {  // a plain run with ticks: they could not be played
-    const size_t gone = ia_mods_missing(write_dir).size();
-    if (gone) return "MODS: " + std::to_string(gone) + " missing";
-  }
   const int n = ticked >= 0 ? ticked : inside_entry() ? static_cast<int>(entry_ticks(write_dir, kIaEntry).size()) : 0;
   return n ? "MODS: " + std::to_string(n) + " on" : "MODS: off";
 }
@@ -45,10 +41,6 @@ std::vector<std::string> ia_mods_missing(const std::string& write_dir) {
   const std::vector<CampaignEntry> all = campaign_entries(write_dir);
   const CampaignEntry* e = find_entry(all, kIaEntry);
   return e ? entry_missing_mods(write_dir, *e) : std::vector<std::string>{};
-}
-
-bool ia_straight_in(const std::string& write_dir) {
-  return !write_dir.empty() && !entry_ticks(write_dir, kIaEntry).empty() && ia_mods_missing(write_dir).empty();
 }
 
 IaModsStep ia_mods_step(const std::vector<std::string>& before, const std::vector<std::string>& now, bool inside) {
@@ -118,6 +110,7 @@ void IaModsScreen::tell(const std::string& text) {
   const auto lines = mods_note_lines(text, [this](const std::string& t) { return mods_text_fits(t, &note, kModsNotePx, kModsNoteChars); });
   mods_text_say(note, lines.first);
   mods_text_say(note2, lines.second);
+  std::printf("mw3: Instant Action's MODS says: %s%s%s\n", note.text, note2.text[0] ? " " : "", note2.text);  // for the checks
 }
 
 // The line follows the ticks as they stand on the screen; the note is the
@@ -127,9 +120,13 @@ void IaModsScreen::show_note() {
   mods_text_say(line, ia_mods_line(mods_menu_write_dir(), static_cast<int>(ticks.ticks.size())));
   const std::string n = ticks.note();
   const std::vector<std::string> running = inside ? before : std::vector<std::string>{};
+  // With no mods there is nothing to turn on, off or move: ALL OFF (it was a second way out; playtest W6),
+  // ON/OFF, UP and DOWN are not shown.
+  if (ticks.rows.empty()) all_off.hide(), ticks.toggle.hide(), ticks.up.hide(), ticks.down.hide();
   tell(!n.empty() ? n
-       : ticks.rows.empty() ? "No mods yet: IMPORT them on the main menu's MODS screen."
-       : ticks.ticks != running ? "ACCEPT starts Instant Action again with these."
+       : ticks.rows.empty() ? "No mods yet. Get one on the main menu: MODS, then IMPORT."
+       : !inside && !ticks.ticks.empty() && ticks.ticks == before ? "Ticked last time. ACCEPT starts the game again with them."
+       : ticks.ticks != running ? "ACCEPT starts the game again with these."
        : inside ? "These mods are on now." : "Tick the mods to play Instant Action with, then ACCEPT.");
 }
 
@@ -138,6 +135,7 @@ void IaModsScreen::on_button(int32_t id, int32_t, int32_t) {
     show_note();
     if (!ticks.warned.empty()) tell(ticks.warned);
   } else if (id == kAllOff) {
+    if (ticks.rows.empty()) return;  // not shown then
     ticks.all_off();
     accept();
   } else if (id == kAccept) {

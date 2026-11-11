@@ -17,7 +17,7 @@ void help_menus(std::vector<HelpForm>& out) {
                       "The Mech AI window: pick one of the mission's vehicles and change its AI settings."},
                      {"EDIT WEAPONS", "",
                       "New Weapon: a weapon copied from one the game knows, its name and numbers set, written into "
-                      "your copy of the campaign (in a mission opened from MODS, EDITOR only). Empty in the "
+                      "your copy of the campaign (in a mission opened from MODS, MISSIONS only). Empty in the "
                       "original game; ours."},
                      {"HELP", "", "This quick start, in a window. Ours: the original had none."},
                      {"TELEPORT", "",

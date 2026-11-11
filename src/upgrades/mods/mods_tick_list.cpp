@@ -96,7 +96,7 @@ bool ModTickList::on_button(int32_t id, bool* changed) {
       list.FileList::select(static_cast<int32_t>(i));
       // Turned on all the same, its warnings said (mod_needs.h).
       if (turning_on && !rows[i].needs.empty())
-        warned = rows[i].needs[0] + (rows[i].needs.size() > 1 ? " (" + std::to_string(rows[i].needs.size() - 1) + " more: REPORT)" : "");
+        warned = rows[i].needs[0] + (rows[i].needs.size() > 1 ? " (" + std::to_string(rows[i].needs.size() - 1) + " more: INFO on the MODS screen)" : "");
     }
   if (changed) *changed = true;
   return true;

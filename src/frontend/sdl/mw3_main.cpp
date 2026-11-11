@@ -283,7 +283,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia | --entry-test WORLD N | --entry-edit WORLD N]] [--entry-pilot NAME] [--open-mods [--mods-entry ID] | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--mouse-at X,Y@N[c]]... [--then ...] [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia | --entry-mission WORLD N [--edit]]] [--entry-pilot NAME] [--open-mods [--mods-entry ID] | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--mouse-at X,Y@N[c]]... [--then ...] [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -309,8 +309,10 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-mods") a.no_mods = true;
     else if (s == "--entry" && next(1)) a.entry = argv[++i];
     else if (s == "--entry-pilot" && next(1)) a.entry_pilot = argv[++i];
-    else if (s == "--entry-test" && next(2)) a.entry_test_world = argv[++i], a.entry_test_number = std::atoi(argv[++i]);
+    // --entry-mission WORLD N [--edit] (MODS's MISSIONS): --entry-test and --entry-edit are its old names.
+    else if ((s == "--entry-test" || s == "--entry-mission") && next(2)) a.entry_test_world = argv[++i], a.entry_test_number = std::atoi(argv[++i]);
     else if (s == "--entry-edit" && next(2)) a.entry_test_world = argv[++i], a.entry_test_number = std::atoi(argv[++i]), a.entry_edit = true;
+    else if (s == "--edit") a.entry_edit = true;
     else if (s == "--mods-entry" && next(1)) a.mods_entry = argv[++i];
     else if (s == "--entry-play") a.entry_play = true;
     else if (s == "--entry-ia") a.entry_ia = true;
@@ -1850,18 +1852,9 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         };
       // Ours: MODS's TEST on a plain run (mods_menu.h): into the entry and straight into the mission.
       mech3::mods_menu_test_restart() = [&app](const std::string& entry, const std::string& world, int32_t number, std::string*) {
-        std::printf("mw3: MODS: starting again into entry %s to test %s mission %d\n", entry.c_str(), world.c_str(), number);
+        std::printf("mw3: MODS: starting again into entry %s to play %s mission %d\n", entry.c_str(), world.c_str(), number);
         sdlfe::RestartTo to;
         to.entry = entry, to.screen = sdlfe::RestartTo::kTest, to.test_world = world, to.test_number = number;
-        sdlfe::restart_ask(to);
-        app.replace(app.state(4), 0);
-        return true;
-      };
-      // Ours: MODS's EDITOR on a plain run: into the entry and the mission in the editor (upgrades/editor/save_as.h).
-      mech3::mods_menu_edit_restart() = [&app](const std::string& entry, const std::string& world, int32_t number, std::string*) {
-        std::printf("mw3: MODS: starting again into entry %s to edit %s mission %d\n", entry.c_str(), world.c_str(), number);
-        sdlfe::RestartTo to;
-        to.entry = entry, to.screen = sdlfe::RestartTo::kEdit, to.test_world = world, to.test_number = number;
         sdlfe::restart_ask(to);
         app.replace(app.state(4), 0);
         return true;

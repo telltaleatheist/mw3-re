@@ -91,7 +91,7 @@ DeletePlan delete_plan_for_entry(const std::string& write_dir, const std::string
   }
   p.entry.clear();
   p.by_hand = true;
-  p.refused = name + " was not added by the game: remove its folder yourself (MODS FOLDER).";
+  p.refused = name + " was not added by the game: remove its folder from the mods folder yourself.";
   return p;
 }
 
@@ -110,7 +110,7 @@ DeletePlan delete_plan_for_mod(const std::string& write_dir, const std::string& 
       return p.refused = name + " cannot be deleted: " + (o.name.empty() ? o.id : o.name) + " is built on it. Delete that one first.", p;
   const char* marker = !is_link(dir) && plain_file(dir / kModAddedMarker) ? kModAddedMarker
                        : !is_link(dir) && plain_file(dir / ai::kEditorMarker) ? ai::kEditorMarker : nullptr;
-  if (!marker) return p.by_hand = true, p.refused = name + " was not added by the game: remove its folder yourself (MODS FOLDER).", p;
+  if (!marker) return p.by_hand = true, p.refused = name + " was not added by the game: remove its folder from the mods folder yourself.", p;
   // The campaigns it is ticked for, by their names, the game's own and Instant Action's among them.
   std::string where;
   for (const CampaignEntry& e : all) {

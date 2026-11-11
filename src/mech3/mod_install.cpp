@@ -627,7 +627,7 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
     const std::string head = "Added " + d.name + ": ";
     std::string next = d.message.substr(head.size());
     if (!next.empty()) next[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(next[0])));
-    d.message = head + std::to_string(r.warnings) + (r.warnings == 1 ? " warning: REPORT says what. " : " warnings: REPORT lists them. ") + next;
+    d.message = head + std::to_string(r.warnings) + (r.warnings == 1 ? " warning: INFO shows it. " : " warnings: INFO shows them. ") + next;
   }
   return d;
 }

@@ -235,18 +235,18 @@ TEST(mods_screen_text_fits_its_boxes) {
   const auto fits = [](const std::string& t) { return t.size() * 4 <= 200; };  // 50 characters
   mech3::ModAddDone d;
   d.ok = true, d.name = "Short", d.warnings = 9;
-  d.message = "Added Short: 9 warnings: REPORT lists them. Tick it for a campaign, then PLAY.";
+  d.message = "Added Short: 9 warnings: INFO shows them. Tick it for a campaign, then PLAY.";
   auto l = mech3::mods_import_lines(d, "", fits);
-  EXPECT(l.first == "Added Short: 9 warnings: REPORT lists them." && l.second == "Tick it for a campaign, then PLAY.");
+  EXPECT(l.first == "Added Short: 9 warnings: INFO shows them." && l.second == "Tick it for a campaign, then PLAY.");
   // A name too long for the line: the outcome without it (DETAILS shows the name), never the count or REPORT lost.
   d.name = "A Weapons Mod With A Very Long Name v 2.48.32";
-  d.message = "Added " + d.name + ": 9 warnings: REPORT lists them. Tick it for a campaign, then PLAY.";
+  d.message = "Added " + d.name + ": 9 warnings: INFO shows them. Tick it for a campaign, then PLAY.";
   const std::string took = "Took 135 files from the installer that differ from your install; the program and its dlls are not part of a mod here (7)";
   l = mech3::mods_import_lines(d, took, fits);
-  EXPECT(l.first == "Added. 9 warnings: REPORT lists them." && l.second == "Tick it for a campaign, then PLAY.");
-  d.warnings = 1, d.message = "Added " + d.name + ": 1 warning: REPORT says what. Tick it for a campaign, then PLAY.";
+  EXPECT(l.first == "Added. 9 warnings: INFO shows them." && l.second == "Tick it for a campaign, then PLAY.");
+  d.warnings = 1, d.message = "Added " + d.name + ": 1 warning: INFO shows it. Tick it for a campaign, then PLAY.";
   l = mech3::mods_import_lines(d, took, fits);
-  EXPECT(l.first == "Added. 1 warning: REPORT says what." && fits(l.first) && fits(l.second));
+  EXPECT(l.first == "Added. 1 warning: INFO shows it." && fits(l.first) && fits(l.second));
   // No warnings, from an install or installer: what to do, then how many files were taken (the rest is the log's).
   d.name = "Game", d.warnings = 0, d.message = "Added Game: tick it for a campaign, then PLAY.";
   l = mech3::mods_import_lines(d, took, fits);

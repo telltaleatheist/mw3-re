@@ -193,9 +193,9 @@ const std::vector<ScreenGroups>& screen_groups() {
       // The main menu: its column of buttons at the left edge, CREDITS and
       // QUIT and the version line at the right.
       {0x486260, {{0, 0, 330, 480, kLeft}, {380, 330, 640, 480, kRight}}},
-      // Ours: the MODS screen, the pilot screen's groups; its tabs along the
-      // bottom (EDITOR, ADD MOD, ADD FOLDER, MODS FOLDER) kept together at the left.
-      {kModsScreenCtor, {{0, 430, 480, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
+      // Ours: the MODS screen, the pilot screen's groups; the left one reaches past its three tabs under
+      // CAMPAIGNS (MISSIONS, IMPORT, INFO, to x 268).
+      {kModsScreenCtor, {{0, 0, 275, 480, kLeft}, {275, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       {kIaModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
