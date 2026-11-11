@@ -70,7 +70,11 @@ What each Pirate's Moon-own change reads:
   page lists (eleven in all; `upgrades/settings/upgrades.cpp`,
   `pm_small_fixes_list_matches_its_gates`), the Sunder Alternate B's ammo and
   the Strider's recoil slide among them since the merge of main's mods by
-  campaign (2026-11-10): Pirate's Moon's two files have the same slips. Not on the
+  campaign (2026-11-10): Pirate's Moon's two files have the same slips.
+  Pirate's Moon's own data fixed two others of MechWarrior 3's (the Firefly's
+  fifth skin label, VARIANTE in its dfn_firefly.zrd, and c1's script, which no
+  longer has `Object3DSetScrllAlways`), so those two always-on fixes find
+  nothing to change here; it did not fix these two. Not on the
   list: MW3's lines for its own data (c4's two enemies, c4b's areas, c2
   mission 3's Fireflies: shared code that finds nothing to change in Pirate's
   Moon's files), the plain PPC (Pirate's Moon's table has it), and the

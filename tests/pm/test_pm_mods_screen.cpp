@@ -472,3 +472,20 @@ TEST(pm_import_from_a_modded_pirates_moon_folder) {
   std::error_code ec;
   fs::remove_all(root, ec);
 }
+
+// A real modded Pirate's Moon install against the plain one, without the window (checks only):
+// MW3_IMPORT_FOLDER=<the modded folder> MW3_TEST=pm_import_folder_real_install_env build/mw3pmtests. The mod is
+// left in build/pm_import_real_wd/mods for a look and for --write-dir; both installs are only read.
+TEST(pm_import_folder_real_install_env) {
+  const char* folder = std::getenv("MW3_IMPORT_FOLDER");
+  if (!folder || !*folder) return;
+  const std::string was = mech3::mods_game();
+  mech3::mods_game() = "mw3pm";
+  const std::string wd = fresh("pm_import_real_wd");
+  std::string report;
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, folder, MW3PM_GAME_DIR, nullptr, nullptr, &report);
+  std::printf("  %s\n  %s\n  the mod: %s/mods/%s\n", d.message.c_str(), report.c_str(), wd.c_str(), d.folder.c_str());
+  EXPECT(d.ok && (!fs::exists(wd + "/mod-import") || fs::is_empty(wd + "/mod-import")));  // nothing left staged
+  if (d.ok) EXPECT(text_of(wd + "/mods/" + d.folder + "/mod.txt").find("for=mw3pm") != std::string::npos || fs::exists(std::string(folder) + "/mod.txt"));
+  mech3::mods_game() = was;
+}
