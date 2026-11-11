@@ -1,4 +1,5 @@
 #include "upgrades/mods/import_folder.h"
+#include "upgrades/mods/marked_remove.h"
 
 #include <algorithm>
 #include <cctype>
@@ -58,13 +59,18 @@ bool program_file(const std::string& lower_rel) {
 }
 
 // Every regular file under `dir` as (lower-case relative path, path); links are not followed and not listed.
-std::map<std::string, fs::path> files_of(const fs::path& dir, int* links = nullptr) {
+// A link is a symlink or, on Windows, any reparse point (a junction: marked_remove.h, path_is_link); a linked
+// folder's name goes to `linked` for the report.
+std::map<std::string, fs::path> files_of(const fs::path& dir, int* links = nullptr, std::vector<std::string>* linked = nullptr) {
   std::map<std::string, fs::path> out;
   std::error_code ec;
   for (fs::recursive_directory_iterator it(dir, fs::directory_options::none, ec), end; !ec && it != end; it.increment(ec)) {
-    if (it->is_symlink(ec)) {
+    if (it->is_symlink(ec) || path_is_link(it->path().string())) {
       if (links) ++*links;
-      if (it->is_directory(ec)) it.disable_recursion_pending();
+      if (it->is_directory(ec)) {
+        it.disable_recursion_pending();
+        if (linked) linked->push_back(it->path().lexically_relative(dir).generic_string());  // its own name, not where it leads
+      }
       continue;
     }
     if (it->is_regular_file(ec)) out[lower(fs::relative(it->path(), dir, ec).generic_string())] = it->path();
@@ -77,9 +83,9 @@ const char* game_name(ModGame g) { return g == ModGame::kPm ? "Pirate's Moon" : 
 std::string files_word(int n) { return std::to_string(n) + (n == 1 ? " file" : " files"); }
 
 // Only a folder holding our marker is removed (never one the player made).
+// By the one remover's rule (marked_remove.h): never a link or a junction, nothing followed out of it.
 void remove_ours(const fs::path& dir) {
-  std::error_code ec;
-  if (!dir.empty() && fs::is_regular_file(dir / kModStagingMarker, ec)) fs::remove_all(dir, ec);
+  if (!dir.empty()) remove_marked_tree(dir.string(), kModStagingMarker);
 }
 
 }  // namespace
@@ -131,6 +137,7 @@ std::string import_folder_report(const ImportFolder& f) {
   if (f.programs) t += "; the program and its dlls are not part of a mod here (" + std::to_string(f.programs) + ")";
   if (f.own) t += "; pilots, saves and settings stay yours (" + std::to_string(f.own) + ")";
   if (f.other) t += "; " + files_word(f.other) + " outside the game's folders left";
+  for (const std::string& l : f.linked) t += "; a linked folder was left out: " + l;
   return t + ".";
 }
 
@@ -158,7 +165,7 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
   if (c == w || c.rfind(w + "/", 0) == 0 || w.rfind(c + "/", 0) == 0)
     return f.error = "that folder holds the game's own settings: pick the folder the mod was installed over", f;
   int links = 0;
-  const std::map<std::string, fs::path> theirs = files_of(src, &links), ours = files_of(mine);
+  const std::map<std::string, fs::path> theirs = files_of(src, &links, &f.linked), ours = files_of(mine);
   // The other game's install (mod_install's check by the files only one game ships).
   {
     std::vector<std::string> a, b;
@@ -177,7 +184,7 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
   // The folders the player's install has at its top: what a mod of this kind may serve.
   std::set<std::string> tops;
   for (fs::directory_iterator it(mine, ec), end; !ec && it != end; it.increment(ec))
-    if (it->is_directory(ec) && !it->is_symlink(ec)) tops.insert(lower(it->path().filename().string()));
+    if (it->is_directory(ec) && !it->is_symlink(ec) && !path_is_link(it->path().string())) tops.insert(lower(it->path().filename().string()));
   std::vector<std::pair<std::string, fs::path>> take;  // the relative path as the modded folder spells it
   int64_t bytes = 0;
   f.other = links;
@@ -201,7 +208,7 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
   const fs::path base = fs::path(write_dir) / "mod-import";
   fs::create_directories(base, ec);
   for (fs::directory_iterator it(base, ec), end; !ec && it != end; it.increment(ec))  // a run that stopped halfway: ours only
-    if (it->is_directory(ec) && !it->is_symlink(ec)) remove_ours(it->path());
+    if (it->is_directory(ec) && !it->is_symlink(ec) && !path_is_link(it->path().string())) remove_ours(it->path());
   const auto t = std::chrono::system_clock::now().time_since_epoch().count();
   fs::path staging;
   for (int n = 0; n < 1000; ++n) {

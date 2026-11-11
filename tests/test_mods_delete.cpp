@@ -220,3 +220,33 @@ TEST(mods_delete_by_the_row_chosen) {
     EXPECT(mech3::delete_plan_for_entry(w, "nowhere").kind == DeletePlan::kNone);
   }
 }
+
+// The staging folders' remover (mod_install's and the folder import's, both
+// remove_marked_tree): a real folder with its marker goes whole, links inside
+// removed as links; a folder without the marker, a link standing for the
+// folder, and a marker that is a link are refused with nothing removed.
+TEST(mods_delete_staging_folders_by_the_same_rule) {
+  const fs::path wd = tmp("delete_staging");
+  std::string why;
+  put(wd / "stage/marker.txt", "ours");
+  put(wd / "stage/a/b/file.txt", "x");
+  put(wd / "outside/keep.txt", "must stay");
+  put(wd / "plain/file.txt", "no marker");
+  EXPECT(!mech3::remove_marked_tree((wd / "plain").string(), "marker.txt", &why) && why.find("has no marker.txt") != std::string::npos);
+  EXPECT(!mech3::remove_marked_tree("", "marker.txt", &why) && !mech3::remove_marked_tree((wd / "stage").string(), "", &why));
+  EXPECT(!mech3::remove_marked_tree((wd / "stage").string(), "a/marker.txt", &why));
+  EXPECT(!mech3::remove_marked_tree((wd / "nowhere").string(), "marker.txt", &why) && why.find("is not there") != std::string::npos);
+  EXPECT(fs::is_regular_file(wd / "plain/file.txt") && fs::is_regular_file(wd / "stage/a/b/file.txt"));
+#if !defined(_WIN32)
+  std::error_code ec;
+  fs::create_directory_symlink(wd / "outside", wd / "stage/out", ec);
+  fs::create_directory_symlink(wd / "stage", wd / "linked stage", ec);
+  EXPECT(!ec && !mech3::remove_marked_tree((wd / "linked stage").string(), "marker.txt", &why) && why.find("is a link") != std::string::npos);
+  EXPECT(fs::is_regular_file(wd / "stage/a/b/file.txt"));
+  fs::create_directories(wd / "fake", ec);
+  fs::create_symlink(wd / "stage/marker.txt", wd / "fake/marker.txt", ec);
+  EXPECT(!ec && !mech3::remove_marked_tree((wd / "fake").string(), "marker.txt", &why));
+#endif
+  EXPECT(mech3::remove_marked_tree((wd / "stage").string(), "marker.txt", &why) && !fs::exists(wd / "stage"));
+  EXPECT(fs::is_regular_file(wd / "outside/keep.txt"));
+}

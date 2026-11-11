@@ -20,4 +20,10 @@ bool path_is_link(const std::string& path);
 // make there (anything but pilots and configs).
 bool remove_marked_folder(const std::string& write_dir, const char* under, const std::string& name, const char* marker, std::string* why);
 
+// A folder of ours anywhere (a staging folder: its path whole), with the same
+// rule: a real folder, not a link, holding `marker` as a real file; removed
+// whole, links inside removed as links and never entered. False with `why`,
+// nothing removed, otherwise.
+bool remove_marked_tree(const std::string& dir, const char* marker, std::string* why = nullptr);
+
 }  // namespace mech3

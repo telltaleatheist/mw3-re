@@ -655,7 +655,15 @@ box, saying what goes, with counts read from the folder at that moment.
   another drive) counts whatever the standard library calls it. The Windows
   check is `tests/win/delete_check.cpp` (built with
   `x86_64-w64-mingw32-g++ -std=c++17 -Isrc tests/win/delete_check.cpp src/upgrades/mods/marked_remove.cpp -o delete_check.exe -static`,
-  run on Windows as `delete_check.exe DIR`).
+  run on Windows as `delete_check.exe DIR`; on the PC, 2026-11-10, every
+  line ok). The two staging folders' removers (mod_install's, the folder
+  import's) go through the same remover (`remove_marked_tree`: a real folder
+  with its marker, never a link), so no `remove_all` is left on a path a
+  junction could stand in; and the two walks that read a mod's files
+  (`copy_folder`, the folder import's `files_of`) take `path_is_link` too: a
+  mod holding a link is refused as before, and a linked folder inside a
+  modded game folder is passed over and said in the import's report ("a
+  linked folder was left out: <name>").
 - A copy's mod folder is removed before its campaign folder, so a failure
   there leaves the pilots and saved games alone. After any of them the game's
   own campaign is chosen.

@@ -73,6 +73,18 @@ bool remove_tree(const fs::path& dir, std::string* why) {
 
 bool path_is_link(const std::string& path) { return is_link(fs::path(path)); }
 
+bool remove_marked_tree(const std::string& dir, const char* marker, std::string* why) {
+  std::string none;
+  std::string& said = why ? *why : none;
+  said.clear();
+  const fs::path d(dir);
+  if (dir.empty() || !marker || !*marker || !plain_name(marker)) return said = "no folder or marker named", false;
+  if (is_link(d)) return said = d.generic_string() + " is a link: not removed", false;
+  if (!real_dir(d)) return said = d.generic_string() + " is not there", false;
+  if (!real_file(d / marker)) return said = d.generic_string() + " has no " + marker + ": not made by the game, so not removed", false;
+  return remove_tree(d, &said);
+}
+
 bool remove_marked_folder(const std::string& write_dir, const char* under, const std::string& name, const char* marker, std::string* why) {
   std::string none;
   std::string& said = why ? *why : none;

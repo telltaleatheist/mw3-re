@@ -1,4 +1,5 @@
 #include "mech3/mod_install.h"
+#include "upgrades/mods/marked_remove.h"
 
 #include <algorithm>
 #include <cctype>
@@ -44,11 +45,9 @@ bool same_bytes(const fs::path& a, const fs::path& b) {
 }
 
 // Only a folder holding our marker is removed (never one the player made).
-void remove_ours(const fs::path& dir, const char* marker) {
-  std::error_code ec;
-  if (!fs::is_regular_file(dir / marker, ec)) return;
-  fs::remove_all(dir, ec);
-}
+// By the one remover's rule (upgrades/mods/marked_remove.h): a real folder, never a link or a Windows junction,
+// and nothing inside it followed out of it.
+void remove_ours(const fs::path& dir, const char* marker) { remove_marked_tree(dir.string(), marker); }
 
 // The child of `dir` named `name` whatever its case, or empty.
 fs::path child(const fs::path& dir, const std::string& name) {
@@ -194,7 +193,8 @@ std::string copy_folder(const fs::path& from, const fs::path& to, const ModAddLi
   std::map<std::string, std::string> seen;
   for (fs::recursive_directory_iterator it(from, fs::directory_options::none, ec), end; !ec && it != end; it.increment(ec)) {
     const fs::path rel = fs::relative(it->path(), from, ec);
-    if (it->is_symlink(ec)) return "it holds a link (" + rel.generic_string() + "), which a mod cannot have";
+    if (it->is_symlink(ec) || path_is_link(it->path().string()))  // a Windows junction too (marked_remove.h)
+      return "it holds a link (" + it->path().lexically_relative(from).generic_string() + "), which a mod cannot have";  // its own name, not where it leads
     if (it->is_directory(ec)) {
       fs::create_directories(to / rel, ec);
       continue;

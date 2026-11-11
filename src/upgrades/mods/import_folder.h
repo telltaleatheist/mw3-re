@@ -37,6 +37,7 @@ struct ImportFolder {
   // by the data files neither a mod nor the patch's other version changed; and
   // what is said when they differ (the versions' differences are taken too).
   std::string version, install_version, warning;
+  std::vector<std::string> linked;  // linked folders in the modded folder (a symlink, a Windows junction): left out, said
   std::string error;         // why it was refused ("" when not; the staging then gone)
 };
 // What would be taken, copied into a new staging folder. The modded folder

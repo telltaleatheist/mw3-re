@@ -220,3 +220,32 @@ TEST(import_folder_says_another_version) {
   mech3::import_folder_discard(same);
   EXPECT(nothing_staged(wd));
 }
+
+#if !defined(_WIN32)
+// A linked folder inside the modded game folder (a symlink; on Windows a
+// junction counts the same, marked_remove.h): never walked into, left out,
+// and said in the report; what it points at is neither read as the mod's nor
+// changed.
+TEST(import_folder_leaves_a_linked_folder_out_and_says_so) {
+  const std::string wd = tmp("import_link_wd"), inst = tmp("import_link_inst"), modded = tmp("import_link_src") + "/Mod",
+                    elsewhere = tmp("import_link_else");
+  build(inst, modded);
+  put(elsewhere + "/huge.txt", "somewhere else on the disk");
+  std::error_code ec;
+  fs::create_directory_symlink(elsewhere, modded + "/zbd/linked", ec);
+  EXPECT(!ec);
+  const auto before = snapshot(elsewhere);
+  mech3::ImportFolder f = mech3::import_folder_prepare(wd, modded, inst);
+  const std::string report = mech3::import_folder_report(f);
+  std::printf("  %s\n", report.c_str());
+  EXPECT(f.error.empty() && f.taken == 3 && (f.linked == std::vector<std::string>{"zbd/linked"}));
+  EXPECT(report.find("a linked folder was left out: zbd/linked") != std::string::npos);
+  EXPECT(names(f.picked).find("huge.txt") == std::string::npos && snapshot(elsewhere) == before);
+  mech3::import_folder_discard(f);
+  EXPECT(nothing_staged(wd) || !fs::exists(f.staging, ec));
+  // A mod's own folder with a link in it is refused whole, as before.
+  const mech3::ModAddDone d = mech3::mod_add_run(wd, modded + "/zbd", inst, [](const std::string&) { return 1; }, nullptr);
+  std::printf("  a mod's folder with a link: %s\n", d.message.c_str());
+  EXPECT(!d.ok && d.message.find("it holds a link (linked)") != std::string::npos && snapshot(elsewhere) == before);
+}
+#endif
