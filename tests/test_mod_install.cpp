@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "check.h"
+#include "gamez/zutil/zutl_zar.h"
 #include "mech3/mod_install.h"
 #include "mech3/mods.h"
 #include "mech3/patch_import.h"
@@ -243,6 +244,56 @@ TEST(mod_install_finds_each_layout) {
   EXPECT(l.size() == cases.size());
   // The nested one: only its root, not the pack's readme.
   EXPECT(!fs::exists(fs::path(wd) / "mods/Nested/readme.txt") && fs::exists(fs::path(wd) / "mods/Nested/mod.txt"));
+}
+
+// A mod packed as the contents of the game's zbd folder (reader.zbd and c1\ at its top, no zbd folder, no
+// mod.txt; "PM 1.2 Mod - Beta.zip"): what the install's zbd folder holds by the same name, and any .zbd file,
+// lands under zbd, where the game reads it; the rest stays; the written mod.txt says so. With a mod.txt, with
+// no install to tell by, or with nothing the install's zbd folder has, a mod is laid as it is.
+TEST(mod_install_bare_zbd_contents_go_under_zbd) {
+  const std::string wd = tmp("mod_install_bare"), src = tmp("mod_install_bare_src"), inst = tmp("mod_install_bare_inst");
+  put(inst + "/Mech3.exe", "the game");
+  put(inst + "/zbd/reader.zbd", "the game's reader");
+  put(inst + "/zbd/c1/rtexture.zbd", "the game's textures");
+  put(inst + "/zbd/c2/rtexture.zbd", "the game's textures");
+  // An archive the check reads (one that is not is left out of a mod): one entry, named for what it stands for.
+  auto archive = [&](const char* entry) {
+    const std::string path = src + "/made.zbd";
+    zutl_zar::Archive z;
+    zutl_zar::init(z);
+    zutl_zar::create(z, path.c_str());
+    const uint8_t bytes[8] = {4, 0, 0, 0, 1, 0, 0, 0};  // a reader node: an empty list
+    zutl_zar::add(z, entry, bytes, 8);
+    zutl_zar::close(z);
+    zutl_zar::destroy(z);
+    return text_of(path);
+  };
+  const std::string reader = archive("mods_reader.zrd"), textures = archive("mods_textures.zrd"), fresh = archive("new_archive.zrd");
+  const std::vector<Entry> bare = {{"reader.zbd", reader}, {"C1/sounds.zbd", textures}, {"new.zbd", fresh},
+                                   {"C1/note.txt", "in a folder the game has"}, {"readme.txt", "about it"}, {"extras/art.txt", "not the game's"}};
+  mech3::ModAdd a;
+  mech3::ModAddResult r = add(wd, write_zip(src + "/Bare Pack.zip", bare), inst, &a);
+  std::printf("  bare: %s -> %s (%d put under zbd)\n", r.ok ? "ok" : r.message.c_str(), r.folder.c_str(), a.bare_zbd);
+  fs::path at = fs::path(wd) / "mods" / r.folder;
+  EXPECT(r.ok && r.folder == "Bare Pack" && a.bare_zbd == 3);
+  EXPECT(text_of(at / "zbd/reader.zbd") == reader && text_of(at / "zbd/C1/sounds.zbd") == textures && text_of(at / "zbd/new.zbd") == fresh &&
+         text_of(at / "zbd/C1/note.txt") == "in a folder the game has");
+  EXPECT(fs::is_regular_file(at / "readme.txt") && fs::is_regular_file(at / "extras/art.txt") && !fs::exists(at / "reader.zbd"));
+  EXPECT(text_of(at / "mod.txt").find("packed as the contents of the game's zbd folder") != std::string::npos);
+  // With a mod.txt: the author's layout, kept.
+  std::vector<Entry> own = bare;
+  own.push_back({"mod.txt", "name=Own Layout\n"});
+  r = add(wd, write_zip(src + "/own.zip", own), inst, &a);
+  at = fs::path(wd) / "mods" / r.folder;
+  EXPECT(r.ok && a.bare_zbd == 0 && fs::is_regular_file(at / "reader.zbd") && !fs::exists(at / "zbd"));
+  // No install to tell by, and nothing the install's zbd folder has: as it is.
+  r = add(wd, write_zip(src + "/No Install.zip", bare), "", &a);
+  at = fs::path(wd) / "mods" / r.folder;
+  EXPECT(r.ok && a.bare_zbd == 0 && fs::is_regular_file(at / "reader.zbd"));
+  r = add(wd, write_zip(src + "/Other Things.zip", {{"notes/a.txt", "a"}, {"b.txt", "b"}}), inst, &a);
+  at = fs::path(wd) / "mods" / r.folder;
+  EXPECT(r.ok && a.bare_zbd == 0 && fs::is_regular_file(at / "b.txt") && !fs::exists(at / "zbd"));
+  EXPECT(no_staging(wd));
 }
 
 // A whole install: only the files that differ, no programs, nothing of the
