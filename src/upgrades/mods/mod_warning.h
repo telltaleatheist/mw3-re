@@ -18,10 +18,13 @@ namespace mech3 {
 
 struct ModWarning {
   std::string wrong, did, original, fix;
+  // Optional: which one of many in the file ("table entry 3361"), said after the place. Kept out of `wrong` and
+  // `fix` so that the same fault in many items reads the same, and the report says it once for them all.
+  std::string item;
 };
 
 inline std::string mod_warning_line(const std::string& where, const ModWarning& w) {
-  return where + ": " + w.wrong + ". The rebuild: " + w.did + ". The original game: " + (w.original.empty() ? "not known" : w.original) +
+  return where + (w.item.empty() ? "" : " (" + w.item + ")") + ": " + w.wrong + ". The rebuild: " + w.did + ". The original game: " + (w.original.empty() ? "not known" : w.original) +
          "." + (w.fix.empty() ? "" : " To fix it: " + w.fix + ".");
 }
 

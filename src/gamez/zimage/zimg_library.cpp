@@ -222,14 +222,14 @@ Texture* load(Library& lib, const char* name) {
     if (e.offset < table || static_cast<int64_t>(e.offset) >= lib.size) {
       note(lib, name, {item + " puts its data at byte " + std::to_string(e.offset) + ", which is " +
                            (e.offset < table ? "inside the file's own table" : "past the file's end (" + std::to_string(lib.size) + " bytes)"),
-                       "left this texture out", ""});
+                       "leaves this texture out", ""});
       return nullptr;
     }
     std::fseek(lib.file, static_cast<long>(e.offset), SEEK_SET);
     Texture* t = read_texture(lib.file, span_end(lib, e.offset));
     if (!t) {
       note(lib, name, {item + " at byte " + std::to_string(e.offset) + " says a size its data does not fill before the next texture or the file's end",
-                       "left this texture out", ""});
+                       "leaves this texture out", ""});
       return nullptr;
     }
     if (e.palette == -1) return t;
@@ -239,19 +239,22 @@ Texture* load(Library& lib, const char* name) {
     // one, so it is null and the read faults: the original crashes as it loads the texture (test_textures.py runs
     // it). With palettes loaded it would take a stray pointer instead. fixes.md; docs/modding.md, M3.
     if (e.palette < 0 || e.palette >= lib.header.palette_count) {
-      const std::string wrong = item + " names palette " + std::to_string(e.palette) + " of the file, and the file has " +
+      // The entry's number goes in the warning's `item`, not its words: many textures with this one fault then
+      // read the same, and the report says the fault once for them all.
+      const std::string which = "table entry " + std::to_string(i);
+      const std::string wrong = "its table entry names palette " + std::to_string(e.palette) + " of the file, and the file has " +
                                 (lib.header.palette_count ? std::to_string(lib.header.palette_count) : std::string("no")) +
                                 (lib.header.palette_count == 1 ? " palette" : " palettes") +
                                 " (the entry's last 4 bytes; -1, ff ff ff ff, means none)";
-      const char* original = "crashes when it loads this texture: it looks the palette up in a list that is empty, since none of "
-                             "the game's files has palettes";
+      const char* original = "crashes if it ever loads this texture (it loads a texture only when something asks for it by "
+                             "name): it looks the palette up in a list that is empty, since none of the game's files has palettes";
       if (!zfix::options().fixed || (t->flags & kGlobalPalette)) {
-        note(lib, name, {wrong + ", and this texture is drawn through that palette", "left this texture out", original});
+        note(lib, name, {wrong + ", and this texture is drawn through that palette", "leaves this texture out", original, "", which});
         free_texture(t);
         return nullptr;
       }
-      note(lib, name, {wrong + "; the texture needs none", "loaded it without one", original,
-                       "set the last 4 bytes of " + item + " (each entry is 40 bytes) to ff ff ff ff"});
+      note(lib, name, {wrong + "; the texture needs none", "loads it without one", original,
+                       "set the last 4 bytes of its table entry (each entry is 40 bytes) to ff ff ff ff", which});
       return t;
     }
     // The original writes through t unchecked; a failed read would crash there.

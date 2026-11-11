@@ -205,6 +205,35 @@ TEST(mods_check_refuses_only_a_mod_with_nothing_usable) {
          (mech3::mod_sentences(f) == std::vector<std::string>{"It changes nothing in the game.", "Nothing in it is refused."}));
 }
 
+// The same fault in many items of one file (22 textures of a library, each naming a palette that is not there):
+// the item's number is beside its place, not in the fault's words, so the fault and its fix are said once.
+TEST(mods_report_says_one_fault_in_many_items_once) {
+  mech3::ModFindings f;
+  for (int i = 0; i < 3; ++i)
+    f.notes.push_back({"zbd/rmechtex.zbd: texture t" + std::to_string(i),
+                       {"its table entry names palette 0 of the file, and the file has no palettes", "loads it without one",
+                        "crashes if it ever loads this texture (it loads a texture only when something asks for it by name)", "set the last 4 bytes of its table entry to ff ff ff ff",
+                        "table entry " + std::to_string(40 + i)},
+                       mech3::ModWarningGroup::kMayCrash, false});
+  const std::vector<std::string> s = mech3::mod_sentences(f);
+  for (const std::string& l : s) std::printf("  %s\n", l.c_str());
+  const std::vector<std::string> want = {
+      "It changes nothing in the game.",
+      "3 warnings, none of which refuses the mod: 3 work here but may crash the original game.",  // no line about entries: none is about one
+      "",
+      "WHAT WORKS HERE BUT MAY CRASH THE ORIGINAL GAME (3)",
+      "1. zbd/rmechtex.zbd: texture t0 (table entry 40)",
+      "2. zbd/rmechtex.zbd: texture t1 (table entry 41)",
+      "3. zbd/rmechtex.zbd: texture t2 (table entry 42)",
+      "For 1 to 3: wrong: its table entry names palette 0 of the file, and the file has no palettes.",
+      "For 1 to 3: to fix it: set the last 4 bytes of its table entry to ff ff ff ff.",
+      "For 1 to 3: the rebuild: loads it without one.",
+      "For 1 to 3: the original game: crashes if it ever loads this texture (it loads a texture only when something asks for it by name)."};
+  EXPECT(s == want);
+  // The check's own line carries it too, after the place.
+  EXPECT(mech3::mod_warning_line(f.notes[0].where, f.notes[0].w).rfind("zbd/rmechtex.zbd: texture t0 (table entry 40): its table entry names", 0) == 0);
+}
+
 // REPORT's text file (mod_report.h): one a mod in <write dir>/mod-reports, a folder of the game's own making with
 // its marker; replaced each time; nothing written into a folder of that name the game did not make, through a
 // link, or outside the folder.
@@ -253,11 +282,14 @@ TEST(mods_report_file_goes_in_a_marked_folder_of_ours) {
   const std::string mod = root + "/mod";
   fs::create_directories(mod, ec);
   EXPECT(mech3::mod_left_out_read(mod).empty());
-  EXPECT(mech3::mod_left_out_write(mod, {{"zbd/a.zbd: x.zrd", {"a\tb", "left\nout", "", "fix it"}, mech3::ModWarningGroup::kStops, false}}));
+  EXPECT(mech3::mod_left_out_write(mod, {{"zbd/a.zbd: x.zrd", {"a\tb", "left\nout", "", "fix it", "entry 7"}, mech3::ModWarningGroup::kStops, false}}));
+  { std::ofstream more(mod + "/" + mech3::kModLeftOutFile, std::ios::app); more << "zbd/old.zbd\twrong\tdid\t\t\n"; }  // a line of five, as first written
   { std::ofstream more(mod + "/" + mech3::kModLeftOutFile, std::ios::app); more << "junk line\n\tno where\t\t\t\n"; }
   const std::vector<mech3::ModNote> back = mech3::mod_left_out_read(mod);
-  EXPECT(back.size() == 1 && back[0].where == "zbd/a.zbd: x.zrd" && back[0].w.wrong == "a b" && back[0].w.did == "left out" &&
-         back[0].w.original.empty() && back[0].w.fix == "fix it" && back[0].group == mech3::ModWarningGroup::kStops);
+  EXPECT(back.size() == 2 && back[0].where == "zbd/a.zbd: x.zrd" && back[0].w.wrong == "a b" && back[0].w.did == "left out" &&
+         back[0].w.original.empty() && back[0].w.fix == "fix it" && back[0].w.item == "entry 7" &&
+         back[0].group == mech3::ModWarningGroup::kStops);
+  EXPECT(back.size() == 2 && back[1].where == "zbd/old.zbd" && back[1].w.wrong == "wrong" && back[1].w.item.empty());
 }
 
 // Modder step 3 (modding.md, Plain errors on the MODS screen): a mod's check
@@ -270,7 +302,7 @@ TEST(mods_report_says_what_a_mod_does_in_sentences) {
   f.refused = {"mod.txt: it is for mw3pm, not MechWarrior 3"};
   // One warning of each group, given out of the report's order, and a plain note.
   f.notes = {{"zbd/t1/readermp2.zbd: aiv.zrd",
-              {"its list 8 bytes in says 38 items and the entry holds 37", "reads the items", "reads on into the next entry", "its count should be 37"},
+              {"its list 8 bytes into the entry says 38 items and the entry holds 37", "reads the items", "reads on into the next entry", "its count should be 37"},
               mech3::ModWarningGroup::kSlip, false},
              {"zbd/t1/odd.zbd: x.zrd", {"lists nested more than 64 deep", "reads 64", "has no limit", ""}, mech3::ModWarningGroup::kSlip, false},
              {"zbd/t1/readermp8.zbd: aiv.zrd",
@@ -314,7 +346,7 @@ TEST(mods_report_says_what_a_mod_does_in_sentences) {
       // and in a kind, the entries with the very same fault listed, the fault said once
       "SLIPS THAT DO NO HARM (5)",
       "1. zbd/t1/readermp2.zbd: aiv.zrd",
-      "Wrong: its list 8 bytes in says 38 items and the entry holds 37.",
+      "Wrong: its list 8 bytes into the entry says 38 items and the entry holds 37.",
       "To fix it: its count should be 37.",
       "2. zbd/t1/readermp8.zbd: aiv.zrd",
       "3. zbd/t1/readermp9.zbd: aiv.zrd",
