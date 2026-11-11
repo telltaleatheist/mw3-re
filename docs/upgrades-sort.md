@@ -179,6 +179,7 @@ switch it would read instead. Many of them guard fixes this sort puts under
 |---|---|---|
 | A mission without its world, the mission load 0x0048faf0 (lead,… | MW3 | a crash on starting any mission of an operation whose world file is gone |
 | CycleTextureSetOn with no current node, the script dispatcher 0x00591300… | MW3 | a mission whose nodes are missing (its world unread), loaded after another mission, writes into that… |
+| The script's model with no current node, and the three model pointers at a mission's end, 0x00591300 / 0x004eb420 / 0x005964c0 | MW3 | after a failed FindNode in a mission loaded after another, the Object3D model commands write a freed mission's model |
 | A mission load that fails, GameEngine::missions_start after 0x0048faf0 | MW3 | the player is put back at the briefing with no idea why |
 | zImage's release, 0x00517b10 (the SDL host's `image_release`) | MW3 | a second release of a freed image would free it twice |
 | The Action screen's wave, 0x0048a810 (menus.md section 13) | MW3 | the reset asks for the pilot's best wave, 20 once all are won: the row past the table, strings read as mechs… |
