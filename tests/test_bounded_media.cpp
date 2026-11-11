@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "check.h"
+#include "pm_side.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zinterp/zinterp.h"
@@ -101,7 +102,8 @@ size_t texture_bytes(const std::vector<uint8_t>& d, size_t at) {
 // Every texture of every shipped library through the bounded load, the same
 // pixels as the exe's read at its offset.
 TEST(bounded_textures_read_the_shipped_libraries_whole) {
-  const fs::path zbd = fs::path(MW3_GAME_DIR) / "zbd";
+  const TestGame test_game;
+  const fs::path zbd = fs::path(TEST_GAME_DIR) / "zbd";
   std::error_code ec;
   if (!fs::exists(zbd / "rimage.zbd", ec)) return;
   std::vector<fs::path> files;
@@ -133,14 +135,15 @@ TEST(bounded_textures_read_the_shipped_libraries_whole) {
     std::fclose(raw);
   }
   std::printf("  %d libraries, %d textures: %d read whole, %d the same as unbounded\n", libraries, textures, whole, same);
-  EXPECT(libraries == 22 && textures > 10000 && whole == textures && same == textures);
+  EXPECT(libraries == (TEST_IS_PM ? 16 : 22) && textures > 10000 && whole == textures && same == textures);
 }
 
 // A small library (the first textures of c1's rtexture2.zbd, its palettes)
 // cut short, flipped and given huge words: no crash, and a cut-short copy
 // keeps exactly the textures whose bytes it still has.
 TEST(bounded_textures_survive_broken_copies) {
-  const std::string src = std::string(MW3_GAME_DIR) + "/zbd/c1/rtexture2.zbd";
+  const TestGame test_game;
+  const std::string src = std::string(TEST_GAME_DIR) + "/zbd/c1/rtexture2.zbd";
   std::error_code ec;
   if (!fs::exists(src, ec)) return;
   const std::vector<uint8_t> full = slurp(src);
@@ -267,7 +270,8 @@ int sound_through(zutl_zar::Archive& a, platform::SilentSoundOutput& out, const 
 // Every sound of both shipped archives and the loose WAVs: read, unrefused,
 // its buffer its own samples.
 TEST(bounded_sounds_read_the_shipped_archives_whole) {
-  const fs::path zbd = fs::path(MW3_GAME_DIR) / "zbd";
+  const TestGame test_game;
+  const fs::path zbd = fs::path(TEST_GAME_DIR) / "zbd";
   std::error_code ec;
   if (!fs::exists(zbd / "soundsL.zbd", ec)) return;
   platform::SilentSoundOutput out;
@@ -296,7 +300,7 @@ TEST(bounded_sounds_read_the_shipped_archives_whole) {
     loose_ok += zsnd::wave_read_file(w) == 1 && zsnd::wave_broken(w) == nullptr && w.has_format;
   }
   std::printf("  %d archived sounds: %d made, %d their own samples; %d loose WAVs, %d read\n", sounds, made, same, loose, loose_ok);
-  EXPECT(sounds > 500 && made == sounds && same == sounds && loose == 10 && loose_ok == loose);
+  EXPECT(sounds > 500 && made == sounds && same == sounds && loose == (TEST_IS_PM ? 0 : 10) && loose_ok == loose);
   zsnd::hooks() = zsnd::Hooks{};
 }
 
@@ -304,7 +308,8 @@ TEST(bounded_sounds_read_the_shipped_archives_whole) {
 // words: no crash; a cut one whose samples it lost is refused, and every one
 // made holds exactly its wave's samples.
 TEST(bounded_sounds_survive_broken_copies) {
-  const std::string src = std::string(MW3_GAME_DIR) + "/zbd/soundsL.zbd";
+  const TestGame test_game;
+  const std::string src = std::string(TEST_GAME_DIR) + "/zbd/soundsL.zbd";
   std::error_code ec;
   if (!fs::exists(src, ec)) return;
   std::vector<ZarEntry> all = zar_entries(src), pick;
@@ -383,21 +388,23 @@ std::vector<int> script_lines(const std::string& dir, bool bounded, std::vector<
 // Every shipped script: as many lines bounded as the exe's read, its end
 // marker inside its bytes.
 TEST(bounded_interp_reads_the_shipped_scripts_whole) {
-  const std::string zbd = std::string(MW3_GAME_DIR) + "/zbd";
+  const TestGame test_game;
+  const std::string zbd = std::string(TEST_GAME_DIR) + "/zbd";
   std::error_code ec;
   if (!fs::exists(zbd + "/interp.zbd", ec)) return;
   const std::vector<int> bounded = script_lines(zbd, true), plain = script_lines(zbd, false);
   int lines = 0, same = 0;
   for (size_t i = 0; i < bounded.size() && i < plain.size(); ++i) lines += bounded[i], same += bounded[i] == plain[i] && bounded[i] > 0;
   std::printf("  %zu scripts, %d lines: %d scripts the same bounded\n", bounded.size(), lines, same);
-  EXPECT(bounded.size() == 44 && lines == 2504 && bounded.size() == plain.size() && same == static_cast<int>(bounded.size()));
+  EXPECT(bounded.size() == (TEST_IS_PM ? 30u : 44u) && lines == (TEST_IS_PM ? 1990 : 2504) && bounded.size() == plain.size() && same == static_cast<int>(bounded.size()));
 }
 
 // The first ten scripts in an archive of their own, cut short, flipped and
 // given huge words: no crash, and in a cut copy every script whose bytes are
 // all there reads as before.
 TEST(bounded_interp_survives_broken_copies) {
-  const std::string zbd = std::string(MW3_GAME_DIR) + "/zbd";
+  const TestGame test_game;
+  const std::string zbd = std::string(TEST_GAME_DIR) + "/zbd";
   std::error_code ec;
   if (!fs::exists(zbd + "/interp.zbd", ec)) return;
   const std::vector<uint8_t> full = slurp(zbd + "/interp.zbd");
@@ -474,7 +481,8 @@ TEST(bounded_interp_survives_broken_copies) {
 // --check-mod looks inside the libraries, the sounds and the scripts: the
 // shipped copies pass, broken ones are named.
 TEST(bounded_check_mod_reads_textures_sounds_and_scripts) {
-  const std::string zbd = std::string(MW3_GAME_DIR) + "/zbd";
+  const TestGame test_game;
+  const std::string zbd = std::string(TEST_GAME_DIR) + "/zbd";
   std::error_code ec;
   if (!fs::exists(zbd + "/interp.zbd", ec)) return;
   const std::string mod = scratch("bounded_check_mod") + "/m";
@@ -518,6 +526,7 @@ TEST(bounded_check_mod_reads_textures_sounds_and_scripts) {
 // that needs none loads as the same texture with -1 does, one drawn through the palette is left out, each said
 // in the mods' four parts; with the fixes off both are refused. The check gives warnings, never errors.
 TEST(bounded_textures_palette_field_slip) {
+  const TestGame test_game;
   struct Made {
     const char* name;
     int32_t palette;
@@ -594,12 +603,54 @@ TEST(bounded_textures_palette_field_slip) {
   EXPECT(zfix::options().fixed == keep.fixed);
 }
 
+#ifdef MW3PM_GAME_DIR
+#include "pm/gamez/zimage/zimg_texture.h"
+// Pirate's Moon's texture directory (0x00531920; c1's 437 entries of 0x2c bytes): it takes no mip index from
+// the file, so only its count and its length can be wrong. Whole it reads; garbled it reads the same count,
+// every mip null; cut short, or with a count over the table, it is refused.
+TEST(bounded_gamez_texture_directory_pm) {
+  const TestGame test_game;
+  const std::string path = std::string(TEST_GAME_DIR) + "/zbd/c1/gamez.zbd";
+  std::error_code ec;
+  if (!fs::exists(path, ec)) return;
+  const std::vector<uint8_t> full = slurp(path);
+  const int32_t count = static_cast<int32_t>(u32(full, 0xc)), offset = static_cast<int32_t>(u32(full, 0x10));
+  EXPECT(count == 437);
+  const std::vector<uint8_t> dir(full.begin() + offset, full.begin() + offset + count * 0x2c);
+  const std::string tmp = scratch("bounded_texdir_pm") + "/dir";
+  auto read = [&](const std::vector<uint8_t>& d, int n) {
+    spit(tmp, d);
+    std::FILE* f = std::fopen(tmp.c_str(), "rb");
+    const int r = pm::zimg::read_texture_directory(n, f);
+    std::fclose(f);
+    return r;
+  };
+  EXPECT(read(dir, count) == count);
+  std::mt19937 r(1999);
+  int read_ok = 0, null_mips = 0;
+  for (int k = 0; k < 100; ++k) {
+    std::vector<uint8_t> d = dir;
+    for (int n = 1 + r() % 8; n > 0; --n) put32(d, (r() % (d.size() / 4)) * 4, k % 2 ? 0x7fffffffu : r());
+    if (read(d, count) != count) continue;
+    ++read_ok;
+    bool all = true;
+    for (int32_t i = 0; i < count; ++i) all = all && !zimg::textures().entries[i].mip;
+    null_mips += all;
+  }
+  std::vector<uint8_t> cut(dir.begin(), dir.end() - 1);
+  std::printf("  100 garbled directories: %d read, %d with every mip null; one a byte short: %d; a count over the table: %d\n", read_ok,
+              null_mips, read(cut, count), read(dir, zimg::kMaxTextures + 1));
+  EXPECT(read_ok == 100 && null_mips == 100 && read(cut, count) == -1 && read(dir, zimg::kMaxTextures + 1) == -1);
+  zimg::textures().count = 0;
+}
+#else
 // gamez.zbd's texture directory (c1's 553 entries): mip indices made huge,
 // below -1 or one past the table, and bytes flipped: no crash; every
 // directory with an index outside the table refused, the table as it was;
 // every one read has each mip null or a row of the table.
 TEST(bounded_gamez_texture_directory_mips) {
-  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/c1/gamez.zbd";
+  const TestGame test_game;
+  const std::string path = std::string(TEST_GAME_DIR) + "/zbd/c1/gamez.zbd";
   std::error_code ec;
   if (!fs::exists(path, ec)) return;
   const std::vector<uint8_t> full = slurp(path);
@@ -651,3 +702,4 @@ TEST(bounded_gamez_texture_directory_mips) {
   EXPECT(out_of_range > 100 && refused == out_of_range && kept == refused && inside == read_ok);
   zimg::textures().count = 0;
 }
+#endif

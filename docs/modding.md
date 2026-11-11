@@ -1687,6 +1687,16 @@ allocation, where unbounded the run passes 4 GB and is stopped). What the
 anim run later makes of a garbled event stream inside a well-sized blob is
 not checked here.
 
+On Pirate's Moon (branch `pm`, 2026-11-11): the same tests run in `mw3pmtests` on its install and table
+(`tests/pm_side.h`: the installer and folder IMPORT, the bounded readers, textures, sounds and scripts, zReader).
+Its anim reader (`src/pm/gamez/zeffect/zeff_anim_init.cpp`) allocated a def's path list from the file's 32-bit count
+before checking it against the bytes left; a damaged count asked for gigabytes. It is checked first now
+(`bounded_anim_fuzz_never_crashes` did not end without it). Its texture directory takes no mip index from the
+file (`bounded_gamez_texture_directory_pm`). Not on Pirate's Moon: a mod's JSON models (its mech library's loader
+reads the archive only), and the two splices of `bounded_readers_take_more_than_shipped` that cut MechWarrior 3's
+anim and node layouts. A Pirate's Moon motion's entry holds more bytes than its table's length says (the game
+reads to the next entry's start), so a repack that copies only `length` bytes cuts every motion short.
+
 **The texture and image libraries, bounded** (2026-11-02; `rimage.zbd`,
 `rtexture*.zbd`, `rmechtex*.zbd`, one format, not zar archives:
 `zimg_library.cpp`). The table's counts must fit the file (the exe

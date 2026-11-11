@@ -37,6 +37,9 @@ bool read_bytes(std::FILE* f, void* out, uint64_t n) {
 // `count` records of PM's `size` bytes, each put into T by `put`.
 template <typename T, typename Put>
 T* read_list(std::FILE* f, uint32_t count, size_t size, bool* ok, Put put) {
+  // Ours: the count checked against the bytes left before anything is allocated (a path count is 32 bits:
+  // a damaged one asked for gigabytes here).
+  if (!(*ok = fits(f, static_cast<uint64_t>(count) * size))) return nullptr;
   std::vector<uint8_t> buf(count * size);
   if (!(*ok = read_bytes(f, buf.data(), buf.size()))) return nullptr;
   T* out = new T[count]{};

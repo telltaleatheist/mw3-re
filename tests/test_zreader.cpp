@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "check.h"
+#include "pm_side.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd_cd.h"
 #include "gamez/zutil/zutl_zar.h"
@@ -31,6 +32,8 @@ std::string archive(const std::vector<std::pair<std::string, std::string>>& file
     data += body;
   }
   data.append(reinterpret_cast<const char*>(table.data()), table.size() * sizeof(zutl_zar::Entry));
+  // The foot: the version and the count; Pirate's Moon's has version 2 and a checksum after the count.
+  if (TEST_IS_PM) return data + Bytes().u32(2).u32(static_cast<uint32_t>(table.size())).u32(0).b;
   return data + Bytes().u32(1).u32(static_cast<uint32_t>(table.size())).b;
 }
 
@@ -59,6 +62,7 @@ struct Archives {
 }  // namespace
 
 TEST(zreader_reads_nodes_and_typed_values) {
+  const TestGame test_game;
   Archives guard;
   std::string path = write_temp("a.zbd", archive({{"other.zrd", Bytes().list(0).b}, {"mech.zrd", sample()}}));
   EXPECT(zrdr::open_archive(path.c_str(), true));
@@ -85,6 +89,7 @@ TEST(zreader_reads_nodes_and_typed_values) {
 }
 
 TEST(zreader_find_keeps_original_quirks) {
+  const TestGame test_game;
   Archives guard;
   std::string path = write_temp("b.zbd", archive({{"q.zrd", sample()}}));
   zrdr::open_archive(path.c_str(), true);
@@ -111,6 +116,7 @@ TEST(zreader_find_keeps_original_quirks) {
 }
 
 TEST(zreader_archives_searched_in_open_order) {
+  const TestGame test_game;
   Archives guard;
   std::string p1 = write_temp("c1.zbd", archive({{"x.zrd", Bytes().list(1).i(1).b}}));
   std::string p2 = write_temp("c2.zbd", archive({{"x.zrd", Bytes().list(1).i(2).b}, {"y.zrd", Bytes().list(1).i(3).b}}));
@@ -128,7 +134,8 @@ TEST(zreader_archives_searched_in_open_order) {
 }
 
 TEST(zreader_cd_tracks_from_the_real_reader_zbd) {
-  std::string path = std::string(MW3_GAME_DIR) + "/zbd/reader.zbd";
+  const TestGame test_game;
+  std::string path = std::string(TEST_GAME_DIR) + "/zbd/reader.zbd";
   if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
     std::fclose(f);
   } else {
@@ -137,7 +144,8 @@ TEST(zreader_cd_tracks_from_the_real_reader_zbd) {
   }
   Archives guard;
   EXPECT(zrdr::open_archive(path.c_str(), true));
-  EXPECT(zrdr::state().current && zrdr::state().current->count == 178);
+  std::printf("  reader.zbd: %d entries\n", zrdr::state().current ? zrdr::state().current->count : -1);
+  EXPECT(zrdr::state().current && zrdr::state().current->count == (TEST_IS_PM ? 198 : 178));
   zrdr::Node* sounds = zrdr::load("sounds.zrd");
   EXPECT(sounds != nullptr);
   if (!sounds) return;

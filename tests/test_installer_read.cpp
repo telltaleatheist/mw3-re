@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "check.h"
+#include "pm_side.h"
 #include "mech3/mod_install.h"
 #include "upgrades/mods/bz2_read.h"
 #include "upgrades/mods/installer_read.h"
@@ -158,7 +159,7 @@ Made sample() {
              {"Game Folder\\zbd\\reader.txt", bytes_of("the mod's reader")},
              {"Game Folder\\zbd\\c1\\gamez.txt", bytes_of("abc")},
              {"Game Folder\\zbd\\c1\\New.txt", bz2_fixture_text(), 2},
-             {"Game Folder\\zbd\\c4b\\m5.txt", bytes_of("a mission only MechWarrior 3 has")},
+             {std::string("Game Folder\\") + (TEST_IS_PM ? "zbd\\c1\\readersa1.txt" : "zbd\\c4b\\m5.txt"), bytes_of("a file only this game has")},
              {"Game Folder\\extras\\", {}},
              {"Outside\\other.txt", bytes_of("beside the game's folder")}};
   return m;
@@ -410,7 +411,7 @@ void build_install(const std::string& inst) {
   put_file(inst + "/Mech3.exe", "the game");
   put_file(inst + "/zbd/reader.txt", "the reader");
   put_file(inst + "/zbd/c1/gamez.txt", "abc");  // the same as the installer's
-  put_file(inst + "/zbd/c4b/m5.txt", "a mission only MechWarrior 3 has");
+  put_file(inst + "/" + TEST_ONLY_OURS, "a file only this game has");
   put_file(inst + "/video/intro.avi", "a movie");
 }
 }  // namespace
@@ -452,7 +453,7 @@ TEST(import_installer_takes_what_differs) {
   mech3::ImportFolder f = mech3::import_installer_prepare(wd, path, inst, {}, [&](int, int total) { ++calls, last_total = total; });
   std::printf("  %s\n", mech3::import_folder_report(f).c_str());
   EXPECT(f.install && f.installer && f.error.empty() && f.taken == 2 && f.same == 2 && f.programs == 4 && f.other == 2 && f.own == 0);
-  EXPECT(f.msg_dll && f.nested == 1 && f.game == mech3::ModGame::kMw3 && f.title == "A Made-up Mod");
+  EXPECT(f.msg_dll && f.nested == 1 && f.game == (TEST_IS_PM ? mech3::ModGame::kPm : mech3::ModGame::kMw3) && f.title == "A Made-up Mod");
   EXPECT(calls == 5 && last_total == 4);  // the four it had to unpack to compare, and the end
   EXPECT(mech3::import_folder_report(f) ==
          "Took 2 files from the installer that differ from your install; left 2 the same; the program and its dlls are not part of a "
@@ -470,16 +471,16 @@ TEST(import_installer_refusals_and_case) {
   build_install(inst);
   auto run = [&](Made m, const char* name = "x.exe") {
     std::string report = "x";
-    const mech3::ModAddDone d = mech3::import_folder_run(wd, write_file(dir + "/" + name, m.build()), inst, nullptr, nullptr, &report);
+    const mech3::ModAddDone d = mech3::import_folder_run(wd, write_file(dir + "/" + name, m.build()), inst, [](const std::string&) { return TEST_OUR_ANSWER; }, nullptr, &report);
     EXPECT(d.ok || report.empty());
     return d;
   };
   Made pm;
   pm.folder = "C:\\MicroProse";
-  pm.files = {{"MechWarrior 3 Pirate's Moon\\zbd\\c1\\readersa1.txt", bytes_of("pm's")}};
+  pm.files = {{std::string("The Other Game\\") + (TEST_IS_PM ? "zbd\\c4b\\m5.txt" : "zbd\\c1\\readersa1.txt"), bytes_of("the other's")}};
   mech3::ModAddDone d = run(pm);
   std::printf("  other game: %s\n", d.message.c_str());
-  EXPECT(!d.ok && d.message == "Not added: that installer is for Pirate's Moon, and yours is MechWarrior 3.");
+  EXPECT(!d.ok && d.message == std::string("Not added: that installer is for ") + TEST_THEIR_NAME + ", and yours is " + TEST_OUR_NAME + ".");
   Made same;
   same.files = {{"zbd\\c1\\gamez.txt", bytes_of("abc")}, {"Mech3.exe", bytes_of("another exe")}};
   d = run(same);
