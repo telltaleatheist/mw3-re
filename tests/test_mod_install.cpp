@@ -328,6 +328,31 @@ TEST(mod_install_real_mod_env) {
   EXPECT(no_staging(wd));
 }
 
+// A mod without a mod.txt gets one when it is added, and its for= is the game's own word for itself (mods_game:
+// "mw3", "mw3pm"), the one mod.txt's reader takes. It was written "pm" for Pirate's Moon, which that game's own
+// check then refused ("it is for pm, not Pirate's Moon"): no mod laid over Pirate's Moon's files could be added.
+TEST(mod_install_writes_the_games_own_word_in_mod_txt) {
+  const std::string wd = tmp("mod_tag_wd"), src = tmp("mod_tag_src");
+  const std::string was = mech3::mods_game();
+  for (const char* game : {"mw3pm", "mw3"}) {
+    mech3::mods_game() = game;
+    const bool pm = std::string(game) == "mw3pm";
+    const std::string zip = write_zip(src + "/" + game + ".zip", {{"zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n"}});
+    mech3::ModAdd a = mech3::mod_add_prepare(wd, zip, "");
+    EXPECT(a.error.empty() && !a.has_mod_txt);
+    const mech3::ModAddResult r = mech3::mod_add_finish(wd, a, pm ? mech3::ModGame::kPm : mech3::ModGame::kMw3, "");
+    std::printf("  %s: %s\n", game, r.ok ? r.folder.c_str() : r.message.c_str());
+    EXPECT(r.ok && r.check_errors == 0 && r.info.error.empty() && r.info.game == game);
+    if (r.ok) EXPECT(text_of(fs::path(wd) / "mods" / r.folder / "mod.txt").find(std::string("\nfor=") + game + "\n") != std::string::npos);
+    // and the other game's program refuses it by name
+    mech3::mods_game() = pm ? "mw3" : "mw3pm";
+    mech3::ModInfo other;
+    if (r.ok) EXPECT(!mech3::mod_parse(text_of(fs::path(wd) / "mods" / r.folder / "mod.txt"), &other) &&
+                     other.error == std::string("it is for ") + game + ", not " + (pm ? "MechWarrior 3" : "Pirate's Moon"));
+  }
+  mech3::mods_game() = was;
+}
+
 // EXPORT and IMPORT (docs/modding.md, IMPORT and EXPORT): a mod with JSON
 // folders exported, nothing but its own files in the zip, and the zip taken
 // back as the same mod; one changed, added to or cut short refused by its
@@ -441,8 +466,8 @@ TEST(mod_export_packs_checked_and_with_its_mod_txt) {
   put(bad / "zbd/a.txt", "a");
   mech3::ModExportResult r = mech3::mod_export(bad.string(), out + "/bad.zip", "", true);
   std::printf("  checked: %s\n", r.message.c_str());
-  EXPECT(r.ok && r.refused == 1 && !r.made_mod_txt && fs::exists(out + "/bad.zip"));
-  EXPECT(r.message.find("The game would refuse 1 thing in it; its report says what.") != std::string::npos);
+  EXPECT(r.ok && r.refused == 0 && r.warnings == 1 && !r.made_mod_txt && fs::exists(out + "/bad.zip"));
+  EXPECT(r.message.find("The check has 1 warning about it; its report says what.") != std::string::npos);
   r = mech3::mod_export(bad.string(), out + "/bad2.zip");  // unchecked: as before
   EXPECT(r.ok && r.refused == -1 && r.message.find("refuse") == std::string::npos);
   // Laid out as an install, no mod.txt.

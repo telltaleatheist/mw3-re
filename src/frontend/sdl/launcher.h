@@ -26,11 +26,15 @@ struct LauncherOptions {
   bool fullscreen = true;
   bool sound = true;  // the main menu's rollover and select sounds from the install (off with --nosound)
   int win_w = 1280, win_h = 720;  // 16:9, as the canvas
+  // The window's size from the program's --window, when one was given: else
+  // the 16:9 above (Owen, 2026-11-10: 16:9 everywhere by default), not the
+  // game's own 4:3 default, which letterboxed the canvas.
+  void window_from(bool given, int w, int h) {
+    if (given && w > 0 && h > 0) win_w = w, win_h = h;
+  }
   // For checking (--launcher-shot FILE [--launcher-screen main|setup|pick|work|notes|disc]):
   // the screen drawn once into FILE (a BMP of the 640x480 canvas), no window shown.
   std::string shot, screen = "main";
-  std::string pick;  // --launcher-pick PATH: with --launcher-screen mods, IMPORT run on PATH before the shot
-  std::string save_pick;  // --launcher-save-pick PATH: EXPORT's save box answered with PATH
   // A plain mw3 start that found no install (docs/games-layout.md): the find
   // screen alone, straight on into the game once there is one.
   bool setup_only = false;
@@ -63,14 +67,5 @@ struct LauncherChoice {
 };
 
 LauncherChoice run_launcher(const LauncherOptions& o);
-
-// The MODS screen's game (docs/launcher.md, Mods): the settings folder whose
-// mods\ and mw3.cfg it lists and writes, and the game a mod.txt's for= must
-// name. MechWarrior 3's, or with `pm` Pirate's Moon's (its own settings
-// folder, `pm_write_dir` once found; for=mw3pm).
-struct ModsTarget {
-  std::string write_dir, game;
-};
-ModsTarget mods_target(const LauncherOptions& o, bool pm);
 
 }  // namespace sdlfe

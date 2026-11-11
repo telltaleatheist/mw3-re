@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "mech3/lance_armor.h"
@@ -60,6 +61,16 @@ class Engine : public zgame::AppHooks {
   // picked in the menus applies to them at the next start.
   int32_t menu_vmode();
   int32_t menu_vmode_ = -1;
+  // Ours: an ACCEPT that may change the menus' mode (GRAPHICS' resolution,
+  // UPGRADES' wide menus). From the main menu the menus are made again in the
+  // new shape at once: the screens above the main menu's are popped and its
+  // state replaced by itself (as after a game; MainState::enter takes the flag
+  // and sets the mode between the old screens, freed by its leave, and the new).
+  // From a mission's pause the screens stay as made: the menus after the
+  // mission take it (resolution.md section 12).
+  void menu_mode_picked();
+  bool take_menu_reshape() { return std::exchange(menu_reshape_, false); }
+  bool menu_reshape_ = false;
   virtual float mouse_accel_x();
   virtual float mouse_accel_y();
 
@@ -215,6 +226,11 @@ class Engine : public zgame::AppHooks {
   // Ours: the game's message box with our own text (no message id; the
   // lobby's mods check). The answer as message_box's.
   virtual uint32_t message_box_plain(int32_t a, int32_t caption, const std::string& text) {
+    (void)a, (void)caption, (void)text;
+    return 1;
+  }
+  // Ours: the same with a caption of our own words (Instant Action's pilot offer, upgrades/mods/ia_mods_menu.h).
+  virtual uint32_t message_box_words(int32_t a, const std::string& caption, const std::string& text) {
     (void)a, (void)caption, (void)text;
     return 1;
   }

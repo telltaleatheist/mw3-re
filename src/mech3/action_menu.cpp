@@ -7,6 +7,7 @@
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "upgrades/mods/ia_mods_menu.h"
 #include "mech3/mech_config.h"
 #include "mech3/pilot.h"
 #include "mech3/player.h"
@@ -276,6 +277,14 @@ ActionScreen::ActionScreen(Engine& e, Handle s)
       c.hide();
     }
     bind_button(&waves, "ENEMY_WAVE");
+    if (ia_mods_page()) {  // ours
+      mods_tab = std::make_unique<ModsTab>(e);
+      if (bind_button(&mods_tab->btn, "IAMODS")) {
+        mods_text_put(mods_tab->line, "ia_dark_grey", 504, 175);
+        add(&mods_tab->line);
+        mods_text_say(mods_tab->line, ia_mods_line(mods_menu_write_dir()));
+      }
+    }
   }
   for (int32_t i = 0; i < 4; ++i) worlds.add_item(e.message(0xe33 + i), i);  // c1..c4
   // Ours: the worlds mods add (ia_world= in mod.txt, docs/modding.md), after them.
@@ -302,6 +311,10 @@ void ActionScreen::on_button(int32_t id, int32_t a, int32_t b) {
     engine().pop_state(1);
   } else if (id == 4) {
     accept();
+  } else if (id == 5) {  // ours: MODS, its screen over this one (upgrades/mods/ia_mods_menu.h)
+    Engine& e = engine();
+    if (!ia_mods_state()) ia_mods_state() = e.construct(kIaModsStateCtor, {});
+    if (ia_mods_state()) keep_lineup(), e.push_state(ia_mods_state(), 0);
   }
   dirty_all();
 }
@@ -385,6 +398,11 @@ void ActionScreen::show_custom() {
 // the kept choice ([0x00605820]) replaces it when there is one.
 void ActionScreen::reset() {
   Engine& e = engine();
+  if (mods_tab) {  // ours: the line as this run stands, said in the log as the screen opens
+    const std::string line = ia_mods_line(mods_menu_write_dir());
+    mods_text_say(mods_tab->line, line);
+    std::printf("mw3: Instant Action open, %s, %d maps\n", line.c_str(), worlds.count());
+  }
   const ActionSetup& k = action_setup();
   GameSlot* slot = player_slot();
   worlds.select(k.g874 < worlds.count() ? k.g874 : 0);  // ours: a mod's world kept by a pilot, the mod since gone

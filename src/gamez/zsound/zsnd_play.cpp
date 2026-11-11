@@ -331,7 +331,7 @@ int32_t stop_snapshot(Snapshot* l) {
 // it stopped (the exe replays every voice of the sound, finished ones from the start).
 int32_t resume_snapshot(Snapshot* l) {
   const float delta = state().master() - l->front().master;
-  if (zfix::options().bugs) {
+  if (zfix::options().fixed) {
     std::vector<Voice*> done;
     for (auto it = std::next(l->begin()); it != l->end(); ++it) {
       if (!it->voice || std::find(done.begin(), done.end(), it->voice) != done.end()) continue;

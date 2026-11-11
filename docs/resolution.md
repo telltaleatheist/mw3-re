@@ -512,10 +512,46 @@ at 16:9), else 5. The shape, not the size: the original's modes up to 10
 (1600x1200) draw the 2D at full size and are 4:3, and a size test alone
 would have put the menus on a 1600x1200 canvas
 (`menus_wide_by_default_at_16_9_only`). Tests that pin the 4:3 menus'
-places set it off (`mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless`). It is chosen once, at the start-up: the screens
+places set it off (`mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless`). It is kept once chosen (`menu_vmode_`): the screens
 are laid out when they are made (an OptionsState makes its screen in its
-constructor), so a mode picked in the graphics options reaches the menus at
-the next start, not screens already made for another width.
+constructor), so screens already made stay at their width.
+
+A mode picked in the menus takes hold in them at once (2026-11-10, playtest
+1.1.0 item 3; until then it reached the menus at the next start, and Owen,
+going from a saved 4:3 mode to 1920x1080, saw 4:3 menus still). GRAPHICS'
+ACCEPT and UPGRADES' ACCEPT (WIDE MENUS) call `Engine::menu_mode_picked`: it
+forgets the kept mode, and if the menus' mode is now another and the stack's
+bottom is the Main State, queues the pops that bring the stack down to it
+(the depth less the pops already queued, ACCEPT's own) and then
+`replace_state(2)`, the exe's own way back to the main menu after a game.
+A replace swaps the top state only, so the pops matter: with them it is the
+Main State that is replaced by itself, its leave freeing the main screen and
+all the menu objects, and its enter, taking the flag, setting the screen
+mode between the old screens and the new, then making them through the same
+constructors and `widen_screen`. (The first version, 2026-11-10 morning,
+queued the replace alone: it swapped OPTIONS' state for a second Main State
+on top of the first, which was never left, so each change left the old
+screens alive and the stack one deeper, full at the fifteenth. Fixed the
+same day; the test now checks the depth and the live screens.) So the player is on the
+main menu in the new shape, not back in OPTIONS; with the menus' mode
+unchanged ACCEPT goes back as the exe does. No screen carries anything
+across: ACCEPT has written the settings by then. From a mission's pause
+(the stack's bottom is not the Main State) only the kept mode is forgotten:
+the pause's option screens stay as made, and the menus after the mission
+take the new mode in CoreState::leave. Inside a MODS campaign entry
+(entry_run.h) the same replace makes the main menu's state open the entry's
+screen again, once, the entry not left; no entry's screen offers OPTIONS
+today. Tests: `menus_take_a_picked_mode_at_once_headless` (5 to 5, to 13, to
+14, wide menus off and on, to 5, then twenty more changes; OPTIONS opened
+after each; after every step the stack's depth is 0 and the screens and menu
+objects alive are as many as at the start; then with another state at the
+stack's bottom nothing is queued) and
+`menus_take_a_picked_mode_inside_an_entry_headless`.
+
+The live screens' count found one more thing: the multiplayer state's
+destructor (0x0049ca00, which deletes the three screens its constructor
+makes) had not been ported, so those three stayed each time the Main State
+was left, after every mission too. Ported (`GameMenuState::~GameMenuState`).
 
 `GameEngine::widen_screen` (app_menus.cpp) runs on each menu screen as it is
 made, except the pause screen (it keeps the dialog origin, section 9):

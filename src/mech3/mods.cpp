@@ -119,6 +119,8 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     }
     else if (upgrades::reference::key_is(key, "conflicts") && !value.empty()) out->conflicts.push_back(value);
     else if (upgrades::reference::key_is(key, "game_version")) out->game_version = value;
+    else if (upgrades::reference::key_is(key, "kind")) out->kind = value;
+    else if (upgrades::reference::key_is(key, "base")) out->base = value;
     else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -550,6 +552,8 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
       int errors = 0;
       e.report = mod_report(e.info.path, install, e.info.folder, &errors);
       e.check_errors = errors;
+      e.check_warnings = 0;
+      for (const std::string& l : e.report) e.check_warnings += l.rfind("Wrong: ", 0) == 0;
     }
   return out;
 }
@@ -678,8 +682,11 @@ std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text
 namespace {
 // --check-mod's look inside a texture or image library (rimage, rtexture*,
 // rmechtex*): its table, then every texture through the bounded load (M3).
+// Findings are warnings in the mods' one form, never errors (a texture left out shows as missing; the rest of
+// the library and the mod are used); a library whose table does not read is left out of the mod, said.
 void check_texture_library(const std::string& host, const std::string& rel, int* entries,
-                           const std::function<void(const std::string&)>& error) {
+                           const std::function<void(const std::string&, const ModWarning&, bool)>& warn,
+                           const std::function<void(const std::string&, const std::string&)>& leave) {
   const zimg::State saved = zimg::state();
   zimg::state() = zimg::State{};
   const std::string folder = fs::path(host).parent_path().string() + "/";
@@ -687,14 +694,18 @@ void check_texture_library(const std::string& host, const std::string& rel, int*
   zimg::Library lib{};
   std::snprintf(lib.name, sizeof lib.name, "%s", fs::path(host).filename().string().c_str());
   if (!zimg::open(lib) || !lib.entries) {
-    error(rel + ": not a texture library the game can read (its table)");
+    leave(rel, "it is not a texture library the game can read (its table of names)");
   } else {
     for (int i = 0; i < lib.header.texture_count; ++i) {
       ++*entries;
       char name[32];
       std::memcpy(name, lib.entries[i].name, sizeof name);
-      if (zimg::Texture* t = zimg::load(lib, name)) zimg::free_texture(t);
-      else error(rel + ": texture " + name + " cannot be read");
+      name[sizeof name - 1] = 0;
+      zimg::Texture* t = zimg::load(lib, name);
+      for (const ModWarning& note : zimg::load_notes()) warn(rel + ": texture " + name, note, t == nullptr);
+      if (t) zimg::free_texture(t);
+      else if (zimg::load_notes().empty())
+        warn(rel + ": texture " + name, {"it cannot be read", "leaves this texture out", "", ""}, true);
     }
   }
   zimg::close(lib);
@@ -705,11 +716,12 @@ void check_texture_library(const std::string& host, const std::string& rel, int*
 
 // interp.zbd: its directory, then every script's lines within its bytes.
 void check_interp(const std::string& host, const std::string& rel, int* entries,
-                  const std::function<void(const std::string&)>& error) {
+                  const std::function<void(const std::string&)>& leave,
+                  const std::function<void(const std::string&, const std::string&, const std::string&)>& item) {
   zint::Interp in;
   in.search_path = fs::path(host).parent_path().string();
   if (!zint::open_archive(in, fs::path(host).filename().string().c_str())) {
-    error(rel + ": not a script archive the game can read (its header or directory)");
+    leave("not a script archive the game can read (its header or directory)");
     return;
   }
   std::vector<char> buf(0x1000);
@@ -718,7 +730,8 @@ void check_interp(const std::string& host, const std::string& rel, int* entries,
     const std::string name = in.dir[i].name;
     zint::ScriptFile* f = zint::archive_find(in, name.c_str());
     if (!f) {
-      error(rel + ": script " + name + " cannot be read (its offset)");
+      item(rel + ": script " + name, "its place in the file is past the file's end",
+           "this script is treated as not there; the rest of the file is used");
       continue;
     }
     in.binary = 1;
@@ -726,11 +739,19 @@ void check_interp(const std::string& host, const std::string& rel, int* entries,
       std::free(in.line);
       in.line = nullptr;
     }
-    if (f->cut) error(rel + ": script " + name + " has a line past its end");
+    if (f->cut) item(rel + ": script " + name, "a line of it runs past the script's end", "the script is read up to that line");
   }
   std::fclose(in.archive.f);
   in.archive.f = nullptr;
 }
+}  // namespace
+
+namespace {
+const char* const kLeavesOut = "IMPORT leaves this file out; the game's own, if it has one, is used";
+const char* const kNoModTxt = "has no mod.txt (mods are the rebuild's own)";
+const char* const kOurKind = "does not read this kind of file (it is the rebuild's own)";
+const char* const kEntryInstead = "this file is not read; an archive's entry of that name is used";
+const char* const kArchiveInstead = "this file is not read; the archive's entry is used";
 }  // namespace
 
 std::vector<std::string> mod_check(const std::string& dir, const std::string& install, int* errors, ModFindings* facts) {
@@ -740,7 +761,28 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
   ModFindings& fx = facts ? *facts : ignored_facts;
   fx = ModFindings{};
   fx.against_install = !install.empty();
+  // An error is the mod's fault as a whole, and the only thing that refuses it: no folder, a mod.txt that cannot
+  // be read or is another game's, nothing in it usable. One file's or one line's fault is a warning in four
+  // parts (mod_warning.h): that file or line left out or partly read, the rest of the mod used (Owen, 2026-11-11).
   auto error = [&](const std::string& what) { out.push_back("error: " + what), ++*errors, fx.refused.push_back(what); };
+  int usable_rows = 0;
+  auto warn = [&](const std::string& where, const ModWarning& w, bool left_out) {
+    out.push_back("warning: " + mod_warning_line(where, w));
+    fx.notes.push_back({where, w, mod_warning_group(w, left_out), false});
+  };
+  // A line of mod.txt the game cannot use: left out, as the mount leaves it out.
+  auto row = [&](const std::string& where, const std::string& wrong) {
+    warn(where, {wrong, "this line of mod.txt is left out and the rest of the mod is used", kNoModTxt, ""}, true);
+  };
+  // A file the game cannot use at all: IMPORT leaves it out of the copy it adds.
+  auto leave = [&](const std::string& rel, const std::string& wrong, const std::string& original = "") {
+    warn(rel, {wrong, kLeavesOut, original, ""}, true);
+    if (std::find(fx.unread_files.begin(), fx.unread_files.end(), rel) == fx.unread_files.end()) fx.unread_files.push_back(rel);
+  };
+  // One thing in a file (a sound, a script): that one is not used, the rest of the file is.
+  auto item = [&](const std::string& where, const std::string& wrong, const std::string& did) { warn(where, {wrong, did, "", ""}, true); };
+  // One of the rebuild's own kinds (JSON, a zip, loose text): not read, what it stood in for used.
+  auto ours = [&](const std::string& where, const std::string& wrong, const std::string& did) { warn(where, {wrong, did, kOurKind, ""}, true); };
   std::error_code ec;
   if (!fs::is_directory(dir, ec)) {
     error(dir + " is no folder");
@@ -760,32 +802,33 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     else error("mod.txt: " + m.error);
   }
   for (const std::string& w : m.worlds) {
-    if (mission_dir_index(w.c_str()) >= 0) error("world " + w + ": there is a world " + w + " already");
+    if (mission_dir_index(w.c_str()) >= 0) row("world " + w, "there is a world " + w + " already");
     else if (w.find_first_of("/\\. ") != std::string::npos || !mod_world_file(dir, w))
-      error("world " + w + ": no zbd/" + w + "/gamez.zbd");
+      row("world " + w, "no zbd/" + w + "/gamez.zbd");
     else if (!fs::is_regular_file(fs::path(dir) / (w + ".gs"), ec))
-      error("world " + w + ": no " + w + ".gs (its build script) at the mod's root");
-    else out.push_back("world " + w + ": ok"), fx.worlds.push_back(w);
+      warn("world " + w, {"no " + w + ".gs (its build script) at the mod's root",
+                          "the world is listed, but no mission on it can load until that file is there", kNoModTxt, ""}, true);
+    else out.push_back("world " + w + ": ok"), fx.worlds.push_back(w), ++usable_rows;
   }
   for (const auto& [folder, name] : m.ia_worlds) {
     const bool own = std::find(m.worlds.begin(), m.worlds.end(), folder) != m.worlds.end();
-    if (!own && mission_dir_index(folder.c_str()) < 0) error("ia_world " + folder + ": no such world");
-    else out.push_back("ia_world " + folder + " \"" + (name.empty() ? folder : name) + "\": ok"), fx.ia_worlds.push_back(name.empty() ? folder : name);
+    if (!own && mission_dir_index(folder.c_str()) < 0) row("ia_world " + folder, "no such world");
+    else ++usable_rows, out.push_back("ia_world " + folder + " \"" + (name.empty() ? folder : name) + "\": ok"), fx.ia_worlds.push_back(name.empty() ? folder : name);
   }
   std::vector<std::string> ids;
   for (const std::string& file : m.campaigns) {
     ModCampaign c;
     if (!campaign_load(dir, fs::path(dir).filename().string(), file, &c)) {
-      error("campaign " + file + ": " + c.error);
+      row("campaign " + file, c.error);
       continue;
     }
     if (std::find(ids.begin(), ids.end(), lower(c.id)) != ids.end()) {
-      error("campaign " + file + ": the mod has a campaign " + c.id + " already");
+      row("campaign " + file, "the mod has a campaign " + c.id + " already");
       continue;
     }
     ids.push_back(lower(c.id));
     out.push_back("campaign " + file + " \"" + c.name + "\": " + std::to_string(c.missions.size()) + " missions");
-    fx.campaigns.push_back(c.name);
+    fx.campaigns.push_back(c.name), ++usable_rows;
     // Each world the mod's own or the game's; another mod's is known only when mounted.
     for (const CampaignMission& cm : c.missions) {
       const bool own = std::find(m.worlds.begin(), m.worlds.end(), cm.world) != m.worlds.end() &&
@@ -800,22 +843,22 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
   for (const std::string& line : m.mechs) {
     ModMech r;
     std::string why;
-    if (!mech_row_parse(line, &r, &why)) error("mech " + line + ": " + why);
-    else if (mech_index(r.name.c_str()) >= 0) error("mech " + r.name + ": there is a mech " + r.name + " already");
+    if (!mech_row_parse(line, &r, &why)) row("mech " + line, why);
+    else if (mech_index(r.name.c_str()) >= 0) row("mech " + r.name, "there is a mech " + r.name + " already");
     else if (const std::string miss = install.empty() ? "" : mech_row_missing(r, {dir, install}); !miss.empty())
-      error("mech " + r.name + ": " + miss + " (the mod's, else the install's)");
+      row("mech " + r.name, miss + " (the mod's, else the install's)");
     else
-      fx.mechs.push_back(r.name), out.push_back("mech " + r.name + ": ok, " + std::to_string(r.mass) + " t, the models of " + r.model +
+      ++usable_rows, fx.mechs.push_back(r.name), out.push_back("mech " + r.name + ": ok, " + std::to_string(r.mass) + " t, the models of " + r.model +
                     (fs::is_regular_file(fs::path(dir) / "zbd" / ("dfn_" + r.name + ".zrd"), ec) ? ", its zbd/dfn_" + r.name + ".zrd"
                                                                                                   : ", its dfn_" + r.name + ".zrd from a reader archive"));
   }
   for (const std::string& line : m.weapons) {
     ModWeapon r;
     std::string why;
-    if (!weapon_row_parse(line, &r, &why)) error("weapon " + line + ": " + why);
+    if (!weapon_row_parse(line, &r, &why)) row("weapon " + line, why);
     else if (weapon_index(r.name.c_str()) >= 0 || crt::msvc_stricmp(r.name.c_str(), "PPC") == 0)
-      error("weapon " + r.name + ": there is a weapon " + r.name + " already");
-    else out.push_back("weapon " + r.name + ": ok, its definition from the mod's weapons.zrd"), fx.weapons.push_back(r.name);
+      row("weapon " + r.name, "there is a weapon " + r.name + " already");
+    else out.push_back("weapon " + r.name + ": ok, its definition from the mod's weapons.zrd"), fx.weapons.push_back(r.name), ++usable_rows;
   }
   // Every file.
   std::vector<std::string> files;
@@ -846,20 +889,20 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         name.rfind("texture", 0) == 0 || name.rfind("mechtex", 0) == 0) {
       if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zbd") == 0) {
         ++archives;
-        check_texture_library(host, rel, &entries, error);
+        check_texture_library(host, rel, &entries, warn, [&](const std::string& r, const std::string& w) { leave(r, w); });
         continue;
       }
     }
     if (name == "interp.zbd") {
       ++archives;
-      check_interp(host, rel, &entries, error);
+      check_interp(host, rel, &entries, [&](const std::string& wrong) { leave(rel, wrong); }, item);
       continue;
     }
     if (name == "gamez.zbd") {  // a world, not an archive: its header (the rest needs the world up)
       zcls::ZbdHeader h;
       std::FILE* f = zcls::open_zbd(host.c_str(), &h);
       if (f) std::fclose(f);
-      else error(rel + ": not a world the game can read (its signature or version)");
+      else leave(rel, "not a world the game can read (its signature or version)");
       continue;
     }
     if (name == "anim.zbd") {  // a world's animations: the read (its binding needs the world)
@@ -867,7 +910,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       zeff::anim_allow_loading(1);
       zeff::anim().host_path = host;  // a folder anywhere: 0x005090f0's 127 would refuse a long one
       zeff::anim_read_zbd();
-      if (zeff::anim().defs == nullptr && zeff::anim().def_count() == 0) error(rel + ": its animations cannot be read");
+      if (zeff::anim().defs == nullptr && zeff::anim().def_count() == 0) leave(rel, "its animations cannot be read");
       else out.push_back("  " + std::to_string(zeff::anim().def_count()) + " animations read (bound to the world in play)");
       zeff::anim_free_all();
       zeff::anim() = zeff::AnimState{};
@@ -877,7 +920,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       zutl_zar::Archive a;
       zutl_zar::init(a);
       if (!zutl_zar::open(a, host.c_str())) {
-        error(rel + ": not an archive the game can read (its table)");
+        leave(rel, "not an archive the game can read (its table)");
         zutl_zar::destroy(a);
         continue;
       }
@@ -891,12 +934,12 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         zcls::MechLib lib;
         zutl_zar::init(lib.archive);
         if (!zcls::mechlib_open(lib, host.c_str()) || lib.materials.empty()) {
-          error(rel + ": its version, format or materials cannot be read");
+          leave(rel, "its version, format or materials cannot be read");
         } else {
           for (const std::string& e : names) {
             if (e == "version" || e == "format" || e == "materials") continue;
             ++entries;
-            if (!zcls::mechlib_load(lib, e.c_str())) error(rel + ": model " + e + " cannot be read");
+            if (!zcls::mechlib_load(lib, e.c_str())) leave(rel, "its model " + e + " cannot be read");
           }
         }
         zcls::mechlib_close(lib);
@@ -907,12 +950,12 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
           for (const std::string& e : names) {
             ++entries;
             zsis::Script sc;
-            if (!load_motion(sc, e.c_str())) error(rel + ": motion " + e + " cannot be read");
+            if (!load_motion(sc, e.c_str())) leave(rel, "its motion " + e + " cannot be read");
             script_free_parts(sc);
           }
           close_motions();
         } else {
-          error(rel + ": the motion archive cannot be opened");
+          leave(rel, "the motion archive cannot be opened");
         }
         continue;
       }
@@ -924,7 +967,8 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
             ++entries;
             zsnd::Wave w;
             w.path = e;
-            if (!zsnd::wave_read_archive(w, sa)) error(rel + ": sound " + e + " cannot be read");
+            if (!zsnd::wave_read_archive(w, sa))
+              item(rel + ": sound " + e, "it cannot be read as a sound", "this sound is not played; the rest of the file is used");
           }
         }
         zutl_zar::destroy(sa);
@@ -937,22 +981,32 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       }
       zrdr::init();
       if (!zrdr::open_archive(host.c_str(), true)) {
-        error(rel + ": the reader cannot open it");
+        leave(rel, "the reader cannot open it");
         continue;
       }
       for (const std::string& e : names) {
         ++entries;
-        if (zrdr::Node* n = zrdr::load(e.c_str())) zrdr::free_node(n);
-        else error(rel + ": entry " + e + " cannot be read");
+        zrdr::Node* n = zrdr::load(e.c_str());
+        // What a hand-edited entry has wrong, in the reader's plain words: for the mod's maker, never a refusal.
+        if (n) {
+          for (const ModWarning& note : zrdr::load_notes()) warn(rel + ": " + e, note, false);
+          zrdr::free_node(n);
+        } else {
+          // Nothing of the entry reads: the map or mission it belongs to would not load, so IMPORT leaves the file out.
+          ModWarning note = zrdr::load_notes().empty() ? ModWarning{"it cannot be read", "", "", ""} : zrdr::load_notes().front();
+          note.did = std::string("nothing of the entry can be read, so ") + kLeavesOut;
+          warn(rel + ": " + e, note, true);
+          if (std::find(fx.unread_files.begin(), fx.unread_files.end(), rel) == fx.unread_files.end()) fx.unread_files.push_back(rel);
+        }
       }
       zrdr::close_archives(true);
     } else if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zrd") == 0) {
       zrdr::init();
       std::string why;
       if (std::FILE* t = std::fopen(host.c_str(), "rb")) why = zrdr::text_error(t), std::fclose(t);
-      if (!why.empty()) error(rel + ": " + why + " (not read; an archive's entry of that name is)");
+      if (!why.empty()) ours(rel, why, kEntryInstead);
       else if (zrdr::Node* n = zrdr::load(host.c_str())) zrdr::free_node(n);
-      else error(rel + ": not a text .zrd the reader can read");
+      else ours(rel, "not a text .zrd the reader can read", kEntryInstead);
     } else if (name == "metadata.json" && low.size() > 20 && low.compare(low.size() - 20, 20, "/gamez/metadata.json") == 0) {
       // a world as unzbd's JSON: its five files read whole, as the game reads them
       const std::string folder = host.substr(0, host.size() - std::strlen("metadata.json"));
@@ -965,12 +1019,13 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         t << in.rdbuf();
         return t.str();
       };
-      if (!zcls::gamez_from_json(file, &zbd, &why)) error(rel.substr(0, rel.size() - std::strlen("metadata.json")) + ": " + why + " (not read; the gamez.zbd is)");
+      if (!zcls::gamez_from_json(file, &zbd, &why))
+        ours(rel.substr(0, rel.size() - std::strlen("metadata.json")), why, "this world's JSON is not read; the gamez.zbd is used");
       else out.push_back("  its world read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
     } else if (name == "gamez.zip") {
       zutl_zip::Zip z;
       if (!z.open(host)) {
-        error(rel + ": not a zip the game can read (its world not read; the gamez.zbd is)");
+        ours(rel, "not a zip the game can read", "the world in it is not read; the gamez.zbd is used");
         continue;
       }
       const auto file = [&](const std::string& n) {
@@ -986,12 +1041,12 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       std::vector<uint8_t> zbd;
       std::string why;
       ++entries;
-      if (!zcls::gamez_from_json(file, &zbd, &why)) error(rel + ": " + why + " (not read; the gamez.zbd is)");
+      if (!zcls::gamez_from_json(file, &zbd, &why)) ours(rel, why, "the world in it is not read; the gamez.zbd is used");
       else out.push_back("  its world read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
     } else if (anim_defs::is_node_file(rel)) {  // a def's own node (modding.md, step 4): its tree and materials read
       ++entries;
       std::string why;
-      if (!anim_defs::node_file_reads(host, &why)) error(rel + ": " + why + " (this node left out, and the defs on it)");
+      if (!anim_defs::node_file_reads(host, &why)) ours(rel, why, "this node is left out, and the animations on it");
       else out.push_back("  a node of its own for its animations, read in a world that has none of that name");
     } else if (std::string world; anim_defs::is_def_file(dir, rel, &world)) {
       // one animation (modding.md, Animations a def at a time): read alone, as the merge reads it
@@ -1006,7 +1061,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       std::vector<uint8_t> def;
       std::string key, why;
       if (!zeff::anim_def_from_json(file(fs::path(host).filename().string()), file, &def, &key, &why))
-        error(rel + ": " + why + " (this animation left out)");
+        ours(rel, why, "this animation is left out");
       else
         out.push_back("  the animation " + key + " for " + (world.empty() ? std::string("every world") : world) +
                       ": replaces the world's of that name, else added (" + std::to_string(def.size()) + " bytes)");
@@ -1022,12 +1077,13 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         t << in.rdbuf();
         return t.str();
       };
-      if (!zeff::anim_from_json(file, &zbd, nullptr, &why)) error(rel.substr(0, rel.size() - std::strlen("metadata.json")) + ": " + why + " (not read; the anim.zbd is)");
+      if (!zeff::anim_from_json(file, &zbd, nullptr, &why))
+        ours(rel.substr(0, rel.size() - std::strlen("metadata.json")), why, "these animations' JSON is not read; the anim.zbd is used");
       else out.push_back("  its animations read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
     } else if (name == "anim.zip") {
       zutl_zip::Zip z;
       if (!z.open(host)) {
-        error(rel + ": not a zip the game can read (its animations not read; the anim.zbd's are)");
+        ours(rel, "not a zip the game can read", "the animations in it are not read; the anim.zbd's are used");
         continue;
       }
       std::map<std::string, const zutl_zip::Zip::Entry*> by_name;
@@ -1047,7 +1103,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       std::vector<uint8_t> zbd;
       std::string why;
       ++entries;
-      if (!zeff::anim_from_json(file, &zbd, nullptr, &why)) error(rel + ": " + why + " (not read; the anim.zbd is)");
+      if (!zeff::anim_from_json(file, &zbd, nullptr, &why)) ours(rel, why, "the animations in it are not read; the anim.zbd's are used");
       else out.push_back("  its animations read from unzbd's JSON (" + std::to_string(zbd.size()) + " bytes)");
     } else if (low.rfind("zbd/mechlib/", 0) == 0 && name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0) {  // mechlib's
       std::ifstream in(host, std::ios::binary);
@@ -1058,11 +1114,11 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       ++entries;
       const bool ok = name == "materials.json" ? zcls::mechlib_materials_from_json(text.str(), &entry, &why)
                                                : zcls::mechlib_model_from_json(text.str(), &entry, &why);
-      if (!ok) error(rel + ": " + why + " (not read; the archive's entry is)");
+      if (!ok) ours(rel, why, kArchiveInstead);
     } else if (low == "zbd/mechlib.zip") {
       zutl_zip::Zip z;
       if (!z.open(host)) {
-        error(rel + ": not a zip the game can read (its entries not read; the archive's are)");
+        ours(rel, "not a zip the game can read", "what is in it is not read; the archive's entries are used");
         continue;
       }
       for (const zutl_zip::Zip::Entry& e : z.entries) {
@@ -1075,7 +1131,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         const std::string text = z.read(e, &data, &why) ? std::string(data.begin(), data.end()) : std::string();
         const bool ok = !text.empty() && (lower == "materials.json" ? zcls::mechlib_materials_from_json(text, &entry, &why)
                                                                      : zcls::mechlib_model_from_json(text, &entry, &why));
-        if (!ok) error(rel + ":" + e.name + ": " + why + " (not read; the archive's entry is)");
+        if (!ok) ours(rel + ":" + e.name, why, kArchiveInstead);
       }
     } else if (low.rfind("zbd/motion/", 0) == 0 && name.size() > 5 && name.compare(name.size() - 5, 5, ".json") == 0) {  // a motion as unzbd's JSON
       std::ifstream in(host, std::ios::binary);
@@ -1084,11 +1140,11 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       std::string why;
       std::vector<uint8_t> entry;
       ++entries;
-      if (!zsis::motion_from_json(text.str(), &entry, &why)) error(rel + ": " + why + " (not read; the archive's motion is)");
+      if (!zsis::motion_from_json(text.str(), &entry, &why)) ours(rel, why, "this file is not read; the archive's motion is used");
     } else if (low == "zbd/motion.zip") {
       zutl_zip::Zip z;
       if (!z.open(host)) {
-        error(rel + ": not a zip the game can read (its motions not read; the archive's are)");
+        ours(rel, "not a zip the game can read", "the motions in it are not read; the archive's are used");
         continue;
       }
       for (const zutl_zip::Zip::Entry& e : z.entries) {
@@ -1097,7 +1153,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         std::vector<uint8_t> data, entry;
         std::string why;
         if (!(z.read(e, &data, &why) && zsis::motion_from_json(std::string(data.begin(), data.end()), &entry, &why)))
-          error(rel + ":" + e.name + ": " + why + " (not read; the archive's motion is)");
+          ours(rel + ":" + e.name, why, "this file is not read; the archive's motion is used");
       }
     } else if (name.size() > 9 && name.compare(name.size() - 9, 9, ".zrd.json") == 0) {  // mech3ax's JSON, beside its archive
       std::ifstream in(host, std::ios::binary);
@@ -1106,11 +1162,11 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       std::string why;
       ++entries;
       if (zrdr::Node* n = zrdr::parse_json(text.str(), &why)) zrdr::free_node(n);
-      else error(rel + ": " + why + " (not read; an archive's entry of that name is)");
+      else ours(rel, why, kEntryInstead);
     } else if (name.rfind("reader", 0) == 0 && name.size() > 4 && name.compare(name.size() - 4, 4, ".zip") == 0) {
       zutl_zip::Zip z;
       if (!z.open(host)) {
-        error(rel + ": not a zip the game can read (its entries not read; the archive's are)");
+        ours(rel, "not a zip the game can read", "what is in it is not read; the archive's entries are used");
         continue;
       }
       for (const zutl_zip::Zip::Entry& e : z.entries) {
@@ -1120,7 +1176,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         std::string why;
         zrdr::Node* n = z.read(e, &data, &why) ? zrdr::parse_json(std::string(data.begin(), data.end()), &why) : nullptr;
         if (n) zrdr::free_node(n);
-        else error(rel + ":" + e.name + ": " + why + " (not read; an archive's entry of that name is)");
+        else ours(rel + ":" + e.name, why, kEntryInstead);
       }
     }
   }
@@ -1132,11 +1188,29 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     std::map<int32_t, std::string> text;
     for (const std::string& l : mods_apply_strings(text, {})) out.push_back(l.rfind("  ", 0) == 0 ? "warning:" + l.substr(1) : l);
     zutl::mounts() = saved;
+    ++usable_rows;
   }
-  for (const std::string& l : out)
-    if (l.rfind("warning: ", 0) == 0) fx.warnings.push_back(l.substr(9));
+  // What IMPORT left out of this copy when it added it (its record, in the mod's folder), said again.
+  const std::vector<ModNote> before = mod_left_out_read(dir);
+  for (const ModNote& n : before) warn(n.where, n.w, true);
+  // Nothing of it usable: every file and line left out. The mod's fault as a whole.
+  const int gone = static_cast<int>(fx.unread_files.size());
+  if ((gone > 0 || !before.empty() || !fx.notes.empty()) && fx.files - gone <= 0 && usable_rows == 0 && *errors == 0)
+    error("the mod: nothing in it can be used (every file and line of it is left out)");
+  // The plain warnings (a campaign's world not there, strings.txt's lines) are notes too, in the check's order.
+  {
+    size_t at = 0;
+    std::vector<ModNote> all;
+    for (const std::string& l : out) {
+      if (l.rfind("warning: ", 0) != 0) continue;
+      fx.warnings.push_back(l.substr(9));
+      if (at < fx.notes.size() && l == "warning: " + mod_warning_line(fx.notes[at].where, fx.notes[at].w)) all.push_back(fx.notes[at++]);
+      else all.push_back({"", {l.substr(9), "", "", ""}, ModWarningGroup::kSlip, true});
+    }
+    fx.notes = all;
+  }
   out.push_back(std::to_string(files.size()) + " files, " + std::to_string(archives) + " archives, " + std::to_string(entries) +
-                " reader entries checked; " + std::to_string(*errors) + " errors");
+                " reader entries checked; " + std::to_string(*errors) + " errors, " + std::to_string(fx.notes.size()) + (fx.notes.size() == 1 ? " warning" : " warnings"));
   return out;
 }
 

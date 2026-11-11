@@ -231,6 +231,7 @@ add_library(mw3core STATIC
   src/upgrades/editor/help_vehicles.cpp
   src/upgrades/editor/help_weapons.cpp
   src/upgrades/editor/mods_edit.cpp
+  src/upgrades/editor/save_as.cpp
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp
   src/upgrades/editor/new_weapon.cpp
@@ -330,9 +331,21 @@ add_library(mw3core STATIC
   src/upgrades/mods/mod_export.cpp
   src/upgrades/mods/anim_defs.cpp
   src/upgrades/mods/save_mods.cpp
+  src/upgrades/mods/import_folder.cpp
+  src/upgrades/mods/bz2_read.cpp
+  src/upgrades/mods/installer_read.cpp
+  src/upgrades/settings/upgrades.cpp
   src/upgrades/mods/mod_report.cpp
   src/upgrades/mods/mod_test.cpp
   src/upgrades/mods/mod_needs.cpp
+  src/upgrades/mods/campaign_entries.cpp
+  src/upgrades/mods/entry_pilot_copy.cpp
+  src/upgrades/mods/entry_run.cpp
+  src/upgrades/mods/mods_delete.cpp
+  src/upgrades/mods/marked_remove.cpp
+  src/upgrades/mods/entry_pilots.cpp
+  src/upgrades/mods/mods_tick_list.cpp
+  src/upgrades/mods/ia_mods_menu.cpp
   src/upgrades/mods/starter_mods.cpp
   src/upgrades/update/update.cpp
   src/upgrades/reference/reference.cpp
@@ -542,6 +555,7 @@ add_library(mw3probe SHARED
   tests/probe_veh_stealth.cpp
   tests/probe_veh_dock.cpp
   tests/probe_veh_waynet.cpp
+  tests/probe_bz2.cpp
   tests/probe_mech_repair.cpp
   tests/probe_mech_repair_store.cpp
   tests/probe_field_cut.cpp
@@ -612,9 +626,16 @@ add_executable(mw3tests
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
   tests/test_mod_install.cpp
+  tests/test_import_folder.cpp
+  tests/test_installer_read.cpp
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
+  tests/test_campaign_entries.cpp
+  tests/test_mods_delete.cpp
+  tests/test_entry_pilot_copy.cpp
+  tests/test_mod_copy_report.cpp
   tests/test_net_save.cpp
+  tests/test_save_entry.cpp
   tests/test_new_weapon.cpp
   tests/test_teleport.cpp
   tests/test_bounded_readers.cpp
@@ -652,6 +673,7 @@ if(SDL3_FOUND)
     src/frontend/sdl/net_enet.cpp
     src/frontend/sdl/net_upnp.cpp
     src/frontend/sdl/sdl_child.cpp
+    src/frontend/sdl/log_start.cpp
     src/frontend/sdl/editor_imgui.cpp
   )
   target_link_libraries(mw3sdl PUBLIC mw3core SDL3::SDL3 enet miniupnpc)
@@ -739,6 +761,8 @@ if(SDL3_FOUND)
     endif()
     add_executable(mw3
       src/frontend/sdl/mw3_main.cpp
+      src/frontend/sdl/sdl_restart.cpp
+      src/frontend/sdl/win_cmdline.cpp
       src/frontend/sdl/run_log.cpp
       src/frontend/sdl/crash_report.cpp
       src/frontend/sdl/launcher.cpp
@@ -825,7 +849,11 @@ if(SDL3_FOUND)
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
+      tests/test_win_cmdline.cpp
+      tests/test_log_start.cpp
       src/frontend/sdl/sdl_update.cpp
+      src/frontend/sdl/sdl_restart.cpp
+      src/frontend/sdl/win_cmdline.cpp
       tests/test_net_enet.cpp
       tests/test_net_upnp.cpp
     )

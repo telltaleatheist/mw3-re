@@ -149,7 +149,7 @@ bool Pilot::write_header() {
 // Two pilot names name the same file: without case (ASCII and the
 // Windows-1252 letters) when the fix is on, else byte for byte (strncmp, 64).
 bool same_name(const char* a, const char* b) {
-  if (!zfix::options().bugs) return std::strncmp(a, b, 0x40) == 0;
+  if (!zfix::options().fixed) return std::strncmp(a, b, 0x40) == 0;
   auto fold = [](unsigned char c) -> unsigned char {
     if ((c >= 'A' && c <= 'Z') || (c >= 0xc0 && c <= 0xde && c != 0xd7)) return static_cast<unsigned char>(c + 0x20);
     return c;
@@ -217,7 +217,7 @@ bool Pilot::write() {
 bool Pilot::rename(const char* n) {
   if (std::strcmp(n, name) == 0) return true;
   // FIX (bug): the exe renamed onto another pilot's name, sharing its file.
-  if (zfix::options().bugs) {
+  if (zfix::options().fixed) {
     Pilot* other = find_pilot(n);
     if (other && other != this) return false;
   }
@@ -266,12 +266,12 @@ bool Pilot::select_campaign(int32_t i) {
 // settled, without `next`) filed among the saved ones, replacing one of the
 // same mission when the player says so (message 0xfb3), and made current;
 // then the pilot saved. True when there is no next game: the campaign is over.
-// FIX (bug), behind `bugs`: the exe wrote the next game's world (zSave, in
+// FIX (bug), behind `fixed`: the exe wrote the next game's world (zSave, in
 // next_mission) before asking, so No kept the old entry over the new world;
 // here the world is written once filed, and not on No (fixes.md).
 bool Pilot::record_mission(bool next) {
   if (!current || current->type() != kCampaign) return false;
-  const bool fix = zfix::options().bugs;
+  const bool fix = zfix::options().fixed;
   CampaignGame* g = static_cast<CampaignGame*>(current)->next_mission(next, !fix);
   if (g && g != current) {
     const int32_t m = g->mission, op = g->campaign;

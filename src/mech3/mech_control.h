@@ -229,7 +229,7 @@ struct ControlsCalls {
 };
 ControlsCalls& controls_calls();
 
-// Ours (W56, FIX (bug) behind `bugs` and zfix's throttle_reverse; fixes.md):
+// Ours (W56, FIX (bug) behind `fixed` and zfix's throttle_reverse; fixes.md):
 // a stick's throttle lever over the mech's whole range, full reverse at one
 // end to full ahead at the other. Stop sits at kLeverStop of the travel, as
 // reverse runs at 0.6 of the speed (Gait 0x004181c0): a kph is the same

@@ -88,6 +88,9 @@ bool read_table(Archive& a) {
   return true;
 }
 
+// Ours (zReader's bound): the table sits at the file's end, 0x94 bytes an entry, then the version and the count.
+long data_end(const Archive& a) { return a.file ? file_size(a.file) - 8 - static_cast<long>(a.count) * 0x94 : 0; }
+
 // Mech3.exe 1.2 @ 0x00576690: grows to at least count + 1, doubling.
 void reserve(Archive& a, int count) {
   if (a.capacity <= count) {

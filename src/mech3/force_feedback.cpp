@@ -73,7 +73,7 @@ ForceFeedback::ForceFeedback(platform::ForceDevice* dev) {
   water_fx = make("water", dev);
   impact_land = make("impact_land", dev);
   i_fall = make("i_fall", dev);
-  if (!i_fall && zfix::options().bugs) i_fall = make("impact_fall", dev);
+  if (!i_fall && zfix::options().fixed) i_fall = make("impact_fall", dev);
 }
 
 // Mech3.exe 1.2 @ 0x004333f0 (IFReleaseEffects each, the project's release)

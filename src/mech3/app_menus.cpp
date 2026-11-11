@@ -17,6 +17,7 @@
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zimage/zimg_library.h"
+#include "upgrades/settings/upgrades.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
 #include "mech3/mission_map.h"
@@ -36,6 +37,7 @@
 #include "mech3/mission.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/mods/ia_mods_menu.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/options_menu.h"
 #include "mech3/pause_menu.h"
@@ -193,7 +195,8 @@ const std::vector<ScreenGroups>& screen_groups() {
       {0x486260, {{0, 0, 330, 480, kLeft}, {380, 330, 640, 480, kRight}}},
       // Ours: the MODS screen, the pilot screen's groups; its tabs along the
       // bottom (EDITOR, ADD MOD, ADD FOLDER, MODS FOLDER) kept together at the left.
-      {kModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
+      {kModsScreenCtor, {{0, 430, 480, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
+      {kIaModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
       {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
@@ -433,6 +436,10 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return screen(sizeof(ModsScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new ModsScreen(e, s); });
     case kModsStateCtor:
       return state([](Handle h) -> MenuState* { return new ModsState(h); });
+    case kIaModsScreenCtor:  // ours: Instant Action's MODS
+      return screen(sizeof(IaModsScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new IaModsScreen(e, s); });
+    case kIaModsStateCtor:
+      return state([](Handle h) -> MenuState* { return new IaModsState(h); });
     case 0x42a590: {  // the controls screen, new(0x16c94): its popups' states sit at its offsets
       const Handle h = alloc_block(0x16c94);
       screens_[h] = {nullptr, 0x16c94};
@@ -608,6 +615,8 @@ void GameEngine::delete_screens() {
     MenuState* st = menu_states_.begin()->second;
     menu_states_.erase(menu_states_.begin());
     st->screen_ = 0;
+    if (auto* g = dynamic_cast<GameMenuState*>(st))  // (its destructor deletes its own three: 0x0049ca00)
+      for (Handle& s : g->screens) s = 0;
     delete st;
   }
   // A screen's own popups go with it (their states delete them).
@@ -1012,9 +1021,9 @@ void GameEngine::win_keep_scores(Handle screen, int32_t n) {
   if (!d || !c) return Engine::win_keep_scores(screen, n);
   // n is the campaign's slots, at most the lance's four cards (+0x13be4 has
   // four). The exe writes every card's number, 0 for a card without a
-  // record line. FIX (bug), behind `bugs`: a card without one keeps the
+  // record line. FIX (bug), behind `fixed`: a card without one keeps the
   // record, else a lancemate not on that card loses their career kills.
-  const bool fix = zfix::options().bugs;
+  const bool fix = zfix::options().fixed;
   for (int32_t i = 0; i < n && i < 4; ++i)
     if (!fix || d->lance_scored[i]) c->b4[i] = d->lance_scores[i];
   c->c4 = d->score;
@@ -1394,6 +1403,7 @@ void GameEngine::network_set(int32_t on) {
   znet::shutdown();
   if (p_.network_close) p_.network_close();
   app().lobby_ = 0, app().field_1a4_ = 0;
+  upgrades::give_back();  // ours: a joiner's own switches again (the lobby took the host's)
   network_on_ = false;
 }
 

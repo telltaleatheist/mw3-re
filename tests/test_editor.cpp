@@ -194,7 +194,18 @@ TEST(game_editor_frame_lights_the_row_and_calls_it) {
 // (the placeholder's, 0 0 0, for a net with no file here); Save Changes says
 // where it saved, or why not; Exit Net Editor frees it, back to the main menu;
 // New Net is sitting 4's.
+// The registry without what the process already holds, for a test that reads the editor's lists of every net:
+// the AI's formation net (made once a process, at the first brain's ask, id from 10000; the exe makes it at
+// start-up) and any region an earlier test loaded are in the registry and so in those lists, as in play. Out
+// for the test, back after it.
+struct OwnNetsOnly {
+  std::list<znet::Object*> held;
+  OwnNetsOnly() { held.swap(znet::registry().list); }
+  ~OwnNetsOnly() { znet::registry().list.splice(znet::registry().list.end(), held); }
+};
+
 TEST(game_editor_net_dialog_and_menu) {
+  const OwnNetsOnly own;
   Stub h;
   mech3::editor_reset();
   mech3::set_editor_hooks(&h);
@@ -701,6 +712,7 @@ mech3::FormField* field_named(mech3::VehicleEditor* e, const char* label) { retu
 }  // namespace
 
 TEST(vehicle_editor_pages_show_and_take_back) {
+  const OwnNetsOnly own;
   mech3::ai::aiv_file_reset();
   mech3::ai::AiNet net7(7), net3(3);
   PageStub h;

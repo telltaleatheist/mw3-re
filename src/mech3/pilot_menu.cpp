@@ -1,5 +1,11 @@
 #include "mech3/pilot_menu.h"
 
+#include <algorithm>
+#include <vector>
+
+#include <cstdio>
+#include "upgrades/mods/entry_pilots.h"
+
 #include <cstring>
 #include <string>
 
@@ -17,6 +23,11 @@ void set_current(Engine& e, Pilot* p) {
 }
 
 PilotScreen* screen_of(ztwod::Layer* owner) { return dynamic_cast<PilotScreen*>(owner); }
+// Ours: the pilot screens there are (pilot_screens_forget_pilots).
+std::vector<PilotScreen*>& live_screens() {
+  static std::vector<PilotScreen*> s;
+  return s;
+}
 
 // The render target from zVideo's buffers (0x00558290), as the other menus'.
 void target_buffers(Engine& e) {
@@ -48,6 +59,12 @@ void PilotList::select(int32_t index) {
   FileList::select(index);
   Pilot* p = nullptr;
   if (index >= 0 && index < item_count()) p = find_pilot(items[static_cast<size_t>(index)]->text);
+  // Ours (upgrades/mods/entry_pilots.h): a main-menu pilot's row picked by the player is brought across now,
+  // so its games are listed; the list's own first selection brings nothing.
+  if (!p && s && !s->listing && index >= 0 && index < item_count() && entry_is_main_pilot(items[static_cast<size_t>(index)]->text)) {
+    const std::string name = items[static_cast<size_t>(index)]->text;
+    if (s->bring(name)) return;  // listed again with it chosen
+  }
   if (s) s->choose(p);
 }
 
@@ -191,12 +208,20 @@ PilotScreen::PilotScreen(Engine& e, Handle s)
   rename_bar.hide();
   set_active(1);
   chosen = nullptr;
+  live_screens().push_back(this);  // ours
   load_pilots();
   refresh(false, nullptr);
 }
 
 // Mech3.exe 1.2 @ 0x004878b0
-PilotScreen::~PilotScreen() { delete_other_pilots(); }
+PilotScreen::~PilotScreen() {
+  live_screens().erase(std::remove(live_screens().begin(), live_screens().end(), this), live_screens().end());  // ours
+  delete_other_pilots();
+}
+
+void pilot_screens_forget_pilots() {
+  for (PilotScreen* s : live_screens()) s->chosen = nullptr;
+}
 
 // Mech3.exe 1.2 @ 0x00488170: Delete deletes the chosen pilot, Ctrl+R renames it.
 void PilotScreen::update(float dt) {
@@ -220,6 +245,7 @@ void PilotScreen::on_button(int32_t id, int32_t a, int32_t b) {
       break;
     case 0x18:  // ACCEPT: the chosen pilot goes on (2)
       finish_edits();
+      if (!chosen && main_row_chosen()) bring(pilots.items[static_cast<size_t>(pilots.selected)]->text);  // ours: picked
       if (chosen) {
         set_current(engine(), chosen);
         engine().pop_state(2);
@@ -230,6 +256,11 @@ void PilotScreen::on_button(int32_t id, int32_t a, int32_t b) {
       delete_chosen();
       break;
     case 0x1a:  // RENAME
+      if (!editing() && main_row_chosen()) {  // ours: not this entry's to rename
+        engine().message_box_words(0, "Pilots", std::string(pilots.items[static_cast<size_t>(pilots.selected)]->text) +
+                                                    " is the main game's pilot. It can be deleted or renamed from the main menu.");
+        break;
+      }
       if (!editing()) rename(true, false);
       break;
     default: break;
@@ -290,6 +321,9 @@ void PilotScreen::rename(bool start, bool cancel) {
 void PilotScreen::delete_chosen() {
   Pilot* p = chosen;
   cursor_obj.erase();
+  if (!p && main_row_chosen())  // ours: not this entry's to delete
+    engine().message_box_words(0, "Pilots", std::string(pilots.items[static_cast<size_t>(pilots.selected)]->text) +
+                                                " is the main game's pilot. It can be deleted or renamed from the main menu.");
   if (!p) return;
   if (engine().message_box1(1, 0x1e0, 0xf26, p->name) != 1) return;
   delete_pilot(p->name);
@@ -312,8 +346,32 @@ void PilotScreen::choose(Pilot* p) {
   if (chosen) {
     chosen->select_game(mode);
     fill_games();
+  } else if (main_row_chosen()) {  // ours: nothing of it is read until it is picked
+    games.show_for(-1.0f);
+    games.add_item("From the main game", 0);
+    games.layout();
   }
   new_bar.set_text("");
+}
+
+// Ours (upgrades/mods/entry_pilots.h).
+bool PilotScreen::main_row_chosen() const {
+  const int32_t i = pilots.selected;
+  return i >= 0 && i < pilots.item_count() && !find_pilot(pilots.items[static_cast<size_t>(i)]->text) &&
+         entry_is_main_pilot(pilots.items[static_cast<size_t>(i)]->text);
+}
+
+Pilot* PilotScreen::bring(const std::string& name) {
+  std::string why;
+  Pilot* p = entry_bring_pilot(name, &why);
+  if (!p) {
+    std::printf("mw3: pilot %s could not be brought from the main game: %s\n", name.c_str(), why.c_str());
+    engine().message_box_words(0, "Pilots", name + " could not be brought from the main game: " + why + ".");
+    return nullptr;
+  }
+  refresh(false, p);
+  std::printf("mw3: pilot %s picked on the pilot screen: %d games listed\n", p->name, games.item_count());
+  return p;
 }
 
 // Mech3.exe 1.2 @ 0x004882b0. The campaign's saves (the newest chosen), the
@@ -392,7 +450,10 @@ void PilotScreen::refresh(bool focus_new, Pilot* p) {
     const int32_t i = pilots.add_item(q->name, 0);  // FIX (A): the exe's value is the pilot's address (unread)
     if (q == p) row = i;
   }
+  for (const std::string& name : entry_main_pilots()) pilots.add_item(name.c_str(), 0);  // ours: the main menu's, by name only
+  listing = true;  // the list's own selection picks nothing (entry_pilots.h)
   pilots.select(row);
+  listing = false;
   if (chosen && mode == kTraining) {
     games.hide();
     show_lists();
@@ -499,6 +560,19 @@ GameMenuState::GameMenuState(Kind k, Handle addr) : MenuState(name_of(k), addr),
     screens[1] = en.construct(0x495f90, {addr});  // new(0x1505c)
     screens[2] = en.construct(0x49bd80, {addr});  // new(0x11f3c)
   }
+}
+
+// Mech3.exe 1.2 @ 0x0049ca00, the multiplayer state's destructor (0x0049c9e0 the deleting one): the three
+// screens its constructor made are deleted (+0x1c, +0x20, +0x24, each vt+0x08(1)) and +0x0c, whichever of them
+// was shown, cleared before the shell's own (0x0048eb80). (Until 2026-11-10 the port had no such destructor, so
+// the three screens stayed each time the main menu's state was left: after every mission.)
+GameMenuState::~GameMenuState() {
+  if (kind != kMultiplayer) return;
+  for (Handle& s : screens) {
+    if (s) e().vcall(s, 0x08, {1});
+    s = 0;
+  }
+  screen_ = 0;
 }
 
 // Mech3.exe 1.2 @ 0x0048a750, 0x0048afd0, 0x0048b140, 0x0049cab0

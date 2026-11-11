@@ -33,7 +33,7 @@ namespace {
 // The whole probe library tests the original path: the zfix fixes off.
 // MW3_FPU53=1 keeps the 53-bit rounding, to compare with the original run at
 // full precision (MW3_X87=64).
-const bool g_fixes_off = (zfix::options().per_second = false, zfix::options().bugs = false,
+const bool g_fixes_off = (zfix::options().per_second = false, zfix::set_all(false),
                           zfix::options().any_resolution = false,
                           zfix::options().nested_lock = false,
                           zfix::options().fpu53 = std::getenv("MW3_FPU53") && *std::getenv("MW3_FPU53") == '1', true);
@@ -155,6 +155,22 @@ int probe_zrdr_load(const char* path, long offset) {
   std::fclose(f);
   g_probe_loaded = true;
   return n;
+}
+
+// One entry of an archive through zrdr::load, the game's way (the archive's own data its only bound): 1 with the
+// tree loaded, 0 when the entry is not read (broken or not there), -1 when the archive does not open.
+int probe_zrdr_load_entry(const char* archive, const char* name) {
+  if (g_probe_loaded) zrdr::free_contents(&g_probe_root);
+  g_probe_loaded = false;
+  zrdr::init();
+  if (!zrdr::open_archive(archive, true)) return -1;
+  zrdr::Node* root = zrdr::load(name);
+  zrdr::close_archives(true);
+  if (!root) return 0;
+  g_probe_root = *root;
+  std::free(root);
+  g_probe_loaded = true;
+  return 1;
 }
 
 int probe_zrdr_dump(char* buf, int size) {
@@ -1151,7 +1167,7 @@ extern "C" {
 int g_anim_fix = 0;
 void probe_anim_fix(int on) { g_anim_fix = on; }
 // The port's play-changing fixes on or off (zfix bugs), for a test's fixed path.
-void probe_set_bugs(int on) { zfix::options().bugs = on != 0; }
+void probe_set_bugs(int on) { zfix::set_all(on != 0); }
 
 // After probe_anim: def i's prerequisite count | the count to meet << 8, and
 // its entries' types (the FIX (bug) case in test_anim.py).
@@ -1177,15 +1193,15 @@ int probe_anim(const char* world, const char* path, int fail_at, int full, uint8
   g_reports.clear();
   zeff::anim() = zeff::AnimState{};
   zeff::anim().fix_prerequisites = g_anim_fix != 0;
-  const bool bugs = zfix::options().bugs;
-  zfix::options().bugs = g_anim_fix != 0;  // the fix acts with zfix bugs
+  const bool bugs = zfix::all();
+  zfix::set_all(g_anim_fix != 0);  // the fix acts with zfix bugs
   zeff::anim().fix_instance_tree = false;  // the exe's path
   zeff::anim_allow_loading(1);
   zeff::anim_set_zbd_path(path);
   install_anim_hooks();
   g_trace.clear(), g_calls = 0, g_fail_at = fail_at;
   const int32_t r = zeff::anim_read_zbd();
-  zfix::options().bugs = bugs;
+  zfix::set_all(bugs);
   zerr::set_sink(nullptr);
   std::vector<uint8_t> b;
   put_i32(b, r), put_i32(b, g_calls);

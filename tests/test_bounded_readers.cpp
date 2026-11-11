@@ -27,6 +27,16 @@
 #include "gamez/zutil/zutl_path.h"
 
 namespace {
+// The animations' reader refuses a path of 0x80 characters or more (0x005090f0, as the exe does). A checkout that
+// sits deep (a worktree under a long folder) puts the install's and the test's own files past that, and the
+// reads below then fail for the path, not for what they test: such a path is named from the current directory.
+std::string anim_path(const std::string& p) {
+  if (p.size() <= 0x7f) return p;
+  std::error_code ec;
+  const std::string r = std::filesystem::path(p).lexically_relative(std::filesystem::current_path(ec)).string();
+  return !ec && !r.empty() && r.size() < p.size() ? r : p;
+}
+
 namespace fs = std::filesystem;
 struct Entry {
   std::string name;
@@ -224,7 +234,7 @@ TEST(bounded_anim_fuzz_never_crashes) {
     }
     zeff::anim() = zeff::AnimState{};
     zeff::anim_allow_loading(1);
-    zeff::anim_set_zbd_path(copy.c_str());
+    zeff::anim_set_zbd_path(anim_path(copy).c_str());
     zeff::anim_read_zbd();
     const bool was_refused = zeff::anim().defs == nullptr && zeff::anim().def_count() == 0;
     ++runs, refused += was_refused;
@@ -244,7 +254,7 @@ TEST(bounded_anim_fuzz_never_crashes) {
   }
   zeff::anim() = zeff::AnimState{};
   zeff::anim_allow_loading(1);
-  zeff::anim_set_zbd_path(copy.c_str());
+  zeff::anim_set_zbd_path(anim_path(copy).c_str());
   EXPECT(zeff::anim_read_zbd() == -1 && zeff::anim().defs == nullptr);
   zeff::anim_free_all();
 }
@@ -421,9 +431,13 @@ TEST(bounded_readers_take_more_than_shipped) {
     }
     zrdr::Node* d64 = zrdr::load("deep64.zrd");
     zrdr::Node* d65 = zrdr::load("deep65.zrd");
-    std::printf("  reader: %zu entries, %d read, copies %d of %d; 64 deep read %d, 65 deep refused %d\n", m.size(), base + copies,
-                copies, base * 3, d64 != nullptr, d65 == nullptr);
-    EXPECT(base > 100 && copies == base * 3 && d64 != nullptr && d65 == nullptr);
+    // 65 deep: the 64 the reader allows are kept and it stops there, saying so (the graceful read, zreader.cpp).
+    int kept = 0;
+    for (zrdr::Node* n = d65; n && n->type == zrdr::List; n = zrdr::list_count(n) > 1 ? &n->list[1] : nullptr) ++kept;
+    const bool said = !zrdr::load_notes().empty() && zrdr::load_notes()[0].wrong.find("lists nested more than 64 deep") == 0;
+    std::printf("  reader: %zu entries, %d read, copies %d of %d; 64 deep read %d, 65 deep read to %d lists and said %d\n", m.size(),
+                base + copies, copies, base * 3, d64 != nullptr, kept, said);
+    EXPECT(base > 100 && copies == base * 3 && d64 != nullptr && d65 != nullptr && kept == 64 && said);
     if (d64) zrdr::free_node(d64);
     if (d65) zrdr::free_node(d65);
     zrdr::close_archives(true);
@@ -451,7 +465,7 @@ TEST(bounded_readers_take_more_than_shipped) {
     auto read = [&](const std::string& path) {
       zeff::anim() = zeff::AnimState{};
       zeff::anim_allow_loading(1);
-      zeff::anim_set_zbd_path(path.c_str());
+      zeff::anim_set_zbd_path(anim_path(path).c_str());
       zeff::anim_read_zbd();
       const int n = zeff::anim().defs ? zeff::anim().def_count() : -1;
       zeff::anim_free_all();

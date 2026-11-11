@@ -1,4 +1,5 @@
 #include "mech3/mod_install.h"
+#include "upgrades/mods/marked_remove.h"
 
 #include <algorithm>
 #include <cctype>
@@ -10,8 +11,10 @@
 #include <sstream>
 
 #include "gamez/zutil/zutl_path.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "mech3/source_archive.h"
 #include "upgrades/mods/mod_export.h"
+#include "upgrades/mods/mod_report.h"
 
 namespace mech3 {
 namespace fs = std::filesystem;
@@ -43,11 +46,9 @@ bool same_bytes(const fs::path& a, const fs::path& b) {
 }
 
 // Only a folder holding our marker is removed (never one the player made).
-void remove_ours(const fs::path& dir, const char* marker) {
-  std::error_code ec;
-  if (!fs::is_regular_file(dir / marker, ec)) return;
-  fs::remove_all(dir, ec);
-}
+// By the one remover's rule (upgrades/mods/marked_remove.h): a real folder, never a link or a Windows junction,
+// and nothing inside it followed out of it.
+void remove_ours(const fs::path& dir, const char* marker) { remove_marked_tree(dir.string(), marker); }
 
 // The child of `dir` named `name` whatever its case, or empty.
 fs::path child(const fs::path& dir, const std::string& name) {
@@ -193,7 +194,8 @@ std::string copy_folder(const fs::path& from, const fs::path& to, const ModAddLi
   std::map<std::string, std::string> seen;
   for (fs::recursive_directory_iterator it(from, fs::directory_options::none, ec), end; !ec && it != end; it.increment(ec)) {
     const fs::path rel = fs::relative(it->path(), from, ec);
-    if (it->is_symlink(ec)) return "it holds a link (" + rel.generic_string() + "), which a mod cannot have";
+    if (it->is_symlink(ec) || path_is_link(it->path().string()))  // a Windows junction too (marked_remove.h)
+      return "it holds a link (" + it->path().lexically_relative(from).generic_string() + "), which a mod cannot have";  // its own name, not where it leads
     if (it->is_directory(ec)) {
       fs::create_directories(to / rel, ec);
       continue;
@@ -251,7 +253,7 @@ bool mod_own_file(const std::string& rel) {
   const std::string l = lower(rel);
   // original\ (ours: modding.md, Animations a def at a time, Both ways): the
   // files a modder ships for the original game, which ours never reads.
-  return l == "mod.txt" || l == lower(kModAddedMarker) || l.rfind("original/", 0) == 0;
+  return l == "mod.txt" || l == lower(kModAddedMarker) || l == lower(kModLeftOutFile) || l.rfind("original/", 0) == 0;
 }
 
 bool mod_entry_path_ok(const std::string& path, std::string* clean) {
@@ -383,7 +385,9 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
     ModInfo info;
     if (mod_parse(read_text(root / "mod.txt"), &info) && !info.name.empty()) a.name = info.name;
     const std::string g = lower(info.game);
-    a.game = g.rfind("pm", 0) == 0 ? ModGame::kPm : g.empty() || g.rfind("mw3", 0) == 0 ? ModGame::kMw3 : ModGame::kUnknown;
+    // Its first word, as mod.txt's reader takes it: "mw3pm" is Pirate's Moon's ("mw3" alone MechWarrior 3's).
+    const std::string word = g.substr(0, g.find_first_of(" \t"));
+    a.game = word == "mw3pm" || word == "pm" ? ModGame::kPm : word.empty() || word == "mw3" ? ModGame::kMw3 : ModGame::kUnknown;
   }
   // A whole install: only what differs from the player's, without programs
   // (an exe patch cannot apply) and the player's own kind of file.
@@ -426,18 +430,26 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
   if (!a.has_mod_txt) {
     std::ofstream f(root / "mod.txt", std::ios::binary);
     f << "# Written by the game when this mod was added (it had no mod.txt).\n"
-      << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "pm" : "mw3") << "\n";
+      << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "mw3pm" : "mw3") << "\n";  // the game's own word (mods_game), which mod_parse takes
   }
-  r.report = mod_check(root.string(), install, &r.check_errors);
+  ModFindings facts;
+  r.report = mod_check(root.string(), install, &r.check_errors, &facts);
+  // A reader archive with an entry that cannot be read is left out of the copy being added (ours, in the
+  // staging folder: nothing of the player's), the rest of the mod added.
+  for (const std::string& rel : facts.unread_files) {
+    fs::remove(root / fs::path(rel), ec);
+    if (!ec) r.left_out.push_back(rel);
+  }
+  r.warnings = static_cast<int>(facts.notes.size());
   if (r.check_errors > 0) {
+    // Only the mod's fault as a whole refuses it (mod_check): the line says which.
     std::string first;
     for (const std::string& l : r.report)
-      if (l.find("error") != std::string::npos) {
-        first = l;
+      if (l.rfind("error: ", 0) == 0) {
+        first = l.substr(7);
         break;
       }
-    r.message = "Not added: the game would refuse " + std::to_string(r.check_errors) +
-                (r.check_errors == 1 ? " thing" : " things") + " in it" + (first.empty() ? "." : ": " + first);
+    r.message = "Not added: the game would refuse this mod" + (first.empty() ? std::string(".") : ": " + first + ".");
     mod_add_discard(a);
     return r;
   }
@@ -454,6 +466,21 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     r.message = "Not added: no free name for it in the mods folder.";
     mod_add_discard(a);
     return r;
+  }
+  // What was left out, kept with the mod for its REPORT: the warnings of the files removed above, and any the
+  // copy came with (a mod's folder added again).
+  {
+    std::vector<ModNote> record;
+    for (ModNote n : facts.notes) {
+      bool gone = n.w.did.find("IMPORT left this file out") != std::string::npos;
+      for (const std::string& rel : r.left_out)
+        gone = gone || n.where == rel || n.where.rfind(rel + ":", 0) == 0;
+      if (!gone || n.plain) continue;
+      if (const size_t at = n.w.did.find("IMPORT leaves this file out"); at != std::string::npos) n.w.did.replace(at, 27, "IMPORT left this file out");
+      record.push_back(n);
+    }
+    if (!record.empty()) mod_left_out_write(root.string(), record);
+    else fs::remove(root / kModLeftOutFile, ec);
   }
   {
     std::ofstream f(root / kModAddedMarker);
@@ -476,10 +503,12 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
 }
 
 ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, const std::string& install,
-                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled) {
+                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled,
+                       const std::string& from) {
   ModAddDone d;
   ModAdd a = mod_add_prepare(write_dir, source, install);
   if (!a.error.empty()) return d.message = "Not added: " + a.error + ".", d;
+  if (!from.empty()) a.source = from;  // the marker's "Added by the game from ..." 
   ModGame game = a.game;
   if (game == ModGame::kUnknown) {
     const int g = ask ? ask(a.name) : 1;
@@ -496,10 +525,20 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   d.campaign_only = !i.campaigns.empty() && i.mechs.empty() && i.weapons.empty() && i.ia_worlds.empty();
   if (!d.campaign_only && enabled && std::find(enabled->begin(), enabled->end(), r.folder) == enabled->end()) {
     enabled->push_back(r.folder);
-    mods_save_enabled(write_dir, *enabled);
+    entry_mods_save(write_dir, *enabled);  // the run's entry's ticks (campaign_entries.h)
   }
-  d.message = d.campaign_only ? "Added " + d.name + ": its campaign is entered from the game's MODS screen."
-                              : "Added " + d.name + ": on from the next start" + (i.campaigns.empty() ? "." : "; its campaign is listed.");
+  d.message = d.campaign_only ? "Added " + d.name + ": its campaign is listed."
+              : !enabled ? "Added " + d.name + (mod_is_campaign(i) ? ": its campaign is listed." : ": tick it for a campaign, then PLAY.")
+                         : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
+  // With warnings the line says how many and where they are, then what to do next as without them; what was
+  // left out is in the report.
+  d.warnings = r.warnings, d.left_out = static_cast<int>(r.left_out.size());
+  if (r.warnings > 0) {
+    const std::string head = "Added " + d.name + ": ";
+    std::string next = d.message.substr(head.size());
+    if (!next.empty()) next[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(next[0])));
+    d.message = head + std::to_string(r.warnings) + (r.warnings == 1 ? " warning: REPORT says what. " : " warnings: REPORT lists them. ") + next;
+  }
   return d;
 }
 

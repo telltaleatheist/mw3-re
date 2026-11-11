@@ -55,14 +55,14 @@ constexpr uint32_t kKeyY = 0x15, kKeyN = 0x31, kKeyEscape = 0x01;  // DIK codes
 // while it shows.
 void QuitBox::prompt() {
   // With bug fixes on each fresh Escape press toggles it (held, it stays as it is).
-  if (zfix::options().bugs && e_.key_state(kKeyEscape) != 1) return;
+  if (zfix::options().fixed && e_.key_state(kKeyEscape) != 1) return;
   if (active) {
-    if (zfix::options().bugs) close();
+    if (zfix::options().fixed) close();
     return;
   }
   set_active(1);
   std::printf("mw3: quit box up\n");  // ours: the tests follow it
-  if (zfix::options().bugs) {
+  if (zfix::options().fixed) {
     mouse_cmd = 0;
     const uint32_t keys[2] = {kKeyY, kKeyN};
     for (int i = 0; i < 2; ++i) {
@@ -95,7 +95,7 @@ void QuitBox::close() {
 }
 
 void QuitBox::keys() {
-  if (!active || !zfix::options().bugs) return;
+  if (!active || !zfix::options().fixed) return;
   if (e_.key_state(kKeyY) == 1) answer_ok();
   else if (e_.key_state(kKeyN) == 1) answer_cancel();
 }

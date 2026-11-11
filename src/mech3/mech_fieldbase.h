@@ -93,7 +93,7 @@ struct DockContact : DockState {
 // +0xe0 (0x005c2620): the bases reach their places (their valves).
 struct DockPlaces : DockState {
   uint32_t until = 0;            // +0x10  a frame count
-  // FIX (bug) (ours, behind bugs): each base's place and the game time it last
+  // FIX (bug) (ours, behind mfb_regroup): each base's place and the game time it last
   // moved 2 m, so one that stands still short of its slot is given up on.
   float mark[3][3] = {}, moved_at[3] = {};
   void begin() override;         // 0x0045ab50
@@ -129,7 +129,7 @@ struct DockClose : DockState {
   Handle message(Handle m) override;  // 0x0045b770
   void abort() override {}       // 0x005ac5c0
 };
-// Ours, FIX (bug) behind zfix bugs (Owen, playtest: the bases stay deployed
+// Ours, FIX (bug) behind zfix mfb_regroup (Owen, playtest: the bases stay deployed
 // after a repair): after a completed repair the reset keeps the bases called
 // and queues this in place of the idle state. It reads as idle to the MFB
 // command, so M-M still calls the bases (here or elsewhere), and ends when a
@@ -213,7 +213,7 @@ struct FieldBases {
   DockRepair repair;                   // +0x110
   DockClose close;                     // +0x124
   DockReset reset;                     // +0x140
-  DockParked parked;                   // ours (FIX (bug), behind bugs): after a repair
+  DockParked parked;                   // ours (FIX (bug), behind mfb_regroup): after a repair
   bool park = false;                   // ours: the repair done, the reset parks
   FieldBases();                        // 0x00459b80 (the states' sounds: none, before zSound is up)
   FieldBases(const FieldBases&) = delete;

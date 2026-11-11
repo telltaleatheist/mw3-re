@@ -283,7 +283,7 @@ Handle DockIdle::message(Handle m) {
     // point it docked at) has no way to drive and no node to enter, so its
     // valve, set on arriving, never is and the places step waits for good
     // (playtest W8, W16): it counts as arrived.
-    if (zfix::options().bugs && r.valves[i] && h.brain_behaviour(brain) == to) h.valve_set(r.valves[i], 1);
+    if (zfix::options().mfb_regroup && r.valves[i] && h.brain_behaviour(brain) == to) h.valve_set(r.valves[i], 1);
   }
   r.deploy_points(h.dock_point_position(r.dock_point));
   for (DockStep* st : {static_cast<DockStep*>(&r.places), static_cast<DockStep*>(&r.contact),
@@ -444,7 +444,7 @@ void DockContact::abort() {
 void DockPlaces::begin() {
   until = hk().frame() + 5;
   sound = reg->sounds[6];  // +0xa4 mcb_contact
-  if (!zfix::options().bugs) return;  // ours: the step's stuck check's start
+  if (!zfix::options().mfb_regroup) return;  // ours: the step's stuck check's start
   for (int i = 0; i < 3; ++i) {
     moved_at[i] = hk().game_time();
     const FieldBase* b = reg->bases[i];
@@ -466,7 +466,7 @@ bool DockPlaces::step(float) {
   // that cannot drive on (no way, blocked) jams the dock for the mission
   // (playtest W8, W16). One that has not moved 2 m in kStuck seconds short of
   // its place counts as in place; the deploy then drives it from where it is.
-  if (zfix::options().bugs)
+  if (zfix::options().mfb_regroup)
     for (int i = 0; i < 3; ++i) {
       FieldBase* b = reg->bases[i];
       ai::Valve* v = reg->valves[i];
@@ -569,7 +569,7 @@ bool DockRepair::step(float dt) {
   if (timer <= 0.0f) {
     if (reg->requester) hk().mech_repair(reg->requester, dt);
     hk().marker_clear();
-    reg->park = zfix::options().bugs;  // FIX (bug), ours: the bases stay (DockParked)
+    reg->park = zfix::options().mfb_regroup;  // FIX (bug), ours: the bases stay (DockParked)
     return true;
   }
   if (!reg->requester_ok()) {
@@ -644,7 +644,7 @@ bool player_docked(const FieldBases& r) {
 }
 }  // namespace
 
-// Ours (FIX (bug), behind bugs; mech_fieldbase.h): the dock parked after a
+// Ours (FIX (bug), behind mfb_regroup; mech_fieldbase.h): the dock parked after a
 // repair, idle to the MFB command, no mech asking. A player still down on
 // the dock (just repaired) must power up or leave before asking again.
 void DockParked::begin() {

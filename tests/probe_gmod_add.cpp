@@ -34,7 +34,7 @@ int32_t cnt(int off) { return static_cast<int32_t>(g_model.count(off)); }
 // A fresh model; materials 0 (untextured) and 1 (textured).
 // `fixes`: the colinear drop's FIX (zfix bugs) on.
 extern "C" void probe_gadd_begin(float precision, int fixes) {
-  zfix::options().bugs = fixes != 0;
+  zfix::set_all(fixes != 0);
   zmod::tolerances_reset();
   zerr::set_sink(sink);
   std::memset(g_model.header, 0, sizeof g_model.header);

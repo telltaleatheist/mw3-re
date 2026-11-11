@@ -1,5 +1,7 @@
 #include "frontend/sdl/sdl_child.h"
 
+#include "frontend/sdl/log_start.h"
+
 #include <string>
 
 #if defined(_WIN32)
@@ -77,11 +79,36 @@ bool log_to_file(const std::string& write_dir, const std::string& name) {
     return w;
   };
   const std::wstring log = wide(write_dir + "/" + name + ".log"), old = wide(write_dir + "/" + name + ".old.log");
-  MoveFileExW(log.c_str(), old.c_str(), MOVEFILE_REPLACE_EXISTING);
-  if (!_wfreopen(log.c_str(), L"w", stdout)) return false;
+  // A restarted run (sdl_restart.h; restart_into names the process it comes from): that process must be gone
+  // before its log can be moved, so it is waited for (2 s at most; one already gone has ended). The move is then
+  // tried several times (log_start_tries: a log just closed is held for a moment by something outside our
+  // programs, seen on the PC with the old process gone). The last start's log is never emptied: when it cannot
+  // be moved this start's lines are appended to it, after a line that says so (log_start.h).
+  wchar_t from[32] = L"";
+  const bool restarted = GetEnvironmentVariableW(wide(kRestartedFromEnv).c_str(), from, 32) > 0;
+  DWORD waited_ms = 0;
+  bool was_alive = false;
+  if (restarted) {
+    SetEnvironmentVariableW(wide(kRestartedFromEnv).c_str(), nullptr);  // this start's alone, not its children's
+    if (HANDLE p = OpenProcess(SYNCHRONIZE, FALSE, static_cast<DWORD>(wcstoul(from, nullptr, 10)))) {
+      const DWORD t0 = GetTickCount();
+      was_alive = WaitForSingleObject(p, 2000) != WAIT_FAILED;
+      waited_ms = GetTickCount() - t0;
+      CloseHandle(p);
+    }
+  }
+  const LogStart s = log_start(
+      GetFileAttributesW(log.c_str()) != INVALID_FILE_ATTRIBUTES, log_start_tries(restarted),
+      [&]() -> unsigned long { return MoveFileExW(log.c_str(), old.c_str(), MOVEFILE_REPLACE_EXISTING) ? 0 : GetLastError(); },
+      [] { Sleep(50); });
+  if (!_wfreopen(log.c_str(), s.append ? L"a" : L"w", stdout)) return false;
   _dup2(_fileno(stdout), 2);  // stderr into the same file, in order
   std::setvbuf(stdout, nullptr, _IONBF, 0);
   std::setvbuf(stderr, nullptr, _IONBF, 0);
+  if (s.append) std::printf("\n%s\n", log_start_note(s, name + ".old.log").c_str());
+  if (restarted)
+    std::printf("mw3: started again from process %ls (%s, %lu ms); the last log moved at try %d\n", from,
+                was_alive ? "waited for its end" : "already gone", static_cast<unsigned long>(waited_ms), s.moved ? s.tries : 0);
   return true;
 #else
   (void)write_dir, (void)name;

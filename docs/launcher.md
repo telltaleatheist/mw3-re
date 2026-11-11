@@ -30,9 +30,11 @@ found or installed. The launcher below is its own program, `mw3launcher`
      patch's files; PM 1.0) and the program a release build (a bare vX.Y.Z
      tag, PM's pm-vX.Y.Z), else "modified (data, program)" naming which
      (`official_words`; breaks: any v tag taken as a release, the data always
-     official: each caught). Mods are a feature, not a change to the game
-     (lead): a neutral note of their own, "Ready, official: data 1.2,
-     program v1.1.0, 2 mods on, <folder>" (`versions_words`). Or "Not found yet:
+     official: each caught), as "Ready, official: data 1.2,
+     program v1.1.0, <folder>" (`versions_words`). Mods are not spoken of
+     here (until 2026-11-10 a note "2 mods on" was): a game started from the
+     launcher is the original, and mods are played from its MODS screen,
+     each campaign with its own (mods-campaigns-plan.md). Or "Not found yet:
      click to find your game" (a click opens the find screen; v1.0, Owen
      2026-11-02: only then, the launcher always opens on the games). A
      folder too long for the plate is
@@ -98,6 +100,38 @@ served once a frame. While a picker is up the launcher draws nothing and
 waits in SDL_WaitEventTimeout (the run loop serving the panel at once). The
 log times it: "the file picker asked for", "the picker took the focus N ms
 after", "the picker answered (...) N ms after".
+
+The picker's wait (measured 2026-11-10, playtest-1.1.0 item 2). The call that
+opens the panel (`SDL_ShowOpenFileDialog`) blocks the main thread until the
+system's panel service answers; the sheet is on screen 3 to 20 ms after it
+returns. On the Mac, a fresh process each row, the panel cancelled by code:
+
+| Start folder | First picker | Second, same process |
+|---|---|---|
+| none (the system's last one) | 967 ms | 528 ms |
+| Downloads (26 items, 9.7 GB, two disc zips) | 945 ms | 530 ms |
+| an empty folder | 967 ms | 520 ms |
+| none, fullscreen window | 948 ms | 249 ms |
+
+A plain NSOpenPanel without SDL gave the same (905 to 1009 ms, then 497 to
+560 ms; the same for the Desktop and /Volumes). So the start folder and what
+is in it make no difference, and the picker is opened without one, as before:
+the system reopens the player's last folder. The 9.5 s once seen ("took the
+focus 9531 ms after") was the system's panel service starting cold for the
+app: in the system log the launcher's main thread waits 8.4 s on it while the
+service sets up iCloud Drive, Finder extensions and the sidebar's volumes,
+then the panel is blank for 5 s more while the service fills it. None of it
+is ours to shorten, and it did not happen again once the service was warm.
+
+What was ours: the ask and the blocking call were made in the click's own
+step, before the screen with its "Pick it" line was drawn, so the launcher sat
+frozen on the old screen. Now the ask waits one frame (`ask_pending_`): the
+launcher draws the screen with "Opening the file picker..." in a box at the
+bottom, presents it, then calls (`open_picker`). The log adds "the picker's
+notice shown" and "the picker's call took N ms". For the checks
+`MW3_LAUNCHER_PICKER=cancel` answers the ask as cancelled with no window and
+`MW3_LAUNCHER_PICKER_SHOT` saves the frame on screen at the ask
+(`sdl_program_launcher_says_the_picker_is_opening_before_it_asks`).
 
 GAME FILES opens the same screen with the install in use ("Using
 MechWarrior 3 1.2 at <folder>. No music.") and, while it lacks movies or
@@ -339,33 +373,18 @@ comes back with a line saying how it closed. Built 2026-10-31;
 `--launcher-mw1` presses it at once (checks);
 `sdl_program_launcher_starts_mechwarrior_1989` (a stand-in script).
 
-## Mods (2026-11-08, modding item 5)
+## Mods (2026-11-08, removed 2026-11-10)
 
-**On the game last clicked (2026-11-10, the combined package):** after a click
-on PIRATE'S MOON, MODS lists and writes Pirate's Moon's own settings folder
-(its `mods\` and mw3.cfg; `mods_target(o, true)`), takes `for=mw3pm` mods and
-refuses `for=mw3` ones in words (`mech3::mods_game`, "mw3" here, set to "mw3pm"
-around each operation; branch `pm`'s own default is "mw3pm"), adds and exports
-there, and checks against PM's install. CHECK stays MechWarrior 3's: this
-program's readers cannot read PM's version-2 archives, so for PM it points to
-`mw3pm --check-mod`. MW3's folder and mw3.cfg are untouched.
-`sdl_program_launcher_mods_on_pirates_moon` (breaks: MODS always MW3's, the
-for= left "mw3": each caught); `MW3_LAUNCHER_MODS=pm` opens it for checks.
-
-MODS on the main screen (beside GAME FILES and QUIT) opens the list of the
-settings folder's `mods\` (`mech3::mods_list`, docs/modding.md, The
-launcher's MODS list): six rows a page, the enabled mods first in the order
-they win, the rest by name. A row's second line says ON or OFF and the
-folder, why a folder is no usable mod (the row greyed), what it shares with
-a mod above it, and after CHECK what the game would refuse in it. Clicking a
-row turns it on (last, below the others) or off; UP and DOWN move the
-selected enabled mod; each change rewrites mw3.cfg's `mod=` lines at once
-(written beside it and renamed over it) and counts from the game's next
-start. The game is chosen in one place, `mods_target` (its settings folder
-and the game `for=` must name): MechWarrior 3's here, Pirate's Moon's own
-folder when the modding work crosses to its branch. Below the banner, as
-the other screens: the rows, the status under them, and the mods folder's
-path in the footer.
+The launcher had a MODS button and screen (the list, on and off, UP and
+DOWN, IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, CHECK and a mod's report,
+on the game last clicked). Removed (Owen, 2026-11-10: "we don't need it
+there anymore... if we're doing mods directly in the games"): each game's
+own MODS screen does all of it, and more (REPORT, TEST, custom campaigns,
+the editor; docs/modding.md). The shared code those screens use
+(`mods_list`, `mod_report`, `mod_needs`, `mod_install`, `mod_export`) and
+its tests stay. The note "N mods on" that stayed on each game's line went
+too (2026-11-10, mods by campaign): a plain start mounts no mods, so the
+count said nothing true.
 
 ## Built (2026-10-30, mac5/launcher-ui)
 
@@ -552,7 +571,7 @@ program files are replaced.
    `sdlfe::curl_get` / `check_for_updates` (`frontend/sdl/sdl_update`; curl
    found at Windows' System32\curl.exe or /usr/bin/curl, never through
    PATH; `--proto =https`, `file://` only for `MW3_UPDATE_API`). UPDATES on
-   the main screen (GAME FILES, MODS, UPDATES, QUIT) asks on the worker and
+   the main screen (GAME FILES, UPDATES, QUIT; MODS was there until 2026-11-10) asks on the worker and
    says the verdict on the status line. Checked once against GitHub's real
    list: v1.0.5 the newest package, this build up to date. Tests:
    `update_reads_the_releases_list` (escapes, \u, a surrogate pair, four broken

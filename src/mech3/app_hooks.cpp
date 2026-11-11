@@ -158,6 +158,24 @@ int32_t Engine::menu_vmode() {
                     w > 640 && w * 3 > h * 4;
   return menu_vmode_ = wide ? m : 5;
 }
+void Engine::menu_mode_picked() {
+  const int32_t old = menu_vmode_;
+  if (old < 0) return;
+  menu_vmode_ = -1;
+  if (menu_vmode() == old || app().stack(0) != app().state(2)) return;
+  // The main menu's state is replaced by itself: its leave frees its screen and the menu objects, its enter
+  // makes them at the new mode. A replace swaps the top state only (zGameApp), so the screens above the main
+  // menu's are popped first: the depth, less the pops queued already (ACCEPT's own). Anything else queued
+  // (a push, a replace) and the stack is not ours to unwind: the menus then take the mode at the next start.
+  int pops = app().depth();
+  for (const zgame::App::Pending& c : app().pending_list()) {
+    if (c.type != zgame::Command::Pop) return;
+    --pops;
+  }
+  for (; pops > 0; --pops) app().pop(0);
+  menu_reshape_ = true;
+  replace_state(2);
+}
 float Engine::mouse_accel_x() { return options().mouse_accel[0]; }
 float Engine::mouse_accel_y() { return options().mouse_accel[1]; }
 

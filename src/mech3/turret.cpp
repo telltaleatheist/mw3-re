@@ -385,11 +385,11 @@ void Turret::deactivate(bool destroyed) {
   if (attacker) h.credit_kill(attacker, self);
   if (destroyed && destroy_anim && node) h.anim_run(destroy_anim, node);
   active = 0;
-  // FIX (bug), behind bugs: the exe puts the effect out only when it is not
+  // FIX (bug), behind small_fixes: the exe puts the effect out only when it is not
   // showing, so a charge lit as the turret dies stays lit (docs/fixes.md).
   if (effect) {
     const bool showing = (h.node_flags(effect) & 4) != 0;
-    if (zfix::options().bugs ? showing : !showing) h.node_set_active(effect, 0);
+    if (zfix::options().small_fixes ? showing : !showing) h.node_set_active(effect, 0);
   }
   h.remove_handlers(node);
   if (beam_on) {
@@ -664,7 +664,7 @@ bool Turret::aim(Handle at) {
   // c = -0, sn = 0: the turret's matrix loses its yaw axes and the turret
   // (and the gun under it) is drawn flat, invisible (W50, c1m2's
   // triturret02). Its heading is then the one it has with none (c 1, sn 0).
-  if (zfix::options().bugs ? nonzero(flat2) : nonzero(flat)) {
+  if (zfix::options().small_fixes ? nonzero(flat2) : nonzero(flat)) {
     c = -(hz / flat);
     sn = -(hx / flat);
   }
@@ -725,11 +725,11 @@ bool turrets_load(const char* file, Handle at) {
   TurretHooks& h = *g_hooks;
   static const char* const kNames[3] = {"hud_turret_ally_sm", "hud_turret_enemy_sm", "hud_turret_other_sm"};
   for (int i = 0; i < 3; ++i) g_markers[i] = h.marker_create(kNames[i]);
-  // FIX (bug), behind bugs: the count of turrets made is never reset, so
+  // FIX (bug), always on (zfix fixed): the count of turrets made is never reset, so
   // each mission's turrets pick (and so aim and fire) once every so many
   // frames as turrets have been made since the game started; counted from
   // this mission's (docs/fixes.md).
-  if (zfix::options().bugs) g_count = g_turn = 0;
+  if (zfix::options().fixed) g_count = g_turn = 0;
   zrdr::Node* root = h.read(file);
   if (!root) {
     h.report(0x487, "Failed to read %s", file);

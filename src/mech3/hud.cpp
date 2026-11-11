@@ -1264,7 +1264,7 @@ void HudTarget::data_text() {
   }
   if (dist > 1000.0f) {  // [0x005c00ec]
     // FIX (bug): " (1.23km)" as " (500m)" below; the exe runs "1.23km" straight on (fixes.md).
-    std::snprintf(buf, sizeof buf, zfix::options().bugs ? " (%.2fkm)" : "%.2fkm",  // [0x005e401c]
+    std::snprintf(buf, sizeof buf, zfix::options().fixed ? " (%.2fkm)" : "%.2fkm",  // [0x005e401c]
                   static_cast<double>(dist * 0.001f));  // [0x005c0120]
   } else {
     std::snprintf(buf, sizeof buf, " (%dm)", crt::msvc_ftol(std::ceil(static_cast<double>(dist))));  // [0x005e4014]
@@ -1610,7 +1610,7 @@ void HudReticle::aim() {
   // FIX (bug): the pick ended at the far clip (800 m), short of an ER large
   // laser's 1000 m: in range, the reticle stayed green (W33; fixes.md).
   float e[3] = {b[0], b[1], b[2]};
-  if (zfix::options().bugs) {
+  if (zfix::options().small_fixes) {  // play: when a lock is had (the Small fixes list)
     const float range = k.group_range(k.mech_weapons(m));
     const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
     const float len = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
@@ -2339,7 +2339,7 @@ Hud::~Hud() { --g_huds; }
 // Mech3.exe 1.2 @ 0x0043b190. The pieces are made in the members' order.
 Hud::Hud(Mech* m) {
   ++g_huds;
-  if (zfix::options().bugs) block = nullptr;
+  if (zfix::options().fixed) block = nullptr;
   load_damage_set();
   mech = nullptr;
   setup(m);
@@ -2632,7 +2632,7 @@ void HudRadar::update_contacts(float dt, float static_px) {
     // FIX (bug): a targets.zrd building's node sits at the world's origin, its
     // mesh in world co-ordinates, so the exe's place (0x005a85e0) put its
     // blip towards the origin; the record's centroid instead (fixes.md, W32).
-    if (zfix::options().bugs) h.object_radar_place(o, p);
+    if (zfix::options().fixed) h.object_radar_place(o, p);
     radar_jitter(p, static_px);
     float v[3] = {};
     if (!active) {
@@ -3401,7 +3401,7 @@ void Hud::data_update(float dt) {
   const float mins = std::floor(minutes - hours * 60.0f);  // [0x005c009c]
   // FIX (bug): the original's seconds are t less the minutes alone, so past
   // an hour they run on into the thousands ("01:01:3640"); the hours too here.
-  const float secs = zfix::options().bugs ? std::floor(t - mins * 60.0f - hours * 3600.0f) : std::floor(t - mins * 60.0f);
+  const float secs = zfix::options().fixed ? std::floor(t - mins * 60.0f - hours * 3600.0f) : std::floor(t - mins * 60.0f);
   if (negative) hours = -hours;
   timer.set_text("%02d:%02d:%02d", crt::msvc_ftol(hours), crt::msvc_ftol(mins), crt::msvc_ftol(secs));  // [0x005e3d88]
   objectives.data_update(dt);

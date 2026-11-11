@@ -1281,6 +1281,23 @@ Ours, in three pieces:
   no change. Test: `net_lobby_mods_check_headless` (refused at join and at
   lock with both sides' names; equal hashes and two string-only mods pass).
   Breaks caught: the joiner's check off, LOCK's check off.
+- **The Upgrades switches** (Owen, 2026-11-10; ours, 1.1.0): after the
+  mods block, "UPGR" (0x52475055) and the Upgrades page's five as bits
+  (water, MFB regroup, improved AI, Artemis, small fixes; bit 0 water). A
+  joiner whose mods match takes the host's five for the game
+  (`upgrades::take_hosts`), its page greyed with a line saying so, and gets
+  its own back when the network game ends (`GameEngine::network_set(0)`). The
+  original's readers stop at the worlds, so they never see it.
+  Builds before 1.1.0 send no word, and nothing in the lobby gives a build's
+  version (the session's `user[1]` is `kGameVersion`, the game's own, the same
+  in every build). So the block's absence is all the lobby knows: a joiner whose
+  host sends none is told ("The host's game is older than 1.1.0 ...") and
+  plays on its own switches, which may differ from the host's. A 1.1.0 host
+  is not told about an older joiner, who plays on its own switches too (it
+  reads no word): a gap, left as the lead said (2026-11-10). Tests:
+  `net_lobby_mods_check_headless` (the host's word taken, given back; a host
+  with none: the box, own kept), `sdl_two_processes_from_the_lobby_into_a_game`
+  (the host's small fixes off: the joiner's game on 0xf).
 - **Mod worlds' maps** (the lead, 2026-11-01): the add-on scan in enter
   (0x00497720, folders 0 to 5) goes on to `mission_dir_count()`, skipping
   6 to 8 as the exe's bound did, so a mod world's `readermp<n>.zbd` maps are

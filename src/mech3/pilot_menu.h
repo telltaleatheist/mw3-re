@@ -78,6 +78,12 @@ class PilotScreen : public MenuScreen {
   void choose(Pilot* p);             // 0x004881e0
   void fill_games();                 // 0x004882b0
   void refresh(bool focus_new, Pilot* p);  // 0x00488770: the list again, p chosen (0: the chosen one)
+  // Ours (upgrades/mods/entry_pilots.h): inside a MODS entry the list also
+  // holds the main menu's pilots the entry lacks; one picked is brought
+  // across. `listing`: the list's own selection while it is filled picks nothing.
+  Pilot* bring(const std::string& name);  // null when it could not be (said)
+  bool main_row_chosen() const;           // the selected row is a main-menu pilot not brought yet
+  bool listing = false;
   void show_lists();                 // inline in 0x004889a0 and 0x00488ad0: the game list or the training cycles
   bool editing() const { return rename_bar.active || new_bar.active; }
 
@@ -97,6 +103,10 @@ class PilotScreen : public MenuScreen {
   int32_t mode = 0;                  // +0x12198  the game the pilot is for (GameType)
   Pilot* chosen = nullptr;           // +0x1219c
 };
+
+// Ours: every pilot screen there is lets go of its chosen pilot (the pilots are about to be deleted: an entry's
+// pilots replace the game's, mod_campaign.cpp). The exe never deletes the chosen pilot under its screen.
+void pilot_screens_forget_pilots();
 
 // "Pilot State" (0x00488910, vtable 0x005c54e8), 0x14 bytes: its screen
 // made with it (the engine owns it, as the controls' popups).
@@ -124,6 +134,7 @@ class GameMenuState : public MenuState {
  public:
   enum Kind { kAction, kCampaign, kTraining, kMultiplayer };
   GameMenuState(Kind k, Handle addr);
+  ~GameMenuState() override;         // 0x0049ca00 (multiplayer's: its three screens)
   bool enter() override;             // 0x0048a750, 0x0048afd0, 0x0048b140, 0x0049cab0
   bool update() override;            // 0x0048af20 (the campaign), else the shell's
   void leave() override;             // 0x0048afa0 (the campaign), else the shell's

@@ -149,7 +149,7 @@ void pocket_mission_end() {
     // its death leaves it, the old controls the mech's again, first.
     PocketControls* p = g.active;
     Mech* m = p->owner;
-    if (zfix::options().bugs && m && m->controls == p) {
+    if (zfix::options().fixed && m && m->controls == p) {
       MechControls* back = p->leave(false);
       if (back && back != p) m->controls = back, back->set_owner(m);
     }

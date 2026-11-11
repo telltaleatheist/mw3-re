@@ -627,7 +627,7 @@ void probe_mb_reset(uint32_t missions, uint32_t pilot, uint32_t view, uint32_t i
   d.gait_speed = [](m3::Mech& m, float v) { call("0x004329c0", {addr_of(m.pilot), addr_of(&m) + 0x4a0, fb(v)}); };
   m3::weapon_calls() = m3::WeaponCalls{};
   m3::weapon_calls().vehicle_mech = [](Handle v) { return v; };
-  zfix::options().bugs = false;
+  zfix::set_all(false);
   zfix::options().per_second = false;
 }
 

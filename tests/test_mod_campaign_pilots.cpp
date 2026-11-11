@@ -58,7 +58,7 @@ TEST(mod_campaign_pilots_and_games) {
   mech3::set_pilot_hooks(&h);
   const mech3::ModCampaign c = hard_rain();
   EXPECT(c.error.empty() && c.missions.size() == 4);
-  const fs::path own = fs::path(wd) / "pilots/mods/m/hard";
+  const fs::path entry = fs::path(wd) / "campaigns/m~hard", own = entry / "pilots";  // its entry (campaign_entries.h)
 
   mech3::Pilot* orig = mech3::create_pilot("Orig");
   EXPECT(orig && fs::is_regular_file(fs::path(wd) / "pilots/Orig.mw3"));
@@ -67,9 +67,9 @@ TEST(mod_campaign_pilots_and_games) {
   // Entered: its folder made with the marker, the original's pilots let go.
   std::string why;
   EXPECT(mech3::campaign_enter(c, &why) && why.empty());
-  EXPECT(fs::is_regular_file(own / mech3::kCampaignMarker) && fs::is_directory(own / "games"));
+  EXPECT(fs::is_regular_file(entry / mech3::kCampaignMarker) && fs::is_directory(own / "games"));
   EXPECT(mech3::pilots().empty() && mech3::current_pilot() == nullptr && mech3::entered_campaign() != nullptr);
-  EXPECT(mech3::pilots_folder() == "pilots\\mods\\m\\hard");
+  EXPECT(mech3::pilots_folder() == "campaigns\\m~hard\\pilots");
   mech3::Pilot* ace = mech3::create_pilot("Ace");
   EXPECT(ace && fs::is_regular_file(own / "Ace.mw3") && !fs::exists(fs::path(wd) / "pilots/Ace.mw3"));
   auto* g = ace ? dynamic_cast<mech3::ModCampaignGame*>(ace->campaigns[0]) : nullptr;
@@ -86,7 +86,7 @@ TEST(mod_campaign_pilots_and_games) {
   auto* g2 = dynamic_cast<mech3::ModCampaignGame*>(ace->current);
   EXPECT(g2 && g2->mission == 2 && g2->operation() == 1 && g2->mission_number() == 2 && g2->world_index() == 0);
   EXPECT(g2 && std::string(g2->name()) == "Op A, Mission 2");
-  EXPECT(h.saved.size() == 1 && h.saved.back() == "pilots\\mods\\m\\hard//games//Ace0102.mw3");
+  EXPECT(h.saved.size() == 1 && h.saved.back() == "campaigns\\m~hard\\pilots//games//Ace0102.mw3");
   EXPECT(fs::is_regular_file(own / "games/Ace0102.mw3"));
   EXPECT(!ace->record_mission(true));
   auto* g3 = dynamic_cast<mech3::ModCampaignGame*>(ace->current);
@@ -116,7 +116,7 @@ TEST(mod_campaign_pilots_and_games) {
   // Its own removal while entered: refused; a pilot's delete takes its files only.
   EXPECT(!mech3::campaign_pilots_remove(c, [] { return true; }, &why) && why == "the campaign is entered");
   mech3::delete_pilot("Ace");
-  EXPECT(!fs::exists(own / "Ace.mw3") && !fs::exists(own / "games/Ace0102.mw3") && fs::is_regular_file(own / mech3::kCampaignMarker));
+  EXPECT(!fs::exists(own / "Ace.mw3") && !fs::exists(own / "games/Ace0102.mw3") && fs::is_regular_file(entry / mech3::kCampaignMarker));
   mech3::create_pilot("Bea");
   mech3::campaign_leave();
 
@@ -124,14 +124,14 @@ TEST(mod_campaign_pilots_and_games) {
   int asked = 0;
   EXPECT(!mech3::campaign_pilots_remove(c, [&] { return ++asked, false; }, &why) && why == "not confirmed" && asked == 1);
   EXPECT(fs::is_regular_file(own / "Bea.mw3"));
-  EXPECT(mech3::campaign_pilots_remove(c, [&] { return ++asked, true; }, &why) && asked == 2 && !fs::exists(own));
-  EXPECT(fs::is_directory(fs::path(wd) / "pilots/mods/m") && fs::is_regular_file(fs::path(wd) / "pilots/Orig.mw3"));
+  EXPECT(mech3::campaign_pilots_remove(c, [&] { return ++asked, true; }, &why) && asked == 2 && !fs::exists(entry));
+  EXPECT(fs::is_directory(fs::path(wd) / "campaigns") && fs::is_regular_file(fs::path(wd) / "pilots/Orig.mw3"));
   EXPECT(!mech3::campaign_pilots_remove(c, [] { return true; }, &why) && why == "no pilots for it");
 
   // A folder there the game did not make: never entered, never removed.
   mech3::ModCampaign other = c;
   other.id = "other";
-  const fs::path foreign = fs::path(wd) / "pilots/mods/m/other";
+  const fs::path foreign = fs::path(wd) / "campaigns/m~other";
   fs::create_directories(foreign);
   std::ofstream(foreign / "keep.txt") << "mine";
   EXPECT(!mech3::campaign_enter(other, &why) && why.find("holds files the game did not put there") != std::string::npos);

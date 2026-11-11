@@ -1,5 +1,7 @@
 #include "mech3/mods_menu.h"
 
+#include <fstream>
+
 #include <algorithm>
 #include <filesystem>
 #include <mutex>
@@ -13,6 +15,10 @@
 #include "mech3/mod_campaign.h"
 #include "mech3/mission.h"
 #include "mech3/mod_install.h"
+#include "upgrades/mods/campaign_entries.h"
+#include "upgrades/mods/import_folder.h"
+#include "upgrades/mods/mods_delete.h"
+#include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/mods/mod_export.h"
 
@@ -20,27 +26,38 @@ namespace mech3 {
 
 // ---- the tables ----
 
-ModsTables mods_tables(const std::string& write_dir, const std::vector<std::string>& enabled,
-                       const std::vector<std::string>& mounted) {
-  ModsTables t;
-  for (ModsListEntry& m : mods_list(write_dir, enabled)) {
-    const ModInfo& i = m.info;
-    for (const std::string& file : i.campaigns) {
-      ModsCampaignRow r;
-      r.mod = i.folder, r.file = file, r.author = i.author, r.version = i.version;
-      r.mounted = std::find(mounted.begin(), mounted.end(), i.folder) != mounted.end();
-      ModCampaign c;
-      if (!i.error.empty()) r.error = i.error;
-      else if (!campaign_load(i.path, i.folder, file, &c)) r.error = c.error;
-      r.name = c.name.empty() ? file : c.name;
-      t.campaigns.push_back(std::move(r));
+std::vector<ModsCampaignRow> mods_entry_rows(const std::string& write_dir) {
+  std::vector<ModsCampaignRow> out;
+  const std::vector<CampaignEntry> all = campaign_entries(write_dir);
+  const std::vector<ModInfo> mods = mods_found(write_dir);
+  for (const CampaignEntry& e : all) {
+    if (e.kind == CampaignEntry::kInstantAction) continue;  // Instant Action's mods are on its own screen
+    ModsCampaignRow r;
+    r.entry = e.id, r.name = e.name, r.mod = e.mod, r.file = e.campaign.empty() ? std::string() : e.campaign + ".txt";
+    r.mounted = true;
+    for (const ModInfo& m : mods)
+      if (m.folder == e.mod) r.author = m.author, r.version = m.version;
+    if (e.kind == CampaignEntry::kCopy)
+      if (const CampaignEntry* b = find_entry(all, e.base)) r.copy_of = b->name;
+    if (e.missing) {
+      // Its name as our marker in its folder kept it ("<name>" (<id>): ...), since its mod.txt is gone.
+      std::ifstream marker(std::filesystem::path(entry_dir(write_dir, e.id)) / kCampaignMarker);
+      std::string line;
+      std::getline(marker, line);
+      const size_t q = line.find('"', 1);
+      if (line.size() > 2 && line[0] == '"' && q != std::string::npos && q > 1) r.name = line.substr(1, q - 1);
+      r.error = "its mod is not in the mods folder any more (its pilots and saves are kept: import it again)";
     }
-    // A campaign's mod is entered from its row; one that also adds mechs,
-    // weapons or Instant Action worlds is a mod as well.
-    if (i.campaigns.empty() || !i.mechs.empty() || !i.weapons.empty() || !i.ia_worlds.empty())
-      t.mods.push_back(std::move(m));
+    else if (!e.error.empty()) {
+      r.error = e.error;
+      if (!r.file.empty()) r.name = r.file;  // a campaign file that does not read has no name of its own: its file's
+    }
+    else
+      for (const std::string& m : entry_missing_mods(write_dir, e))
+        r.error += (r.error.empty() ? "these mods are not there any more (turn them off or import them again): " : ", ") + m;
+    out.push_back(std::move(r));
   }
-  return t;
+  return out;
 }
 
 std::string mods_row_text(const ModsListEntry& m) {
@@ -92,6 +109,7 @@ std::string mods_campaign_row_text(const ModsCampaignRow& c) {
 }
 
 std::string mods_campaign_details(const ModsCampaignRow& c) {
+  if (c.mod.empty() && !c.entry.empty()) return "the game's own campaign";
   std::string s = c.author.empty() ? std::string("unknown author") : c.author;
   if (!c.version.empty()) s += ", version " + c.version;
   return s;
@@ -152,6 +170,24 @@ ModsEditStart& mods_menu_test_start() {
   static ModsEditStart f;
   return f;
 }
+ModsPlay& mods_menu_play() {
+  static ModsPlay p;
+  return p;
+}
+
+ModsTestRestart& mods_menu_test_restart() {
+  static ModsTestRestart r;
+  return r;
+}
+ModsTestRestart& mods_menu_edit_restart() {
+  static ModsTestRestart r;
+  return r;
+}
+std::string& mods_menu_open_entry() {
+  static std::string id;
+  return id;
+}
+
 bool& mods_menu_reopen() {
   static bool on = false;
   return on;
@@ -228,6 +264,8 @@ void ModsList::select(int32_t index) {
   notify(index, 0);
 }
 
+
+
 namespace {
 constexpr size_t kReportWidth = 34;  // REPORT's characters a row in the campaigns' box (main_darkgreen)
 // The render target from zVideo's buffers (0x00558290), as the other menus'.
@@ -242,7 +280,7 @@ void target_buffers(Engine& e) {
 // of its right box (the games' plain one, 378,33, 241x210) put in its place,
 // the CAMPAIGNS list's box lined up with MODS'. The same size and place, so
 // the wide layout stretches it as the pilot screen's. Null when it cannot.
-zimg::Texture* campaign_lines(zimg::Texture* src) {
+zimg::Texture* campaign_lines(zimg::Texture* src, bool left_box = true) {
   constexpr int kBoxX = 378, kBoxY = 33, kBoxW = 241, kBoxH = 210, kToX = 24, kToY = 113, kClearW = 265;
   if (!src || !src->pixels || !src->alpha || src->palette_count || src->width < kBoxX + kBoxW ||
       src->height < kToY + kBoxH)
@@ -260,7 +298,7 @@ zimg::Texture* campaign_lines(zimg::Texture* src) {
       out[y * w + x] = cleared ? 0 : in[y * w + x];
       dst->alpha[y * w + x] = cleared ? 0 : src->alpha[y * w + x];
     }
-  for (int y = 0; y < kBoxH; ++y)
+  for (int y = 0; left_box && y < kBoxH; ++y)
     for (int x = 0; x < kBoxW; ++x) {
       out[(kToY + y) * w + kToX + x] = in[(kBoxY + y) * w + kBoxX + x];
       dst->alpha[(kToY + y) * w + kToX + x] = src->alpha[(kBoxY + y) * w + kBoxX + x];
@@ -277,6 +315,11 @@ void say(ztwod::Text& t, const std::string& s) {
   if (t.needs_render) t.render();
 }
 }  // namespace
+
+void mods_screen_target(Engine& e) { target_buffers(e); }
+void mods_text_put(ztwod::Text& t, const char* font, int32_t x, int32_t y) { put(t, font, x, y); }
+void mods_text_say(ztwod::Text& t, const std::string& s) { say(t, s); }
+zimg::Texture* mods_screen_lines(zimg::Texture* src, bool left_box) { return campaign_lines(src, left_box); }
 
 int32_t ModsSlideButton::hit(int32_t px, int32_t py) {
   if (!get_rect()) return 0;  // off, or being read, as SlideButton's
@@ -299,9 +342,6 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
     : MenuScreen(e, s),
       enter(e, kEnter),
       back(e, kBack),
-      toggle(e, kToggle),
-      up(e, kUp),
-      down(e, kDown),
       editor(e, kEditor),
       test_btn(e, kTest),
       add_btn(e, kAdd),
@@ -309,8 +349,12 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
       add_folder_btn(e, kAddFolder),
       folder_btn(e, kOpenFolder),
       report_btn(e, kReport),
+      delete_btn(e, kDelete),
+      reset_btn(e, kDelete),
       campaign_list(e, kCampaigns),
-      mod_list(e, kMods) {
+      ticks(e),
+      mod_list(ticks.list),
+      enabled(ticks.ticks) {
   target_buffers(e);
   const bool moving = !e.fast_menu();
   // Made when MODS is pressed, past the main menu's read: dialog.zrd read again.
@@ -339,10 +383,10 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
       back.set_baked(true);
     }
     bind_button(&campaign_list, "CAMPAIGNLIST");
-    bind_button(&mod_list, "MODLIST");
-    bind_button(&toggle, "TOGGLE");
-    bind_button(&up, "MOVEUP");
-    bind_button(&down, "MOVEDOWN");
+    bind_button(&ticks.list, "MODLIST");
+    bind_button(&ticks.toggle, "TOGGLE");
+    bind_button(&ticks.up, "MOVEUP");
+    bind_button(&ticks.down, "MOVEDOWN");
     bind_button(&editor, "EDITOR");
     bind_button(&test_btn, "TESTMOD");
     bind_button(&add_btn, "ADDMOD");
@@ -350,6 +394,8 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
     bind_button(&add_folder_btn, "ADDFOLDER");
     bind_button(&folder_btn, "MODSFOLDER");
     bind_button(&report_btn, "REPORTMOD");
+    bind_button(&delete_btn, "DELETEROW");
+    bind_button(&reset_btn, "RESETROW");
     unload();
   }
   // The details in PILOT ENTRY's box, the notes under the MODS table.
@@ -362,8 +408,10 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
   add(&detail_label), add(&detail), add(&detail2), add(&note), add(&restart);
   set_flags_all(0);
   set_active(1);
-  enabled = mods_enabled(mods_menu_write_dir());
+  entry = official_entries().front().id;
+  if (!mods_menu_open_entry().empty()) entry = mods_menu_open_entry();  // the campaign just left (--mods-entry)
   refill();
+  if (entry_run().screen == EntryRun::kTest) open_test_mode();
 }
 
 ModsScreen::~ModsScreen() {
@@ -374,18 +422,34 @@ ModsScreen::~ModsScreen() {
 }
 
 void ModsScreen::refill() {
-  tables = mods_tables(mods_menu_write_dir(), enabled, mods_menu_mounted());
+  tables.campaigns = mods_entry_rows(mods_menu_write_dir());
   campaign_list.clear_items();
-  for (size_t i = 0; i < tables.campaigns.size(); ++i)
+  int32_t at = 0;
+  for (size_t i = 0; i < tables.campaigns.size(); ++i) {
     campaign_list.add_item(mods_campaign_row_text(tables.campaigns[i]).c_str(), static_cast<int32_t>(i));
-  const int32_t was = mod_list.selected;
-  mod_list.clear_items();
-  for (size_t i = 0; i < tables.mods.size(); ++i)
-    mod_list.add_item(mods_row_text(tables.mods[i]).c_str(), static_cast<int32_t>(i));
-  campaign_list.layout(), mod_list.layout();
-  if (focus == kMods && was >= 0 && was < mod_list.item_count()) mod_list.FileList::select(was);
-  else if (campaign_list.item_count() && campaign_list.selected < 0) campaign_list.FileList::select(0);
-  say(restart, enabled == mods_menu_mounted() ? "" : "Mod changes take hold at the next start.");
+    if (tables.campaigns[i].entry == entry) at = static_cast<int32_t>(i);
+  }
+  campaign_list.layout();
+  if (campaign_list.item_count()) campaign_list.FileList::select(at);
+  choose_entry();
+}
+
+const ModsCampaignRow* ModsScreen::chosen_row() const {
+  const int32_t i = campaign_list.selected;
+  return !reporting && !editing && i >= 0 && i < static_cast<int32_t>(tables.campaigns.size()) ? &tables.campaigns[static_cast<size_t>(i)] : nullptr;
+}
+
+// The campaign chosen at the left: MODS shows its own mods (grey, always on)
+// and every asset mod with that campaign's ticks.
+void ModsScreen::choose_entry() {
+  const std::string& dir = mods_menu_write_dir();
+  if (const ModsCampaignRow* row = chosen_row()) entry = row->entry;
+  const std::vector<CampaignEntry> all = campaign_entries(dir);
+  const CampaignEntry* e = find_entry(all, entry);
+  std::vector<std::string> locked;
+  if (e) entry_mount_list(dir, *e, &locked);
+  ticks.fill(dir, e ? entry_ticks(dir, entry) : std::vector<std::string>{}, locked, true);
+  focus = kCampaigns;  // the fill chose a row of MODS: the details stay the campaign's
   show_details();
 }
 
@@ -397,52 +461,82 @@ void ModsScreen::show_details() {
     const ModsCampaignRow& c = tables.campaigns[static_cast<size_t>(campaign_list.selected)];
     d = c.name, d2 = mods_campaign_details(c);
     if (!c.error.empty()) n = "Cannot be played: " + c.error;
-    else if (!c.mounted) n = "Its mod is off: ENTER turns it on for the next start.";
-  } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(tables.mods.size())) {
-    const ModsListEntry& m = tables.mods[static_cast<size_t>(mod_list.selected)];
+    else n = (c.copy_of.empty() ? std::string() : "A copy of " + c.copy_of + ". ") + "PLAY starts it with the mods ticked here.";
+  } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(ticks.rows.size())) {
+    const ModsListEntry& m = ticks.rows[static_cast<size_t>(mod_list.selected)];
     d = m.info.name.empty() ? m.info.folder : m.info.name;
     d2 = (m.info.author.empty() ? std::string("unknown author") : m.info.author) +
          (m.info.version.empty() ? "" : ", version " + m.info.version);
-    n = mods_row_note(m, tables.mods);
+    n = ticks.note();
+    (void)m;
   }
   say(detail, d);
   say(detail2, d2);
-  say(note, n);
+  show_delete_tab();
+  // A campaign's note takes both lines (a reason can be long); a mod's is one, over whose mods these are.
+  if (focus == kCampaigns) {
+    tell(n);
+  } else {
+    const ModsCampaignRow* row = chosen_row();
+    say(note, n);
+    say(restart, row ? "MODS: " + row->name + "'s." : std::string());
+  }
 }
 
 void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
   const std::string& dir = mods_menu_write_dir();
+  if (test_mode) {  // the entry's test list: a mission chosen, played, or the entry left
+    if (id == kEnter) edit_start();
+    else if (id == kBack) state_escape();
+    else if (id != kCampaigns && id != kMods && id != ModTickList::kList) tell("This is the test of one campaign: PLAY plays a mission, BACK leaves it.");
+    return;
+  }
   auto chosen_mod = [&]() -> const ModsListEntry* {
     const int32_t i = mod_list.selected;
-    return i >= 0 && i < static_cast<int32_t>(tables.mods.size()) ? &tables.mods[static_cast<size_t>(i)] : nullptr;
+    return i >= 0 && i < static_cast<int32_t>(ticks.rows.size()) ? &ticks.rows[static_cast<size_t>(i)] : nullptr;
   };
   switch (id) {
     case kCampaigns:
-    case kMods:
       focus = id;
       (void)a;
+      if (!reporting && !editing) choose_entry();
+      else show_details();
+      return;
+    case kMods:
+    case ModTickList::kList:
+      focus = kMods;
       show_details();
       return;
     case kToggle:
     case kUp:
     case kDown:
-      if (const ModsListEntry* m = chosen_mod()) {
-        const std::string folder = m->info.folder;
-        const bool turning_on = id == kToggle && std::find(enabled.begin(), enabled.end(), folder) == enabled.end();
-        if (id == kToggle) mods_toggle(enabled, folder);
-        else mods_move(enabled, folder, id == kUp ? -1 : 1);
-        mods_save_enabled(dir, enabled);
-        refill();
-        for (int32_t i = 0; i < mod_list.item_count(); ++i)
-          if (tables.mods[static_cast<size_t>(i)].info.folder == folder) mod_list.FileList::select(i);
-        focus = kMods;
-        show_details();
-        // Ours (mod_needs.h): turned on all the same, its warnings said.
-        for (const ModsListEntry& e : tables.mods)
-          if (turning_on && e.info.folder == folder && !e.needs.empty())
-            tell(e.needs[0] + (e.needs.size() > 1 ? " (" + std::to_string(e.needs.size() - 1) + " more: REPORT)" : ""));
+    case ModTickList::kToggle:
+    case ModTickList::kUp:
+    case ModTickList::kDown: {
+      // The tick list's own: the chosen campaign's mods.txt written at once.
+      const int32_t tid = id == kToggle ? ModTickList::kToggle : id == kUp ? ModTickList::kUp : id == kDown ? ModTickList::kDown : id;
+      bool changed = false;
+      ticks.on_button(tid, &changed);
+      if (changed) {
+        const std::vector<CampaignEntry> all = campaign_entries(dir);
+        const CampaignEntry* e = find_entry(all, entry);
+        if (!e || !entry_save_ticks(dir, *e, ticks.ticks)) tell("The mods could not be saved (the settings folder cannot be written).");
+        // A missing mod unticked, or one ticked: the campaign's own row may change its "!".
+        const std::vector<ModsCampaignRow> rows = mods_entry_rows(dir);
+        if (!reporting && !editing && rows.size() == tables.campaigns.size()) {
+          tables.campaigns = rows;
+          const int32_t sel = campaign_list.selected;
+          campaign_list.clear_items();
+          for (size_t i = 0; i < rows.size(); ++i) campaign_list.add_item(mods_campaign_row_text(rows[i]).c_str(), static_cast<int32_t>(i));
+          campaign_list.layout();
+          campaign_list.FileList::select(sel);
+        }
       }
+      focus = kMods;
+      show_details();
+      if (!ticks.warned.empty()) tell(ticks.warned);
       return;
+    }
     case kEnter:
       if (reporting) return;
       if (editing) edit_start();
@@ -485,6 +579,12 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
     }
     case kOpenFolder: {
       std::error_code ec;
+      // With a report up, the folder its text file was saved in (ours: mod_report.h).
+      if (reporting && !report_file.empty()) {
+        const std::string r = mod_reports_dir(dir);
+        if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(r)) tell("The reports folder: " + r);
+        return;
+      }
       const std::filesystem::path m = std::filesystem::path(dir) / "mods";
       std::filesystem::create_directories(m, ec);
       if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(m.string()))
@@ -498,6 +598,9 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
     case kReport:
       if (editing) missions(testing);  // EDITOR's or TEST's list closed first
       report();
+      return;
+    case kDelete:
+      delete_row();
       return;
     case kTest:
       if (reporting) report();
@@ -519,44 +622,68 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
   }
 }
 
+// The plan for what is chosen: the mod at the right when MODS has the focus (never a campaign's own mod from
+// there: its row is at the left), else the campaign at the left.
+namespace {
+DeletePlan plan_for(ModsScreen& s) {
+  DeletePlan p;
+  if (s.test_mode || s.reporting || s.editing) return p.refused = "Close the list first.", p;
+  if (s.focus == ModsScreen::kMods) {
+    const ModsListEntry* m = s.ticks.chosen();
+    if (!m) return p.refused = "Choose a mod or a campaign.", p;
+    if (mod_is_campaign(m->info)) return p.refused = "It is a campaign's own: choose the campaign at the left to delete it.", p;
+    return delete_plan_for_mod(mods_menu_write_dir(), m->info.folder);
+  }
+  const ModsCampaignRow* row = s.chosen_row();
+  if (!row) return p.refused = "Choose a mod or a campaign.", p;
+  return delete_plan_for_entry(mods_menu_write_dir(), row->entry, entry_run().id);
+}
+}  // namespace
+
+void ModsScreen::show_delete_tab() {
+  const std::string label = plan_for(*this).label;
+  if (label == "DELETE") delete_btn.show_for(-1.0f);
+  else delete_btn.hide();
+  if (label == "RESET") reset_btn.show_for(-1.0f);
+  else reset_btn.hide();
+}
+
+// DELETE or RESET: the game's own confirm saying what goes, then the one remover (mods_delete.h).
+void ModsScreen::delete_row() {
+  const DeletePlan plan = plan_for(*this);
+  if (plan.kind == DeletePlan::kNone) {
+    tell(plan.refused);
+    return;
+  }
+  const bool reset = plan.kind == DeletePlan::kReset;
+  if (engine().message_box_words(1, reset ? "Reset" : "Delete", plan.question) != 1) {
+    tell(reset ? "Not reset." : "Not deleted.");
+    return;
+  }
+  std::string why;
+  const bool ok = delete_run(mods_menu_write_dir(), plan, &why);
+  std::printf("mw3: mods: %s %s%s%s: %s\n", reset ? "reset" : "delete", plan.mod.empty() ? "" : ("mods/" + plan.mod + " ").c_str(),
+              plan.entry.empty() ? "" : "campaigns/", plan.entry.c_str(), ok ? "done" : why.c_str());
+  entry = official_entries().front().id;  // the game's own campaign chosen after it
+  focus = kCampaigns;
+  refill();
+  tell(ok ? (reset ? "Reset." : "Deleted.") : (reset ? "Not reset: " : "Not deleted: ") + why);
+}
+
 // ENTER: the chosen campaign entered (its own pilots), MODS let go and the
 // Campaign State pushed on the main menu, as its CAMPAIGN (the main menu
 // shown again lets the campaign go: MainState::update); a campaign whose mod is not on in this
 // run is never started half-mounted: its mod is turned on for the next start.
 void ModsScreen::enter_campaign() {
-  const int32_t i = campaign_list.selected;
-  if (focus != kCampaigns || i < 0 || i >= static_cast<int32_t>(tables.campaigns.size())) {
-    say(note, "Choose a custom campaign to enter.");
+  const ModsCampaignRow* row = chosen_row();
+  if (!row) {
+    say(note, "Choose a campaign to play.");
     return;
   }
-  const ModsCampaignRow row = tables.campaigns[static_cast<size_t>(i)];
-  if (!row.error.empty()) {
-    say(note, "Cannot be played: " + row.error);
-    return;
-  }
-  if (!row.mounted) {
-    if (std::find(enabled.begin(), enabled.end(), row.mod) == enabled.end()) {
-      mods_toggle(enabled, row.mod);
-      mods_save_enabled(mods_menu_write_dir(), enabled);
-      refill();
-    }
-    say(note, row.name + ": its mod is turned on; restart to play it.");
-    return;
-  }
-  const ModCampaign* found = nullptr;
-  for (const ModCampaign& c : mod_campaigns())
-    if (c.mod == row.mod && c.file == row.file) found = &c;
-  std::string why = "a mission's world is missing";
-  if (!found || !campaign_enter(*found, &why)) {
-    say(note, "Cannot be played: " + why);
-    return;
-  }
-  // The Campaign State on the main menu, as from CAMPAIGN: once a pilot is
-  // chosen it pops itself and replaces the state below with the mission's,
-  // which must be the main menu's (nothing left under a mission).
-  Engine& e = engine();
-  e.pop_state(0);
-  e.push_state(e.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
+  const std::string name = row->name, id = row->entry;
+  std::string why = row->error;
+  if (why.empty() && !mods_menu_play()) why = "the game cannot start again from here";
+  if (!why.empty() || !mods_menu_play()(id, &why)) tell(name + " cannot be played: " + why);
 }
 
 // REPORT (ours; modding.md, Plain errors on the MODS screen): the chosen
@@ -573,33 +700,52 @@ void ModsScreen::report() {
       campaign_list.selected < static_cast<int32_t>(tables.campaigns.size())) {
     const ModsCampaignRow& c = tables.campaigns[static_cast<size_t>(campaign_list.selected)];
     folder = c.mod, name = c.name;
-  } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(tables.mods.size())) {
-    const ModsListEntry& m = tables.mods[static_cast<size_t>(mod_list.selected)];
+  } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(ticks.rows.size())) {
+    const ModsListEntry& m = ticks.rows[static_cast<size_t>(mod_list.selected)];
     folder = m.info.folder, name = m.info.name.empty() ? m.info.folder : m.info.name;
   }
   std::string path;
   for (const ModInfo& i : mods_found(mods_menu_write_dir()))
     if (i.folder == folder) path = i.path;
   if (path.empty()) {
-    say(note, "Choose a mod or a custom campaign for its report.");
+    // The game's own campaign has no mod to report on; its mods are at the right.
+    tell(focus == kCampaigns && chosen_row() && chosen_row()->mod.empty()
+             ? name + " is the game's own campaign: choose one of its mods at the right for a report."
+             : "Choose a mod or a campaign for its report.");
     return;
   }
   int refused = 0;
   std::vector<std::string> lines;
   std::vector<std::string> sentences;
-  for (const ModsListEntry& e : tables.mods)
+  for (const ModsListEntry& e : ticks.rows)
     if (e.info.folder == folder) sentences = e.needs;  // what it needs first (mod_needs.h)
+  // A copy: what it changed from the campaign it was saved from, first (mod_report.h, mod_copy_report).
+  for (const std::string& s : mod_copy_report(mods_menu_write_dir(), mods_menu_install(), folder)) sentences.push_back(s);
   for (const std::string& s : mod_report(path, mods_menu_install(), folder, &refused)) sentences.push_back(s);
-  for (const std::string& s : sentences)
+  // The whole report as a text file of ours too, for the mod's maker to read outside the game.
+  std::string why;
+  report_file.clear();
+  int warnings = 0;
+  for (const std::string& s : sentences) warnings += s.rfind("Wrong: ", 0) == 0;
+  std::vector<std::string> text = {"Report on " + name + "."};  // the file's first line; the screen has it in its heading
+  text.insert(text.end(), sentences.begin(), sentences.end());
+  if (mod_report_write(mods_menu_write_dir(), folder, text, &report_file, &why))
+    sentences.push_back(""), sentences.push_back("This report is saved as " + report_file + " (MODS FOLDER opens its folder).");
+  else
+    sentences.push_back(""), sentences.push_back("This report could not be saved as a file: " + why + ".");
+  for (const std::string& s : sentences) {
+    if (s.empty()) lines.push_back("");
     for (const std::string& l : mod_report_wrap(s, kReportWidth)) lines.push_back(l);
+  }
   reporting = true;
   campaign_list.clear_items();
   for (size_t i = 0; i < lines.size(); ++i) campaign_list.add_item(lines[i].c_str(), static_cast<int32_t>(i));
   campaign_list.layout();
   focus = kCampaigns;
   say(detail, "REPORT " + name);
-  say(detail2, refused ? std::to_string(refused) + (refused == 1 ? " thing" : " things") + " the game would refuse" : "nothing refused");
-  say(note, "REPORT or BACK goes back to the tables.");
+  say(detail2, refused ? "the mod is refused"
+               : warnings ? std::to_string(warnings) + (warnings == 1 ? " warning" : " warnings") + ", nothing refused" : "nothing refused");
+  say(note, report_file.empty() ? "REPORT or BACK goes back to the tables." : "REPORT or BACK goes back. MODS FOLDER: the saved report.");
   std::printf("mw3: mods: report on %s: %zu lines\n", folder.c_str(), lines.size());
 }
 
@@ -614,47 +760,51 @@ void ModsScreen::edit() { missions(false); }
 void ModsScreen::test() { missions(true); }
 
 void ModsScreen::missions(bool test) {
-  std::string folder, name;
+  if (test_mode) return;  // the test list is the screen there
+  std::string folder, name, entry_id;
+  bool own = false;
   if (editing) {
     const bool same = testing == test;
-    const std::string was = edit_mod;
     editing = false, testing = false, edit_rows.clear(), edit_mod.clear();
     refill();
-    if (same) return;  // pressed again: back to the tables; the other: its list, of the same mod
-    folder = was;
-    for (const ModsListEntry& m : tables.mods)
-      if (m.info.folder == was) name = m.info.name.empty() ? was : m.info.name;
-    for (const ModsCampaignRow& c : tables.campaigns)
-      if (name.empty() && c.mod == was) name = c.name;
-    if (name.empty()) name = was;
-  } else if (focus == kCampaigns && campaign_list.selected >= 0 &&
-      campaign_list.selected < static_cast<int32_t>(tables.campaigns.size())) {
-    const ModsCampaignRow& c = tables.campaigns[static_cast<size_t>(campaign_list.selected)];
-    folder = c.mod, name = c.name;
-  } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(tables.mods.size())) {
-    const ModsListEntry& m = tables.mods[static_cast<size_t>(mod_list.selected)];
-    folder = m.info.folder, name = m.info.name.empty() ? m.info.folder : m.info.name;
+    if (same) return;  // pressed again: back to the tables; the other: its list, of the same campaign
   }
-  const char* verb = test ? "test" : "edit";
-  if (folder.empty()) {
-    say(note, std::string("Choose a mod or a custom campaign to ") + verb + ".");
+  // The chosen campaign's missions; with a row of MODS in focus, that mod's own first (it must be on for the campaign).
+  const ModsCampaignRow* row = chosen_row();
+  if (!row) {
+    say(note, std::string("Choose a campaign to ") + (test ? "test." : "edit."));
     return;
   }
-  const std::vector<std::string>& on = mods_menu_mounted();
-  if (std::find(on.begin(), on.end(), folder) == on.end()) {
-    if (std::find(enabled.begin(), enabled.end(), folder) == enabled.end()) {
-      mods_toggle(enabled, folder);
-      mods_save_enabled(mods_menu_write_dir(), enabled);
-      refill();
-    }
-    say(note, name + ": its mod is turned on; restart to " + verb + " it.");
+  entry_id = row->entry, folder = row->mod, name = row->name, own = row->mod.empty();
+  if (!row->error.empty()) {
+    tell(name + " cannot be played: " + row->error);
+    return;
+  }
+  const ModsListEntry* picked = focus == kMods ? ticks.chosen() : nullptr;
+  if (picked && !picked->on) {
+    tell("Tick " + (picked->info.name.empty() ? picked->info.folder : picked->info.name) + " for " + name + " to " + (test ? "test" : "edit") + " it there.");
     return;
   }
   std::vector<ModsEditRow> rows;
-  for (const ModsListEntry& m : mods_list(mods_menu_write_dir(), enabled))
-    if (m.info.folder == folder) rows = test ? mods_test_rows(m.info, mods_menu_install()) : mods_edit_rows(m.info);
+  auto add = [&](const std::vector<ModsEditRow>& more) {
+    for (const ModsEditRow& r : more) {
+      bool seen = false;
+      for (const ModsEditRow& have : rows) seen = seen || (crt::msvc_stricmp(have.world.c_str(), r.world.c_str()) == 0 && have.number == r.number);
+      if (!seen) rows.push_back(r);
+    }
+  };
+  const std::vector<ModInfo> found = mods_found(mods_menu_write_dir());
+  auto info_of = [&](const std::string& f) {
+    for (const ModInfo& i : found)
+      if (i.folder == f) return i;
+    return ModInfo{};
+  };
+  // EDITOR's list is TEST's: any mission the campaign plays can be opened; its saves make a copy (save_as.h).
+  if (picked) add(mods_edit_rows(picked->info));
+  if (!own) add(mods_edit_rows(info_of(folder)));
+  add(mods_test_rows(own ? ModInfo{} : info_of(folder), mods_menu_install()));
   if (rows.empty()) {
-    say(note, name + " has no missions to edit (no campaign= lines, no world with a reader archive).");
+    say(note, name + " has no missions to " + (test ? "test" : "edit") + " (no campaign= lines, no world with a reader archive).");
     return;
   }
   editing = true, testing = test, edit_mod = folder, edit_rows = std::move(rows);
@@ -666,8 +816,51 @@ void ModsScreen::missions(bool test) {
   focus = kCampaigns;
   say(detail, (test ? "TEST " : "EDIT ") + name);
   say(detail2, "");
-  tell(test ? "Choose a mission; ENTER plays it with the mods on. TEST again goes back."
-            : "Choose a mission; ENTER opens it in the editor. EDITOR again goes back.");
+  tell(test ? "Choose a mission; PLAY starts the game again in " + name + " and plays it. TEST again goes back."
+            : "Choose a mission; PLAY starts the game again in " + name + " with it open in the editor. Saving there makes a copy.");
+}
+
+// Inside an entry started for TEST: the screen is its test list alone.
+void ModsScreen::open_test_mode() {
+  const EntryRun& run = entry_run();
+  entry = run.id;
+  std::string name = run.id;
+  for (const ModsCampaignRow& c : tables.campaigns)
+    if (c.entry == run.id) name = c.name;
+  std::vector<ModsEditRow> rows;
+  const std::vector<ModInfo> found = mods_found(mods_menu_write_dir());
+  ModInfo info;
+  for (const ModInfo& i : found)
+    if (i.folder == run.mod) info = i;
+  // Every mounted mod's own missions, then the campaign's, then the game's, each once.
+  auto add = [&](const std::vector<ModsEditRow>& more) {
+    for (const ModsEditRow& r : more) {
+      bool seen = false;
+      for (const ModsEditRow& have : rows) seen = seen || (crt::msvc_stricmp(have.world.c_str(), r.world.c_str()) == 0 && have.number == r.number);
+      if (!seen) rows.push_back(r);
+    }
+  };
+  for (const std::string& m : mods_menu_mounted())
+    for (const ModInfo& i : found)
+      if (i.folder == m) add(mods_edit_rows(i));
+  add(mods_test_rows(info, mods_menu_install()));
+  test_mode = true, editing = true, testing = true, edit_mod = run.mod, edit_rows = std::move(rows);
+  campaign_list.clear_items();
+  int32_t at = 0;
+  for (size_t i = 0; i < edit_rows.size(); ++i) {
+    campaign_list.add_item((edit_rows[i].world + " mission " + std::to_string(edit_rows[i].number)).c_str(), static_cast<int32_t>(i));
+    if (crt::msvc_stricmp(edit_rows[i].world.c_str(), run.world.c_str()) == 0 && edit_rows[i].number == run.number) at = static_cast<int32_t>(i);
+  }
+  campaign_list.layout();
+  if (campaign_list.item_count()) campaign_list.FileList::select(at);
+  focus = kCampaigns;
+  say(detail, "TEST in " + name);
+  say(detail2, std::to_string(mods_menu_mounted().size()) + (mods_menu_mounted().size() == 1 ? " mod on" : " mods on"));
+  // A mission that did not load says why here (the load's own words), and the list stays.
+  std::string said = run.said;
+  if (said.empty() && mech3::missions().failed)
+    said = "The mission could not be loaded: " + (mech3::missions().failed_why.empty() ? std::string("its files are incomplete") : mech3::missions().failed_why) + ".";
+  tell(!said.empty() ? said : "Choose a mission; PLAY plays it at once. BACK leaves " + name + ".");
 }
 
 void ModsScreen::edit_start() {
@@ -677,9 +870,17 @@ void ModsScreen::edit_start() {
     return;
   }
   const ModsEditRow r = edit_rows[static_cast<size_t>(i)];
+  // On a plain run TEST starts the program again into the campaign; inside it (the test mode) the mission is
+  // played in place, the mechs' definitions read again (upgrades/mods/mod_test.h).
+  if (!test_mode) {
+    std::string why = "the game cannot start again from here";
+    const ModsTestRestart& go = testing ? mods_menu_test_restart() : mods_menu_edit_restart();
+    if (!go || !go(entry, r.world, r.number, &why)) tell(std::string(testing ? "Cannot play it: " : "Cannot edit it: ") + why);
+    return;
+  }
   const ModsEditStart& start = testing ? mods_menu_test_start() : mods_menu_edit_start();
   std::string why = testing ? "the mission cannot be started here" : "the editor cannot be started here";
-  if (!start || !start(edit_mod, r.world, r.number, &why)) say(note, (testing ? "Cannot play it: " : "Cannot edit it: ") + why);
+  if (!start || !start(edit_mod, r.world, r.number, &why)) tell((testing ? "Cannot play it: " : "Cannot edit it: ") + why);
 }
 
 void ModsScreen::update(float dt) {
@@ -743,29 +944,33 @@ void ModsScreen::tell(const std::string& text) {
 // (mod_install.h), turned on for the next start when it is more than a
 // campaign, shown in its table and said.
 void ModsScreen::add_mod(const std::string& path) {
-  const ModAddDone d = mod_add_run(mods_menu_write_dir(), path, mods_menu_install(), mods_menu_platform().ask_game, &enabled);
+  // Added unticked: nothing changes for any campaign until the player ticks it.
+  // A whole modded game folder: what differs from the player's install becomes the mod (upgrades/mods/import_folder.h).
+  std::string took;
+  const ModAddDone d = import_folder_run(mods_menu_write_dir(), path, mods_menu_install(), mods_menu_platform().ask_game, nullptr, &took);
   if (!d.ok) {
     tell(d.message);
     return;
   }
   refill();
-  if (d.campaign_only) {
-    for (int32_t k = 0; k < campaign_list.item_count(); ++k)
-      if (tables.campaigns[static_cast<size_t>(k)].mod == d.folder) {
-        campaign_list.FileList::select(k), focus = kCampaigns;
-        break;
-      }
-    show_details();
-    tell("Added " + d.name + ": ENTER on its campaign turns it on for the next start.");
-  } else {
-    for (int32_t k = 0; k < mod_list.item_count(); ++k)
-      if (tables.mods[static_cast<size_t>(k)].info.folder == d.folder) {
-        mod_list.FileList::select(k), focus = kMods;
-        break;
-      }
-    show_details();
-    tell(d.message);
-  }
+  // A campaign (its own campaign= lines, or one that plays the game's own over its files): its row in CAMPAIGNS
+  // chosen; an asset mod: its row in MODS, unticked.
+  bool listed = false;
+  for (int32_t k = 0; k < campaign_list.item_count() && !listed; ++k)
+    if (tables.campaigns[static_cast<size_t>(k)].mod == d.folder) {
+      campaign_list.FileList::select(k);
+      choose_entry();
+      listed = true;
+    }
+  for (int32_t k = 0; k < mod_list.item_count() && !listed; ++k)
+    if (ticks.rows[static_cast<size_t>(k)].info.folder == d.folder) {
+      mod_list.FileList::select(k), focus = kMods;
+      listed = true;
+    }
+  show_details();
+  // From a whole install: what was taken, on the two rows; "Added ..." is in the log, and the mod's row is chosen.
+  if (!took.empty()) std::printf("mw3: mods: %s\n", d.message.c_str());
+  tell(took.empty() ? d.message : took);
 }
 
 // EXPORT's answer: the mod chosen when the save box opened, packed into

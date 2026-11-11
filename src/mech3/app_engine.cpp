@@ -31,6 +31,7 @@
 #include "mech3/controls_cfg.h"
 #include "mech3/options.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/mods/ia_mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
 #include "upgrades/mods/mod_test.h"
 #include "mech3/options_menu.h"
@@ -215,6 +216,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   options_sensitivity_slider() = true;  // ours: the options' MOUSE SENSITIVITY
   options_upgrades_page() = true;       // ours: the options' UPGRADES page
   mods_menu_page() = true;              // ours: the main menu's MODS
+  ia_mods_page() = true;                // ours: Instant Action's MODS tab
   // Ours: MODS's EDIT (upgrades/editor/mods_edit.h): the mission started as
   // a debug start is (a stand-in pilot, no briefing), the chosen pilot and
   // the launch put back when it is over.
@@ -443,7 +445,7 @@ const char* GameEngine::message_format_n(int32_t id, int32_t n) {
 // a button answers; FastMenu off meanwhile. The text is formatted by the
 // callers (0x00575ff0 with their arguments); the answer is the box's (IDOK 1,
 // IDCANCEL 2, IDYES 6 ...).
-uint32_t GameEngine::game_message_box(int32_t style, int32_t caption, const std::string& text) {
+uint32_t GameEngine::game_message_box(int32_t style, int32_t caption, const std::string& text, const char* caption_words) {
   video_begin_3d();
   video_end_3d();
   const int32_t fast = exchange_fast_menu(0);
@@ -451,7 +453,7 @@ uint32_t GameEngine::game_message_box(int32_t style, int32_t caption, const std:
   {
     ztwod::MessageBox box("dlgMessage.zrd", "MESSAGEBOX", false);
     box_ = &box;
-    const char* cap = message(caption);
+    const char* cap = caption_words ? caption_words : message(caption);  // ours: a caption of our own words
     r = box.run(text.c_str(), cap ? cap : "", static_cast<uint32_t>(style));
     box_ = nullptr;
   }
@@ -490,6 +492,14 @@ uint32_t GameEngine::message_box3(int32_t a, int32_t caption, int32_t text, cons
     return on_message_box(a, caption, text);
   }
   return game_message_box(a, caption, zutl::format_message(text, {s1, s2, s3}));
+}
+
+uint32_t GameEngine::message_box_words(int32_t a, const std::string& caption, const std::string& text) {
+  if (on_message_box) {
+    last_box_text = text;
+    return on_message_box(a, 0, 0);
+  }
+  return game_message_box(a, 0, text, caption.c_str());
 }
 
 uint32_t GameEngine::message_box_plain(int32_t a, int32_t caption, const std::string& text) {
@@ -843,7 +853,7 @@ void GameEngine::video_clear_b(Handle) {
   if (!p_.render) return;
   uint8_t r, g, b;
   zmod::fog_frame_fill(&r, &g, &b);
-  p_.render->clear(zfix::options().bugs, r, g, b);
+  p_.render->clear(zfix::options().fixed, r, g, b);
 }
 // 0x00579840: the cursor's on/off, the old state back. The menus draw their own.
 uint32_t GameEngine::video_show_cursor(uint32_t on) {

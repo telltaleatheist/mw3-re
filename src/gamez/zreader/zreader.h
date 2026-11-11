@@ -1,4 +1,5 @@
 #pragma once
+#include "upgrades/mods/mod_warning.h"
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -111,6 +112,10 @@ bool to_json(const Node& root, std::string* out);
 // path is a text file found through zutl::open (the write dir, then the
 // mounts). nullptr if not found.
 Node* load(const char* path);
+// Ours: what the last load() from an archive found wrong with the entry, each in plain words for a mod's maker
+// (upgrades/mods/mod_warning.h: what is wrong and where, what was done, what the original does); empty for a
+// well-formed entry.
+const std::vector<mech3::ModWarning>& load_notes();
 
 // Ours, not the original's: called by load() with each tree read from an
 // archive, the archive's path as opened and the entry's name, before the

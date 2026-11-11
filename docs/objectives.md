@@ -43,6 +43,7 @@ Under them:
 | `node_change` | c1, c2, c3, c4, c4b (85) |
 | `obj_list` | every mission (41) |
 | `reach_area` | c2, c4b, t1 (8) |
+| `User_Command` | t1 (training) only (32): "press the key for this command" (`cmd`, a CMD_ name: the command's bound key, joystick button or mouse button), which is what training's key prompts use |
 | `weapon_fire`, `heat_warning`, `target_object`, `weapon_select`, `time_limit`, `face_object`, `reach_velocity`, `aim_at_object` | t1 (training) only (piece 5, below) |
 | `view_object`, `key_press`, `mouse_press`, `joystick_press`, `weapon_group_select` | none shipped |
 
