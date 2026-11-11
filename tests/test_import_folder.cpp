@@ -13,6 +13,7 @@
 #include "check.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mod_install.h"
+#include "upgrades/mods/mod_report.h"
 #include "mech3/mods.h"
 #include "upgrades/mods/import_folder.h"
 
@@ -280,7 +281,7 @@ TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
   std::vector<std::string> enabled;
   const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, [](const std::string&) { return 1; }, &enabled);
   std::printf("  %s\n", d.message.c_str());
-  EXPECT(d.ok && d.message.find("Left out 1 file the game cannot read (zbd/c1/readermp90.zbd).") != std::string::npos);
+  EXPECT(d.ok && d.warnings == 2 && d.left_out == 1 && d.message == "Added " + d.name + ": 2 warnings: REPORT lists them.");
   const std::string mod = wd + "/mods/" + d.folder;
   std::error_code ec;
   EXPECT(!fs::exists(mod + "/zbd/c1/readermp90.zbd", ec) && fs::is_regular_file(mod + "/zbd/c1/readermp91.zbd", ec) &&
@@ -290,5 +291,10 @@ TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
   int errors = -1;
   std::string text;
   for (const std::string& l : mech3::mod_check(mod, inst, &errors)) text += l + "\n";
-  EXPECT(errors == 0 && text.find("cannot be read") == std::string::npos);
+  // and what IMPORT left out is still said, from its record in the mod's folder, with the entry read short.
+  EXPECT(errors == 0 && text.find("0 errors, 2 warnings") != std::string::npos);
+  EXPECT(text.find("warning: zbd/c1/readermp90.zbd: aiv.zrd: a list count of 1000000000, 0 bytes into the entry, that no file could hold. The rebuild: "
+                   "nothing of the entry can be read, so IMPORT left this file out; the game's own, if it has one, is used.") != std::string::npos);
+  EXPECT(text.find("warning: zbd/c1/readermp91.zbd: aiv.zrd: ") != std::string::npos);
+  EXPECT(fs::is_regular_file(mod + "/" + mech3::kModLeftOutFile, ec) && text.find(mech3::kModLeftOutFile) == std::string::npos);
 }

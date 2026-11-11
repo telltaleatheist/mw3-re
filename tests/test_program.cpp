@@ -2397,7 +2397,11 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
     std::string detail;
     int campaigns_after = -1;
     bool still_mods = false, own_reporting = false;
-    std::string own_note, copy_lines;
+    std::string own_note, copy_lines, opened_reporting, opened_after, saved_as, heading;
+    mech3::ModsMenuPlatform& mp = mech3::mods_menu_platform();
+    const mech3::ModsMenuPlatform saved_platform = mp;
+    std::string opened;
+    mp.open_folder = [&](const std::string& dir) { return opened = dir, true; };
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
@@ -2424,9 +2428,14 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
         scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
         scr->on_button(mech3::ModsScreen::kReport, 0, 0);
         for (const auto* i : scr->campaign_list.items) lines.push_back(i->text);
+        saved_as = scr->report_file, heading = scr->detail2.text;
+        scr->on_button(mech3::ModsScreen::kOpenFolder, 0, 0);  // with a report up: the saved report's folder
+        opened_reporting = opened;
         scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // nothing while reporting
         still_mods = app.current() == now && scr->reporting;
         scr->on_button(mech3::ModsScreen::kBack, 0, 0);    // back to the tables
+        scr->on_button(mech3::ModsScreen::kOpenFolder, 0, 0);  // and the mods folder again
+        opened_after = opened;
         campaigns_after = scr->reporting ? -1 : scr->campaign_list.item_count();
         still_mods = still_mods && app.current() == now;
         scr->on_button(mech3::ModsScreen::kBack, 0, 0);    // out
@@ -2453,8 +2462,23 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
     EXPECT(!lines.empty() && widest <= 34);
     EXPECT(all.find("It adds 2 new files.") != std::string::npos);  // notes.bin and the campaign's lost.txt
     EXPECT(all.find("It adds the campaign \"Lost Frontier\".") != std::string::npos);
-    EXPECT(all.find("The mech bad is refused: tech= must be clan, sphere or any.") != std::string::npos);
-    EXPECT(all.find("At this start the game left out the mech bad:") != std::string::npos);
+    // A line of mod.txt the game cannot use: a warning in its parts, said once, the mod not refused.
+    EXPECT(all.find("1 warning, none of which refuses the mod: 1 stops part of the mod working.") != std::string::npos && heading == "1 warning, nothing refused");
+    EXPECT(all.find("WHAT STOPS PART OF THE MOD WORKING (1) 1. mech bad Wrong: tech= must be clan, sphere or any. The rebuild: this line of "
+                    "mod.txt is left out and the rest of the mod is used.") != std::string::npos);  // one of its kind: said in full
+    EXPECT(all.find("is refused") == std::string::npos && all.find("At this start the game left out") == std::string::npos);
+    // The whole report as a text file in the game's own folder, where the screen says, and MODS FOLDER opens it.
+    const std::string reports = wd + "/mod-reports";
+    std::ifstream rf(saved_as);
+    const std::string report_text((std::istreambuf_iterator<char>(rf)), std::istreambuf_iterator<char>());
+    std::printf("  saved as %s (%zu bytes); MODS FOLDER: %s, then %s\n", saved_as.c_str(), report_text.size(), opened_reporting.c_str(),
+                opened_after.c_str());
+    EXPECT(saved_as == reports + "/lost.txt" && std::filesystem::is_regular_file(reports + "/" + mech3::kModReportsMarker));
+    EXPECT(report_text.rfind("Report on Lost Frontier.\n", 0) == 0 &&
+           report_text.find("\nWHAT STOPS PART OF THE MOD WORKING (1)\n1. mech bad\nWrong: tech= must be clan, sphere or any.\n") != std::string::npos);
+    EXPECT(report_text.find("This report is saved") == std::string::npos && all.find("This report is saved as") != std::string::npos);
+    EXPECT(opened_reporting == reports && opened_after == wd + "/mods");
+    mp = saved_platform;
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -5906,8 +5930,10 @@ TEST(mods_mech_row_with_a_file_missing_is_refused_c1m1_headless) {
     int errors = 0;
     std::string report;
     for (const std::string& l : mech3::mod_check(wd + "/mods/ghosts", install, &errors)) report += l + "\n";
-    EXPECT(errors >= 2 && report.find("mech ghost_nodfn: no dfn_ghost_nodfn.zrd in the reader archive") != std::string::npos &&
-           report.find("mech ghost_nomodel: no mech_ghost.flt in mechlib.zbd") != std::string::npos);
+    // each line a warning (left out, as at the mount); the mod's files are used, so it is not refused
+    EXPECT(report.find("warning: mech ghost_nodfn: no dfn_ghost_nodfn.zrd in the reader archive") != std::string::npos &&
+           report.find("warning: mech ghost_nomodel: no mech_ghost.flt in mechlib.zbd") != std::string::npos);
+    EXPECT(errors == 0 && report.find("0 errors, 2 warnings") != std::string::npos);
   }
   std::string why;  // past the mount's check: the launch's own refusal
   EXPECT(mech3::mech_row_add_line("ghost_nomodel tech=clan mass=70 class=heavy model=ghost", &why) && mech3::mech_count() == 21);

@@ -167,55 +167,75 @@ std::string plural(int32_t n, const char* one) { return std::to_string(n) + " " 
 // done, and what the exe's 0x00557180 does with the same bytes.
 void make_notes(bool none) {
   g_notes.clear();
-  char b[320];
+  char b[400];
   const Stop& s = g_stopped;
   const bool tail = g_tail.is && g_tail.read;
+  // What to change in the file for a list that says more items than there are: its count's own place.
+  const auto count_fix = [&](long list_at, int32_t said, int32_t held) {
+    std::snprintf(b, sizeof b, "set the list's count (the four bytes %ld bytes into the entry) to %d (%s and the count itself), or add the "
+                  "%s that %s missing", list_at + 4, held + 1, plural(held, "item").c_str(), plural(said - held, "item").c_str(),
+                  said - held == 1 ? "is" : "are");
+    return std::string(b);
+  };
+  // The list that runs into the entries after it and is still short when the archive's data ends: one fault, said once.
+  const bool tail_ran_out = tail && g_stop && s.kind == kRanOut && s.list_at == g_tail.list_at;
   if (tail) {
     mech3::ModWarning w;
-    std::snprintf(b, sizeof b, "its list %ld bytes in says %s and the entry holds %d", g_tail.list_at, plural(g_tail.said, "item").c_str(),
-                  g_tail.held);
+    std::snprintf(b, sizeof b, "its list %ld bytes into the entry says %s and the entry holds %d", g_tail.list_at,
+                  plural(g_tail.said, "item").c_str(), g_tail.held);
     w.wrong = b;
-    w.did = "read the " + std::to_string(g_tail.held) + ", and the entry after it in the archive as the rest";
-    w.original = "does the same (it reads on into the next entry), so the file works there, by luck: the extra items are the next "
-                 "entry's data";
+    if (tail_ran_out) {
+      w.wrong += "; reading on, the archive's data ends before the list is full";
+      w.did = "reads the items the entry holds and what follows it in the archive as the rest, as far as the data goes; the items "
+              "still missing are left out";
+      w.original = "reads on the same way, then through the archive's index and past the end of the file, taking whatever is there as "
+                   "items: it usually gets by, and can crash";
+    } else {
+      w.did = "reads the items the entry holds, and what follows it in the archive (the next entry) as the rest";
+      w.original = "does the same (it reads on into the next entry), so the file works there, by luck: the extra items are the next "
+                   "entry's data";
+    }
+    w.fix = count_fix(g_tail.list_at, g_tail.said, g_tail.held);
     g_notes.push_back(w);
   }
-  if (!g_stop) return;
+  if (!g_stop || tail_ran_out) return;
   mech3::ModWarning w;
   switch (s.kind) {
     case kBadWord:
-      std::snprintf(b, sizeof b, "a value that is not a node type (%d; the types are 1 to 4) %ld bytes in", s.value, s.at);
+      std::snprintf(b, sizeof b, "a value that is not a node type (%d; the types are 1 a whole number, 2 a decimal, 3 a text, 4 a list) %ld bytes into the entry", s.value, s.at);
       w.original = "keeps the value as a node of no kind and reads on from the next four bytes, out of step (seen in the emulator): "
                    "what it reads after that is chance, and it can crash when this entry is loaded";
       break;
     case kBadCount:
-      std::snprintf(b, sizeof b, "a list count of %d, %ld bytes in, that no file could hold", s.value, s.at);
-      w.original = "asks for memory for that many items, is refused, and writes through the empty answer: a likely crash when this "
+      std::snprintf(b, sizeof b, "a list count of %d, %ld bytes into the entry, that no file could hold", s.value, s.at);
+      w.original = "asks for memory for that many items, gets none, and writes there all the same: a likely crash when this "
                    "entry is loaded (seen in the emulator)";
       break;
     case kBadString:
-      std::snprintf(b, sizeof b, "a text said to be %d bytes long, %ld bytes in, which runs past the archive's data", s.value, s.at);
+      std::snprintf(b, sizeof b, "a text said to be %d bytes long, %ld bytes into the entry, which runs past the archive's data", s.value, s.at);
       w.original = "asks for that much memory and reads to the end of the file; when the memory is refused (seen in the emulator "
-                   "for 2 GB) it writes through the empty answer: a likely crash when this entry is loaded";
+                   "for 2 GB) it writes there all the same: a likely crash when this entry is loaded";
       break;
     case kNesting:
-      std::snprintf(b, sizeof b, "lists nested more than 64 deep, %ld bytes in", s.at);
+      std::snprintf(b, sizeof b, "lists nested more than 64 deep, %ld bytes into the entry", s.at);
       w.original = "has no limit and reads them all";
       break;
     default:
-      std::snprintf(b, sizeof b, "the archive's data ends %ld bytes in, before the entry's lists are full", s.at);
+      std::snprintf(b, sizeof b, "the archive's data ends %ld bytes into the entry, before the entry's lists are full", s.at);
       w.original = "reads on through the archive's index and past the end of the file, taking whatever is there as items: it "
                    "usually gets by, and can crash";
+      w.wrong = b;  // before the fix's words take the buffer
+      if (s.list_at >= 0) w.fix = count_fix(s.list_at, s.said, s.held);
       break;
   }
-  w.wrong = b;
+  if (w.wrong.empty()) w.wrong = b;
   if (tail && s.list_at == g_tail.list_at) {
     w.wrong += " (the same list, still short of its items)";
   } else if (s.list_at >= 0) {
-    std::snprintf(b, sizeof b, " (its list %ld bytes in says %s and holds %d)", s.list_at, plural(s.said, "item").c_str(), s.held);
+    std::snprintf(b, sizeof b, " (its list %ld bytes into the entry says %s and holds %d)", s.list_at, plural(s.said, "item").c_str(), s.held);
     w.wrong += b;
   }
-  w.did = none ? "nothing of the entry can be read, so it is treated as not there" : "read what comes before it; the rest is left out";
+  w.did = none ? "nothing of the entry can be read, so it is treated as not there" : "reads what comes before it; the rest of the entry is left out";
   g_notes.push_back(w);
 }
 }  // namespace

@@ -119,7 +119,8 @@ struct ModsListEntry {
   std::vector<std::string> anim_bases;
   int anims_unread = 0;  // ours: its animation files the game does not read (Pirate's Moon: unzbd's JSON, def and node files)
   std::vector<std::string> conflicts_with;  // those mods' folders
-  int check_errors = -1;
+  int check_errors = -1;    // with `check`: above 0, the mod is refused whole
+  int check_warnings = 0;   // its warnings (the report's "Wrong:" lines)
   std::vector<std::string> report;  // ours (mod_report.h), with `check`: the check and this start's mount as sentences
   std::vector<std::string> needs;   // ours (mod_needs.h): its needs=, conflicts= and game_version= warnings (an off mod's were it on)
 };

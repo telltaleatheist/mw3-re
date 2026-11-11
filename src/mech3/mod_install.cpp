@@ -253,7 +253,7 @@ bool mod_own_file(const std::string& rel) {
   const std::string l = lower(rel);
   // original\ (ours: modding.md, Animations a def at a time, Both ways): the
   // files a modder ships for the original game, which ours never reads.
-  return l == "mod.txt" || l == lower(kModAddedMarker) || l.rfind("original/", 0) == 0;
+  return l == "mod.txt" || l == lower(kModAddedMarker) || l == lower(kModLeftOutFile) || l.rfind("original/", 0) == 0;
 }
 
 bool mod_entry_path_ok(const std::string& path, std::string* clean) {
@@ -438,15 +438,16 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     fs::remove(root / fs::path(rel), ec);
     if (!ec) r.left_out.push_back(rel);
   }
+  r.warnings = static_cast<int>(facts.notes.size());
   if (r.check_errors > 0) {
+    // Only the mod's fault as a whole refuses it (mod_check): the line says which.
     std::string first;
     for (const std::string& l : r.report)
-      if (l.find("error") != std::string::npos) {
-        first = l;
+      if (l.rfind("error: ", 0) == 0) {
+        first = l.substr(7);
         break;
       }
-    r.message = "Not added: the game would refuse " + std::to_string(r.check_errors) +
-                (r.check_errors == 1 ? " thing" : " things") + " in it" + (first.empty() ? "." : ": " + first);
+    r.message = "Not added: the game would refuse this mod" + (first.empty() ? std::string(".") : ": " + first + ".");
     mod_add_discard(a);
     return r;
   }
@@ -463,6 +464,21 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     r.message = "Not added: no free name for it in the mods folder.";
     mod_add_discard(a);
     return r;
+  }
+  // What was left out, kept with the mod for its REPORT: the warnings of the files removed above, and any the
+  // copy came with (a mod's folder added again).
+  {
+    std::vector<ModNote> record;
+    for (ModNote n : facts.notes) {
+      bool gone = n.w.did.find("IMPORT left this file out") != std::string::npos;
+      for (const std::string& rel : r.left_out)
+        gone = gone || n.where == rel || n.where.rfind(rel + ":", 0) == 0;
+      if (!gone || n.plain) continue;
+      if (const size_t at = n.w.did.find("IMPORT leaves this file out"); at != std::string::npos) n.w.did.replace(at, 27, "IMPORT left this file out");
+      record.push_back(n);
+    }
+    if (!record.empty()) mod_left_out_write(root.string(), record);
+    else fs::remove(root / kModLeftOutFile, ec);
   }
   {
     std::ofstream f(root / kModAddedMarker);
@@ -512,9 +528,10 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   d.message = d.campaign_only ? "Added " + d.name + ": its campaign is listed."
               : !enabled ? "Added " + d.name + (mod_is_campaign(i) ? ": its campaign is listed." : ": tick it for a campaign, then PLAY.")
                          : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
-  if (!r.left_out.empty())
-    d.message += " Left out " + std::to_string(r.left_out.size()) + (r.left_out.size() == 1 ? " file" : " files") +
-                 " the game cannot read (" + r.left_out.front() + (r.left_out.size() == 1 ? ")." : " and more).");
+  // With warnings the line says how many and where they are; what was left out is in the report.
+  d.warnings = r.warnings, d.left_out = static_cast<int>(r.left_out.size());
+  if (r.warnings > 0)
+    d.message = "Added " + d.name + ": " + std::to_string(r.warnings) + (r.warnings == 1 ? " warning: REPORT says what." : " warnings: REPORT lists them.");
   return d;
 }
 
