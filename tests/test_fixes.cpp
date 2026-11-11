@@ -2149,3 +2149,61 @@ TEST(fix_script_model_pointers_do_not_outlive_their_node_or_mission) {
   zint::engine() = keep;
   zfix::options() = saved;
 }
+
+// A material table read over another without the models' free between (0x005363d0 twice): the exe reads
+// over the blocks it has, so its last-made material (0x0063fbd0) stays that slot; the port's blocks are new
+// ones, and the pointer went on into the freed ones (material_add then read freed memory). It follows the
+// slot now, or is none when the new table is too short to have it.
+TEST(fix_material_table_read_again_keeps_no_pointer_into_the_old_blocks) {
+  zmod::MaterialTable keep = std::move(zmod::materials());
+  zmod::materials() = zmod::MaterialTable{};
+  const std::string dir = std::string(MW3_TEST_TMP) + "/material_last";
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  auto file = [&](const char* name, int32_t size) {  // `size` materials, all used, in a chain
+    const std::string path = dir + "/" + name;
+    std::FILE* f = std::fopen(path.c_str(), "wb");
+    const int32_t head[4] = {size, size, -1, 0};
+    std::fwrite(head, 4, 4, f);
+    for (int32_t i = 0; i < size; ++i) {
+      uint8_t raw[0x2c] = {};
+      raw[0] = 0xff;
+      const int16_t prev = static_cast<int16_t>(i - 1), next = static_cast<int16_t>(i + 1 < size ? i + 1 : -1);
+      std::memcpy(raw + 0x10, &i, 4);  // a texture index of its own: no two alike
+      std::memcpy(raw + 0x28, &prev, 2), std::memcpy(raw + 0x2a, &next, 2);
+      std::fwrite(raw, sizeof raw, 1, f);
+    }
+    std::fclose(f);
+    return path;
+  };
+  auto read = [](const std::string& path) {
+    std::FILE* f = std::fopen(path.c_str(), "rb");
+    const int r = zmod::read_materials(f);
+    std::fclose(f);
+    return r;
+  };
+  const std::string small = file("small", 3), big = file("big", zmod::kMaterialBlock + 3);
+  zmod::MaterialTable& t = zmod::materials();
+  zmod::Material m{};
+  zmod::material_init(m);
+  m.texture_index = 0x7777;  // like none in the files: a new one is made
+  // The same size again: the pointer is the same slot of the new blocks.
+  EXPECT(read(small) >= 3);  // the capacity, whole blocks
+  zmod::Material* made = zmod::material_add(m);
+  const int32_t slot = t.index_of(made);
+  EXPECT(made && made == t.last && slot >= 3);
+  EXPECT(read(small) >= 3);  // the capacity, whole blocks
+  std::printf("  read again: the last material's slot %d -> %d\n", slot, t.index_of(t.last));
+  EXPECT(t.last && t.index_of(t.last) == slot);
+  // A longer table, the last material made in its second block; then the short one: no such slot, none.
+  EXPECT(read(big) >= zmod::kMaterialBlock + 3);
+  made = zmod::material_add(m);
+  const int32_t far = t.index_of(made);
+  EXPECT(made == t.last && far >= zmod::kMaterialBlock);
+  EXPECT(read(small) >= 3);  // the capacity, whole blocks
+  std::printf("  read shorter: the last material's slot %d -> %s\n", far, t.last ? "kept" : "none");
+  EXPECT(t.last == nullptr);
+  EXPECT(zmod::material_add(m) != nullptr);  // and the next add reads nothing freed
+  zmod::materials() = std::move(keep);
+  std::filesystem::remove_all(dir, ec);
+}
