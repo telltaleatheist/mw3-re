@@ -105,6 +105,7 @@ struct FreeCalls {
   void (*controls_free)(Handle controls) = nullptr;               // +0x37c when its vt+0x18 says so, vt+0 (1)
   void (*node_free)(Mech& m) = nullptr;                        // the node out of the world, its models off, "deletedmech", the three trees destroyed
   void (*entity_free)(Mech& m) = nullptr;                      // vt+0x04(0, 0, 0, 0) and 0x005a7f70: off zEntity's list
+  void (*forget)(const void* p) = nullptr;                     // ours: the program's handle for an object about to be deleted (docs/handles.md)
   void (*player_object_free)(Mech& m) = nullptr;               // 0x0041e580: +0x378, vt+0 (1), for the pilot's mech
   // The cockpit (Torso::set_cockpit): the type's cockpit node (+0x228 +4;
   // 0x00430ad0 makes the block, mech_data's make_cockpit), whether it is the torso node's
