@@ -114,6 +114,11 @@ bool mech_row_parse(const std::string& value, ModMech* out, std::string* error) 
     if (cls == kClasses[i]) out->weight_class = i;
   if (out->weight_class < 0) return *error = "class= must be light, medium, heavy or assault", false;
   if (out->model.empty()) out->model = out->name;
+  // The model names files (mech_<model>.flt, its motions): one word of the same letters as the name, so a row
+  // cannot point outside the mod's and the game's folders (the check reads those by host path, modding.md).
+  if (out->model.size() > 40) return *error = "model= is longer than 40", false;
+  for (char c : out->model)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') return *error = "model= " + out->model + " has a character other than a-z, 0-9, _ and -", false;
   if (out->title.empty()) out->title = out->name;
   return true;
 }
