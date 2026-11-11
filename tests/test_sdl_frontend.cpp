@@ -29,6 +29,7 @@
 #include "mech3/patch_import.h"
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/sdl_restart.h"
+#include "gamez/zutil/zutl_zar.h"
 #include "upgrades/mods/campaign_entries.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
@@ -4837,6 +4838,46 @@ TEST(sdl_program_restarts_into_and_out_of_an_entry) {
   const std::string b((std::istreambuf_iterator<char>(g)), std::istreambuf_iterator<char>());
   EXPECT(b.find("mw3: entry nosuch: there is no such campaign") != std::string::npos &&
          b.find("mw3: the main menu opens on MODS") != std::string::npos);
+  fs::remove_all(dir, ec);
+}
+
+// IMPORT on the MODS screen, in the real program, of a folder mod holding a reader archive: the program confines
+// its names to its folders (zutl::Mounts::confined), and IMPORT's check reads the staged copy by its host path.
+// The check ran confined, so inside the game (and only there) every archive of a mod read as "not an archive" and
+// was left out (found by a package dry run, 2026-11-11). The archive must be in the added mod, with no warning.
+TEST(sdl_program_mods_import_keeps_a_mods_archives) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/import archive";  // a space in the path
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/pick/arch/zbd", ec);
+  std::ofstream(dir + "/pick/arch/mod.txt") << "name=Arch\n";
+  {  // a small reader archive of our own making: three of the game's entries
+    zutl_zar::Archive in, out;
+    zutl_zar::init(in), zutl_zar::init(out);
+    EXPECT(zutl_zar::open(in, (game + "/zbd/reader.zbd").c_str()));
+    zutl_zar::create(out, (dir + "/pick/arch/zbd/reader.zbd").c_str());
+    for (int i = 0; i < 3 && i < in.count; ++i) {
+      std::vector<uint8_t> data(in.entries[i].length);
+      uint32_t size = in.entries[i].length;
+      EXPECT(zutl_zar::read(in, i, data.data(), &size) == 0);
+      zutl_zar::add(out, in.entries[i].name, data.data(), size);
+    }
+    zutl_zar::close(out), zutl_zar::close(in);
+    zutl_zar::destroy(out), zutl_zar::destroy(in);
+  }
+  const std::string log = dir + "/run.log";
+  int status = 0;
+  const pid_t pid = spawn_mw3({"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                               "--frames", "260", "--open-mods", "--pick", dir + "/pick/arch", "--click-at", "170,446@150"}, log);
+  EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  EXPECT(text.find("is outside the game's folders") == std::string::npos);
+  EXPECT(fs::file_size(dir + "/wd/mods/Arch/zbd/reader.zbd", ec) == fs::file_size(dir + "/pick/arch/zbd/reader.zbd", ec) && !ec);
+  EXPECT(!fs::exists(dir + "/wd/mods/Arch/mw3-mod-left-out.txt", ec));  // IMPORT's record of what it left out: none
   fs::remove_all(dir, ec);
 }
 

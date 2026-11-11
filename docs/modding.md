@@ -1322,6 +1322,30 @@ warning), `import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_re
 `bounded_check_mod_reads_textures_sounds_and_scripts` (one sound, one
 script).
 
+### The check inside the game (dev 3, 2026-11-11)
+
+The running game confines its names to its folders (`zutl::Mounts::confined`, set in `mw3_main` once the mounts
+are made; assets-layer.md): an absolute path opens nothing. `mod_check` reads the folder it is given by its host
+path (IMPORT's staging folder, a mod in the mods folder for REPORT and EXPORT, the install beside it) through
+the same opener, so inside the game, and only there, every archive, texture library and animation file of a mod
+read as "not an archive the game can read" and IMPORT left it out: a mod of 133 game files came in as 4, with
+134 warnings. `--check-mod` and `--mod-report` run before the mounts are confined, and the tests left it off, so
+neither showed it; a package dry run did. It was so from IMPORT's first day (2026-11-09; the setting is from
+2026-11-02). The check now runs unconfined and puts the setting back: its names are the caller's, not data's.
+The rest of the mods code (the installer and archive readers, the staging copy, EXPORT's zip, REPORT's file,
+DELETE and RESET, Save as, the entries and their pilots) reads and writes with the filesystem directly, not
+through the mounts. `mods_mount`'s own look into archives (a `mech=` row's files) runs at the start, before the
+setting. Tests: `bounded_check_mod_reads_textures_sounds_and_scripts` (the check again with the setting on, the
+same lines) and `sdl_program_mods_import_keeps_a_mods_archives` (the real program: IMPORT of a folder mod with a
+reader archive on the MODS screen; the archive is in the added mod and nothing is left out).
+
+Because the check reads by host path, no row of mod.txt may name a file outside the mod. `world=` is one word (no
+separator or dot), `campaign=` a file inside the mod (no "..", not absolute), a campaign's worlds one word, and
+`ia_world=` must be a world the game or the mod has; `mech=`'s name was letters, digits, `_` and `-` already, and
+its `model=` now is too (it names `mech_<model>.flt` and the motions; before, a model with ".." was looked for
+where it pointed). Each such row is a warning and is left out
+(`mods_check_rows_cannot_name_files_outside_the_mod`).
+
 ### Requirements in mod.txt (modder step 7, 2026-11-10)
 
 Ours (`upgrades/mods/mod_needs`). Three mod.txt keys, warned of and never

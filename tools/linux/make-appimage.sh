@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the Linux package (docs/linux.md, Packaging): an AppImage with mw3,
-# mw3import when FFmpeg's libraries were found, the launcher's art, the
+# mw3import (the movie importer, on FFmpeg's libraries), the launcher's art, the
 # read-me and the notices, and the SDL3, SDL3_ttf and SDL3_sound libraries
 # they load. Nothing from the game. Its own build tree, build-linux-pkg,
 # configured with MW3_PACKAGE (no development copy of the game in the
@@ -26,10 +26,27 @@ export APPIMAGE_EXTRACT_AND_RUN=1  # no FUSE needed (WSL, containers)
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 
 if [ -n "${MW3_PKG_PM_BIN:-}" ] && [ ! -x "$MW3_PKG_PM_BIN" ]; then echo "MW3_PKG_PM_BIN: no program at $MW3_PKG_PM_BIN" >&2; exit 1; fi
+# A package without the movie importer is not one to release (v1.0.5's AppImage went out without it: the prefix
+# given had SDL and no FFmpeg, and this script went on). So FFmpeg must be in PREFIX, before anything is built;
+# MW3_PKG_NO_IMPORT=1 says a package without movies is meant (a quick check, never a release).
+if [ -z "${MW3_PKG_NO_IMPORT:-}" ]; then
+  for lib in libavformat libavcodec libswscale libavutil; do
+    if [ ! -f "$PREFIX/lib/pkgconfig/$lib.pc" ]; then
+      echo "make-appimage.sh: no $lib in $PREFIX (no lib/pkgconfig/$lib.pc): mw3import cannot be built, and the package would have no movie importer." >&2
+      echo "  PREFIX is tools/deps/build_deps.sh linux's build-deps/linux/prefix (SDL and FFmpeg); MW3_PKG_NO_IMPORT=1 builds without the importer." >&2
+      exit 1
+    fi
+  done
+fi
 if [ -z "${MW3_PKG_KEEP_BUILD:-}" ]; then rm -rf build-linux-pkg; else rm -rf build-linux-pkg/AppDir; fi
 cmake -S . -B build-linux-pkg -G Ninja -DCMAKE_BUILD_TYPE=Release -DMW3_PACKAGE=ON -DCMAKE_PREFIX_PATH="$PREFIX"
 cmake --build build-linux-pkg --target mw3 mw3launcher
-cmake --build build-linux-pkg --target mw3import 2>/dev/null || echo "mw3import not built (no FFmpeg): the package has no movie importer"
+if [ -z "${MW3_PKG_NO_IMPORT:-}" ]; then
+  cmake --build build-linux-pkg --target mw3import
+  [ -x build-linux-pkg/mw3import ] || { echo "make-appimage.sh: mw3import was not built" >&2; exit 1; }
+else
+  echo "MW3_PKG_NO_IMPORT: the package has no movie importer (not for release)"
+fi
 
 VER=$(git describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo dev)
 APPDIR=build-linux-pkg/AppDir

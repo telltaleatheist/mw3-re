@@ -791,6 +791,15 @@ const char* const kArchiveInstead = "this file is not read; the archive's entry 
 std::vector<std::string> mod_check(const std::string& dir, const std::string& install, int* errors, ModFindings* facts) {
   std::vector<std::string> out;
   *errors = 0;
+  // The check reads the folder it is given by its host path (IMPORT's staging folder, a mod in the mods folder,
+  // the install beside it), which the running game's confined names refuse (zutl::Mounts::confined): inside the
+  // game every archive of a mod read as "not an archive" and was left out. The names here are the caller's, not
+  // data's, so the check runs unconfined and puts the setting back (docs/modding.md, The check inside the game).
+  struct Unconfined {
+    bool was = zutl::mounts().confined;
+    Unconfined() { zutl::mounts().confined = false; }
+    ~Unconfined() { zutl::mounts().confined = was; }
+  } unconfined;
   ModFindings ignored_facts;
   ModFindings& fx = facts ? *facts : ignored_facts;
   fx = ModFindings{};

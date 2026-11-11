@@ -20,6 +20,7 @@
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zsound/zsnd.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mods.h"
 #include "platform/silent_sound.h"
@@ -498,6 +499,19 @@ TEST(bounded_check_mod_reads_textures_sounds_and_scripts) {
   std::string out;
   for (const std::string& l : mech3::mod_check(mod, "", &errors)) out += l + "\n";
   std::printf("%s", out.c_str());
+  // The same inside the game program, whose names are confined to its folders (zutl::Mounts::confined): the check
+  // reads the folder it was given by its host path, so it finds the same (IMPORT's staging folder, REPORT's mod).
+  {
+    const bool was = zutl::mounts().confined;
+    zutl::mounts().confined = true;
+    int errors2 = -1;
+    std::string out2;
+    for (const std::string& l : mech3::mod_check(mod, "", &errors2)) out2 += l + "\n";
+    EXPECT(zutl::mounts().confined);  // left as it was
+    zutl::mounts().confined = was;
+    EXPECT(errors2 == errors && out2 == out);
+    if (out2 != out) std::printf("confined:\n%s", out2.c_str());
+  }
   const std::string first_script = [&] {
     char n[0x79] = {};
     std::memcpy(n, &scripts[12], 0x78);
