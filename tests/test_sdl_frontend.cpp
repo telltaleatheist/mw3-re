@@ -4988,6 +4988,29 @@ TEST(sdl_program_mods_import_keeps_a_mods_archives) {
   fs::remove_all(dir, ec);
 }
 
+// A MODS TEST mission's debriefing names its mission: the test is played by a stand-in pilot with no game of its
+// own, and the title read the dialog's unfilled message ("Operation !d!, Mission !d!", seen on the screen
+// 2026-11-11). The real program, hidden: --entry mw3 --entry-test c2 3, the mission lost by the script.
+TEST(sdl_program_test_mission_debriefing_names_its_mission) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/c2/readerm3.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/test debrief";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir, ec);
+  for (const char* end : {"--lose", "--win"}) {
+    const std::string log = dir + "/run" + end + ".log";
+    int status = 0;
+    const pid_t pid = spawn_mw3({"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                                 "--frames", "500", "--entry", "mw3", "--entry-test", "c2", "3", end, "120"}, log);
+    EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    EXPECT(text.find("mw3: debriefing of a MODS test mission: Operation 2, Mission 3\n") != std::string::npos && text.find("!d!") == std::string::npos);
+  }
+  fs::remove_all(dir, ec);
+}
+
 // Mods by campaign, step 2b: a plain start mounts no mods, whatever mw3.cfg's
 // mod= lines say (they were moved to the campaign entries); MODS's ENTER on a
 // custom campaign closes the game and starts it again into that campaign's

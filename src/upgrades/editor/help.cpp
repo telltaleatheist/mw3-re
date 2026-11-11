@@ -84,7 +84,10 @@ const std::vector<std::string>& help_workflow() {
       "else's work, IMPORT it (a zip, a folder, or a game folder a mod's installer was run over): the line says "
       "how many warnings its files gave, and REPORT lists them in three groups, the worst first (what stops part "
       "of the mod working, what works here but may crash the original game, slips that do no harm), and writes "
-      "the same to mod-reports\\<the mod's folder>.txt in your settings folder.",
+      "the same to mod-reports\\<the mod's folder>.txt in your settings folder. Missions, mech variants and "
+      "animations made in other tools need no editor here: a mod holding them as the game's own files, or as "
+      "mech3ax's JSON files beside them, loads as it is (docs/modding.md, Readable files read directly), and a "
+      "mech loadout (.m3c) picked with IMPORT goes to the mech lab's Ctrl+I.",
       "Open a mission: with the campaign chosen, EDITOR lists its missions and PLAY opens the one picked. The game "
       "starts again inside the campaign, and the mission starts with the editor up and a stand-in pilot.",
       "Change the AI's paths: EDIT AI NETS, pick a net (net_01 is usually the main one). Pick a node and move it "
