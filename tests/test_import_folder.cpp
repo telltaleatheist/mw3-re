@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "check.h"
+#include "pm_side.h"
 #include "message_dll.h"
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
@@ -65,7 +66,7 @@ void build(const std::string& inst, const std::string& modded) {
     put(d + "/Ir50_32.dll", "a dll");
     put(d + "/zbd/reader.txt", "the reader");
     put(d + "/zbd/c1/gamez.txt", "abc");
-    put(d + "/zbd/c4b/m5.txt", "a mission only MechWarrior 3 has");
+    put(d + "/" + TEST_ONLY_OURS, "a file only this game has");
     put(d + "/video/intro.avi", "a movie");
   }
   put(modded + "/Mech3.exe", "a patched game");            // a program
@@ -100,7 +101,7 @@ TEST(import_folder_takes_what_differs_from_the_install) {
   const auto got = snapshot(at);
   auto has = [&](const char* rel, const char* text) { return got.count(rel) && got.at(rel).find(text) != std::string::npos; };
   EXPECT(has("zbd/reader.txt", "the mod's reader") && has("zbd/c1/gamez.txt", "abd"));
-  EXPECT(has("mod.txt", "name=Big Guns\n") && has("mod.txt", "for=mw3\n"));
+  EXPECT(has("mod.txt", "name=Big Guns\n") && has("mod.txt", TEST_IS_PM ? "for=mw3pm\n" : "for=mw3\n"));
   // The marker names the modded folder it came from, not our staging copy.
   EXPECT(has(mech3::kModAddedMarker, ("Added by the game from " + modded + ".").c_str()) && !has(mech3::kModAddedMarker, "mod-import"));
   EXPECT(report == "Took 3 files that differ from your install; the program and its dlls are not part of a mod here." &&
@@ -114,7 +115,7 @@ TEST(import_folder_takes_what_differs_from_the_install) {
          "here (5); pilots, saves and settings stay yours (2); 2 files outside the game's folders left.");
   EXPECT(f.version.empty() && f.install_version.empty() && f.warning.empty());  // made-up data: no version to tell
   EXPECT(f.install && f.error.empty() && f.taken == 3 && f.same == 2 && f.programs == 5 && f.own == 2 && f.other == 2);
-  EXPECT(f.game == mech3::ModGame::kMw3 && fs::path(f.picked).filename() == "Big Guns" &&
+  EXPECT(f.game == (TEST_IS_PM ? mech3::ModGame::kPm : mech3::ModGame::kMw3) && fs::path(f.picked).filename() == "Big Guns" &&
          fs::exists(fs::path(f.staging) / mech3::kModStagingMarker));
   EXPECT(names(f.picked) == "zbd/c1/New.txt|zbd/c1/gamez.txt|zbd/reader.txt|");
   // A folder of the player's in mod-import (no marker) is never removed.
@@ -144,12 +145,12 @@ TEST(import_folder_refusals) {
   d = mech3::import_folder_run(wd, same, inst, nullptr, nullptr);
   std::printf("  same: %s\n", d.message.c_str());
   EXPECT(!d.ok && d.message.find("nothing to add") != std::string::npos);
-  // Pirate's Moon's install against MechWarrior 3's.
-  const std::string pm = tmp("import_refuse_pm") + "/Pirates";
-  put(pm + "/Mech3.exe", "pm"), put(pm + "/zbd/c1/readersa1.txt", "pm's"), put(pm + "/zbd/reader.txt", "pm's reader");
+  // The other game's install against this one's.
+  const std::string pm = tmp("import_refuse_pm") + "/Other";
+  put(pm + "/Mech3.exe", "pm"), put(pm + "/" + TEST_ONLY_THEIRS, "the other's"), put(pm + "/zbd/reader.txt", "the other's reader");
   d = mech3::import_folder_run(wd, pm, inst, nullptr, nullptr);
   std::printf("  other game: %s\n", d.message.c_str());
-  EXPECT(!d.ok && d.message == "Not added: that folder is a Pirate's Moon install, and yours is MechWarrior 3.");
+  EXPECT(!d.ok && d.message == std::string("Not added: that folder is a ") + TEST_THEIR_NAME + " install, and yours is " + TEST_OUR_NAME + ".");
   // A modded install with the write dir inside it (settings beside the game).
   const std::string outer = tmp("import_refuse_outer") + "/Game";
   build(tmp("import_refuse_outer_inst"), outer);
@@ -168,9 +169,9 @@ TEST(import_folder_other_picks_and_links) {
   const std::string wd = tmp("import_other_wd"), inst = tmp("import_other_inst"), modded = tmp("import_other_src") + "/Linked";
   build(inst, modded);
   const std::string plain = tmp("import_other_plain") + "/Plain Mod";
-  put(plain + "/zbd/c4b/thing.txt", "a mod's file");  // a mod's folder: no exe
+  put(plain + "/zbd/c1/thing.txt", "a mod's file");  // a mod's folder: no exe
   std::string report = "x";
-  mech3::ModAddDone d = mech3::import_folder_run(wd, plain, inst, nullptr, nullptr, &report);
+  mech3::ModAddDone d = mech3::import_folder_run(wd, plain, inst, [](const std::string&) { return TEST_OUR_ANSWER; }, nullptr, &report);
   EXPECT(d.ok && d.folder == "Plain Mod" && report.empty() && !mech3::import_folder_is_install(plain));
 #if !defined(_WIN32)
   const std::string outside = tmp("import_other_outside");
@@ -189,6 +190,7 @@ TEST(import_folder_other_picks_and_links) {
 
 // A real modded install, when one is named: MW3_IMPORT_FOLDER=<folder> against
 // the test's install (read only; the mod lands in the test's own write dir).
+#ifndef MW3PM_GAME_DIR  // Pirate's Moon's: pm_import_folder_real_install_env (tests/pm/test_pm_mods_screen.cpp)
 TEST(import_folder_real_install_env) {
   const char* folder = std::getenv("MW3_IMPORT_FOLDER");
   if (!folder || !*folder) return;
@@ -198,10 +200,12 @@ TEST(import_folder_real_install_env) {
   std::printf("  %s\n  %s\n", d.message.c_str(), report.c_str());
   EXPECT(d.ok && nothing_staged(wd));
 }
+#endif
 
 // Another version of the data than the player's is said, and still imports:
 // the real 1.0 install as the modded folder against the 1.2 one (when both
 // are there).
+#ifndef MW3PM_GAME_DIR  // MechWarrior 3's two versions
 TEST(import_folder_says_another_version) {
   const std::string v12 = MW3_GAME_DIR, v10 = std::string(MW3_GAME_DIR) + "/../mw3-1.0";
   std::error_code ec;
@@ -226,6 +230,7 @@ TEST(import_folder_says_another_version) {
   mech3::import_folder_discard(same);
   EXPECT(nothing_staged(wd));
 }
+#endif
 
 #if !defined(_WIN32)
 // A linked folder inside the modded game folder (a symlink; on Windows a
@@ -260,6 +265,7 @@ TEST(import_folder_leaves_a_linked_folder_out_and_says_so) {
 // file) does not stop the rest of a mod being added: IMPORT says so and leaves that one file out. A map whose
 // entry only says an item more than it holds (the original reads on into the next entry) is added as it is.
 TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
+  const TestGame game;  // the archives are made and checked as this game's
   const std::string wd = tmp("import_unread_wd"), inst = tmp("import_unread_inst"), modded = tmp("import_unread_src") + "/Mod";
   build(inst, modded);
   auto le = [](std::vector<uint8_t>& v, int32_t x) {
@@ -283,7 +289,7 @@ TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
   archive(modded + "/zbd/c1/readermp91.zbd", {{"aiv.zrd", past}, {"mpinfo.zrd", good}});
   const auto before = snapshot(modded);
   std::vector<std::string> enabled;
-  const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, [](const std::string&) { return 1; }, &enabled);
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, [](const std::string&) { return TEST_OUR_ANSWER; }, &enabled);
   std::printf("  %s\n", d.message.c_str());
   EXPECT(d.ok && d.warnings == 2 && d.left_out == 1 && d.message.rfind("Added " + d.name + ": 2 warnings: REPORT lists them. ", 0) == 0 &&
          d.message.size() > ("Added " + d.name + ": 2 warnings: REPORT lists them. ").size());  // then what to do next, as without warnings
@@ -448,7 +454,7 @@ TEST(import_texts_unreadable_dll_warns_and_own_strings_win) {
   put(loose + "/Mech3Msg.dll", message_dll(kTheirs));
   put(loose + "/strings.txt", "\xef\xbb\xbf" "100=Mine\n");
   const auto loose_before = snapshot(loose);
-  const mech3::ModAddDone l = mech3::mod_add_run(wd, loose, inst, nullptr, nullptr);
+  const mech3::ModAddDone l = mech3::mod_add_run(wd, loose, inst, [](const std::string&) { return TEST_OUR_ANSWER; }, nullptr);  // which game: this one
   std::printf("  %s\n", l.message.c_str());
   EXPECT(l.ok && l.texts.taken == 4 && snapshot(loose) == loose_before);
   EXPECT(names(wd + "/mods/" + l.folder) == std::string("mod.txt|") + mech3::kModAddedMarker + "|strings.txt|zbd/c1/New.txt|");

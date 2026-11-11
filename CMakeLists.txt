@@ -739,6 +739,12 @@ if(MW3_BUILD_PM)
     tests/test_teleport.cpp  # the teleport on PM's logic and c3's places
     tests/test_new_weapon.cpp  # New Weapon on PM's weapons.zrd and its version 2 reader.zbd
     tests/test_update.cpp  # the updater (main's, shared): its versions, sums and swap
+    # IMPORT and the bounded readers (main's, shared), on Pirate's Moon's files and table
+    tests/test_installer_read.cpp
+    tests/test_import_folder.cpp
+    tests/test_bounded_readers.cpp
+    tests/test_bounded_media.cpp
+    tests/test_zreader.cpp
   )
   target_include_directories(mw3pmtests PRIVATE tests)
   target_link_libraries(mw3pmtests PRIVATE pmcore mw3core)

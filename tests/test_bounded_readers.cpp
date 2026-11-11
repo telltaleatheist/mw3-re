@@ -11,10 +11,12 @@
 #include <vector>
 
 #include "check.h"
+#include "pm_side.h"
 #include "zip_write.h"
 #include "gamez/zclass/cls_mechlib.h"
 #include "gamez/zclass/cls_mechlib_json.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/list.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zeffect/zeff_anim_init.h"
@@ -50,9 +52,10 @@ std::vector<Entry> read_all(const std::string& path) {
   for (int i = 0; i < a.count; ++i) {
     Entry e;
     e.name = a.entries[i].name;
-    uint32_t size = a.entries[i].length;
-    e.data.resize(size);
-    if (zutl_zar::read(a, i, e.data.data(), &size) == 0) out.push_back(std::move(e));
+    // The entry's bytes in the file (Pirate's Moon's motions hold more than their table's length says: span).
+    e.data.resize(zutl_zar::span(a, i));
+    std::FILE* f = zutl_zar::seek(a, i, nullptr);
+    if (f && (e.data.empty() || std::fread(e.data.data(), e.data.size(), 1, f) == 1)) out.push_back(std::move(e));
   }
   zutl_zar::destroy(a);
   return out;
@@ -84,7 +87,8 @@ void mutate(std::vector<uint8_t>& d, std::mt19937& r, int kind) {
 }  // namespace
 
 TEST(bounded_mechlib_reads_the_shipped_trees_whole) {
-  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/mechlib.zbd";
+  const TestGame test_game;
+  const std::string path = std::string(TEST_GAME_DIR) + "/zbd/mechlib.zbd";
   std::error_code ec;
   if (!fs::exists(path, ec)) return;
   zmod::models() = zmod::ModelPool{};
@@ -92,7 +96,8 @@ TEST(bounded_mechlib_reads_the_shipped_trees_whole) {
   zcls::MechLib lib;
   zutl_zar::init(lib.archive);
   EXPECT(zcls::mechlib_open(lib, path.c_str()));
-  EXPECT(lib.materials.size() == 442);
+  std::printf("  mechlib: %zu materials\n", lib.materials.size());
+  EXPECT(lib.materials.size() == (TEST_IS_PM ? 550u : 442u));
   int trees = 0, loaded = 0;
   for (const Entry& e : read_all(path)) {
     if (!is_tree(e.name)) continue;
@@ -100,12 +105,13 @@ TEST(bounded_mechlib_reads_the_shipped_trees_whole) {
     loaded += zcls::mechlib_load(lib, e.name.c_str()) != nullptr;
   }
   std::printf("  mechlib: %d of %d trees read whole\n", loaded, trees);
-  EXPECT(trees == 57 && loaded == 57);
+  EXPECT(trees == (TEST_IS_PM ? 76 : 57) && loaded == trees);
   zcls::mechlib_close(lib);
 }
 
 TEST(bounded_mechlib_fuzz_never_crashes) {
-  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/mechlib.zbd";
+  const TestGame test_game;
+  const std::string path = std::string(TEST_GAME_DIR) + "/zbd/mechlib.zbd";
   std::error_code ec;
   if (!fs::exists(path, ec)) return;
   const std::vector<Entry> all = read_all(path);
@@ -164,7 +170,8 @@ void load_motions(const std::string& path, const std::vector<std::string>& names
 }  // namespace
 
 TEST(bounded_motion_reads_the_shipped_motions_whole) {
-  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/motion.zbd";
+  const TestGame test_game;
+  const std::string path = std::string(TEST_GAME_DIR) + "/zbd/motion.zbd";
   std::error_code ec;
   if (!fs::exists(path, ec)) return;
   std::vector<std::string> names;
@@ -172,11 +179,12 @@ TEST(bounded_motion_reads_the_shipped_motions_whole) {
   int read = 0, refused = 0;
   load_motions(path, names, &read, &refused);
   std::printf("  motion: %d of %zu read whole\n", read, names.size());
-  EXPECT(names.size() == 258 && read == 258 && refused == 0);
+  EXPECT(names.size() == (TEST_IS_PM ? 364u : 258u) && read == static_cast<int>(names.size()) && refused == 0);
 }
 
 TEST(bounded_motion_fuzz_never_crashes) {
-  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/motion.zbd";
+  const TestGame test_game;
+  const std::string path = std::string(TEST_GAME_DIR) + "/zbd/motion.zbd";
   std::error_code ec;
   if (!fs::exists(path, ec)) return;
   const std::vector<Entry> all = read_all(path);
@@ -205,8 +213,22 @@ TEST(bounded_motion_fuzz_never_crashes) {
 // flipped or words made huge, read with no world. Each read refuses the
 // file (no defs, its counts 0) or reads every def and fails at the first
 // lookup, the original's way; none crash or allocate what a count says.
+constexpr int kAnimHead = TEST_IS_PM ? 16 : 12;
+// The reader's calls into the engine answered with nothing for a test's length (the game sets them; a def
+// whose node an earlier test's mech library left on zClass's lists gets as far as its sounds and effects).
+struct AnimHooksStubbed {
+  zeff::AnimHooks was = zeff::anim_hooks();
+  AnimHooksStubbed() {
+    zeff::anim_hooks() = {[](zcls::Node*) -> zcls::Node* { return nullptr; }, []() -> void* { return nullptr; },
+                          [](const char*) -> void* { return nullptr; }, [](const char*) -> int32_t { return 0; }, [](void*) {}};
+  }
+  ~AnimHooksStubbed() { zeff::anim_hooks() = was; }
+};
 TEST(bounded_anim_fuzz_never_crashes) {
-  const std::string src = std::string(MW3_GAME_DIR) + "/zbd/c1/anim.zbd";
+  const TestGame test_game;
+  const AnimHooksStubbed hooks;
+  zcls::lists() = zcls::Lists{};  // no world: every def's lookup stops at its node, whatever an earlier test left
+  const std::string src = std::string(TEST_GAME_DIR) + "/zbd/c1/anim.zbd";
   std::error_code ec;
   if (!fs::exists(src, ec)) return;
   std::vector<uint8_t> all(fs::file_size(src, ec));
@@ -223,8 +245,8 @@ TEST(bounded_anim_fuzz_never_crashes) {
   for (int seed = 0; seed < 150; ++seed) {
     std::vector<uint8_t> d = all;
     const int kind = seed % 3;
-    // Past the 12-byte header and the source list, so most changes land in the defs.
-    std::vector<uint8_t> head(d.begin(), d.begin() + 12), body(d.begin() + 12, d.end());
+    // Past the header (12 bytes; Pirate's Moon's 16, a time stamp before the count), so most changes land in the defs.
+    std::vector<uint8_t> head(d.begin(), d.begin() + kAnimHead), body(d.begin() + kAnimHead, d.end());
     mutate(body, r, kind);
     d = head;
     d.insert(d.end(), body.begin(), body.end());
@@ -247,7 +269,7 @@ TEST(bounded_anim_fuzz_never_crashes) {
   // allocated (unbounded, the list alone would be some 360 GB).
   std::vector<uint8_t> d = all;
   const uint32_t huge = 0xfffffff0u;
-  std::memcpy(&d[8], &huge, 4);
+  std::memcpy(&d[kAnimHead - 4], &huge, 4);
   if (std::FILE* f = std::fopen(copy.c_str(), "wb")) {
     std::fwrite(d.data(), 1, d.size(), f);
     std::fclose(f);
@@ -263,7 +285,8 @@ TEST(bounded_anim_fuzz_never_crashes) {
 // motion comes from the next copy (the install's), read whole; with no
 // other copy it is refused. Every other motion is the mod's own.
 TEST(bounded_motion_falls_back_to_the_next_copy) {
-  const std::string install = MW3_GAME_DIR;
+  const TestGame test_game;
+  const std::string install = TEST_GAME_DIR;
   std::error_code ec;
   if (!fs::exists(install + "/zbd/motion.zbd", ec)) return;
   const zutl::Mounts saved = zutl::mounts();
@@ -360,7 +383,8 @@ std::vector<uint8_t> nested(int depth) {
 // def count of 0x7fff (the format's int16) with too few bytes, a node array
 // larger than its file.
 TEST(bounded_readers_take_more_than_shipped) {
-  const std::string install = MW3_GAME_DIR;
+  const TestGame test_game;
+  const std::string install = TEST_GAME_DIR;
   std::error_code ec;
   if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
   const std::string dir = std::string(MW3_TEST_TMP) + "/bounded_more";
@@ -381,7 +405,7 @@ TEST(bounded_readers_take_more_than_shipped) {
     zmod::reset_pool();
     zcls::MechLib lib;
     zutl_zar::init(lib.archive);
-    EXPECT(zcls::mechlib_open(lib, (dir + "/mechlib.zbd").c_str()) && lib.materials.size() == 442);
+    EXPECT(zcls::mechlib_open(lib, (dir + "/mechlib.zbd").c_str()) && lib.materials.size() == (TEST_IS_PM ? 550u : 442u));
     int trees = 0, loaded = 0;
     for (const Entry& e : m) {
       if (!is_tree(e.name) || e.name.rfind("cut_", 0) == 0) continue;
@@ -390,7 +414,7 @@ TEST(bounded_readers_take_more_than_shipped) {
     }
     const bool cut_refused = zcls::mechlib_load(lib, ("cut_" + cut_name).c_str()) == nullptr;
     std::printf("  mechlib: %d of %d trees read whole; one a byte short refused %d\n", loaded, trees, cut_refused);
-    EXPECT(trees == 57 * 4 && loaded == trees && cut_refused);
+    EXPECT(trees == (TEST_IS_PM ? 76 : 57) * 4 && loaded == trees && cut_refused);
     zcls::mechlib_close(lib);
     zmod::models() = zmod::ModelPool{};
   }
@@ -408,8 +432,8 @@ TEST(bounded_readers_take_more_than_shipped) {
     int read = 0, refused = 0, cut_read = 0, cut_refused = 0;
     load_motions(dir + "/motion.zbd", names, &read, &refused);
     load_motions(dir + "/motion.zbd", {"cut_motion"}, &cut_read, &cut_refused);
-    std::printf("  motion: %d of %zu read whole; one a byte short refused %d\n", read, names.size(), cut_refused);
-    EXPECT(names.size() == 258 * 4 && read == 258 * 4 && refused == 0 && cut_refused == 1);
+    std::printf("  motion: %d of %zu read whole, %d refused; one a byte short refused %d\n", read, names.size(), refused, cut_refused);
+    EXPECT(names.size() == (TEST_IS_PM ? 364u : 258u) * 4 && read == static_cast<int>(names.size()) && refused == 0 && cut_refused == 1);
   }
   // reader.zbd: every entry four times over; lists 64 deep read, 65 refused.
   {
@@ -442,6 +466,7 @@ TEST(bounded_readers_take_more_than_shipped) {
     if (d65) zrdr::free_node(d65);
     zrdr::close_archives(true);
   }
+#ifndef MW3PM_GAME_DIR  // the two below cut and splice MechWarrior 3's layouts (its anim block and defs, its node slots)
   // c1's anim.zbd: its sources and defs twice (each block repeated), the
   // messages after; read with no world it reads every def and stops at the
   // first lookup, as the shipped file does. A def count of 0x7fff refused.
@@ -517,13 +542,15 @@ TEST(bounded_readers_take_more_than_shipped) {
                 live0, cap0, kMore, r1, live1, cap1, r2);
     EXPECT(r0 == 0 && r1 == 0 && live1 == live0 && cap1 >= size + kMore && r2 == -1);
   }
+#endif
 }
 
 // A mod's motion as unzbd's JSON (docs/modding.md): the folder's zbd/motion/<name>.json, then unzbd's zbd/motion.zip,
 // then the archives; a later mod's not reached past a mod with its own motion.zbd. One that does not read is refused
 // and the archive's motion read, as a broken copy is.
 TEST(bounded_motion_json_in_a_folder_or_a_zip) {
-  const std::string install = MW3_GAME_DIR;
+  const TestGame test_game;
+  const std::string install = TEST_GAME_DIR;
   std::error_code ec;
   if (!fs::exists(install + "/zbd/motion.zbd", ec)) return;
   const zutl::Mounts saved = zutl::mounts();
@@ -538,8 +565,9 @@ TEST(bounded_motion_json_in_a_folder_or_a_zip) {
     zutl_zar::Archive a;
     zutl_zar::init(a);
     EXPECT(zutl_zar::open(a, (install + "/zbd/motion.zbd").c_str()));
-    uint32_t length = 0;
-    std::FILE* f = zutl_zar::seek(a, zutl_zar::find(a, kName), &length);
+    const int at = zutl_zar::find(a, kName);
+    const uint32_t length = zutl_zar::span(a, at);  // the entry's bytes in the file (read_all)
+    std::FILE* f = zutl_zar::seek(a, at, nullptr);
     std::vector<uint8_t> entry(length);
     EXPECT(f && std::fread(entry.data(), 1, length, f) == length && zsis::motion_to_json(entry.data(), entry.size(), &json));
     zutl_zar::destroy(a);
@@ -614,7 +642,12 @@ std::string tiny_model_json(const char* y) {
 // folder's zbd/mechlib/<model>.flt.json, then unzbd's zbd/mechlib.zip, read by the archive's bounded reader; one that
 // does not read refused; a mod's own mechlib.zbd stopping the search.
 TEST(bounded_mechlib_json_in_a_folder_or_a_zip) {
-  const std::string install = MW3_GAME_DIR;
+  if (TEST_IS_PM) {  // its mech library's loader (src/pm/gamez/zclass/cls_mechlib.cpp) reads the archive only
+    std::printf("  (skipped: Pirate's Moon does not read a mod's JSON models)\n");
+    return;
+  }
+  const TestGame test_game;
+  const std::string install = TEST_GAME_DIR;
   std::error_code ec;
   if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
   const zutl::Mounts saved = zutl::mounts();
@@ -660,6 +693,7 @@ TEST(bounded_mechlib_json_in_a_folder_or_a_zip) {
 
 // What a mechlib model's JSON refuses, with its line and place (docs/modding.md).
 TEST(bounded_mechlib_json_errors_name_the_place) {
+  const TestGame test_game;
   std::vector<uint8_t> bytes;
   std::string why;
   const std::string good = tiny_model_json("1.0");

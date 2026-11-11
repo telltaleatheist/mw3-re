@@ -30,6 +30,10 @@
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/sdl_restart.h"
 #include "gamez/zutil/zutl_zar.h"
+#if defined(MW3_PM_SUITE)
+#include "gamez/zgame/zgame_table.h"
+#include "pm/pm_game.h"
+#endif
 #include "upgrades/mods/campaign_entries.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
@@ -7057,6 +7061,58 @@ TEST(sdl_pm_logos_keep_their_shape_on_a_wide_screen) {
     for (int k = 0; k < 4; ++k) near = near && std::abs(b[k] - want[k]) <= 3;
     EXPECT(near);
   }
+}
+#endif
+
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)  // posix_spawn
+// Pirate's Moon's twin of sdl_program_mods_import_keeps_a_mods_archives: IMPORT on the MODS screen, in the real
+// program (its names confined to its folders), of a folder mod holding a reader archive of Pirate's Moon's kind
+// (version 2, the 12-byte foot). The archive must be in the added mod, with no record of anything left out.
+TEST(sdl_pm_program_mods_import_keeps_a_mods_archives) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm import archive";  // a space in the path
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/pick/arch/zbd", ec);
+  std::ofstream(dir + "/pick/arch/mod.txt") << "name=Arch\n";
+  {  // a small reader archive of our own making: three of the game's entries
+    const zgame::Table& was = zgame::game();
+    zgame::set_game(pm::table());
+    zutl_zar::Archive in, out;
+    zutl_zar::init(in), zutl_zar::init(out);
+    EXPECT(zutl_zar::open(in, (game + "/zbd/reader.zbd").c_str()));
+    zutl_zar::create(out, (dir + "/pick/arch/zbd/reader.zbd").c_str());
+    for (int i = 0; i < 3 && i < in.count; ++i) {
+      std::vector<uint8_t> data(in.entries[i].length);
+      uint32_t size = in.entries[i].length;
+      EXPECT(zutl_zar::read(in, i, data.data(), &size) == 0);
+      zutl_zar::add(out, in.entries[i].name, data.data(), size);
+    }
+    zutl_zar::close(out), zutl_zar::close(in);
+    zutl_zar::destroy(out), zutl_zar::destroy(in);
+    zgame::set_game(was);
+  }
+  {  // made as Pirate's Moon's: version 2 at 12 bytes from the end
+    std::ifstream made(dir + "/pick/arch/zbd/reader.zbd", std::ios::binary);
+    const std::string bytes((std::istreambuf_iterator<char>(made)), std::istreambuf_iterator<char>());
+    uint32_t version = 0;
+    if (bytes.size() >= 12) std::memcpy(&version, bytes.data() + bytes.size() - 12, 4);
+    EXPECT(version == 2);
+  }
+  const std::string log = dir + "/run.log";
+  int status = 0;
+  const pid_t pid = spawn_mw3({"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--no-launcher", "--hidden", "--nosound", "--frame-ms", "33",
+                               "--seed", "1", "--frames", "260", "--open-mods", "--pick", dir + "/pick/arch", "--click-at", "170,446@150"}, log);
+  if (pid > 0) waitpid(pid, &status, 0);  // it ends at its --frames
+  EXPECT(pid > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  EXPECT(text.find("is outside the game's folders") == std::string::npos);
+  EXPECT(fs::file_size(dir + "/wd/mods/Arch/zbd/reader.zbd", ec) == fs::file_size(dir + "/pick/arch/zbd/reader.zbd", ec) && !ec);
+  EXPECT(!fs::exists(dir + "/wd/mods/Arch/mw3-mod-left-out.txt", ec));  // IMPORT's record of what it left out: none
+  fs::remove_all(dir, ec);
 }
 #endif
 

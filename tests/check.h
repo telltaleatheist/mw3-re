@@ -19,6 +19,18 @@ struct Register {
 
 }  // namespace check
 
+#if !defined(_WIN32)
+#include <sys/types.h>
+namespace check {
+// A test's forked child. fork_child is fork() with the child's stdout and stderr sent to a file of its own;
+// wait_child waits for it, passes the file's text on to this process's output and returns the wait status.
+// A child that did not exit 0 has its file kept and named (<build>/child-output/), so the run says which
+// check failed or where it crashed even when the parent's output was filtered or lost; else it is removed.
+pid_t fork_child();
+int wait_child(pid_t child);
+}  // namespace check
+#endif
+
 // The tests' scratch root (MW3_TEST_TMP): <build>/test-tmp/<pid>, one per
 // process, so suites run at once (two mw3tests, mw3sdltests and the runs it
 // spawns) never share a folder; made at the first ask, removed at exit.
