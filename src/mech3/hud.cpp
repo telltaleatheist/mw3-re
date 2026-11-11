@@ -1610,7 +1610,7 @@ void HudReticle::aim() {
   // FIX (bug): the pick ended at the far clip (800 m), short of an ER large
   // laser's 1000 m: in range, the reticle stayed green (W33; fixes.md).
   float e[3] = {b[0], b[1], b[2]};
-  if (zfix::options().fixed) {
+  if (zfix::options().small_fixes) {  // play: when a lock is had (the Small fixes list)
     const float range = k.group_range(k.mech_weapons(m));
     const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
     const float len = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);

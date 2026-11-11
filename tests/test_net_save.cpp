@@ -260,7 +260,10 @@ TEST(net_save_into_the_editors_own_mod) {
   EXPECT(entry(ours / "zbd" / "c1" / "readerm1.zbd") == "one");
   EXPECT(entry(inst / "zbd" / "c1" / "readerm1.zbd") == "install");  // the install untouched
   EXPECT((mech3::entry_mods_on(wd.string()) == std::vector<std::string>{"a", "foo", "b", "editor edits (2)"}));
-  EXPECT(s.message.find("editor edits (2)") != std::string::npos && s.message.find("on for MechWarrior 3: play it from MODS") != std::string::npos);
+  // The game's own entry by its name: "MechWarrior 3", and in Pirate's Moon its first, "Campaign".
+  const std::string on_for = "on for " + mech3::official_entries().front().name + ": play it from MODS";
+  EXPECT(on_for == "on for MechWarrior 3: play it from MODS" || on_for == "on for Campaign: play it from MODS");
+  EXPECT(s.message.find("editor edits (2)") != std::string::npos && s.message.find(on_for) != std::string::npos);
   // Saved again from the install: the same folder, the first save kept as .bak.
   s = mech3::ai::save_archive_edit(rel, "net_01.zrd", two);
   EXPECT(s.ok && s.folder == "editor edits (2)");

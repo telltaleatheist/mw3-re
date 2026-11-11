@@ -161,6 +161,42 @@ TEST(upgrades_settings_keys_migration_original_and_the_host_word) {
   std::filesystem::remove_all(dir, ec);
 }
 
+// mw3.cfg keeps each line's own ending when a key is saved or removed (a CRLF
+// file stays CRLF, a mixed one mixed); a new line takes the file's first.
+TEST(config_value_keeps_line_endings) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/cfg_eol";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  auto write = [&](const std::string& text) { std::ofstream(dir + "/mw3.cfg", std::ios::binary) << text; };
+  auto text = [&] {
+    std::ifstream f(dir + "/mw3.cfg", std::ios::binary);
+    std::stringstream b;
+    b << f.rdbuf();
+    return b.str();
+  };
+  write("install=X\r\nwidemenus=1\r\nmod=a\r\n");  // CRLF
+  EXPECT(sdlfe::save_config_value(dir, "widemenus", "0") && text() == "widemenus=0\r\ninstall=X\r\nmod=a\r\n");
+  EXPECT(sdlfe::save_config_value(dir, "upgrade_water", "1") && text() == "upgrade_water=1\r\nwidemenus=0\r\ninstall=X\r\nmod=a\r\n");
+  EXPECT(sdlfe::remove_config_value(dir, "install") && text() == "upgrade_water=1\r\nwidemenus=0\r\nmod=a\r\n");
+  write("install=X\nwidemenus=1\n");  // LF
+  EXPECT(sdlfe::save_config_value(dir, "mod", "b") && text() == "mod=b\ninstall=X\nwidemenus=1\n");
+  write("a=1\r\nb=2\nc=3\r\nd=4");  // mixed, the last line without an ending
+  EXPECT(sdlfe::save_config_value(dir, "b", "5") && text() == "b=5\r\na=1\r\nc=3\r\nd=4\r\n");
+  write("a=1\r\nb=2\nc=3\r\n");
+  EXPECT(sdlfe::remove_config_value(dir, "a") && text() == "b=2\nc=3\r\n");
+  EXPECT(sdlfe::remove_config_value(dir, "nokey") && text() == "b=2\nc=3\r\n");  // nothing to remove: untouched
+  EXPECT(sdlfe::save_config_value(dir, "z", "1") && text() == "z=1\nb=2\nc=3\r\n");  // the file's first ending
+  std::filesystem::remove(dir + "/mw3.cfg", ec);  // no file: made, with the system's ending
+  EXPECT(sdlfe::save_config_value(dir, "k", "v"));
+#if defined(_WIN32)
+  EXPECT(text() == "k=v\r\n");
+#else
+  EXPECT(text() == "k=v\n");
+#endif
+  std::filesystem::remove_all(dir, ec);
+}
+
 TEST(sdl_input_scancodes_map_to_dik_codes) {
   using sdlfe::dik_from_scancode;
   EXPECT(dik_from_scancode(SDL_SCANCODE_ESCAPE) == 0x01);

@@ -48,7 +48,9 @@ void apply(const Config& c) {
   }
 }
 
-// MechWarrior 3's list; Pirate's Moon has its own (its branch).
+// MechWarrior 3's list; Pirate's Moon has its own (its branch). It shows exactly what the switch turns off:
+// each line has its gates in tests/test_fixes.cpp's table (small_fixes_list_matches_its_gates), which fails for a
+// line with no gate and for a gate with no line.
 const std::vector<const char*>& small_fixes_list() {
   static const std::vector<const char*> l = {
       "A turret's charge or glow goes out when it dies.",
@@ -57,7 +59,6 @@ const std::vector<const char*>& small_fixes_list() {
       "A vehicle's gun stops at its true aiming limit.",
       "A vehicle file with pitch and no roll keeps its pitch.",
       "The reticle locks past 800 m when the weapons reach.",
-      "LOCK_ON_LEAD reads the right value (a typo).",
       "The mech lab offers the plain PPC the data defines.",
       "TAG's strike lands where the target is, not was.",
       "A held beam stays on a moving mech after release.",
