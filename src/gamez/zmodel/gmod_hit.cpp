@@ -3,12 +3,14 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 #include "crt/msvc_math.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -560,6 +562,32 @@ float edge(const float* p, const float* c, const float* a, int u, int v) {
 }
 }  // namespace
 
+namespace {
+// The rest of 0x0054d760 (PM 0x00568840), shared: the inside test on the plane the normal points along most,
+// then the normal made a unit vector.
+int32_t segment_inside(zcls::LineHit* slot, const float* v, int32_t n) {
+  float* nn = slot->normal;
+  float* p = slot->point;
+  const uint32_t ax = abs_bits(nn[0]), ay = abs_bits(nn[1]);
+  int k = ax < ay ? 1 : 0;
+  if ((ax < ay ? ay : ax) < abs_bits(nn[2])) k = 2;
+  uint32_t sign;
+  std::memcpy(&sign, &nn[k], 4);
+  if (sign & 0x80000000u) k += 3;
+  static const int kAxes[6][2] = {{1, 2}, {2, 0}, {0, 1}, {2, 1}, {0, 2}, {1, 0}};
+  const int u = kAxes[k][0], w = kAxes[k][1];
+  if (!(edge(p, v + 3 * (n - 1), v, u, w) > -0.0001)) return 0;  // 0x005ce518
+  for (int32_t i = n - 2; i >= 0; --i) {
+    const float e = edge(p, v + 3 * i, v + 3 * (i + 1), u, w);
+    if (k == 5 ? !(e > -0.0001) : e <= -0.0001) return 0;
+  }
+  zmth::Vec3 un{nn[0], nn[1], nn[2]};
+  zmth::normalize(un);
+  nn[0] = un.x, nn[1] = un.y, nn[2] = un.z;
+  return 1;
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x0054d760. The normal is the cross product of the first
 // three vertices' edges, normalised only on a hit. The inside test runs on
 // the plane the normal points along most (picked by the magnitudes' bit
@@ -582,24 +610,37 @@ int32_t polygon_segment(zcls::LineHit* slot, const float a[3], const float b[3],
   p[0] = (b[0] - a[0]) * t + a[0];
   p[1] = (b[1] - a[1]) * t + a[1];
   p[2] = (b[2] - a[2]) * t + a[2];
-  const uint32_t ax = abs_bits(nn[0]), ay = abs_bits(nn[1]);
-  int k = ax < ay ? 1 : 0;
-  if ((ax < ay ? ay : ax) < abs_bits(nn[2])) k = 2;
-  uint32_t sign;
-  std::memcpy(&sign, &nn[k], 4);
-  if (sign & 0x80000000u) k += 3;
-  static const int kAxes[6][2] = {{1, 2}, {2, 0}, {0, 1}, {2, 1}, {0, 2}, {1, 0}};
-  const int u = kAxes[k][0], w = kAxes[k][1];
-  if (!(edge(p, v + 3 * (n - 1), v, u, w) > -0.0001)) return 0;  // 0x005ce518
-  for (int32_t i = n - 2; i >= 0; --i) {
-    const float e = edge(p, v + 3 * i, v + 3 * (i + 1), u, w);
-    if (k == 5 ? !(e > -0.0001) : e <= -0.0001) return 0;
-  }
-  zmth::Vec3 un{nn[0], nn[1], nn[2]};
-  zmth::normalize(un);
-  nn[0] = un.x, nn[1] = un.y, nn[2] = un.z;
-  return 1;
+  return segment_inside(slot, v, n);
 }
+
+// Pirate's Moon 1.0 @ 0x00568840: MW3's 0x0054d760 with its own stores and sums (x87.py on PM's listing). The
+// second edge's x and y are stored, the rest of the edges stay on the x87; the normal's words are stored, its z
+// also kept on the x87 for both dots; the end's dot sums x, y, z and is compared before it is stored, the
+// start's sums x, z, y; t stays on the x87.
+int32_t polygon_segment_pm(zcls::LineHit* slot, const float a[3], const float b[3], const float* v, int32_t n,
+                           int32_t two_sided) {
+  using zgeo::X;
+  const X e1x = X(v[3]) - v[0], e1y = X(v[4]) - v[1], e1z = X(v[5]) - v[2];
+  const float e2x = (X(v[6]) - v[0]).f(), e2y = (X(v[7]) - v[1]).f();
+  const X e2z = X(v[8]) - v[2];
+  const X n0 = e2z * e1y - X(e2y) * e1z;
+  const X n1 = e1z * X(e2x) - e2z * e1x;
+  const X n2 = e1x * X(e2y) - X(e2x) * e1y;
+  float* nn = slot->normal;
+  nn[0] = n0.f(), nn[1] = n1.f(), nn[2] = n2.f();
+  const X d_end = ((X(b[0]) - v[0]) * X(nn[0]) + (X(b[1]) - v[1]) * X(nn[1])) + (X(b[2]) - v[2]) * n2;
+  if (!two_sided && !(d_end.v < 0.0)) return 0;  // 0x005de7b4
+  const float de = d_end.f();
+  const float ds = (((X(a[0]) - v[0]) * X(nn[0]) + (X(a[2]) - v[2]) * n2) + (X(a[1]) - v[1]) * X(nn[1])).f();
+  if (same_sign(de, ds)) return 0;
+  const X t = X(ds) / (X(ds) - X(de));
+  float* p = slot->point;
+  p[0] = ((X(b[0]) - a[0]) * t + a[0]).f();
+  p[1] = ((X(b[1]) - a[1]) * t + a[1]).f();
+  p[2] = ((X(b[2]) - a[2]) * t + a[2]).f();
+  return segment_inside(slot, v, n);
+}
+
 
 // Mech3.exe 1.2 @ 0x0054dd30. As one segment of 0x0054ea30 (the unit normal,
 // the projected inside test), but one-sided unless two_sided, and the
@@ -682,6 +723,11 @@ template <class M> const float* model_vertices(M& m) {
   return m.vertices;
 }
 
+// The untextured polygon's test by the game the polygon is of.
+template <class P> int32_t plain_segment(zcls::LineHit* slot, const float* a, const float* b, const float* v, int32_t n, int32_t two) {
+  return std::is_same<P, pm::zmod::Polygon>::value ? polygon_segment_pm(slot, a, b, v, n, two) : polygon_segment(slot, a, b, v, n, two);
+}
+
 // One polygon of 0x0054cad0: -1 for a strip of two vertices (the exe reads
 // its unset result as a hit at the cached index, nothing elsewhere).
 template <class P>
@@ -695,7 +741,7 @@ int32_t segment_polygon(const P& p, const float* verts, zcls::LineHit* slot, con
   if (!poly_strip(p)) {
     for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, verts, p.vertex_indices[i]);
     return textured ? polygon_segment_uv(slot, a, b, g_s.poly, uvs, uv_out, static_cast<int32_t>(n), two)
-                    : polygon_segment(slot, a, b, g_s.poly, static_cast<int32_t>(n), two);
+                    : plain_segment<P>(slot, a, b, g_s.poly, static_cast<int32_t>(n), two);
   }
   if (n == 2) return -1;
   if (n < 2) return 0;  // the exe walks past its list; none ships
@@ -710,7 +756,7 @@ int32_t segment_polygon(const P& p, const float* verts, zcls::LineHit* slot, con
       const float uv[6] = {uvs[2 * i0], uvs[2 * i0 + 1], uvs[2 * i1], uvs[2 * i1 + 1], uvs[2 * i2], uvs[2 * i2 + 1]};
       r = polygon_segment_uv(slot, a, b, g_s.poly, uv, uv_out, 3, two);
     } else {
-      r = polygon_segment(slot, a, b, g_s.poly, 3, two);
+      r = plain_segment<P>(slot, a, b, g_s.poly, 3, two);
     }
     if (r) return r;
   }
