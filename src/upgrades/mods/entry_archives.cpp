@@ -71,6 +71,25 @@ struct Unconfined {
   Unconfined() { zutl::mounts().confined = false; }
   ~Unconfined() { zutl::mounts().confined = was; }
 };
+// What the last mount built (entries_merge): by the archive's path in lower case, '/' between its parts.
+struct Merged {
+  std::string folder, base;       // the folder mounted in front; the lowest layer's host path
+  std::set<std::string> entries;  // the mods' entries laid over it, lower case
+};
+std::map<std::string, Merged>& merged() {
+  static std::map<std::string, Merged> m;
+  return m;
+}
+const Merged* merged_of(const std::string& game_path) {
+  std::string p = lower(game_path);
+  std::replace(p.begin(), p.end(), '\\', '/');
+  if (p.compare(0, 2, "./") == 0) p.erase(0, 2);
+  const auto it = merged().find(p);
+  if (it == merged().end()) return nullptr;
+  // Only while the game finds that very file (the mounts may have changed since).
+  const std::string found = zutl::find(p.c_str());
+  return found.compare(0, it->second.folder.size(), it->second.folder) == 0 ? &it->second : nullptr;
+}
 uint64_t mix(uint64_t h, const std::string& s) {
   for (unsigned char c : s) h = (h ^ c) * 1099511628211ull;
   return (h ^ 0xff) * 1099511628211ull;
@@ -214,6 +233,16 @@ std::vector<uint8_t> entries_laid_over(std::vector<uint8_t> base, const std::str
   return base;
 }
 
+std::string entries_merged_base(const std::string& game_path) {
+  const Merged* m = merged_of(game_path);
+  return m ? m->base : std::string();
+}
+
+bool entries_merged_holds(const std::string& game_path, const std::string& entry) {
+  const Merged* m = merged_of(game_path);
+  return m && m->entries.count(lower(entry));
+}
+
 int entries_merged_clear(const std::string& write_dir, const std::string& keep) {
   std::error_code ec;
   const fs::path base = fs::path(write_dir) / kModMergedFolder;
@@ -231,6 +260,7 @@ std::string entries_merge(const std::string& write_dir, const std::vector<std::s
                           std::vector<std::string>* log) {
   std::vector<std::string> none;
   std::vector<std::string>& said = log ? *log : none;
+  merged().clear();
   if (write_dir.empty()) return {};
   std::error_code ec;
   // Which archives any mounted mod holds as its changed entries, by the archive's path in lower case.
@@ -281,7 +311,20 @@ std::string entries_merge(const std::string& write_dir, const std::vector<std::s
   if (plan.empty()) return {};
   const fs::path out = base / name;
   const fs::path done = out / "complete.txt";
+  // What is built, for the 1.2 data layer's questions: each archive's lowest file and the mods' entries over it.
+  const auto note = [&] {
+    for (const auto& [rel, layers] : plan) {
+      if (!fs::is_regular_file(out / fs::path(rel), ec)) continue;
+      Merged m;
+      m.folder = out.string(), m.base = layers.front().file;
+      for (const Layer& l : layers)
+        if (l.entries)
+          for (const std::string& e : archive_entry_names(l.file)) m.entries.insert(lower(e));
+      merged()[lower(rel)] = m;
+    }
+  };
   if (fs::is_regular_file(done, ec) && fs::is_regular_file(out / kModMergedMarker, ec)) {
+    note();
     said.push_back("mods: " + std::to_string(plan.size()) + (plan.size() == 1 ? " archive" : " archives") + " with the mods' changed entries, as built before");
     return out.string();
   }
@@ -326,6 +369,7 @@ std::string entries_merge(const std::string& write_dir, const std::vector<std::s
   }
   if (!built) return {};
   { std::ofstream(done) << "built\n"; }
+  note();
   return out.string();
 }
 

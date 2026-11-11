@@ -66,4 +66,12 @@ int entries_merged_clear(const std::string& write_dir, const std::string& keep);
 std::string entries_merge(const std::string& write_dir, const std::vector<std::string>& mods, const std::vector<std::string>& later,
                           std::vector<std::string>* log);
 
+// What the last mount built, asked by the game's path of an archive ("zbd\\reader.zbd", any case, either
+// slash): the host path of the game's own file under the mods' entries, "" when the archive the game now finds
+// is not one built here; and whether a mod's entries hold `entry` (then it is the mod's, not the game's).
+// The 1.2 data layer (patch12.h) asks both: the game's own entries of a built archive are 1.0's or 1.2's as the
+// file under them is, and a mod's entry is left as the mod made it, as in a mod's whole archive.
+std::string entries_merged_base(const std::string& game_path);
+bool entries_merged_holds(const std::string& game_path, const std::string& entry);
+
 }  // namespace mech3
