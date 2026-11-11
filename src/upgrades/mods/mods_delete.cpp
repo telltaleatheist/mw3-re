@@ -63,6 +63,7 @@ DeletePlan delete_plan_for_entry(const std::string& write_dir, const std::string
                  " here go with it. Your pilots in the main game are not changed.";
     return p;
   }
+  if (e->kind == CampaignEntry::kMultiplayer) return p.entry.clear(), p.refused = "Multiplayer's mods are turned off on its own screen (ALL OFF).", p;
   if (e->kind == CampaignEntry::kInstantAction) return p.entry.clear(), p.refused = "Instant Action's mods are turned off on its own screen (ALL OFF).", p;
   if (e->missing) {
     p.kind = DeletePlan::kLeftover, p.label = "DELETE";

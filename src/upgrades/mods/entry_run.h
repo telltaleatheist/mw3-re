@@ -11,7 +11,7 @@
 namespace mech3 {
 
 struct EntryRun {
-  enum Screen { kNone, kPlay, kInstantAction, kTest, kEdit } screen = kNone;
+  enum Screen { kNone, kPlay, kInstantAction, kTest, kEdit, kMultiplayer } screen = kNone;
   std::string id;               // the entry (campaign_entries.h)
   std::string mod, campaign;    // a mod's campaign: its folder and campaign= id; "" the game's own
   std::function<void()> leave;  // the program's: the game closed and started again on MODS

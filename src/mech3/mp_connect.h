@@ -125,6 +125,14 @@ class ConnectScreen : public MenuScreen {
   // forward line): the host's addresses under the host setup, from the
   // platform's UPnP, refreshed each half second.
   void show_reach();
+  // Ours (upgrades/mods/ia_mods_menu.h, multiplayer's MODS): the MODS button (9) right of HOST SETUP and its
+  // line ("MODS: 2 on"), made and bound only where the program turns them on (mp_mods_page).
+  struct ModsTab {
+    explicit ModsTab(Engine& e) : btn(e, 9) {}
+    ShellButton btn;
+    ztwod::Text line;
+  };
+  std::unique_ptr<ModsTab> mods_tab;
   CopyLine internet_line;            // the public address, or what stands in its way
   CopyLine lan_line;                 // this computer's on the LAN
   float reach_timer = 0;

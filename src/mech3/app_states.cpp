@@ -976,8 +976,12 @@ bool MainState::enter() {
   en.twod_reset(en.peek32(0x609854));
   reset_idle();
   Mech3App& ap = a();
-  if (ap.multiplayer() || en.network_lobby_active()) en.vcall(screen_ + kButtonMulti, 0x30, {});
-  entry_run().opened = false;  // ours (upgrades/mods/entry_run.h)
+  const bool back_to_multi = ap.multiplayer() || en.network_lobby_active();
+  if (back_to_multi) en.vcall(screen_ + kButtonMulti, 0x30, {});
+  entry_run().opened = back_to_multi && entry_run().screen == EntryRun::kMultiplayer;  // ours (upgrades/mods/entry_run.h)
+  // Ours (upgrades/mods/ia_mods.h): a plain start on the multiplayer screen (ALL OFF inside its entry).
+  if (mp_open_once() && !back_to_multi) en.vcall(screen_ + kButtonMulti, 0x30, {});
+  mp_open_once() = false;
   // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action was given, picked now the pilots are loaded.
   if (!ia_start_pilot().empty()) {
     Pilot* p = find_pilot(ia_start_pilot().c_str());
@@ -1056,6 +1060,7 @@ bool MainState::update() {
     } else {
       run.opened = true;
       if (run.screen == EntryRun::kInstantAction) en.vcall(screen_ + kButtonInstantAction, 0x30, {});
+      else if (run.screen == EntryRun::kMultiplayer) en.vcall(screen_ + kButtonMulti, 0x30, {});
       else en.push_state(en.peek32(menu_global(MainMenuButton::kNewCampaign)), 0);
     }
     return r;
@@ -1098,6 +1103,7 @@ void MainState::leave() {
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
   if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
   if (const Handle m = ia_mods_state()) en.vcall(m, 0x00, {1}), ia_mods_state() = 0;  // ours
+  if (const Handle m = mp_mods_state()) en.vcall(m, 0x00, {1}), mp_mods_state() = 0;  // ours
   if (save_pilots_) en.pilot_delete("mechlab");
 }
 

@@ -7,6 +7,7 @@
 #include "gamez/znetwork/znet_dplay.h"
 #include "gamez/znetwork/znet_session.h"
 #include "gamez/zutil/zutl_msgdll.h"
+#include "upgrades/mods/ia_mods_menu.h"
 
 namespace mech3 {
 
@@ -164,6 +165,16 @@ ConnectScreen::ConnectScreen(Engine& e, Handle s)
     bind_button(&address, "CONNECT_INFO_EDIT");
     bind_button(&info1, "INFO_TEXT1");
     bind_button(&info2, "INFO_TEXT2");
+    if (mp_mods_page()) {  // ours
+      mods_tab = std::make_unique<ModsTab>(e);
+      if (bind_button(&mods_tab->btn, "MPMODS")) {
+        mods_text_put(mods_tab->line, "ia_dark_grey", 534, 262);
+        add(&mods_tab->line);
+        const std::string line = mp_mods_line(mods_menu_write_dir());
+        mods_text_say(mods_tab->line, line);
+        std::printf("mw3: multiplayer open, %s\n", line.c_str());
+      }
+    }
   }
   // Ours (piece 9c): the host's two address lines, under the host setup.
   const Handle font = ztwod::host().font_find("ia_small_green");
@@ -222,6 +233,11 @@ void ConnectScreen::on_button(int32_t id, int32_t a, int32_t b) {
     case 5:
     case 6: find(); return;
     case 7: chosen(); return;
+    case 9:  // ours: MODS, its screen over this one (upgrades/mods/ia_mods_menu.h)
+      if (!mp_mods_state()) mp_mods_state() = e.construct(kMpModsStateCtor, {});
+      if (mp_mods_state()) e.push_state(mp_mods_state(), 0);
+      dirty_all();
+      return;
     default: return;
   }
 }

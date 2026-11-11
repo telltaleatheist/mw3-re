@@ -197,6 +197,7 @@ const std::vector<ScreenGroups>& screen_groups() {
       // bottom (EDITOR, ADD MOD, ADD FOLDER, MODS FOLDER) kept together at the left.
       {kModsScreenCtor, {{0, 430, 480, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       {kIaModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
+      {kMpModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.
       {0x4379f0, {{0, 0, 400, 420, kLeft}, {400, 0, 640, 480, kRight}}, {{0, 0, 483, 367}}},
@@ -440,6 +441,10 @@ Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
       return screen(sizeof(IaModsScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new IaModsScreen(e, s); });
     case kIaModsStateCtor:
       return state([](Handle h) -> MenuState* { return new IaModsState(h); });
+    case kMpModsScreenCtor:  // ours: multiplayer's MODS, the same screen on its own entry
+      return screen(sizeof(IaModsScreen), [](GameEngine& e, Handle s) -> MenuScreen* { return new IaModsScreen(e, s, true); });
+    case kMpModsStateCtor:
+      return state([](Handle h) -> MenuState* { return new IaModsState(h, true); });
     case 0x42a590: {  // the controls screen, new(0x16c94): its popups' states sit at its offsets
       const Handle h = alloc_block(0x16c94);
       screens_[h] = {nullptr, 0x16c94};
