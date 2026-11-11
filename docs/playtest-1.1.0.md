@@ -29,6 +29,22 @@ Owen's reports from the Windows build, one a row, worked through in order.
 | W8 | Pirate's Moon | Instant Action (c1): a few seconds into the mission the world goes black; the HUD stays (radar, weapons, the reticle's range, gauges). First seen with a community mod on, then again with mods off, so it is not the mod. | Windows 11, 3840 x 2160 fullscreen, Direct3D 12, wide (canvas 853 x 480). Neither run's log has an error. The hidden Mac runs never looked at a picture. Narrowed by Owen: MechWarrior 3's Instant Action and Pirate's Moon's campaign do not go black on the same PC, so it is Pirate's Moon's Instant Action itself. | dev 1 | open |
 | W9 | Instant Action | Opening Instant Action in a fresh start closed the game and opened it again, because mods were ticked there from the last session. Owen: not expected. A fresh start plays unmodded everywhere; mods are turned on by the player each time, and the restart then is understood. | Decided (Owen, 2026-11-11): Instant Action from a fresh start opens at once with "MODS: off". Its MODS screen still shows the last ticks, ready to ACCEPT, which is when the game starts again with them. The same for multiplayer's MODS. Turning mods on or off without a restart is not for this release (the mounted files are read into many tables at the start). | dev 3 (Instant Action), dev 2 (multiplayer) | open |
 
+## Playing from MODS, to be proved before 1.1.0 (Owen, 2026-11-11)
+
+Owen: a campaign reached from MODS, the game's own with mods ticked or one somebody made from scratch, works
+as the original's does: mission to mission, salvage after each, the mech lab between, progress saved. Its
+saved games are apart from the main menu's campaign (the files may be the same; the saves are not).
+
+| # | What | Known so far | Who | State |
+|---|---|---|---|---|
+| P1 | The game's own campaign with a weapons mod ticked: three missions, salvage offered and kept, the lab showing it, carried into the next mission. | Built on the original's campaign code. The advance and the screens between are tested for a mod's own campaign; salvage carried from mission to mission has no test of its own. | dev 1 | open |
+| P2 | Quit, start the game again, MODS, the campaign, PLAY: the pilot resumes at the right mission with mechs, salvage and lancemates. | Saved games per campaign are tested at the file's level, not as a play-through. | dev 1 | open |
+| P3 | The saves apart: the main menu's pilots do not gain a MODS campaign's progress, and a pilot brought in from the main game is a copy whose original is unchanged. | By design (campaigns\<id>\pilots); to be shown after three missions. | dev 1 | open |
+| P4 | A mod's own campaign (its own mission list, two worlds): the same walk, to its ending; a failed mission offered again. | The advance and the ending are tested through the real screens. | dev 1 | open |
+| P5 | Pirate's Moon: its Campaign and its Pirate Missions from MODS, the same. | Pirate Missions keep no saved games (the pilot's file holds the progress): what a player sees to be said. | dev 1 | open |
+| P6 | Salvage open to mods. | What a mission gives beyond the kills is already data: `salvage` and `cond_salvage` entries in the mission's objectives.zrd (weapons as name and tech, engines, mechs), which a mod can change today. Fixed in code: the kills' all-or-none coin, and the room (300 t and 2 mechs a field base). To add: keys for the kills' chance and the room, in a campaign's lines. | | open |
+| P7 | What EDIT WEAPONS and New Weapon do, said plainly (a new weapon as a copy; an existing one's numbers in place or not). | | dev 1 | open |
+
 ## To see with eyes: mods by campaign
 
 Built and tested headless, by scripted clicks, or through a checks-only
