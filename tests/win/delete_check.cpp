@@ -6,7 +6,9 @@
 // file) and  wd\mods\jmod, itself a junction to DIR\delete-check\elsewhere (which holds a marker and a file),
 // then: (1) path_is_link says yes for both junctions and no for a real folder; (2) the remover refuses jmod (the
 // folder itself is a link) and elsewhere is untouched; (3) the remover removes "ours": the folder gone, the
-// junction gone with it, and outside\keep.txt still there with its bytes. Prints each line and OK or FAILED;
+// junction gone with it, and outside\keep.txt still there with its bytes; (4) the staging folders' remover
+// (remove_marked_tree) the same way: a staging folder holding a junction removed with the junction's target
+// kept, and one that is itself a junction refused. Prints each line and OK or FAILED;
 // returns 0 when all passed. Junctions are made with "cmd /c mklink /J" (no administrator needed).
 // Built by the mingw cross compiler on the Mac as a compile and link check; run on Windows:
 //   x86_64-w64-mingw32-g++ -std=c++17 -Isrc tests/win/delete_check.cpp src/upgrades/mods/marked_remove.cpp -o delete_check.exe -static
@@ -48,6 +50,8 @@ int main(int argc, char** argv) {
     if (fs::exists(root, ec)) {
       std::system(("cmd /c rmdir \"" + (root / "wd" / "mods" / "ours" / "out").string() + "\" 2>nul").c_str());
       std::system(("cmd /c rmdir \"" + (root / "wd" / "mods" / "jmod").string() + "\" 2>nul").c_str());
+      std::system(("cmd /c rmdir \"" + (root / "wd" / "stage" / "out").string() + "\" 2>nul").c_str());
+      std::system(("cmd /c rmdir \"" + (root / "wd" / "jstage").string() + "\" 2>nul").c_str());
       fs::remove_all(root, ec);
     }
   } else {
@@ -61,6 +65,9 @@ int main(int argc, char** argv) {
   put(wd / "mods" / "ours" / "file.txt", "x");
   put(wd / "mods" / "ours" / "sub" / "deep.txt", "y");
   put(wd / "mods" / "real" / "marker.txt", "ours");
+  put(root / "outside2" / "keep2.txt", "must stay as well");
+  put(wd / "stage" / "marker.txt", "ours");
+  put(wd / "stage" / "deep" / "file.txt", "z");
   check(junction(wd / "mods" / "ours" / "out", root / "outside"), "a junction made inside the marked folder");
   check(junction(wd / "mods" / "jmod", root / "elsewhere"), "a junction made standing for a mod folder");
   check(mech3::path_is_link((wd / "mods" / "ours" / "out").string()), "path_is_link: the junction inside");
@@ -76,6 +83,16 @@ int main(int argc, char** argv) {
   check(!fs::exists(wd / "mods" / "ours", ec), "it is gone, the junction with it");
   check(text_of(root / "outside" / "keep.txt") == "must stay", "what the junction pointed at is still there, the same bytes");
   check(fs::exists(wd / "mods" / "real" / "marker.txt", ec), "the other folder untouched");
+  // The staging folders' remover.
+  check(junction(wd / "stage" / "out", root / "outside2"), "a junction made inside the staging folder");
+  check(junction(wd / "jstage", root / "elsewhere"), "a junction made standing for a staging folder");
+  check(!mech3::remove_marked_tree((wd / "jstage").string(), "marker.txt", &why), "remove_marked_tree: the folder itself a junction: refused");
+  std::printf("        (%s)\n", why.c_str());
+  check(text_of(root / "elsewhere" / "theirs.txt") == "must stay too", "its target untouched");
+  check(mech3::remove_marked_tree((wd / "stage").string(), "marker.txt", &why), "remove_marked_tree: the marked staging folder removed");
+  if (!why.empty()) std::printf("        (%s)\n", why.c_str());
+  check(!fs::exists(wd / "stage", ec) && text_of(root / "outside2" / "keep2.txt") == "must stay as well",
+        "it is gone, the junction with it, and what the junction pointed at is still there");
   std::printf("%s\n", failed ? "FAILED" : "OK");
   return failed ? 1 : 0;
 }
