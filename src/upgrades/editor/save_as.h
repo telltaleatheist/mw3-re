@@ -2,6 +2,8 @@
 #include <functional>
 #include <string>
 
+#include "upgrades/editor/form.h"
+
 // Ours (docs/mods-campaigns-plan.md, EDIT; step 4b): the editor only ever
 // saves as. Inside a campaign entry its saves go into a copy of that
 // campaign: a mod folder of ours (the editor's marker, net_save.h's
@@ -43,6 +45,7 @@ void save_as_end();
 // as box (the name, Save, Cancel) and returns false; Save makes the copy and
 // runs `again` (the same command), Cancel says nothing was saved.
 bool editor_save_ready(std::function<void()> again);
+EditorForm& save_as_form();  // the box ("Save as a new campaign"), for the view's tips and the checks
 // The box's answer for checks: set, it is asked in place of the box (false: cancelled).
 std::function<bool(std::string* name)>& save_as_ask_hook();
 

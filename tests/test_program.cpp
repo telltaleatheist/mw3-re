@@ -28471,7 +28471,7 @@ TEST(mission_c1m1_vehicle_editor_saved_and_read_next_start_headless) {
 // The editor's help (ours, docs/editor-guide.md) on c1m1: every form the
 // editor opens (the net dialog, Node Params, Add vehicle, Delete's question,
 // the net window and its Open list, the Tree View, the Help window, Mech AI
-// and its message, New Weapon) and both menus: each field, button, tab and row has a tip,
+// and its message, New Weapon, Teleport, Save as's box) and both menus: each field, button, tab and row has a tip,
 // and each tip names an item its form has.
 namespace {
 struct HelpSeen {
@@ -28567,6 +28567,7 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
   if (!have_game()) return;
   HelpSeen seen;
   int32_t forms = 0, previews = 0;
+  bool saved_at_once = true, box_closed = false, nothing_made = false;
   mech3::app_key_calls().debug_camera = true;
   cheat_mission("editor_help", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
     if (f < 30) return false;
@@ -28636,6 +28637,16 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
     mech3::teleport_open(0);
     look(mech3::teleport_form());
     mech3::teleport_form().press("Cancel");
+    // Save as's box comes up at the first save inside a campaign: a session stands in for one. Cancel: nothing made.
+    const std::filesystem::path wd = std::filesystem::path(MW3_TEST_TMP_ROOT) / "help_save_as";
+    std::filesystem::create_directories(wd);
+    mech3::save_as_begin(wd.string(), "campaign");
+    saved_at_once = mech3::editor_save_ready([] {});
+    look(mech3::save_as_form());
+    mech3::save_as_form().press("Cancel");
+    box_closed = !mech3::form_shown(&mech3::save_as_form());
+    mech3::save_as_end();
+    nothing_made = std::filesystem::is_empty(wd);
     mech3::editor_key(mech3::kEditorCommand);
     return true;
   });
@@ -28651,7 +28662,8 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
               seen.missing.size(), stale.size());
   for (const std::string& m : seen.missing) std::printf("    no tip: %s\n", m.c_str());
   for (const std::string& m : stale) std::printf("    tip for nothing: %s\n", m.c_str());
-  EXPECT(forms == 12 && previews == 2 && seen.missing.empty() && stale.empty());
+  EXPECT(forms == 13 && previews == 2 && seen.missing.empty() && stale.empty());
+  EXPECT(!saved_at_once && box_closed && nothing_made);
 }
 
 // The Ai Network Editor window (181, S5 sitting 4c) on c1m1: Change Net

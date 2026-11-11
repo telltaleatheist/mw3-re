@@ -2,28 +2,34 @@
 
 <!-- Generated from src/upgrades/editor/help*.cpp (the editor's tooltips): build/mw3 --editor-guide docs/editor-guide.md. Do not edit by hand; the test editor_guide_is_current fails when it is stale. -->
 
-MechWarrior 3 shipped with the developers' own editor still inside: a menu over the running mission for the AI's paths (nets) and the vehicles' AI. The rebuild opens it to players and modders, makes the parts the release left empty work, and saves what you change into a mod. The menus are the original's; the dialogs are windows of the rebuild's own. Every field, button and row in the editor has a tip (hold the mouse over it); this guide gathers them. How it works inside: docs/editor.md.
+Pirate's Moon, as MechWarrior 3, shipped with the developers' own editor still inside: a menu over the running mission for the AI's paths (nets) and the vehicles' AI. The rebuild opens it to players and modders, makes the parts the release left empty work, and saves what you change as a copy of the campaign, a mod of your own, never into the game's files or anyone else's mod. The menus are the original's; the dialogs are windows of the rebuild's own. Every field, button and row in the editor has a tip (hold the mouse over it); this guide gathers them. How it works inside: docs/editor.md.
+
+Pirate's Moon's editor is MechWarrior 3's, and so is the rebuild's: every menu, window and save in this guide is in both games. What is Pirate's Moon's own: the vehicle editor's chassis list and Add veh to node offer its 25 mechs. The original Pirate's Moon kept no edit of a net (a node moved, added or deleted was dropped); the rebuild keeps and saves them, as in MechWarrior 3. What it lacks: a node's via, terminus and static_mfb settings, new in Pirate's Moon, have no fields in Node Params (a save writes them as the file had them), and a vehicle's target settings (the target tag in aiv.zrd) have no page in Mech AI.
 
 ## Quick start
 
-1. Open the editor from the MODS screen: pick a mod or custom campaign, then EDITOR and a mission, and it opens with the editor up. A custom campaign played from MODS (ENTER) has it in every mission too: EDITOR in the pause menu, or Shift+F12. Its saves go into that mod. The game's own campaign, Pirate Missions, Instant Action, training and multiplayer have no editor.
+1. Open the editor from the MODS screen: choose a campaign at the left, then EDITOR, a mission, and PLAY. The game starts again inside that campaign with the mission open in the editor. A mod's campaign played from MODS (PLAY) has it in every mission too: EDITOR in the pause menu, or Shift+F12. Nothing started from the main menu has the editor.
 2. The menu is on the left; point at a row and click (or press Space). The view is a free camera: fly it with the movement keys.
 3. EDIT AI NETS: pick a net. Its nodes and links are drawn in the world. Click a node to pick it; picking a second one links the first to it. Move Node, Delete Node, Node Params and Add veh to node work on the first picked node.
 4. EDIT VEHICLES: pick a vehicle, change its pages, then Apply (the running mission takes it at once) and Save (it is written for the next start).
-5. Save Changes (in the net menu) writes the nets. Each save says where: mods\<the mod>\zbd\... or mods\editor edits\zbd\...
-6. To undo a save, the file it replaced is kept beside it as <file>.bak: put the .bak back in its place. For "editor edits", turning that mod off in MODS undoes them all.
-7. Every field, button and row has a tip: hold the mouse over it. The full guide is docs/editor-guide.md.
+5. The editor only saves as. The first save (Save Changes in the net menu, the vehicle editor's Save, Add veh to node, New Weapon, Teleport's OK) asks for a name and makes a copy of the campaign under it, a mod of your own: mods\<the name>. That save and every later one go into the copy, and each says where. The campaign you opened, the game's own files and a mod you imported are never changed. A copy of yours opened in the editor is saved into itself, nothing asked.
+6. EXIT GAME EDIT goes back to MODS, your copy chosen at the left when a save made one. There PLAY plays it, TEST plays one of its missions at once, EDITOR opens it again, REPORT says what it changes, EXPORT packs it into a zip to give away, and DELETE removes it with its pilots and saved games.
+7. To undo a save, the file it replaced in your copy is kept beside it as <file>.bak (the save before, one kept): put the .bak back in its place. To undo everything, DELETE the copy on MODS: the campaign it was made from is as it was.
+8. Every field, button and row has a tip: hold the mouse over it. The full guide is docs/editor-guide.md.
 
-## From a fresh mod to a changed mission
+## From a campaign to your own changed copy
 
-1. Make the mod: a folder under mods in your write folder with a mod.txt (name=My Mod) and campaign=my.txt, and my.txt listing the missions to change (name=My Campaign, then mission=c1 1, one line each; docs/modding.md).
-2. Open it: on the MODS screen pick the campaign, EDITOR lists its missions, ENTER opens the one picked. The mission starts with the editor up and a stand-in pilot. Its saves go into the mod itself (zbd\c1\readerm1.zbd and the like), each keeping the file it replaced as .bak.
+1. Choose what to start from. MODS lists the campaigns at the left: the game's own first, each campaign a mod brought, each copy you made. The mods ticked for it at the right are mounted with it. To start from someone else's work, IMPORT it (a zip, a folder, or a game folder a mod's installer was run over): the line says how many warnings its files gave, and REPORT lists them in three groups, the worst first (what stops part of the mod working, what works here but may crash the original game, slips that do no harm), and writes the same to mod-reports\<the mod's folder>.txt in your settings folder.
+2. Open a mission: with the campaign chosen, EDITOR lists its missions and PLAY opens the one picked. The game starts again inside the campaign, and the mission starts with the editor up and a stand-in pilot.
 3. Change the AI's paths: EDIT AI NETS, pick a net (net_01 is usually the main one). Pick a node and move it (Move Node, then press the mouse, drag, let go), link nodes (pick one, then the next), delete what is not wanted, set a node's speed or wait (Node Params). Save Changes.
-4. Add a vehicle: pick a node, Add veh to node, choose its type and side, OK. It is made at once and written into the mission's vehicle list (aiv.zrd).
-5. Change a vehicle's AI: EDIT VEHICLES, pick it, set its pages (when it wakes, how far it follows, how it attacks and retreats, what valve it sets), Apply to try it in the running mission, Save to keep it.
-6. Add a weapon: EDIT WEAPONS (in a mission opened from MODS, EDITOR), pick the weapon to copy, set its name and numbers, OK. It is written into the mod (mod.txt and zbd\reader.zbd); the mech lab offers it from the next start.
-7. Try it: EXIT GAME EDIT goes back to MODS. Play the campaign (ENTER on the MODS screen) to see the changes as a player would.
-8. Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save.
+4. Name your copy: the first save asks for a name (offered: "<campaign>, my edit") and makes mods\<the name>, a copy of the campaign that holds only the files you change (a mission's archive whole, zbd\c1\readerm1.zbd and the like) and names the campaign it was saved from (base= in its mod.txt). A name already taken is refused, never written over. Cancel saves nothing. Later saves go into the copy, nothing asked. A mod folder you made by hand is treated as any other: copied, never written.
+5. Add a vehicle: pick a node, Add veh to node, choose its type and side, OK. It is made at once and written into the mission's vehicle list (aiv.zrd) in your copy.
+6. Change a vehicle's AI: EDIT VEHICLES, pick it, set its pages (when it wakes, how far it follows, how it attacks and retreats, what valve it sets), Apply to try it in the running mission, Save to keep it.
+7. Add a weapon: EDIT WEAPONS, pick the weapon to copy, set its name and numbers, OK. It is written into your copy (mod.txt and zbd\reader.zbd) and is part of that campaign; the mech lab offers it from the next start.
+8. Try it: EXIT GAME EDIT goes back to MODS with your copy chosen. TEST, a mission, PLAY plays that mission at once with a stand-in pilot; when it ends a list plays the others, and BACK leaves. PLAY plays the campaign as a player would: its pilot screen lists the copy's own pilots and your main-game pilots, and picking one of yours copies it in (the main game's pilot is never changed).
+9. Go on: choose the copy, EDITOR, a mission, PLAY. Its saves go into the copy itself.
+10. Give it away: EXPORT packs the copy into one zip that IMPORT takes. A copy of a mod's campaign needs that mod on the other machine too; there it is an imported mod, which that player's editor copies and never writes.
+11. Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save. DELETE on MODS removes a copy whole, with its pilots and saved games; RESET, on the game's own campaign, clears its ticks and its pilots there. Neither touches the game's files or your main-game pilots.
 
 ## The editor's menu
 
@@ -34,14 +40,14 @@ The menu over the mission when the editor is up (the original's, with HELP added
 | PICK A COMMAND | The menu's title. Point at a row and click, or press Space. |
 | EDIT AI NETS | Edit the AI's paths: pick a net, then move, link, add and delete its nodes. Opens the net editor's menu. |
 | EDIT VEHICLES | The Mech AI window: pick one of the mission's vehicles and change its AI settings. |
-| EDIT WEAPONS | New Weapon: a weapon copied from one the game knows, its name and numbers set, written into the mod (opened from MODS, EDITOR only). Empty in the original game; ours. |
+| EDIT WEAPONS | New Weapon: a weapon copied from one the game knows, its name and numbers set, written into your copy of the campaign (in a mission opened from MODS, EDITOR only). Empty in the original game; ours. |
 | HELP | This quick start, in a window. Ours: the original had none. |
 | TELEPORT | Move your mech to a place: the mission's nav points, the world's saved places, or one you type in. The developers' own tool, which the original never let you reach; ours. |
-| EXIT GAME EDIT | Close the editor. From MODS's EDITOR it goes back to the MODS screen; in a custom campaign's mission the view goes back to your mech and the mission goes on. |
+| EXIT GAME EDIT | Close the editor. From MODS's EDITOR the game goes back to the MODS screen, your copy chosen when a save made one; in a campaign's mission (Shift+F12, the pause menu's EDITOR) the view goes back to your mech and the mission goes on. |
 
 ## Teleport
 
-The developers' teleport, which the original carries but never lets you reach. It lists your own place (Current Location), the mission's nav points and the world's saved places (each world ships some: mission starts, the Instant Action base). OK moves your mech there and saves the places, nav points included, into the mod as zbd\<world>\location.zrd (the old one kept as .bak), as the original did.
+The developers' teleport, which the original carries but never lets you reach. It lists your own place (Current Location), the mission's nav points and the world's saved places (each world ships some: mission starts, the Instant Action base). OK moves your mech there and saves the places, nav points included, into your copy of the campaign as zbd\<world>\location.zrd (the one before kept as .bak), as the original saved them. The first save asks the copy's name.
 
 | Item | What it does |
 |---|---|
@@ -50,9 +56,19 @@ The developers' teleport, which the original carries but never lets you reach. I
 | y | Height. |
 | z | North-south. |
 | yaw (deg.) | Which way to face, in degrees (-360 to 360). |
-| OK | Go there, and save the places into the mod. |
+| OK | Go there, and save the places into your copy of the campaign (the first save asks its name). |
 | Cancel | Close it; stay where you are. |
 | Delete | Take the picked place off the list (asked first); saved with OK. |
+
+## Save as
+
+The editor never changes the campaign it opened. The first save of a session asks for a name and makes a copy of the campaign under it: mods\<the name>, a mod of your own that holds only the files you change and names the campaign it was saved from. The save then goes on into it, and so does every later one. The copy is listed among MODS's campaigns with the ticks of the campaign it came from. A copy of yours opened in the editor is saved into itself, and this box does not come up.
+
+| Item | What it does |
+|---|---|
+| Name | The copy's name on MODS and its folder under mods. Offered: "<campaign>, my edit", then "..., my edit 2". A name whose folder exists is refused and another offered. |
+| Save | Make the copy and save into it. |
+| Cancel | Close the box: nothing is saved, and the next save asks again. |
 
 ## The net editor's menu
 
@@ -64,11 +80,11 @@ The net editor's own menu, shown once a net is picked. Click a node in the world
 | GOTO Net | Fly the view to the net's first node. |
 | Change Net Params | The original's net window: Open shows a second net file beside this one, to compare. |
 | Node Params | The first picked node's settings: place, speed, waits, flags, name, gate. Empty in the original; ours. |
-| Add veh to node | Make a vehicle at the first picked node, on this net, and write it into the mission's vehicle list. Did nothing in the original; ours. |
+| Add veh to node | Make a vehicle at the first picked node, on this net, and write it into the mission's vehicle list in your copy of the campaign. Did nothing in the original; ours. |
 | Move Node | Move the first picked node: then press the mouse, drag it where it should go, let go. |
 | Delete Node | Delete the picked node, or the picked line, after asking. |
 | Delete Net | Empty in the original game: it does nothing. |
-| Save Changes | Write the net into the mission's archive in the mod (one .bak kept of the file replaced). The line under the menu says where. |
+| Save Changes | Write the net into the mission's archive in your copy of the campaign (the first save asks the copy's name; one .bak kept of the file replaced). The line under the menu says where. |
 | Tree View | A window listing the world's objects by area. It only shows. |
 | Help | The quick start, in a window. Ours. |
 | Exit Net Editor | Close the net editor and its windows; back to the editor's menu. |
@@ -113,11 +129,11 @@ The first picked node's record, as the net file holds it. A field whose box is u
 
 ## Add veh to node
 
-A new vehicle at the first picked node, following this net. OK makes it at once and writes its record into the mission's aiv.zrd in the mod, its AI settings copied from the first vehicle of that type in the mission.
+A new vehicle at the first picked node, following this net. OK makes it at once and writes its record into the mission's aiv.zrd in your copy of the campaign, its AI settings copied from the first vehicle of that type in the mission.
 
 | Item | What it does |
 |---|---|
-| vehicle type | The kind of vehicle: the 19 mechs, then the vehicles vehicle.zrd lists. |
+| vehicle type | The kind of vehicle: Pirate's Moon's 25 mechs, then the vehicles vehicle.zrd lists. |
 | x | Where it starts, east-west (the node's place to begin with). |
 | y | Its height (the ground under it is used). |
 | z | Where it starts, north-south. |
@@ -199,7 +215,7 @@ The original's Mech AI dialog: one of the mission's vehicles, its AI settings on
 | Approach Range to Target | How near it closes on a target (params, item 5). Direct shows it too. |
 | Minimum Range to Target | The nearest it comes to a target (params, item 6). Direct shows it too. |
 | Configuration | The mech's loadout, from its stock ones (p10, item 2). Mechs only. |
-| Default Chassis | The chassis the record names (p12): one of the 19, or "default" for none. |
+| Default Chassis | The chassis the record names (p12): one of Pirate's Moon's 25, or "default" for none. |
 | Skin | Its paint scheme, 0 to 100 (skin). |
 | Pilot Name | The name shown for its pilot, at most 32 characters (pilot). Empty: none. |
 | Objective Conditional | The record's objective-conditional flag (p12, item 2). |
@@ -291,7 +307,7 @@ The original's Mech AI dialog: one of the mission's vehicles, its AI settings on
 | OK | Apply, then close the window. |
 | Apply | Put the page's settings on the vehicle in the running mission. |
 | Refresh | Read the mission's vehicles and nets again (after adding one); the shown one stays. |
-| Save | Apply, then write every vehicle applied this mission into the mod's aiv.zrd (one .bak kept). From the next start. |
+| Save | Apply, then write every vehicle applied this mission into aiv.zrd in your copy of the campaign (the first save asks the copy's name; one .bak kept). From the next start. |
 
 ## The vehicle editor's message
 
@@ -303,7 +319,7 @@ When a box does not read, the original's message, and the page stops at that box
 
 ## New Weapon (EDIT WEAPONS)
 
-A new weapon for the mod the editor was opened on from MODS, EDITOR. It starts as a copy of a weapon the game knows, under a free name; set its row, its main numbers, its effects and sounds, then OK. Every other number is the copy's. An effect or sound is picked from those the game's weapons use, and shown once where the view points when picked. OK writes the weapon= line into the mod's mod.txt (the old file kept as mod.txt.bak) and the definition at the end of BALLISTICS in the mod's zbd\reader.zbd (weapons.zrd; the archive it replaced kept as .bak), or, when the mod has its own zbd\weapons.zrd text file, into that file (its own text kept, the old one as .bak). The mech lab offers it from the next start. The original game reads the file too and leaves the extra weapon alone.
+A new weapon for your copy of the campaign the editor was opened on from MODS, EDITOR (the first save asks the copy's name; the campaign itself and an imported mod are never written). It is part of that campaign: on whenever the copy is played. It starts as a copy of a weapon the game knows, under a free name; set its row, its main numbers, its effects and sounds, then OK. Every other number is the copy's. An effect or sound is picked from those the game's weapons use, and shown once where the view points when picked. OK writes the weapon= line into the copy's mod.txt (the old file kept as mod.txt.bak) and the definition at the end of BALLISTICS in the copy's zbd\reader.zbd (weapons.zrd; the archive it replaced kept as .bak), or, when the copy has its own zbd\weapons.zrd text file, into that file (its own text kept, the old one as .bak). The mech lab offers it from the next start. The original game reads the file too and leaves the extra weapon alone.
 
 | Item | What it does |
 |---|---|
@@ -330,5 +346,5 @@ A new weapon for the mod the editor was opened on from MODS, EDITOR. It starts a
 | flyby sound | The sound while it flies, or a beam's while it is on (FLYOUT SOUND). |
 | impact | The animation where it hits (IMPACT default ANIMATION); the other soils' are the copy's. |
 | impact sound | The sound where it hits (IMPACT default SOUND). |
-| OK | Write it into the mod (mod.txt and zbd\reader.zbd, or its own zbd\weapons.zrd), each file's earlier copy kept as .bak. |
+| OK | Write it into your copy of the campaign (mod.txt and zbd\reader.zbd, or its own zbd\weapons.zrd), each file's earlier copy kept as .bak. |
 | Cancel | Close it; nothing is written. |

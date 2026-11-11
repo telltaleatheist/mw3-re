@@ -46,10 +46,10 @@ void help_nets(std::vector<HelpForm>& out) {
                  }});
   out.push_back({"Node Edit - Vehicle", "Add veh to node",
                  "A new vehicle at the first picked node, following this net. OK makes it at once and writes its "
-                 "record into the mission's aiv.zrd in the mod, its AI settings copied from the first vehicle of "
+                 "record into the mission's aiv.zrd in your copy of the campaign, its AI settings copied from the first vehicle of "
                  "that type in the mission.",
                  {
-                     {"vehicle type", "", "The kind of vehicle: the 19 mechs, then the vehicles vehicle.zrd lists."},
+                     {"vehicle type", "", "The kind of vehicle: Pirate's Moon's 25 mechs, then the vehicles vehicle.zrd lists."},
                      {"x", "", "Where it starts, east-west (the node's place to begin with)."},
                      {"y", "", "Its height (the ground under it is used)."},
                      {"z", "", "Where it starts, north-south."},

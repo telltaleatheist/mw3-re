@@ -26,6 +26,7 @@
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/help.h"
 #include "upgrades/editor/node_params.h"
+#include "mech3/mech_names.h"
 #include "upgrades/editor/add_vehicle.h"
 
 namespace {
@@ -592,7 +593,8 @@ TEST(add_vehicle_form_and_record) {
   mech3::EditorForm& f = mech3::add_vehicle_form();
   EXPECT(mech3::add_vehicle_open_now() && mech3::form_shown(&f) && f.title == "Node Edit - Vehicle");
   EXPECT(*f.field("x")->f == 7.0f && *f.field("yaw")->f == 0.0f && *f.field("team id")->i == 1 && *f.field("side")->i == 0);
-  EXPECT(mech3::add_vehicle_types().size() >= 19 && f.field("vehicle type")->choices == mech3::add_vehicle_types());
+  EXPECT(mech3::add_vehicle_types().size() >= 25 && f.field("vehicle type")->choices == mech3::add_vehicle_types());
+  for (int i = 0; i < 25; ++i) EXPECT(mech3::add_vehicle_types()[size_t(i)] == mech3::mech_name(i));  // PM's 25, not MW3's 19
   // The side's radio buttons: the team follows.
   *f.field("side")->i = 1, f.changed(*f.field("side"));
   EXPECT(*f.field("team id")->i == 2);

@@ -137,6 +137,8 @@ std::function<bool(std::string* name)>& save_as_ask_hook() {
   return h;
 }
 
+EditorForm& save_as_form() { return g_box.form; }
+
 bool editor_save_ready(std::function<void()> again) {
   SaveAsSession& s = save_as_session();
   if (s.entry.empty() || !s.copy.empty()) return true;  // outside an entry, or the copy is there
