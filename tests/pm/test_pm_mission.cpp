@@ -163,7 +163,7 @@ TEST(pm_c1m1_shadow_cats_wake) {
   // tools/pm-hits counts in this process and writes at its exit: that run (this test alone) stays in it.
   if (std::getenv("PM_AI_HITS")) return shadow_cats_run();
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     shadow_cats_run();
     // _exit skips the atexit report: the seeded pair compares these lines, so the child prints them itself.
@@ -172,7 +172,7 @@ TEST(pm_c1m1_shadow_cats_wake) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #else
   shadow_cats_run();
@@ -2052,7 +2052,7 @@ TEST(pm_c3m6_dead_anhur_leaves_no_wall) {
 #if !defined(_WIN32)
   for (const bool bugs : {true, false}) {
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       setenv("PM_ANHUR", "1", 1);
       if (!bugs) setenv("PM_BUGS_OFF", "1", 1);
@@ -2073,7 +2073,7 @@ TEST(pm_c3m6_dead_anhur_leaves_no_wall) {
       _exit(check::failures ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
 #endif
@@ -2084,7 +2084,7 @@ TEST(pm_c3m6_dead_anhur_leaves_no_wall) {
 TEST(pm_show_inout_builds_pm_models) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_INOUT", "1", 1);
     kill_run("1,1,3", true);
@@ -2097,7 +2097,7 @@ TEST(pm_show_inout_builds_pm_models) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2108,7 +2108,7 @@ TEST(pm_show_inout_builds_pm_models) {
 TEST(pm_teleport_moves_the_player_and_saves_pms_text) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_TELEPORT", "1", 1);
     kill_run("1,1,3", true);
@@ -2127,7 +2127,7 @@ TEST(pm_teleport_moves_the_player_and_saves_pms_text) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2140,14 +2140,14 @@ TEST(pm_water_survey_env) {
   if (!mode || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
   auto child_run = [](const char* which) {
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       kill_run(which, true);
       std::fflush(nullptr);
       _exit(0);
     }
     int st = 0;
-    waitpid(child, &st, 0);
+    st = check::wait_child(child);
   };
   if (std::strcmp(mode, "heights") == 0) {
     setenv("PM_HEIGHT", "1", 1);
@@ -2178,7 +2178,7 @@ TEST(pm_c1m2_turret_debris_lands_on_its_platform) {
 #if !defined(_WIN32)
   for (const bool pm_way : {true, false}) {
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       setenv("PM_DEADROOTS", "1", 1);
       setenv("PM_MOTION_SURVEY", "1", 1);
@@ -2192,7 +2192,7 @@ TEST(pm_c1m2_turret_debris_lands_on_its_platform) {
       _exit(check::failures ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
 #endif
@@ -2202,7 +2202,7 @@ TEST(pm_cloud_screen_tint) {
 #if !defined(_WIN32)
   for (const char* camera : {"1", "2"}) {
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       setenv("PM_FALL", "3056,-4776", 1);
       setenv("PM_FALL_CAMERA", camera, 1);
@@ -2215,7 +2215,7 @@ TEST(pm_cloud_screen_tint) {
       _exit(check::failures ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
 #endif
@@ -2232,7 +2232,7 @@ TEST(pm_enemies_die_under_real_fire) { kill_run(std::getenv("PM_KILL"), false); 
 TEST(pm_c2m3_lasers_kill_the_tanker) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_HOSTILES", "60", 1);
     setenv("PM_BEAMS_ONLY", "1", 1);
@@ -2241,7 +2241,7 @@ TEST(pm_c2m3_lasers_kill_the_tanker) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2251,7 +2251,7 @@ TEST(pm_c2m3_lasers_kill_the_tanker) {
 TEST(pm_tag_fires_from_the_mech) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_TAG_MUZZLE", "1", 1);
     kill_run("1,1,3", true);
@@ -2259,7 +2259,7 @@ TEST(pm_tag_fires_from_the_mech) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2271,7 +2271,7 @@ TEST(pm_selection_leaves_a_destroyed_weapon) {
 #if !defined(_WIN32)
   for (const bool off : {false, true}) {
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       setenv("PM_GONE", "1", 1);
       if (off) setenv("PM_BUGS_OFF", "1", 1);
@@ -2280,7 +2280,7 @@ TEST(pm_selection_leaves_a_destroyed_weapon) {
       _exit(check::failures ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
 #endif
@@ -2291,7 +2291,7 @@ TEST(pm_selection_leaves_a_destroyed_weapon) {
 TEST(pm_c2m3_ally_turret_keeps_off_the_player) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_ALLY_TURRET", "1", 1);
     kill_run("1,1,3", true);
@@ -2299,7 +2299,7 @@ TEST(pm_c2m3_ally_turret_keeps_off_the_player) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2310,7 +2310,7 @@ TEST(pm_c2m3_ally_turret_keeps_off_the_player) {
 TEST(pm_c1m1_modded_splash_stays_within_the_list) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_SPLASH", "1", 1);
     kill_run("0,1,1", true);
@@ -2323,7 +2323,7 @@ TEST(pm_c1m1_modded_splash_stays_within_the_list) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2335,7 +2335,7 @@ TEST(pm_c1m1_modded_splash_stays_within_the_list) {
 TEST(pm_c1m2_anim_states_load_in_both_layouts) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_ANIMSAVE", "1", 1);
     kill_run("0,1,2", true);
@@ -2348,7 +2348,7 @@ TEST(pm_c1m2_anim_states_load_in_both_layouts) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2356,7 +2356,7 @@ TEST(pm_c1m2_anim_states_load_in_both_layouts) {
 TEST(pm_c2m3_craters_raise_no_spikes) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_CRATERS", "60,600,-2500,1000,-300", 1);
     kill_run("1,1,3", true);
@@ -2366,7 +2366,7 @@ TEST(pm_c2m3_craters_raise_no_spikes) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2377,7 +2377,7 @@ TEST(pm_c2m3_craters_raise_no_spikes) {
 TEST(pm_c1m2_base_light_takes_its_state) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_BASE_LIGHT", "1", 1);
     kill_run("0,1,2", true);
@@ -2396,7 +2396,7 @@ TEST(pm_c1m2_base_light_takes_its_state) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2406,7 +2406,7 @@ TEST(pm_c1m2_base_light_takes_its_state) {
 TEST(pm_c1m2_motions_play) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_MOTIONS", "1", 1);
     kill_run("0,1,2", true);
@@ -2415,7 +2415,7 @@ TEST(pm_c1m2_motions_play) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2432,7 +2432,7 @@ TEST(pm_canyon_death_band) {
                       {"jetted, Thor", "2985,-4727", "-0.98", "23", true}};
   for (const Way& w : ways) {
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       setenv("PM_FALL", w.at, 1);
       if (w.walk) setenv("PM_FALL_WALK", w.walk, 1);
@@ -2452,7 +2452,7 @@ TEST(pm_canyon_death_band) {
       _exit(check::failures ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
 #endif
@@ -2469,7 +2469,7 @@ TEST(pm_c1m1_lancemate_repairs_at_the_dock) {
   const Case cases[] = {{"starbase", "4733,-4200", true}, {"mobile", "4041,-3388", true}, {"starbase, fixes off", "4733,-4200", false}};
   for (const Case& k : cases) {
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       setenv("PM_REPAIR", k.at, 1);
       setenv("PM_REPAIR_AFTER", "1", 1);
@@ -2488,7 +2488,7 @@ TEST(pm_c1m1_lancemate_repairs_at_the_dock) {
       _exit(check::failures ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
 #endif
@@ -2498,7 +2498,7 @@ TEST(pm_c1m1_lancemate_repairs_at_the_dock) {
 TEST(pm_starbase_refit) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_MFB", "4476,-4486", 1);
     kill_run("0,1,1", true);
@@ -2506,7 +2506,7 @@ TEST(pm_starbase_refit) {
     _exit(check::failures || !g_refit_done ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2514,7 +2514,7 @@ TEST(pm_starbase_refit) {
 TEST(pm_leg_down) {
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();  // a second mission in one process crashes (pm_c2m4's note)
+  const pid_t child = check::fork_child();  // a second mission in one process crashes (pm_c2m4's note)
   if (child == 0) {
     setenv("PM_LEG", "5", 1);
     kill_run("0,1,1", true);
@@ -2522,7 +2522,7 @@ TEST(pm_leg_down) {
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -2534,14 +2534,14 @@ TEST(pm_c2m4_destroy_valve_kills_the_werewolf) {
 #if !defined(_WIN32)
   // In a child too, so the whole-mission runs after it (pm_ia_wave_config_past_...) don't load into its world.
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     werewolf_run();
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #else
   werewolf_run();
@@ -2666,14 +2666,14 @@ TEST(pm_c2m3_no_cow_level) {
 #if !defined(_WIN32)
     // Each in a child, as the other whole-mission runs: a world left on zClass's lists breaks the next load.
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       cow_run(when);
       std::fflush(nullptr);
       _exit(check::failures ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #else
     cow_run(when);
@@ -2816,14 +2816,14 @@ TEST(pm_ia_wave_config_past_the_last_spawns_with_the_first_headless) {
 #if !defined(_WIN32)
   // In a child, as the other whole-mission runs: a world left on zClass's lists breaks the next load.
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     ia32_spawn_run();
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #else
   ia32_spawn_run();
@@ -3254,7 +3254,7 @@ TEST(pm_c1m1_ppc_rocks_an_enemy_headless) {
   if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
 #if !defined(_WIN32)
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     const PpcJolt r = ppc_run();
     const bool ok = r.force > 0 && std::fabs(r.spin - r.spin_expect) < 1e-3f && r.peak_deg > 0.5f &&
@@ -3263,7 +3263,7 @@ TEST(pm_c1m1_ppc_rocks_an_enemy_headless) {
     _exit(check::failures || !ok ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
@@ -3274,13 +3274,13 @@ TEST(pm_c1m1_player_knocked_down_headless) {
 #if !defined(_WIN32)
     // Each in a child, as the other whole-mission runs: a world left on zClass's lists breaks the next load.
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       const int fell = knock_run(cause);
       _exit(check::failures || fell <= 0 ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #else
     EXPECT(knock_run(cause) > 0);
@@ -3374,13 +3374,13 @@ TEST(pm_c1m1_ai_mech_gets_up_at_once_headless) {
     const auto ok = [who](float lie) { return lie > 0.0f && (who ? lie > 4.5f : lie < 4.0f); };
 #if !defined(_WIN32)
     std::fflush(nullptr);
-    const pid_t child = fork();
+    const pid_t child = check::fork_child();
     if (child == 0) {
       const float lie = getup_run(who);
       _exit(check::failures || !ok(lie) ? 1 : 0);
     }
     int status = 1;
-    waitpid(child, &status, 0);
+    status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #else
     EXPECT(ok(getup_run(who)));
@@ -3541,14 +3541,14 @@ TEST(pm_c1m2_lock_drops_on_a_new_target_headless) {
 #if !defined(_WIN32)
   // In a child, as the other whole-mission runs: a world left on zClass's lists breaks the next load.
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     lock_drop_run();
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #else
   lock_drop_run();

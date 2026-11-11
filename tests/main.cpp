@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #endif
 #if defined(_WIN32)
 #include <process.h>
@@ -28,6 +29,64 @@ std::vector<Test>& registry() {
 }
 int failures = 0;
 }  // namespace check
+
+#if !defined(_WIN32)
+namespace check {
+namespace {
+std::vector<std::pair<pid_t, std::string>>& child_files() {
+  static std::vector<std::pair<pid_t, std::string>> files;
+  return files;
+}
+}  // namespace
+
+pid_t fork_child() {
+  static int made = 0;
+  std::error_code ec;
+  const std::filesystem::path dir = std::filesystem::path(MW3_TEST_TMP_ROOT) / "child-output";
+  std::filesystem::create_directories(dir, ec);
+  const std::string path = (dir / (std::to_string(static_cast<long>(getpid())) + "-" + std::to_string(++made) + ".txt")).string();
+  std::fflush(nullptr);
+  const pid_t child = fork();
+  if (child == 0) {
+    const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd >= 0) {
+      dup2(fd, 1), dup2(fd, 2);
+      close(fd);
+    }
+    return 0;
+  }
+  if (child > 0) child_files().push_back({child, path});
+  return child;
+}
+
+int wait_child(pid_t child) {
+  int status = 1;
+  waitpid(child, &status, 0);
+  std::string path;
+  for (auto it = child_files().begin(); it != child_files().end(); ++it)
+    if (it->first == child) {
+      path = it->second;
+      child_files().erase(it);
+      break;
+    }
+  if (path.empty()) return status;
+  std::fflush(nullptr);
+  if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+    char buf[1 << 14];
+    for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) std::fwrite(buf, 1, n, stdout);
+    std::fclose(f);
+  }
+  if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+    std::remove(path.c_str());
+  } else {
+    if (WIFSIGNALED(status)) std::printf("  the child was ended by signal %d; its output is kept: %s\n", WTERMSIG(status), path.c_str());
+    else std::printf("  the child exited %d; its output is kept: %s\n", WIFEXITED(status) ? WEXITSTATUS(status) : -1, path.c_str());
+  }
+  std::fflush(stdout);
+  return status;
+}
+}  // namespace check
+#endif
 
 const char* mw3_test_tmp() {
   // Never freed: the exit's cleanup runs after the statics are gone.

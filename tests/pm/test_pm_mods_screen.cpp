@@ -92,7 +92,7 @@ void in_child(const char* test, const std::function<void()>& run) {
   self = self.c_str();
   EXPECT(!self.empty());
   std::fflush(nullptr);
-  const pid_t child = fork();
+  const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_SCREEN_CHILD", "1", 1);
     setenv("MW3_TEST", test, 1);
@@ -100,7 +100,7 @@ void in_child(const char* test, const std::function<void()>& run) {
     _exit(127);
   }
   int status = 1;
-  waitpid(child, &status, 0);
+  status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #else
   run();
