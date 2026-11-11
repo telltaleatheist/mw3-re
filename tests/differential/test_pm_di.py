@@ -230,6 +230,8 @@ def compare(want, got, kind, stats):
                         stats['near'] += 1
                         key = f'near {kind} f{k}'  # where the last bits differ: by the query's kind and the float's place
                         stats[key] = stats.get(key, 0) + 1
+                        if os.environ.get('MW3_DI_NEAR'):  # the hit itself, for a look at one that is left
+                            print(f'  near {kind} f{k}: {x:08x} / {y:08x}  exe {["%08x" % w for w in want[i:i + size]]} port {["%08x" % w for w in got[i:i + size]]}', flush=True)
                     stats['floats'] += 1
                 elif x != y:
                     return f'word {k} at {i}: {x} / {y}'
