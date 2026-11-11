@@ -383,8 +383,10 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
     if (mt.filename() != "mod.txt") fs::rename(mt, root / "mod.txt", ec);
     ModInfo info;
     if (mod_parse(read_text(root / "mod.txt"), &info) && !info.name.empty()) a.name = info.name;
-    const std::string g = lower(info.game);
-    a.game = g.rfind("pm", 0) == 0 ? ModGame::kPm : g.empty() || g.rfind("mw3", 0) == 0 ? ModGame::kMw3 : ModGame::kUnknown;
+    // for='s first word, as mod_parse reads it (mods.cpp): "mw3pm" is Pirate's Moon's, "mw3" MechWarrior 3's.
+    std::string g = lower(info.game);
+    g = g.substr(0, g.find_first_of(" \t"));
+    a.game = g == "mw3pm" ? ModGame::kPm : g.empty() || g == "mw3" ? ModGame::kMw3 : ModGame::kUnknown;
   }
   // A whole install: only what differs from the player's, without programs
   // (an exe patch cannot apply) and the player's own kind of file.
@@ -427,7 +429,7 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
   if (!a.has_mod_txt) {
     std::ofstream f(root / "mod.txt", std::ios::binary);
     f << "# Written by the game when this mod was added (it had no mod.txt).\n"
-      << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "pm" : "mw3") << "\n";
+      << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "mw3pm" : "mw3") << "\n";
   }
   r.report = mod_check(root.string(), install, &r.check_errors);
   if (r.check_errors > 0) {

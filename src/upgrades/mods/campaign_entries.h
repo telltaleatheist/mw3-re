@@ -81,6 +81,9 @@ std::vector<std::string> entry_missing_mods(const std::string& write_dir, const 
 // Action's. A main-menu pilot brought into such an entry carries on from its
 // saved games; into any other it starts that campaign anew (entry_pilots.h).
 bool entry_plays_own_campaign(const std::string& write_dir, const CampaignEntry& e);
+// Pirate's Moon: such an entry brings the pilot's saved games too when it is the Campaign's (or built on it);
+// the Pirate Missions have none to bring (their record is in the pilot's file).
+bool entry_brings_saved_games(const std::string& write_dir, const CampaignEntry& e);
 
 // The run's entry: --entry's, else the game's own campaign (official_entries'
 // first). What "turned on" means to everything that used to write mw3.cfg's

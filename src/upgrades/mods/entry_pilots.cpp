@@ -47,11 +47,11 @@ Pilot* entry_bring_pilot(const std::string& name, std::string* why) {
   std::string real = name;  // the file's own spelling
   for (const std::string& n : main_menu_pilots(dir))
     if (lower(n) == lower(name)) real = n;
-  const bool saves = entry_plays_own_campaign(dir, *e);
+  const bool saves = entry_brings_saved_games(dir, *e);
   const PilotCopy c = entry_copy_pilot(dir, real, entry_dir(dir, e->id), entry_dir(dir, e->id) + "/configs", saves);
   if (!c.ok) return said = c.why, nullptr;
   std::printf("mw3: pilot %s brought into %s from the main game (%s, %zu files)\n", real.c_str(), e->id.c_str(),
-              saves ? "with its saved games" : "without saved games: another campaign", c.copied.size());
+              saves ? "with its saved games" : "without saved games", c.copied.size());
   Pilot* p = load_pilot(real.c_str(), false);
   if (!p) said = "its copy could not be read";
   return p;

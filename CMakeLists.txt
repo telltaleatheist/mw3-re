@@ -727,6 +727,8 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_hud.cpp
     tests/pm/test_pm_mods.cpp
     tests/pm/test_pm_entries.cpp
+    tests/pm/test_pm_fixes.cpp
+    tests/pm/test_pm_mods_screen.cpp
     tests/test_net_save.cpp  # the editor's net save on PM's nets
     tests/test_editor.cpp  # the editor's menus, net and vehicle editors on PM's logic
     tests/test_teleport.cpp  # the teleport on PM's logic and c3's places

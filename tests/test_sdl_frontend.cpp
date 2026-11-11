@@ -7779,9 +7779,30 @@ TEST(pm_upgrades_save_writes_the_water_key) {
 #endif
 
 #if defined(MW3_PM_SUITE) && !defined(_WIN32)  // posix_spawn, execv
+namespace {
+// mw3pm run to its end with these arguments after the usual ones; its log.
+std::string pm_run(const std::string& dir, const std::vector<std::string>& extra, const char* name, const char* frames = "500") {
+  std::vector<std::string> args = {"--install", MW3_GAME_DIR, "--no-launcher", "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
+                                   "--frame-ms", "33", "--seed", "1", "--frames", frames};
+  args.insert(args.end(), extra.begin(), extra.end());
+  const std::string log = dir + "/" + name + ".log";
+  int status = 0;
+  const pid_t pid = spawn_mw3(args, log);
+  EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+}
+std::string pm_bytes(const std::string& path) {
+  std::ifstream f(path, std::ios::binary);
+  return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+}
+}  // namespace
+
 // Instant Action's MODS on Pirate's Moon, the twin of sdl_program_instant_action_mods: the MODS tab on PM's
 // Instant Action screen opens our screen; a tick and ACCEPT start the game again inside entry ia with the mod
-// mounted (the first run was the original); inside the entry, ALL OFF starts it again plain, on Instant Action.
+// mounted (the first run was the original), the pilot brought across quietly (no box) and picked, the main
+// menu's pilot as it was; inside the entry, ALL OFF starts it again plain, on Instant Action; CANCEL on the
+// entry's pilot screen starts it again on the main menu.
 TEST(sdl_pm_program_instant_action_mods) {
   namespace fs = std::filesystem;
   if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/reader.zbd")) return;
@@ -7794,41 +7815,136 @@ TEST(sdl_pm_program_instant_action_mods) {
   };
   put("wd/mods/hud/mod.txt", "name=Amber HUD\n");
   put("wd/mods/other/mod.txt", "name=Other\n");
-  setenv("MW3_BOX_ANSWER", "2", 1);  // the offer to copy the pilot: no (a new pilot is made there)
-  auto run = [&](const std::vector<std::string>& extra, const char* name) {
-    std::vector<std::string> args = {"--install", MW3_GAME_DIR, "--no-launcher", "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
-                                     "--frame-ms", "33", "--seed", "1", "--frames", "500"};
-    args.insert(args.end(), extra.begin(), extra.end());
-    const std::string log = dir + "/" + name + ".log";
-    int status = 0;
-    const pid_t pid = spawn_mw3(args, log);
-    EXPECT(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
-    std::ifstream f(log);
-    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-  };
-  auto text_of = [&](const std::string& rel) {
-    std::ifstream f(dir + "/" + rel);
-    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-  };
+  setenv("MW3_BOX_ANSWER", "2", 1);  // no box is expected: one that came would be answered and said, and fail below
   const size_t none = std::string::npos;
   // INSTANT ACTION, a pilot "a" typed and ACCEPTed, the MODS tab, ON/OFF on the first row (Amber HUD), ACCEPT.
-  const std::string a = run({"--click-at", "60,210@120", "--tap", "30@170", "--click-at", "420,320@200", "--click-at", "440,180@300",
-                             "--click-at", "425,255@340", "--click-at", "420,320@380"}, "a");
+  const std::string a = pm_run(dir, {"--click-at", "60,210@120", "--tap", "30@170", "--click-at", "420,320@200", "--click-at", "440,180@300",
+                                     "--click-at", "425,255@340", "--click-at", "420,320@380"}, "a");
   const size_t asked = a.find("mw3: Instant Action's MODS: starting again into entry ia"), entered = a.find("mw3: entry ia (Instant Action): 1 mods");
   std::printf("  A: asked %d, entered %d, mounted %d\n", asked != none, entered != none, a.find("mod hud (Amber HUD) mounted") != none);
   EXPECT(asked != none && entered != none && asked < entered && a.find("mod hud (Amber HUD) mounted", entered) != none);
   EXPECT(a.substr(0, asked == none ? 0 : asked).find("mounted") == none);  // the first run was the original
   EXPECT(entered != none && a.find("mw3: closed, result 0", entered) != none && a.find("could not start again") == none);
-  EXPECT(text_of("wd/campaigns/ia/mods.txt") == "mod=hud\n");
-  EXPECT(fs::is_regular_file(dir + "/wd/pilots/a.mw3") && !fs::exists(dir + "/wd/campaigns/ia/pilots/a.mw3"));
-  // Inside the entry (its pilot screen first: a pilot "a" of its own), the MODS tab, ALL OFF.
-  const std::string b = run({"--entry", "ia", "--entry-ia", "--tap", "30@120", "--click-at", "420,320@160", "--click-at", "440,180@260",
-                             "--click-at", "120,63@300"}, "b");
-  const size_t off = b.find("mw3: Instant Action's MODS: starting again plain, on Instant Action"), ia = b.find("mw3: the main menu opens on Instant Action (--open-ia)");
+  EXPECT(pm_bytes(dir + "/wd/campaigns/ia/mods.txt") == "mod=hud\n");
+  const size_t brought = a.find("mw3: pilot a brought into ia from the main game (without saved games");
+  EXPECT(a.find("starting again into entry ia, pilot a") != none && brought != none && entered < brought);
+  EXPECT(a.find("mw3: Instant Action's pilot a: picked", brought) != none && a.find("mw3: Instant Action open, MODS: 1 on", brought) != none);
+  EXPECT(a.find("mw3: box answered") == none);
+  EXPECT(fs::is_regular_file(dir + "/wd/pilots/a.mw3") && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
+  const std::string main_pilot = pm_bytes(dir + "/wd/pilots/a.mw3");
+  // The ticks are remembered: INSTANT ACTION on the main menu of a plain run goes straight into the entry.
+  const std::string e = pm_run(dir, {"--click-at", "60,210@120"}, "e");
+  const size_t straight = e.find("mw3: Instant Action's MODS: starting again into entry ia"), in = e.find("mw3: entry ia (Instant Action): 1 mods");
+  std::printf("  straight in %d\n", straight != none && in != none);
+  EXPECT(straight != none && in != none && straight < in && e.substr(0, straight).find("mounted") == none);
+  EXPECT(pm_bytes(dir + "/wd/pilots/a.mw3") == main_pilot);  // the main menu's pilot as it was
+  // Inside the entry with the pilot carried (--entry-pilot): the MODS tab, ALL OFF.
+  const std::string b = pm_run(dir, {"--entry", "ia", "--entry-ia", "--entry-pilot", "a", "--click-at", "440,180@120", "--click-at", "120,63@160"}, "b");
+  const size_t off = b.find("mw3: Instant Action's MODS: starting again plain, on Instant Action, pilot a"),
+               ia = b.find("mw3: the main menu opens on Instant Action (--open-ia)");
   std::printf("  B: all off asked %d, plain on Instant Action %d\n", off != none, ia != none);
   EXPECT(off != none && ia != none && off < ia && b.find("mw3: entry", ia) == none && b.find("mounted", ia) == none);
-  EXPECT(text_of("wd/campaigns/ia/mods.txt").empty() && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
+  EXPECT(pm_bytes(dir + "/wd/campaigns/ia/mods.txt").empty() && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
+  // Inside the entry, CANCEL on the pilot screen: the main menu of a plain run.
+  const std::string c = pm_run(dir, {"--entry", "ia", "--entry-ia", "--click-at", "495,405@150"}, "c");
+  const size_t left = c.find("mw3: entry ia left: starting again on the main menu");
+  EXPECT(left != none && c.find("--open-mods", left) == none && c.find("--open-ia", left) == none && c.find("mw3: closed, result 0", left + 60) != none);
+  std::printf("  C: left to the main menu %d\n", left != none);
+  // A ticked mod gone: INSTANT ACTION stays the original, nothing starts again.
+  put("wd/campaigns/ia/mods.txt", "mod=hud\n");
+  fs::rename(dir + "/wd/mods/hud", dir + "/wd/hud away", ec);
+  const std::string g = pm_run(dir, {"--click-at", "60,210@120"}, "g");
+  EXPECT(g.find("starting again") == none && g.find("mw3: entry") == none && g.find("mw3: closed, result 0") != none);
   unsetenv("MW3_BOX_ANSWER");
+  if (!std::getenv("MW3_KEEP_TMP")) fs::remove_all(dir, ec);
+}
+
+// MODS on Pirate's Moon in the window, the twin of sdl_program_mods_enter_plays_an_entry_and_back: each of the
+// game's two campaigns is played with its own ticks (the Pirate Missions' row, then the Campaign's); TEST starts
+// again into the Campaign and straight into a Pirate's Moon mission; EDITOR with a save makes the Campaign's
+// copy (Save as) and comes back to MODS with the copy chosen.
+TEST(sdl_pm_program_mods_play_test_and_save_as) {
+  namespace fs = std::filesystem;
+  if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/reader.zbd")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm entry play";  // a space in the path
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel) << text;
+  };
+  put("wd/mods/hud/mod.txt", "name=Amber HUD\n");
+  put("wd/mods/weps/mod.txt", "name=Weps\nfor=mw3pm\nweapon=GAUSS2 ammo=yes tech=sphere\n");
+  put("wd/mw3.cfg", "mods_moved=1\n");
+  put("wd/campaigns/campaign/mw3-campaign.txt", "ours\n"), put("wd/campaigns/campaign/mods.txt", "mod=weps\n");
+  put("wd/campaigns/pirate/mw3-campaign.txt", "ours\n"), put("wd/campaigns/pirate/mods.txt", "mod=hud\n");
+  auto has = [](const std::string& text, const std::string& what, size_t from = 0) { return text.find(what, from); };
+  const size_t none = std::string::npos;
+  // MODS, the Pirate Missions' row (CAMPAIGNS' second), PLAY: their tick mounted, the Campaign's not.
+  const std::string a = pm_run(dir, {"--click-at", "135,435@130", "--click-at", "90,141@170", "--click-at", "420,320@200"}, "a");
+  const size_t asked = has(a, "mw3: MODS: starting again into entry pirate"), entered = has(a, "mw3: entry pirate (Pirate Missions): 1 mods");
+  std::printf("  Pirate Missions: asked %d, entered %d\n", asked != none, entered != none);
+  EXPECT(asked != none && entered != none && asked < entered && a.substr(0, asked).find("mounted") == none);
+  EXPECT(entered != none && has(a, "mod hud (Amber HUD) mounted", entered) != none && has(a, "mod weps", entered) == none);
+  EXPECT(entered != none && has(a, "mw3: closed, result 0", entered) != none && has(a, "could not start again") == none);
+  // MODS, PLAY (the Campaign is chosen as the screen opens): its own tick.
+  const std::string c = pm_run(dir, {"--click-at", "135,435@130", "--click-at", "420,320@200"}, "c");
+  const size_t own = has(c, "mw3: MODS: starting again into entry campaign"), in = has(c, "mw3: entry campaign (Campaign): 1 mods");
+  std::printf("  Campaign: asked %d, entered %d\n", own != none, in != none);
+  EXPECT(own != none && in != none && own < in && has(c, "mod weps (Weps) mounted", in) != none && has(c, "mod hud", in) == none);
+  // TEST: the Campaign's missions, the first chosen, PLAY.
+  const std::string t = pm_run(dir, {"--click-at", "135,435@130", "--click-at", "130,343@170", "--click-at", "420,320@220"}, "t");
+  const size_t test_asked = has(t, "mw3: MODS: starting again into entry campaign to test c1 mission 1"),
+               test_in = has(t, "mw3: entry campaign (Campaign): 1 mods"), loading = has(t, "mw3: load: Loading [ c1 ]");
+  std::printf("  TEST: asked %d, entered %d, the mission loading %d\n", test_asked != none, test_in != none, loading != none);
+  EXPECT(test_asked != none && test_in != none && loading != none && test_asked < test_in && test_in < loading);
+  EXPECT(has(t, "mw3: closed, result 0", loading == none ? 0 : loading) != none && has(t, "mission load failed") == none);
+  // EDITOR with a save (MW3_EDIT_SAVE_AT: net_01 saved at the editor's 20th frame, the Save as box answered with
+  // its default): the copy made, the save in it, MODS again with the copy chosen.
+  EXPECT(!fs::exists(dir + "/wd/mods/Campaign, my edit"));
+  setenv("MW3_EDIT_SAVE_AT", "20", 1);
+  const std::string sv = pm_run(dir, {"--click-at", "135,435@130", "--click-at", "90,446@170", "--click-at", "420,320@220"}, "sv", "1200");
+  unsetenv("MW3_EDIT_SAVE_AT");
+  const size_t edit_asked = has(sv, "mw3: MODS: starting again into entry campaign to edit c1 mission 1"),
+               named = has(sv, "mw3: Save as answered with \"Campaign, my edit\""), saved_at = has(sv, "mw3: editor: Saved to mods\\Campaign, my edit\\zbd\\c1\\"),
+               chosen = has(sv, "mw3: MODS opens with the campaign Campaign, my edit chosen (--mods-entry)");
+  std::printf("  Save as: asked %d, named %d, saved %d, MODS on the copy %d\n", edit_asked != none, named != none, saved_at != none, chosen != none);
+  EXPECT(edit_asked != none && named != none && saved_at != none && chosen != none && named < saved_at && saved_at < chosen);
+  EXPECT(fs::is_regular_file(dir + "/wd/mods/Campaign, my edit/mw3-editor.txt") && fs::is_directory(dir + "/wd/mods/Campaign, my edit/zbd/c1"));
+  EXPECT(pm_bytes(dir + "/wd/mods/Campaign, my edit/mod.txt").find("base=campaign") != none);
+  EXPECT(pm_bytes(dir + "/wd/campaigns/campaign/mods.txt") == "mod=weps\n" && pm_bytes(dir + "/wd/campaigns/pirate/mods.txt") == "mod=hud\n");
+  if (!std::getenv("MW3_KEEP_TMP")) fs::remove_all(dir, ec);
+}
+
+// Pilots inside Pirate's Moon's own entries by the mouse, the twin of
+// sdl_program_entry_pilot_brought_by_a_click_on_its_name: a start into the Campaign's entry, and into the Pirate
+// Missions', shows the main menu's pilot; nothing is brought until the player clicks its name; the click brings
+// it (with its saved games into the Campaign, without into the Pirate Missions); the main menu's file is
+// unchanged to the byte.
+TEST(sdl_pm_program_entry_pilot_brought_by_a_click_on_its_name) {
+  namespace fs = std::filesystem;
+  if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/reader.zbd")) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm entry pilot click";
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/wd", ec);
+  // No click: listed only. The pilot is made by the game itself first (Instant Action: "a" typed, ACCEPT).
+  const std::string made = pm_run(dir, {"--click-at", "60,210@120", "--tap", "30@170", "--click-at", "420,320@200"}, "made", "260");
+  const std::string main_pilot = pm_bytes(dir + "/wd/pilots/a.mw3");
+  EXPECT(!main_pilot.empty());
+  const size_t none = std::string::npos;
+  for (const char* id : {"campaign", "pirate"}) {
+    const std::string quiet = pm_run(dir, {"--entry", id, "--entry-play"}, (std::string(id) + "-quiet").c_str(), "300");
+    EXPECT(quiet.find("brought into") == none && !fs::exists(dir + "/wd/campaigns/" + id + "/pilots/a.mw3"));
+    const std::string b = pm_run(dir, {"--entry", id, "--entry-play", "--click-at", "88,135@200"}, id, "300");
+    const bool own = std::string(id) == "campaign";
+    const size_t brought = b.find(std::string("mw3: pilot a brought into ") + id + " from the main game (" + (own ? "with its saved games" : "without saved games")),
+                 listed = b.find("mw3: pilot a picked on the pilot screen: ");
+    std::printf("  %s: no click brought nothing %d; the click brought %d, its games listed %d\n", id, quiet.find("brought into") == none, brought != none,
+                listed != none);
+    EXPECT(brought != none && listed != none && brought < listed);
+    EXPECT(fs::is_regular_file(dir + "/wd/campaigns/" + id + "/pilots/a.mw3") && pm_bytes(dir + "/wd/pilots/a.mw3") == main_pilot);
+  }
   if (!std::getenv("MW3_KEEP_TMP")) fs::remove_all(dir, ec);
 }
 #endif

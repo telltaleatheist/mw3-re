@@ -867,6 +867,24 @@ Tests: `entry_pilot_screen_lists_and_brings_the_main_menus_pilots_headless`
 `sdl_program_entry_pilot_brought_by_a_click_on_its_name` (a real click on
 the name), and the two Instant Action runs above.
 
+On Pirate's Moon (`entry_brings_saved_games`): both of its pilot screens, the
+Campaign's and the Pirate Missions' (the Standalone State's), list and bring
+the same way. Into the Campaign, or an entry built on it, the pilot's saved
+games come too (`games\<name>MM.mw3`, the mission in two digits) and with
+them, in the pilot's file, its Pirate Missions record. Into the Pirate
+Missions, or an entry built on them, no saved game comes: they keep none
+(`StandaloneGame::save`, PM 0x0040e250, writes the pilot's file alone, and
+their pause menu has no SAVE), the missions reached are in the pilot's file
+and come with it, and that copy's Campaign records are dropped when it is
+first let go, as in any other campaign. Tests:
+`pm_entry_pilot_screens_bring_the_main_menus_pilot_headless` (the Campaign,
+the Pirate Missions, Instant Action),
+`sdl_pm_program_entry_pilot_brought_by_a_click_on_its_name`,
+`pm_mods_screen_campaigns_their_own_ticks_and_reset_headless` (each campaign
+its own ticks; RESET on one leaves the other),
+`sdl_pm_program_mods_play_test_and_save_as` (PLAY into each, TEST, Save as),
+`sdl_pm_program_instant_action_mods`, `pm_import_from_a_modded_pirates_moon_folder`.
+
 ### The pilot's copy (dev 3, 2026-11-10)
 
 `mech3::entry_copy_pilot` (`upgrades/mods/entry_pilot_copy`), the function

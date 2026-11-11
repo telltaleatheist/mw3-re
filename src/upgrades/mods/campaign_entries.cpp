@@ -185,6 +185,17 @@ bool entry_plays_own_campaign(const std::string& write_dir, const CampaignEntry&
   return false;  // the chain did not reach the game's own
 }
 
+// Pirate's Moon: the Pirate Missions keep no saved games (StandaloneGame::save, PM 0x0040e250, writes the
+// pilot's file alone, and their pause menu has no SAVE), so an entry over them brings none; the Campaign's
+// <name>MM.mw3 come along.
+bool entry_brings_saved_games(const std::string& write_dir, const CampaignEntry& e) {
+  if (!entry_plays_own_campaign(write_dir, e)) return false;
+  const std::vector<CampaignEntry> all = campaign_entries(write_dir);
+  const CampaignEntry* at = &e;
+  for (int steps = 0; at && at->kind != CampaignEntry::kOfficial && steps < 32; ++steps) at = find_entry(all, at->base);
+  return at && at->id != "pirate";
+}
+
 std::string& current_entry() {
   static std::string id;
   if (id.empty()) id = official_entries().front().id;
