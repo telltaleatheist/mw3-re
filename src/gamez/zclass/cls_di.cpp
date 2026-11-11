@@ -1403,10 +1403,11 @@ int segment_nearest(Node* world, const float from[3], const float to[3], LineHit
   const zmth::Vec3 f{from[0], from[1], from[2]};
   auto dist2 = [&](int k) {
     const LineHit& h = out->hit[k];
-    // Pirate's Moon 1.0 @ 0x00500f80 is not MW3's 0x004eece0 here: with MW3's x87 form (main's distance_sq_x87)
-    // the port picked the other of two coincident hits on c3 (test_pm_di at 53 bits, query 239, seed 'c3'). PM
-    // keeps its own sum until its order is read from its exe (docs/pm-map.md, the geometry queries at 53 bits).
-    return zmth::distance_sq(f, zmth::Vec3{h.point[0], h.point[1], h.point[2]});
+    // Pirate's Moon 1.0 @ 0x00537a00 is MW3's 0x0051dfa0 instruction for instruction (the differences stored,
+    // the squares summed on the x87 as (xx + yy) + zz, the sum stored and reloaded), and 0x00500f80 compares it
+    // with the stored best as MW3's 0x004eece0 does. The other of two coincident hits once picked with this form
+    // (c3, test_pm_di at 53 bits) came from the hit points, in floats then (docs/pm-map.md).
+    return zmth::distance_sq_x87(f, zmth::Vec3{h.point[0], h.point[1], h.point[2]});
   };
   float best = dist2(0);
   out->hit[0].dist2 = best;
