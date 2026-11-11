@@ -1425,6 +1425,14 @@ makers edit these files by hand, some in a hex editor).
   items and the entry holds 37"); what the rebuild did; and what the
   original game does with the same bytes, which is what tells a mod's maker
   why a file works by luck or crashes there.
+  What the original does is from its code (0x00557180), and for three cases
+  seen in the emulator (`test_zreader.py` prints them): a list count no
+  file could hold makes it ask for gigabytes, get none and write through the
+  empty answer, a crash; a text length of 2 GB the same; a value that is not
+  a node type is kept and the reading goes on four bytes later, out of step.
+  The rest is from the code and not seen happen: "works by luck" where the
+  code reads valid nodes, "can crash" where it may read or write where it
+  should not.
 - IMPORT refuses no mod for such an entry. A file whose entry cannot be
   used at all (nothing of it reads) is left out of the copy it adds, said by
   name, and the rest of the mod is added.

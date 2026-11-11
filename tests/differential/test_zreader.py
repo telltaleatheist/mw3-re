@@ -243,6 +243,45 @@ def tails(buf):
     return same, cut, odd
 
 
+def seen_in_the_original():
+    """What the original's reader does with the hand-edit faults the port stops at, seen here rather than read
+    from its code (docs/modding.md says which sentences rest on this): a word that is no node type, a list
+    count no file could hold, a text length past the file. malloc answers 0 for a request over 64 MB, as a
+    32-bit Windows heap would for these sizes."""
+    from unicorn import UcError
+    out = []
+
+    def run(name, body, pad=b''):
+        emu = Emulated(body + pad)
+        asked = []
+
+        def malloc(c):
+            n = c.arg(0)
+            asked.append(n)
+            return 0 if n > (64 << 20) else c.alloc(max(n, 1))
+        emu.cpu.stub_import(IAT_MALLOC, malloc)
+        try:
+            emu.load(0)
+            what = f'returns having read to byte {emu.pos} of {len(body)}'
+        except UcError as e:
+            what = f'faults ({e})'
+        big = [n for n in asked if n > (64 << 20)]
+        out.append(f'{name}: the original {what}' + (f'; it asked for {big[0]:,} bytes, refused' if big else ''))
+        return what
+
+    p = struct.pack
+    # kind 3: (list of 3: a word 9, int 6), then another entry's (list of 2: int 7)
+    w = run('a word that is no node type', p('<ii', 4, 3) + p('<i', 9) + p('<ii', 1, 6), p('<iiii', 4, 2, 1, 7))
+    assert 'returns' in w, w  # it reads on, out of step: the 9 one item, then "1" as a type...
+    # kind 4: a list of a billion; a list of -1233
+    assert 'faults' in run('a list count of 1000000000', p('<ii', 4, 1000000000) + p('<ii', 1, 7))
+    assert 'faults' in run('a list count of -1233', p('<ii', 4, -1233) + p('<ii', 1, 7))
+    # kind 5: a text said to be a megabyte long in a 13-byte file; one said to be 2 GB
+    run('a text said to be 1048576 bytes long', p('<ii', 4, 2) + p('<iI', 3, 1 << 20) + b'x')
+    run('a text said to be 2147483647 bytes long', p('<ii', 4, 2) + p('<iI', 3, 0x7fffffff) + b'x')
+    return out
+
+
 def main():
     if not READER.exists():
         raise SystemExit(f'needs {READER}')
@@ -288,6 +327,8 @@ def main():
                 lists += 1
             keys += 1
         files += 1
+    for line in seen_in_the_original():
+        print('seen: ' + line)
     same, cut, odd = tails(buf)
     print(f'ok: {same} made-up entries with a list longer than the entry read identically through the archive '
           f'({odd} with a word that is no node type); {cut} whose read leaves the archive\'s data: the same start, the rest empty')

@@ -63,7 +63,11 @@ int g_depth = 0;
 bool g_broken = false;  // a count, a string or nesting no file could hold: the entry is not read
 bool g_short = false;   // the archive's data ran out under a list: its items from there on are empty ones
 bool g_odd = false;     // a word that is no node type was met (read on, as the original)
-constexpr int32_t kShortListMost = 4096;  // ours: the longest list taken on trust when its data is not all there
+// Ours: the longest list taken on trust when its data is not all there. The longest shipped list has 3,251 items
+// (c3's reg_ionet_c3.zrd; Pirate's Moon's longest 409); a count past this that the data cannot hold is a hand
+// edit gone wrong, not a list. And the nesting limit of 64 used below: the deepest shipped entry nests 10
+// (c1's objectives.zrd), so 64 is far past any real file and only stops a runaway.
+constexpr int32_t kShortListMost = 4096;
 bool room(std::FILE* file, long bytes) { return g_data_end < 0 || std::ftell(file) + bytes <= g_data_end; }
 
 // Ours, the graceful read (FIX (bug), `fixed`): what a hand-edited entry gets instead of the exe's read of
@@ -181,16 +185,18 @@ void make_notes(bool none) {
   switch (s.kind) {
     case kBadWord:
       std::snprintf(b, sizeof b, "a value that is not a node type (%d; the types are 1 to 4) %ld bytes in", s.value, s.at);
-      w.original = "reports it, keeps the value as a node of no kind and reads on from the next four bytes, out of step: what it "
-                   "reads after that is chance, and it can crash when this entry is loaded";
+      w.original = "keeps the value as a node of no kind and reads on from the next four bytes, out of step (seen in the emulator): "
+                   "what it reads after that is chance, and it can crash when this entry is loaded";
       break;
     case kBadCount:
       std::snprintf(b, sizeof b, "a list count of %d, %ld bytes in, that no file could hold", s.value, s.at);
-      w.original = "asks for memory for that many items and fills them from whatever follows: a likely crash when this entry is loaded";
+      w.original = "asks for memory for that many items, is refused, and writes through the empty answer: a likely crash when this "
+                   "entry is loaded (seen in the emulator)";
       break;
     case kBadString:
       std::snprintf(b, sizeof b, "a text said to be %d bytes long, %ld bytes in, which runs past the archive's data", s.value, s.at);
-      w.original = "asks for that much memory and reads to the end of the file: a likely crash when this entry is loaded";
+      w.original = "asks for that much memory and reads to the end of the file; when the memory is refused (seen in the emulator "
+                   "for 2 GB) it writes through the empty answer: a likely crash when this entry is loaded";
       break;
     case kNesting:
       std::snprintf(b, sizeof b, "lists nested more than 64 deep, %ld bytes in", s.at);
