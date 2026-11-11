@@ -108,7 +108,7 @@ std::vector<std::string> mod_sentences(const ModFindings& f) {
                            (f.refused.empty() ? ", none of which refuses the mod: " : ": ") + listed(parts)));
     // The two words the warnings about an archive's entries lean on, once.
     if (std::any_of(f.notes.begin(), f.notes.end(), [](const ModNote& n) {
-          return !n.plain && (n.where.find(".zbd: ") != std::string::npos || n.where.find(".ZBD: ") != std::string::npos);
+          return !n.plain && (n.w.wrong + n.w.fix).find("bytes into the entry") != std::string::npos;
         }))
       out.push_back("In them, an entry is one named part of a .zbd file (\"zbd/t1/readermp2.zbd: aiv.zrd\" is the entry aiv.zrd in that "
                     "file), and \"bytes into the entry\" counts from the entry's first byte.");
@@ -144,7 +144,8 @@ std::vector<std::string> mod_sentences(const ModFindings& f) {
           split(in[a]->w.wrong, &what, &why);
           out.push_back(std::to_string(a + 1) + ". " + sentence(what.empty() ? why : mod_finding_subject(what) + ": " + why));
         } else {
-          for (size_t k = a; k < b; ++k) out.push_back(std::to_string(k + 1) + ". " + in[k]->where);
+          for (size_t k = a; k < b; ++k)
+            out.push_back(std::to_string(k + 1) + ". " + in[k]->where + (in[k]->w.item.empty() ? "" : " (" + in[k]->w.item + ")"));
           const std::string each = b - a == 1 ? "" : "For " + std::to_string(a + 1) + " to " + std::to_string(b) + ": ";
           out.push_back(sentence(each + (each.empty() ? "Wrong: " : "wrong: ") + in[a]->w.wrong));
           if (!in[a]->w.fix.empty()) out.push_back(sentence(each + (each.empty() ? "To fix it: " : "to fix it: ") + in[a]->w.fix));
@@ -198,8 +199,8 @@ std::vector<ModNote> mod_left_out_read(const std::string& dir) {
       if (tab == std::string::npos) break;
       at = tab + 1;
     }
-    if (parts.size() != 5 || parts[0].empty() || parts[1].empty()) continue;  // not a line of ours
-    out.push_back({parts[0], {parts[1], parts[2], parts[3], parts[4]}, ModWarningGroup::kStops, false});
+    if ((parts.size() != 5 && parts.size() != 6) || parts[0].empty() || parts[1].empty()) continue;  // not a line of ours
+    out.push_back({parts[0], {parts[1], parts[2], parts[3], parts[4], parts.size() == 6 ? parts[5] : ""}, ModWarningGroup::kStops, false});
   }
   return out;
 }
@@ -209,7 +210,7 @@ bool mod_left_out_write(const std::string& dir, const std::vector<ModNote>& note
   f << "# Written by the game when it added this mod: the files it left out of it, and why (REPORT shows them).\n";
   for (const ModNote& n : notes)
     f << one_line(n.where) << '\t' << one_line(n.w.wrong) << '\t' << one_line(n.w.did) << '\t' << one_line(n.w.original) << '\t'
-      << one_line(n.w.fix) << '\n';
+      << one_line(n.w.fix) << '\t' << one_line(n.w.item) << '\n';
   return static_cast<bool>(f);
 }
 

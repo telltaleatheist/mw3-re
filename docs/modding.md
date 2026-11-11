@@ -1279,6 +1279,13 @@ times:
 
 A line of mod.txt the mount left out is said once, by its warning.
 
+A warning about one item of many in a file (a texture's table entry) carries
+the item's number in `ModWarning::item`, shown after the place ("texture
+bushwacker01_i (table entry 3368)") and kept out of the fault's words and
+its fix, so that 22 textures with the one fault are listed and the fault
+said once. The line on what an entry is appears only when a warning speaks
+of "bytes into the entry".
+
 **The report as a file.** REPORT writes the same lines, under "Report on
 <name>.", to `<write dir>/mod-reports/<the mod's folder>.txt`: one file a
 mod, replaced each time. The folder is the game's own, made with
@@ -1672,7 +1679,9 @@ on:
 - each is said once in the log and as a warning from `--check-mod`, REPORT
   and IMPORT in the four parts above: the file, the texture and its table
   entry's number; the palette named and how many the file has; what was
-  done; that the original crashes when it loads this texture.
+  done; that the original crashes if it ever loads this texture (it loads
+  a texture only when something asks for it by name, which is why a mod
+  whose textures no skin list names gets by there).
 
 The check's findings in a texture library are warnings, never errors (a
 texture left out, or a library whose table does not read and is left out of

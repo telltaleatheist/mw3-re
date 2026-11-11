@@ -705,7 +705,7 @@ void check_texture_library(const std::string& host, const std::string& rel, int*
       for (const ModWarning& note : zimg::load_notes()) warn(rel + ": texture " + name, note, t == nullptr);
       if (t) zimg::free_texture(t);
       else if (zimg::load_notes().empty())
-        warn(rel + ": texture " + name, {"it cannot be read", "left this texture out", "", ""}, true);
+        warn(rel + ": texture " + name, {"it cannot be read", "leaves this texture out", "", ""}, true);
     }
   }
   zimg::close(lib);
