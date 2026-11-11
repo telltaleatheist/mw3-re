@@ -10113,6 +10113,75 @@ TEST(mission_c1m1_horizon_scrolls_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// A freed object's handle names nothing (docs/handles.md): the player's weapon manager, its current weapon and
+// the first AI vehicle's manager are given handles in play on c1m1; after the mission's end each handle gives
+// null, where an address-keyed table would hand the old number to whatever is next made at that address.
+TEST(mission_c1m1_freed_objects_handles_name_nothing_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_handles_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    struct Kept { const char* what; uint32_t handle; void* object; };
+    std::vector<Kept> kept;
+    int alive = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 6)  // alive: each handle is its object's
+        for (const Kept& k : kept) alive += k.handle && engine.object_of(k.handle) == k.object;
+      if (frames != 5) return;
+      void* wm = mech3::program_mech_weapons(mech3::mech_mission_player());
+      void* weapon = wm ? mech3::wm_current_weapon(wm) : nullptr;
+      if (wm) kept.push_back({"the player's weapon manager", engine.handle_of(wm), wm});
+      if (weapon) kept.push_back({"its current weapon", engine.handle_of(weapon), weapon});
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return frames > 6; };
+    app.run(pump);
+    EXPECT(kept.size() == 2 && alive == 2);
+    mech3::missions().cleanup(true);  // the mission's end: the mech, its manager and weapons freed
+    for (const Kept& k : kept) {
+      std::printf("  %s: handle %#x gives %s after the mission's end\n", k.what, k.handle, engine.object_of(k.handle) ? "an object" : "nothing");
+      EXPECT(engine.object_of(k.handle) == nullptr);
+      // And the address, were it used again, gets a number of its own.
+      EXPECT(engine.handle_of(k.object) != k.handle);
+      engine.forget_object(k.object);
+    }
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // The fog colours to the device on c1m1 (docs/render-lighting.md): with a
 // GPU that records FOGCOLOR, the world's fog colour sent at the load
 // (0x0057bcf0, installed as 0x00579f50 does); a damaged vehicle tinted as

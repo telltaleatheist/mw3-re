@@ -347,7 +347,10 @@ struct WiredPlayerHooks : PlayerHooks {
     return n ? e->handle_of(zrdr::find(n, key)) : 0;
   }
   void reader_free(Handle node) override {
-    if (zrdr::Node* n = as<zrdr::Node>(node)) zrdr::free_node(n);
+    if (zrdr::Node* n = as<zrdr::Node>(node)) {
+      e->forget_object(n);  // its handle with it (docs/handles.md)
+      zrdr::free_node(n);
+    }
   }
   float reader_item_float(Handle node, int32_t i) override { return as<zrdr::Node>(node)->list[i].f; }
   Handle reader_item(Handle node, int32_t i) override { return e->handle_of(&as<zrdr::Node>(node)->list[i]); }
@@ -1627,6 +1630,9 @@ struct WiredMissionHooks : MissionHooks {
     return objectives_visible(ob().objs.primary.get(), ob().objs.final.get(), ob().objs.fail.get());
   }
   void objectives_free(Handle, Handle, Handle, Handle, Handle) override {
+    for (const void* o : {static_cast<const void*>(ob().objs.primary.get()), static_cast<const void*>(ob().objs.secondary.get()),
+                          static_cast<const void*>(ob().objs.final.get()), static_cast<const void*>(ob().objs.fail.get())})
+      if (o) e->forget_object(o);  // their handles with them (docs/handles.md)
     mech3::objectives_free(ob().objs, ob());
     ob().sync();
   }
