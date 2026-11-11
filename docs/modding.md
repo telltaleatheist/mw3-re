@@ -1346,6 +1346,47 @@ its `model=` now is too (it names `mech_<model>.flt` and the motions; before, a 
 where it pointed). Each such row is a warning and is left out
 (`mods_check_rows_cannot_name_files_outside_the_mod`).
 
+### The MODS screen's text fits its boxes (dev 3, 2026-11-11)
+
+Looked at in shots of the real program at 4:3 and 16:9 before the 1.1.0 playtest (the boxes are the same size in
+both shapes; at wide the right-hand ones sit 213 canvas pixels further right). `upgrades/mods/screen_fit` measures
+text with the font it is drawn in (the Text's own way, `DrawTextA` with `DT_CALCRECT` on its font), a width in
+characters standing in where a host cannot measure:
+
+- A mod's row in the MODS list (the MODS screen's and Instant Action's) is cut to the box with "..."; DETAILS
+  shows the whole name.
+- IMPORT's two lines are the outcome, then what to do next: "Added <name>: 9 warnings: REPORT lists them." /
+  "Tick it for a campaign, then PLAY." A name too long for the line is left to DETAILS ("Added. 9 warnings:
+  ..."). Without warnings, an import from an install or installer says how many files it took on the second
+  line. Before, such an import showed only what it took, cut with "...", and the warnings were in the log alone.
+  The whole summary is still the log's; "mw3: mods: on the screen: A | B" is what the two lines hold.
+- REPORT's rows are wrapped to the left box's width (they were 34 characters in a box of about 26), its heading
+  in DETAILS is cut with "...", and its note is "BACK: the list. MODS FOLDER: the saved report."
+- The left box's heading says what it shows: CAMPAIGNS, REPORT, TEST, EDITOR (its list's label; "TEST:
+  MISSIONS" spaced out ran over the frame).
+- A mod or campaign put in the mods folder by hand, chosen: "Put in the mods folder by hand: remove its folder
+  yourself to delete it." (`DeletePlan::by_hand`; it has no DELETE tab).
+- Under a mod's note: "Ticks for: <campaign>" (was "MODS: <campaign>'s.").
+- RESET and DELETE say "It has no pilots or saved games" where they said "0 pilots and 0 saved games".
+- Instant Action's MODS leaves out a mod that is only a campaign (`mod_is_only_campaign`: kind=campaign, or
+  campaign= lines with no mech, weapon or world row and no zbd folder), and the short line that joined the top
+  box to the left box, which that screen does not draw, is gone.
+- The notes wrap by measured width onto the two lines, the second ending "..." when more is left.
+
+Two faults the scripted clicks showed, fixed with it:
+
+- **DELETE asked twice.** DELETE and RESET are two tabs in one place. After a mod's delete was confirmed the
+  game's own campaign is chosen and RESET is shown, and the same click reached that tab: "Reset MechWarrior 3 to
+  the original?" came up straight after the OK, under the cursor's last place. One question a click now
+  (`delete_asked`, cleared by the next frame's update).
+- **Both tabs drawn.** A tab hidden while its own press was still being shown came back, so RESET and DELETE
+  were drawn over each other after a delete. The one not wanted is kept hidden each frame.
+
+Not changed: the list scrolls a row a press (the screens take no keys, so no PageUp or PageDown), the editor's
+colours, MODS FOLDER's label. Tests: `mods_screen_text_fits_its_boxes`, `mods_only_a_campaign_is_told_from_one_with_files`,
+and in the real program `sdl_program_mods_import_says_the_warnings_on_the_screen` and
+`sdl_program_mods_delete_asks_once`.
+
 ### Requirements in mod.txt (modder step 7, 2026-11-10)
 
 Ours (`upgrades/mods/mod_needs`). Three mod.txt keys, warned of and never

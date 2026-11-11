@@ -40,6 +40,8 @@
 #include "mech3/mech_names.h"
 #include "mech3/mission.h"
 #include "mech3/mods.h"
+#include "mech3/mod_install.h"
+#include "upgrades/mods/screen_fit.h"
 #include "upgrades/mods/mod_needs.h"
 #include "upgrades/mods/mod_report.h"
 #include "gamez/zweapon/zwep_init.h"
@@ -224,6 +226,69 @@ TEST(mods_check_rows_cannot_name_files_outside_the_mod) {
   EXPECT(errors == 0 && f.worlds.empty() && f.ia_worlds.empty() && f.campaigns.empty() && f.mechs.empty());
   EXPECT(f.notes.size() == 5);  // each of the five rows said and left out
   EXPECT(text.find(": ok") == std::string::npos && text.find("missions") == std::string::npos);
+}
+
+// The mods screens' text fitted to its boxes (upgrades/mods/screen_fit.h), with a made-up measure of 4 pixels a
+// character and a box of 200: IMPORT's two lines keep the warnings' count and REPORT whatever the name's length,
+// a note wraps at words onto two lines with "..." when more is left, and a long word is cut where it must be.
+TEST(mods_screen_text_fits_its_boxes) {
+  const auto fits = [](const std::string& t) { return t.size() * 4 <= 200; };  // 50 characters
+  mech3::ModAddDone d;
+  d.ok = true, d.name = "Short", d.warnings = 9;
+  d.message = "Added Short: 9 warnings: REPORT lists them. Tick it for a campaign, then PLAY.";
+  auto l = mech3::mods_import_lines(d, "", fits);
+  EXPECT(l.first == "Added Short: 9 warnings: REPORT lists them." && l.second == "Tick it for a campaign, then PLAY.");
+  // A name too long for the line: the outcome without it (DETAILS shows the name), never the count or REPORT lost.
+  d.name = "A Weapons Mod With A Very Long Name v 2.48.32";
+  d.message = "Added " + d.name + ": 9 warnings: REPORT lists them. Tick it for a campaign, then PLAY.";
+  const std::string took = "Took 135 files from the installer that differ from your install; the program and its dlls are not part of a mod here (7)";
+  l = mech3::mods_import_lines(d, took, fits);
+  EXPECT(l.first == "Added. 9 warnings: REPORT lists them." && l.second == "Tick it for a campaign, then PLAY.");
+  d.warnings = 1, d.message = "Added " + d.name + ": 1 warning: REPORT says what. Tick it for a campaign, then PLAY.";
+  l = mech3::mods_import_lines(d, took, fits);
+  EXPECT(l.first == "Added. 1 warning: REPORT says what." && fits(l.first) && fits(l.second));
+  // No warnings, from an install or installer: what to do, then how many files were taken (the rest is the log's).
+  d.name = "Game", d.warnings = 0, d.message = "Added Game: tick it for a campaign, then PLAY.";
+  l = mech3::mods_import_lines(d, took, fits);
+  EXPECT(l.first == "Added Game: tick it for a campaign, then PLAY." && l.second == "Took 135 files from the installer that differ from");
+  l = mech3::mods_import_lines(d, "", fits);
+  EXPECT(l.first == d.message && l.second.empty());
+  // Refused: the reason over both lines.
+  d.ok = false, d.message = "Not added: the game would refuse this mod: mod.txt has no name= line.";
+  l = mech3::mods_import_lines(d, "", fits);
+  EXPECT(l.first == "Not added: the game would refuse this mod: mod.txt" && l.second == "has no name= line.");
+  // The note: two lines, "..." when more is left; nothing wider than the box.
+  l = mech3::mods_note_lines("one two three", fits);
+  EXPECT(l.first == "one two three" && l.second.empty());
+  std::string many;
+  for (int i = 0; i < 40; ++i) many += "word ";
+  l = mech3::mods_note_lines(many, fits);
+  EXPECT(fits(l.first) && fits(l.second) && l.second.size() > 3 && l.second.compare(l.second.size() - 3, 3, "...") == 0);
+  const std::vector<std::string> w = mech3::mods_text_wrap("a " + std::string(120, 'x') + " b", fits);
+  EXPECT(w.size() == 4 && w[0] == "a" && w[1].size() == 50 && w[2].size() == 50 && w[3] == std::string(20, 'x') + " b");
+  for (const std::string& line : w) EXPECT(fits(line));
+  // Unmeasured (no font here): the width in characters stands in, and a cut ends "...".
+  EXPECT(mech3::mods_text_fit("[ ] A Mod With A Name Much Too Long", nullptr, 200, 25) == "[ ] A Mod With A Name...");
+  EXPECT(mech3::mods_text_fit("[ ] Short", nullptr, 200, 25) == "[ ] Short");
+}
+
+// A mod that is only a campaign has nothing to lay over Instant Action (its MODS list leaves it out): kind=campaign,
+// or campaign= lines with no row and no game file of its own. One that also brings files is an ordinary tick.
+TEST(mods_only_a_campaign_is_told_from_one_with_files) {
+  const std::string root = tmp("mods_only_campaign");
+  put(root + "/mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\n");
+  put(root + "/mods/camp/night.txt", "name=Night\nop=Op\nmission=c1 1\n");
+  put(root + "/mods/both/mod.txt", "name=Both\ncampaign=night.txt\n");
+  put(root + "/mods/both/night.txt", "name=Night\nop=Op\nmission=c1 1\n");
+  put(root + "/mods/both/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  put(root + "/mods/rows/mod.txt", "name=Rows\ncampaign=night.txt\nweapon=GAUSS2 ammo=yes tech=sphere\n");
+  put(root + "/mods/kind/mod.txt", "name=Kind\nkind=campaign\n");
+  put(root + "/mods/kind/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  put(root + "/mods/hud/mod.txt", "name=Hud\n");
+  std::string only;
+  for (const mech3::ModInfo& m : mech3::mods_found(root))
+    if (mech3::mod_is_only_campaign(m)) only += m.folder + "|";
+  EXPECT(only == "camp|kind|");
 }
 
 // The same fault in many items of one file (22 textures of a library, each naming a palette that is not there):

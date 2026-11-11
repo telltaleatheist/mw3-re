@@ -2175,7 +2175,8 @@ TEST(mods_screen_import_from_a_modded_game_folder_headless) {
     std::printf("  own: \"%s\"\n  other: \"%s\"\n  took: \"%s\"; rows %s\n", own.c_str(), other.c_str(), took.c_str(), rows.c_str());
     EXPECT(own.find("Not added: that folder is your own install: pick the folder the mod was") == 0);
     EXPECT(other.find("Not added: that folder is a Pirate's Moon install, and yours is") == 0);
-    EXPECT(took.find("Took 2 files that differ from your install") == 0);
+    // The outcome first, then how many files were taken (screen_fit.h); the long summary is the log's.
+    EXPECT(took.find("Added ") == 0 && took.find("Took 2 files that differ from your install.") != std::string::npos);
     EXPECT(rows == "[ ] Freako Game|" && chosen == "Freako Game" && focus_mods && mech3::entry_mods_on(wd).empty());
     EXPECT(fs::is_regular_file(wd + "/mods/Freako Game/zbd/c1/New.txt") && fs::is_regular_file(wd + "/mods/Freako Game/mw3-mod-added.txt") &&
            !fs::exists(wd + "/mods/Freako Game/Mech3.exe") && !fs::exists(wd + "/mods/Freako Game/zbd/c4b"));
@@ -2288,36 +2289,37 @@ TEST(mods_screen_delete_and_reset_headless) {
       campaign("MechWarrior 3");
       mod("Weps"), tabs += tab() + ",";
       mod("By Hand"), tabs += tab();
-      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
+      { const size_t n = boxes.size(); scr->on_button(mech3::ModsScreen::kDelete, 0, 0); EXPECT(boxes.size() == n); }  // the same click again: no box
       hand_note = std::string(scr->note.text) + " " + scr->restart.text;
       // CANCEL at the confirm: nothing changes.
       campaign("MechWarrior 3");
       answer = 2;
-      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
       cancelled = std::string(scr->note.text);
       cancel_kept = fs::exists(wd + "/campaigns/mw3/pilots/Ace.mw3") && fs::exists(wd + "/campaigns/mw3/mods.txt");
       // RESET.
       answer = 1;
-      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
       reset_done = !fs::exists(wd + "/campaigns/mw3/pilots/Ace.mw3") && !fs::exists(wd + "/campaigns/mw3/mods.txt") &&
                    fs::exists(wd + "/campaigns/mw3/mw3-campaign.txt") && fs::exists(wd + "/pilots/the main menu's.txt") && scr->enabled.empty();
       // A campaign's own mod chosen at the right: sent to its row.
       campaign("Night, mine");
       mod("Night, mine");
-      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
       own_mod_note = std::string(scr->note.text) + " " + scr->restart.text;
       // The copy, by its row.
       campaign("Night, mine");
-      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
       copy_gone = !fs::exists(wd + "/mods/mine") && !fs::exists(wd + "/campaigns/mine");
       own_chosen = scr->chosen_row() && scr->chosen_row()->entry == "mw3";
       after_copy = rows();
       // The imported campaign (nothing built on it now), then the imported asset mod.
       campaign("Long Night");
-      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
       campaign_gone = !fs::exists(wd + "/mods/camp");
       mod("Weps");
-      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
       asset_gone = !fs::exists(wd + "/mods/weps") && fs::exists(wd + "/mods/byhand/mod.txt");
       rows_end = rows();
       scr->on_button(mech3::ModsScreen::kBack, 0, 0);
@@ -2336,7 +2338,7 @@ TEST(mods_screen_delete_and_reset_headless) {
     EXPECT(own_mod_note.find("It is a campaign's own: choose the campaign at the left to delete it.") == 0);
     EXPECT(copy_gone && own_chosen && after_copy == "MechWarrior 3|Long Night|");
     EXPECT(campaign_gone && asset_gone && rows_end == "MechWarrior 3|");
-    EXPECT(boxes.size() == 5 && boxes[0] == boxes[1] && boxes[0].find("Reset MechWarrior 3 to the original? Its ticked mods are cleared, and its 1 pilot and 1 saved game here go with it.") == 0);
+    EXPECT(boxes.size() == 5 && boxes[0] == boxes[1] && boxes[0].find("Reset MechWarrior 3 to the original? Its ticked mods are cleared. Its 1 pilot and 1 saved game here go with it.") == 0);
     if (boxes.size() == 5) {
       EXPECT(boxes[2] == "Delete Night, mine? Its 1 pilot and 1 saved game go with it.");
       EXPECT(boxes[3] == "Delete Long Night? Its pilots and saved games are kept: import it again to go on.");
@@ -2712,7 +2714,9 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
     EXPECT(camp_after == "[on] Camp|[on] Weps|[x]  Green HUD|" && text_of("campaigns/camp~night/mods.txt") == "mod=hud\n");
     EXPECT(own_again == "[x] Green HUD|[ ] Weps|" && text_of("campaigns/mw3/mods.txt") == "mod=hud\n");
     EXPECT((asked == std::vector<std::string>{"camp~night", "mw3"}));  // the third PLAY was refused
-    EXPECT(long_row == "[on] A Very Long Name For A Mod");  // whole: the box cuts it as it cuts any row
+    // Cut to the box with "..." (here by the unmeasured width, 25 characters); DETAILS has the whole name.
+    std::printf("  long row: \"%s\"\n", long_row.c_str());
+    EXPECT(long_row.rfind("[on] A Very Long", 0) == 0 && long_row.size() <= 25 && long_row.compare(long_row.size() - 3, 3, "...") == 0);
     EXPECT(refused.find("MechWarrior 3 cannot be played: these mods are not there any more") == 0 && refused.find("hud") != std::string::npos);
     mech3::mods_menu_play() = nullptr;
     app.stop_game();

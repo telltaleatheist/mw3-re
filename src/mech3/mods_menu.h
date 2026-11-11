@@ -93,6 +93,7 @@ class ModsScreen : public MenuScreen {
   void add_mod(const std::string& path);  // IMPORT's pick: added (mod_install.h), shown, said
   void export_mod(const std::string& zip);  // EXPORT's answer: the chosen mod packed (upgrades/mods/mod_export.h), said
   void tell(const std::string& text);     // the two lines under MODS, the text wrapped
+  void heading(const char* words);        // the left box's: CAMPAIGNS, REPORT, TEST, EDITOR
   void show_details();               // the selected row's lines
   void enter_campaign();             // PLAY
   void choose_entry();               // the campaign chosen at the left: MODS filled with its ticks
@@ -128,6 +129,8 @@ class ModsScreen : public MenuScreen {
   bool testing = false;              // the list is TEST's
   std::string edit_mod;              // its mod's folder
   std::vector<ModsEditRow> edit_rows;
+  int tab_shown = 0;                 // the tab under REPORT: 0 none, 1 DELETE, 2 RESET (show_delete_tab)
+  bool delete_asked = false;         // DELETE or RESET asked on this click already (delete_row)
   bool reporting = false;            // REPORT's sentences in CUSTOM CAMPAIGNS' box
   std::string report_file;           // the report up, as saved in <write dir>/mod-reports ("" not saved)
   // Inside an entry started for TEST (upgrades/mods/entry_run.h, kTest): the screen is that entry's test list

@@ -147,7 +147,7 @@ TEST(mods_delete_by_the_row_chosen) {
     EXPECT(p.kind == DeletePlan::kNone && p.label.empty() && p.refused == "Night, mine cannot be deleted: Night, mine 2 is built on it. Delete that one first.");
     EXPECT(!mech3::delete_run(w, p, &why) && fs::exists(wd / "mods/mine"));
     p = mech3::delete_plan_for_entry(w, "mine2");
-    EXPECT(p.kind == DeletePlan::kCopy && p.label == "DELETE" && p.question == "Delete Night, mine 2? Its 0 pilots and 0 saved games go with it.");
+    EXPECT(p.kind == DeletePlan::kCopy && p.label == "DELETE" && p.question == "Delete Night, mine 2? It has no pilots or saved games.");
     EXPECT(mech3::delete_run(w, p, &why) && !fs::exists(wd / "mods/mine2") && !fs::exists(wd / "campaigns/mine2"));
     p = mech3::delete_plan_for_entry(w, "mine");
     EXPECT(p.kind == DeletePlan::kCopy && p.question == "Delete Night, mine? Its 2 pilots and 3 saved games go with it.");
@@ -203,7 +203,7 @@ TEST(mods_delete_by_the_row_chosen) {
     const std::string w = wd.string();
     DeletePlan p = mech3::delete_plan_for_entry(w, "mw3");
     EXPECT(p.kind == DeletePlan::kReset && p.label == "RESET" &&
-           p.question == "Reset MechWarrior 3 to the original? Its ticked mods are cleared, and its 2 pilots and 3 saved games here go with it. "
+           p.question == "Reset MechWarrior 3 to the original? Its ticked mods are cleared. Its 2 pilots and 3 saved games here go with it. "
                          "Your pilots in the main game are not changed.");
     const std::string main_pilots = snapshot(wd / "pilots"), others = snapshot(wd / "campaigns/camp~night") + snapshot(wd / "mods");
     EXPECT(mech3::delete_run(w, p, &why));
@@ -211,7 +211,7 @@ TEST(mods_delete_by_the_row_chosen) {
            fs::is_directory(wd / "campaigns/mw3/configs"));
     EXPECT(mech3::entry_ticks(w, "mw3").empty() && !fs::exists(wd / "campaigns/mw3/pilots/Ace.mw3") && !fs::exists(wd / "campaigns/mw3/configs/Bushwacker.mw3"));
     EXPECT(snapshot(wd / "pilots") == main_pilots && snapshot(wd / "campaigns/camp~night") + snapshot(wd / "mods") == others);
-    EXPECT(mech3::delete_plan_for_entry(w, "mw3").question.find("its 0 pilots and 0 saved games") != std::string::npos);  // counted at that moment
+    EXPECT(mech3::delete_plan_for_entry(w, "mw3").question.find("It has no pilots or saved games here.") != std::string::npos);  // counted at that moment, and none said plainly
     // Never: the campaign the run is inside; Instant Action's entry (ALL OFF is its way).
     p = mech3::delete_plan_for_entry(w, "camp~night", "camp~night");
     EXPECT(p.kind == DeletePlan::kNone && p.refused == "Long Night is being played: leave it first.");
