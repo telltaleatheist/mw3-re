@@ -281,7 +281,9 @@ TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
   std::vector<std::string> enabled;
   const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, [](const std::string&) { return 1; }, &enabled);
   std::printf("  %s\n", d.message.c_str());
-  EXPECT(d.ok && d.warnings == 2 && d.left_out == 1 && d.message == "Added " + d.name + ": 2 warnings: REPORT lists them.");
+  EXPECT(d.ok && d.warnings == 2 && d.left_out == 1 && d.message.rfind("Added " + d.name + ": 2 warnings: REPORT lists them. ", 0) == 0 &&
+         d.message.size() > ("Added " + d.name + ": 2 warnings: REPORT lists them. ").size());  // then what to do next, as without warnings
+  std::printf("  %s\n", d.message.c_str());
   const std::string mod = wd + "/mods/" + d.folder;
   std::error_code ec;
   EXPECT(!fs::exists(mod + "/zbd/c1/readermp90.zbd", ec) && fs::is_regular_file(mod + "/zbd/c1/readermp91.zbd", ec) &&

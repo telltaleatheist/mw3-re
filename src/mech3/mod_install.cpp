@@ -528,10 +528,15 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   d.message = d.campaign_only ? "Added " + d.name + ": its campaign is listed."
               : !enabled ? "Added " + d.name + (mod_is_campaign(i) ? ": its campaign is listed." : ": tick it for a campaign, then PLAY.")
                          : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
-  // With warnings the line says how many and where they are; what was left out is in the report.
+  // With warnings the line says how many and where they are, then what to do next as without them; what was
+  // left out is in the report.
   d.warnings = r.warnings, d.left_out = static_cast<int>(r.left_out.size());
-  if (r.warnings > 0)
-    d.message = "Added " + d.name + ": " + std::to_string(r.warnings) + (r.warnings == 1 ? " warning: REPORT says what." : " warnings: REPORT lists them.");
+  if (r.warnings > 0) {
+    const std::string head = "Added " + d.name + ": ";
+    std::string next = d.message.substr(head.size());
+    if (!next.empty()) next[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(next[0])));
+    d.message = head + std::to_string(r.warnings) + (r.warnings == 1 ? " warning: REPORT says what. " : " warnings: REPORT lists them. ") + next;
+  }
   return d;
 }
 

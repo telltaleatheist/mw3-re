@@ -1254,7 +1254,8 @@ from it, so REPORT on the added mod still names files no longer in it.
 EXPORT leaves that file out of the zip.
 
 **IMPORT's line.** With warnings: "Added <name>: 9 warnings: REPORT lists
-them." (one: "1 warning: REPORT says what.") Refused: "Not added: the game would refuse this mod: <why>."
+them. Tick it for a campaign, then PLAY." (one: "1 warning: REPORT says
+what."; the tail is whatever the line ends with when there are none) Refused: "Not added: the game would refuse this mod: <why>."
 
 **The report.** `mod_sentences` puts a totals line after what the mod
 changes ("11 warnings, none of which refuses the mod: 2 stop part of the
