@@ -35,8 +35,12 @@ struct CampaignEntry {
 std::vector<CampaignEntry> official_entries();
 
 // A mod's kind: kind=campaign or kind=assets when mod.txt says; else a
-// campaign when it has campaign= or world= lines or files of the game's own
-// worlds (zbd\c1\.. zbd\t1\), an asset mod otherwise.
+// campaign only when it brings one of its own (campaign= lines) or is a copy
+// of one (base=). Every other mod is an asset mod, a tick for any campaign
+// and Instant Action, also one laid over the game's own files (its campaign's
+// missions, its worlds, the main reader): it changes whichever campaign it is
+// ticked for. kind=campaign in mod.txt still makes a row of its own, the
+// game's campaign over the mod's files.
 bool mod_is_campaign(const ModInfo& m);
 
 // Every entry: the game's own, then the mods' (by folder; a campaign mod's
@@ -71,6 +75,15 @@ std::vector<std::string> entry_mount_list(const std::string& write_dir, const Ca
 // ticks, and the mods it is built on. An entry with any does not start until
 // they are unticked or imported again (its pilots are kept).
 std::vector<std::string> entry_missing_mods(const std::string& write_dir, const CampaignEntry& e);
+
+// The entry plays the game's own campaign: it and everything it is built on
+// (its base= chain) have no campaign= of their own, and it is not Instant
+// Action's. A main-menu pilot brought into such an entry carries on from its
+// saved games; into any other it starts that campaign anew (entry_pilots.h).
+bool entry_plays_own_campaign(const std::string& write_dir, const CampaignEntry& e);
+// Pirate's Moon: such an entry brings the pilot's saved games too when it is the Campaign's (or built on it);
+// the Pirate Missions have none to bring (their record is in the pilot's file).
+bool entry_brings_saved_games(const std::string& write_dir, const CampaignEntry& e);
 
 // The run's entry: --entry's, else the game's own campaign (official_entries'
 // first). What "turned on" means to everything that used to write mw3.cfg's

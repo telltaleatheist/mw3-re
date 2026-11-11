@@ -35,12 +35,19 @@ Pirate Missions), MechWarrior 3 one.
   on top of the campaign it came from. The official entry is never written; a
   copy can be deleted (only folders we made and marked), and its original is
   still there.
-- **IMPORT / EXPORT, REPORT, TEST:** as now. IMPORT puts an asset mod in the
-  right-hand list and a campaign mod in CAMPAIGNS. A mod made for the original
-  game that replaces its campaign's files (Freako's campaign rewrite) becomes a
-  campaign entry of its own, on top of the official one. REPORT on a copy says
-  what it changed from the campaign it was saved from. TEST plays one mission
-  of the chosen campaign with its ticks.
+- **IMPORT / EXPORT, REPORT, TEST:** IMPORT puts an asset mod in the
+  right-hand list, unticked, and a mod that brings a campaign of its own in
+  CAMPAIGNS. **A mod made for the original game that is laid over its files**
+  (new weapons, harder missions, changed scenarios, in any of the game's
+  worlds) **is an asset mod** (Owen, 2026-11-10, after a real one was tried):
+  a tick for each campaign and for Instant Action, since one such mod often
+  changes the campaign, the Pirate Missions and Instant Action at once. Only
+  a mod with a campaign of its own gets a row at the left. **IMPORT also
+  takes a modded game folder**: a mod that ships as an installer is installed
+  onto a copy of the game, and IMPORT keeps the files that differ from the
+  player's own install as the mod. REPORT on a copy says what it changed
+  from the campaign it was saved from. TEST plays one mission of the chosen
+  campaign with its ticks.
 - **Pilots and saves:** each campaign entry keeps its own, so modded progress
   never mixes with the main menu's campaign. **The player picks their own
   pilot** (Owen, 2026-11-10): an entry's pilot screen lists its own pilots and
@@ -95,6 +102,27 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 - **MODS, CAMPAIGNS lists campaigns only**: Instant Action has no row there.
   Underneath it is still the entry `ia` (its folder, ticks and loadouts).
 
+## Deleting and resetting (Owen, 2026-11-10)
+
+- **Edits are saved as a copy.** The editor never writes the game's own
+  campaign or a mod someone else made: the first save makes a copy of the
+  player's own, and later saves go into it.
+- **DELETE on the MODS screen**, by what is chosen, each with a confirm that
+  says what goes:
+  - a copy of the player's own: the copy, with its pilots and saved games;
+  - a mod the game imported: the mod. An asset mod's ticks are left, so a
+    campaign that had it ticked shows "!" until it is turned off or imported
+    again. An imported campaign's pilots and saved games are kept, so importing
+    it again goes on where it stopped;
+  - what is left of a campaign whose mod is gone: its pilots and saved games.
+- **RESET on the game's own campaign** (it cannot be deleted): its ticked mods
+  are cleared and its pilots and saved games on the MODS screen go; the row
+  stays, as on a first start. The main game's pilots are not changed.
+- **Not deleted by the game:** the game's own files, and a mod folder put in
+  the mods folder by hand (no marker of ours). MODS FOLDER opens the folder so
+  the player can remove it.
+- The standing rule holds: code removes only folders it made and marked.
+
 ## Settled in the lead's review (2026-11-10)
 
 - **Inside a campaign entry** the player gets that entry's own screen only:
@@ -116,167 +144,36 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 - **No release ever read `mod=` lines** (mods came after 1.0.5), so the move of
   those lines into the official entry only meets test folders.
 
+## State (2026-11-10): built
+
+Every step is built and on main or in review; how each works, with its
+tests, is in `docs/modding.md` from "Mods by campaign: how it works" on.
+
+| Step | What | modding.md |
+|---|---|---|
+| 1 | the entries, their folders and ticks, the first start's move | Mods by campaign: the entries |
+| 2a | starting again into an entry and back; an entry's own screen and saved mechs | Starting again into an entry |
+| 2b | a plain start mounts nothing; the run's entry takes what wrote mw3.cfg | A plain start is the original |
+| 3a, 3b | the CAMPAIGNS screen, each campaign's ticks, PLAY; REPORT on a copy | The CAMPAIGNS screen |
+| | Instant Action's own MODS button, the tick list, straight in | Instant Action's own MODS |
+| | pilots: the main menu's listed in an entry and brought when picked | Pilots inside an entry |
+| | a mod laid over the game's files is a tick, not a campaign | the entries (A mod's kind) |
+| 4a | TEST through entries, the test mode | TEST through entries |
+| 4b | the editor only saves as a copy | EDITOR through entries: Save as only |
+| 4c | DELETE and RESET, the one remover | DELETE and RESET |
+| | dev 3: the pilot's copy, REPORT on a copy, a save's entry, the restart on Windows | their own sections after Pilots inside an entry |
+| | dev 2: IMPORT from a modded game folder | IMPORT from a modded game folder |
+| 6 | Pirate's Moon: by merge on `pm` (dev 3) | |
+
 ## Open
 
 - 1.1.0 waits for this (Owen, 2026-11-10), so mods change behaviour once.
-- A way back after saying no to the pilot's copy (the name noted in the
-  entry's `pilots-not-copied.txt` and not asked again), or after deleting the
-  copied pilot there: a small COPY PILOT control, with step 3's pilot offer.
+- Owen's playtest of what was only seen headless or through a checks-only
+  switch: `docs/playtest-1.1.0.md`, "To see with eyes: mods by campaign".
+- Mounting in place, without the restart, once every cache it would leave
+  stale is known (What changes in the code, above).
+- EXPORT cannot yet split a copy's weapons out into an asset mod.
+- Choosing and ordering a campaign's missions in a dialog (Owen's Campaign
+  Missions pick): after the release.
 - The starter mods' translation kind: kept as it is (it costs nothing), but not
   featured, since translations are not managed.
-
-## Built: the pilot's copy (2026-11-10)
-
-`mech3::entry_copy_pilot` (`upgrades/mods/entry_pilot_copy`), the function
-behind "starting a campaign entry can copy a pilot over"; the MODS screen's
-offer calls it. It copies the main menu's `pilots/<name>.mw3`, that pilot's
-saved games (`pilots/games/<name>CCMM.mw3`: the name, four digits, nothing
-else, so Bob's copy leaves Bob2's saves; on branch `pm` Pirate's Moon's
-`<name>MM.mw3`, two digits, as its `CampaignGame::path_for` writes them) and each one's `.rows`, into the
-entry's `pilots/`, and the saved loadouts `configs/*.mw3` into the entry's
-loadouts folder (given by the caller). The originals are only read. Nothing
-in the entry is replaced: a pilot or a saved game of that name already there
-refuses the whole copy. The loadouts are not so strict: a loadout file the
-entry already has is kept (counted in `configs_kept`), and one whose place is
-taken by a stray file (its `.rows` without it, a folder of its name) is
-skipped (`configs_skipped`), so one stray file among the saved mechs never
-costs the pilot's copy. The entry's folder must carry our marker. A
-copy that fails part-way removes the files it made and the folders it made
-if they are empty again, nothing else. `main_menu_pilots` lists the names
-to offer. Tests: `entry_pilot_copy_*` (tests/test_entry_pilot_copy.cpp).
-
-## Built: REPORT on a copy (2026-11-10)
-
-`mech3::mod_copy_changes` and `mod_copy_report` (`upgrades/mods/mod_report`),
-the lines REPORT adds for a copy (a mod whose mod.txt has `base=`); the MODS
-screen calls `mod_copy_report(write_dir, install, folder)` after the mod's
-own report. The chain is walked through the entries (`find_entry`): the
-base's mod, that mod's base, down to the game's own entry. Each of the
-copy's files (not its mod.txt or our markers; names compared in any letter
-case) is set against the nearest mod under it that has the file: other
-bytes, "replaces N files of that campaign"; the same bytes, "the same, so it
-changes nothing"; in no mod under it but in the game's install, "replaces N
-of the game's own files"; nowhere, "adds N new files". Its mod.txt rows
-(`mech=`, `weapon=`, `world=`, `ia_world=`, `campaign=`, by name: the words
-before the first key=value) are changed or added against the rows under it,
-the nearest mod's winning. Up to six names are listed, then "and N more".
-When part of the chain is not in the mods folder that is said, and only
-what is certain is: what the copy replaces in the mods still there (a file
-nothing above the gap has may have been the missing campaign's, so neither
-"adds" nor the game's files are claimed). A chain that comes round to
-itself ends. Tests: `mod_copy_report_*` (tests/test_mod_copy_report.cpp).
-
-## Built: the save's entry (2026-11-10)
-
-"A saved game belongs to its entry", in `upgrades/mods/save_mods`. The
-program makes one call once an entry's mods are mounted,
-`mech3::save_entry_set(write_dir, entry)` (a plain start leaves it empty);
-it fills `save_entry()`: the entry's id and name, the entries it is built on
-(by `base=`, nearest first), the gameplay hash of its ticks in their order
-(`mods_gameplay_hash`, so a looks-only tick changes nothing) with their
-names, and the same hash of everything it mounts (`entry_mount_list`: its
-own mod and its bases' count there). A game saved in an entry that mounts
-something of gameplay holds one more zSave entry, `Mods/entry` (text:
-`entry`, `name`, `base`, `ticks`, `tick`, `mounted` lines), in place of the
-mod list `Mods/identity`; an entry that mounts nothing of gameplay (the
-game's own with no gameplay tick) writes nothing, the original's save. The
-load's note, on the loading screen and in the log, once:
-
-- saved in another entry: "Saved in another campaign (X); this is Y";
-- the ticks changed: "This campaign's mods changed since the save: then A,
-  B; now A" (or, the same ticks with other files, "A mod of this campaign
-  changed since the save (A)");
-- the same ticks, the entry's own or its bases' files changed: "This
-  campaign's own files changed since the save";
-- saved outside an entry (a pilot copied over from the main menu):
-  "Saved without mods; the campaign Y now has: A" (or "its own files");
-- saved in an entry, loaded where nothing is mounted: "Saved in the
-  campaign X with its mods; none now".
-
-Outside an entry the mod list is written and compared as before (`--mod`, a
-developer's start). Tests: `save_entry_*` (tests/test_save_entry.cpp).
-
-## Built: the restart on Windows (2026-11-10)
-
-The `_WIN32` side of `sdlfe::restart_into` (`frontend/sdl/sdl_restart.cpp`).
-Windows has no exec, so the program is started as a new process and this
-one ends:
-
-- its own file by `GetModuleFileNameW`, the buffer grown until the name fits
-  (long paths);
-- the command line by `win_command_line` (`frontend/sdl/win_cmdline`, plain
-  string code built on every system): the program's path in plain quotes,
-  each argument quoted by the rules `CommandLineToArgvW` splits by (as it is
-  without a space, tab, newline or quote; else in quotes, a quote written
-  `\"`, the backslashes before a quote or before the closing one doubled, an
-  empty argument `""`);
-- `CreateProcessW` with no inherited handles, the same working directory and
-  environment, made suspended;
-- the log: with no console stdout and stderr are `<write dir>\mw3.log`
-  (`log_to_file`), and the next start renames that file and opens a new one.
-  So this process writes its last line ("starting again as process N: ..."),
-  closes stdout and stderr, and only then lets the new process run
-  (`ResumeThread`); the new one cannot reach the log while the old one holds
-  it. `AllowSetForegroundWindow` lets its window come to the front. Then
-  `ExitProcess(0)`;
-- the new process's own standard handles: without `STARTF_USESTDHANDLES`
-  Windows gives a console program copies of its parent's standard handles
-  even when no handles are inherited, so the new process started out holding
-  the old log as its stdout and its rename was refused (error 32, seen on
-  the PC with `restart_check`, 2026-11-10). When this run's stdout or stderr
-  is a file on disk (asked of Windows' standard handles and of the C
-  runtime's, which alone knows a windowed program's `freopen`), the new
-  process is started with `STARTF_USESTDHANDLES` and no handles: a fresh
-  program with nothing open. When they are a console or a pipe (a
-  developer's run, a test reading the output) they are left, so the output
-  still shows; neither holds a log;
-- the new start's side (`log_to_file`, `frontend/sdl/log_start`): with that
-  fix the move still went through only at the second try on the PC (50 ms
-  later), so something holds the old log for a moment after the new process
-  runs. The new start is therefore safe against it, whatever it is: it is
-  told the old process's id (`MW3_RESTARTED_FROM` in its environment, set by
-  `restart_into`; not an argument, so the start's arguments are untouched),
-  waits for that process to end (2 s at most), then tries the move up to 20
-  times 50 ms apart (a first start 5 times: a quick quit and start meets the
-  same). The PC's finding (`restart_check`, 2026-11-10, three runs alike):
-  with the first process already ended the move still went through only at
-  the second try, so the holder for those milliseconds is something outside
-  our two programs, and the tries, not the wait, are what protects the log. The last start's log is never emptied, restarted or
-  not: when it cannot be moved the log is opened for append and the first
-  line says so ("the last start's log could not be moved to mw3.old.log
-  (error N after T tries): it is kept above, and this start's lines follow
-  it"). Until now the move's result was not looked at and the log opened
-  with "w", so a held log was overwritten. A restarted run's log says "mw3:
-  started again from process N (waited for its end, M ms); the last log
-  moved at try T".
-
-Nothing waits on the old process: the launcher ends at the game's first
-frame on Windows (`Launcher::watch_game`; it stays, waiting on the process,
-only for an AppImage, where the restart is an exec and the process goes on).
-A launcher that never saw a first frame (the ready file could not be
-written, say) is still watching when the game restarts; so the old process
-ends with an exit code of ours, `kStartedAgainExit` (93, log_start.h), and
-the launcher reads that as "the game goes on": it closes, as at a first
-frame, with no error line and without showing itself beside the new game
-(`sdl_program_launcher_stays_when_the_game_fails_or_is_slow`, its third
-case).
-
-Tests: `win_cmdline_quotes_by_the_documented_rules` (a table, and a whole
-line) and `win_cmdline_round_trips_through_the_splitting_rules` (3,906
-arguments of the characters that matter split again by those rules), in
-tests/test_win_cmdline.cpp, run on every system. `tests/win/restart_check.cpp`
-is the Windows check without the game: `restart_check.exe DIR --watch` runs
-the check twice (in `DIR\plain` and `DIR\wait`), waits for each and prints
-the logs (0 when both passed). The first run takes `check.log` as its output
-and starts itself again with arguments that are hard to quote; the second
-moves that log aside before it opens anything (`log_start`, 20 tries) and
-writes a new `check.log` ending "restart check: OK" when the old log is
-whole in `check.old.log`, the new one fresh, and the arguments and working
-directory the first run's. Plain: the move is tried at once. Wait: the
-second run first waits for the first run's process to end, as the game
-does. In both the move must go through within the tries, and the try is
-printed. `log_start_*`
-(tests/test_log_start.cpp) checks the decision on every system with moves
-made to fail; it cannot show Windows refusing to move a held file. Build (the mingw
-cross compiler, or any Windows one):
-`x86_64-w64-mingw32-g++ -std=c++17 -Isrc tests/win/restart_check.cpp src/frontend/sdl/sdl_restart.cpp src/frontend/sdl/win_cmdline.cpp src/frontend/sdl/log_start.cpp -o restart_check.exe -static -luser32`.

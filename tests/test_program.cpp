@@ -124,6 +124,7 @@
 #include "upgrades/mods/mod_report.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/mods/campaign_entries.h"
+#include "upgrades/editor/save_as.h"
 #include "upgrades/mods/entry_run.h"
 #include "mech3/mod_campaign.h"
 #include "gamez/zutil/zutl_zar.h"
@@ -1373,12 +1374,17 @@ TEST(campaign_operation_end_and_campaign_end_headless) {
   }
 }
 
-// Ours (editor.md, The way in from MODS): MODS, a custom campaign chosen,
-// EDITOR lists its missions, ENTER opens c1 mission 1 with the editor up (no
-// Shift+F12); net_01's node_00 moved and saved goes into the mod itself, its
-// own readerm1.zbd replaced and the old one kept as .bak; EXIT GAME EDIT
-// lands on MODS again, the stand-in pilot let go. The vehicle editor's Save
-// (S7f) goes into the mod too, the net's save kept as the .bak.
+// Ours (editor.md, The way in from MODS; modding.md, EDITOR through entries,
+// step 4b). On a plain run: MODS, a custom campaign chosen, EDITOR lists its
+// missions, PLAY asks the program to start again into the campaign with c1
+// mission 1 in the editor, and opens nothing in place. Then the run inside
+// the entry, as --entry ed~ed --entry-edit c1 1: the editor is up at once (no
+// Shift+F12); net_01's node_00 moved and saved asks the copy's name once and
+// goes into the copy ("Edit Campaign, my edit": its own readerm1.zbd, the
+// imported mod's file and folder as they were, no "editor edits"); the
+// vehicle editor's Save (S7f) goes into the same copy, nothing asked, the
+// net's save kept as its .bak; EXIT GAME EDIT leaves the entry (MODS is not
+// shown inside it) with the copy to be chosen on MODS, the stand-in pilot let go.
 TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1397,7 +1403,6 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   const std::string before = bytes(own);
   mech3::mods_mount(wd, {"ed"}, {MW3_GAME_DIR});
   zutl::mount(MW3_GAME_DIR);
-  mech3::entry_mods_save(wd, {"ed"});
   mech3::mods_menu_write_dir() = wd;
   mech3::mods_menu_mounted() = {"ed"};
   mech3::reset_states();
@@ -1422,8 +1427,25 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
     int stage = 0, frames = 0, rows = 0;
     bool listed = false, editor_up = false, moved = false, saved_into_mod = false, kept_bak = false, mods_again = false;
     std::string status, row0, vehicle_status;
-    bool vehicle_into_mod = false;
+    bool vehicle_into_mod = false, nothing_in_place = false, mod_untouched = false;
     uint32_t real_pilot = 0, pilot_after = 0;
+    int left = 0, names_asked = 0;
+    std::vector<std::string> asked;
+    const std::string copy = wd + "/mods/Edit Campaign, my edit", copy_file = copy + "/zbd/c1/readerm1.zbd";
+    mech3::mods_menu_edit_restart() = [&](const std::string& entry, const std::string& world, int32_t number, std::string*) {
+      return asked.push_back(entry + " " + world + " " + std::to_string(number)), true;
+    };
+    mech3::save_as_ask_hook() = [&](std::string*) { return ++names_asked, true; };  // the default name taken
+    const auto tree = [&](const std::string& dir) {
+      std::string t;
+      std::error_code ec;
+      std::vector<std::filesystem::path> all;
+      for (std::filesystem::recursive_directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) all.push_back(it->path());
+      std::sort(all.begin(), all.end());
+      for (const auto& f : all) t += f.string() + (std::filesystem::is_regular_file(f, ec) ? ":" + std::to_string(std::filesystem::file_size(f, ec)) : "") + "\n";
+      return t;
+    };
+    const std::string mod_before = tree(wd + "/mods/ed");
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
@@ -1434,12 +1456,20 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
         auto* ms = dynamic_cast<mech3::ModsState*>(now);
         auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
         if (!scr) return;
-        scr->campaign_list.FileList::select(0);
+        scr->campaign_list.FileList::select(1);  // the mod's campaign (row 0 is the game's own)
         scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
         scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDIT
         rows = int(scr->edit_rows.size());
-        listed = scr->editing && rows == 1 && scr->edit_rows[0].world == "c1" && scr->edit_rows[0].number == 1;
-        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+        listed = scr->editing && !scr->testing && rows >= 1 && scr->edit_rows[0].world == "c1" && scr->edit_rows[0].number == 1;  // the campaign's own first
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY: the restart asked for
+        nothing_in_place = !mech3::mods_edit_session().active;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        // The run inside the entry, as the program sets it for --entry ed~ed --entry-edit c1 1.
+        mech3::EntryRun& run = mech3::entry_run();
+        run = mech3::EntryRun{};
+        run.screen = mech3::EntryRun::kEdit, run.id = "ed~ed", run.mod = "ed", run.campaign = "ed", run.world = "c1", run.number = 1;
+        run.leave = [&] { ++left; };
         stage = 2;
       } else if (stage == 2 && now == &st.core) {
         if (++frames < 5) return;
@@ -1456,10 +1486,11 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
           mech3::net_editor_save(0);
           status = mech3::editor_panel().rows[24]->text;
         }
-        saved_into_mod = bytes(own) != before && !std::filesystem::exists(wd + "/mods/editor edits");
-        kept_bak = std::filesystem::exists(own + ".bak") && bytes(own + ".bak") == before;
-        // The vehicle editor's Save (S7f) goes into the mod too, over the net's save.
-        const std::string after_net = bytes(own);
+        saved_into_mod = std::filesystem::is_regular_file(copy_file) && bytes(copy_file) != before && names_asked == 1 &&
+                         std::filesystem::is_regular_file(copy + "/mw3-editor.txt") && !std::filesystem::exists(wd + "/mods/editor edits");
+        kept_bak = bytes(own) == before && !std::filesystem::exists(own + ".bak");  // the imported mod's own file, never written
+        // The vehicle editor's Save (S7f) goes into the same copy, over the net's save, nothing asked.
+        const std::string after_net = bytes(copy_file);
         mech3::edit_vehicles(0);
         if (mech3::VehicleEditor* v = mech3::vehicle_editor()) {
           for (size_t i = 0; i < v->items.size(); ++i)
@@ -1470,15 +1501,14 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
           vehicle_status = v->saved;
           v->form.press("OK");
         }
-        vehicle_into_mod = bytes(own) != after_net && bytes(own + ".bak") == after_net &&
+        vehicle_into_mod = bytes(copy_file) != after_net && bytes(copy_file + ".bak") == after_net && names_asked == 1 &&
                            !std::filesystem::exists(wd + "/mods/editor edits");
+        mod_untouched = tree(wd + "/mods/ed") == mod_before && bytes(own) == before;
         mech3::net_editor_exit(0);
         mech3::editor_exit(0);  // EXIT GAME EDIT
         stage = 3;
-      } else if (stage == 3) {
-        auto* ms = dynamic_cast<mech3::ModsState*>(now);
-        if (!ms) return;
-        mods_again = true;
+      } else if (stage == 3 && left) {
+        mods_again = left == 1 && !dynamic_cast<mech3::ModsState*>(now) && mech3::entry_run().choose == "Edit Campaign, my edit";
         pilot_after = engine.peek32(0x60861c);
         stage = 4;
       }
@@ -1490,11 +1520,21 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
     std::printf("  stage %d; EDIT listed %d (%d rows), the editor up %d, moved %d, saved into the mod %d, .bak kept %d; "
                 "\"%s\"; MODS again %d, the pilot back %d\n", stage, listed, rows, editor_up, moved, saved_into_mod,
                 kept_bak, status.c_str(), mods_again, pilot_after == real_pilot);
+    EXPECT((asked == std::vector<std::string>{"ed~ed c1 1"}) && nothing_in_place);
     EXPECT(listed && editor_up && moved && saved_into_mod && kept_bak);
-    EXPECT(status.find("mods\\ed\\") != std::string::npos);
+    EXPECT(status.find("mods\\Edit Campaign, my edit\\") != std::string::npos);
     std::printf("  the vehicle editor's Save: \"%s\", into the mod %d\n", vehicle_status.c_str(), vehicle_into_mod);
-    EXPECT(vehicle_into_mod && vehicle_status.find("mods\\ed\\") != std::string::npos);
-    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    EXPECT(vehicle_into_mod && vehicle_status.find("mods\\Edit Campaign, my edit\\") != std::string::npos && mod_untouched);
+    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active && mech3::save_as_session().entry.empty());
+    {
+      std::ifstream txt(copy + "/mod.txt");
+      const std::string t((std::istreambuf_iterator<char>(txt)), std::istreambuf_iterator<char>());
+      EXPECT(t.find("name=Edit Campaign, my edit\n") == 0 && t.find("kind=campaign\nbase=ed~ed\n") != std::string::npos);
+    }
+    mech3::entry_run() = mech3::EntryRun{};
+    mech3::mods_menu_edit_restart() = nullptr;
+    mech3::save_as_ask_hook() = nullptr;
+    mech3::current_entry() = mech3::official_entries().front().id;
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -1509,10 +1549,14 @@ TEST(mods_screen_edit_opens_the_editor_and_saves_into_the_mod_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// Ours (modding.md, Quick testing): MODS, a mod with no missions of its own chosen, TEST lists the game's
-// campaign missions (each once, the world order); EDITOR then has nothing to list and TEST again lists them;
-// ENTER on c2 mission 1 plays it with the editor closed; the pause's QUIT lands on MODS again, the stand-in
-// pilot let go.
+// Ours (modding.md, TEST through entries, step 4a). On a plain run: TEST with a mod of MODS in focus that is
+// not ticked says to tick it; ticked, TEST lists the chosen campaign's missions (the game's, each once, the
+// world order); EDITOR says it is not available yet and TEST again lists them; PLAY on c2 mission 1 asks the
+// program to start again into the campaign and that mission, and plays nothing in place. Then the run inside
+// the entry, as --entry mw3 --entry-test c2 1: the mission starts at once with the editor closed; the pause's
+// QUIT lands on MODS in its test mode ("TEST in MechWarrior 3", the stand-in pilot let go), where other
+// buttons only say what the screen is; PLAY there plays another mission in place, the mechs' definitions read
+// again; QUIT, and BACK leaves the entry once.
 TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -1522,9 +1566,8 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
   zutl::set_write_dir(wd);
   std::filesystem::create_directories(wd + "/mods/wpn");
   std::ofstream(wd + "/mods/wpn/mod.txt") << "name=Weapon Test\n";
-  mech3::entry_mods_save(wd, {"wpn"});
   mech3::mods_menu_write_dir() = wd;
-  mech3::mods_menu_mounted() = {"wpn"};
+  mech3::mods_menu_mounted().clear();  // a plain run: nothing mounted
   mech3::mods_menu_install() = MW3_GAME_DIR;
   mech3::reset_states();
   reset_process_state();
@@ -1564,64 +1607,101 @@ TEST(mods_screen_test_plays_a_mission_and_comes_back_headless) {
     mech3::set_app(&app);
     EXPECT(app.init_instance());
     mech3::States& st = mech3::states();
-    int stage = 0, core = 0;
-    std::string listed, no_edit_note;
-    bool test_mode = false, switched = false, played = false, editor_closed = false, mods_again = false, reloaded = false;
+    int stage = 0, core = 0, left = 0, plays = 0;
+    std::string listed, no_edit_note, untick_note, title, other_note;
+    bool test_list = false, switched = false, played = false, editor_closed = false, mods_again = false, reloaded = false;
+    bool nothing_in_place = false, second_played = false, second_back = false;
     uint32_t real_pilot = 0, pilot_after = 0;
+    std::vector<std::string> asked;
+    mech3::mods_menu_test_restart() = [&](const std::string& entry, const std::string& world, int32_t number, std::string*) {
+      return asked.push_back(entry + " " + world + " " + std::to_string(number)), true;
+    };
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
         real_pilot = engine.peek32(0x60861c);
         const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
         stage = 1;
-      } else if (stage == 1) {
-        auto* ms = dynamic_cast<mech3::ModsState*>(now);
-        auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
-        if (!scr) return;
-        scr->mod_list.FileList::select(0);
-        scr->on_button(mech3::ModsScreen::kMods, 0, 0);
+      } else if (stage == 1 && scr) {
+        scr->mod_list.select(0);  // Weapon Test, not ticked for the campaign
+        scr->on_button(mech3::ModsScreen::kTest, 0, 0);
+        untick_note = std::string(scr->note.text) + " " + scr->restart.text;
+        scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
         scr->on_button(mech3::ModsScreen::kTest, 0, 0);  // TEST
         for (const mech3::ModsEditRow& r : scr->edit_rows) listed += r.world + " " + std::to_string(r.number) + "; ";
-        test_mode = scr->editing && scr->testing;
-        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDITOR: this mod has nothing to edit
-        no_edit_note = scr->note.text;
-        switched = !scr->editing;
-        scr->mod_list.FileList::select(0);
-        scr->on_button(mech3::ModsScreen::kMods, 0, 0);
+        test_list = scr->editing && scr->testing && !scr->test_mode;
+        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // EDITOR: the same campaign's list, to edit
+        no_edit_note = std::string(scr->note.text) + " " + scr->restart.text;
+        switched = scr->editing && !scr->testing;
+        scr->on_button(mech3::ModsScreen::kEditor, 0, 0);  // closed
         scr->on_button(mech3::ModsScreen::kTest, 0, 0);
         for (size_t i = 0; i < scr->edit_rows.size(); ++i)
           if (scr->edit_rows[i].world == "c2" && scr->edit_rows[i].number == 1) scr->campaign_list.FileList::select(int32_t(i));
         const int32_t reloads = mech3::mod_test_reloads();
-        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
-        reloaded = mech3::mod_test_reloads() == reloads + 1;  // the mechs' definitions read again (mod_test.h)
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY: the restart asked for
+        nothing_in_place = mech3::mod_test_reloads() == reloads && !mech3::mods_edit_session().active;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);  // the list closed
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);  // MODS left
+        // The run inside the entry, as the program sets it for --entry mw3 --entry-test c2 1.
+        mech3::mods_menu_mounted() = {"wpn"};
+        mech3::EntryRun& run = mech3::entry_run();
+        run = mech3::EntryRun{};
+        run.screen = mech3::EntryRun::kTest, run.id = "mw3", run.world = "c2", run.number = 1;
+        run.leave = [&] { ++left; };
         stage = 2;
-      } else if (stage == 2 && now == &st.core) {
+      } else if ((stage == 2 || stage == 4) && now == &st.core) {
         ++core;
         if (core == 5) {
-          played = mech3::mods_edit_session().active && !mech3::mods_edit_session().editor;
+          (stage == 2 ? played : second_played) = mech3::mods_edit_session().active && !mech3::mods_edit_session().editor;
           editor_closed = mech3::editor_state().active == 0;
           keys.key(1, true);  // Escape: the pause
         }
         if (core == 6) keys.key(1, false);
-      } else if (stage == 2 && now == &st.pause) {
+      } else if ((stage == 2 || stage == 4) && now == &st.pause) {
         auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
-        if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), stage = 3;
-      } else if (stage == 3 && dynamic_cast<mech3::ModsState*>(now)) {
-        mods_again = true;
+        if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), ++stage, core = 0, ++plays;
+      } else if (stage == 3 && scr) {
+        // The test mode: this entry's list alone.
+        mods_again = scr->test_mode && scr->testing;
+        title = scr->detail.text;
         pilot_after = engine.peek32(0x60861c);
+        scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
+        scr->on_button(mech3::ModsScreen::kAdd, 0, 0);
+        other_note = std::string(scr->note.text) + " " + scr->restart.text;
+        for (size_t i = 0; i < scr->edit_rows.size(); ++i)
+          if (scr->edit_rows[i].world == "c1" && scr->edit_rows[i].number == 1) scr->campaign_list.FileList::select(int32_t(i));
+        const int32_t reloads = mech3::mod_test_reloads();
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY in place
+        reloaded = mech3::mod_test_reloads() == reloads + 1 && asked.size() == 1;
         stage = 4;
+      } else if (stage == 5 && scr) {
+        second_back = scr->test_mode && left == 0;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        stage = 6;
+      } else if (stage == 6 && left) {
+        stage = 7;
       }
     };
     CountingPump pump;
-    pump.limit = 8000;
-    pump.stop = [&] { return stage == 4; };
+    pump.limit = 16000;
+    pump.stop = [&] { return stage == 7; };
     app.run(pump);
-    std::printf("  stage %d; TEST listed: %s\n  EDITOR: \"%s\"; played %d, the editor closed %d, MODS again %d, the pilot back %d\n",
-                stage, listed.c_str(), no_edit_note.c_str(), played, editor_closed, mods_again, pilot_after == real_pilot);
-    EXPECT(test_mode && listed.rfind("c1 1; c1 2; c1 3; c1 4; c2 1;", 0) == 0 && listed.find("c4b ") != std::string::npos);
-    EXPECT(switched && no_edit_note.find("no missions to edit") != std::string::npos);
-    EXPECT(played && editor_closed && reloaded);
-    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    std::printf("  stage %d; unticked: \"%s\"; TEST listed: %s\n  EDITOR: \"%s\"; asked %s; played %d, the editor closed %d, the test mode \"%s\" %d, "
+                "others: \"%s\"; in place %d, again %d, left %d\n",
+                stage, untick_note.c_str(), listed.c_str(), no_edit_note.c_str(), asked.empty() ? "" : asked[0].c_str(), played, editor_closed,
+                title.c_str(), mods_again, other_note.c_str(), reloaded && second_played, second_back, left);
+    EXPECT(untick_note.find("Tick Weapon Test for MechWarrior 3 to test it there.") == 0);
+    EXPECT(test_list && listed.rfind("c1 1; c1 2; c1 3; c1 4; c2 1;", 0) == 0 && listed.find("c4b ") != std::string::npos);
+    EXPECT(switched && no_edit_note.find("Choose a mission; PLAY starts the game again in MechWarrior 3 with it open in the editor.") == 0);
+    EXPECT((asked == std::vector<std::string>{"mw3 c2 1"}) && nothing_in_place);
+    EXPECT(played && editor_closed && plays == 2);
+    EXPECT(mods_again && title == "TEST in MechWarrior 3" && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    EXPECT(other_note.find("This is the test of one campaign: PLAY plays a mission, BACK leaves it.") == 0);
+    EXPECT(reloaded && second_played && second_back && stage == 7 && left == 1);
+    mech3::entry_run() = mech3::EntryRun{};
+    mech3::mods_menu_test_restart() = nullptr;
     mech3::missions().cleanup(false);
     app.stop_game();
     app.exit_instance();
@@ -1718,11 +1798,14 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
         auto* ms = dynamic_cast<mech3::ModsState*>(now);
         auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
         if (!scr) return;
-        scr->campaign_list.FileList::select(0);
+        scr->campaign_list.FileList::select(1);  // Lost Frontier
         scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
-        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // asks for the campaign's entry; nothing entered in place
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY asks for the campaign's entry; nothing entered in place
         scr->on_button(mech3::ModsScreen::kMods, 0, 0);
-        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // the game's own campaign with its ticks
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // the MODS table in focus: still the chosen campaign
+        scr->campaign_list.FileList::select(0);  // the game's own
+        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
         left_early = mech3::entered_campaign() != nullptr;
         scr->on_button(mech3::ModsScreen::kBack, 0, 0);
         // The run inside the entry, as the program sets it for --entry lost~lost --entry-play.
@@ -1777,7 +1860,7 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
     std::printf("  stage %d; entered %d, pilots in the campaign's folder %d, let go early %d, the mission's depth %d, "
                 "back at the main menu with the original's pilots %d, MODS again %d; the stack:\n%s",
                 stage, entered, pilot_in_folder, left_early, mission_depth, back_at_main, mods_again, trace.c_str());
-    EXPECT((asked == std::vector<std::string>{"lost~lost", "mw3"}));
+    EXPECT((asked == std::vector<std::string>{"lost~lost", "lost~lost", "mw3"}));
     EXPECT(entered && pilot_in_folder && !left_early);
     EXPECT(mission_depth == 0);  // nothing under the mission, as from CAMPAIGN
     EXPECT(back_at_main && mods_again && stage == 10);  // the pilot screen again, then left once
@@ -1792,6 +1875,471 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
   mech3::mod_campaigns().clear();
   mech3::mods_menu_write_dir().clear();
   mech3::mods_menu_mounted().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// Ours (docs/mods-campaigns-plan.md, Pilots; upgrades/mods/entry_pilots.h):
+// inside a campaign entry the pilot screen lists the entry's own pilots and,
+// after them, the main menu's it lacks, by name only (never loaded). The
+// row the screen chooses by itself brings nothing; DELETE and RENAME on a
+// main-menu row are refused, said, and leave its file; the player's pick
+// brings it across once, the main menu's files unchanged to the byte and the
+// time. In the game's own campaign it comes with its saved games and carries
+// on (two games listed); deleting the entry's copy leaves the main menu's,
+// listed again. In a different campaign no saved game comes and the pilot
+// has one game, that campaign's first mission, and after it is let go its
+// file holds no saved campaign.
+namespace {
+struct EntryPilotsRun {
+  std::string rows_at_open, rows_after_pick, rows_after_delete, refused_delete, refused_rename, said;
+  bool auto_chose_nothing = false, picked = false, main_untouched = false, saves_came = false, no_saves_came = false;
+  bool deleted_copy_only = false, accepted = false;
+  int games_listed = -1, campaigns_after_reload = -1, first_op = -1, first_mission = -1;
+  bool mod_game = false;
+};
+EntryPilotsRun entry_pilots_run(const std::string& wd, bool own_campaign) {
+  namespace fs = std::filesystem;
+  EntryPilotsRun out;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  auto snapshot = [&] {
+    std::string t;
+    std::error_code ec;
+    std::vector<fs::path> all;
+    for (fs::recursive_directory_iterator it(wd + "/pilots", ec), end; !ec && it != end; it.increment(ec)) all.push_back(it->path());
+    std::sort(all.begin(), all.end());
+    for (const fs::path& f : all) {
+      if (!fs::is_regular_file(f, ec)) continue;
+      std::ifstream in(f, std::ios::binary);
+      t += f.string() + ":" + std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()) + ":" +
+           std::to_string(static_cast<long long>(fs::last_write_time(f, ec).time_since_epoch().count())) + "\n";
+    }
+    return t;
+  };
+  const std::string id = own_campaign ? "mw3" : "lost~lost";
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    auto drop = [] {
+      mech3::current_pilot() = nullptr;
+      for (mech3::Pilot* q : mech3::pilots()) delete q;
+      mech3::pilots().clear();
+    };
+    // The main menu's pilot Ace, at Op 1 Mission 2 with its saved game (the file's presence keeps the record: pilot.md).
+    if (mech3::Pilot* ace = mech3::create_pilot("Ace")) {
+      auto* c = ace->campaigns.empty() ? nullptr : dynamic_cast<mech3::CampaignGame*>(ace->campaigns.front());
+      mech3::CampaignGame* n = c ? c->next_mission(true, false) : nullptr;
+      EXPECT(n != nullptr);
+      if (n) ace->campaigns.push_back(n), ace->current = n;
+      ace->save();
+      fs::create_directories(wd + "/pilots/games");
+      std::ofstream(wd + "/pilots/games/Ace0102.mw3") << "ace's saved game";
+      EXPECT(fs::is_regular_file(wd + "/pilots/games/Ace0102.mw3") && fs::is_regular_file(wd + "/pilots/Ace.mw3"));
+    }
+    drop();
+    // Into the entry, as the program does for --entry <id> --entry-play; the entry has no pilot of its own yet.
+    const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd);
+    const mech3::CampaignEntry* e = mech3::find_entry(all, id);
+    EXPECT(e && mech3::entry_ensure(wd, *e, nullptr));
+    mech3::set_pilots_folder(mech3::entry_pilots_folder(id));
+    mech3::set_configs_folder(mech3::entry_configs_folder(id));
+    mech3::EntryRun& run = mech3::entry_run();
+    run = mech3::EntryRun{};
+    run.screen = mech3::EntryRun::kPlay, run.id = id;
+    if (!own_campaign) run.mod = "lost", run.campaign = "lost";
+    int left = 0;
+    run.leave = [&] { ++left; };
+    const std::string before = snapshot();
+    std::vector<std::string> boxes;
+    engine.on_message_box = [&](int32_t, int32_t, int32_t) { return boxes.push_back(engine.last_box_text), 1u; };
+    int stage = 0;
+    mech3::PilotScreen* shown = nullptr;
+    engine.on_present = [&](int) {
+      auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+      if (stage != 0 || !ps || !ps->screen) return;
+      mech3::PilotScreen* s = ps->screen;
+      shown = s;
+      auto rows = [&] {
+        std::string t;
+        for (const auto* i : s->pilots.items) t += std::string(i->text) + "|";
+        return t;
+      };
+      out.rows_at_open = rows();
+      // The row the screen chose by itself is the main menu's Ace: nothing brought, nothing of it loaded.
+      out.auto_chose_nothing = s->chosen == nullptr && s->main_row_chosen() && !mech3::find_pilot("Ace") &&
+                               !fs::exists(wd + "/campaigns/" + id + "/pilots/Ace.mw3") && s->games.item_count() == 1 &&
+                               std::string(s->games.items[0]->text) == "From the main game";
+      s->on_button(0x19, 0, 0);  // DELETE
+      out.refused_delete = boxes.empty() ? "" : boxes.back();
+      s->on_button(0x1a, 0, 0);  // RENAME
+      out.refused_rename = boxes.size() < 2 ? "" : boxes.back();
+      const bool still = snapshot() == before && !s->editing();
+      // The pick.
+      s->pilots.select(0);
+      out.rows_after_pick = rows();
+      mech3::Pilot* ace = mech3::find_pilot("ace");
+      out.picked = ace && s->chosen == ace && fs::is_regular_file(wd + "/campaigns/" + id + "/pilots/Ace.mw3");
+      out.main_untouched = still && snapshot() == before;
+      const bool save_there = fs::exists(wd + "/campaigns/" + id + "/pilots/games/Ace0102.mw3");
+      out.saves_came = save_there, out.no_saves_came = !save_there;
+      out.games_listed = ace ? ace->campaign_count() : -1;
+      if (ace && !ace->campaigns.empty()) {
+        auto* first = dynamic_cast<mech3::CampaignGame*>(ace->campaigns.front());
+        out.mod_game = dynamic_cast<mech3::ModCampaignGame*>(ace->campaigns.front()) != nullptr;
+        if (first) out.first_op = first->operation(), out.first_mission = first->mission_number();
+      }
+      if (own_campaign) {
+        // The entry's copy deleted (the box answered OK): the main menu's stays, and is listed again.
+        s->on_button(0x19, 0, 0);
+        out.deleted_copy_only = !fs::exists(wd + "/campaigns/mw3/pilots/Ace.mw3") && !fs::exists(wd + "/campaigns/mw3/pilots/games/Ace0102.mw3") &&
+                                snapshot() == before && !mech3::find_pilot("Ace");
+        out.rows_after_delete = rows();
+      }
+      for (const std::string& b : boxes) out.said += b + " / ";
+      stage = 1;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 1; };
+    app.run(pump);
+    EXPECT(stage == 1 && left == 0);
+    // The screen is still up and its choice points at a pilot about to be dropped: cleared first, so nothing
+    // on the way out can read a pilot that is gone.
+    if (shown) shown->chosen = nullptr;
+    if (!own_campaign) {
+      // Let go and read again: the copy's file holds no saved campaign (the main campaign's records had no saved game here).
+      drop();
+      mech3::load_pilots();
+      mech3::Pilot* ace = mech3::find_pilot("Ace");
+      out.campaigns_after_reload = ace ? ace->campaign_count() : -1;
+      drop();
+      mech3::load_pilots();
+      ace = mech3::find_pilot("Ace");
+      out.campaigns_after_reload = ace && out.campaigns_after_reload == 1 ? ace->campaign_count() : -2;
+    }
+    out.main_untouched = out.main_untouched && snapshot() == before;
+    // Nothing of this run's pilots left for the next test: the campaign let go (it lists the main folder's again), then all dropped.
+    mech3::entry_run() = mech3::EntryRun{};
+    if (mech3::entered_campaign()) mech3::campaign_leave();
+    mech3::set_pilots_folder("");
+    mech3::set_configs_folder("");
+    drop();
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  return out;
+}
+}  // namespace
+
+TEST(entry_pilot_screen_lists_and_brings_the_main_menus_pilots_headless) {
+  if (!have_game()) return;
+  namespace fs = std::filesystem;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  for (const bool own : {true, false}) {
+    const std::string wd = temp_dir(own ? "entry_pilots_own_write" : "entry_pilots_other_write");
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(wd);
+    fs::create_directories(wd + "/mods/lost");
+    std::ofstream(wd + "/mods/lost/mod.txt") << "name=Lost\ncampaign=lost.txt\n";
+    std::ofstream(wd + "/mods/lost/lost.txt") << "name=Lost Frontier\nmission=c1 1\nmission=c1 2\n";
+    mech3::ModCampaign mc;
+    EXPECT(mech3::campaign_load(wd + "/mods/lost", "lost", "lost.txt", &mc));
+    mech3::mod_campaigns() = own ? std::vector<mech3::ModCampaign>{} : std::vector<mech3::ModCampaign>{mc};
+    mech3::mods_menu_write_dir() = wd;
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::options() = mech3::Options{};
+    const EntryPilotsRun r = entry_pilots_run(wd, own);
+    std::printf("  %s: open \"%s\", picked \"%s\", games %d (first: op %d mission %d, a mod's %d), reload %d; said: %s\n",
+                own ? "the game's own campaign" : "a different campaign", r.rows_at_open.c_str(), r.rows_after_pick.c_str(), r.games_listed,
+                r.first_op, r.first_mission, r.mod_game, r.campaigns_after_reload, r.said.c_str());
+    EXPECT(r.rows_at_open == "Ace|" && r.auto_chose_nothing);
+    EXPECT(r.refused_delete == "Ace is the main game's pilot. It can be deleted or renamed from the main menu." && r.refused_rename == r.refused_delete);
+    EXPECT(r.picked && r.rows_after_pick == "Ace|" && r.main_untouched);
+    if (own) {
+      EXPECT(r.saves_came && r.games_listed == 2 && !r.mod_game);                      // carries on: the new game and Op 1 Mission 2
+      EXPECT(r.deleted_copy_only && r.rows_after_delete == "Ace|");                    // the copy gone, the main menu's listed again
+    } else {
+      EXPECT(r.no_saves_came && r.games_listed == 1 && r.mod_game && r.first_mission == 1);  // that campaign's first mission
+      EXPECT(r.campaigns_after_reload == 1);
+    }
+    mech3::mod_campaigns().clear();
+    mech3::mods_menu_write_dir().clear();
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+  }
+}
+
+// Ours (modding.md, IMPORT from a modded game folder; upgrades/mods/import_folder.h): the MODS screen's IMPORT
+// given a whole modded install takes what differs from the player's install as a mod, an unticked row of
+// MODS chosen, its two rows saying what was taken; the player's own install and the other game's are refused
+// with the reason.
+TEST(mods_screen_import_from_a_modded_game_folder_headless) {
+  if (!have_game()) return;
+  namespace fs = std::filesystem;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_import_folder_write"), src = temp_dir("mods_screen_import_folder_src");
+  zutl::set_write_dir(wd);
+  auto put = [&](const std::string& path, const std::string& text) {
+    fs::create_directories(fs::path(path).parent_path());
+    std::ofstream(path) << text;
+  };
+  const std::string inst = src + "/install", modded = src + "/Freako Game", pm = src + "/Pirates";
+  for (const std::string& d : {inst, modded}) {
+    put(d + "/Mech3.exe", "the game");
+    put(d + "/zbd/reader.txt", "the reader");
+    put(d + "/zbd/c1/gamez.txt", "abc");
+    put(d + "/zbd/c4b/m5.txt", "a mission only MechWarrior 3 has");
+  }
+  put(modded + "/zbd/reader.txt", "the mod's reader");
+  put(modded + "/zbd/c1/New.txt", "new");
+  put(pm + "/Mech3.exe", "pm"), put(pm + "/zbd/c1/readersa1.txt", "pm's"), put(pm + "/zbd/reader.txt", "pm's reader");
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_install() = inst;
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0;
+    std::string own, other, took, rows, chosen;
+    bool focus_mods = false;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();
+        stage = 1;
+        return;
+      }
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+      if (stage != 1 || !scr) return;
+      auto said = [&] { return std::string(scr->note.text) + " " + scr->restart.text; };
+      scr->add_mod(inst), own = said();
+      scr->add_mod(pm), other = said();
+      scr->add_mod(modded), took = said();
+      for (const auto* i : scr->mod_list.items) rows += std::string(i->text) + "|";
+      if (const mech3::ModsListEntry* m = scr->ticks.chosen()) chosen = m->info.folder;
+      focus_mods = scr->focus == mech3::ModsScreen::kMods;
+      scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+      stage = 2;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 2 && app.current() == &st.main; };
+    app.run(pump);
+    std::printf("  own: \"%s\"\n  other: \"%s\"\n  took: \"%s\"; rows %s\n", own.c_str(), other.c_str(), took.c_str(), rows.c_str());
+    EXPECT(own.find("Not added: that folder is your own install: pick the folder the mod was") == 0);
+    EXPECT(other.find("Not added: that folder is a Pirate's Moon install, and yours is") == 0);
+    EXPECT(took.find("Took 2 files that differ from your install") == 0);
+    EXPECT(rows == "[ ] Freako Game|" && chosen == "Freako Game" && focus_mods && mech3::entry_mods_on(wd).empty());
+    EXPECT(fs::is_regular_file(wd + "/mods/Freako Game/zbd/c1/New.txt") && fs::is_regular_file(wd + "/mods/Freako Game/mw3-mod-added.txt") &&
+           !fs::exists(wd + "/mods/Freako Game/Mech3.exe") && !fs::exists(wd + "/mods/Freako Game/zbd/c4b"));
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_install().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// Ours (modding.md, Deleting and resetting, step 4c): the MODS screen's one
+// tab for it follows the row: RESET on the game's own campaign, DELETE on a
+// copy of ours, an imported mod and what is left of a campaign, none on a
+// folder made by hand (the note says to remove it yourself). Each asks in
+// the game's box with what goes; CANCEL changes nothing; OK does it and the
+// game's own campaign is chosen. A campaign's own mod chosen at the right is
+// sent to its row at the left.
+TEST(mods_screen_delete_and_reset_headless) {
+  if (!have_game()) return;
+  namespace fs = std::filesystem;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_delete_write");
+  zutl::set_write_dir(wd);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(wd + "/" + rel).parent_path());
+    std::ofstream(wd + "/" + rel) << text;
+  };
+  put("mods/weps/mod.txt", "name=Weps\n");
+  put("mods/weps/mw3-mod-added.txt", "added\n");
+  put("mods/byhand/mod.txt", "name=By Hand\n");
+  put("mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\n");
+  put("mods/camp/night.txt", "name=Long Night\nmission=c1 1\n");
+  put("mods/camp/mw3-mod-added.txt", "added\n");
+  put("mods/mine/mod.txt", "name=Night, mine\nkind=campaign\nbase=camp~night\n");
+  put("mods/mine/mw3-editor.txt", "the editor's\n");
+  for (const char* id : {"mw3", "mine"}) {
+    put(std::string("campaigns/") + id + "/mw3-campaign.txt", "ours\n");
+    put(std::string("campaigns/") + id + "/pilots/Ace.mw3", "ace");
+    put(std::string("campaigns/") + id + "/pilots/games/Ace0101.mw3", "save");
+  }
+  put("campaigns/mw3/mods.txt", "mod=weps\n");
+  // Something of the main menu's folder to see untouched. Not a pilot file: the game would load it, and a pilot
+  // left loaded by one test is met by the next test's pilot screen.
+  put("pilots/the main menu's.txt", "kept");
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_install() = MW3_GAME_DIR;
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0;
+    uint32_t answer = 2;
+    std::vector<std::string> boxes;
+    engine.on_message_box = [&](int32_t, int32_t, int32_t) { return boxes.push_back(engine.last_box_text), answer; };
+    std::string tabs, hand_note, own_mod_note, cancelled, after_copy, rows_end;
+    bool cancel_kept = false, reset_done = false, copy_gone = false, asset_gone = false, campaign_gone = false, own_chosen = false;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();
+        stage = 1;
+        return;
+      }
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+      if (stage != 1 || !scr) return;
+      auto tab = [&] {
+        const bool del = !(scr->delete_btn.flags & ztwod::kHidden), res = !(scr->reset_btn.flags & ztwod::kHidden);
+        return std::string(del && res ? "both" : del ? "DELETE" : res ? "RESET" : "none");
+      };
+      auto campaign = [&](const char* name) {
+        for (size_t i = 0; i < scr->tables.campaigns.size(); ++i)
+          if (scr->tables.campaigns[i].name == name) scr->campaign_list.select(static_cast<int32_t>(i));
+      };
+      auto mod = [&](const char* name) {
+        for (size_t i = 0; i < scr->ticks.rows.size(); ++i)
+          if (scr->ticks.rows[i].info.name == name) scr->mod_list.select(static_cast<int32_t>(i));
+      };
+      auto rows = [&] {
+        std::string t;
+        for (const auto* i : scr->campaign_list.items) t += std::string(i->text) + "|";
+        return t;
+      };
+      // The tab by the row.
+      tabs = tab() + ",";                       // the game's own campaign as the screen opens
+      campaign("Night, mine"), tabs += tab() + ",";
+      campaign("Long Night"), tabs += tab() + ",";  // a copy is built on it: nothing to offer
+      campaign("MechWarrior 3");
+      mod("Weps"), tabs += tab() + ",";
+      mod("By Hand"), tabs += tab();
+      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      hand_note = std::string(scr->note.text) + " " + scr->restart.text;
+      // CANCEL at the confirm: nothing changes.
+      campaign("MechWarrior 3");
+      answer = 2;
+      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      cancelled = std::string(scr->note.text);
+      cancel_kept = fs::exists(wd + "/campaigns/mw3/pilots/Ace.mw3") && fs::exists(wd + "/campaigns/mw3/mods.txt");
+      // RESET.
+      answer = 1;
+      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      reset_done = !fs::exists(wd + "/campaigns/mw3/pilots/Ace.mw3") && !fs::exists(wd + "/campaigns/mw3/mods.txt") &&
+                   fs::exists(wd + "/campaigns/mw3/mw3-campaign.txt") && fs::exists(wd + "/pilots/the main menu's.txt") && scr->enabled.empty();
+      // A campaign's own mod chosen at the right: sent to its row.
+      campaign("Night, mine");
+      mod("Night, mine");
+      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      own_mod_note = std::string(scr->note.text) + " " + scr->restart.text;
+      // The copy, by its row.
+      campaign("Night, mine");
+      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      copy_gone = !fs::exists(wd + "/mods/mine") && !fs::exists(wd + "/campaigns/mine");
+      own_chosen = scr->chosen_row() && scr->chosen_row()->entry == "mw3";
+      after_copy = rows();
+      // The imported campaign (nothing built on it now), then the imported asset mod.
+      campaign("Long Night");
+      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      campaign_gone = !fs::exists(wd + "/mods/camp");
+      mod("Weps");
+      scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+      asset_gone = !fs::exists(wd + "/mods/weps") && fs::exists(wd + "/mods/byhand/mod.txt");
+      rows_end = rows();
+      scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+      stage = 2;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 2 && app.current() == &st.main; };
+    app.run(pump);
+    std::printf("  tabs %s; by hand: \"%s\"; a campaign's own mod: \"%s\"; rows after the copy \"%s\", at the end \"%s\"\n", tabs.c_str(),
+                hand_note.c_str(), own_mod_note.c_str(), after_copy.c_str(), rows_end.c_str());
+    for (const std::string& b : boxes) std::printf("  box: %s\n", b.c_str());
+    EXPECT(tabs == "RESET,DELETE,none,DELETE,none");
+    EXPECT(hand_note.find("By Hand was not added by the game: remove its folder yourself (MODS FOLDER).") == 0);
+    EXPECT(cancelled == "Not reset." && cancel_kept && reset_done);
+    EXPECT(own_mod_note.find("It is a campaign's own: choose the campaign at the left to delete it.") == 0);
+    EXPECT(copy_gone && own_chosen && after_copy == "MechWarrior 3|Long Night|");
+    EXPECT(campaign_gone && asset_gone && rows_end == "MechWarrior 3|");
+    EXPECT(boxes.size() == 5 && boxes[0] == boxes[1] && boxes[0].find("Reset MechWarrior 3 to the original? Its ticked mods are cleared, and its 1 pilot and 1 saved game here go with it.") == 0);
+    if (boxes.size() == 5) {
+      EXPECT(boxes[2] == "Delete Night, mine? Its 1 pilot and 1 saved game go with it.");
+      EXPECT(boxes[3] == "Delete Long Night? Its pilots and saved games are kept: import it again to go on.");
+      EXPECT(boxes[4] == "Delete Weps? It is not ticked for any campaign.");  // the game's own campaign's tick went with its reset
+    }
+    EXPECT(mech3::pilots().empty());  // nothing loaded here is left for the next test
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_install().clear();
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -1813,6 +2361,11 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
   std::ofstream(wd + "/mods/lost/mod.txt") << "name=Lost\ncampaign=lost.txt\nmech=bad\n";
   std::ofstream(wd + "/mods/lost/lost.txt") << "name=Lost Frontier\nmission=c1 1\n";
   std::ofstream(wd + "/mods/lost/zbd/notes.bin") << "x";
+  // A copy saved from it: one file changed, one added.
+  std::filesystem::create_directories(wd + "/mods/lost2/zbd");
+  std::ofstream(wd + "/mods/lost2/mod.txt") << "name=Lost, my edit\nkind=campaign\nbase=lost~lost\n";
+  std::ofstream(wd + "/mods/lost2/zbd/notes.bin") << "changed";
+  std::ofstream(wd + "/mods/lost2/zbd/more.bin") << "new";
   mech3::ModCampaign mc;
   EXPECT(mech3::campaign_load(wd + "/mods/lost", "lost", "lost.txt", &mc));
   mech3::mod_campaigns() = {mc};
@@ -1843,7 +2396,8 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
     std::vector<std::string> lines;
     std::string detail;
     int campaigns_after = -1;
-    bool still_mods = false;
+    bool still_mods = false, own_reporting = false;
+    std::string own_note, copy_lines;
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
       if (stage == 0 && now == &st.main && mech3::main_menu()) {
@@ -1854,7 +2408,19 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
       auto* ms = dynamic_cast<mech3::ModsState*>(now);
       auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
       if (stage == 1 && scr) {
+        // The game's own campaign has no mod of its own: said, no report opened.
         scr->campaign_list.FileList::select(0);
+        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
+        scr->on_button(mech3::ModsScreen::kReport, 0, 0);
+        own_note = std::string(scr->note.text) + " " + scr->restart.text;
+        own_reporting = scr->reporting;
+        // The copy: what it changed from the campaign it was saved from comes first.
+        scr->campaign_list.FileList::select(2);
+        scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
+        scr->on_button(mech3::ModsScreen::kReport, 0, 0);
+        for (const auto* i : scr->campaign_list.items) copy_lines += std::string(i->text) + " ";
+        scr->on_button(mech3::ModsScreen::kReport, 0, 0);  // closed
+        scr->campaign_list.FileList::select(1);  // the mod's campaign (row 0 is the game's own)
         scr->on_button(mech3::ModsScreen::kCampaigns, 0, 0);
         scr->on_button(mech3::ModsScreen::kReport, 0, 0);
         for (const auto* i : scr->campaign_list.items) lines.push_back(i->text);
@@ -1878,7 +2444,12 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
     for (const std::string& l : lines) all += (all.empty() ? "" : " ") + l, widest = std::max(widest, l.size());
     std::printf("  stage %d, %zu lines (widest %zu), campaigns after %d:\n", stage, lines.size(), widest, campaigns_after);
     for (const std::string& l : lines) std::printf("    %s\n", l.c_str());
-    EXPECT(stage == 3 && still_mods && campaigns_after == 1);
+    EXPECT(stage == 3 && still_mods && campaigns_after == 3);  // the game's own, the mod's and the copy
+    std::printf("  own: \"%s\"; the copy: %s\n", own_note.c_str(), copy_lines.c_str());
+    EXPECT(!own_reporting && own_note.find("MechWarrior 3 is the game's own campaign: choose one of its mods") == 0);
+    const size_t copy_at = copy_lines.find("It is a copy saved from the campaign \"Lost Frontier\"."), own_at = copy_lines.find("It adds 2 new files");
+    EXPECT(copy_at == 0 && copy_lines.find("It replaces 1 file of that campaign: zbd/notes.bin") != std::string::npos);
+    EXPECT(copy_lines.find("It adds 1 new file: zbd/more.bin") != std::string::npos && (own_at == std::string::npos || own_at > copy_at));
     EXPECT(!lines.empty() && widest <= 34);
     EXPECT(all.find("It adds 2 new files.") != std::string::npos);  // notes.bin and the campaign's lost.txt
     EXPECT(all.find("It adds the campaign \"Lost Frontier\".") != std::string::npos);
@@ -1981,6 +2552,148 @@ TEST(mods_screen_turning_on_warns_never_blocks_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// Ours (modding.md, Mods by campaign: the CAMPAIGNS screen): each campaign
+// keeps its own ticks. The game's own campaign chosen: ON/OFF on an asset mod
+// writes campaigns/mw3/mods.txt. An imported campaign chosen: MODS shows its
+// own mod and what that needs first, on and locked (ON/OFF says why and
+// changes nothing), then the asset mods with that campaign's ticks, none yet;
+// a tick there writes its own file and leaves the other campaign's. Back on
+// the game's own: its tick still shown. PLAY asks for the chosen campaign; a
+// campaign whose ticked mod has gone is refused with the mod named.
+TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_ticks_write");
+  zutl::set_write_dir(wd);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    std::filesystem::create_directories(std::filesystem::path(wd + "/" + rel).parent_path());
+    std::ofstream(wd + "/" + rel) << text;
+  };
+  put("mods/hud/mod.txt", "name=Green HUD\n");
+  put("mods/weps/mod.txt", "name=Weps\n");
+  put("mods/camp/mod.txt", "name=Camp\ncampaign=night.txt\nneeds=weps\n");
+  put("mods/camp/night.txt", "name=Long Night\nmission=c1 1\n");
+  put("mods/longname/mod.txt", "name=A Very Long Name For A Mod\nkind=campaign\nbase=camp~night\n");
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_install() = MW3_GAME_DIR;
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  auto text_of = [&](const std::string& rel) {
+    std::ifstream f(wd + "/" + rel);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0;
+    std::string long_row;
+    std::string own_rows, own_after, camp_rows, camp_after, locked_note, needed_note, own_again, own_file_mid, refused, details;
+    std::vector<std::string> asked;
+    bool locked_unchanged = false, grey = false;
+    mech3::mods_menu_play() = [&](const std::string& entry, std::string*) { return asked.push_back(entry), true; };
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();
+        stage = 1;
+        return;
+      }
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+      if (stage == 1 && scr) {
+        auto rows = [&] {
+          std::string t;
+          for (const auto* i : scr->mod_list.items) t += std::string(i->text) + "|";
+          return t;
+        };
+        auto pick = [&](const char* name) {
+          for (size_t i = 0; i < scr->ticks.rows.size(); ++i)
+            if (scr->ticks.rows[i].info.name == name) scr->mod_list.select(static_cast<int32_t>(i));
+        };
+        // The game's own campaign (chosen as the screen opens): its details shown, campaign mods are not rows of MODS.
+        details = scr->detail.text;
+        own_rows = rows();
+        pick("Green HUD");
+        scr->on_button(mech3::ModTickList::kToggle, 0, 0);  // as the ON/OFF tab tells the screen
+        own_after = rows();
+        own_file_mid = text_of("campaigns/mw3/mods.txt");
+        // Long Night: its own mod and the one that needs, on and locked.
+        scr->campaign_list.select(1);
+        camp_rows = rows();
+        grey = scr->mod_list.item_count() == 3 && (scr->mod_list.items[0]->value & mech3::ModsList::kLockedRow) &&
+               (scr->mod_list.items[1]->value & mech3::ModsList::kLockedRow) && !(scr->mod_list.items[2]->value & mech3::ModsList::kLockedRow);
+        pick("Camp");
+        locked_note = scr->note.text;
+        scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
+        locked_unchanged = rows() == camp_rows && !std::filesystem::exists(wd + "/campaigns/camp~night/mods.txt");
+        pick("Weps");
+        needed_note = scr->note.text;
+        pick("Green HUD");
+        scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
+        camp_after = rows();
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY: the chosen campaign, whichever table has the focus
+        // A copy of Long Night whose own name is too long for the box: kept whole, the lock in its box.
+        scr->campaign_list.select(2);
+        long_row = scr->mod_list.items.empty() ? "" : scr->mod_list.items[0]->text;
+        // Back on the game's own: its tick as it was left; a ticked mod that has gone refuses PLAY, named.
+        scr->campaign_list.select(0);
+        own_again = rows();
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+        std::filesystem::rename(wd + "/mods/hud", wd + "/hud away");
+        scr->refill();
+        scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
+        refused = std::string(scr->note.text) + " " + scr->restart.text;
+        scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+        stage = 2;
+      } else if (stage == 2 && now == &st.main && app.depth() == 0) {
+        stage = 3;
+      }
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    std::printf("  own \"%s\" -> \"%s\"; Long Night \"%s\" -> \"%s\"; locked: \"%s\", needed: \"%s\"; own again \"%s\"; refused: \"%s\"\n",
+                own_rows.c_str(), own_after.c_str(), camp_rows.c_str(), camp_after.c_str(), locked_note.c_str(), needed_note.c_str(),
+                own_again.c_str(), refused.c_str());
+    EXPECT(stage == 3 && details == "MechWarrior 3");
+    EXPECT(own_rows == "[ ] Green HUD|[ ] Weps|" && own_after == "[x] Green HUD|[ ] Weps|" && own_file_mid == "mod=hud\n");
+    EXPECT(camp_rows == "[on] Camp|[on] Weps|[ ]  Green HUD|" && grey);
+    EXPECT(locked_note == "Part of this campaign: always on." && needed_note == "Needed by Camp: always on." && locked_unchanged);
+    EXPECT(camp_after == "[on] Camp|[on] Weps|[x]  Green HUD|" && text_of("campaigns/camp~night/mods.txt") == "mod=hud\n");
+    EXPECT(own_again == "[x] Green HUD|[ ] Weps|" && text_of("campaigns/mw3/mods.txt") == "mod=hud\n");
+    EXPECT((asked == std::vector<std::string>{"camp~night", "mw3"}));  // the third PLAY was refused
+    EXPECT(long_row == "[on] A Very Long Name For A Mod");  // whole: the box cuts it as it cuts any row
+    EXPECT(refused.find("MechWarrior 3 cannot be played: these mods are not there any more") == 0 && refused.find("hud") != std::string::npos);
+    mech3::mods_menu_play() = nullptr;
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_install().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // Ours (Owen, 2026-11-09; editor.md, The way in): a custom campaign's mission
 // launched from MODS has the editor: Shift+F12 opens it and a net saved goes
 // into the campaign's mod; the pause offers EDITOR, which resumes and opens it.
@@ -2064,6 +2777,7 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
         run = mech3::EntryRun{};
         run.screen = mech3::EntryRun::kPlay, run.id = "lost~lost", run.mod = "lost", run.campaign = "lost";
         mech3::current_entry() = "lost~lost";
+        mech3::save_as_ask_hook() = [](std::string*) { return true; };  // the copy's default name taken
         stage = 2;
       } else if (stage == 2) {
         auto* ps = dynamic_cast<mech3::PilotState*>(now);
@@ -2123,7 +2837,9 @@ TEST(mods_campaign_mission_has_the_editor_headless) {
                 "opened %d\n",
                 stage, entered, shift_opened, shift_closed, status.c_str(), pause_offers, pause_opened);
     EXPECT(entered && !left_early && stage == 10);
-    EXPECT(shift_opened && shift_closed && status.find("mods\\lost\\") != std::string::npos);
+    EXPECT(shift_opened && shift_closed && status.find("mods\\Lost Frontier, my edit\\") != std::string::npos);  // a copy, never the imported mod
+    EXPECT(!std::filesystem::exists(wd + "/mods/lost/zbd") && std::filesystem::is_regular_file(wd + "/mods/Lost Frontier, my edit/mw3-editor.txt"));
+    mech3::save_as_ask_hook() = nullptr;
     EXPECT(pause_offers && pause_opened);
     mech3::entry_run() = mech3::EntryRun{};
     mech3::current_entry() = mech3::official_entries().front().id;
@@ -2203,7 +2919,8 @@ TEST(mods_screen_add_mod_headless) {
     EXPECT(app.init_instance());
     mech3::States& st = mech3::states();
     int stage = 0, wait = 0;
-    std::string first_note, second_note, rows, adding_note, exporting_note, exported_note, cancelled_note;
+    bool own_locked = false;
+    std::string first_note, second_note, rows, campaign_rows, chosen_campaign, adding_note, exporting_note, exported_note, cancelled_note;
     bool adding_before = false;
     engine.on_present = [&](int) {
       zgame::State* now = app.current();
@@ -2222,7 +2939,10 @@ TEST(mods_screen_add_mod_headless) {
         adding_before = !std::filesystem::exists(wd + "/mods/Desert Pack");
       } else if (stage == 2 && wait == 3) {
         first_note = std::string(scr->note.text) + " " + scr->restart.text;
-        for (const mech3::ModsListEntry& m : scr->tables.mods) rows += mech3::mods_row_text(m) + "|";
+        for (const auto* i : scr->mod_list.items) rows += std::string(i->text) + "|";
+        for (const mech3::ModsCampaignRow& c : scr->tables.campaigns) campaign_rows += mech3::mods_campaign_row_text(c) + "|";
+        if (const mech3::ModsCampaignRow* c = scr->chosen_row()) chosen_campaign = c->name;
+        own_locked = scr->ticks.is_locked("Desert Pack");
         scr->on_button(mech3::ModsScreen::kAddFolder, 0, 0), stage = 3, wait = 0;
       } else if (stage == 3 && ++wait == 3) {
         second_note = std::string(scr->note.text) + " " + scr->restart.text;
@@ -2246,8 +2966,11 @@ TEST(mods_screen_add_mod_headless) {
                 asked, opened.c_str());
     EXPECT(stage == 4 && picked_folder == 2);
     EXPECT(adding_note == "Adding Desert Pack..." && adding_before);  // drawn a frame before the add
-    EXPECT(rows == "[x] Desert Pack|" && first_note.find("Added Desert Pack: on for MechWarrior 3: play it from MODS.") == 0);
-    EXPECT((mech3::entry_mods_on(wd) == std::vector<std::string>{"Desert Pack"}) && mech3::mods_enabled(wd).empty());
+    // Desert Pack holds a file of the game's own t1 world and no campaign of its own: an asset mod (Owen, 2026-11-10),
+    // a row of MODS, unticked; CAMPAIGNS has the game's own alone, still chosen; nothing is ticked by an import.
+    EXPECT(rows == "[ ] Desert Pack|" && !own_locked && campaign_rows == "MechWarrior 3|" && chosen_campaign == "MechWarrior 3");
+    EXPECT(first_note.find("Added Desert Pack: tick it for a campaign, then PLAY.") == 0);
+    EXPECT(mech3::entry_mods_on(wd).empty() && mech3::mods_enabled(wd).empty() && !std::filesystem::exists(wd + "/campaigns/Desert Pack/mods.txt"));
     EXPECT(std::filesystem::is_regular_file(wd + "/mods/Desert Pack/zbd/t1/notes.txt"));
     EXPECT(asked == 1 && second_note.find("Not added: no game chosen for Plain.") == 0 && !std::filesystem::exists(wd + "/mods/Plain"));
     EXPECT(std::filesystem::equivalent(opened, wd + "/mods"));
@@ -9621,8 +10344,91 @@ TEST(mission_c1m1_horizon_scrolls_headless) {
                          "v %g -> %g\n", m ? "found" : "missing", (flags & 0x10) != 0, speed_u, dt_sum, u0, u1, du,
                  0.015f * dt_sum, v0, v1);
     EXPECT(m != nullptr && (flags & 0x10) && speed_u == 0.015f);
+    // c1's script misspells the command once, for ocean52 (fixes.md): read as
+    // meant, that water scrolls as ocean51 beside it (0.05 u a second).
+    {
+      auto scroll_of = [](const char* name, float* speed) {
+        zcls::Node* n = zcls::list_find_by_name(6, name);
+        uint32_t f = 0;
+        if (n && n->model) std::memcpy(&f, n->model->header + 8, 4), std::memcpy(speed, n->model->header + 0x28, 4);
+        return n && n->model && (f & 0x10);
+      };
+      float s51 = 0, s52 = 0;
+      const bool on51 = scroll_of("ocean51", &s51), on52 = scroll_of("ocean52", &s52);
+      std::fprintf(stderr, "  scroll: ocean51 %d at %g, ocean52 %d at %g\n", on51, s51, on52, s52);
+      EXPECT(on51 && on52 && s51 == 0.05f && s52 == 0.05f);
+    }
     EXPECT(std::fabs(du - 0.015f * dt_sum) < 1e-4f || std::fabs(std::fabs(du - 0.015f * dt_sum) - 1.0f) < 1e-4f);  // or wrapped
     EXPECT(v1 == v0 && du != 0.0f);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
+// A freed object's handle names nothing (docs/handles.md): the player's weapon manager, its current weapon and
+// the first AI vehicle's manager are given handles in play on c1m1; after the mission's end each handle gives
+// null, where an address-keyed table would hand the old number to whatever is next made at that address.
+TEST(mission_c1m1_freed_objects_handles_name_nothing_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_handles_write"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FastClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    struct Kept { const char* what; uint32_t handle; void* object; };
+    std::vector<Kept> kept;
+    int alive = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      if (frames == 6)  // alive: each handle is its object's
+        for (const Kept& k : kept) alive += k.handle && engine.object_of(k.handle) == k.object;
+      if (frames != 5) return;
+      void* wm = mech3::program_mech_weapons(mech3::mech_mission_player());
+      void* weapon = wm ? mech3::wm_current_weapon(wm) : nullptr;
+      if (wm) kept.push_back({"the player's weapon manager", engine.handle_of(wm), wm});
+      if (weapon) kept.push_back({"its current weapon", engine.handle_of(weapon), weapon});
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return frames > 6; };
+    app.run(pump);
+    EXPECT(kept.size() == 2 && alive == 2);
+    mech3::missions().cleanup(true);  // the mission's end: the mech, its manager and weapons freed
+    for (const Kept& k : kept) {
+      std::printf("  %s: handle %#x gives %s after the mission's end\n", k.what, k.handle, engine.object_of(k.handle) ? "an object" : "nothing");
+      EXPECT(engine.object_of(k.handle) == nullptr);
+      // And the address, were it used again, gets a number of its own.
+      EXPECT(engine.handle_of(k.object) != k.handle);
+      engine.forget_object(k.object);
+    }
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);
@@ -27678,7 +28484,9 @@ TEST(mission_c1m1_teleport_moves_the_player_headless) {
   cheat_mission("teleport", 0, 1, 2000, [&](int f, mech3::GameEngine&, CheatKeys&) {
     if (f < 30) return false;
     mech3::editor_key(mech3::kEditorCommand);
-    mech3::ai::net_save_into_mod() = "tp";
+    mech3::ai::net_save_into_mod() = "tp";  // the editor's own folder (a copy it made): the only kind it writes (save_as.h)
+    std::filesystem::create_directories(zutl::mounts().write + "/mods/tp");
+    std::ofstream(zutl::mounts().write + "/mods/tp/mw3-editor.txt") << "the editor's\n";
     mech3::teleport_open(0);
     mech3::EditorForm& form = mech3::teleport_form();
     mech3::FormField* place = form.field("place");

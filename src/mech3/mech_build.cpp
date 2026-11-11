@@ -247,6 +247,11 @@ void Mech::release() {
   for (int i = 0; i < 30; ++i)  // 0x0041e7a0(i, 0)
     if (update_calls().stop_cockpit_sound) update_calls().stop_cockpit_sound(i);
   if (node && f.handlers_off) f.handlers_off(*this);
+  if (auto* wm = static_cast<WeaponManager*>(ammo); wm && f.forget) {  // ours: their handles go with them
+    for (uint32_t i = 0; i < wm->count; ++i) f.forget(wm->weapons[i]);
+    for (WeaponGroup* g : wm->groups) f.forget(g);  // Pirate's Moon's AI asks for the group's handle (zai_wire_firing_pm)
+    f.forget(wm);
+  }
   delete static_cast<WeaponManager*>(ammo);  // 0x004b01d0
   ammo = nullptr;
   part_delete(hip), hip = nullptr;

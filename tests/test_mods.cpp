@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "check.h"
+#include "upgrades/mods/campaign_entries.h"
 #include "zip_write.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
@@ -2523,11 +2524,14 @@ TEST(mods_check_mod_reads_campaigns) {
   if (errors != 3) std::printf("%s", text.c_str());
 }
 
-// Ours (docs/modding.md, The MODS screen): the screen's two tables from the
-// write dir's mods, each campaign= a CUSTOM CAMPAIGNS row (a mod of campaigns
-// only not in MODS), MODS in mw3.cfg's order with the conflicts' marks and
-// notes, ON/OFF and UP/DOWN on the order, and the conflict following it.
-TEST(mods_screen_tables_order_and_conflicts) {
+// Ours (docs/modding.md, Mods by campaign: the CAMPAIGNS screen): CAMPAIGNS'
+// rows from the write dir (the game's own first, each campaign= of every mod,
+// a mod over the game's files, one whose mod is gone under its kept name;
+// Instant Action's entry is not a row), each one's "!" and why; the MODS
+// rows of a campaign in its ticks' order with the conflicts' marks and notes,
+// campaign mods left out; ON/OFF and UP/DOWN on the order, the conflict
+// following it, saved as that campaign's own ticks.
+TEST(mods_screen_campaign_rows_ticks_order_and_conflicts) {
   const std::string wd = tmp("mods_screen");
   put(wd + "/mods/camp/mod.txt", "name=Camp\nauthor=Someone\nversion=1.2\ncampaign=lost.txt\ncampaign=bad.txt\n");
   put(wd + "/mods/camp/lost.txt", "name=Lost Frontier\nmission=c1 1\n");
@@ -2539,45 +2543,52 @@ TEST(mods_screen_tables_order_and_conflicts) {
   put(wd + "/mods/b/mod.txt", "name=B\nauthor=Another\n");
   put(wd + "/mods/b/zbd/x.zbd", "b's");
   put(wd + "/mods/off/mod.txt", "name=Off\n");
-  std::vector<std::string> on = {"a", "b", "camp"};
-  mech3::ModsTables t = mech3::mods_tables(wd, on, {"camp"});
+  put(wd + "/mods/edit/mod.txt", "name=My Edit\nkind=campaign\nbase=camp~lost\n");
+  put(wd + "/campaigns/gone~far/mw3-campaign.txt", "\"Far Away\" (gone~far): its mods, pilots and saves, made by the game.\n");
+  std::vector<mech3::ModsCampaignRow> c = mech3::mods_entry_rows(wd);
   std::string rows;
-  for (const mech3::ModsCampaignRow& c : t.campaigns)
-    rows += c.mod + ":" + c.name + (c.mounted ? "+" : "") + (c.error.empty() ? "" : "!") + " ";
+  for (const mech3::ModsCampaignRow& r : c) rows += r.entry + ":" + mech3::mods_campaign_row_text(r) + "|";
   std::printf("  campaigns: %s\n", rows.c_str());
-  EXPECT(rows == "camp:Lost Frontier+ camp:bad.txt+! campmech:Drills ");
-  if (t.campaigns.size() == 3) {
-    EXPECT(t.campaigns[1].error.find("line 1") != std::string::npos);
-    EXPECT(mech3::mods_campaign_details(t.campaigns[0]) == "Someone, version 1.2");
-    // The row: its name, " !" when it cannot be played or its mod is off here.
-    EXPECT(mech3::mods_campaign_row_text(t.campaigns[0]) == "Lost Frontier" &&
-           mech3::mods_campaign_row_text(t.campaigns[1]) == "bad.txt !" &&
-           mech3::mods_campaign_row_text(t.campaigns[2]) == "Drills !");
+  EXPECT(rows == "mw3:MechWarrior 3|camp~lost:Lost Frontier|camp~bad:bad.txt !|campmech~drills:Drills|edit:My Edit|gone~far:Far Away !|");
+  if (c.size() == 6) {
+    EXPECT(c[0].mod.empty() && c[0].error.empty() && c[1].error.empty() && c[3].error.empty());
+    EXPECT(c[2].error.find("line 1") != std::string::npos);
+    EXPECT(mech3::mods_campaign_details(c[1]) == "Someone, version 1.2");
+    EXPECT(c[4].copy_of == "Lost Frontier" && c[4].error.empty() && c[1].copy_of.empty());
+    EXPECT(c[5].error.find("its mod is not in the mods folder any more") == 0);
   }
-  rows.clear();
-  for (const mech3::ModsListEntry& m : t.mods) rows += mech3::mods_row_text(m) + "|";
-  std::printf("  mods: %s\n", rows.c_str());
-  EXPECT(rows == "[x] A|[x] B !|[ ] Camp Mech|[ ] Off|");
-  if (t.mods.size() == 4) {
-    EXPECT(mech3::mods_row_note(t.mods[0], t.mods).empty());
-    EXPECT(mech3::mods_row_note(t.mods[1], t.mods) == "Shares 1 file with A, which wins");
+  // A campaign with a ticked mod gone: its row says which.
+  const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd);
+  const mech3::CampaignEntry* own = mech3::find_entry(all, "mw3");
+  EXPECT(own && mech3::entry_save_ticks(wd, *own, {"a", "nowhere"}));
+  c = mech3::mods_entry_rows(wd);
+  EXPECT(!c.empty() && mech3::mods_campaign_row_text(c[0]) == "MechWarrior 3 !" && c[0].error.find(": nowhere") != std::string::npos);
+  // MODS for the game's own campaign: its ticks first in their order, then the rest; campaign mods are not rows.
+  auto mods_rows = [&](const std::vector<std::string>& on, std::vector<mech3::ModsListEntry>* out) {
+    std::string text;
+    out->clear();
+    for (mech3::ModsListEntry& m : mech3::mods_list(wd, on))
+      if (!mech3::mod_is_campaign(m.info)) text += mech3::mods_row_text(m) + "|", out->push_back(std::move(m));
+    return text;
+  };
+  std::vector<std::string> on = {"a", "b"};
+  std::vector<mech3::ModsListEntry> m;
+  EXPECT(mods_rows(on, &m) == "[x] A|[x] B !|[ ] Off|");
+  if (m.size() == 3) {
+    EXPECT(mech3::mods_row_note(m[0], m).empty());
+    EXPECT(mech3::mods_row_note(m[1], m) == "Shares 1 file with A, which wins");
   }
   // UP on B: B first, so A is the one shadowed.
-  EXPECT(mech3::mods_move(on, "b", -1) && (on == std::vector<std::string>{"b", "a", "camp"}));
-  EXPECT(!mech3::mods_move(on, "b", -1) && !mech3::mods_move(on, "camp", 1) && !mech3::mods_move(on, "off", 1));
-  t = mech3::mods_tables(wd, on, {"camp"});
-  EXPECT(t.mods.size() == 4 && t.mods[0].info.folder == "b" && t.mods[1].info.folder == "a" &&
-         mech3::mods_row_note(t.mods[1], t.mods) == "Shares 1 file with B, which wins" &&
-         mech3::mods_row_text(t.mods[0]) == "[x] B");
-  // OFF takes it out of the order, ON puts it at the end; saved as mw3.cfg's mod= lines.
+  EXPECT(mech3::mods_move(on, "b", -1) && (on == std::vector<std::string>{"b", "a"}));
+  EXPECT(!mech3::mods_move(on, "b", -1) && !mech3::mods_move(on, "a", 1) && !mech3::mods_move(on, "off", 1));
+  EXPECT(mods_rows(on, &m) == "[x] B|[x] A !|[ ] Off|" && m.size() == 3 && mech3::mods_row_note(m[1], m) == "Shares 1 file with B, which wins");
+  // OFF takes it out of the order, ON puts it at the end; saved as the campaign's own ticks, the others' untouched.
   mech3::mods_toggle(on, "b");
   mech3::mods_toggle(on, "off");
-  EXPECT((on == std::vector<std::string>{"a", "camp", "off"}));
-  EXPECT(mech3::mods_save_enabled(wd, on) && mech3::mods_enabled(wd) == on);
-  t = mech3::mods_tables(wd, mech3::mods_enabled(wd), {"camp"});
-  rows.clear();
-  for (const mech3::ModsListEntry& m : t.mods) rows += mech3::mods_row_text(m) + "|";
-  EXPECT(rows == "[x] A|[x] Off|[ ] B|[ ] Camp Mech|");
+  EXPECT((on == std::vector<std::string>{"a", "off"}));
+  EXPECT(mech3::entry_save_ticks(wd, *own, on) && mech3::entry_ticks(wd, "mw3") == on && mech3::entry_ticks(wd, "camp~lost").empty());
+  EXPECT(mods_rows(mech3::entry_ticks(wd, "mw3"), &m) == "[x] A|[x] Off|[ ] B|");
+  EXPECT(mech3::mods_enabled(wd).empty());  // mw3.cfg is not where ticks live
 }
 
 // The modding reference's JSON forms (docs/modding-reference.md): every member our readers look up in
@@ -2751,6 +2762,7 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   const zwep::WeaponDef* b = zwep::find_def("ERPPC_B");
   const zwep::WeaponDef* e = zwep::find_def("ERPPC");
   const float dmg_b = b ? b->damage : -1, dmg = e ? e->damage : -1;
+  const bool b_after = b && e && b->index > e->index;  // read before the shutdown frees the definitions
   zwep::shutdown(nullptr);
   zutl::MessageDll dll;
   EXPECT(zutl::read_message_dll(install + "/Mech3Msg.dll", dll));
@@ -2763,7 +2775,7 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   std::printf("  Thor B %d accel %.3f (the Thor's %.3f); ER PPC B damage %.3f (ERPPC %.3f); \"%s\", \"%s\"; campaign %s\n",
               thor_b, a_b, a, dmg_b, dmg, campaign.c_str(), quit.c_str(), one ? one->name.c_str() : "none");
   EXPECT(thor_b >= 20 && std::fabs(a_b - a * 1.5f) < 1e-4f);
-  EXPECT(b && e && std::fabs(dmg_b - dmg * 1.25f) < 1e-4f && b->index > e->index);
+  EXPECT(b && e && std::fabs(dmg_b - dmg * 1.25f) < 1e-4f && b_after);
   EXPECT(campaign == "K A M P A G N E" && quit == "B E E N D E N");
   EXPECT(one && one->error.empty() && one->missions.size() == 1 && one->missions[0].world == "c1" && one->missions[0].number == 1);
   zrdr::close_archives(true);
@@ -2787,6 +2799,10 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   EXPECT(std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>()) == before);
   EXPECT(fs::exists(mods + "/starter_mech/mine.txt", ec) && fs::is_regular_file(mods + "/starter_weapon", ec));
   EXPECT(!mech3::starter_make("tank", install, mods).ok && !fs::exists(mods + "/starter_tank", ec));
+  // What the mount registered goes with the test: its mech and weapon rows (ERPPC_B left in the table made
+  // new_weapon_definition_reads_through_zweapon's free name ERPPC_C in a whole run), its world and campaign.
   mech3::mech_rows_clear();
+  mech3::weapon_rows_clear();
+  mech3::mod_worlds().clear(), mech3::mod_ia_worlds().clear(), mech3::mod_campaigns().clear();
   zwep::init_hooks() = hooks;
 }

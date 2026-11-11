@@ -183,3 +183,17 @@ TEST(entry_pilot_copy_skips_a_loadout_whose_place_is_taken) {
   EXPECT(fs::is_directory(e / "configs/Zeus.mw3", ec) && text_of(e / "configs/Zeus.mw3/keep.txt") == "a folder of that name");
   EXPECT(text_of(e / "configs/thor.MW3") == "the entry's own thor");
 }
+
+// Without its saved games (a different campaign's entry, Instant Action's:
+// upgrades/mods/entry_pilots.h): the pilot's file and the loadouts only.
+TEST(entry_pilot_copy_without_saves_brings_no_saved_game) {
+  const Layout l = layout("pilot_copy_nosaves");
+  const auto before = snapshot(fs::path(l.wd) / "pilots");
+  const mech3::PilotCopy r = mech3::entry_copy_pilot(l.wd, "Bob", l.entry, l.configs, false);
+  const fs::path e = l.entry;
+  std::error_code ec;
+  EXPECT(r.ok && text_of(e / "pilots/Bob.mw3") == "bob's file" && text_of(e / "configs/Bushwacker.mw3") == "bushwacker loadouts");
+  EXPECT(fs::is_empty(e / "pilots/games", ec));  // not one of Bob's saves, nor their .rows
+  for (const std::string& f : r.copied) EXPECT(f.find("games") == std::string::npos);
+  EXPECT(snapshot(fs::path(l.wd) / "pilots") == before);
+}

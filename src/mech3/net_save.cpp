@@ -351,7 +351,7 @@ std::string editor_mod(const std::string& write_dir, const std::string& source, 
   const fs::path mods = fs::path(write_dir) / "mods";
   std::error_code ec;
   if (!source.empty() && fs::is_regular_file(mods / source / kEditorMarker, ec)) return source;
-  std::string name = "editor", game = "mw3 1.2";
+  std::string name = "editor", game = mods_game() == "mw3" ? "mw3 1.2" : mods_game();  // this game's word: mw3pm refuses "mw3"
   if (!source.empty()) {
     ModInfo info;
     mod_parse(read_text(mods / source / "mod.txt"), &info);
@@ -391,6 +391,14 @@ NetSave save_archive_edit(const char* rel, const char* name, const std::vector<u
   if (from.empty()) return r.error = std::string(rel) + " is not found", r;
   const std::string source = mod_folder_of(write_dir, from);
   const std::string& into = net_save_into_mod();
+  // Ours (upgrades/editor/save_as.h): a save only ever writes a folder the editor made (its marker). The game's
+  // own campaign, an imported mod and a folder made by hand are never written, whoever asks.
+  if (!into.empty()) {
+    std::error_code mec;
+    const fs::path dir = fs::path(write_dir) / "mods" / into;
+    if (fs::is_symlink(dir, mec) || !fs::is_regular_file(dir / kEditorMarker, mec))
+      return r.error = "mods\\" + into + " was not made by the editor, so it is never written: the save goes into a copy of the campaign", r;
+  }
   r.folder = into.empty() ? editor_mod(write_dir, source, &r.error) : into;
   if (r.folder.empty()) return r;
   std::string host = rel;
@@ -419,6 +427,13 @@ NetSave save_archive_edit(const char* rel, const char* name, const std::vector<u
   if (ec) return fs::remove(tmp, ec), r.error = "could not write " + to.string(), r;
   r.path = to.string();
   // On, just before its source (the install's: after every mod), so it wins.
+  // A copy of a campaign being edited (upgrades/editor/save_as.h: the run's entry is the copy): its own mod is
+  // on for it by being it, so no tick is written.
+  if (!into.empty() && current_entry() == into) {
+    r.ok = true;
+    r.message = "Saved to mods\\" + r.folder + "\\" + rel + ": in your copy, played from MODS";
+    return r;
+  }
   std::vector<std::string> on = entry_mods_on(write_dir);  // the run's entry's ticks (campaign_entries.h)
   if (!into.empty()) {  // the mod itself: on where it stands
     if (std::find(on.begin(), on.end(), r.folder) == on.end()) on.push_back(r.folder);

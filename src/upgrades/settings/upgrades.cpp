@@ -64,6 +64,8 @@ const std::vector<const char*>& small_fixes_list() {
       "A mech re-placed where it stands keeps to its ground.",
       "A mission's last animation can be waited for.",
       "An animation whose object is missing waits its turn.",
+      "The Sunder Alternate B loads all 360 LRM 20 missiles.",
+      "The Strider has its recoil slide (a number typed as text).",
   };
   return l;
 }

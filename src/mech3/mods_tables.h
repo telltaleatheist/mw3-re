@@ -15,19 +15,21 @@ struct ModsCampaignRow {
   std::string author, version;  // the mod's
   bool mounted = false;     // its mod is on in this run (mod_campaigns has it)
   std::string error;        // why it cannot be played, "" when it can
+  // Mods by campaign (mods_entry_rows): the entry it is (campaign_entries.h),
+  // and for a copy what it was saved from ("A copy of <campaign>").
+  std::string entry, copy_of;
 };
 
 struct ModsTables {
-  std::vector<ModsCampaignRow> campaigns;
-  std::vector<ModsListEntry> mods;  // mods_list's, without the mods that are only campaigns
+  std::vector<ModsCampaignRow> campaigns;  // CAMPAIGNS' rows (mods_entry_rows); MODS' are the tick list's
 };
 
-// The tables from the write dir's mods\ and `enabled` (mw3.cfg's order);
-// `mounted` the mod folders on in this run. A mod with a campaign= is a
-// campaign row each and not in MODS unless it also holds other files
-// (mech=, weapon=, ia_world=, or any file besides mod.txt and its campaign files).
-ModsTables mods_tables(const std::string& write_dir, const std::vector<std::string>& enabled,
-                       const std::vector<std::string>& mounted);
+// Mods by campaign (docs/mods-campaigns-plan.md): CAMPAIGNS' rows, every
+// campaign entry but Instant Action's: the game's own first, each imported
+// campaign, each copy, then those whose mod is gone. `error` says why one
+// cannot be played now: its campaign file, its mod gone, a ticked or
+// built-on mod missing (named).
+std::vector<ModsCampaignRow> mods_entry_rows(const std::string& write_dir);
 
 // A MODS row as shown: "[x] Name" (on) or "[ ] Name", " !" after it when it
 // has a conflict or cannot be used.

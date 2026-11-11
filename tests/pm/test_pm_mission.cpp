@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <functional>
 #include <string>
@@ -941,6 +942,12 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       mech3::editor_key(mech3::kEditorCommand);
       mech3::ai::net_save_into_mod() = "tp";
+      {  // the editor's own mod: saves go only into a folder with its marker (save_as.h)
+        std::error_code ec;
+        const std::filesystem::path mod = std::filesystem::path(zutl::mounts().write) / "mods" / "tp";
+        std::filesystem::create_directories(mod, ec);
+        std::ofstream(mod / mech3::ai::kEditorMarker, std::ios::binary) << "the editor's\n";
+      }
       mech3::teleport_open(0);
       mech3::EditorForm& form = mech3::teleport_form();
       mech3::FormField* place = form.field("place");

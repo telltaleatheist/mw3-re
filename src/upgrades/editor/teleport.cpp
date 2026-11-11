@@ -1,4 +1,5 @@
 #include "upgrades/editor/teleport.h"
+#include "upgrades/editor/save_as.h"
 
 #include <filesystem>
 #include <fstream>
@@ -102,6 +103,7 @@ void close() {
 // 0x004a37a0 after the dialog: the player moved there; with the dialog's
 // changed flag, the spots written back.
 void ok() {
+  if (!editor_save_ready([] { ok(); })) return;  // ours (save_as.h): the copy's name first (the places are saved with OK)
   float pos[3], yaw = 0;
   int32_t changed = 0;
   if (!teleport_dialog_ok(g.dialog, pos, &yaw, &changed)) return show_note(ddx_message().text);
@@ -113,7 +115,7 @@ void ok() {
     // file it read and renamed the old one to location.bak without its
     // folder, into the working directory. FIX (bug): the .bak beside it.
     const std::string& mod = ai::net_save_into_mod();
-    if (mod.empty() || g.world.empty() || zutl::mounts().write.empty()) {
+    if (mod.empty() || g.world.empty() || zutl::mounts().write.empty() || !editor_owns_mod(zutl::mounts().write, mod)) {
       line += "; the places not saved (open the mission from MODS)";
     } else {
       const fs::path to = fs::path(zutl::mounts().write) / "mods" / mod / "zbd" / g.world / "location.zrd";

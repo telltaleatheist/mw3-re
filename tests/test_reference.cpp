@@ -208,6 +208,9 @@ std::map<std::string, std::string> interp_record() {
   zrndr::device_fog().active = 1;  // ModelDoShadows: hardware only
   zint::Interp in;
   mech3::interp_create(in);
+  // With no engine nothing sets the interp's model pointers: cleared, or the Object3D commands write through
+  // whatever an earlier test's mission left there (freed: the whole run's crash here, 2026-11-10).
+  zint::globals().object_model = zint::globals().cycle_model = zint::globals().model_out = nullptr;
   interp_names().clear();
   ref::observer() = [](const char*, const char* key, const void* node) {
     if (!node) interp_names().push_back(key);

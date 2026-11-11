@@ -1,4 +1,5 @@
 #include "mech3/mod_install.h"
+#include "upgrades/mods/marked_remove.h"
 
 #include <algorithm>
 #include <cctype>
@@ -44,11 +45,9 @@ bool same_bytes(const fs::path& a, const fs::path& b) {
 }
 
 // Only a folder holding our marker is removed (never one the player made).
-void remove_ours(const fs::path& dir, const char* marker) {
-  std::error_code ec;
-  if (!fs::is_regular_file(dir / marker, ec)) return;
-  fs::remove_all(dir, ec);
-}
+// By the one remover's rule (upgrades/mods/marked_remove.h): a real folder, never a link or a Windows junction,
+// and nothing inside it followed out of it.
+void remove_ours(const fs::path& dir, const char* marker) { remove_marked_tree(dir.string(), marker); }
 
 // The child of `dir` named `name` whatever its case, or empty.
 fs::path child(const fs::path& dir, const std::string& name) {
@@ -194,7 +193,8 @@ std::string copy_folder(const fs::path& from, const fs::path& to, const ModAddLi
   std::map<std::string, std::string> seen;
   for (fs::recursive_directory_iterator it(from, fs::directory_options::none, ec), end; !ec && it != end; it.increment(ec)) {
     const fs::path rel = fs::relative(it->path(), from, ec);
-    if (it->is_symlink(ec)) return "it holds a link (" + rel.generic_string() + "), which a mod cannot have";
+    if (it->is_symlink(ec) || path_is_link(it->path().string()))  // a Windows junction too (marked_remove.h)
+      return "it holds a link (" + it->path().lexically_relative(from).generic_string() + "), which a mod cannot have";  // its own name, not where it leads
     if (it->is_directory(ec)) {
       fs::create_directories(to / rel, ec);
       continue;
@@ -383,8 +383,10 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
     if (mt.filename() != "mod.txt") fs::rename(mt, root / "mod.txt", ec);
     ModInfo info;
     if (mod_parse(read_text(root / "mod.txt"), &info) && !info.name.empty()) a.name = info.name;
-    const std::string g = lower(info.game);
-    a.game = g.rfind("pm", 0) == 0 ? ModGame::kPm : g.empty() || g.rfind("mw3", 0) == 0 ? ModGame::kMw3 : ModGame::kUnknown;
+    // for='s first word, as mod_parse reads it (mods.cpp): "mw3pm" is Pirate's Moon's, "mw3" MechWarrior 3's.
+    std::string g = lower(info.game);
+    g = g.substr(0, g.find_first_of(" \t"));
+    a.game = g == "mw3pm" ? ModGame::kPm : g.empty() || g == "mw3" ? ModGame::kMw3 : ModGame::kUnknown;
   }
   // A whole install: only what differs from the player's, without programs
   // (an exe patch cannot apply) and the player's own kind of file.
@@ -427,7 +429,7 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
   if (!a.has_mod_txt) {
     std::ofstream f(root / "mod.txt", std::ios::binary);
     f << "# Written by the game when this mod was added (it had no mod.txt).\n"
-      << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "pm" : "mw3") << "\n";
+      << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "mw3pm" : "mw3") << "\n";
   }
   r.report = mod_check(root.string(), install, &r.check_errors);
   if (r.check_errors > 0) {
@@ -477,10 +479,12 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
 }
 
 ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, const std::string& install,
-                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled) {
+                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled,
+                       const std::string& from) {
   ModAddDone d;
   ModAdd a = mod_add_prepare(write_dir, source, install);
   if (!a.error.empty()) return d.message = "Not added: " + a.error + ".", d;
+  if (!from.empty()) a.source = from;  // the marker's "Added by the game from ..." 
   ModGame game = a.game;
   if (game == ModGame::kUnknown) {
     const int g = ask ? ask(a.name) : 1;
@@ -499,8 +503,9 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
     enabled->push_back(r.folder);
     entry_mods_save(write_dir, *enabled);  // the run's entry's ticks (campaign_entries.h)
   }
-  d.message = d.campaign_only ? "Added " + d.name + ": its campaign is entered from the game's MODS screen."
-                              : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
+  d.message = d.campaign_only ? "Added " + d.name + ": its campaign is listed."
+              : !enabled ? "Added " + d.name + (mod_is_campaign(i) ? ": its campaign is listed." : ": tick it for a campaign, then PLAY.")
+                         : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
   return d;
 }
 

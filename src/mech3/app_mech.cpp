@@ -142,7 +142,10 @@ class WiredData : public MechDataHooks {
   }
   Handle cameras(MechData& p) override { return program_cameras(p.roster); }      // 0x00430e70
   void cameras_free(Handle list) override { program_cameras_free(list); }  // 0x0040abf0
-  void hud_free(Handle hud) override { delete static_cast<Hud*>(hud); }  // 0x0043b860 and the delete
+  void hud_free(Handle hud) override {  // 0x0043b860 and the delete; its handle with it (docs/handles.md)
+    if (hud && g_w.forget_object) g_w.forget_object(g_w.engine, hud);
+    delete static_cast<Hud*>(hud);
+  }
   Handle anim_find(const char* name) override { return zeff::anim_find(name); }  // 0x0050b450, the mission's
   // The motions the gaits read (0x005a9ad0's archive) open with the first mech.
   void animations(MechData& p) override {
@@ -857,6 +860,9 @@ void wire_mech_parts() {
     zcls::tree_destroy(zn(m.model_node));
     zcls::tree_destroy(zn(m.lod_node));
     m.model_node = m.lod_node = nullptr;
+  };
+  fr.forget = [](const void* p) {  // a freed object's handle (docs/handles.md)
+    if (p && g_w.forget_object) g_w.forget_object(g_w.engine, p);
   };
   fr.entity_free = [](Mech& m) {  // 0x005a7f70: off zEntity's list
     mech_objects().erase(&m);
@@ -2694,6 +2700,7 @@ const void* wm_weapon_def(const void* wm, int32_t i) {
   return m && i >= 0 && static_cast<uint32_t>(i) < m->count ? m->weapons[i]->def : nullptr;
 }
 void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)->current() : nullptr; }
+void* wm_group(void* wm, int32_t i) { return wm && i >= 0 && i < 5 ? static_cast<WeaponManager*>(wm)->groups[i] : nullptr; }
 // FIX (bug): the exe's firing clears a missing manager's aim through null
 // (a vehicle without weapons standing down).
 void wm_clear_aim(void* wm) {
