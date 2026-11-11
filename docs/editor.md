@@ -1855,7 +1855,8 @@ left out.
 Owen asked (through the lead) for help in the game and on GitHub, from one
 source so the two cannot drift.
 - **The tables** (`upgrades/editor/help.h`) sit beside the forms' models:
-  help_menus.cpp (both menus' rows), help_nets.cpp (the net dialog, Node
+  help_menus.cpp (both menus' rows, Teleport, Save as's box), help_weapons.cpp
+  (New Weapon), help_nets.cpp (the net dialog, Node
   Params, Add vehicle, Delete's question, the net window and its Open list,
   the Tree View, the Help window) and help_vehicles.cpp (Mech AI, its pages
   and tabs, its message). Each entry is keyed by its form's title (up to "##"
@@ -1866,16 +1867,26 @@ source so the two cannot drift.
 - **HELP rows**, ours, sit in a blank row of each menu (main menu row 4, net
   menu row 10). They open "Editor help", the quick start.
 - **The guide**, docs/editor-guide.md, is generated whole from the same
-  tables: the quick start, the walk-through from a fresh mod to a changed
-  mission, and a section per form. `build/mw3 --editor-guide
+  tables: the quick start, the walk-through from a campaign to the player's
+  own changed copy, and a section per form. `build/mw3 --editor-guide
   docs/editor-guide.md` writes it.
 - **Tests:**
   - `editor_guide_is_current` fails when the guide is stale. It also checks
     every tip is filled, each item once, the Help window and the lookup.
-  - `mission_c1m1_editor_help_covers_every_form_headless` opens all ten forms
-    and reads both menus: every field, button, tab and row has a tip (0
+  - `mission_c1m1_editor_help_covers_every_form_headless` opens all thirteen
+    forms (Save as's box by a stand-in session, cancelled, nothing made) and
+    reads both menus: every field, button, tab and row has a tip (0
     without), and every tip names an item its form has (0 stale).
   - Break: a tip renamed ("Send hom") fails both.
+- **Brought up to mods by campaign (2026-11-11).** The quick start, the
+  walk-through and every row that says where a save goes follow
+  docs/modding.md's steps 3 and 4: MODS, a campaign at the left, EDITOR, a
+  mission, PLAY; the editor only saves as (the first save names a copy; the
+  campaign opened, the game's files and imported mods never written); EXIT
+  GAME EDIT back to MODS on the copy; TEST, PLAY, REPORT, EXPORT, DELETE and
+  RESET there; IMPORT's warning count and REPORT's three groups and file.
+  `save_as_form()` gives the box to the view's tips and the check. Break:
+  Save as's "Name" tip renamed fails both tests.
 - Valve's "Target Distance" check box is labelled "Target Distance##valve"
   now: the form already had Zig Zag's field of that name.
 
