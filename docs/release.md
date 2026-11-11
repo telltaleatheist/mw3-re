@@ -126,7 +126,8 @@ the game's path is built into the programs.
 `build-win\dist\mw3-<version>-win64\`, its `.zip`, and
 `MW3-Rebuild-Setup-<version>.exe` (Inno Setup).
 
-- [ ] `mw3.exe --version` names the version.
+- [ ] `mw3.exe --version` names the version (and `mw3launcher.exe --version`, `mw3pm.exe --version` in the
+      combined package).
 - [x] The folder has `mw3.exe`, `mw3indeo.exe`, `mw3import.exe`, the SDL and
       FFmpeg DLLs, the Visual C++ runtime, `README.txt`, `THIRD-PARTY.txt`,
       `licenses\`, `assets\launcher\`.
