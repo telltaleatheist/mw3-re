@@ -66,7 +66,9 @@ const std::vector<std::string>& help_quick_start() {
       "your own: mods\\<the name>. That save and every later one go into the copy, and each says where. The "
       "campaign you opened, the game's own files and a mod you imported are never changed. A copy of yours opened "
       "in the editor is saved into itself, nothing asked.",
-      "EXIT GAME EDIT goes back to MODS, your copy chosen at the left when a save made one. There PLAY plays it, "
+      "EXIT GAME EDIT (or Shift+F12, or PLAY MISSION on the pause menu) closes the editor and you play the "
+      "mission as it now is; the same key or EDIT MISSION opens the editor again. QUIT on the pause menu goes "
+      "back to MODS, your copy chosen at the left when a save made one. There PLAY plays it, "
       "TEST plays one of its missions at once, EDITOR opens it again, REPORT says what it changes, EXPORT packs "
       "it into a zip to give away, and DELETE removes it with its pilots and saved games.",
       "To undo a save, the file it replaced in your copy is kept beside it as <file>.bak (the save before, one "
@@ -105,7 +107,8 @@ const std::vector<std::string>& help_workflow() {
       "Add a weapon: EDIT WEAPONS, pick the weapon to copy, set its name and numbers, OK. It is written into your "
       "copy (mod.txt and zbd\\reader.zbd) and is part of that campaign; the mech lab offers it from the next "
       "start.",
-      "Try it: EXIT GAME EDIT goes back to MODS with your copy chosen. TEST, a mission, PLAY plays that mission "
+      "Try it: EXIT GAME EDIT puts you in the mission at once. Or quit to MODS, your copy chosen: TEST, a "
+      "mission, PLAY plays that mission "
       "at once with a stand-in pilot; when it ends a list plays the others, and BACK leaves. PLAY plays the "
       "campaign as a player would: its pilot screen lists the copy's own pilots and your main-game pilots, and "
       "picking one of yours copies it in (the main game's pilot is never changed).",

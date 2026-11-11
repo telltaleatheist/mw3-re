@@ -2105,7 +2105,7 @@ there). With a mod or a custom campaign chosen:
   alone, which has no missions, is tested on the game's.
 - ENTER plays the chosen one with the mods on in this run, started as EDIT's
   is (a debug start: a stand-in pilot in the Mad Cat, no briefing), the editor
-  left closed (Shift+F12 and the pause's EDITOR still reach it, saving into
+  left closed (Shift+F12 and the pause's EDIT MISSION still reach it, saving into
   the mod, as in any mission MODS starts). When the main menu comes back
   (the pause's QUIT is the tested way), MODS is on top again and the chosen
   pilot and the launch are put back (`mods_edit_begin` with `editor`

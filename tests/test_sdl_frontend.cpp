@@ -4809,6 +4809,11 @@ TEST(sdl_restart_args_are_the_starts_own) {
   const V back = sdlfe::restart_args(in, out);
   EXPECT((back == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-mods", "--restarted"}));
   EXPECT((sdlfe::restart_args(back, sdlfe::RestartTo{}) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--restarted"}));
+  // A check's script: its own run's is dropped, the part after --then goes to the next run, a second --then's to the one after.
+  const V script = {"--hidden", "--click-at", "1,2@3", "--mouse-at", "4,5@6c", "--then", "--click-at", "7,8@9", "--tap", "1@2", "--then", "--tap", "3@4"};
+  const V second = sdlfe::restart_args(script, out);
+  EXPECT((second == V{"--hidden", "--click-at", "7,8@9", "--tap", "1@2", "--then", "--tap", "3@4", "--open-mods", "--restarted"}));
+  EXPECT((sdlfe::restart_args(second, sdlfe::RestartTo{}) == V{"--hidden", "--tap", "3@4", "--restarted"}));
   sdlfe::RestartTo plain_ia;
   plain_ia.open_ia = true;
   EXPECT((sdlfe::restart_args(in, plain_ia) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-ia", "--restarted"}));
@@ -5018,6 +5023,46 @@ TEST(sdl_program_editor_pointer_points_and_clicks) {
   fs::remove_all(dir, ec);
 }
 
+// Playtest (1.1.0), W2: "I hit Escape and then I hit EDITOR and it closed and took me to the MODS screen and
+// now none of the buttons are working." The pause's button is a switch now (PLAY MISSION with the editor up,
+// EDIT MISSION in play) and never leaves the mission; MODS comes back only when the mission is left, and takes
+// clicks. The real program: a mission opened in the editor, Escape and the switch (the editor down, the mission
+// on), Escape and the switch (up again), Escape and QUIT: the game starts again on MODS,
+// where TEST's click (the next run's script, --then) puts TEST's list in the left box.
+TEST(sdl_program_mission_switch_stays_and_mods_comes_back_alive) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/mission switch";
+  for (const bool won : {false}) {  // the won way stops at the debriefing, whose Continue no scripted click reaches
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir + "/wd", ec);
+    const std::string log = dir + "/run.log";
+    int status = 0;
+    std::vector<std::string> args = {"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                                     "--frames", "480", "--entry", "mw3", "--entry-edit", "c1", "1", "--mouse-at", "1,1@100",
+                                     "--tap", "1@150", "--click-at", "60,380@200", "--tap", "1@260", "--click-at", "60,380@300"};
+    if (won) args.insert(args.end(), {"--tap", "1@350", "--click-at", "60,380@380", "--win", "420", "--frames", "900"});  // back in play, then won
+    else args.insert(args.end(), {"--tap", "1@350", "--click-at", "130,140@400"});  // QUIT
+    args.insert(args.end(), {"--then", "--click-at", "130,344@330"});
+    const pid_t pid = spawn_mw3(args, log);
+    EXPECT(waited(pid, &status, 400) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    for (const char* line : {"mw3: editor: ", "mw3: entry mw3 left", "mw3: mods: the left box shows TEST"})
+      for (size_t i = text.find(line); i != std::string::npos; i = text.find(line, i + 1))
+        std::printf("  %s: %s\n", won ? "won" : "quit", text.substr(i, text.find('\n', i) - i).c_str());
+    const size_t down = text.find(": down, row");
+    const size_t up = down == std::string::npos ? down : text.find(": up, row", down);
+    const size_t left = text.find("mw3: entry mw3 left: starting again on MODS");
+    EXPECT(down != std::string::npos && up != std::string::npos);  // the switch both ways, in the mission
+    EXPECT(left != std::string::npos && up < left);                // MODS only after the mission was left
+    EXPECT(text.find("mw3: mods: the left box shows TEST", left == std::string::npos ? 0 : left) != std::string::npos);  // and alive
+  }
+  fs::remove_all(dir, ec);
+}
+
 // mw3launcher --version (found missing by a package dry run): the build's version on one line, exit 0, with no
 // window and nothing made, wherever it stands among the arguments; mw3's and the launcher's are the same build.
 TEST(sdl_program_launcher_says_its_version) {
@@ -5204,14 +5249,17 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   EXPECT(edit_asked != none && edit_loading != none && has(ed, "mw3: closed, result 0", edit_loading == none ? 0 : edit_loading) != none);
   EXPECT(!fs::exists(dir + "/wd/mods/MechWarrior 3, my edit"));  // nothing saved: no copy made by opening the editor
   // The same with a save (MW3_EDIT_SAVE_AT: net_01 saved at the editor's 20th frame, the Save as box answered
-  // with its default): the copy made, the save in it, the editor left, MODS again with the copy chosen.
+  // with its default): the copy made, the save in it, and the mission goes on (a save no longer leaves the
+  // editor for MODS; MODS comes back when the mission is left: sdl_program_mission_switch_stays_and_mods_comes_back_alive).
   setenv("MW3_EDIT_SAVE_AT", "20", 1);
   const std::string sv = run({"--frames", "1200", "--click-at", "135,435@130", "--click-at", "90,446@170", "--click-at", "420,320@220"}, "sv");
   unsetenv("MW3_EDIT_SAVE_AT");
   const size_t named = has(sv, "mw3: Save as answered with \"MechWarrior 3, my edit\""), saved_at = has(sv, "mw3: editor: Saved to mods\\MechWarrior 3, my edit\\zbd\\c1\\readerm1.zbd"),
-               chosen = has(sv, "mw3: MODS opens with the campaign MechWarrior 3, my edit chosen (--mods-entry)");
-  std::printf("  Save as in the window: named %d, saved %d, MODS on the copy %d\n", named != none, saved_at != none, chosen != none);
-  EXPECT(named != none && saved_at != none && chosen != none && named < saved_at && saved_at < chosen);
+               chosen = has(sv, "mw3: MODS opens with the campaign MechWarrior 3, my edit chosen (--mods-entry)"),
+               ended = saved_at == none ? none : has(sv, "mw3: closed, result 0", saved_at);
+  std::printf("  Save as in the window: named %d, saved %d, the mission went on to its end %d, not thrown to MODS %d\n", named != none,
+              saved_at != none, ended != none, chosen == none);
+  EXPECT(named != none && saved_at != none && named < saved_at && ended != none && chosen == none);
   EXPECT(fs::is_regular_file(dir + "/wd/mods/MechWarrior 3, my edit/mw3-editor.txt") && fs::is_regular_file(dir + "/wd/mods/MechWarrior 3, my edit/zbd/c1/readerm1.zbd"));
   EXPECT(own != none && in != none && own < in && has(c, "mod hud (Green HUD) mounted", in) != none && has(c, "mod weps (Weps) mounted", in) != none);
   {
