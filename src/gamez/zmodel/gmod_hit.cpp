@@ -62,12 +62,6 @@ bool poly_degenerate(const pm::zmod::Polygon& p, uint32_t a, uint32_t b, uint32_
   return v[a] == v[b] || v[a] == v[c] || v[b] == v[c];
 }
 
-// A point through a matrix's row: Pirate's Moon's code sums z first, which can change the last bit.
-template <class M> float row3(float x, float y, float z, float a, float b, float c) { return (x * a + y * b) + z * c; }
-template <> float row3<pm::zmod::Model>(float x, float y, float z, float a, float b, float c) {
-  return (z * c + y * b) + x * a;
-}
-
 template <class M> uint32_t hdr(const M& m, int off) {
   uint32_t v;
   std::memcpy(&v, m.header + off, 4);
@@ -666,7 +660,7 @@ int32_t polygon_segment_uv(zcls::LineHit* slot, const float a[3], const float b[
   if (!two_sided && !(d_end < 0.0f)) return 0;
   const float d_start = dot_from(a, v, nn);
   if (same_sign(d_start, d_end)) return 0;
-  const float t = d_start / (d_start - d_end);
+  const float t = (zgeo::X(d_start) / (zgeo::X(d_start) - d_end)).f();  // PM 0x00568dfb: the difference on the x87, t stored
   float* p = slot->point;
   for (int i = 0; i < 3; ++i) p[i] = a[i] + t * (b[i] - a[i]);
   const float mx = std::fabs(nn[0]), my = std::fabs(nn[1]);
@@ -717,7 +711,7 @@ int32_t box_segment(const float c[8][3], zcls::LineHit* slot, const float a[3], 
   slot->material = nullptr;
   for (const auto& f : kFaces) {
     for (int i = 0; i < 4; ++i) std::memcpy(g_s.poly + 3 * i, c[f[i]], 12);
-    if (polygon_segment(slot, a, b, g_s.poly, 4, 0)) return 1;
+    if (polygon_segment_pm(slot, a, b, g_s.poly, 4, 0)) return 1;  // PM's six faces (0x00568495..0x00568722) call its 0x00568840
   }
   return 0;
 }

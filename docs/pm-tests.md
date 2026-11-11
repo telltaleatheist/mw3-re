@@ -179,10 +179,11 @@ took an attacker / none, fired: trigger / group_add, follow made: MW3's push.
   counts instead of stopping at the first mismatch and prints per world the floats compared, those not bit-equal but
   inside the allowance (2e-4), and each query with a value outside it:
   `MW3_X87=53 MW3_DI_COUNT=1 .venv/bin/python tests/differential/run_capped.py --mem-gb 4 --secs 1500 -- .venv/bin/python tests/differential/test_pm_di.py`.
-  It exits 1 on a query outside the allowance that is not on its known list (one: c2, clutter (tree), query 90,
-  "nearest", exe 0.8851358 against port 0.8856983). So it pins c3's query 239, where MW3's x87 form of
-  `segment_nearest`'s distance picked the other of two coincident hits (pm-map.md, The geometry queries at 53 bits).
-  The counts on this branch: c1 655 of 10,899, c2 8,344 of 27,564, c3 280 of 11,259, c4 779 of 21,426.
+  It exits 1 on any query outside the allowance (the known list is empty since 2026-11-11: c2's clutter query 90
+  went when the model tests took PM's own x87 forms; pm-map.md, The geometry queries at 53 bits), and its last
+  line counts the floats not bit-equal by query kind and place.
+  The counts now: c1 3 of 10,899 (one shot hit), c2 0 of 27,600, c3 0 of 11,259, c4 0 of 21,426 (before: 655,
+  8,344, 280, 779).
   300 seeded queries a world is the limit of this evidence: another flip may sit outside them.
 - `test_pm_ai_boundary_real` fails at set-up, before and after that merge alike: "game/pm/zbd/c1/gamez.zbd: the port
   read gave -2" within a second. It checks nothing as it stands.

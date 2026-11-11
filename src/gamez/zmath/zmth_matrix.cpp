@@ -478,11 +478,13 @@ bool invert(const Mat34& mat, Mat34& out, bool translation) {
   const float a = static_cast<float>(m[0] * inv), b = static_cast<float>(inv * m[1]);
   const double c = inv * m[2];
   o[0] = static_cast<float>(inv * c0);
-  o[1] = static_cast<float>(c * m[7] - b * m[8]);
-  o[2] = static_cast<float>(b * m[5] - c * m[4]);
+  // a and b are stored (floats), their products with the matrix's words still on the x87: as doubles, not two
+  // floats multiplied in single (x87.py 523cb6 523de3).
+  o[1] = static_cast<float>(c * m[7] - double{b} * m[8]);
+  o[2] = static_cast<float>(double{b} * m[5] - c * m[4]);
   o[3] = static_cast<float>(inv * c1);
-  o[4] = static_cast<float>(a * m[8] - c * m[6]);
-  o[5] = static_cast<float>(c * m[3] - a * m[5]);
+  o[4] = static_cast<float>(double{a} * m[8] - c * m[6]);
+  o[5] = static_cast<float>(c * m[3] - double{a} * m[5]);
   o[6] = static_cast<float>(inv * c2);
   o[7] = static_cast<float>(double{b} * m[6] - double{a} * m[7]);
   o[8] = static_cast<float>(double{a} * m[4] - double{b} * m[3]);
