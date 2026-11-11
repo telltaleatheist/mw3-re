@@ -80,7 +80,7 @@ std::vector<std::string> main_menu_pilots(const std::string& write_dir) {
 }
 
 PilotCopy entry_copy_pilot(const std::string& write_dir, const std::string& name, const std::string& entry_dir,
-                           const std::string& configs_dir) {
+                           const std::string& configs_dir, bool saves) {
   PilotCopy r;
   auto refuse = [&](const std::string& why) {
     r.ok = false, r.why = why, r.copied.clear();
@@ -111,7 +111,7 @@ PilotCopy entry_copy_pilot(const std::string& write_dir, const std::string& name
   };
   with_rows(from / file, to / file);
   for (const std::string& f : files_of(from / "games"))
-    if (game_of(f, stem)) with_rows(from / "games" / f, to / "games" / f);
+    if (saves && game_of(f, stem)) with_rows(from / "games" / f, to / "games" / f);
   if (!configs_dir.empty()) {
     std::vector<std::string> there;
     for (const std::string& f : files_of(configs_dir)) there.push_back(lower(f));

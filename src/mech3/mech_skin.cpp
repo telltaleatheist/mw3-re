@@ -170,8 +170,15 @@ SkinSet* read_skins(zrdr::Node* dfn) {
   const int32_t pairs = (list[0].i - 1) / 2;
   auto* set = new SkinSet(pairs);
   for (int32_t i = 0; i < pairs; ++i) {
-    const char* name = zutl::localize(list[1 + 2 * i].s);
     zrdr::Node* items = list[2 + 2 * i].list;
+    const char* key = list[1 + 2 * i].s;
+    // FIX (bug): the Firefly's fifth skin, the "_e" textures, is labelled
+    // VARIANTD as its fourth: two WASPs and no SLATE. Each other label's
+    // letter is its suffix's (fixes.md).
+    if (zfix::options().fixed && i != 0 && key && std::strcmp(key, "MSG_SKIN_VARIANTD") == 0 && items[0].i > 1 &&
+        items[1].type == zrdr::String && std::strcmp(items[1].s, "_e") == 0)
+      key = "MSG_SKIN_VARIANTE";
+    const char* name = zutl::localize(key);
     if (i == 0 || std::strcmp(name, "damage") == 0) {
       int32_t n = items[0].i - 1;
       int32_t first = 1;

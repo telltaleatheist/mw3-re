@@ -2,6 +2,7 @@
 // archive and the ScrollAlways list: Mech3.exe 0x594dc0..0x596e04, the
 // functions after zinterp_parse.cpp's dispatcher. The exe names no file here;
 // this one is named for the module (docs/interp.md).
+#include "gamez/zutil/zfix.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zgame/zgame_table.h"
 #include "upgrades/reference/reference.h"
@@ -881,6 +882,9 @@ bool scroll_on(Node* node, float u, float v, bool always) {
 // Otherwise each listed node's model scroll offset (+0x30) goes back to 0.
 void scroll_list_clear(bool full) {
   if (full) {
+    // FIX (bug): the exe keeps its three model pointers (0x00730c14..1c) past the mission whose models they
+    // are; the next mission's CycleTextureSet* before its own CycleTextureSetOn would write into a freed one.
+    if (zfix::options().fixed) g_globals.object_model = g_globals.cycle_model = g_globals.model_out = nullptr;
     g_scroll.nodes.clear();
     if (g_scroll.holder && call(g_engine.pool_alive)) {
       call(g_engine.set_action, g_scroll.holder, static_cast<Action>(nullptr));

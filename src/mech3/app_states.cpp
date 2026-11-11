@@ -2,6 +2,7 @@
 #include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/mods/entry_pilots.h"
 #include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/ia_mods_menu.h"
 #include "mech3/options_menu.h"
@@ -982,6 +983,9 @@ bool MainState::enter() {
   // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action was given, picked now the pilots are loaded.
   if (!ia_start_pilot().empty()) {
     Pilot* p = find_pilot(ia_start_pilot().c_str());
+    std::string why;
+    if (!p && entry_is_main_pilot(ia_start_pilot())) p = entry_bring_pilot(ia_start_pilot(), &why);  // the main menu's, brought across
+    if (!why.empty()) std::printf("mw3: Instant Action's pilot %s could not be brought: %s\n", ia_start_pilot().c_str(), why.c_str());
     std::printf("mw3: Instant Action's pilot %s: %s\n", ia_start_pilot().c_str(), p ? "picked" : "not there, the pilot screen");
     ia_start_pilot().clear();
     if (p) current_pilot() = p, ap.set_reopen_instant_action(1, 1);
@@ -1002,7 +1006,8 @@ bool MainState::enter() {
   mods_edit_end();
   if (mods_menu_reopen()) {
     mods_menu_reopen() = false;
-    if (const Handle m = mods_menu_state()) en.push_state(m, 0);
+    // Inside an entry opened for the editor (entry_run.h, kEdit) MODS is not shown: the update leaves the entry.
+    if (const Handle m = entry_run().screen == EntryRun::kEdit ? 0 : mods_menu_state()) en.push_state(m, 0);
   }
   return true;
 }
@@ -1014,6 +1019,27 @@ bool MainState::update() {
   // Ours (upgrades/mods/entry_run.h): inside a MODS entry the main menu only
   // opens the entry's screen, and that screen's BACK (the menu on top again)
   // leaves; the entry's pilots stay up, the main menu's are never loaded.
+  if (EntryRun& run = entry_run(); run.screen == EntryRun::kTest || run.screen == EntryRun::kEdit) {
+    // TEST through an entry: the mission at once; then (the main menu up again: mods_edit's reopen flag
+    // has opened MODS in its test mode from enter) MODS's BACK leaves.
+    const bool r = ShellState::update();
+    if (run.left) return r;
+    if (!run.started) {
+      run.started = true;
+      std::string why = "the mission cannot be started here";
+      const ModsEditStart& start = run.screen == EntryRun::kEdit ? mods_menu_edit_start() : mods_menu_test_start();
+      if (!start || !start(run.mod, run.world, run.number, &why)) {
+        run.said = run.world + " mission " + std::to_string(run.number) + " cannot be played: " + why;
+        std::printf("mw3: entry %s: %s\n", run.id.c_str(), run.said.c_str());
+        if (const Handle m = run.screen == EntryRun::kTest ? mods_menu_state() : 0) en.push_state(m, 0);  // the test screen, saying so
+        else run.left = true, run.leave ? run.leave() : void();
+      }
+    } else {
+      run.left = true;
+      if (run.leave) run.leave();
+    }
+    return r;
+  }
   if (EntryRun& run = entry_run(); run.screen != EntryRun::kNone) {
     const bool r = ShellState::update();
     if (run.left) return r;

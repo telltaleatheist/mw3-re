@@ -242,6 +242,7 @@ add_library(mw3core STATIC
   src/upgrades/editor/help_vehicles.cpp
   src/upgrades/editor/help_weapons.cpp
   src/upgrades/editor/mods_edit.cpp
+  src/upgrades/editor/save_as.cpp
   src/upgrades/editor/node_params.cpp
   src/upgrades/editor/add_vehicle.cpp
   src/upgrades/editor/new_weapon.cpp
@@ -359,6 +360,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/mod_export.cpp
   src/upgrades/mods/anim_defs.cpp
   src/upgrades/mods/save_mods.cpp
+  src/upgrades/mods/import_folder.cpp
   src/upgrades/settings/upgrades.cpp
   src/upgrades/mods/mod_report.cpp
   src/upgrades/mods/mod_test.cpp
@@ -366,6 +368,9 @@ add_library(mw3core STATIC
   src/upgrades/mods/campaign_entries.cpp
   src/upgrades/mods/entry_pilot_copy.cpp
   src/upgrades/mods/entry_run.cpp
+  src/upgrades/mods/mods_delete.cpp
+  src/upgrades/mods/marked_remove.cpp
+  src/upgrades/mods/entry_pilots.cpp
   src/upgrades/mods/mods_tick_list.cpp
   src/upgrades/mods/ia_mods_menu.cpp
   src/upgrades/mods/starter_mods.cpp
@@ -652,9 +657,11 @@ add_executable(mw3tests
   tests/test_fmv_stream.cpp
   tests/test_mods.cpp
   tests/test_mod_install.cpp
+  tests/test_import_folder.cpp
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_campaign_entries.cpp
+  tests/test_mods_delete.cpp
   tests/test_entry_pilot_copy.cpp
   tests/test_mod_copy_report.cpp
   tests/test_net_save.cpp

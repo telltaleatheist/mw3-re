@@ -4,12 +4,14 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zreader/zreader.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_msg.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_ids.h"
@@ -100,7 +102,11 @@ bool read_head(MechDfn& d, HeadValues* out) {
   float_key(d, tree, "lean_speed", 0x15c);
   if (float_key(d, tree, "recoil_bend", 0x180))
     d.put(0x180, static_cast<float>(std::sin(d.get<float>(0x180) * kRad)));
-  float_key(d, tree, "recoil_slide", 0x184);
+  // FIX (bug): the Strider's is text, "1.5.0", so it kept none; its number
+  // read, the 1.5 of the mechs beside it (fixes.md).
+  if (!float_key(d, tree, "recoil_slide", 0x184) && zfix::options().small_fixes)
+    if (zrdr::Node* n = zrdr::find(tree, "recoil_slide"); n && n->type == zrdr::List && n->list[0].i > 1 && n->list[1].type == zrdr::String && n->list[1].s)
+      d.put(0x184, std::strtof(n->list[1].s, nullptr));
   angle_key(d, tree, "recoil_twist", 0x188);
   float_key(d, tree, "aim_slerp_freq", 0x18c);
   angle_key(d, tree, "aim_min_pitch", 0x190);
@@ -244,7 +250,11 @@ void read_weapons(MechDfn& dfn, Config& c, zrdr::Node* body, const HeadValues& h
     if (zrdr::Node* am = zrdr::find(e, "ammo")) {
       rounds = am->list[1].i;
       apart = part_id(zrdr::get_string(am, "part"));
-      if (zrdr::Node* x = zrdr::find(am, "extra")) {
+      zrdr::Node* x = zrdr::find(am, "extra");
+      // FIX (bug): the Sunder's Alternate B has its LRM 20's extra beside
+      // `ammo`, not in it: 240 missiles never loaded (fixes.md).
+      if (!x && zfix::options().small_fixes) x = zrdr::find(e, "extra");
+      if (x) {
         const int32_t nx = x->list[0].i - 1 < 3 ? x->list[0].i - 1 : 3;
         for (int32_t j = 0; j < nx; ++j)
           if (x->list[1 + j].type == zrdr::Int) extra[j] = x->list[1 + j].i;

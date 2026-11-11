@@ -196,7 +196,7 @@ const std::vector<ScreenGroups>& screen_groups() {
       {0x486260, {{0, 0, 330, 480, kLeft}, {380, 330, 640, 480, kRight}}},
       // Ours: the MODS screen, the pilot screen's groups; its tabs along the
       // bottom (EDITOR, ADD MOD, ADD FOLDER, MODS FOLDER) kept together at the left.
-      {kModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
+      {kModsScreenCtor, {{0, 430, 480, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       {kIaModsScreenCtor, {{0, 430, 400, 480, kLeft}, {0, 0, 200, 480, kLeft}, {200, 0, 640, 480, kRight}}, {{0, 0, 619, 320}}},
       // The game options: the settings' panel left, the screens' box,
       // ACCEPT and BACK right.

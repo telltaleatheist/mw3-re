@@ -78,6 +78,12 @@ class PilotScreen : public MenuScreen {
   void choose(Pilot* p);             // 0x004881e0
   void fill_games();                 // 0x004882b0
   void refresh(bool focus_new, Pilot* p);  // 0x00488770: the list again, p chosen (0: the chosen one)
+  // Ours (upgrades/mods/entry_pilots.h): inside a MODS entry the list also
+  // holds the main menu's pilots the entry lacks; one picked is brought
+  // across. `listing`: the list's own selection while it is filled picks nothing.
+  Pilot* bring(const std::string& name);  // null when it could not be (said)
+  bool main_row_chosen() const;           // the selected row is a main-menu pilot not brought yet
+  bool listing = false;
   void show_lists();                 // inline in 0x004889a0 and 0x00488ad0: the game list or the training cycles
   bool editing() const { return rename_bar.active || new_bar.active; }
 

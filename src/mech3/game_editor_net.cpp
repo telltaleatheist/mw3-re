@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "crt/msvc_string.h"
+#include "upgrades/editor/save_as.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/znetwork/znet_object.h"
@@ -305,6 +306,7 @@ void net_editor_goto(int32_t) {
 // written with the cache's records as the editor mod's copy (net_save.h),
 // its folder said on screen.
 void net_editor_save(int32_t) {
+  if (!editor_save_ready([] { net_editor_save(0); })) return;  // ours (upgrades/editor/save_as.h): the copy's name first
   if (!g_editor) {
     editor_status("no network to save");  // 0x00402ec0(0x30, ...): a box in the exe
     return;

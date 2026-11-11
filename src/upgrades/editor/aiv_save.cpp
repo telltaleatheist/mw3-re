@@ -1,4 +1,5 @@
 #include "upgrades/editor/aiv_save.h"
+#include "upgrades/editor/save_as.h"
 
 #include <cstdio>
 #include <cstring>
@@ -408,6 +409,7 @@ void aiv_notes_clear() { notes().clear(), g_note_error.clear(); }
 
 ai::NetSave aiv_save_edits() {
   ai::NetSave s;
+  if (!editor_save_ready([] { aiv_save_edits(); })) return s.error = "the copy's name is asked first", s;  // ours (save_as.h)
   std::string archive;
   std::vector<uint8_t> aiv;
   if (notes().empty()) return s.error = g_note_error.empty() ? "no vehicle applied" : g_note_error, s;

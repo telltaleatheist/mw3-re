@@ -96,7 +96,10 @@ struct ModAddDone {
   std::string folder, name, message;
   bool campaign_only = false;  // only campaigns: listed, not turned on (entered from the MODS screen)
 };
+// `from`, when given, is what the marker names as the mod's source (an import's
+// modded folder, where `source` is our staging copy of what was taken).
 ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, const std::string& install,
-                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled);
+                       const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled,
+                       const std::string& from = "");
 
 }  // namespace mech3

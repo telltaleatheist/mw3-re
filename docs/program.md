@@ -358,7 +358,10 @@ implements it:
   on the Mac, a scheduled `--shot` on the PC). The window is raised and
   given the keyboard when shown (`SDL_HINT_FORCE_RAISEWINDOW`; on the Mac
   the app is activated), and the launcher's window events are flushed at
-  the hand-over. `MW3_BOX_ANSWER=N` (checks only) answers every message box N at once (1 OK,
+  the hand-over. `MW3_EDIT_SAVE_AT=N` (checks only): in a mission opened by MODS's EDITOR, at
+  the editor's Nth frame net_01 is saved (the Save as box answered with the
+  name it offers) and the editor left.
+  `MW3_BOX_ANSWER=N` (checks only) answers every message box N at once (1 OK,
   2 CANCEL) and says so in the log with the box's text: a scripted click
   repeats while a box runs its own loop, so it cannot press the box's buttons.
   `MW3_FOCUS_LOST_AT=N` loses the focus at the pump's Nth

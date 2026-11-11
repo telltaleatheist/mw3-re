@@ -6,10 +6,17 @@
 #include <cstring>
 #include <string>
 #include <tuple>
+#include <map>
+#include <fstream>
+#include <filesystem>
+#include <vector>
 #if !defined(_WIN32)
 #include <unistd.h>
 #endif
 
+#include "gamez/zinterp/zinterp.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "mech3/mech3_interp.h"
 #include "check.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zrender/zrndr_prim2d.h"
@@ -27,6 +34,9 @@
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "mech3/hud.h"
+#include "upgrades/settings/upgrades.h"
+#include "mech3/mech_config.h"
+#include "mech3/mech_reader.h"
 #include "mech3/message_panel.h"
 #include "mech3/mech_hud.h"
 #include "mech3/lance_orders.h"
@@ -105,6 +115,127 @@ TEST(fix_smoke_drag_per_second) {
   EXPECT(std::fabs(smoke_speed(30, true) - want) < 0.05f);
   EXPECT(std::fabs(smoke_speed(144, true) - want) < 0.05f);
   EXPECT(smoke_speed(144, false) == 10.0f);  // the exe's table: no drag at all
+}
+
+// The Small fixes list shows exactly what the switch turns off (the lead's rule,
+// 2026-11-10): each of the page's lines has its gates here, by file, and every
+// `options().small_fixes` in src is some line's. A line with no gate fails, and
+// so does a gate with no line (list it, or make the fix always on).
+TEST(small_fixes_list_matches_its_gates) {
+  struct Gate { const char* file; int count; };
+  struct Line { const char* text; std::vector<Gate> gates; };
+  const std::vector<Line> table = {
+      {"A turret's charge or glow goes out when it dies.", {{"mech3/turret.cpp", 1}}},
+      {"Two c4 enemies follow their scripted orders.", {{"mech3/zrdraiv.cpp", 1}}},
+      {"Tripod turrets aim when facing straight up or down.", {{"mech3/turret.cpp", 1}}},
+      {"A vehicle's gun stops at its true aiming limit.", {{"mech3/veh_controls.cpp", 1}}},
+      {"A vehicle file with pitch and no roll keeps its pitch.", {{"mech3/veh_controls.cpp", 1}}},
+      {"The reticle locks past 800 m when the weapons reach.", {{"mech3/hud.cpp", 1}}},
+      {"The mech lab offers the plain PPC the data defines.", {{"mech3/mech_names.cpp", 2}}},
+      {"TAG's strike lands where the target is, not was.", {{"mech3/weapon.cpp", 1}}},
+      {"A held beam stays on a moving mech after release.", {{"mech3/weapon.cpp", 1}}},
+      {"A destroyed weapon's selection moves to a working one.", {{"mech3/weapon.cpp", 1}}},
+      {"A mech re-placed where it stands keeps to its ground.", {{"mech3/mech_place.cpp", 1}}},
+      {"A mission's last animation can be waited for.", {{"gamez/zeffect/zeff_anim_init.cpp", 1}}},
+      {"An animation whose object is missing waits its turn.", {{"gamez/zeffect/zeff_anim_init.cpp", 1}}},
+      {"Leaving c4b mission 5's or 6's area fails it.", {{"mech3/zrdraiv.cpp", 1}}},
+      {"c2 mission 3's objective waits for its two Fireflies.", {{"mech3/mech_objective.cpp", 1}}},
+      {"The Sunder Alternate B loads all 360 LRM 20 missiles.", {{"mech3/mech_reader.cpp", 1}}},
+      {"The Strider has its recoil slide (a number typed as text).", {{"mech3/mech_reader.cpp", 1}}},
+  };
+  // The page's list and the table, line for line.
+  const std::vector<const char*>& list = upgrades::small_fixes_list();
+  EXPECT(list.size() == table.size());
+  for (size_t i = 0; i < list.size() && i < table.size(); ++i) {
+    if (std::strcmp(list[i], table[i].text) != 0) std::printf("  line %zu: \"%s\" has no entry in the table\n", i, list[i]);
+    EXPECT(std::strcmp(list[i], table[i].text) == 0);
+    EXPECT(!table[i].gates.empty());
+  }
+  // Every gate in src, by file, against the table's.
+  std::map<std::string, int> want, have;
+  for (const Line& l : table)
+    for (const Gate& g : l.gates) want[g.file] += g.count;
+  namespace fs = std::filesystem;
+  const fs::path src = fs::path(MW3_SOURCE_DIR) / "src";
+  std::error_code ec;
+  for (fs::recursive_directory_iterator it(src, ec), end; !ec && it != end; it.increment(ec)) {
+    const std::string ext = it->path().extension().string();
+    if (!it->is_regular_file(ec) || (ext != ".cpp" && ext != ".h")) continue;
+    const std::string rel = fs::relative(it->path(), src, ec).generic_string();
+    if (rel.rfind("upgrades/settings/", 0) == 0 || rel == "gamez/zutil/zfix.h") continue;  // the switch itself
+    std::ifstream f(it->path());
+    int n = 0;
+    for (std::string line; std::getline(f, line);)
+      for (size_t at = 0; (at = line.find("options().small_fixes", at)) != std::string::npos; ++at) ++n;
+    if (n) have[rel] = n;
+  }
+  EXPECT(!have.empty());  // the sources are where the build left them
+  for (const auto& [file, n] : have)
+    if (!want.count(file) || want[file] != n) std::printf("  %s: %d gates in the code, %d in the table\n", file.c_str(), n, want.count(file) ? want[file] : 0);
+  for (const auto& [file, n] : want)
+    if (!have.count(file)) std::printf("  %s: %d gates in the table, none in the code\n", file.c_str(), n);
+  EXPECT(have == want);
+}
+
+// Four data typos read as meant (fixes.md; upgrades-sort.md): the Firefly's
+// fifth skin's label (always on), the Sunder Alternate B's LRM 20 extras and
+// the Strider's recoil slide (Small fixes). Off, each reads as the exe does.
+TEST(mech_data_typos_read_as_meant) {
+  const std::string path = std::string(MW3_GAME_DIR) + "/zbd/reader.zbd";
+  if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+    std::fclose(f);
+  } else {
+    std::printf("  (skipped: no %s)\n", path.c_str());
+    return;
+  }
+  const zfix::Options saved = zfix::options();
+  mech3::set_load_saved(nullptr), mech3::set_save_all(nullptr);  // no player's loadouts read or written
+  zrdr::init();
+  EXPECT(zrdr::open_archive(path.c_str(), true));
+  const int32_t lrm20 = mech3::weapon_index("LRM20");
+  for (const int mode : {0, 1, 2}) {  // all on; the small fixes off; the always-on ones off too
+    zfix::set_all(true);
+    if (mode >= 1) zfix::options().small_fixes = false;
+    if (mode == 2) zfix::options().fixed = false;
+    mech3::SkinSet* set = mech3::read_skins(zrdr::load("dfn_firefly.zrd"));
+    EXPECT(set && set->skins.size() == 8);  // primary, _b to _h
+    if (set && set->skins.size() == 8) {
+      const bool two_the_same = std::strcmp(set->skins[3]->name, set->skins[4]->name) == 0;
+      EXPECT(two_the_same == (mode == 2));
+    }
+    delete set;
+    int missiles = 0;
+    {
+      mech3::MechDfn d(mech3::mech_index("sunder"), zrdr::load("dfn_sunder.zrd"));
+      EXPECT(mech3::read_dfn(d) && d.configs);
+      for (mech3::Config* c : d.configs ? d.configs->configs : std::vector<mech3::Config*>{}) {
+        double items = 0;  // every item's weight: with the extras Alternate B weighs what the others do
+        for (const mech3::ConfigItem* it : c->items) items += it->weight(-1);
+        c->recount();
+        std::printf("    %s: items %.2f t, armour %.1f t, free slots %d\n", c->name ? c->name : "?", items, c->armor_tons, c->free_slots);
+        if (c->name && std::strstr(c->name, "ALTERNATE_B"))
+          for (const mech3::ConfigItem* it : c->items)
+            if (it->kind() == 2 && it->id() == lrm20) missiles += it->count;
+      }
+    }
+    float slide = -1, cauldron = -1;
+    {
+      mech3::MechDfn d(mech3::mech_index("strider"), zrdr::load("dfn_strider.zrd"));
+      EXPECT(mech3::read_dfn(d));
+      slide = d.get<float>(0x184);
+      mech3::MechDfn c(mech3::mech_index("cauldron"), zrdr::load("dfn_cauldron.zrd"));
+      EXPECT(mech3::read_dfn(c));
+      cauldron = c.get<float>(0x184);
+    }
+    std::printf("  mode %d: Sunder Alternate B's LRM 20 missiles %d; the Strider's recoil slide %g (the Cauldron's %g)\n", mode,
+                missiles, slide, cauldron);
+    EXPECT(missiles == (mode == 0 ? 360 : 120));
+    EXPECT(cauldron == 1.5f && slide == (mode == 0 ? 1.5f : 0.0f));
+  }
+  zrdr::close_archives(true);
+  mech3::set_load_saved([](mech3::ConfigList* c) { c->load_saved(); });
+  mech3::set_save_all([](mech3::ConfigList* c) { c->save_all(); });
+  zfix::options() = saved;
 }
 
 // The Mad Cat's and Supernova's damage masks land on their damage textures
@@ -1963,4 +2094,58 @@ TEST(fix_light_records_bounded_at_64) {
   EXPECT(G.rec[63][1] == 0.25f + 63 * 0.001f + 0.125f);
   EXPECT(G.rec_extra[99][1] == 0.25f + 99 * 0.001f + 0.125f);
   zmod::build_light_list(np, dp, 0);
+}
+
+// The script's model pointers (0x00730c14..1c). With no current node the model's getter 0x004eb420 writes
+// nothing and the exe's Object3D commands go on with the last command's model, a freed mission's after a
+// mission's end: its flags (+8) and its morph weight (+0x24) written, its polygons' priority set. Fixed: no node,
+// no model; and a mission's end forgets the three. `gone` stands for the freed model.
+TEST(fix_script_model_pointers_do_not_outlive_their_node_or_mission) {
+  const zfix::Options saved = zfix::options();
+  const zint::Engine keep = zint::engine();
+  zint::Engine e = keep;
+  e.get_model = [](zcls::Node* n, zmod::Model** out) {  // as 0x004eb420
+    if (!n) return 5;
+    if (out) *out = n->model;
+    return 0;
+  };
+  e.model_set_priority = zmod::model_set_priority;
+  zint::engine() = e;
+  zint::Globals& g = zint::globals();
+  zint::Interp in;
+  mech3::interp_create(in);
+  auto line = [&](const std::string& text) {
+    std::vector<char> buf(text.begin(), text.end());
+    buf.push_back('\n');
+    buf.resize(buf.size() + 0x400, 0);
+    zint::exec_line(in, buf.data());
+  };
+  for (const bool fixed : {true, false}) {
+    zfix::set_all(true);
+    zfix::options().fixed = fixed;
+    zmod::Model gone{};
+    std::memset(gone.header, 0, sizeof gone.header);
+    uint32_t flags = 0;
+    float weight = 0;
+    g.object_model = g.cycle_model = nullptr;
+    g.model_out = &gone;
+    in.current = nullptr;
+    for (const char* c : {"Object3DRegisterTexturesToWorld ON", "Object3DSetMorphVertex 1", "Object3DSetPriority 3", "Object3DSetColor 1"}) line(c);
+    std::memcpy(&flags, gone.header + 8, 4), std::memcpy(&weight, gone.header + 0x24, 4);
+    std::printf("  fixed %d: the old model's flags %#x, weight %g; the script's models %s %s %s\n", fixed, flags, static_cast<double>(weight),
+                g.object_model ? "kept" : "none", g.cycle_model ? "kept" : "none", g.model_out ? "kept" : "none");
+    if (fixed) {
+      EXPECT(flags == 0 && weight == 0.0f && !g.object_model && !g.cycle_model && !g.model_out);
+    } else {  // the exe's way, which the differential test runs: written through
+      EXPECT(flags == 4 && weight == 1.0f && g.object_model == &gone && g.cycle_model == &gone && g.model_out == &gone);
+    }
+    // A mission's end (Missions::unload's 0x005964c0(1)).
+    g.object_model = g.cycle_model = g.model_out = &gone;
+    zint::scroll_list_clear(true);
+    EXPECT(fixed ? (!g.object_model && !g.cycle_model && !g.model_out) : (g.object_model == &gone && g.cycle_model == &gone && g.model_out == &gone));
+    g.object_model = g.cycle_model = g.model_out = nullptr;
+  }
+  zint::destroy(in);
+  zint::engine() = keep;
+  zfix::options() = saved;
 }

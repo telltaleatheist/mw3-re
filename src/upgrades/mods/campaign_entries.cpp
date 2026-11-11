@@ -42,14 +42,6 @@ bool write_text(const fs::path& p, const std::string& text) {
   return !ec;
 }
 
-// The game's own worlds: a mod holding their files plays over the game's campaign.
-bool official_world_file(const std::string& rel) {
-  const std::string r = lower(rel);
-  for (const char* w : {"zbd/c1/", "zbd/c2/", "zbd/c3/", "zbd/c4/", "zbd/c4b/", "zbd/t1/"})
-    if (r.rfind(w, 0) == 0) return true;
-  return false;
-}
-
 const ModInfo* named(const std::vector<ModInfo>& all, const std::string& name) {
   for (const ModInfo& o : all)
     if (lower(o.folder) == lower(name)) return &o;
@@ -104,12 +96,10 @@ bool mod_is_campaign(const ModInfo& m) {
   const std::string k = lower(m.kind);
   if (k == "campaign") return true;
   if (k == "assets") return false;
-  if (!m.campaigns.empty() || !m.worlds.empty() || !m.base.empty()) return true;
-  std::error_code ec;
-  const fs::path root(m.path);
-  for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec))
-    if (it->is_regular_file(ec) && official_world_file(fs::relative(it->path(), root, ec).generic_string())) return true;
-  return false;
+  // A campaign of its own (campaign= lines), or a copy of one (base=). A mod laid over the game's own files
+  // with neither, whatever it replaces (the campaign's missions, new worlds, the main reader), is an asset mod:
+  // ticked for any campaign and for Instant Action (Owen, 2026-11-10).
+  return !m.campaigns.empty() || !m.base.empty();
 }
 
 std::vector<CampaignEntry> campaign_entries(const std::string& write_dir) {
@@ -182,6 +172,17 @@ bool entry_save_ticks(const std::string& write_dir, const CampaignEntry& e, cons
   std::string text;
   for (const std::string& t : ticks) text += "mod=" + t + "\n";
   return write_text(fs::path(entry_dir(write_dir, e.id)) / kEntryTicksFile, text);
+}
+
+bool entry_plays_own_campaign(const std::string& write_dir, const CampaignEntry& e) {
+  if (e.kind == CampaignEntry::kInstantAction) return false;
+  const std::vector<CampaignEntry> all = campaign_entries(write_dir);
+  int steps = 0;
+  for (const CampaignEntry* at = &e; at; at = at->base.empty() ? nullptr : find_entry(all, at->base)) {
+    if (!at->campaign.empty() || at->missing || ++steps > 32) return false;  // a campaign of its own, a gap, or a loop
+    if (at->kind == CampaignEntry::kOfficial) return true;
+  }
+  return false;  // the chain did not reach the game's own
 }
 
 std::string& current_entry() {
