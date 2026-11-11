@@ -822,9 +822,14 @@ and what stays in the register by function (pm-map.md, PM's AI at 53 bits), with
 ## The multiplayer menu state's destructor (2026-11-10)
 
 MW3's 0x0049ca00 runs against the port's in `test_pilotscreen.py` (each plan ends with the state's delete: the
-three screens' vt+0x08(1), compared). Pirate's Moon's 0x004a0230 has no differential yet: it is checked only by the
-screens' count in `pm_menus_take_a_picked_mode_at_once_headless`. A PM twin (PM's state made and deleted in the
-emulator against `pmprobe`) is listed for after 1.1.0.
+three screens' vt+0x08(1), compared). Pirate's Moon's has its own, `test_pm_state.py` with
+`tests/probe_pm_state.cpp`: the constructor 0x004a0120 and the destructor 0x004a0230 run in the emulator against
+the port's `GameMenuState`, 200 runs, each with a `new` that fails for some screens, some screens already let go
+and one of them shown. Compared: each screen asked for in order with the state passed (a failed `new` leaves 0),
+and each delete, in order, with 1. PM's differences, mapped by the test: the screens' deleting destructor is at
+vt+0x0c (MW3's +0x08, the slot the port names), and the shell's constructor takes three arguments (the name and
+two zeros; `ret 0xc`). Not compared: the port's fields after the delete (the exe's +0x1c, +0x20, +0x24 and +0x0c
+are checked to be 0 on its side), and the screens themselves, which are stubs on both sides.
 
 ## Instant Action's MODS on Pirate's Moon (2026-11-10)
 
