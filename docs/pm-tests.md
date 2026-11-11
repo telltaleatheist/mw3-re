@@ -874,3 +874,28 @@ the exe does, and the free unbinds its node (the node's owner and bit 16) on bot
 only the caster, not the node. At the program's end (`wire_pocket(nullptr)`) any left by a start cut short are
 freed without touching their nodes. `pm_own_marker_goes_with_the_mission_c1m1_headless`: c1 mission 1 ended twice
 in one process, a marker in play, none after, its handle naming nothing, no unported delete.
+
+## Instant Action's material sweep (playtest W8, 2026-11-11)
+
+Owen's Windows playtest: Pirate's Moon's Instant Action, the world gone five seconds in (the HUD and the
+stars still drawn), with or without a mod; MechWarrior 3's Instant Action and Pirate's Moon's campaign fine.
+The same on the Mac, hidden: `mw3pm --mission ia1 --seed 1 --frame-ms 33`, lit at frame 233 and not drawn from 234.
+
+The cause: each Instant Action and multiplayer frame the game frees the materials no model uses, ten model
+slots a call (player.cpp; MW3 0x00537f20, Pirate's Moon 0x00557990). The hook ran MW3's, which walks MW3's
+model pool; Pirate's Moon's models are in their own pool, each polygon listing its materials, so once the
+walk was round every material was unmarked and freed (alpha 0, flag 0x20), and the model draw leaves a
+freed material's polygons out. The campaign never calls the sweep. Now `pm::zmod::material_sweep`
+(pm/gamez/zmodel/gmod_matl.cpp), from Pirate's Moon's function; on c1's first map it frees nine materials
+nothing uses (plain colours and the quicksand cycle) at about ten seconds, as the original would.
+
+Tests: `pm_material_sweep_keeps_what_its_models_use` (c1's world, two passes, a material made for nobody
+freed, none a model lists); `pm_ia_wave_config_past_the_last_spawns_with_the_first_headless` also counts,
+at 20 s of a real wave, the materials its models list that are freed (none). Breaks: the hook back on
+MW3's sweep fails the second; half of each model's polygons marked fails the first.
+
+Left: the sweep's sibling 0x005392c0 (the last wave's unused models freed at the next wave, and at a
+mission's end that keeps the world) still walks MW3's pool alone on this branch, so Pirate's Moon's unused
+models stay until the world is unloaded: memory, nothing seen. The light animation event (5) still sets a
+Pirate's Moon light through MW3's range and colour setters (its mixed colours are not kept up); it made no
+difference to these pictures.

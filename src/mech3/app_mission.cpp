@@ -39,6 +39,7 @@
 #include "gamez/zinterp/zinterp.h"
 #include "pm/gamez/zclass/cls_clutter.h"
 #include "pm/gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zmodel/gmod_matl.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zgame/zgame_table.h"
@@ -317,7 +318,8 @@ bool action_field(ActionGame* a, uint32_t off, uint32_t* get, const uint32_t* pu
 struct WiredPlayerHooks : PlayerHooks {
   GameEngine* e = nullptr;
   void tick_41e3f0(float dt) override { mech_dead_tick(dt); }  // 0x0041e3f0 on 0x00605510
-  void tick_537f20(int32_t v) override { zmod::material_sweep(v); }  // 0x00537f20: the unused materials freed (IA, multiplayer)
+  // Pirate's Moon 0x00557990 (MW3's 0x00537f20): the unused materials freed (IA, multiplayer), by its own model pool.
+  void tick_537f20(int32_t v) override { pm::zmod::material_sweep(v); }
   std::map<Handle, int> controls;  // the AI controllers made: 1 a mech's, 2 a vehicle's
   std::set<Handle> params;         // their brains' settings, as vt+0x90 gives them
   std::set<Handle> mechs;          // the AI mechs made

@@ -65,6 +65,7 @@ Material* material_copy(const Material& m);  // 0x00537830: always a new one
 void material_free(Material* m);             // 0x00537070: back on the free list
 int32_t material_sweep(int32_t step);        // 0x00537f20: the unused materials freed, `step` models a call
 void material_sweep_reset();                 // the sweep's cursor back to its start ([0x005edd5c] -1; the tests' process state)
+int32_t& material_sweep_cursor();            // [0x005edd5c]; Pirate's Moon's sweep shares it ([0x006114f8])
 int32_t materials_purge();                   // 0x00537e50: those no model uses, freed
 int material_differs(Material& entry, Material& m);  // 0x00536f10 ECX entry, EDX m
 // Flag 2 or 4, or a cycle: a material each copy of a model must own.
