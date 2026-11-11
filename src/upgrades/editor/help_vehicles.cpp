@@ -131,8 +131,8 @@ void help_vehicles(std::vector<HelpForm>& out) {
            {"Apply", "", "Put the page's settings on the vehicle in the running mission."},
            {"Refresh", "", "Read the mission's vehicles and nets again (after adding one); the shown one stays."},
            {"Save", "",
-            "Apply, then write every vehicle applied this mission into the mod's aiv.zrd (one .bak kept). From "
-            "the next start."},
+            "Apply, then write every vehicle applied this mission into aiv.zrd in your copy of the campaign "
+            "(the first save asks the copy's name; one .bak kept). From the next start."},
        }});
   out.push_back({"Mech AI##message", "The vehicle editor's message",
                  "When a box does not read, the original's message, and the page stops at that box.",
