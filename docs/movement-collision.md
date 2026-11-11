@@ -305,10 +305,18 @@ form at 24, which the tests still check. Read from the disassembly with
 
 At 53 (`MW3_PRECISION=53`), `test_di` matches whole (9000 ground and 9000
 segment queries on the six worlds), so do `test_inout` with the ground on and
-`test_inout_query`; `test_shotq` matches c1's shots, its sphere query waits on
-`transform_points` 0x5227a0 and c2 on the camera's and sun's matrices (euler
-0x521670, the translate 0x520480, the rotations 0x520610..): zmath's matrices
-at 53 are their own item.
+`test_inout_query`. `test_shotq` matches whole too (3000 shot and 3000 sphere
+queries on the six worlds) since zmath's matrices went to 53 (2026-11-11):
+`transform_points` 0x5227a0, the multiply's 3x4 form, the translate 0x520480
+(its ninth word's order, ((y t3 + z t6) + x t0) + t9, at both precisions), the
+rotations 0x520610.. and euler 0x521670's products, each as the exe keeps
+them, and the cell walk 0x4eefe0's edge t on the x87. The last difference was
+in the inverse: of its nine rotation words, four (1, 2, 4 and 5) subtract a
+product of a stored value (m0 / det or m1 / det, floats) and a matrix word,
+which the exe leaves on the x87 and the port had multiplied as two floats in
+single. One ulp in the inverse's fifth word put a class-5 node's local
+segment an ulp off on c2 (query 241 of the test: a candidate with no hit,
+seen only in the record's scratch slot).
 
 The 24-bit port of 0x4ebdb0's local-times-top had four entries summed in
 the wrong order ((0 + 2) + 1 where the exe does (0 + 1) + 2); no shipped
