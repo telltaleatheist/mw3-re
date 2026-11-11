@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <vector>
 
+#include "upgrades/mods/mod_warning.h"
+
 // Texture libraries: rimage.zbd, rmechtex*.zbd (docs/textures.md). Original
 // file unknown: these sit between zimg_library.cpp and zimg_texture.cpp.
 namespace zimg {
@@ -89,6 +91,9 @@ Texture* find_in_list(int list, const char* name);  // 0x00518d60: the first lib
 void resolve_name(Library& lib);                                        // 0x00518a30
 bool open(Library& lib);                                                // 0x005187c0
 Texture* load(Library& lib, const char* name);                          // 0x00518db0
+// Ours: what the last load found wrong in a (mod's) library's entry and did about it, in the mods' one form
+// (upgrades/mods/mod_warning.h); empty for a well-formed one. For the mod check and the log.
+const std::vector<mech3::ModWarning>& load_notes();
 
 // 0x00517f80. Ours (docs/modding.md, M3): with `end`, a texture whose sizes
 // or buffers the bytes up to it cannot hold is refused (null), not read.

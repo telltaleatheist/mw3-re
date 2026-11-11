@@ -143,6 +143,83 @@ def names(data):
     return [data[24 + 40 * i:24 + 40 * i + 32].split(b'\0')[0] for i in range(count)]
 
 
+def library(entries):
+    """A made-up library with no palettes: entries of (name, palette field, flags, palette count), each 4 x 4."""
+    head = struct.pack('<IIiiII', 0, 1, 0, len(entries), 0, 0)
+    table, data = b'', b''
+    at = 24 + 40 * len(entries)
+    for i, (name, palette, flags, count) in enumerate(entries):
+        px = bytes((i * 16 + k) & 0xff for k in range(32 if flags & 1 else 16))
+        tex = bytes([flags, 0, 0, 0]) + struct.pack('<hh', 4, 4) + bytes(4) + struct.pack('<hh', count, 0) + px
+        table += name.ljust(32, b'\0') + struct.pack('<Ii', at + len(data), palette)
+        data += tex
+    return head + table + data
+
+
+def made_up(emu, buf):
+    """A hand-made entry's slip (docs/modding.md, M3; fixes.md): the palette field names a palette the file does not
+    have. The original (0x518db0) reads palettes[base + n] unchecked at 0x518e2c; the list is null until a library
+    with palettes is opened (none of the game's has one), so the read faults: the original crashes loading such a
+    texture, whatever its kind. That is checked here (the fault, and where), not copied: the port, with its fixes
+    on, loads a texture that needs no palette exactly as the same texture with -1 loads, and leaves out one drawn
+    through the palette."""
+    import tempfile
+    from unicorn import UcError
+    from unicorn.x86_const import UC_X86_REG_EIP
+    entries = [(b'plain', -1, 5, 0), (b'pal0', 0, 5, 0), (b'pal5', 5, 5, 0), (b'eight', -1, 0x10, 256), (b'eight0', 0, 0x10, 256)]
+    data = library(entries)
+    notes = []
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / 'rmade.zbd').write_bytes(data)
+        if emu.open('rmade.zbd', data, 6) != len(entries):
+            raise SystemExit('the made-up library: the original does not open it')
+        probe.probe_set_bugs(1)  # the port's fixes on: the graceful load is one
+        try:
+            if probe.probe_tex_open((d + '/').encode(), b'rmade.zbd', 6) != len(entries):
+                raise SystemExit('the made-up library: the port does not open it')
+            plain = {}
+            for name, palette, flags, count in entries:
+                n = probe.probe_tex_load(name, buf, len(buf))
+                port = buf.raw[:n] if n >= 0 else None
+                emu.next = emu.mark
+                k = emu.alloc(len(name) + 1)
+                emu.cpu.write(k, name + b'\0')
+                try:
+                    emu.cpu.call(LOAD, ecx=emu.lib, stack_args=(k,))
+                    fault = None
+                except UcError:
+                    fault = emu.cpu.uc.reg_read(UC_X86_REG_EIP)
+                shared = flags & 0x10
+                if palette == -1:
+                    if fault is not None:
+                        raise SystemExit(f'made-up {name!r}: the original faults on a well-formed entry')
+                    t = emu.cpu.uc.reg_read(UC_X86_REG_EAX)
+                    raw = emu.cpu.read(t, 0x38)
+                    pixels, = struct.unpack_from('<I', raw, 0x10)
+                    original = raw[0:8] + bytes([raw[8], raw[9]]) + raw[0xc:0x10] + raw[0x34:0x38] + \
+                        emu.cpu.read(pixels, 32 if flags & 1 else 16)
+                    if port != original:
+                        raise SystemExit(f'made-up {name!r}: the well-formed entry differs')
+                    plain[bool(shared)] = port  # to compare the slipped ones' fields with
+                    continue
+                if fault != 0x518e2c:
+                    raise SystemExit(f'made-up {name!r}: the original was to fault at 0x518e2c reading the palette list, '
+                                     f'and {"faulted at %#x" % fault if fault else "did not"}')
+                if shared:
+                    if port is not None:
+                        raise SystemExit(f'made-up {name!r}: the port loads a texture whose palette is not there')
+                    notes.append(f'{name.decode()} (drawn through the palette): the original faults at 0x518e2c, the port leaves it out')
+                else:
+                    if port is None:
+                        raise SystemExit(f'made-up {name!r}: the port refuses a texture that needs no palette')
+                    if len(port) != len(plain[False]) or port[:18] != plain[False][:18]:  # the same fields, its own pixels
+                        raise SystemExit(f'made-up {name!r}: the port loads it otherwise than a plain one')
+                    notes.append(f'{name.decode()} (needs no palette): the original faults at 0x518e2c, the port loads it')
+        finally:
+            probe.probe_set_bugs(0)
+    return 'made-up entries naming a palette the file lacks: ' + '; '.join(notes)
+
+
 def main():
     emu = Emulated()
     buf = ctypes.create_string_buffer(8 << 20)
@@ -165,7 +242,8 @@ def main():
                 raise SystemExit(f'{lib} {name!r}: original {len(a or b"")} bytes, port {n}')
             total += 1
         print(f'{lib} (display format {fmt}): {got} textures identical')
-    print(f'ok: {total} textures')
+    made = made_up(emu, buf)
+    print(f'ok: {total} textures; {made}')
 
 
 if __name__ == '__main__':

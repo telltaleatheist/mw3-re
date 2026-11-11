@@ -680,8 +680,10 @@ std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text
 namespace {
 // --check-mod's look inside a texture or image library (rimage, rtexture*,
 // rmechtex*): its table, then every texture through the bounded load (M3).
-void check_texture_library(const std::string& host, const std::string& rel, int* entries,
-                           const std::function<void(const std::string&)>& error) {
+// Findings are warnings in the mods' one form, never errors (a texture left out shows as missing; the rest of
+// the library and the mod are used); a library whose table does not read is left out of the mod, said.
+void check_texture_library(const std::string& host, const std::string& rel, int* entries, std::vector<std::string>* out,
+                           std::vector<std::string>* unread_files) {
   const zimg::State saved = zimg::state();
   zimg::state() = zimg::State{};
   const std::string folder = fs::path(host).parent_path().string() + "/";
@@ -689,14 +691,20 @@ void check_texture_library(const std::string& host, const std::string& rel, int*
   zimg::Library lib{};
   std::snprintf(lib.name, sizeof lib.name, "%s", fs::path(host).filename().string().c_str());
   if (!zimg::open(lib) || !lib.entries) {
-    error(rel + ": not a texture library the game can read (its table)");
+    out->push_back("warning: " + mod_warning_line(rel, {"it is not a texture library the game can read (its table of names)",
+                                                         "IMPORT leaves this file out (the game's own file, if it has one, is used)", ""}));
+    if (std::find(unread_files->begin(), unread_files->end(), rel) == unread_files->end()) unread_files->push_back(rel);
   } else {
     for (int i = 0; i < lib.header.texture_count; ++i) {
       ++*entries;
       char name[32];
       std::memcpy(name, lib.entries[i].name, sizeof name);
-      if (zimg::Texture* t = zimg::load(lib, name)) zimg::free_texture(t);
-      else error(rel + ": texture " + name + " cannot be read");
+      name[sizeof name - 1] = 0;
+      zimg::Texture* t = zimg::load(lib, name);
+      for (const ModWarning& note : zimg::load_notes()) out->push_back("warning: " + mod_warning_line(rel + ": texture " + name, note));
+      if (t) zimg::free_texture(t);
+      else if (zimg::load_notes().empty())
+        out->push_back("warning: " + mod_warning_line(rel + ": texture " + name, {"it cannot be read", "left this texture out", ""}));
     }
   }
   zimg::close(lib);
@@ -848,7 +856,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
         name.rfind("texture", 0) == 0 || name.rfind("mechtex", 0) == 0) {
       if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zbd") == 0) {
         ++archives;
-        check_texture_library(host, rel, &entries, error);
+        check_texture_library(host, rel, &entries, &out, &fx.unread_files);
         continue;
       }
     }
