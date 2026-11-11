@@ -5496,8 +5496,10 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   const std::string e = run({"--click-at", "60,210@120"}, "e");
   std::printf("  E: a plain start stays the original %d\n", e.find("starting again") == none);
   EXPECT(e.find("starting again") == none && e.find("mw3: entry") == none && e.find("mounted") == none && e.find("mw3: closed, result 0") != none);
-  const std::string e2 = run({"--click-at", "60,210@120", "--click-at", "100,135@170", "--click-at", "420,320@200", "--click-at", "440,180@300",
-                              "--click-at", "420,320@380"}, "e2");
+  const std::string e2 = run({"--click-at", "60,210@120", "--click-at", "100,135@170", "--click-at", "420,320@200", "--hover-at", "440,180@270",
+                              "--click-at", "440,180@300", "--click-at", "420,320@380"}, "e2");
+  // The MODS tab under the mouse says what a press does.
+  EXPECT(e2.find("mw3: Instant Action: hover: Play Instant Action with mods. The game starts | again to load them.") != none);
   const size_t off = e2.find("mw3: Instant Action open, MODS: off, 4 maps"), last = e2.find("mw3: Instant Action's MODS says: Ticked last time. ACCEPT starts the game again with them.");
   const size_t again = e2.find("mw3: Instant Action's MODS: starting again into entry ia"), in = e2.find("mw3: entry ia (Instant Action): 1 mods");
   std::printf("  E: opened off %d, ticked last time %d, ACCEPT starts again %d, with the mod %d\n", off != none, last != none, again != none, in != none);

@@ -1,3 +1,4 @@
+#include "upgrades/mods/screen_fit.h"
 #include "mech3/action_menu.h"
 
 #include <cstdio>
@@ -282,6 +283,9 @@ ActionScreen::ActionScreen(Engine& e, Handle s)
       if (bind_button(&mods_tab->btn, "IAMODS")) {
         mods_text_put(mods_tab->line, "ia_dark_grey", 504, 175);
         add(&mods_tab->line);
+        mods_text_put(mods_tab->hint, "ia_dark_grey", 420, 203);
+        mods_text_put(mods_tab->hint2, "ia_dark_grey", 420, 216);
+        add(&mods_tab->hint), add(&mods_tab->hint2);
         mods_text_say(mods_tab->line, ia_mods_line(mods_menu_write_dir()));
       }
     }
@@ -301,6 +305,23 @@ ActionScreen::ActionScreen(Engine& e, Handle s)
   scenarios.set_arrows(1, 1, 1);
   set_flags_all(0);
   set_active(1);
+}
+
+// Ours: with the mouse over the MODS tab, what a press does, in two rows under the mission's box.
+void ActionScreen::update(float dt) {
+  MenuScreen::update(dt);
+  if (!mods_tab) return;
+  ModsTab& t = *mods_tab;
+  const bool over = cursor && !(t.btn.flags & ztwod::kHidden) && t.btn.hit(cursor->get_x(), cursor->get_y());
+  if (over == t.hinted) return;
+  t.hinted = over;
+  const auto lines = over ? mods_note_lines("Play Instant Action with mods. The game starts again to load them.",
+                                            [&](const std::string& s) { return mods_text_fits(s, &t.hint, 210, 50); })
+                          : std::pair<std::string, std::string>{};
+  mods_text_say(t.hint, lines.first);
+  mods_text_say(t.hint2, lines.second);
+  if (over) std::printf("mw3: Instant Action: hover: %s | %s\n", t.hint.text, t.hint2.text);  // for the checks
+  dirty_all();
 }
 
 // Mech3.exe 1.2 @ 0x0048a680: CANCEL back to the pilot screen's state (1),
