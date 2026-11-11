@@ -168,7 +168,7 @@ TEST(new_weapon_form_writes_into_the_mod) {
   const std::string wd = tmp_dir("new_weapon_form");
   const fs::path mod = fs::path(wd) / "mods" / "mine";
   fs::create_directories(mod);
-  { std::ofstream(mod / "mod.txt") << "name=Mine\n"; }
+  { std::ofstream(mod / "mod.txt", std::ios::binary) << "name=Mine\n"; }  // byte for byte on Windows too
   { std::ofstream(mod / "mw3-editor.txt") << "the editor's own (a copy it made): the only kind it writes (save_as.h)\n"; }
   zutl::mounts() = zutl::Mounts{};
   zutl::set_write_dir(wd);

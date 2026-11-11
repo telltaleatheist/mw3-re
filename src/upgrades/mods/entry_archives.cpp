@@ -316,7 +316,7 @@ std::string entries_merge(const std::string& write_dir, const std::vector<std::s
     for (const auto& [rel, layers] : plan) {
       if (!fs::is_regular_file(out / fs::path(rel), ec)) continue;
       Merged m;
-      m.folder = out.string(), m.base = layers.front().file;
+      m.folder = out.generic_string(), m.base = layers.front().file;  // as mounted (the return below)
       for (const Layer& l : layers)
         if (l.entries)
           for (const std::string& e : archive_entry_names(l.file)) m.entries.insert(lower(e));
@@ -326,7 +326,7 @@ std::string entries_merge(const std::string& write_dir, const std::vector<std::s
   if (fs::is_regular_file(done, ec) && fs::is_regular_file(out / kModMergedMarker, ec)) {
     note();
     said.push_back("mods: " + std::to_string(plan.size()) + (plan.size() == 1 ? " archive" : " archives") + " with the mods' changed entries, as built before");
-    return out.string();
+    return out.generic_string();
   }
   fs::create_directories(out, ec);
   { std::ofstream(out / kModMergedMarker) << "Archives the game built from the mounted mods' changed entries; made again when the mods change.\n"; }
@@ -370,7 +370,7 @@ std::string entries_merge(const std::string& write_dir, const std::vector<std::s
   if (!built) return {};
   { std::ofstream(done) << "built\n"; }
   note();
-  return out.string();
+  return out.generic_string();
 }
 
 }  // namespace mech3

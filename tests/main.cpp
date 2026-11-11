@@ -48,7 +48,7 @@ const char* mw3_test_tmp() {
     const fs::path d = root / std::to_string(me);
     fs::remove_all(d, ec);
     fs::create_directories(d, ec);
-    return d.string();
+    return d.generic_string();  // as the program's own paths, '/' on Windows too
   }());
   static const bool cleanup = (std::atexit([] {
     std::error_code ec;

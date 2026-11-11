@@ -624,8 +624,8 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
       }
       const std::filesystem::path m = std::filesystem::path(dir) / "mods";
       std::filesystem::create_directories(m, ec);
-      if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(m.string()))
-        tell("The mods folder: " + m.string());
+      if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(m.generic_string()))
+        tell("The mods folder: " + m.generic_string());
       return;
     }
     case kEditor:
