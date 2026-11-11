@@ -8,11 +8,12 @@ records (0x4ffb40, 0x4ffb90, 0x4ffc80).
 
 Every hit is compared as bits: normal, height or point, zones, material and node slots, whether it has an owner.
 
-The x87 runs at 24 bits here, where zgeo::X rounds each step to a float, so this run cannot see a change to the
-53-bit forms. MW3_X87=53 runs the exe at 53 bits and the port with fpu53 on (the reference runtime, CLAUDE.md);
-PM's port does not match its exe there yet (docs/pm-map.md, The geometry queries at 53 bits), so with it
-MW3_DI_COUNT=1 counts instead of stopping: per world the floats compared, those not bit-equal but inside the
-allowance, and each query with a value outside it.
+The x87 runs at 24 bits here, where zgeo::X rounds each step to a float. MW3_X87=53 runs the exe at 53 bits and
+the port with fpu53 on (the reference runtime, CLAUDE.md). Since the model tests took PM's own x87 forms
+(docs/pm-map.md, The geometry queries at 53 bits) the port matches there to the bit but for one shot hit on c1
+(three floats, inside the allowance). MW3_DI_COUNT=1 counts instead of stopping: per world the floats compared,
+those not bit-equal but inside the allowance (by query kind and float in the last line), and each query with a
+value outside it.
 """
 import ctypes
 import math
@@ -32,7 +33,7 @@ from original import FTOL, IAT_FTOL  # noqa: E402
 X53 = os.environ.get('MW3_X87') == '53'
 COUNT = os.environ.get('MW3_DI_COUNT') == '1'
 MISSES = []
-KNOWN_AT_53 = ('c2 clutter (tree) query 90 nearest',)  # exe 0.8851358 / port 0.8856983, on pm before di53 too
+KNOWN_AT_53 = ()  # none: c2's clutter query 90 went with PM's own model tests at 53 (2026-11-11)
 
 
 def fail(message):
@@ -227,6 +228,8 @@ def compare(want, got, kind, stats):
                         if not near(a, b):
                             return f'float {k} at {i}: {a} / {b}'
                         stats['near'] += 1
+                        key = f'near {kind} f{k}'  # where the last bits differ: by the query's kind and the float's place
+                        stats[key] = stats.get(key, 0) + 1
                     stats['floats'] += 1
                 elif x != y:
                     return f'word {k} at {i}: {x} / {y}'
@@ -440,6 +443,7 @@ def main():
         print(f'{name}: {queries} queries match; hits so far {totals}', flush=True)
     if COUNT:
         print(f'counted: {len(MISSES)} queries outside the allowance')
+        print('  not bit-equal by kind and float: ' + ', '.join(f'{k[5:]} {v}' for k, v in sorted(totals.items()) if k.startswith('near ')))
         # The ones known on this branch (docs/pm-tests.md); any other is new. Pinned by this: c3 query 239
         # "nearest", two coincident hits, which MW3's x87 form of segment_nearest's distance picked the other way.
         new = [m for m in MISSES if not any(m.startswith(k) for k in KNOWN_AT_53)]

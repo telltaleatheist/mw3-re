@@ -3,14 +3,17 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 #include "crt/msvc_math.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zimage/zimg_texture.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zrender/zrndr_blit.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zmath/zmth_vector.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -59,12 +62,6 @@ bool poly_degenerate(const pm::zmod::Polygon& p, uint32_t a, uint32_t b, uint32_
   return v[a] == v[b] || v[a] == v[c] || v[b] == v[c];
 }
 
-// A point through a matrix's row: Pirate's Moon's code sums z first, which can change the last bit.
-template <class M> float row3(float x, float y, float z, float a, float b, float c) { return (x * a + y * b) + z * c; }
-template <> float row3<pm::zmod::Model>(float x, float y, float z, float a, float b, float c) {
-  return (z * c + y * b) + x * a;
-}
-
 template <class M> uint32_t hdr(const M& m, int off) {
   uint32_t v;
   std::memcpy(&v, m.header + off, 4);
@@ -96,10 +93,12 @@ template <class M> const float* place_vertices(M& m) {
   }
   const float* t = s.matrix().m;
   for (uint32_t i = 0; i < n; ++i, src += 3) {
+    // PM 0x00567636..0x005676b2, as MW3's 0x0054c655: x, y, z, then the translation, on the x87, stored once.
+    using zgeo::X;
     const float x = src[0], y = src[1], z = src[2];
-    out[3 * i] = row3<M>(x, y, z, t[0], t[3], t[6]) + t[9];
-    out[3 * i + 1] = row3<M>(x, y, z, t[1], t[4], t[7]) + t[10];
-    out[3 * i + 2] = row3<M>(x, y, z, t[2], t[5], t[8]) + t[11];
+    out[3 * i] = (((X(x) * t[0] + X(y) * t[3]) + X(z) * t[6]) + t[9]).f();
+    out[3 * i + 1] = (((X(x) * t[1] + X(y) * t[4]) + X(z) * t[7]) + t[10]).f();
+    out[3 * i + 2] = (((X(x) * t[2] + X(y) * t[5]) + X(z) * t[8]) + t[11]).f();
   }
   return out;
 }
@@ -153,8 +152,10 @@ bool same_sign(float a, float b) {
 }
 
 float dot_from(const float* p, const float* v0, const float* n) {
+  // PM 0x0056932e..0x00569370: the differences stored, their products with the normal summed on the x87, stored.
+  using zgeo::X;
   const float dx = p[0] - v0[0], dy = p[1] - v0[1], dz = p[2] - v0[2];
-  return (dx * n[0] + dy * n[1]) + dz * n[2];
+  return ((X(dx) * n[0] + X(dy) * n[1]) + X(dz) * n[2]).f();
 }
 
 // 0x0054e2b0 and 0x0054ea30: the same test; the textured one differs in
@@ -189,7 +190,7 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
       continue;
     }
     crossed = 1;
-    const float t = e0 / (e0 - e1);
+    const float t = (zgeo::X(e0) / (zgeo::X(e0) - e1)).f();  // PM 0x00569421: the difference on the x87, t stored
     const float dx = t * (to[0] - from[0]), dy = t * (to[1] - from[1]), dz = t * (to[2] - from[2]);
     zcls::SegmentHit& h = out[k].hit[out[k].count];
     h.point[0] = from[0] + dx;
@@ -407,9 +408,11 @@ int32_t ground_core(zcls::Node* node, zcls::GroundHits* out, const float* probes
         all_in = 0;
         continue;
       }
+      // PM 0x00567370: the two differences stored, the products and their sum on the x87, compared there.
+      using zgeo::X;
       const float* p = probes + 3 * k;
-      const float s = (p[0] - c[0]) * bz + (p[2] - c[2]) * ax;
-      in[k] = s > -0.0001;  // 0x005ce518
+      const X s = (X(p[2]) - c[2]) * X(ax) + (X(p[0]) - c[0]) * X(bz);
+      in[k] = s.v > -0.0001;  // 0x005ce518
       if (in[k]) any = 1;
       else all_in = 0;
     }
@@ -428,12 +431,16 @@ int32_t ground_core(zcls::Node* node, zcls::GroundHits* out, const float* probes
     std::memcpy(h.normal, n, 12);
     if (first) {
       first = false;
-      const float inv = 1.0f / n[1];
-      fx = -(n[0] * inv);
-      fz = -(n[2] * inv);
+      // PM 0x00567455: 1 over the normal's y stays on the x87; the two factors are stored.
+      const zgeo::X inv = zgeo::X(1.0f) / zgeo::X(n[1]);
+      fx = (-(zgeo::X(n[0]) * inv)).f();
+      fz = (-(zgeo::X(n[2]) * inv)).f();
     }
     const float* p = probes + 3 * k;
-    h.height = ((p[2] - v[2]) * fz + (p[0] - v[0]) * fx) + v[1];
+    {  // PM 0x00567481: z's product, x's, their sum and the vertex's y on the x87, stored once
+      using zgeo::X;
+      h.height = (((X(p[2]) - v[2]) * X(fz) + (X(p[0]) - v[0]) * X(fx)) + v[1]).f();
+    }
     if (h.height > top) {
       all_in = 0;
       continue;
@@ -486,17 +493,21 @@ int32_t polygon_ground_point(zcls::GroundHit* slot, const float* v, float x, flo
   for (int32_t i = n - 1; i >= 0; --i) {
     const float* c = v + 3 * i;
     const float* a = i == n - 1 ? v : v + 3 * (i + 1);
-    const float e = (x - c[0]) * (a[2] - c[2]) + (z - c[2]) * (c[0] - a[0]);
-    if (!(e > -0.0001)) return 0;  // 0x005ce518
+    // PM 0x00568752: the differences, the products and their sum all on the x87, compared there.
+    using zgeo::X;
+    const X e = (X(x) - c[0]) * (X(a[2]) - c[2]) + (X(z) - c[2]) * (X(c[0]) - a[0]);
+    if (!(e.v > -0.0001)) return 0;  // 0x005ce518
   }
   zmth::poly_normal(v, v + 3, v + 6, slot->normal);
   if (slot->normal[1] == 0.0f) {
     slot->height = v[1];
     return 1;
   }
-  const float inv = 1.0f / slot->normal[1];
-  const float fx = -(slot->normal[0] * inv), fz = -(slot->normal[2] * inv);
-  slot->height = ((z - v[2]) * fz + (x - v[0]) * fx) + v[1];
+  // PM 0x005687fb: 1 over the normal's y, the two factors, the products and the sum on the x87; the height stored.
+  using zgeo::X;
+  const X inv = X(1.0f) / X(slot->normal[1]);
+  const X fx = -(inv * X(slot->normal[0])), fz = -(inv * X(slot->normal[2]));
+  slot->height = (((X(z) - v[2]) * fz + (X(x) - v[0]) * fx) + v[1]).f();
   return 1;
 }
 
@@ -560,6 +571,30 @@ float edge(const float* p, const float* c, const float* a, int u, int v) {
 }
 }  // namespace
 
+namespace {
+// The rest of 0x0054d760 (PM 0x00568840), shared: the inside test on the plane the normal points along most,
+// then the normal made a unit vector.
+int32_t segment_inside(zcls::LineHit* slot, const float* v, int32_t n) {
+  float* nn = slot->normal;
+  float* p = slot->point;
+  const uint32_t ax = abs_bits(nn[0]), ay = abs_bits(nn[1]);
+  int k = ax < ay ? 1 : 0;
+  if ((ax < ay ? ay : ax) < abs_bits(nn[2])) k = 2;
+  uint32_t sign;
+  std::memcpy(&sign, &nn[k], 4);
+  if (sign & 0x80000000u) k += 3;
+  static const int kAxes[6][2] = {{1, 2}, {2, 0}, {0, 1}, {2, 1}, {0, 2}, {1, 0}};
+  const int u = kAxes[k][0], w = kAxes[k][1];
+  if (!(edge(p, v + 3 * (n - 1), v, u, w) > -0.0001)) return 0;  // 0x005ce518
+  for (int32_t i = n - 2; i >= 0; --i) {
+    const float e = edge(p, v + 3 * i, v + 3 * (i + 1), u, w);
+    if (k == 5 ? !(e > -0.0001) : e <= -0.0001) return 0;
+  }
+  zmth::normalize_x87(nn);  // PM 0x004013d0, as MW3's: (xx + zz) + yy and the root on the x87, 1 over the unrounded root
+  return 1;
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x0054d760. The normal is the cross product of the first
 // three vertices' edges, normalised only on a hit. The inside test runs on
 // the plane the normal points along most (picked by the magnitudes' bit
@@ -582,24 +617,37 @@ int32_t polygon_segment(zcls::LineHit* slot, const float a[3], const float b[3],
   p[0] = (b[0] - a[0]) * t + a[0];
   p[1] = (b[1] - a[1]) * t + a[1];
   p[2] = (b[2] - a[2]) * t + a[2];
-  const uint32_t ax = abs_bits(nn[0]), ay = abs_bits(nn[1]);
-  int k = ax < ay ? 1 : 0;
-  if ((ax < ay ? ay : ax) < abs_bits(nn[2])) k = 2;
-  uint32_t sign;
-  std::memcpy(&sign, &nn[k], 4);
-  if (sign & 0x80000000u) k += 3;
-  static const int kAxes[6][2] = {{1, 2}, {2, 0}, {0, 1}, {2, 1}, {0, 2}, {1, 0}};
-  const int u = kAxes[k][0], w = kAxes[k][1];
-  if (!(edge(p, v + 3 * (n - 1), v, u, w) > -0.0001)) return 0;  // 0x005ce518
-  for (int32_t i = n - 2; i >= 0; --i) {
-    const float e = edge(p, v + 3 * i, v + 3 * (i + 1), u, w);
-    if (k == 5 ? !(e > -0.0001) : e <= -0.0001) return 0;
-  }
-  zmth::Vec3 un{nn[0], nn[1], nn[2]};
-  zmth::normalize(un);
-  nn[0] = un.x, nn[1] = un.y, nn[2] = un.z;
-  return 1;
+  return segment_inside(slot, v, n);
 }
+
+// Pirate's Moon 1.0 @ 0x00568840: MW3's 0x0054d760 with its own stores and sums (x87.py on PM's listing). The
+// second edge's x and y are stored, the rest of the edges stay on the x87; the normal's words are stored, its z
+// also kept on the x87 for both dots; the end's dot sums x, y, z and is compared before it is stored, the
+// start's sums x, z, y; t stays on the x87.
+int32_t polygon_segment_pm(zcls::LineHit* slot, const float a[3], const float b[3], const float* v, int32_t n,
+                           int32_t two_sided) {
+  using zgeo::X;
+  const X e1x = X(v[3]) - v[0], e1y = X(v[4]) - v[1], e1z = X(v[5]) - v[2];
+  const float e2x = (X(v[6]) - v[0]).f(), e2y = (X(v[7]) - v[1]).f();
+  const X e2z = X(v[8]) - v[2];
+  const X n0 = e2z * e1y - X(e2y) * e1z;
+  const X n1 = e1z * X(e2x) - e2z * e1x;
+  const X n2 = e1x * X(e2y) - X(e2x) * e1y;
+  float* nn = slot->normal;
+  nn[0] = n0.f(), nn[1] = n1.f(), nn[2] = n2.f();
+  const X d_end = ((X(b[0]) - v[0]) * X(nn[0]) + (X(b[1]) - v[1]) * X(nn[1])) + (X(b[2]) - v[2]) * n2;
+  if (!two_sided && !(d_end.v < 0.0)) return 0;  // 0x005de7b4
+  const float de = d_end.f();
+  const float ds = (((X(a[0]) - v[0]) * X(nn[0]) + (X(a[2]) - v[2]) * n2) + (X(a[1]) - v[1]) * X(nn[1])).f();
+  if (same_sign(de, ds)) return 0;
+  const X t = X(ds) / (X(ds) - X(de));
+  float* p = slot->point;
+  p[0] = ((X(b[0]) - a[0]) * t + a[0]).f();
+  p[1] = ((X(b[1]) - a[1]) * t + a[1]).f();
+  p[2] = ((X(b[2]) - a[2]) * t + a[2]).f();
+  return segment_inside(slot, v, n);
+}
+
 
 // Mech3.exe 1.2 @ 0x0054dd30. As one segment of 0x0054ea30 (the unit normal,
 // the projected inside test), but one-sided unless two_sided, and the
@@ -612,7 +660,7 @@ int32_t polygon_segment_uv(zcls::LineHit* slot, const float a[3], const float b[
   if (!two_sided && !(d_end < 0.0f)) return 0;
   const float d_start = dot_from(a, v, nn);
   if (same_sign(d_start, d_end)) return 0;
-  const float t = d_start / (d_start - d_end);
+  const float t = (zgeo::X(d_start) / (zgeo::X(d_start) - d_end)).f();  // PM 0x00568dfb: the difference on the x87, t stored
   float* p = slot->point;
   for (int i = 0; i < 3; ++i) p[i] = a[i] + t * (b[i] - a[i]);
   const float mx = std::fabs(nn[0]), my = std::fabs(nn[1]);
@@ -663,7 +711,7 @@ int32_t box_segment(const float c[8][3], zcls::LineHit* slot, const float a[3], 
   slot->material = nullptr;
   for (const auto& f : kFaces) {
     for (int i = 0; i < 4; ++i) std::memcpy(g_s.poly + 3 * i, c[f[i]], 12);
-    if (polygon_segment(slot, a, b, g_s.poly, 4, 0)) return 1;
+    if (polygon_segment_pm(slot, a, b, g_s.poly, 4, 0)) return 1;  // PM's six faces (0x00568495..0x00568722) call its 0x00568840
   }
   return 0;
 }
@@ -682,6 +730,11 @@ template <class M> const float* model_vertices(M& m) {
   return m.vertices;
 }
 
+// The untextured polygon's test by the game the polygon is of.
+template <class P> int32_t plain_segment(zcls::LineHit* slot, const float* a, const float* b, const float* v, int32_t n, int32_t two) {
+  return std::is_same<P, pm::zmod::Polygon>::value ? polygon_segment_pm(slot, a, b, v, n, two) : polygon_segment(slot, a, b, v, n, two);
+}
+
 // One polygon of 0x0054cad0: -1 for a strip of two vertices (the exe reads
 // its unset result as a hit at the cached index, nothing elsewhere).
 template <class P>
@@ -695,7 +748,7 @@ int32_t segment_polygon(const P& p, const float* verts, zcls::LineHit* slot, con
   if (!poly_strip(p)) {
     for (uint32_t i = 0; i < n; ++i) copy_vertex(g_s.poly + 3 * i, verts, p.vertex_indices[i]);
     return textured ? polygon_segment_uv(slot, a, b, g_s.poly, uvs, uv_out, static_cast<int32_t>(n), two)
-                    : polygon_segment(slot, a, b, g_s.poly, static_cast<int32_t>(n), two);
+                    : plain_segment<P>(slot, a, b, g_s.poly, static_cast<int32_t>(n), two);
   }
   if (n == 2) return -1;
   if (n < 2) return 0;  // the exe walks past its list; none ships
@@ -710,7 +763,7 @@ int32_t segment_polygon(const P& p, const float* verts, zcls::LineHit* slot, con
       const float uv[6] = {uvs[2 * i0], uvs[2 * i0 + 1], uvs[2 * i1], uvs[2 * i1 + 1], uvs[2 * i2], uvs[2 * i2 + 1]};
       r = polygon_segment_uv(slot, a, b, g_s.poly, uv, uv_out, 3, two);
     } else {
-      r = polygon_segment(slot, a, b, g_s.poly, 3, two);
+      r = plain_segment<P>(slot, a, b, g_s.poly, 3, two);
     }
     if (r) return r;
   }
@@ -719,18 +772,20 @@ int32_t segment_polygon(const P& p, const float* verts, zcls::LineHit* slot, con
 
 // The hit back in world space: the point through the top, the normal through
 // its 3x3, normalised.
+// Pirate's Moon 0x00567f41..0x00568025 is MW3's here: each word's sums on the x87 in x, y, z order, stored once.
 template <class M> void hit_to_world(zcls::LineHit* slot) {
+  using zgeo::X;
   const float* m = zmth::matrix_stack().matrix().m;
   const float* q = slot->point;
-  const float px = row3<M>(q[0], q[1], q[2], m[0], m[3], m[6]) + m[9];
-  const float py = row3<M>(q[0], q[1], q[2], m[1], m[4], m[7]) + m[10];
-  const float pz = row3<M>(q[0], q[1], q[2], m[2], m[5], m[8]) + m[11];
+  const float px = (((X(q[0]) * m[0] + X(q[1]) * m[3]) + X(q[2]) * m[6]) + m[9]).f();
+  const float py = (((X(q[0]) * m[1] + X(q[1]) * m[4]) + X(q[2]) * m[7]) + m[10]).f();
+  const float pz = (((X(q[0]) * m[2] + X(q[1]) * m[5]) + X(q[2]) * m[8]) + m[11]).f();
   slot->point[0] = px, slot->point[1] = py, slot->point[2] = pz;
   const float* nn = slot->normal;
-  zmth::Vec3 w{row3<M>(nn[0], nn[1], nn[2], m[0], m[3], m[6]), row3<M>(nn[0], nn[1], nn[2], m[1], m[4], m[7]),
-               row3<M>(nn[0], nn[1], nn[2], m[2], m[5], m[8])};
-  zmth::normalize(w);
-  slot->normal[0] = w.x, slot->normal[1] = w.y, slot->normal[2] = w.z;
+  float w[3] = {((X(nn[0]) * m[0] + X(nn[1]) * m[3]) + X(nn[2]) * m[6]).f(), ((X(nn[0]) * m[1] + X(nn[1]) * m[4]) + X(nn[2]) * m[7]).f(),
+                ((X(nn[0]) * m[2] + X(nn[1]) * m[5]) + X(nn[2]) * m[8]).f()};
+  zmth::normalize_x87(w);
+  std::memcpy(slot->normal, w, 12);
 }
 }  // namespace
 
@@ -743,14 +798,17 @@ template <class M> int32_t segment_of(M* model, zcls::LineHit* slot, const float
   float sa[3], sb[3];
   if (!identity) {
     zmth::Mat34 inv;
-    if (!zmth::invert_single(st.matrix(), inv, true)) return 0;
+    // At the reference runtime's 53 bits the x87's intermediates (PM's inverse 0x0053d620: unchecked against
+    // MW3's 0x00523c50, docs/pm-map.md).
+    if (!(zfix::options().fpu53 ? zmth::invert(st.matrix(), inv, true) : zmth::invert_single(st.matrix(), inv, true))) return 0;
     const float* m = inv.m;
-    for (int k = 0; k < 2; ++k) {
+    for (int k = 0; k < 2; ++k) {  // PM 0x00567bc6, 0x00567c36: x, y, z, then the translation, stored once
+      using zgeo::X;
       const float* q = k ? b : a;
       float* o = k ? sb : sa;
-      o[0] = row3<M>(q[0], q[1], q[2], m[0], m[3], m[6]) + m[9];
-      o[2] = row3<M>(q[0], q[1], q[2], m[2], m[5], m[8]) + m[11];
-      o[1] = row3<M>(q[0], q[1], q[2], m[1], m[4], m[7]) + m[10];
+      o[0] = (((X(q[0]) * m[0] + X(q[1]) * m[3]) + X(q[2]) * m[6]) + m[9]).f();
+      o[2] = (((X(q[0]) * m[2] + X(q[1]) * m[5]) + X(q[2]) * m[8]) + m[11]).f();
+      o[1] = (((X(q[0]) * m[1] + X(q[1]) * m[4]) + X(q[2]) * m[7]) + m[10]).f();
     }
   } else {
     std::memcpy(sa, a, 12);
