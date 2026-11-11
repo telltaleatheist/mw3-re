@@ -12,6 +12,7 @@
 #include <set>
 
 #include "gamez/zutil/zutl_path.h"
+#include "upgrades/mods/installer_read.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/data_version.h"
 
@@ -132,12 +133,14 @@ void import_folder_discard(ImportFolder& f) {
 std::string import_folder_report(const ImportFolder& f) {
   if (!f.install) return {};
   std::string t = f.warning.empty() ? "" : f.warning + " ";
-  t += "Took " + files_word(f.taken) + " that differ from your install";
+  t += "Took " + files_word(f.taken) + (f.installer ? " from the installer" : "") + " that differ from your install";
   if (f.same) t += "; left " + std::to_string(f.same) + " the same";
   if (f.programs) t += "; the program and its dlls are not part of a mod here (" + std::to_string(f.programs) + ")";
   if (f.own) t += "; pilots, saves and settings stay yours (" + std::to_string(f.own) + ")";
   if (f.other) t += "; " + files_word(f.other) + " outside the game's folders left";
   for (const std::string& l : f.linked) t += "; a linked folder was left out: " + l;
+  if (f.msg_dll) t += "; its text file Mech3Msg.dll is not part of a mod here, so names it adds may show as their ids";
+  if (f.nested) t += "; this installer also carries " + std::to_string(f.nested) + " more " + (f.nested == 1 ? "installer" : "installers") + ": import each on its own";
   return t + ".";
 }
 
@@ -146,7 +149,7 @@ std::string import_folder_report_short(const ImportFolder& f) {
   if (!f.warning.empty())
     return "Took " + files_word(f.taken) + ": this folder is version " + f.version + " and your game " + f.install_version +
            ", so their differences are in the mod too.";
-  return "Took " + files_word(f.taken) + " that differ from your install" +
+  return "Took " + files_word(f.taken) + (f.installer ? " from the installer" : "") + " that differ from your install" +
          (f.programs ? "; the program and its dlls are not part of a mod here." : ".");
 }
 
@@ -237,12 +240,165 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
   return f;
 }
 
+namespace {
+// A staging folder of ours under write dir/mod-import (not mod-staging: mod_install's add clears every staging
+// folder there before it copies from ours), the leftovers of a run that stopped halfway cleared first.
+fs::path make_staging(const std::string& write_dir, std::string* error) {
+  std::error_code ec;
+  const fs::path base = fs::path(write_dir) / "mod-import";
+  fs::create_directories(base, ec);
+  for (fs::directory_iterator it(base, ec), end; !ec && it != end; it.increment(ec))
+    if (it->is_directory(ec) && !it->is_symlink(ec) && !path_is_link(it->path().string())) remove_ours(it->path());
+  const auto t = std::chrono::system_clock::now().time_since_epoch().count();
+  for (int n = 0; n < 1000; ++n) {
+    const fs::path staging = base / ("import-" + std::to_string(t % 1000000007) + "-" + std::to_string(n));
+    if (fs::create_directory(staging, ec)) {
+      { std::ofstream(staging / kModStagingMarker) << "A mod being imported by the game; removed when it is done.\n"; }
+      return staging;
+    }
+  }
+  *error = "cannot make a folder in " + base.generic_string();
+  return {};
+}
+
+bool bytes_same_as_file(const std::vector<uint8_t>& bytes, const fs::path& file) {
+  std::error_code ec;
+  if (fs::file_size(file, ec) != bytes.size() || ec) return false;
+  std::ifstream f(file, std::ios::binary);
+  char buf[65536];
+  size_t at = 0;
+  while (at < bytes.size()) {
+    f.read(buf, static_cast<std::streamsize>(std::min(sizeof buf, bytes.size() - at)));
+    const size_t got = static_cast<size_t>(f.gcount());
+    if (got == 0 || std::memcmp(buf, bytes.data() + at, got) != 0) return false;
+    at += got;
+  }
+  return true;
+}
+}  // namespace
+
+ImportFolder import_installer_prepare(const std::string& write_dir, const std::string& installer, const std::string& install,
+                                      const ModAddLimits& limits, const std::function<void(int, int)>& progress) {
+  ImportFolder f;
+  std::error_code ec;
+  if (!fs::is_regular_file(fs::path(installer), ec)) return f;
+  Installer in = installer_open(installer);
+  if (!in.recognised) return f;
+  f.install = f.installer = true;
+  f.title = in.title;
+  if (!in.ok) return f.error = "its installer does not read: " + in.error, f;
+  std::string why;
+  if (!installer_map_to_game(&in, &why)) return f.error = why, f;
+  const fs::path mine = fs::path(install);
+  if (install.empty() || !fs::is_directory(mine, ec)) return f.error = "there is no install of yours to compare it with", f;
+  const std::map<std::string, fs::path> ours = files_of(mine);
+  // The other game's installer (mod_install's check by the files only one game ships; its default folder too).
+  {
+    std::vector<std::string> a, b;
+    for (const InstallerFile& x : in.files)
+      if (!x.path.empty()) a.push_back(x.path);
+    for (const auto& [rel, p] : ours) b.push_back(rel);
+    f.game = mod_game_of(a);
+    if (f.game == ModGame::kUnknown) {
+      const std::string where = lower(in.default_folder + "/" + in.game_root);
+      if (where.find("pirate") != std::string::npos) f.game = ModGame::kPm;
+      else if (where.find("mechwarrior3") != std::string::npos || where.find("mechwarrior 3") != std::string::npos) f.game = ModGame::kMw3;
+    }
+    const ModGame here = mod_game_of(b);
+    if (f.game != ModGame::kUnknown && here != ModGame::kUnknown && f.game != here)
+      return f.error = std::string("that installer is for ") + game_name(f.game) + ", and yours is " + game_name(here), f;
+  }
+  // The folders the player's install has at its top, by any case, as the install spells them.
+  std::map<std::string, std::string> tops;
+  for (fs::directory_iterator it(mine, ec), end; !ec && it != end; it.increment(ec))
+    if (it->is_directory(ec) && !it->is_symlink(ec)) tops[lower(it->path().filename().string())] = it->path().filename().string();
+  // Each file's kind first, from its name alone: what could be taken is then unpacked, one at a time.
+  std::vector<const InstallerFile*> maybe;
+  for (const InstallerFile& x : in.files) {
+    const std::string rel = lower(x.path);
+    const size_t slash = rel.find('/');
+    const std::string leaf = rel.substr(rel.rfind('/') == std::string::npos ? 0 : rel.rfind('/') + 1);
+    if (x.path.empty()) ++f.other;
+    else if (leaf == "mech3msg.dll") f.msg_dll = true, ++f.programs;
+    else if (ends_with(leaf, ".exe") && leaf != "mech3.exe") {
+      // An installer inside it (an add-on's): left, and counted to be said.
+      std::vector<uint8_t> bytes;
+      if (x.size <= (uint64_t{256} << 20) && installer_extract(installer, x, &bytes) && installer_bytes_are_clickteam(bytes.data(), bytes.size()))
+        ++f.nested;
+      else ++f.programs;
+    } else if (program_file(rel)) ++f.programs;
+    else if (!zutl::mod_may_serve(rel)) ++f.own;
+    else if (slash == std::string::npos || !tops.count(rel.substr(0, slash))) ++f.other;
+    else maybe.push_back(&x);
+  }
+  if (static_cast<int64_t>(maybe.size()) > limits.max_files)
+    return f.error = "it holds more than " + std::to_string(limits.max_files) + " files", f;
+  std::string name = !in.title.empty() ? in.title : fs::path(installer).stem().string();
+  if (name.empty()) name = "imported mod";
+  fs::path staging, to;
+  int64_t bytes_taken = 0;
+  int done = 0;
+  for (const InstallerFile* x : maybe) {
+    if (progress) progress(done, static_cast<int>(maybe.size()));
+    ++done;
+    std::vector<uint8_t> bytes;
+    std::string w;
+    if (!installer_extract(installer, *x, &bytes, &w)) {
+      import_folder_discard(f);
+      return f.error = "its file " + x->path + " does not unpack (" + w + ")", f;
+    }
+    const std::string rel = lower(x->path);
+    if (const auto it = ours.find(rel); it != ours.end() && bytes_same_as_file(bytes, it->second)) {  // never written
+      ++f.same;
+      f.same_names.push_back(x->path);
+      continue;
+    }
+    bytes_taken += static_cast<int64_t>(bytes.size());
+    if (bytes_taken > limits.max_bytes) {
+      import_folder_discard(f);
+      return f.error = "the files that differ are more than a mod may hold", f;
+    }
+    if (staging.empty()) {
+      std::string err;
+      staging = make_staging(write_dir, &err);
+      if (staging.empty()) return f.error = err, f;
+      f.staging = staging.string();
+      to = staging / mod_folder_name(name);
+    }
+    // Under the install's own spelling of its top folder (ZBD\ in an old installer lands in zbd\).
+    const size_t slash = x->path.find('/');
+    const fs::path dst = to / fs::path(tops[rel.substr(0, slash)]) / fs::path(x->path.substr(slash + 1));
+    fs::create_directories(dst.parent_path(), ec);
+    std::ofstream o(dst, std::ios::binary | std::ios::trunc);
+    o.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    o.close();
+    if (!o) {
+      import_folder_discard(f);
+      return f.error = "cannot write " + x->path, f;
+    }
+    ++f.taken;
+  }
+  if (progress) progress(done, static_cast<int>(maybe.size()));
+  if (f.taken == 0) return f.error = "every file in it is the same as your install's: nothing to add", f;
+  f.picked = to.string();
+  return f;
+}
+
 ModAddDone import_folder_run(const std::string& write_dir, const std::string& source, const std::string& install,
                              const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled,
                              std::string* report) {
   if (report) report->clear();
-  ImportFolder f = import_folder_prepare(write_dir, source, install);
-  if (!f.install) return mod_add_run(write_dir, source, install, ask, enabled);
+  ImportFolder f = import_installer_prepare(write_dir, source, install, {}, [](int done, int total) {
+    if (total > 20 && done % 20 == 0) std::printf("mw3: import: %d of %d files read from the installer\n", done, total), std::fflush(stdout);
+  });
+  if (!f.install) f = import_folder_prepare(write_dir, source, install);
+  if (!f.install) {
+    ModAddDone plain = mod_add_run(write_dir, source, install, ask, enabled);
+    // A .rar we could not take (no RAR reader, or one holding only the mod's installer): said plainly.
+    if (!plain.ok && ends_with(lower(source), ".rar"))
+      plain.message = "Not added: unpack this .rar first, then IMPORT the program inside it.";
+    return plain;
+  }
   ModAddDone d;
   if (!f.error.empty()) return d.message = "Not added: " + f.error + ".", d;
   // The game is the modded install's when its files say; else asked as for any mod.
