@@ -423,6 +423,7 @@ namespace {
 int32_t g_sweep = -1;  // [0x005edd5c]
 }
 void material_sweep_reset() { g_sweep = -1; }
+int32_t& material_sweep_cursor() { return g_sweep; }
 int32_t material_sweep(int32_t step) {
   MaterialTable& t = g_table;
   ModelPool& pool = models();

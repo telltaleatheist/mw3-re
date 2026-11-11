@@ -485,7 +485,7 @@ TEST(pm_import_folder_real_install_env) {
   zgame::set_game(pm::table());  // the check reads PM's archives (version 2)
   const std::string wd = fresh("pm_import_real_wd");
   std::string report;
-  const mech3::ModAddDone d = mech3::import_folder_run(wd, folder, MW3PM_GAME_DIR, nullptr, nullptr, &report);
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, folder, MW3PM_GAME_DIR, [](const std::string&) { return 2; }, nullptr, &report);  // asked which game (a zip without a campaign file): this one
   zgame::set_game(game_was);
   std::printf("  %s\n  %s\n  the mod: %s/mods/%s\n", d.message.c_str(), report.c_str(), wd.c_str(), d.folder.c_str());
   EXPECT(d.ok && (!fs::exists(wd + "/mod-import") || fs::is_empty(wd + "/mod-import")));  // nothing left staged

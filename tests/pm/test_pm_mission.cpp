@@ -2872,7 +2872,7 @@ static void ia32_spawn_run() {
     l.action = &game;
     engine.set_launch(l);
     app.post_intro_ = &mech3::states().load;
-    int frames = 0, made = -1, open = -1;
+    int frames = 0, made = -1, open = -1, materials_used = 0, materials_lost = 0;
     bool past_first = false, past_armed = false, other_asked = false, past_alive = false;
     engine.on_present = [&](int) {
       if (app.current() != &mech3::states().core) return;
@@ -2890,6 +2890,15 @@ static void ia32_spawn_run() {
         if (frames == 600 && m.roster == past) past_alive = m.anim_state != 10;
       }
       if (frames == 600) {  // 20 s: wave 1's objective, a destroy for each enemy, none met
+        // Playtest W8: Instant Action's material sweep (each frame, 0x00557990) has been round the models by
+        // now, and no material a model's polygon lists is freed (the world went undrawn 5 s in).
+        pm::zmod::ModelPool& pool = pm::zmod::models();
+        for (int32_t i = 0; i < pool.capacity; ++i) {
+          const pm::zmod::Model& md = pool.at(i);
+          for (int32_t k = 0; md.polygons && k < md.count(0x10); ++k)
+            for (int32_t j = 0; md.polygons[k].materials && j < md.polygons[k].material_count; ++j)
+              if (const zmod::Material* mat = md.polygons[k].materials[j]) ++materials_used, materials_lost += (mat->flags & 0x20) != 0;
+        }
         open = 0;
         const mech3::Objectives& o = mech3::mission_objectives();
         if (o.primary)
@@ -2903,6 +2912,7 @@ static void ia32_spawn_run() {
     pump.stop = [&] { return frames >= 600; };
     app.run(pump);
     EXPECT(made == 2);
+    EXPECT(materials_used > 1000 && materials_lost == 0);
     EXPECT(past_first && past_armed);
     EXPECT(other_asked);
     EXPECT(past_alive);

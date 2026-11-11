@@ -29,6 +29,7 @@
 #include "gamez/zmodel/gmod_matl.h"
 #include "pm/gamez/zclass/cls_zbd.h"
 #include "pm/gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zmodel/gmod_matl.h"
 #include "pm/gamez/zutil/zutl_zar.h"
 #include "gamez/zinterp/zinterp.h"
 #include "pm/gamez/zimage/zimg_texture.h"
@@ -333,6 +334,62 @@ TEST(pm_worlds_stack_through_the_table) {
   EXPECT(zgame::game().zcls_read_zbd("") == -1);
   EXPECT(zgame::game().zcls_read_zbd("zbd/none/gamez.zbd") == -1);
   EXPECT(pm::zcls::zbd_state().files.size() == 2 && ::zmod::materials().capacity == 2000);
+  zgame::set_game(zgame::mw3_table());
+}
+
+// The material sweep (Pirate's Moon 0x00557990), each Instant Action and multiplayer frame with 10: by PM's
+// own model pool. On c1's world: nothing freed until the last model slot is passed, then only materials no
+// model's polygon lists (one made here among them); none a model uses is freed, over two passes (playtest W8:
+// MW3's sweep, on MW3's pool, freed them all and the world was not drawn).
+TEST(pm_material_sweep_keeps_what_its_models_use) {
+  if (!std::filesystem::exists(std::string(MW3PM_GAME_DIR) + "/zbd/c1/gamez.zbd")) {
+    std::printf("  skipped: no PM install\n");
+    return;
+  }
+  zutl::mounts() = {};
+  zutl::mount(MW3PM_GAME_DIR);
+  zgame::set_game(pm::table());
+  ::zimg::textures().count = 0;
+  ::zmod::materials() = ::zmod::MaterialTable{};
+  pm::zmod::models() = pm::zmod::ModelPool{};
+  ::zcls::nodes() = ::zcls::NodePool{};
+  ::zcls::lists() = ::zcls::Lists{};
+  pm::zcls::zbd_state() = pm::zcls::ZbdState{};
+  EXPECT(zgame::game().zcls_read_zbd("zbd/c1/gamez.zbd") == 0);
+  ::zmod::material_sweep_reset();
+  ::zmod::Material plain;
+  ::zmod::material_init(plain);
+  plain.r = 12.0f, plain.g = 34.0f, plain.b = 56.0f;
+  ::zmod::Material* unused = ::zmod::material_copy(plain);  // nobody's
+  unused->flags &= static_cast<uint8_t>(~0x10);
+  pm::zmod::ModelPool& pool = pm::zmod::models();
+  auto used_and_free = [&](int* used) {
+    int bad = 0;
+    for (int32_t i = 0; i < pool.capacity; ++i) {
+      const pm::zmod::Model& m = pool.at(i);
+      for (int32_t k = 0; m.polygons && k < m.count(0x10); ++k)
+        for (int32_t j = 0; m.polygons[k].materials && j < m.polygons[k].material_count; ++j)
+          if (const ::zmod::Material* mat = m.polygons[k].materials[j]) ++*used, bad += (mat->flags & 0x20) != 0;
+    }
+    return bad;
+  };
+  int used = 0;
+  EXPECT(used_and_free(&used) == 0 && used > 1000);
+  for (int pass = 0; pass < 2; ++pass) {
+    const int calls = (pool.capacity + 9) / 10;  // 10 slots a call
+    int early = 0, freed = 0;
+    for (int c = 0; c < calls; ++c) {
+      const int32_t r = pm::zmod::material_sweep(10);
+      if (c + 1 < calls) early += r;
+      else freed = r;
+    }
+    EXPECT(early == 0);
+    EXPECT(pass == 0 ? freed >= 1 : freed == 0);
+    EXPECT(::zmod::material_sweep_cursor() == 0);
+    EXPECT((unused->flags & 0x20) != 0);
+    int again = 0;
+    EXPECT(used_and_free(&again) == 0 && again == used);
+  }
   zgame::set_game(zgame::mw3_table());
 }
 

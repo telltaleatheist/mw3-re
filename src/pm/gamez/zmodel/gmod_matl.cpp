@@ -8,6 +8,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "pm/gamez/zclass/cls_zbd.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 
 namespace pm::zmod {
 
@@ -105,6 +106,49 @@ int read_materials(std::FILE* f) {
     for (uint32_t k = 0; k < c->texture_count; ++k) c->textures[k] = zcls::texture_for(idx[k]);
   }
   return base;
+}
+
+// Pirate's Moon 1.0 @ 0x00557990
+int32_t material_sweep(int32_t step) {
+  ::zmod::MaterialTable& t = ::zmod::materials();
+  ModelPool& pool = models();
+  int32_t& cursor = ::zmod::material_sweep_cursor();  // [0x006114f8]
+  if (cursor < 0) {
+    for (int32_t i = 0; i < t.capacity; ++i) t.at(i).flags &= static_cast<uint8_t>(~0x10);
+    cursor = 0;
+  }
+  int32_t at = cursor;
+  if (pool.capacity <= cursor) {
+    cursor = -1;
+    return 0;
+  }
+  do {
+    cursor = at;
+    if (step < 1) {
+      if (at < pool.capacity) return 0;
+      break;
+    }
+    const Model& m = pool.at(at);
+    for (int32_t k = 0; m.polygons && k < m.count(0x10); ++k) {
+      const Polygon& p = m.polygons[k];
+      for (int32_t j = 0; p.materials && j < p.material_count; ++j)
+        if (::zmod::Material* mat = p.materials[j]) mat->flags |= 0x10;
+    }
+    --step;
+    cursor = ++at;
+  } while (at < pool.capacity);
+  int32_t freed = 0;
+  for (int32_t i = 0; i < t.capacity; ++i) {
+    ::zmod::Material& mat = t.at(i);
+    if ((mat.flags & 0x38) == 0) {
+      ::zmod::material_free(&mat);
+      ++freed;
+    } else {
+      mat.flags &= static_cast<uint8_t>(~0x10);
+    }
+  }
+  cursor = 0;
+  return freed;
 }
 
 }  // namespace pm::zmod
