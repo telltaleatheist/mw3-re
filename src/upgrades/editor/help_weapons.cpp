@@ -7,12 +7,14 @@ namespace mech3 {
 void help_weapons(std::vector<HelpForm>& out) {
   out.push_back(
       {"New Weapon", "New Weapon (EDIT WEAPONS)",
-       "A new weapon for the mod the editor was opened on from MODS, EDITOR. It starts as a copy of a weapon the "
+       "A new weapon for your copy of the campaign the editor was opened on from MODS, EDITOR (the first save asks "
+       "the copy's name; the campaign itself and an imported mod are never written). It is part of that campaign: "
+       "on whenever the copy is played. It starts as a copy of a weapon the "
        "game knows, under a free name; set its row, its main numbers, its effects and sounds, then OK. Every other "
        "number is the copy's. An effect or sound is picked from those the game's weapons use, and shown once where "
-       "the view points when picked. OK writes the weapon= line into the mod's mod.txt (the old file kept as "
-       "mod.txt.bak) and the definition at the end of BALLISTICS in the mod's zbd\\reader.zbd (weapons.zrd; the "
-       "archive it replaced kept as .bak), or, when the mod has its own zbd\\weapons.zrd text file, into that "
+       "the view points when picked. OK writes the weapon= line into the copy's mod.txt (the old file kept as "
+       "mod.txt.bak) and the definition at the end of BALLISTICS in the copy's zbd\\reader.zbd (weapons.zrd; the "
+       "archive it replaced kept as .bak), or, when the copy has its own zbd\\weapons.zrd text file, into that "
        "file (its own text kept, the old one as .bak). The mech lab offers it from the next start. The original "
        "game reads the file too and leaves the extra weapon alone.",
        {
@@ -41,7 +43,7 @@ void help_weapons(std::vector<HelpForm>& out) {
            {"flyby sound", "", "The sound while it flies, or a beam's while it is on (FLYOUT SOUND)."},
            {"impact", "", "The animation where it hits (IMPACT default ANIMATION); the other soils' are the copy's."},
            {"impact sound", "", "The sound where it hits (IMPACT default SOUND)."},
-           {"OK", "", "Write it into the mod (mod.txt and zbd\\reader.zbd, or its own zbd\\weapons.zrd), each file's earlier copy kept as .bak."},
+           {"OK", "", "Write it into your copy of the campaign (mod.txt and zbd\\reader.zbd, or its own zbd\\weapons.zrd), each file's earlier copy kept as .bak."},
            {"Cancel", "", "Close it; nothing is written."},
        }});
 }
