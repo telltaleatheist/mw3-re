@@ -205,6 +205,27 @@ TEST(mods_check_refuses_only_a_mod_with_nothing_usable) {
          (mech3::mod_sentences(f) == std::vector<std::string>{"It changes nothing in the game.", "Nothing in it is refused."}));
 }
 
+// The check reads a mod by host path (unconfined, modding.md), so no row of mod.txt may name a file outside
+// the mod: a world, an Instant Action world, a campaign file or a mech's model with ".." or a separator is a
+// warning, that row left out, and a file placed outside the mod is never what the row finds.
+TEST(mods_check_rows_cannot_name_files_outside_the_mod) {
+  const std::string root = tmp("mods_rows_outside");
+  put(root + "/secret/gamez.zbd", "x");
+  put(root + "/secret.txt", "name=Out\nop=Op\nmission=c1 1\n");
+  put(root + "/zbd/mechlib/mech_secret.flt.json", "{}");
+  put(root + "/m/mod.txt", "name=M\nworld=../../secret\nworld=..\\..\\secret\nia_world=../secret Out\ncampaign=../secret.txt\n"
+                           "mech=scout tech=any mass=20 class=light model=../../zbd/mechlib/mech_secret\n");
+  put(root + "/m/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  int errors = -1;
+  mech3::ModFindings f;
+  std::string text;
+  for (const std::string& l : mech3::mod_check(root + "/m", "", &errors, &f)) text += l + "\n";
+  std::printf("%s", text.c_str());
+  EXPECT(errors == 0 && f.worlds.empty() && f.ia_worlds.empty() && f.campaigns.empty() && f.mechs.empty());
+  EXPECT(f.notes.size() == 5);  // each of the five rows said and left out
+  EXPECT(text.find(": ok") == std::string::npos && text.find("missions") == std::string::npos);
+}
+
 // The same fault in many items of one file (22 textures of a library, each naming a palette that is not there):
 // the item's number is beside its place, not in the fault's words, so the fault and its fix are said once.
 TEST(mods_report_says_one_fault_in_many_items_once) {
@@ -700,6 +721,9 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
   EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=huge", &r, &why) && why.find("class=") != std::string::npos);
   EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=light speed=9", &r, &why) && why == "unknown key speed");
   EXPECT(!mech3::mech_row_parse("sc/out tech=any mass=20 class=light", &r, &why));
+  // model= names files too: one word, no way out of the folders.
+  EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=light model=../../secret", &r, &why) && why.find("model=") != std::string::npos);
+  EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=light model=a\\b", &r, &why) && why.find("model=") != std::string::npos);
   SavedMounts keep;
   const std::string wd = tmp("mods_mechs");
   put(wd + "/mods/a/mod.txt", "name=A\nmech=madcat_b tech=clan mass=75 class=heavy model=madcat title=Mad Cat B\n"

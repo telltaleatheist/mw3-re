@@ -1321,6 +1321,13 @@ setting. Tests: `bounded_check_mod_reads_textures_sounds_and_scripts` (the check
 same lines) and `sdl_program_mods_import_keeps_a_mods_archives` (the real program: IMPORT of a folder mod with a
 reader archive on the MODS screen; the archive is in the added mod and nothing is left out).
 
+Because the check reads by host path, no row of mod.txt may name a file outside the mod. `world=` is one word (no
+separator or dot), `campaign=` a file inside the mod (no "..", not absolute), a campaign's worlds one word, and
+`ia_world=` must be a world the game or the mod has; `mech=`'s name was letters, digits, `_` and `-` already, and
+its `model=` now is too (it names `mech_<model>.flt` and the motions; before, a model with ".." was looked for
+where it pointed). Each such row is a warning and is left out
+(`mods_check_rows_cannot_name_files_outside_the_mod`).
+
 ### Requirements in mod.txt (modder step 7, 2026-11-10)
 
 Ours (`upgrades/mods/mod_needs`). Three mod.txt keys, warned of and never
