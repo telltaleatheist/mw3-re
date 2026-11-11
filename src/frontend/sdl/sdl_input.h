@@ -98,6 +98,26 @@ class SdlInput : public platform::Input {
   std::function<bool()> windowed;    // shown, not fullscreen (unset: fullscreen's rules)
   std::function<bool()> in_mission;  // the mission's own state (not a menu or the pause)
   std::function<void(float, float)> absolute_cursor;  // window point -> zInput's mouse
+  // FIX (A), playtest W4 (sdl_focus.h; docs/input.md, The focus is checked):
+  // the window's real focus, asked at every refresh, so a window that came up
+  // without it does not hold a mouse that gives no motion, and takes the mouse
+  // when the focus is really its own. Unset (tests, a hidden window): SDL's
+  // focus events alone, the window taken as focused from the start.
+  std::function<bool()> has_focus;
+  // SDL made to look at the focus again (sdl_focus.h, window_focus_nudge); true when asked.
+  std::function<bool()> nudge_focus;
+  // The focus as the system and SDL have it, for the log's lines.
+  std::function<std::string()> focus_report;
+  std::function<uint64_t()> now_ns;  // tests: the clock (unset: SDL's)
+  // Held with no motion seen since it was taken, a key or button press lets
+  // the mouse go and takes it again, the game none the wiser: what cures a
+  // stuck one by hand (the quit box, Alt+Tab). At most kHeals times a capture,
+  // kHealGapNs apart, and never once motion has come.
+  static constexpr int kHeals = 8;
+  static constexpr uint64_t kHealGapNs = 1000000000ull;
+  static constexpr uint64_t kQuietNs = 3000000000ull;  // "no motion in 3 s", said once a capture
+  int heals() const { return heals_total_; }
+  bool focused() const { return focused_; }
   bool released() const { return released_; }
   bool in_window() const { return win_; }  // as of the last refresh
   void refresh();  // the capture as the window, the state and the release say
@@ -129,6 +149,14 @@ class SdlInput : public platform::Input {
   uint32_t coop_[3] = {};
   bool focused_ = true;
   bool captured_ = false;  // capture(true) asked: the relative mouse
+  void focus_gained(uint64_t ns);
+  void focus_lost();
+  void check_focus();
+  void heal(const char* by);
+  uint64_t clock() const;
+  uint64_t captured_ns_ = 0, healed_ns_ = 0, nudged_ns_ = 0;
+  bool motion_seen_ = false, quiet_said_ = false;
+  int heals_ = 0, heals_total_ = 0;
   bool muted() const { return released_ && win_ && mission_; }
   void release_chord(SDL_Scancode s, bool down);
   bool win_ = false, mission_ = false, absolute_ = false;

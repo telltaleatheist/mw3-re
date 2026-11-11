@@ -484,6 +484,71 @@ original's 1.3 did over DDrawCompat's counts. A 640x480 window is one to
 one, as before. Not measured against the original on Owen's PC (his hand
 on the mouse); the rule is DDrawCompat's.
 
+## 11. The focus is checked (playtest W4, 2026-11-11)
+
+Owen's report: on Windows, mostly Pirate's Moon, fullscreen and started from
+the launcher, the game sometimes came up with its cursor in the middle of the
+screen and not moving. Keys worked; the quit box or Alt+Tab usually cured it.
+
+**What the code says (read, not run: we have no Windows to run it on).**
+A held mouse is SDL's relative mode. In SDL 3.4.12's Windows code that is raw
+input on a thread of its own (`SDL_windowsrawinput.c`), and each raw motion
+is given to the window SDL holds as its keyboard focus and dropped when there
+is none (`SDL_windowsevents.c`, `WIN_HandleRawMouseInput`). SDL takes a
+window as its keyboard focus in `WIN_UpdateFocus`, which runs on the
+activation messages and does nothing unless the window is the system's
+foreground window at that moment (`GetForegroundWindow() == hwnd`); SDL's own
+comment there: "it's possible to get WM_ACTIVATE and WM_SETFOCUS without
+actually being the foreground window". Relative mode itself is switched on
+only for a window with the keyboard focus (`SDL_UpdateRelativeMouseMode`),
+while `SDL_GetWindowRelativeMouseMode` answers from the window's flag, on
+from the moment we ask. The launcher stays in front until the game's first
+frame (`--ready-file`) and did not allow the game the foreground, so the
+game's window could be activated while the launcher's was still the
+foreground one. Then SDL never noted the focus, sent no focus event, gave no
+motion, and said relative mode was on; our side (`focused_` true from the
+start, a re-ask only when SDL's flag disagreed) saw nothing wrong. Letting go
+and taking again, or a real activation, put it right, which is what the quit
+box and Alt+Tab did. Pirate's Moon reaches its menu at once, MechWarrior 3
+plays its movies first: a guess at why one shows it more.
+
+**What changed.**
+
+- The launcher allows the game it starts the foreground
+  (`allow_foreground`, `AllowSetForegroundWindow` on the child's process id,
+  as a start-again allows its child). The game's window already raises itself
+  when shown (`sdl_platform.cpp`).
+- `SdlInput::has_focus` (a shown window: `FocusWatch`, SDL's keyboard focus
+  ours and the foreground window ours) is asked at every refresh and acquire.
+  The mouse is taken only when it is true and when it becomes true, with or
+  without an event; a focus event that is not yet true is not believed.
+- A window in front that SDL has not noted gets an activation message posted
+  (`window_focus_nudge`), on which SDL looks again. Should that do nothing
+  for two seconds the system's word alone is taken, so the keyboard never
+  waits on SDL.
+- The other way round (dev 4's reading of the same source, 2026-11-11): a
+  loss SDL missed leaves it holding raw input and a one-point cursor clip at
+  the window's centre while another program is in front, and raw input then
+  brings nothing: also "stuck in the middle". `has_focus` is false there (the
+  foreground is not ours), so the mouse is let go, which ends SDL's mode, and
+  a clip still at a point is released (`window_unclip_behind`); it is taken
+  again when the window is the foreground one.
+- Held with no motion seen since it was taken, a key or button press lets the
+  mouse go and takes it again (`heal`): once a press, a second apart, eight a
+  capture at most, never after the first motion. The game still gets the
+  press.
+- The log names the state: "mouse: taken (...)" with SDL's keyboard and mouse
+  focus, the window's flags, the foreground window ours or not and the
+  cursor's clip; "first motion N ms after it was taken" or "no motion in 3 s
+  since it was taken (...)"; each wait, nudge and heal.
+
+**Run here:** `sdl_input_mouse_waits_for_the_real_focus_and_heals` (the rules
+on the input class), `sdl_program_mouse_waits_for_the_focus` (the real
+program, hidden, the focus given at the pump's 60th pass by `MW3_FOCUS_AT`),
+the Windows files compiled with mingw. **Not run:** anything on Windows; the
+cause above is from reading SDL's source, and the next stuck run's log lines
+will say whether it is the one.
+
 ## Open
 
 - The controls screen (0x0042be10 ..), which uses read_key and the wait
