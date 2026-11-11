@@ -1629,6 +1629,8 @@ with it entry by entry, by bytes.
   whose table does not read, or the install's does not; one with two entries
   of one name; one with a `.entries` file beside it already.
 - An entry the install has and the mod's archive lacks stays the install's.
+  (A change in meaning, accepted: a mod's whole archive without that entry
+  took it away from the game; kept as its changed entries it does not.)
 - A mod already in `mods\` is never rewritten. Every form IMPORT takes goes
   through it (an archive, a folder, a modded game folder, an installer).
 - The log: "mw3: import: <name>: reader archives: 20 kept as the entries it
@@ -1669,7 +1671,10 @@ six entries, and "The mod is kept in this form for the rebuild; EXPORT puts
 the whole files into its zip, which the original game takes too." The MODS
 list's "Shares ... which wins" goes by entry for such files
 (`zbd/reader.zbd: weapons.zrd`), so two mods on different entries share
-nothing. A mech row's definition is looked for in a mod's `.entries` too.
+nothing; where they do it says how many and the entry most of them are:
+"Shares 58 entries in 20 files (aiv.zrd in 20) with <mod>, which wins". An
+earlier mod's whole archive wins a later mod's entries of it, said the same
+way. A mech row's definition is looked for in a mod's `.entries` too.
 
 **Both ways: EXPORT.** An `.entries` file goes into the zip as the whole
 archive, the player's install's with the entries laid over it (the mount's
@@ -1709,9 +1714,7 @@ both ticked in either order, each alone, and the game alone: every run ended
 normally with no unported function reached.
 
 Not done: REPORT on a copy (`mod_copy_report`) compares files by name, so a
-copy's whole archive is not matched with its base's `.entries`; the MODS
-list does not say that an earlier mod's whole archive hides a later mod's
-entries of it.
+copy's whole archive is not matched with its base's `.entries`.
 
 Tests: `entry_archives_names_and_the_cut_of_one_archive`,
 `entry_archives_two_imported_mods_both_apply` (IMPORT with the program's
@@ -1724,6 +1727,30 @@ own reader.zbd: one mod's new weapon, the other's new mech carrying it;
 either order, c1 mission 1 launches the mech and the weapon fires),
 `patch12_acts_on_10s_entries_under_a_mods_changed_entries`,
 `editor_save_as_over_a_campaign_kept_as_changed_entries`.
+
+### A mech loadout (2026-11-11)
+
+A mech variant is often passed around as the lab's exported loadout
+(`export\<mech>_<name>.m3c`, Ctrl+X in the mech lab), which is not a mod.
+IMPORT takes one (`upgrades/mods/import_loadout`): a `.m3c` file, or a folder
+or archive holding only `.m3c` files (and their `.rows`), is copied into the
+write dir's `import\` folder, where the lab's own import (Ctrl+I) reads the
+next one, once, and renames it `.done`. The picker's filter offers `.m3c`.
+- `import\` is the write dir's, one for every campaign: the loadout goes to
+  whichever campaign's lab the player presses Ctrl+I in, and is saved with
+  that campaign's saved mechs.
+- Never over a file: one of that name there (or its `.done`, or a `.rows`)
+  gives "<name> (2).m3c" and on. The picked file is only read. No mod is
+  made and nothing is staged for a single file.
+- Refused, said: a file whose start does not read as a loadout (its two
+  names' lengths, room for the rest), one over 1 MB, a link.
+- The screen: "Added 1 mech loadout: in a mech lab, Ctrl+I takes it."
+- A loadout naming a mod's mech or weapon carries its `.rows`; the lab
+  leaves it for later while no mounted mod adds that row, as before.
+Test: `import_takes_a_mech_loadout_for_the_lab` (confined; one player's
+export into another's write dir, twice, a folder of two, two bad files, the
+lab reading all four, one imported again after its `.done`). Break: a file
+of that name written over.
 
 ### IMPORT and EXPORT (Owen, 2026-11-09; modder step 8 brought forward)
 

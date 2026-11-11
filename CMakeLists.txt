@@ -333,6 +333,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/save_mods.cpp
   src/upgrades/mods/import_folder.cpp
   src/upgrades/mods/import_texts.cpp
+  src/upgrades/mods/import_loadout.cpp
   src/upgrades/mods/entry_archives.cpp
   src/upgrades/mods/bz2_read.cpp
   src/upgrades/mods/installer_read.cpp
