@@ -30,6 +30,7 @@
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/sdl_restart.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "upgrades/mods/entry_archives.h"
 #include "upgrades/mods/campaign_entries.h"
 #include "mech3/mods.h"
 #include "mech3/data_folder.h"
@@ -4864,6 +4865,7 @@ TEST(sdl_program_mods_import_keeps_a_mods_archives) {
       uint32_t size = in.entries[i].length;
       EXPECT(zutl_zar::read(in, i, data.data(), &size) == 0);
       zutl_zar::add(out, in.entries[i].name, data.data(), size);
+      if (i == 0) zutl_zar::add(out, "zz_arch_new.zrd", data.data(), size);  // and one entry the game does not have
     }
     zutl_zar::close(out), zutl_zar::close(in);
     zutl_zar::destroy(out), zutl_zar::destroy(in);
@@ -4876,7 +4878,9 @@ TEST(sdl_program_mods_import_keeps_a_mods_archives) {
   std::ifstream f(log);
   const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   EXPECT(text.find("is outside the game's folders") == std::string::npos);
-  EXPECT(fs::file_size(dir + "/wd/mods/Arch/zbd/reader.zbd", ec) == fs::file_size(dir + "/pick/arch/zbd/reader.zbd", ec) && !ec);
+  // Kept as the one entry it adds to the game's reader.zbd (upgrades/mods/entry_archives.h), read in the program.
+  EXPECT(mech3::archive_entry_names(dir + "/wd/mods/Arch/zbd/reader.zbd.entries") == std::vector<std::string>{"zz_arch_new.zrd"});
+  EXPECT(!fs::exists(dir + "/wd/mods/Arch/zbd/reader.zbd", ec) && text.find("reader archives: 1 kept as the entries it changes (1 in all)") != std::string::npos);
   EXPECT(!fs::exists(dir + "/wd/mods/Arch/mw3-mod-left-out.txt", ec));  // IMPORT's record of what it left out: none
   fs::remove_all(dir, ec);
 }

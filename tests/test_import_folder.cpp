@@ -54,6 +54,10 @@ std::string names(const std::string& dir) {
   for (const auto& [rel, data] : snapshot(dir)) s += rel + "|";
   return s;
 }
+struct KeepMounts {
+  zutl::Mounts saved = zutl::mounts();
+  ~KeepMounts() { zutl::mounts() = saved; }
+};
 bool nothing_staged(const std::string& wd) {
   std::error_code ec;
   return !fs::exists(fs::path(wd) / "mod-import", ec) && !fs::exists(fs::path(wd) / "mod-staging", ec);
@@ -192,10 +196,15 @@ TEST(import_folder_other_picks_and_links) {
 TEST(import_folder_real_install_env) {
   const char* folder = std::getenv("MW3_IMPORT_FOLDER");
   if (!folder || !*folder) return;
-  const std::string wd = tmp("import_real_wd");
+  // MW3_IMPORT_WD=<a scratch write folder>: the mod is added there and kept (several runs: several mods in one
+  // write folder, to play them together); without it, the test's own folder, gone when the tests end.
+  const char* keep = std::getenv("MW3_IMPORT_WD");
+  const std::string wd = keep && *keep ? std::string(keep) : tmp("import_real_wd");
+  KeepMounts mounts;
+  zutl::mounts().confined = true;  // as the program has it when IMPORT runs
   std::string report;
   const mech3::ModAddDone d = mech3::import_folder_run(wd, folder, MW3_GAME_DIR, nullptr, nullptr, &report);
-  std::printf("  %s\n  %s\n", d.message.c_str(), report.c_str());
+  std::printf("  %s\n  %s\n  in %s/mods/%s\n", d.message.c_str(), report.c_str(), wd.c_str(), d.folder.c_str());
   EXPECT(d.ok && nothing_staged(wd));
 }
 
@@ -307,10 +316,6 @@ TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
 
 // --- A mod's Mech3Msg.dll: its texts into strings.txt (upgrades/mods/import_texts.h) ---------------------
 namespace {
-struct KeepMounts {
-  zutl::Mounts saved = zutl::mounts();
-  ~KeepMounts() { zutl::mounts() = saved; }
-};
 // The mod's strings.txt as the game takes it at a start, over the player's own table.
 std::map<int32_t, std::string> texts_with(const std::string& wd, const std::string& folder, const std::string& inst,
                                           std::map<std::string, int32_t>* names = nullptr) {
