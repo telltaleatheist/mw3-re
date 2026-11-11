@@ -11,6 +11,7 @@
 #include <sstream>
 
 #include "gamez/zutil/zutl_path.h"
+#include "mech3/net_save.h"
 #include "mech3/mod_install.h"
 #include "mech3/patch_import.h"
 
@@ -45,7 +46,9 @@ bool system_note(const std::string& rel) {
 // anew), what a mod may never serve, a backup or a half-written file.
 bool left_out(const std::string& rel) {
   const std::string l = lower(rel);
-  return l == lower(kModAddedMarker) || l == lower(kModStagingMarker) || l == lower(kModChecksums) ||
+  // The editor's marker too (net_save.h): a copy exported and imported elsewhere is an imported mod there,
+  // never written by that player's editor; their edits make their own copy of it.
+  return l == lower(kModAddedMarker) || l == lower(kModStagingMarker) || l == lower(kModChecksums) || l == lower(ai::kEditorMarker) ||
          !zutl::mod_may_serve(rel) || ends_with(l, ".bak") || ends_with(l, ".saving") || system_note(rel);
 }
 

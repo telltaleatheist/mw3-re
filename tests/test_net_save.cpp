@@ -19,6 +19,8 @@
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_path.h"
 #include "upgrades/mods/campaign_entries.h"
+#include "upgrades/mods/mod_export.h"
+#include "mech3/mod_install.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/save_as.h"
 #include "gamez/zutil/zutl_zar.h"
@@ -608,6 +610,66 @@ TEST(editor_saves_only_as_a_copy_of_the_campaign) {
     EXPECT(box && box->press("Save") && !mech3::form_shown(box) && ran == 1 && mech3::save_as_session().copy == "MechWarrior 3, my edit 2");
   }
   mech3::save_as_end();
+  mech3::ai::net_save_into_mod().clear();
+  mech3::current_entry() = mech3::official_entries().front().id;
+  zutl::mounts() = saved;
+}
+
+// A copy exported and imported elsewhere is an imported mod there (EXPORT
+// leaves the editor's marker out): the editor never writes it, an edit makes
+// that player's own copy of it, built on the imported one.
+TEST(editor_never_writes_an_imported_copy) {
+  const fs::path root = fs::path(MW3_TEST_TMP_ROOT) / "save_as_export";
+  std::error_code ec;
+  fs::remove_all(root, ec);
+  const fs::path inst = root / "install", wd = root / "write", wd2 = root / "other write";
+  const zutl::Mounts saved = zutl::mounts();
+  const auto archive = [](const fs::path& p, const std::string& net) {
+    fs::create_directories(p.parent_path());
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    zutl_zar::create(a, p.string().c_str());
+    zutl_zar::add(a, "net_01.zrd", net.data(), static_cast<uint32_t>(net.size()));
+    zutl_zar::close(a);
+    zutl_zar::destroy(a);
+  };
+  auto tree = [&](const fs::path& dir) {
+    std::string t;
+    std::vector<fs::path> all;
+    for (fs::recursive_directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) all.push_back(it->path());
+    std::sort(all.begin(), all.end());
+    for (const fs::path& f : all)
+      if (fs::is_regular_file(f, ec)) t += f.generic_string() + ":" + text_of(f) + "\n";
+    return t;
+  };
+  archive(inst / "zbd" / "c1" / "readerm1.zbd", "install");
+  put(wd / "mods" / "Mine" / "mod.txt", "name=Mine\nkind=campaign\nbase=mw3\n");
+  put(wd / "mods" / "Mine" / mech3::ai::kEditorMarker, "the editor's\n");
+  put(wd / "mods" / "Mine" / "zbd" / "notes.bin", "mine");  // (IMPORT checks a reader archive's entries: a plain file here)
+  const std::string zip = (root / "Mine.zip").string();
+  EXPECT(mech3::mod_export((wd / "mods" / "Mine").string(), zip).ok);
+  fs::create_directories(wd2, ec);
+  const mech3::ModAddDone d = mech3::mod_add_run(wd2.string(), zip, inst.string(), nullptr, nullptr);
+  std::printf("  import: %s\n", d.message.c_str());
+  EXPECT(d.ok && d.folder == "Mine");
+  const fs::path theirs = wd2 / "mods" / "Mine";
+  EXPECT(!fs::exists(theirs / mech3::ai::kEditorMarker) && fs::is_regular_file(theirs / "mw3-mod-added.txt") && !mech3::editor_owns_mod(wd2.string(), "Mine"));
+  // Edited there: asked for a name, a new copy built on the imported one; the imported folder as it was.
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd2.string());
+  zutl::mount_mod(theirs.string());
+  zutl::mount(inst.string());
+  const std::string before = tree(theirs);
+  mech3::save_as_begin(wd2.string(), "Mine");
+  EXPECT(mech3::save_as_session().copy.empty());
+  int asked = 0;
+  mech3::save_as_ask_hook() = [&](std::string*) { return ++asked, true; };
+  EXPECT(mech3::editor_save_ready(nullptr) && asked == 1 && mech3::save_as_session().copy == "Mine, my edit");
+  const mech3::ai::NetSave r = mech3::ai::save_archive_edit("zbd\\c1\\readerm1.zbd", "net_01.zrd", {'n', 'e', 'w'});
+  EXPECT(r.ok && r.folder == "Mine, my edit" && tree(theirs) == before);
+  EXPECT(text_of(wd2 / "mods" / "Mine, my edit" / "mod.txt").find("base=Mine\n") != std::string::npos);
+  mech3::save_as_end();
+  mech3::save_as_ask_hook() = nullptr;
   mech3::ai::net_save_into_mod().clear();
   mech3::current_entry() = mech3::official_entries().front().id;
   zutl::mounts() = saved;

@@ -16,6 +16,8 @@
 #include "mech3/mission.h"
 #include "mech3/mod_install.h"
 #include "upgrades/mods/campaign_entries.h"
+#include "upgrades/mods/import_folder.h"
+#include "upgrades/mods/mods_delete.h"
 #include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/mods/mod_export.h"
@@ -347,6 +349,8 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
       add_folder_btn(e, kAddFolder),
       folder_btn(e, kOpenFolder),
       report_btn(e, kReport),
+      delete_btn(e, kDelete),
+      reset_btn(e, kDelete),
       campaign_list(e, kCampaigns),
       ticks(e),
       mod_list(ticks.list),
@@ -390,6 +394,8 @@ ModsScreen::ModsScreen(Engine& e, Handle s)
     bind_button(&add_folder_btn, "ADDFOLDER");
     bind_button(&folder_btn, "MODSFOLDER");
     bind_button(&report_btn, "REPORTMOD");
+    bind_button(&delete_btn, "DELETEROW");
+    bind_button(&reset_btn, "RESETROW");
     unload();
   }
   // The details in PILOT ENTRY's box, the notes under the MODS table.
@@ -466,6 +472,7 @@ void ModsScreen::show_details() {
   }
   say(detail, d);
   say(detail2, d2);
+  show_delete_tab();
   // A campaign's note takes both lines (a reason can be long); a mod's is one, over whose mods these are.
   if (focus == kCampaigns) {
     tell(n);
@@ -586,6 +593,9 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
       if (editing) missions(testing);  // EDITOR's or TEST's list closed first
       report();
       return;
+    case kDelete:
+      delete_row();
+      return;
     case kTest:
       if (reporting) report();
       test();
@@ -604,6 +614,54 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
     default:
       return;
   }
+}
+
+// The plan for what is chosen: the mod at the right when MODS has the focus (never a campaign's own mod from
+// there: its row is at the left), else the campaign at the left.
+namespace {
+DeletePlan plan_for(ModsScreen& s) {
+  DeletePlan p;
+  if (s.test_mode || s.reporting || s.editing) return p.refused = "Close the list first.", p;
+  if (s.focus == ModsScreen::kMods) {
+    const ModsListEntry* m = s.ticks.chosen();
+    if (!m) return p.refused = "Choose a mod or a campaign.", p;
+    if (mod_is_campaign(m->info)) return p.refused = "It is a campaign's own: choose the campaign at the left to delete it.", p;
+    return delete_plan_for_mod(mods_menu_write_dir(), m->info.folder);
+  }
+  const ModsCampaignRow* row = s.chosen_row();
+  if (!row) return p.refused = "Choose a mod or a campaign.", p;
+  return delete_plan_for_entry(mods_menu_write_dir(), row->entry, entry_run().id);
+}
+}  // namespace
+
+void ModsScreen::show_delete_tab() {
+  const std::string label = plan_for(*this).label;
+  if (label == "DELETE") delete_btn.show_for(-1.0f);
+  else delete_btn.hide();
+  if (label == "RESET") reset_btn.show_for(-1.0f);
+  else reset_btn.hide();
+}
+
+// DELETE or RESET: the game's own confirm saying what goes, then the one remover (mods_delete.h).
+void ModsScreen::delete_row() {
+  const DeletePlan plan = plan_for(*this);
+  if (plan.kind == DeletePlan::kNone) {
+    tell(plan.refused);
+    return;
+  }
+  const bool reset = plan.kind == DeletePlan::kReset;
+  if (engine().message_box_words(1, reset ? "Reset" : "Delete", plan.question) != 1) {
+    tell(reset ? "Not reset." : "Not deleted.");
+    return;
+  }
+  std::string why;
+  const bool ok = delete_run(mods_menu_write_dir(), plan, &why);
+  std::printf("mw3: mods: %s %s%s%s: %s\n", reset ? "reset" : "delete", plan.mod.empty() ? "" : ("mods/" + plan.mod + " ").c_str(),
+              plan.entry.empty() ? "" : "campaigns/", plan.entry.c_str(), ok ? "done" : why.c_str());
+  entry = official_entries().front().id;  // the game's own campaign chosen after it
+  focus = kCampaigns;
+  refill();
+  tell(ok ? (reset ? "Reset." : "Deleted.") : (reset ? "Not reset: " : "Not deleted: ") + why);
 }
 
 // ENTER: the chosen campaign entered (its own pilots), MODS let go and the
@@ -867,7 +925,9 @@ void ModsScreen::tell(const std::string& text) {
 // campaign, shown in its table and said.
 void ModsScreen::add_mod(const std::string& path) {
   // Added unticked: nothing changes for any campaign until the player ticks it.
-  const ModAddDone d = mod_add_run(mods_menu_write_dir(), path, mods_menu_install(), mods_menu_platform().ask_game, nullptr);
+  // A whole modded game folder: what differs from the player's install becomes the mod (upgrades/mods/import_folder.h).
+  std::string took;
+  const ModAddDone d = import_folder_run(mods_menu_write_dir(), path, mods_menu_install(), mods_menu_platform().ask_game, nullptr, &took);
   if (!d.ok) {
     tell(d.message);
     return;
@@ -888,7 +948,9 @@ void ModsScreen::add_mod(const std::string& path) {
       listed = true;
     }
   show_details();
-  tell(d.message);
+  // From a whole install: what was taken, on the two rows; "Added ..." is in the log, and the mod's row is chosen.
+  if (!took.empty()) std::printf("mw3: mods: %s\n", d.message.c_str());
+  tell(took.empty() ? d.message : took);
 }
 
 // EXPORT's answer: the mod chosen when the save box opened, packed into
