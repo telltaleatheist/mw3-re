@@ -2126,7 +2126,8 @@ TEST(sdl_install_is_found_and_saved) {
     for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) cfg.append(buf, n);
     std::fclose(f);
   }
-  EXPECT(cfg == "install=/new\nassets=/a\nwindowed=1\n");
+  // Each line keeps its own ending and the new one takes the file's first (save_config_value, since 1.1.0).
+  EXPECT(cfg == "install=/new\r\nassets=/a\r\nwindowed=1\n");
   fs::remove_all(tmp);
 }
 
