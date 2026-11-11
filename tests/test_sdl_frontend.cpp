@@ -2295,13 +2295,13 @@ TEST(sdl_install_is_found_and_saved) {
   EXPECT(sdlfe::install_of_program_value("\"/g/MW3/MECH3.EXE\"") == "/g/MW3");
   EXPECT(sdlfe::install_of_program_value("/g/MW3/") == "/g/MW3");
 #endif
-  if (std::FILE* f = std::fopen((tmp + "/mw3.cfg").c_str(), "w")) {
+  if (std::FILE* f = std::fopen((tmp + "/mw3.cfg").c_str(), "wb")) {  // byte for byte on Windows too
     std::fputs("assets=/a\r\ninstall=/old\nwindowed=1\n", f);
     std::fclose(f);
   }
   EXPECT(sdlfe::save_install(tmp, "/new"));
   std::string cfg;
-  if (std::FILE* f = std::fopen((tmp + "/mw3.cfg").c_str(), "r")) {
+  if (std::FILE* f = std::fopen((tmp + "/mw3.cfg").c_str(), "rb")) {
     char buf[256];
     for (size_t n; (n = std::fread(buf, 1, sizeof buf, f)) > 0;) cfg.append(buf, n);
     std::fclose(f);
