@@ -224,7 +224,9 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
     const int32_t index = mission_dir_index(world.c_str());
     if (index < 0) return *why = "no world " + world, false;
     Launch l;
-    l.index = index, l.number = number, l.type = 1, l.op = 0;
+    // The operation the world is of, for the debriefing's title (c1..c3 1..3, c4 and c4b 4; any other world 4, as
+    // a mod's campaign counts it: mod_campaign.cpp).
+    l.index = index, l.number = number, l.type = 1, l.op = index < 3 ? index + 1 : 4;
     const Handle real = peek32(0x60861c);
     set_launch(l);
     mods_edit_begin(mod, [this, real] {
@@ -241,7 +243,9 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
     if (index < 0) return *why = "no world " + world, false;
     mod_test_reload();  // the mechs' definitions read again (upgrades/mods/mod_test.h)
     Launch l;
-    l.index = index, l.number = number, l.type = 1, l.op = 0;
+    // The operation the world is of, for the debriefing's title (c1..c3 1..3, c4 and c4b 4; any other world 4, as
+    // a mod's campaign counts it: mod_campaign.cpp).
+    l.index = index, l.number = number, l.type = 1, l.op = index < 3 ? index + 1 : 4;
     const Handle real = peek32(0x60861c);
     set_launch(l);
     mods_edit_begin(

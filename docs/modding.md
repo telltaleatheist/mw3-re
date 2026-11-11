@@ -615,6 +615,16 @@ the game's own with a mod ticked on the screen).
   the test screen and the list stays.
 - Changing a tick is not offered inside the test (it needs the restart): BACK,
   tick, TEST again.
+- **The debriefing of a test mission** (2026-11-11): the test is played by a
+  stand-in pilot with no game of its own, so the debriefing's two branches
+  (a campaign's, Instant Action's) filled nothing and its title read the
+  dialog's unfilled message, "Operation !d!, Mission !d!". The start now
+  gives the launch the world's operation (c1..c3 1..3, any other 4, as a
+  mod's campaign counts it), and the debriefing has a branch of ours for a
+  MODS test or editor session: the title as a campaign mission's, the time,
+  won or lost; no salvage and no replay, since nothing is kept of a test.
+  `sdl_program_test_mission_debriefing_names_its_mission` (the real program,
+  hidden, c2 3 lost and won: "Operation 2, Mission 3").
 - EDITOR: step 4b, below.
 
 Tests: `mods_screen_test_plays_a_mission_and_comes_back_headless` (both
