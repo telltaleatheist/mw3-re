@@ -222,6 +222,29 @@ TEST(entry_archives_whole_archives_and_no_base) {
   // Without a write folder, or with no such mod mounted: nothing built, nothing mounted in front.
   const std::string none = mech3::entries_merge(wd, {wd + "/mods/hand"}, {inst}, nullptr);
   EXPECT(none.empty() && mech3::entries_merge("", {wd + "/mods/cut"}, {inst}, nullptr).empty());
+  // No mounted mod kept as entries: nothing is written at all, and nothing mounted in front.
+  {
+    const std::string wd2 = tmp("entry_archives_plain_wd");
+    put(wd2 + "/mods/hand/mod.txt", "name=By hand\n");
+    archive(wd2 + "/mods/hand/zbd/reader.zbd", {{"a.zrd", "A9"}});
+    EXPECT(mounted_reader(wd2, {"hand"}, inst) == "a.zrd=A9|" && !fs::exists(wd2 + "/" + mech3::kModMergedFolder));
+    EXPECT(zutl::mounts().read.front().find("/mods/hand") != std::string::npos);
+  }
+  // A game's archive that cannot take the entries (its table does not read): not built, said, and the game reads
+  // its own file as it would with no such mod; never a part of one in front.
+  {
+    const std::string bad = tmp("entry_archives_bad_inst");
+    put(bad + "/zbd/reader.zbd", "not an archive");
+    std::string l;
+    EXPECT(mounted_reader(wd, {"cut"}, bad, &l) == "(unreadable)");
+    std::printf("%s", l.c_str());
+    EXPECT(zutl::find("zbd/reader.zbd") == bad + "/zbd/reader.zbd" &&
+           l.find("mods: zbd/reader.zbd: the game's archive could not take the mods' entries (its table); the mods' changed entries of it are not applied, "
+                  "the game's own is read") != std::string::npos);
+    std::error_code ec;
+    for (fs::recursive_directory_iterator it(wd + "/" + mech3::kModMergedFolder, ec), end; !ec && it != end; it.increment(ec))
+      EXPECT(it->path().extension() != ".part");
+  }
   // The folders of earlier builds: only ours (the marker) go, never the one kept, never the player's.
   const std::string base = wd + "/" + mech3::kModMergedFolder;
   put(base + "/old/" + mech3::kModMergedMarker, "ours");
