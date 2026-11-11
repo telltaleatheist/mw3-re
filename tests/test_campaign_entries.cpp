@@ -74,7 +74,7 @@ TEST(campaign_entries_listed_by_kind) {
   mods(wd);
   const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
   std::printf("  entries: %s\n", ids(all).c_str());
-  EXPECT(ids(all) == "mw3,ia,camp~night,camp~dawn,copy~night,rewrite");
+  EXPECT(ids(all) == "mw3,ia,mp,camp~night,camp~dawn,copy~night,rewrite");
   const mech3::CampaignEntry* night = mech3::find_entry(all, "camp~night");
   const mech3::CampaignEntry* dawn = mech3::find_entry(all, "camp~dawn");
   const mech3::CampaignEntry* copy = mech3::find_entry(all, "copy~night");
@@ -92,7 +92,7 @@ TEST(campaign_entries_listed_by_kind) {
   put(wd / "campaigns/gone~x/pilots/Ace.mw3", "pilot");
   put(wd / "campaigns/stranger/notes.txt", "theirs");
   const std::vector<mech3::CampaignEntry> again = mech3::campaign_entries(wd.string());
-  EXPECT(ids(again) == "mw3,ia,camp~night,camp~dawn,copy~night,rewrite,gone~x!");
+  EXPECT(ids(again) == "mw3,ia,mp,camp~night,camp~dawn,copy~night,rewrite,gone~x!");
   const mech3::CampaignEntry* gone = mech3::find_entry(again, "gone~x");
   EXPECT(gone && gone->missing && gone->mod == "gone" && gone->campaign == "x" && !gone->error.empty());
 }
@@ -280,6 +280,20 @@ TEST(ia_mods_accept_steps_and_line) {
   mech3::entry_run().screen = mech3::EntryRun::kInstantAction, mech3::entry_run().id = mech3::kIaEntry;
   EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: 2 on");
   EXPECT(mech3::ia_mods_line(wd.string(), 1) == "MODS: 1 on" && mech3::ia_mods_line(wd.string(), 0) == "MODS: off");  // the tick list's own count
+  // Multiplayer's entry (kMpEntry) is its own: its ticks apart from Instant Action's, its line only inside it;
+  // not a campaign of the MODS screen's, and not deleted there.
+  const mech3::CampaignEntry* mp = mech3::find_entry(all, mech3::kMpEntry);
+  EXPECT(mp && mp->kind == mech3::CampaignEntry::kMultiplayer && mp->name == "Multiplayer");
+  EXPECT(mech3::mp_mods_line(wd.string()) == "MODS: off");  // inside Instant Action's, not multiplayer's
+  EXPECT(mp && mech3::entry_save_ticks(wd.string(), *mp, V{"b"}));
+  EXPECT(mech3::mp_mods_line(wd.string()) == "MODS: off" && mech3::ia_mods_line(wd.string()) == "MODS: 2 on");
+  mech3::entry_run().screen = mech3::EntryRun::kMultiplayer, mech3::entry_run().id = mech3::kMpEntry;
+  EXPECT(mech3::mp_mods_line(wd.string()) == "MODS: 1 on" && mech3::ia_mods_line(wd.string()) == "MODS: off");
+  EXPECT((mech3::entry_ticks(wd.string(), mech3::kMpEntry) == V{"b"}) && (mech3::entry_ticks(wd.string(), mech3::kIaEntry) == V{"a", "b"}));
+  EXPECT(mp && !mech3::entry_plays_own_campaign(wd.string(), *mp));
+  mech3::entry_run() = mech3::EntryRun{};
+  fs::remove_all(wd / "mods/b");
+  EXPECT(mech3::mp_mods_line(wd.string()) == "MODS: 1 missing");  // a plain run whose ticks could not be played
   mech3::entry_run() = mech3::EntryRun{};
 }
 

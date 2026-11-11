@@ -460,13 +460,15 @@ void LobbyScreen::update(float dt) {
         MpMods host{their_names, {}};
         mod_hashes_of(player_data(znet::session().host_id), &host.hashes);
         const std::string which = mp_mods_difference(host, MpMods{mine.names, mine.hashes});
-        engine().message_box_plain(0x30, 0x2a8, "Your mods don't match the host's. " +
-                                                     (which.empty() ? "The host uses: " + mods_text(their_names) + ". You use: " + mods_text(mine.names) + "."
-                                                                    : which));
+        const std::string said = "Your mods don't match the host's. " +
+                                 (which.empty() ? "The host uses: " + mods_text(their_names) + ". You use: " + mods_text(mine.names) + "." : which);
+        std::printf("mw3: multiplayer: turned back: %s\n", said.c_str());
+        engine().message_box_plain(0x30, 0x2a8, said);
         g_lobby_back = 1;
       } else if (upgrades_of(player_data(znet::session().host_id), &hosts)) {
         const uint32_t own = upgrades::bits();
         upgrades::take_hosts(hosts);  // the game on the host's switches; back at network_set(0)
+        std::printf("mw3: multiplayer: mods the host's (%s)\n", mods_text(mine.names).c_str());
         std::printf("mw3: upgrades: the host's switches 0x%x (ours 0x%x)\n", hosts, own);
       } else {
         // A host before 1.1.0 sends none: each side plays on its own (multiplayer-port.md).

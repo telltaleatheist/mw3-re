@@ -6287,8 +6287,9 @@ TEST(net_lobby_screen_headless) {
     EXPECT(l->worlds.value_at(9) == 0x302 && l->worlds.value_at(10) == 0x402 && l->worlds.selected_value() == 0x100);
     // Then our mods block: "MODS", the hash (0 with none), no names; then the
     // Upgrades page's word: "UPGR", the five (all on here).
+    // then each mod's own hash: "MOD1", none (upgrades/mods/mp_mods.h).
     uint32_t mine[16] = {}, size = sizeof mine;
-    EXPECT(znet::get_player_data(1, mine, &size) && size == 0x30);
+    EXPECT(znet::get_player_data(1, mine, &size) && size == 0x38 && mine[12] == 0x31444f4d && mine[13] == 0);
     EXPECT(mine[0] == 1 && mine[1] == 1 && mine[2] == 0 && mine[3] == 2 && mine[4] == 0x302 && mine[5] == 0x402);
     EXPECT(mine[6] == 0x53444f4d && mine[7] == 0 && mine[8] == 0 && mine[9] == 0);
     EXPECT(mine[10] == 0x52475055 && mine[11] == upgrades::bits());

@@ -172,7 +172,7 @@ ConnectScreen::ConnectScreen(Engine& e, Handle s)
         add(&mods_tab->line);
         const std::string line = mp_mods_line(mods_menu_write_dir());
         mods_text_say(mods_tab->line, line);
-        std::printf("mw3: multiplayer open, %s\n", line.c_str());
+        std::printf("mw3: multiplayer screen made, %s\n", line.c_str());
       }
     }
   }
