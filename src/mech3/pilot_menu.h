@@ -104,6 +104,10 @@ class PilotScreen : public MenuScreen {
   Pilot* chosen = nullptr;           // +0x1219c
 };
 
+// Ours: every pilot screen there is lets go of its chosen pilot (the pilots are about to be deleted: an entry's
+// pilots replace the game's, mod_campaign.cpp). The exe never deletes the chosen pilot under its screen.
+void pilot_screens_forget_pilots();
+
 // "Pilot State" (0x00488910, vtable 0x005c54e8), 0x14 bytes: its screen
 // made with it (the engine owns it, as the controls' popups).
 class PilotState : public MenuState {

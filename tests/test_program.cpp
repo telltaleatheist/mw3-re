@@ -1778,6 +1778,8 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
     mech3::States& st = mech3::states();
     int stage = 0, core = 0;
     bool entered = false, pilot_in_folder = false, left_early = false, back_at_main = false, mods_again = false;
+    bool pilot_again = false;
+    int games_again = -1;
     std::vector<std::string> asked;
     int left = 0;
     mech3::mods_menu_play() = [&](const std::string& entry, std::string*) { return asked.push_back(entry), true; };
@@ -1846,6 +1848,11 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
         auto* ps = dynamic_cast<mech3::PilotState*>(now);
         if (!ps || !ps->screen) return;
         back_at_main = mech3::entered_campaign() != nullptr && left == 0;
+        // The pilots were read anew for the entry: the screen's pilot is the one who flew, found again among
+        // them (never the deleted one), and the list is that pilot's games.
+        mech3::Pilot* again = mech3::find_pilot("Stepper");
+        pilot_again = again && mech3::current_pilot() == again && ps->screen->chosen == again;
+        games_again = ps->screen->games.item_count();
         ps->screen->on_button(0x17, 0, 0);  // CANCEL
         stage = 8;
       } else if (stage == 8 && left) {
@@ -1864,6 +1871,8 @@ TEST(mods_screen_enter_campaign_and_back_headless) {
     EXPECT(entered && pilot_in_folder && !left_early);
     EXPECT(mission_depth == 0);  // nothing under the mission, as from CAMPAIGN
     EXPECT(back_at_main && mods_again && stage == 10);  // the pilot screen again, then left once
+    std::printf("  after the mission: the pilot found again %d, %d games listed\n", pilot_again, games_again);
+    EXPECT(pilot_again && games_again >= 1);
     mech3::entry_run() = mech3::EntryRun{};
     mech3::mods_menu_play() = nullptr;
     mech3::missions().cleanup(false);
