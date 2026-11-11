@@ -775,13 +775,21 @@ Action takes mods from its own screen, not from MODS's list.
 - **Leaving** modded Instant Action by its pilot screen's CANCEL starts again
   on the main menu of a plain run (no `--open-mods`: the player came from the
   main menu).
-- **Straight in** (`ia_straight_in`, `MainMenuButton::on_left_up`): on a
-  plain run, INSTANT ACTION (the button, its hotkey and the app's reopen
-  press all go through the button) starts the program again into the entry
-  when it has ticks and none is missing. A ticked mod gone: the original
-  Instant Action opens and its line says "MODS: 1 missing"
-  (`ia_mods_missing`); the list shows which, and ACCEPT there refuses until
-  it is turned off or imported again.
+- **A plain start is unmodded** (Owen, 2026-11-11, playtest W9: "mods
+  should be disabled when you open the game, and you should enable them if
+  you want to play modded"). INSTANT ACTION on the main menu of a plain run
+  opens the original at once, "MODS: off", whatever the last session
+  ticked: the first version started the program again into the entry
+  ("straight in", `ia_straight_in`, gone). The ticks are remembered as
+  ticks: Instant Action's MODS screen opens with them ticked and says
+  "Ticked last time. ACCEPT starts the game again with them."; ACCEPT with
+  any ticked starts again into the entry, with none (or ALL OFF) it stays
+  the original and goes back. A ticked mod gone: the list shows which
+  (`ia_mods_missing`), and ACCEPT refuses until it is turned off or
+  imported again.
+- **No mods at all** (playtest W6): ALL OFF is not shown (it was a second
+  way out of the screen) and the note says "No mods yet. Get one on the
+  main menu: MODS, then IMPORT."
 - **The pilot goes along** (`--entry-pilot NAME`, `RestartTo::pilot`,
   `ia_start_pilot`): ACCEPT passes the chosen pilot's name; the main menu's
   state, once the pilots are loaded, picks the pilot of that name in the
@@ -800,8 +808,9 @@ Action takes mods from its own screen, not from MODS's list.
 Tests: `sdl_program_instant_action_mods` (three runs, each one process; the
 pilot brought with no box), `sdl_program_instant_action_mods_pilot_and_straight_in`
 (the pilot and saved mechs brought, picked after the restart; straight in
-from the main menu; a ticked mod gone; a mod's own map; out again with the
-pilot), `ia_mods_accept_steps_and_line`, `ia_mods_straight_in_and_missing`,
+from the main menu no more: a plain start stays the original, the ticks
+remembered on its MODS screen; a ticked mod gone; a mod's own map; out
+again with the pilot), `ia_mods_accept_steps_and_line`, `ia_mods_straight_in_and_missing`,
 `sdl_restart_args_are_the_starts_own`.
 
 ### Pilots inside an entry

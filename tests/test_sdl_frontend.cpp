@@ -5394,8 +5394,8 @@ TEST(sdl_program_instant_action_mods) {
 // The second part. D: the pilot and the saved mechs are brought into the
 // entry quietly at the restart (no box), the main menu's left byte for byte,
 // and the start lands past the pilot screen with that pilot. E: with the mods ticked,
-// a plain run's INSTANT ACTION goes straight into the entry. F: a ticked mod
-// gone: INSTANT ACTION stays the original, nothing starts again.
+// a plain run's INSTANT ACTION is still the original; its MODS screen has them ticked and ACCEPT starts
+// again with them. F: a ticked mod gone: INSTANT ACTION stays the original, nothing starts again.
 TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   namespace fs = std::filesystem;
   const std::string dir = std::string(MW3_TEST_TMP) + "/ia mods 2";
@@ -5436,11 +5436,19 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   EXPECT(bytes("wd/campaigns/ia/configs/keep.mw3") == "a saved mech" && bytes("wd/configs/keep.mw3") == "a saved mech");
   EXPECT(!fs::exists(dir + "/wd/campaigns/ia/pilots-not-copied.txt"));
   const std::string main_pilot = bytes("wd/pilots/a.mw3");
-  // E: the ticks are remembered: INSTANT ACTION on the main menu, nothing else.
+  // E (playtest W9: "mods should be disabled when you open the game"): the ticks are remembered, but a plain
+  // start's INSTANT ACTION is the original: no start again, nothing mounted, "MODS: off". Its MODS screen has
+  // the mod ticked and says so; ACCEPT there starts the game again with it.
   const std::string e = run({"--click-at", "60,210@120"}, "e");
-  const size_t straight = e.find("mw3: Instant Action's MODS: starting again into entry ia"), in = e.find("mw3: entry ia (Instant Action): 1 mods");
-  std::printf("  E: straight in %d\n", straight != none && in != none);
-  EXPECT(straight != none && in != none && straight < in && e.substr(0, straight).find("mounted") == none);
+  std::printf("  E: a plain start stays the original %d\n", e.find("starting again") == none);
+  EXPECT(e.find("starting again") == none && e.find("mw3: entry") == none && e.find("mounted") == none && e.find("mw3: closed, result 0") != none);
+  const std::string e2 = run({"--click-at", "60,210@120", "--click-at", "100,135@170", "--click-at", "420,320@200", "--click-at", "440,180@300",
+                              "--click-at", "420,320@380"}, "e2");
+  const size_t off = e2.find("mw3: Instant Action open, MODS: off, 4 maps"), last = e2.find("mw3: Instant Action's MODS says: Ticked last time. ACCEPT starts the game again with them.");
+  const size_t again = e2.find("mw3: Instant Action's MODS: starting again into entry ia"), in = e2.find("mw3: entry ia (Instant Action): 1 mods");
+  std::printf("  E: opened off %d, ticked last time %d, ACCEPT starts again %d, with the mod %d\n", off != none, last != none, again != none, in != none);
+  EXPECT(off != none && last != none && again != none && in != none && off < last && last < again && again < in);
+  EXPECT(e2.substr(0, again == none ? 0 : again).find("mounted") == none);
   EXPECT(bytes("wd/pilots/a.mw3") == main_pilot);  // the main menu's pilot as it was
   // F: its mod gone: the original Instant Action, no start again.
   fs::rename(dir + "/wd/mods/hud", dir + "/wd/hud away", ec);
