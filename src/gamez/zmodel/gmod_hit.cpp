@@ -99,10 +99,12 @@ template <class M> const float* place_vertices(M& m) {
   }
   const float* t = s.matrix().m;
   for (uint32_t i = 0; i < n; ++i, src += 3) {
+    // PM 0x00567636..0x005676b2, as MW3's 0x0054c655: x, y, z, then the translation, on the x87, stored once.
+    using zgeo::X;
     const float x = src[0], y = src[1], z = src[2];
-    out[3 * i] = row3<M>(x, y, z, t[0], t[3], t[6]) + t[9];
-    out[3 * i + 1] = row3<M>(x, y, z, t[1], t[4], t[7]) + t[10];
-    out[3 * i + 2] = row3<M>(x, y, z, t[2], t[5], t[8]) + t[11];
+    out[3 * i] = (((X(x) * t[0] + X(y) * t[3]) + X(z) * t[6]) + t[9]).f();
+    out[3 * i + 1] = (((X(x) * t[1] + X(y) * t[4]) + X(z) * t[7]) + t[10]).f();
+    out[3 * i + 2] = (((X(x) * t[2] + X(y) * t[5]) + X(z) * t[8]) + t[11]).f();
   }
   return out;
 }
@@ -156,8 +158,10 @@ bool same_sign(float a, float b) {
 }
 
 float dot_from(const float* p, const float* v0, const float* n) {
+  // PM 0x0056932e..0x00569370: the differences stored, their products with the normal summed on the x87, stored.
+  using zgeo::X;
   const float dx = p[0] - v0[0], dy = p[1] - v0[1], dz = p[2] - v0[2];
-  return (dx * n[0] + dy * n[1]) + dz * n[2];
+  return ((X(dx) * n[0] + X(dy) * n[1]) + X(dz) * n[2]).f();
 }
 
 // 0x0054e2b0 and 0x0054ea30: the same test; the textured one differs in
@@ -192,7 +196,7 @@ int32_t segments_core(zcls::Node* node, zcls::SegmentHits* out, const float* seg
       continue;
     }
     crossed = 1;
-    const float t = e0 / (e0 - e1);
+    const float t = (zgeo::X(e0) / (zgeo::X(e0) - e1)).f();  // PM 0x00569421: the difference on the x87, t stored
     const float dx = t * (to[0] - from[0]), dy = t * (to[1] - from[1]), dz = t * (to[2] - from[2]);
     zcls::SegmentHit& h = out[k].hit[out[k].count];
     h.point[0] = from[0] + dx;
@@ -410,9 +414,11 @@ int32_t ground_core(zcls::Node* node, zcls::GroundHits* out, const float* probes
         all_in = 0;
         continue;
       }
+      // PM 0x00567370: the two differences stored, the products and their sum on the x87, compared there.
+      using zgeo::X;
       const float* p = probes + 3 * k;
-      const float s = (p[0] - c[0]) * bz + (p[2] - c[2]) * ax;
-      in[k] = s > -0.0001;  // 0x005ce518
+      const X s = (X(p[2]) - c[2]) * X(ax) + (X(p[0]) - c[0]) * X(bz);
+      in[k] = s.v > -0.0001;  // 0x005ce518
       if (in[k]) any = 1;
       else all_in = 0;
     }
@@ -431,12 +437,16 @@ int32_t ground_core(zcls::Node* node, zcls::GroundHits* out, const float* probes
     std::memcpy(h.normal, n, 12);
     if (first) {
       first = false;
-      const float inv = 1.0f / n[1];
-      fx = -(n[0] * inv);
-      fz = -(n[2] * inv);
+      // PM 0x00567455: 1 over the normal's y stays on the x87; the two factors are stored.
+      const zgeo::X inv = zgeo::X(1.0f) / zgeo::X(n[1]);
+      fx = (-(zgeo::X(n[0]) * inv)).f();
+      fz = (-(zgeo::X(n[2]) * inv)).f();
     }
     const float* p = probes + 3 * k;
-    h.height = ((p[2] - v[2]) * fz + (p[0] - v[0]) * fx) + v[1];
+    {  // PM 0x00567481: z's product, x's, their sum and the vertex's y on the x87, stored once
+      using zgeo::X;
+      h.height = (((X(p[2]) - v[2]) * X(fz) + (X(p[0]) - v[0]) * X(fx)) + v[1]).f();
+    }
     if (h.height > top) {
       all_in = 0;
       continue;
@@ -489,17 +499,21 @@ int32_t polygon_ground_point(zcls::GroundHit* slot, const float* v, float x, flo
   for (int32_t i = n - 1; i >= 0; --i) {
     const float* c = v + 3 * i;
     const float* a = i == n - 1 ? v : v + 3 * (i + 1);
-    const float e = (x - c[0]) * (a[2] - c[2]) + (z - c[2]) * (c[0] - a[0]);
-    if (!(e > -0.0001)) return 0;  // 0x005ce518
+    // PM 0x00568752: the differences, the products and their sum all on the x87, compared there.
+    using zgeo::X;
+    const X e = (X(x) - c[0]) * (X(a[2]) - c[2]) + (X(z) - c[2]) * (X(c[0]) - a[0]);
+    if (!(e.v > -0.0001)) return 0;  // 0x005ce518
   }
   zmth::poly_normal(v, v + 3, v + 6, slot->normal);
   if (slot->normal[1] == 0.0f) {
     slot->height = v[1];
     return 1;
   }
-  const float inv = 1.0f / slot->normal[1];
-  const float fx = -(slot->normal[0] * inv), fz = -(slot->normal[2] * inv);
-  slot->height = ((z - v[2]) * fz + (x - v[0]) * fx) + v[1];
+  // PM 0x005687fb: 1 over the normal's y, the two factors, the products and the sum on the x87; the height stored.
+  using zgeo::X;
+  const X inv = X(1.0f) / X(slot->normal[1]);
+  const X fx = -(inv * X(slot->normal[0])), fz = -(inv * X(slot->normal[2]));
+  slot->height = (((X(z) - v[2]) * fz + (X(x) - v[0]) * fx) + v[1]).f();
   return 1;
 }
 
