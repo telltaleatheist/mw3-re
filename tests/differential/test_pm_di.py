@@ -227,6 +227,8 @@ def compare(want, got, kind, stats):
                         if not near(a, b):
                             return f'float {k} at {i}: {a} / {b}'
                         stats['near'] += 1
+                        key = f'near {kind} f{k}'  # where the last bits differ: by the query's kind and the float's place
+                        stats[key] = stats.get(key, 0) + 1
                     stats['floats'] += 1
                 elif x != y:
                     return f'word {k} at {i}: {x} / {y}'
@@ -440,6 +442,7 @@ def main():
         print(f'{name}: {queries} queries match; hits so far {totals}', flush=True)
     if COUNT:
         print(f'counted: {len(MISSES)} queries outside the allowance')
+        print('  not bit-equal by kind and float: ' + ', '.join(f'{k[5:]} {v}' for k, v in sorted(totals.items()) if k.startswith('near ')))
         # The ones known on this branch (docs/pm-tests.md); any other is new. Pinned by this: c3 query 239
         # "nearest", two coincident hits, which MW3's x87 form of segment_nearest's distance picked the other way.
         new = [m for m in MISSES if not any(m.startswith(k) for k in KNOWN_AT_53)]

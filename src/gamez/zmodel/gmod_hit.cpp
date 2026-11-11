@@ -13,6 +13,7 @@
 #include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zrender/zrndr_blit.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zmath/zmth_vector.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -581,9 +582,7 @@ int32_t segment_inside(zcls::LineHit* slot, const float* v, int32_t n) {
     const float e = edge(p, v + 3 * i, v + 3 * (i + 1), u, w);
     if (k == 5 ? !(e > -0.0001) : e <= -0.0001) return 0;
   }
-  zmth::Vec3 un{nn[0], nn[1], nn[2]};
-  zmth::normalize(un);
-  nn[0] = un.x, nn[1] = un.y, nn[2] = un.z;
+  zmth::normalize_x87(nn);  // PM 0x004013d0, as MW3's: (xx + zz) + yy and the root on the x87, 1 over the unrounded root
   return 1;
 }
 }  // namespace
@@ -765,18 +764,20 @@ int32_t segment_polygon(const P& p, const float* verts, zcls::LineHit* slot, con
 
 // The hit back in world space: the point through the top, the normal through
 // its 3x3, normalised.
+// Pirate's Moon 0x00567f41..0x00568025 is MW3's here: each word's sums on the x87 in x, y, z order, stored once.
 template <class M> void hit_to_world(zcls::LineHit* slot) {
+  using zgeo::X;
   const float* m = zmth::matrix_stack().matrix().m;
   const float* q = slot->point;
-  const float px = row3<M>(q[0], q[1], q[2], m[0], m[3], m[6]) + m[9];
-  const float py = row3<M>(q[0], q[1], q[2], m[1], m[4], m[7]) + m[10];
-  const float pz = row3<M>(q[0], q[1], q[2], m[2], m[5], m[8]) + m[11];
+  const float px = (((X(q[0]) * m[0] + X(q[1]) * m[3]) + X(q[2]) * m[6]) + m[9]).f();
+  const float py = (((X(q[0]) * m[1] + X(q[1]) * m[4]) + X(q[2]) * m[7]) + m[10]).f();
+  const float pz = (((X(q[0]) * m[2] + X(q[1]) * m[5]) + X(q[2]) * m[8]) + m[11]).f();
   slot->point[0] = px, slot->point[1] = py, slot->point[2] = pz;
   const float* nn = slot->normal;
-  zmth::Vec3 w{row3<M>(nn[0], nn[1], nn[2], m[0], m[3], m[6]), row3<M>(nn[0], nn[1], nn[2], m[1], m[4], m[7]),
-               row3<M>(nn[0], nn[1], nn[2], m[2], m[5], m[8])};
-  zmth::normalize(w);
-  slot->normal[0] = w.x, slot->normal[1] = w.y, slot->normal[2] = w.z;
+  float w[3] = {((X(nn[0]) * m[0] + X(nn[1]) * m[3]) + X(nn[2]) * m[6]).f(), ((X(nn[0]) * m[1] + X(nn[1]) * m[4]) + X(nn[2]) * m[7]).f(),
+                ((X(nn[0]) * m[2] + X(nn[1]) * m[5]) + X(nn[2]) * m[8]).f()};
+  zmth::normalize_x87(w);
+  std::memcpy(slot->normal, w, 12);
 }
 }  // namespace
 
@@ -789,14 +790,17 @@ template <class M> int32_t segment_of(M* model, zcls::LineHit* slot, const float
   float sa[3], sb[3];
   if (!identity) {
     zmth::Mat34 inv;
-    if (!zmth::invert_single(st.matrix(), inv, true)) return 0;
+    // At the reference runtime's 53 bits the x87's intermediates (PM's inverse 0x0053d620: unchecked against
+    // MW3's 0x00523c50, docs/pm-map.md).
+    if (!(zfix::options().fpu53 ? zmth::invert(st.matrix(), inv, true) : zmth::invert_single(st.matrix(), inv, true))) return 0;
     const float* m = inv.m;
-    for (int k = 0; k < 2; ++k) {
+    for (int k = 0; k < 2; ++k) {  // PM 0x00567bc6, 0x00567c36: x, y, z, then the translation, stored once
+      using zgeo::X;
       const float* q = k ? b : a;
       float* o = k ? sb : sa;
-      o[0] = row3<M>(q[0], q[1], q[2], m[0], m[3], m[6]) + m[9];
-      o[2] = row3<M>(q[0], q[1], q[2], m[2], m[5], m[8]) + m[11];
-      o[1] = row3<M>(q[0], q[1], q[2], m[1], m[4], m[7]) + m[10];
+      o[0] = (((X(q[0]) * m[0] + X(q[1]) * m[3]) + X(q[2]) * m[6]) + m[9]).f();
+      o[2] = (((X(q[0]) * m[2] + X(q[1]) * m[5]) + X(q[2]) * m[8]) + m[11]).f();
+      o[1] = (((X(q[0]) * m[1] + X(q[1]) * m[4]) + X(q[2]) * m[7]) + m[10]).f();
     }
   } else {
     std::memcpy(sa, a, 12);
