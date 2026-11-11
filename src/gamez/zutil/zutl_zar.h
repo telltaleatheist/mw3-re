@@ -37,6 +37,7 @@ void init(Archive& a);                         // 0x005764e0
 void destroy(Archive& a);                      // 0x00576500
 bool open(Archive& a, const char* path);       // 0x00576520
 bool read_table(Archive& a);                   // 0x005767b0
+long data_end(const Archive& a);               // ours: where the entries' data ends (the table's start)
 void reserve(Archive& a, int count);           // 0x00576690
 bool close(Archive& a);                        // 0x00576650, writes the table when dirty
 bool create(Archive& a, const char* path);     // 0x005765b0, truncates

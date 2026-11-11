@@ -1429,12 +1429,43 @@ reads, writes and deletes nothing, and the log says so
 
 **The reader archives' entries, bounded.** Every `reader*.zbd` entry (a
 mission's objectives, a mech's definition, the worlds' settings) is read
-through `zrdr::load` with the entry's own length known: a list whose count
-the bytes left cannot hold (every node is at least 8 bytes), a node of no
-type, or lists nested past 64 deep mark the entry broken. It is then read as
-no entry at all, and the log names the archive and the entry. The original
-read on into the next entries or allocated what the count said; the shipped
-entries read exactly as before (`test_zreader.py`, 178 files identical;
+through `zrdr::load` inside the archive's own data (up to its table), and
+hand-edited ones are made to work where they can (Owen, 2026-11-11: mods'
+makers edit these files by hand, some in a hex editor).
+
+- A list that says more items than its entry holds takes the entries after
+  it as its tail. The original's reader (0x00557180) knows no end to an
+  entry and does the same, so such files work there; mods' hand-made
+  `mpinfo.zrd` and `aiv.zrd` entries (their multiplayer and Instant Action
+  maps) are often like that, and they load here as they do there.
+- At the first thing that is no node (a value that is not a node type, a
+  list count or a text length no file could hold, lists nested past 64, the
+  archive's data running out) the reading of that entry stops: every node
+  read before it is kept and each open list ends there, so the entry is
+  usable with what it has. The original read on, out of step, through the
+  archive's index and past the file's end, or allocated what the count said.
+- Only an entry with nothing readable is treated as not there.
+- Each of these is said, in the log and as a warning from `--check-mod` and
+  REPORT, in four parts (`upgrades/mods/mod_warning.h`): the file and entry;
+  what is wrong, with the offset in bytes ("its list 8 bytes in says 38
+  items and the entry holds 37"); what the rebuild did; and what the
+  original game does with the same bytes, which is what tells a mod's maker
+  why a file works by luck or crashes there.
+  What the original does is from its code (0x00557180), and for three cases
+  seen in the emulator (`test_zreader.py` prints them): a list count no
+  file could hold makes it ask for gigabytes, get none and write through the
+  empty answer, a crash; a text length of 2 GB the same; a value that is not
+  a node type is kept and the reading goes on four bytes later, out of step.
+  The rest is from the code and not seen happen: "works by luck" where the
+  code reads valid nodes, "can crash" where it may read or write where it
+  should not.
+- IMPORT refuses no mod for such an entry. A file whose entry cannot be
+  used at all (nothing of it reads) is left out of the copy it adds, said by
+  name, and the rest of the mod is added.
+
+The shipped
+entries read exactly as before (`test_zreader.py`, 178 files identical, and
+300 made-up archives with over-long lists against the exe's own read;
 `test_zreader_text.py`, 540; `test_ai_readers.py`). Already bounded before
 M3: the archives' tables (`zutl_zar`: a count or a length the file cannot
 hold), strings (to the file's end), the text `.zrd` parser (an unclosed

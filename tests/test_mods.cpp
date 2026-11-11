@@ -1046,10 +1046,16 @@ TEST(mods_worlds_declared) {
   EXPECT(mech3::mission_dir_count() == 9 && std::string(mech3::mission_dir(9)) == "none");
 }
 
-// M3: a reader archive's broken entries are refused, not read on into the
-// next ones or allocated as their counts say; good ones read as before.
-TEST(mods_broken_reader_entries_are_refused) {
+// A reader archive's entries, hand-edited ones included (Owen, 2026-11-11: mods' makers edit these by hand; make
+// them work, and fail gracefully). A list that says more items than its entry holds takes the entries after it
+// as its tail, as the original's 0x00557180 does and the community's mpinfo.zrd and aiv.zrd entries need. At the
+// first thing that is no node (a word of no type, a count or a string no file could hold, nesting past the limit,
+// the archive's data running out) the reading stops: what was read before it is kept, each open list ends
+// there, and the reader says what and where in plain words. Only an entry with nothing readable is no entry.
+TEST(mods_reader_entries_take_their_tail_and_refuse_what_no_file_holds) {
   SavedMounts keep;
+  const zfix::Options saved = zfix::options();
+  zfix::set_all(true);
   const std::string dir = tmp("mods_broken_zrd");
   const std::string path = dir + "/broken.zbd";
   auto le = [](std::vector<uint8_t>& v, int32_t x) {
@@ -1060,13 +1066,17 @@ TEST(mods_broken_reader_entries_are_refused) {
   le(good, 4), le(good, 3), le(good, 1), le(good, 7), le(good, 3), le(good, 2), good.push_back('o'), good.push_back('k');
   std::vector<uint8_t> huge;  // a list claiming a billion children
   le(huge, 4), le(huge, 1000000000), le(huge, 1), le(huge, 7);
-  std::vector<uint8_t> type;  // a node of type 9
-  le(type, 4), le(type, 2), le(type, 9), le(type, 0);
+  std::vector<uint8_t> type;  // a node of type 9, then an int
+  le(type, 4), le(type, 3), le(type, 9), le(type, 1), le(type, 6);
   std::vector<uint8_t> deep;  // 100 nested lists of 2
   for (int i = 0; i < 100; ++i) le(deep, 4), le(deep, 2);
   le(deep, 1), le(deep, 0);
-  std::vector<uint8_t> past;  // a list of 3 holding one int: the rest is the next entry's
+  std::vector<uint8_t> past;  // a list of 3 holding one int: its second item is the next entry
   le(past, 4), le(past, 3), le(past, 1), le(past, 5);
+  std::vector<uint8_t> longstr;  // a string said to be a megabyte long
+  le(longstr, 4), le(longstr, 2), le(longstr, 3), le(longstr, 1 << 20), longstr.push_back('x');
+  std::vector<uint8_t> last;  // the archive's last entry, a list of 4 holding two ints: nothing after it but the table
+  le(last, 4), le(last, 4), le(last, 1), le(last, 8), le(last, 1), le(last, 9);
   zutl_zar::Archive a;
   zutl_zar::init(a);
   EXPECT(zutl_zar::create(a, path.c_str()));
@@ -1076,6 +1086,8 @@ TEST(mods_broken_reader_entries_are_refused) {
   zutl_zar::add(a, "deep.zrd", deep.data(), static_cast<uint32_t>(deep.size()));
   zutl_zar::add(a, "past.zrd", past.data(), static_cast<uint32_t>(past.size()));
   zutl_zar::add(a, "after.zrd", good.data(), static_cast<uint32_t>(good.size()));
+  zutl_zar::add(a, "longstr.zrd", longstr.data(), static_cast<uint32_t>(longstr.size()));
+  zutl_zar::add(a, "last.zrd", last.data(), static_cast<uint32_t>(last.size()));
   EXPECT(zutl_zar::close(a));
   zutl_zar::destroy(a);
   zutl::mounts() = zutl::Mounts{};
@@ -1084,16 +1096,55 @@ TEST(mods_broken_reader_entries_are_refused) {
   zrdr::Node* g = zrdr::load("good.zrd");
   EXPECT(g && zrdr::list_count(g) == 3 && g->list[1].i == 7 && std::string(g->list[2].s) == "ok");
   if (g) zrdr::free_node(g);
-  for (const char* bad : {"huge.zrd", "type.zrd", "deep.zrd", "past.zrd"}) {
-    zrdr::Node* n = zrdr::load(bad);
-    std::printf("  %s: %s\n", bad, n ? "read" : "refused");
-    EXPECT(n == nullptr);
-    if (n) zrdr::free_node(n);
+  auto notes = [] {
+    std::string all;
+    for (const mech3::ModWarning& n : zrdr::load_notes()) all += n.wrong + " -> " + n.did + "|";
+    return all;
+  };
+  EXPECT(notes().empty());  // a well-formed entry: nothing to say
+  // A billion items at the entry's own start: nothing of it reads, it is no entry, and the note says why.
+  zrdr::Node* h = zrdr::load("huge.zrd");
+  EXPECT(h == nullptr && notes() == "a list count of 1000000000, 0 bytes in, that no file could hold -> nothing of the entry can be read, so it "
+                                    "is treated as not there|");
+  EXPECT(!zrdr::load_notes().empty() && zrdr::load_notes()[0].original.find("a likely crash when this entry is loaded") != std::string::npos);
+  if (h) zrdr::free_node(h);
+  // The list one item too long: its own int, then the entry after it, whole, as its last item.
+  zrdr::Node* p = zrdr::load("past.zrd");
+  EXPECT(p && zrdr::list_count(p) == 3 && p->list[1].type == zrdr::Int && p->list[1].i == 5 && p->list[2].type == zrdr::List);
+  if (p && p->list[2].type == zrdr::List) {
+    zrdr::Node* tail = &p->list[2];
+    EXPECT(zrdr::list_count(tail) == 3 && tail->list[1].i == 7 && std::string(tail->list[2].s) == "ok");
   }
+  EXPECT(notes() == "its list 0 bytes in says 2 items and the entry holds 1 -> read the 1, and the entry after it in the archive as the rest|");
+  EXPECT(!zrdr::load_notes().empty() && zrdr::load_notes()[0].original.find("does the same (it reads on into the next entry)") == 0);
+  if (p) zrdr::free_node(p);
+  // The word that is no node type: the list ends before it (the int after it is not read as anything).
+  zrdr::Node* t = zrdr::load("type.zrd");
+  EXPECT(t && t->type == zrdr::List && zrdr::list_count(t) == 1);
+  EXPECT(notes() == "a value that is not a node type (9; the types are 1 to 4) 8 bytes in (its list 0 bytes in says 2 items and holds 0) -> "
+                    "read what comes before it; the rest is left out|");
+  if (t) zrdr::free_node(t);
+  // 100 lists nested: the 64 the reader allows are kept, the 65th is where it stops.
+  zrdr::Node* d = zrdr::load("deep.zrd");
+  int depth = 0;
+  for (zrdr::Node* n = d; n && n->type == zrdr::List; n = zrdr::list_count(n) > 1 ? &n->list[1] : nullptr) ++depth;
+  std::printf("  deep.zrd: %d lists kept; %s\n", depth, notes().c_str());
+  EXPECT(d && depth == 64 && notes().find("lists nested more than 64 deep, 512 bytes in") == 0);
+  if (d) zrdr::free_node(d);
+  // A string said to be a megabyte long: the list ends before it.
+  zrdr::Node* ls = zrdr::load("longstr.zrd");
+  EXPECT(ls && zrdr::list_count(ls) == 1 && notes().find("a text said to be 1048576 bytes long, 8 bytes in, which runs past the archive's data") == 0);
+  if (ls) zrdr::free_node(ls);
+  // The archive's last entry short of an item: the two it has, the list ending there; nothing of the table read as a node.
+  zrdr::Node* l = zrdr::load("last.zrd");
+  EXPECT(l && zrdr::list_count(l) == 3 && l->list[1].i == 8 && l->list[2].i == 9);
+  EXPECT(notes().find("the archive's data ends 24 bytes in, before the entry's lists are full (its list 0 bytes in says 3 items and holds 2)") == 0);
+  if (l) zrdr::free_node(l);
   zrdr::Node* after = zrdr::load("after.zrd");  // the reader is fine after them
   EXPECT(after && zrdr::list_count(after) == 3);
   if (after) zrdr::free_node(after);
   zrdr::close_archives(true);
+  zfix::options() = saved;
 }
 
 namespace {
@@ -2387,13 +2438,18 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(text.find("error: zbd/t1/anim.zip: gone.json: not there") != std::string::npos);
   EXPECT(text.find("error: zbd/c1/gamez.zip: nodes.json: line 1 (at $[0]): an empty node has one parent") != std::string::npos);
   EXPECT(text.find("error: zbd/c2/gamez/: metadata.json: line 1 (at $): no \"model_array_size\"") != std::string::npos);
-  EXPECT(errors == 18 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(errors == 17 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&
          text.find("error: ia_world nowhere: no such world") != std::string::npos &&
          text.find("error: zbd/rimage.zbd: not a texture library the game can read") != std::string::npos &&
-         text.find("error: zbd/c1/readerm1.zbd: entry mission.zrd cannot be read") != std::string::npos &&
+         // one entry no reader could hold: a warning naming the file, which IMPORT leaves out; not a refusal
+         text.find("warning: zbd/c1/readerm1.zbd: mission.zrd: a list count of 1000000000, 0 bytes in, that no file could hold. The rebuild: "
+                   "nothing of the entry can be read, so it is treated as not there. The original game: asks for memory for that many "
+                   "items, is refused, and writes through the empty answer: a likely crash when this entry is loaded (seen in the "
+                   "emulator).") != std::string::npos &&
+         text.find("warning: zbd/c1/readerm1.zbd: IMPORT leaves this file out, since mission.zrd in it cannot be used") != std::string::npos &&
          text.find("error: zbd/broken.zrd: line 1: a '(' never closed") != std::string::npos &&
          text.find("pilots/x.pil: the player's own kind of file") != std::string::npos);
   EXPECT(mech3::mod_check(root + "/none", install, &errors).size() == 1 && errors == 1);

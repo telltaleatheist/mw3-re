@@ -434,6 +434,7 @@ switch it would read instead. Many of them guard fixes this sort puts under
 | Frame clock, 0x575a00 | MW3 | after ~10 days of uptime a float can only step 64 ms, so frames quantise and the game stutters |
 | CD music, zsnd_cd.cpp | MW3 | no MCI, and machines have no CD drive |
 | zReader lists, zreader.cpp | MW3 | reads past a heap block: whatever the CRT heap holds in the original, out of bounds in C++ |
+| zReader's node read from an archive, 0x00557180 through `zrdr::load` | MW3 | a damaged or hostile file allocates gigabytes or walks unset memory; a list one item longer than its entry (common in mods' maps) reads on, as the exe |
 | Archives, zutl_zar.cpp; every file open | MW3 | Win32 only, `\\` separators |
 | Pools: models, nodes, list items (`gmod_const`, `cls_node`, `list`) | MW3 | pointers are 64-bit on modern systems, so the file's slot layout cannot hold them |
 | Engine abort, 0x4eada0 | MW3 | Win32 |

@@ -18,6 +18,9 @@ struct ModFindings {
   std::vector<std::string> refused;   // "<what>: <why>", --check-mod's errors
   std::vector<std::string> warnings;  // "<what>: <why>", --check-mod's warnings
   std::vector<std::string> left_out;  // "<what>: <why>", the mount log's (this start)
+  // The reader archives (their paths in the mod) with an entry the reader cannot read: a warning, and IMPORT
+  // leaves the file out (one multiplayer map's entry is no reason to refuse a whole mod).
+  std::vector<std::string> unread_files;
 };
 
 // The sentences, in this order: what it changes, what it adds, what is
