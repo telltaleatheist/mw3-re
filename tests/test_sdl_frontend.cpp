@@ -908,6 +908,69 @@ TEST(sdl_mission_start_drops_the_launch_click) {
   button(false);
 }
 
+// Playtest (1.1.0): "there's no cursor when I edit [in the] Battlesport editor
+// ... I expected to be able to click the buttons." The game editor up in a
+// mission lets the mouse go, fullscreen too, and zInput's mouse is put where
+// the cursor is; its clicks are the game's. Out of the editor it is held again.
+TEST(sdl_editor_frees_the_mouse) {
+  sdlfe::SdlInput in;
+  sdlfe::SdlPump pump(&in, nullptr);
+  bool mission = true, editor = false;
+  float cx = -1, cy = -1;
+  int puts = 0;
+  in.windowed = [] { return false; };
+  in.in_mission = [&] { return mission; };
+  in.pointer_free = [&] { return editor; };
+  in.absolute_cursor = [&](float x, float y) { cx = x, cy = y, ++puts; };
+  in.set_cooperative_level(platform::Input::kMouse, 5);
+  EXPECT(in.open(platform::Input::kMouse) && in.acquire(platform::Input::kMouse) == 0);
+  platform::MouseState ms;
+  auto move = [&](float x, float y, float dx, float dy) {
+    SDL_Event e{};
+    e.type = SDL_EVENT_MOUSE_MOTION;
+    e.motion.x = x, e.motion.y = y, e.motion.xrel = dx, e.motion.yrel = dy;
+    pump.handle(e);
+  };
+  auto button = [&](bool down) {
+    SDL_Event e{};
+    e.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+    e.button.button = SDL_BUTTON_LEFT;
+    pump.handle(e);
+  };
+  // The mission: held, the motion as counts.
+  move(300, 200, 7, 5);
+  EXPECT(in.mouse_state(&ms) == 0 && in.captured() && !in.pointer_is_free() && ms.x == 7 && ms.y == 5 && puts == 0);
+  // The editor up: let go; nothing is put until the mouse moves, then the cursor's point, no counts.
+  editor = true;
+  EXPECT(in.mouse_state(&ms) == 0 && !in.captured() && in.pointer_is_free() && puts == 0);
+  move(100, 230, 9, 9);
+  EXPECT(in.mouse_state(&ms) == 0 && puts == 1 && cx == 100 && cy == 230 && ms.x == 0 && ms.y == 0);
+  button(true);
+  EXPECT(in.mouse_state(&ms) == 0 && ms.buttons[0]);  // the click is the game's (the panel's pick)
+  button(false);
+  in.mouse_state(&ms);
+  // The pause over the editor: not the mission, the menus' rules (fullscreen: held).
+  mission = false;
+  EXPECT(in.mouse_state(&ms) == 0 && in.captured() && !in.pointer_is_free());
+  mission = true;
+  EXPECT(in.mouse_state(&ms) == 0 && !in.captured() && in.pointer_is_free());
+  // The editor closed: held again, counts again.
+  editor = false;
+  const int before = puts;
+  move(120, 240, 3, -2);
+  EXPECT(in.mouse_state(&ms) == 0 && in.captured() && !in.pointer_is_free() && ms.x == 3 && ms.y == -2 && puts == before);
+  // In a window, let go by the chord's rule or not, the editor's mouse is never muted.
+  bool windowed = true;
+  in.windowed = [&] { return windowed; };
+  editor = true;
+  in.mouse_state(&ms);
+  move(50, 112, 1, 1);
+  EXPECT(in.mouse_state(&ms) == 0 && !in.captured() && cx == 50 && cy == 112);
+  button(true);
+  EXPECT(in.mouse_state(&ms) == 0 && ms.buttons[0]);
+  button(false);
+}
+
 TEST(sdl_window_lets_the_mouse_go) {
   sdlfe::SdlInput in;
   sdlfe::SdlPump pump(&in, nullptr);
@@ -4915,6 +4978,43 @@ TEST(sdl_program_mods_delete_asks_once) {
   EXPECT(asks == 1 && text.find("mw3: mods: asks: Delete Good?") != std::string::npos);
   EXPECT(text.find("mw3: mods: delete mods/Good : done") != std::string::npos && text.find("mods: reset") == std::string::npos);
   EXPECT(!fs::exists(dir + "/wd/mods/Good", ec));
+  fs::remove_all(dir, ec);
+}
+
+// The same in the real program: a campaign's mission opened in the editor
+// (--entry-edit), the system's mouse moved over the panel's rows (--mouse-at:
+// SDL's events through SdlInput, not the game's mouse set) lights the row
+// under it, the mouse let go and the cursor shown, and a click on EDIT AI NETS
+// opens its dialog. Before, the mouse was held and the cursor hidden: the row
+// followed an unseen point. 4:3 and 16:9.
+TEST(sdl_program_editor_pointer_points_and_clicks) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/editor pointer";
+  struct Shape { const char* window; bool wide; const char *over2, *over1; int x2, x1; };
+  for (const Shape& sh : {Shape{"1280x960", false, "100,250@230", "100,225@320c", 50, 50}, Shape{"1280x720", true, "75,190@230", "75,168@320c", 49, 49}}) {
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir + "/wd", ec);
+    if (sh.wide) std::ofstream(dir + "/wd/settings.reg") << "Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\MechWarrior 3\\1.0]\n\"InGameVMode\"=dword:0000000b\n";
+    const std::string log = dir + "/run.log";
+    int status = 0;
+    std::vector<std::string> args = {"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                                     "--frames", "360", "--window", sh.window, "--entry", "mw3", "--entry-edit", "c1", "1",
+                                     "--mouse-at", sh.over2, "--mouse-at", sh.over1};
+    if (sh.wide) args.push_back("--wide-menus");
+    const pid_t pid = spawn_mw3(args, log);
+    EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    for (size_t i = text.find("mw3: editor: "); i != std::string::npos; i = text.find("mw3: editor: ", i + 1))
+      std::printf("  %s: %s\n", sh.window, text.substr(i, text.find('\n', i) - i).c_str());
+    EXPECT(text.find("row 2 under the mouse") != std::string::npos);
+    EXPECT(text.find("row 1 under the mouse") != std::string::npos);
+    EXPECT(text.find("row 1 under the mouse (" + std::to_string(sh.x1) + ", 112), 1 dialogs, the mouse free, the system's cursor shown") != std::string::npos);
+    EXPECT(text.find(", 0 dialogs, the mouse free, the system's cursor shown") != std::string::npos);
+  }
   fs::remove_all(dir, ec);
 }
 

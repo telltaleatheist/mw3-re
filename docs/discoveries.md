@@ -4306,3 +4306,8 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   there. The rebuild loads such a texture anyway and says so. (From the
   code and the emulator: 0x00518db0, the read at 0x00518e2c.
   docs/modding.md, A table entry naming a palette the file lacks)
+- The developers' in-game editor (the Battlesport editor's panel, left in
+  the game) has no mouse pointer: the mouse still moves an unseen point,
+  and the row under it lights green; that lit row is all you get to aim
+  with. The rebuild shows the system's cursor while the editor is up.
+  (From the code and a run: 0x0040e4b0. docs/editor.md, The pointer)
