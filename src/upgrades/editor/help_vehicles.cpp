@@ -36,7 +36,7 @@ void help_vehicles(std::vector<HelpForm>& out) {
            {"Approach Range to Target", "", "How near it closes on a target (params, item 5). Direct shows it too."},
            {"Minimum Range to Target", "", "The nearest it comes to a target (params, item 6). Direct shows it too."},
            {"Configuration", "", "The mech's loadout, from its stock ones (p10, item 2). Mechs only."},
-           {"Default Chassis", "", "The chassis the record names (p12): one of the 19, or \"default\" for none."},
+           {"Default Chassis", "", "The chassis the record names (p12): one of Pirate's Moon's 25, or \"default\" for none."},
            {"Skin", "", "Its paint scheme, 0 to 100 (skin)."},
            {"Pilot Name", "", "The name shown for its pilot, at most 32 characters (pilot). Empty: none."},
            {"Objective Conditional", "", "The record's objective-conditional flag (p12, item 2)."},

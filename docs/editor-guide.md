@@ -2,7 +2,9 @@
 
 <!-- Generated from src/upgrades/editor/help*.cpp (the editor's tooltips): build/mw3 --editor-guide docs/editor-guide.md. Do not edit by hand; the test editor_guide_is_current fails when it is stale. -->
 
-MechWarrior 3 shipped with the developers' own editor still inside: a menu over the running mission for the AI's paths (nets) and the vehicles' AI. The rebuild opens it to players and modders, makes the parts the release left empty work, and saves what you change as a copy of the campaign, a mod of your own, never into the game's files or anyone else's mod. The menus are the original's; the dialogs are windows of the rebuild's own. Every field, button and row in the editor has a tip (hold the mouse over it); this guide gathers them. How it works inside: docs/editor.md.
+Pirate's Moon, as MechWarrior 3, shipped with the developers' own editor still inside: a menu over the running mission for the AI's paths (nets) and the vehicles' AI. The rebuild opens it to players and modders, makes the parts the release left empty work, and saves what you change as a copy of the campaign, a mod of your own, never into the game's files or anyone else's mod. The menus are the original's; the dialogs are windows of the rebuild's own. Every field, button and row in the editor has a tip (hold the mouse over it); this guide gathers them. How it works inside: docs/editor.md.
+
+Pirate's Moon's editor is MechWarrior 3's, and so is the rebuild's: every menu, window and save in this guide is in both games. What is Pirate's Moon's own: the vehicle editor's chassis list and Add veh to node offer its 25 mechs. The original Pirate's Moon kept no edit of a net (a node moved, added or deleted was dropped); the rebuild keeps and saves them, as in MechWarrior 3. What it lacks: a node's via, terminus and static_mfb settings, new in Pirate's Moon, have no fields in Node Params (a save writes them as the file had them), and a vehicle's target settings (the target tag in aiv.zrd) have no page in Mech AI.
 
 ## Quick start
 
@@ -131,7 +133,7 @@ A new vehicle at the first picked node, following this net. OK makes it at once 
 
 | Item | What it does |
 |---|---|
-| vehicle type | The kind of vehicle: the 19 mechs, then the vehicles vehicle.zrd lists. |
+| vehicle type | The kind of vehicle: Pirate's Moon's 25 mechs, then the vehicles vehicle.zrd lists. |
 | x | Where it starts, east-west (the node's place to begin with). |
 | y | Its height (the ground under it is used). |
 | z | Where it starts, north-south. |
@@ -213,7 +215,7 @@ The original's Mech AI dialog: one of the mission's vehicles, its AI settings on
 | Approach Range to Target | How near it closes on a target (params, item 5). Direct shows it too. |
 | Minimum Range to Target | The nearest it comes to a target (params, item 6). Direct shows it too. |
 | Configuration | The mech's loadout, from its stock ones (p10, item 2). Mechs only. |
-| Default Chassis | The chassis the record names (p12): one of the 19, or "default" for none. |
+| Default Chassis | The chassis the record names (p12): one of Pirate's Moon's 25, or "default" for none. |
 | Skin | Its paint scheme, 0 to 100 (skin). |
 | Pilot Name | The name shown for its pilot, at most 32 characters (pilot). Empty: none. |
 | Objective Conditional | The record's objective-conditional flag (p12, item 2). |

@@ -133,12 +133,18 @@ std::string editor_guide_markdown() {
   o += "# The game editor: a guide\n\n";
   o += "<!-- Generated from src/upgrades/editor/help*.cpp (the editor's tooltips): build/mw3 --editor-guide "
        "docs/editor-guide.md. Do not edit by hand; the test editor_guide_is_current fails when it is stale. -->\n\n";
-  o += "MechWarrior 3 shipped with the developers' own editor still inside: a menu over the running mission for "
+  o += "Pirate's Moon, as MechWarrior 3, shipped with the developers' own editor still inside: a menu over the running mission for "
        "the AI's paths (nets) and the vehicles' AI. The rebuild opens it to players and modders, makes the parts "
        "the release left empty work, and saves what you change as a copy of the campaign, a mod of your own, never "
        "into the game's files or anyone else's mod. The menus are the original's; the "
        "dialogs are windows of the rebuild's own. Every field, button and row in the editor has a tip (hold the "
        "mouse over it); this guide gathers them. How it works inside: docs/editor.md.\n\n";
+  o += "Pirate's Moon's editor is MechWarrior 3's, and so is the rebuild's: every menu, window and save in this "
+       "guide is in both games. What is Pirate's Moon's own: the vehicle editor's chassis list and Add veh to node "
+       "offer its 25 mechs. The original Pirate's Moon kept no edit of a net (a node moved, added or deleted was "
+       "dropped); the rebuild keeps and saves them, as in MechWarrior 3. What it lacks: a node's via, terminus and "
+       "static_mfb settings, new in Pirate's Moon, have no fields in Node Params (a save writes them as the file "
+       "had them), and a vehicle's target settings (the target tag in aiv.zrd) have no page in Mech AI.\n\n";
   o += "## Quick start\n\n";
   int n = 0;
   for (const std::string& p : help_quick_start()) o += std::to_string(++n) + ". " + p + "\n";

@@ -154,7 +154,7 @@ void cancel() { close_form(); }
 
 std::vector<std::string> add_vehicle_types() {
   std::vector<std::string> t;
-  for (int32_t i = 0; i < 19; ++i) t.push_back(mech_name(i));  // 0x00484650, the original 19
+  for (int32_t i = 0; i < kMechCount; ++i) t.push_back(mech_name(i));  // PM 0x00486790: its 25 (MW3's 19 on main)
   if (zrdr::Node* v = zrdr::load("vehicle.zrd")) {
     if (v->type == zrdr::List && v->list[0].i > 1 && v->list[1].type == zrdr::List) {
       const zrdr::Node& pairs = v->list[1];

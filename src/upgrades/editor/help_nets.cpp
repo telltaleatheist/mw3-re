@@ -49,7 +49,7 @@ void help_nets(std::vector<HelpForm>& out) {
                  "record into the mission's aiv.zrd in your copy of the campaign, its AI settings copied from the first vehicle of "
                  "that type in the mission.",
                  {
-                     {"vehicle type", "", "The kind of vehicle: the 19 mechs, then the vehicles vehicle.zrd lists."},
+                     {"vehicle type", "", "The kind of vehicle: Pirate's Moon's 25 mechs, then the vehicles vehicle.zrd lists."},
                      {"x", "", "Where it starts, east-west (the node's place to begin with)."},
                      {"y", "", "Its height (the ground under it is used)."},
                      {"z", "", "Where it starts, north-south."},

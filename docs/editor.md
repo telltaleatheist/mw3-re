@@ -1714,6 +1714,14 @@ own code is a port of MW3's onto its models, now ported on pm
 - The constants are MW3's (10 m, 1024 vertices, two-sided, keep adding, the
   side flag 0), at PM's addresses.
 
+**Add veh to node's types** (ours) run to PM's 25 mechs too (2026-11-11;
+it had kept MW3's 19, so six of PM's mechs could not be added), and
+test_new_weapon.cpp runs in mw3pmtests on PM's weapons.zrd and its version 2
+reader.zbd (49 definitions, 38 offered to copy). The guide on pm says what
+PM's editor has and lacks. Not checked on PM's files: the vehicle editor's
+Save over PM's aiv.zrd records (test_aiv_save_mech3ax.py reads MW3's 48
+files only; PM's `target` tag is not one of aiv_save's groups).
+
 **The vehicle editor's chassis list** (0x4c2d00) runs to 25, PM's mechs
 with MW3's, where MW3's 0x4bc860 stopped at 19; the port on pm had kept 19.
 
