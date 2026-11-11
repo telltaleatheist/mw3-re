@@ -1,3 +1,4 @@
+#include "upgrades/mods/entry_archives.h"
 #include "mech3/data_version.h"
 
 #include <cstdio>
@@ -90,7 +91,10 @@ constexpr DataFile kFiles[] = {
 
 // The file's size and CRC; false when no mount has it.
 bool measure(const char* path, uint32_t* size, uint32_t* crc) {
-  std::FILE* f = zutl::open(path, "rb");
+  // Ours (upgrades/mods/entry_archives.h): an archive built from the mods' changed entries is measured as the
+  // game's own file under them, so its own entries are still known as 1.0's or 1.2's.
+  const std::string under = entries_merged_base(path);
+  std::FILE* f = under.empty() ? zutl::open(path, "rb") : std::fopen(under.c_str(), "rb");
   if (!f) return false;
   std::vector<unsigned char> buf(1 << 16);
   uint32_t n = 0, c = 0;

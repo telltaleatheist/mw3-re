@@ -1,3 +1,4 @@
+#include "upgrades/mods/entry_archives.h"
 #include "mech3/patch12.h"
 
 #include <cctype>
@@ -190,6 +191,8 @@ bool wave_alias(const std::string& name, std::string* source, float* trim_end_se
 
 bool on_load(const char* archive, const char* entry, zrdr::Node* root) {
   if (!archive || !entry || !root || !is_10(archive)) return false;
+  // Ours (entry_archives.h): a mod's own entry laid over 1.0's archive is the mod's, left as a mod's file is.
+  if (entries_merged_holds(archive, entry)) return false;
   return apply(data_path(archive), lower(entry), root);
 }
 

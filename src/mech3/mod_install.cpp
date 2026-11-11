@@ -469,6 +469,9 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
       f << "# It was packed as the contents of the game's zbd folder, with no zbd folder of its own: the game put\n"
         << "# those files under zbd, where it reads them.\n";
   }
+  // Ours (entry_archives.h): a reader archive the install also has is kept as the entries that differ from the
+  // install's, so mods that change different entries of one archive both apply. Our staging copy only.
+  r.cut = entries_cut_mod(root.string(), install);
   ModFindings facts;
   r.report = mod_check(root.string(), install, &r.check_errors, &facts);
   // A reader archive with an entry that cannot be read is left out of the copy being added (ours, in the
@@ -583,6 +586,10 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   // left out is in the report.
   d.warnings = r.warnings, d.left_out = static_cast<int>(r.left_out.size());
   d.texts = a.texts;
+  d.cut = r.cut;
+  if (r.cut.archives || r.cut.same)
+    std::printf("mw3: import: %s: reader archives: %d kept as the entries it changes (%d in all); %d the same as yours left out; %d whole\n",
+                d.name.c_str(), r.cut.archives, r.cut.entries, r.cut.same, r.cut.whole);
   if (a.bare_zbd)
     std::printf("mw3: import: %s: packed as the contents of the game's zbd folder (no zbd folder of its own): %d of its top "
                 "items put under zbd\n", d.name.c_str(), a.bare_zbd);
