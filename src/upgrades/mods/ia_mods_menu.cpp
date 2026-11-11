@@ -156,6 +156,7 @@ void IaModsScreen::show_note() {
   const std::vector<std::string> running = inside ? before : std::vector<std::string>{};
   tell(!n.empty() ? n
        : ticks.rows.empty() ? "No mods yet: IMPORT them on the main menu's MODS screen."
+       : !inside && !ticks.ticks.empty() && ticks.ticks == before ? "Ticked last time. ACCEPT starts the game again with them."  // W9
        : ticks.ticks != running ? (mp ? "ACCEPT starts multiplayer again with these." : "ACCEPT starts Instant Action again with these.")
        : inside ? (mp ? "These mods are on now: every player needs the same." : "These mods are on now.")
        : mp ? "Tick the mods to host or join with, then ACCEPT. Every player needs the same."
