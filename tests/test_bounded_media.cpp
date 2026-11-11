@@ -585,9 +585,10 @@ TEST(bounded_textures_palette_field_slip) {
   for (const std::string& l : mech3::mod_check(dir + "/m", "", &errors)) out += l + "\n";
   std::printf("%s", out.c_str());
   EXPECT(errors == 0);
-  EXPECT(out.find("warning: zbd/rimage.zbd: texture pal0: its table entry 1 names palette 0") != std::string::npos &&
-         out.find("warning: zbd/rimage.zbd: texture pal5: its table entry 2 names palette 5") != std::string::npos &&
-         out.find("warning: zbd/rimage.zbd: texture eight0: its table entry 4 names palette 0") != std::string::npos &&
+  EXPECT(out.find("warning: zbd/rimage.zbd: texture pal0 (table entry 1): its table entry names palette 0") != std::string::npos &&
+         out.find("warning: zbd/rimage.zbd: texture pal5 (table entry 2): its table entry names palette 5") != std::string::npos &&
+         out.find("warning: zbd/rimage.zbd: texture eight0 (table entry 4): its table entry names palette 0") != std::string::npos &&
+         out.find("To fix it: set the last 4 bytes of its table entry (each entry is 40 bytes) to ff ff ff ff.") != std::string::npos &&
          out.find("The rebuild: left this texture out. The original game: crashes when it loads this texture") != std::string::npos &&
          out.find("texture plain") == std::string::npos);
   EXPECT(zfix::options().fixed == keep.fixed);

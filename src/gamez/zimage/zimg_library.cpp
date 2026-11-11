@@ -239,19 +239,22 @@ Texture* load(Library& lib, const char* name) {
     // one, so it is null and the read faults: the original crashes as it loads the texture (test_textures.py runs
     // it). With palettes loaded it would take a stray pointer instead. fixes.md; docs/modding.md, M3.
     if (e.palette < 0 || e.palette >= lib.header.palette_count) {
-      const std::string wrong = item + " names palette " + std::to_string(e.palette) + " of the file, and the file has " +
+      // The entry's number goes in the warning's `item`, not its words: many textures with this one fault then
+      // read the same, and the report says the fault once for them all.
+      const std::string which = "table entry " + std::to_string(i);
+      const std::string wrong = "its table entry names palette " + std::to_string(e.palette) + " of the file, and the file has " +
                                 (lib.header.palette_count ? std::to_string(lib.header.palette_count) : std::string("no")) +
                                 (lib.header.palette_count == 1 ? " palette" : " palettes") +
                                 " (the entry's last 4 bytes; -1, ff ff ff ff, means none)";
       const char* original = "crashes when it loads this texture: it looks the palette up in a list that is empty, since none of "
                              "the game's files has palettes";
       if (!zfix::options().fixed || (t->flags & kGlobalPalette)) {
-        note(lib, name, {wrong + ", and this texture is drawn through that palette", "left this texture out", original});
+        note(lib, name, {wrong + ", and this texture is drawn through that palette", "left this texture out", original, "", which});
         free_texture(t);
         return nullptr;
       }
       note(lib, name, {wrong + "; the texture needs none", "loaded it without one", original,
-                       "set the last 4 bytes of " + item + " (each entry is 40 bytes) to ff ff ff ff"});
+                       "set the last 4 bytes of its table entry (each entry is 40 bytes) to ff ff ff ff", which});
       return t;
     }
     // The original writes through t unchecked; a failed read would crash there.
