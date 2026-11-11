@@ -51,6 +51,11 @@ struct ModCut {
 // Every reader archive under `root` (a mod being added) that `install` also has.
 ModCut entries_cut_mod(const std::string& root, const std::string& install);
 
+// The whole archive again: `base`'s bytes (an archive file) with every entry of the .entries file `entries` laid
+// over it or added after its last. Empty with `why` when either does not read. The mount's merge and EXPORT's
+// repack both use it, so what is exported is what was played.
+std::vector<uint8_t> entries_laid_over(std::vector<uint8_t> base, const std::string& entries, int* laid = nullptr, std::string* why = nullptr);
+
 // The folders of earlier builds under <write dir>/mod-merged removed, each only with our marker in it and never
 // `keep` (a folder's name; "" none). The count removed.
 int entries_merged_clear(const std::string& write_dir, const std::string& keep);

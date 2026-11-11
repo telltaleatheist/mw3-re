@@ -16,6 +16,7 @@
 #include "mech3/mod_install.h"
 #include "mech3/mods.h"
 #include "upgrades/mods/entry_archives.h"
+#include "upgrades/mods/mod_export.h"
 #include "upgrades/mods/mod_report.h"
 
 namespace {
@@ -198,7 +199,7 @@ TEST(entry_archives_two_imported_mods_both_apply) {
   std::printf("%s", said.c_str());
   EXPECT(errors == 0 && facts.cut == std::vector<std::string>{"zbd/reader.zbd: b.zrd, d.zrd"} && facts.cut_entries == 2);
   EXPECT(said.find("Of 1 of those files it holds only the entries it changes (2 entries)") != std::string::npos &&
-         said.find("In zbd/reader.zbd: b.zrd, d.zrd.") != std::string::npos && said.find("the original game needs the whole files") != std::string::npos);
+         said.find("In zbd/reader.zbd: b.zrd, d.zrd.") != std::string::npos && said.find("EXPORT puts the whole files into its zip") != std::string::npos);
 }
 
 // A whole archive put in mods\ by hand wins whole from its place: before the cut mods nothing is built for it;
@@ -230,3 +231,39 @@ TEST(entry_archives_whole_archives_and_no_base) {
   EXPECT(mech3::entries_merged_clear(wd, "kept") >= 1);
   EXPECT(!fs::exists(base + "/old") && fs::exists(base + "/kept") && fs::exists(base + "/theirs/file.txt"));
 }
+
+#ifdef MW3_HAVE_LIBARCHIVE
+// Both ways: EXPORT of a mod kept as changed entries puts the whole archive into the zip (the game's own with
+// the entries laid over it), so the zip is ordinary files; the mod's folder and the install are not changed.
+// Imported again it is cut to the same entries; on an install without that archive it stays whole.
+TEST(entry_archives_export_repacks_the_whole_archive) {
+  const std::string wd = tmp("entry_archives_export_wd"), inst = tmp("entry_archives_export_inst"), src = tmp("entry_archives_export_src");
+  const std::string out = tmp("entry_archives_export_out");
+  build_install(inst);
+  archive(src + "/One/zbd/reader.zbd", {{"a.zrd", "A"}, {"b.zrd", "B1"}, {"c.zrd", "C"}, {"d.zrd", "D1"}});
+  KeepMounts keep;
+  zutl::mounts().confined = true;
+  const mech3::ModAddDone a = mech3::mod_add_run(wd, src + "/One", inst, nullptr, nullptr);
+  const std::string mod = wd + "/mods/" + a.folder;
+  EXPECT(a.ok && read(mod + "/zbd/reader.zbd.entries") == "b.zrd=B1|d.zrd=D1|");
+  const auto before = std::make_pair(snapshot(mod), snapshot(inst));
+  const mech3::ModExportResult r = mech3::mod_export(mod, out + "/one.zip", inst, true);
+  std::printf("  %s\n", r.message.c_str());
+  EXPECT(r.ok && r.repacked == 1 && r.message.find("Its 1 archive kept as changed entries is whole in the zip.") != std::string::npos);
+  EXPECT(snapshot(mod) == before.first && snapshot(inst) == before.second);
+  // The zip on an install that has no zbd\reader.zbd: the archive stays whole, and is the game's with the two entries.
+  const std::string bare = tmp("entry_archives_export_bare"), wd2 = tmp("entry_archives_export_wd2");
+  put(bare + "/zbd/c1/gamez.zbd", "a world");
+  const mech3::ModAddDone whole = mech3::mod_add_run(wd2, out + "/one.zip", bare, nullptr, nullptr);
+  std::printf("  %s\n  %s\n", whole.message.c_str(), names(wd2 + "/mods/" + whole.folder).c_str());
+  EXPECT(whole.ok && read(wd2 + "/mods/" + whole.folder + "/zbd/reader.zbd") == "a.zrd=A|b.zrd=B1|c.zrd=C|d.zrd=D1|");
+  // On the player's own install: cut to the same two entries again.
+  const std::string wd3 = tmp("entry_archives_export_wd3");
+  const mech3::ModAddDone again = mech3::mod_add_run(wd3, out + "/one.zip", inst, nullptr, nullptr);
+  EXPECT(again.ok && read(wd3 + "/mods/" + again.folder + "/zbd/reader.zbd.entries") == "b.zrd=B1|d.zrd=D1|");
+  // Without the game's own archive to lay them over: not exported, said; no zip left.
+  const mech3::ModExportResult none = mech3::mod_export(mod, out + "/none.zip", bare, false);
+  std::printf("  %s\n", none.message.c_str());
+  EXPECT(!none.ok && none.message.find("zbd/reader.zbd cannot be made whole") != std::string::npos && names(out) == "one.zip|");
+}
+#endif

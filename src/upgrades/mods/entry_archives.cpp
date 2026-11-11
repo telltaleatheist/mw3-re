@@ -200,6 +200,20 @@ ModCut entries_cut_mod(const std::string& root, const std::string& install) {
   return t;
 }
 
+std::vector<uint8_t> entries_laid_over(std::vector<uint8_t> base, const std::string& entries, int* laid, std::string* why) {
+  std::string none;
+  std::string& said = why ? *why : none;
+  std::vector<ArchiveEntry> all;
+  if (!archive_read_entries(entries, &all)) return said = "its changed entries do not read", std::vector<uint8_t>{};
+  for (const ArchiveEntry& e : all) {
+    std::vector<uint8_t> next = ai::archive_with_entry(base, e.name.c_str(), e.data, true);
+    if (next.empty()) return said = "the game's own archive does not read (its table)", std::vector<uint8_t>{};
+    base.swap(next);
+    if (laid) ++*laid;
+  }
+  return base;
+}
+
 int entries_merged_clear(const std::string& write_dir, const std::string& keep) {
   std::error_code ec;
   const fs::path base = fs::path(write_dir) / kModMergedFolder;
@@ -283,20 +297,13 @@ std::string entries_merge(const std::string& write_dir, const std::vector<std::s
         bytes = bytes_of(layers[i].file);
         continue;
       }
-      std::vector<ArchiveEntry> entries;
-      if (!archive_read_entries(layers[i].file, &entries)) {
+      if (archive_entry_names(layers[i].file).empty()) {
         said.push_back("mods: " + layers[i].file + ": its entries do not read, left out");
         continue;
       }
-      for (const ArchiveEntry& e : entries) {
-        std::vector<uint8_t> next = ai::archive_with_entry(bytes, e.name.c_str(), e.data, true);
-        if (next.empty()) {
-          ok = false;
-          break;
-        }
-        bytes.swap(next);
-        ++laid;
-      }
+      std::vector<uint8_t> next = entries_laid_over(bytes, layers[i].file, &laid);
+      if (next.empty()) ok = false;
+      else bytes.swap(next);
     }
     // Whole under another name first, then renamed: never a half-written archive where the game looks. One that
     // cannot be built is not there at all, so the game reads the first mod's whole archive or its own.

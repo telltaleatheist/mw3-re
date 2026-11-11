@@ -562,7 +562,7 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   d.texts = a.texts;
   d.cut = r.cut;
   if (r.cut.archives || r.cut.same)
-    std::printf("mw3: import: %s: %d of its reader archives kept as their %d changed entries; %d the same as yours left out; %d whole\n",
+    std::printf("mw3: import: %s: reader archives: %d kept as the entries it changes (%d in all); %d the same as yours left out; %d whole\n",
                 d.name.c_str(), r.cut.archives, r.cut.entries, r.cut.same, r.cut.whole);
   if (a.texts.read)
     std::printf("mw3: import: %s: %d texts taken from its Mech3Msg.dll into strings.txt (%d with a name of their own)\n", d.name.c_str(),
