@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "upgrades/mods/entry_archives.h"
+#include "upgrades/mods/import_loadout.h"
 #include "upgrades/mods/import_texts.h"
 #include "mech3/mods.h"
 
@@ -46,6 +47,7 @@ struct ModAdd {
   int bare_zbd = 0;          // packed as the zbd folder's contents (no zbd folder): its top items put under zbd
   bool checksums = false;    // it had an export's checksums file, and they matched
   ModGame game = ModGame::kUnknown;  // from its files (mod.txt's for= when it has one)
+  ImportLoadouts loadouts;   // it was mech loadouts, not a mod: what came of them (upgrades/mods/import_loadout.h)
   ImportTexts texts;         // its Mech3Msg.dll's texts, taken into strings.txt (upgrades/mods/import_texts.h)
   std::string error;         // why it was refused, "" when it was not (staging then gone)
 };
@@ -104,6 +106,7 @@ struct ModAddDone {
   int warnings = 0, left_out = 0;  // the check's warnings; the files left out of the copy added
   ImportTexts texts;           // what came of its Mech3Msg.dll, when it carried one
   ModCut cut;                  // its reader archives cut to their changed entries
+  int loadouts = 0;            // mech loadouts added to import\ instead (no mod: ok is false, the message says).
   bool campaign_only = false;  // only campaigns: listed, not turned on (entered from the MODS screen)
 };
 // `from`, when given, is what the marker names as the mod's source (an import's

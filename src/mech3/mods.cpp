@@ -561,8 +561,14 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
       }
       for (const std::string& w : worlds)
         if (std::find(e.anim_bases.begin(), e.anim_bases.end(), w) == e.anim_bases.end()) e.anim_bases.push_back(w), shared = true;
-      for (const std::string& f : files)
-        if (std::binary_search(before[k].first.begin(), before[k].first.end(), f)) e.shadowed.push_back(f), shared = true;
+      for (const std::string& f : files) {
+        // An entry of an archive kept as changed entries ("<archive>: <entry>") is also the earlier mod's when
+        // that mod holds the whole archive: its archive wins whole.
+        const size_t colon = f.find(": ");
+        if (std::binary_search(before[k].first.begin(), before[k].first.end(), f) ||
+            (colon != std::string::npos && std::binary_search(before[k].first.begin(), before[k].first.end(), f.substr(0, colon))))
+          e.shadowed.push_back(f), shared = true;
+      }
       for (const std::string& r : rows)
         if (std::find(before[k].second.begin(), before[k].second.end(), r) != before[k].second.end()) e.rows_taken.push_back(r), shared = true;
       if (shared) e.conflicts_with.push_back(before_folders[k]);

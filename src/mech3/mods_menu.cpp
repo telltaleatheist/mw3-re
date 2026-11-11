@@ -1,5 +1,7 @@
 #include "mech3/mods_menu.h"
 
+#include <set>
+#include <map>
 #include <fstream>
 
 #include <algorithm>
@@ -90,9 +92,24 @@ std::string mods_row_note_shared(const ModsListEntry& m, const std::vector<ModsL
       if (o.info.folder == f && !o.info.name.empty()) n = o.info.name;
     names += (names.empty() ? "" : ", ") + n;
   }
-  const size_t files = m.shadowed.size(), rows = m.rows_taken.size();
+  // Whole files, and the entries of archives kept as changed entries ("<archive>: <entry>", entry_archives.h):
+  // those said with the entry most of them are ("58 entries in 20 files (aiv.zrd in 20)").
+  size_t files = 0, entries = 0;
+  std::map<std::string, int> by_entry;
+  std::set<std::string> archives;
+  for (const std::string& f : m.shadowed) {
+    const size_t colon = f.find(": ");
+    if (colon == std::string::npos) ++files;
+    else ++entries, ++by_entry[f.substr(colon + 2)], archives.insert(f.substr(0, colon));
+  }
+  const size_t rows = m.rows_taken.size();
   std::string what;
   if (files) what = std::to_string(files) + (files == 1 ? " file" : " files");
+  if (entries) {
+    const auto top = std::max_element(by_entry.begin(), by_entry.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
+    what += (what.empty() ? "" : " and ") + std::to_string(entries) + (entries == 1 ? " entry" : " entries") + " in " + std::to_string(archives.size()) +
+            (archives.size() == 1 ? " file" : " files") + " (" + top->first + (entries == 1 ? "" : " in " + std::to_string(top->second)) + ")";
+  }
   if (rows) what += (what.empty() ? "" : " and ") + std::to_string(rows) + (rows == 1 ? " mech/weapon" : " mechs/weapons");
   const size_t anims = m.anims_taken.size();
   if (anims) what += (what.empty() ? "" : " and ") + std::to_string(anims) + (anims == 1 ? " animation" : " animations");

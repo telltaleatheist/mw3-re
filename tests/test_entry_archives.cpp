@@ -15,6 +15,7 @@
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mod_install.h"
 #include "mech3/mods.h"
+#include "mech3/mods_menu.h"
 #include "upgrades/mods/entry_archives.h"
 #include "upgrades/mods/mod_export.h"
 #include "upgrades/mods/mod_report.h"
@@ -189,7 +190,12 @@ TEST(entry_archives_two_imported_mods_both_apply) {
   const std::vector<mech3::ModsListEntry> list = mech3::mods_list(wd, {a.folder, b.folder});
   archive(m2 + "/zbd/reader.zbd.entries", {{"b.zrd", "B2"}, {"c.zrd", "C2"}});
   for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {a.folder, b.folder}))
-    if (e.info.folder == b.folder) EXPECT(e.shadowed == std::vector<std::string>{"zbd/reader.zbd: b.zrd"});
+    if (e.info.folder == b.folder) {
+      EXPECT(e.shadowed == std::vector<std::string>{"zbd/reader.zbd: b.zrd"});
+      const std::string note = mech3::mods_row_note_shared(e, mech3::mods_list(wd, {a.folder, b.folder}));
+      std::printf("  %s\n", note.c_str());
+      EXPECT(note == "Shares 1 entry in 1 file (b.zrd) with One, which wins");
+    }
   // The check and the report on the added mod.
   int errors = 0;
   mech3::ModFindings facts;
@@ -218,6 +224,9 @@ TEST(entry_archives_whole_archives_and_no_base) {
   EXPECT(zutl::find("zbd/reader.zbd").find("/mods/hand/") != std::string::npos);
   EXPECT(log.find("mods: zbd/c9/readerm1.zbd: no game's archive to lay its changed entries over") != std::string::npos);
   EXPECT(mounted_reader(wd, {"cut", "hand"}, inst) == "a.zrd=A9|b.zrd=B1|");
+  // The list says so: after a mod's whole archive, a cut mod's entries of it are that mod's.
+  for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"hand", "cut"}))
+    if (e.info.folder == "cut") EXPECT(mech3::mods_row_note_shared(e, mech3::mods_list(wd, {"hand", "cut"})) == "Shares 1 entry in 1 file (b.zrd) with By hand, which wins");
   EXPECT(mounted_reader(wd, {"cut"}, inst) == "a.zrd=A|b.zrd=B1|c.zrd=C|");
   // Without a write folder, or with no such mod mounted: nothing built, nothing mounted in front.
   const std::string none = mech3::entries_merge(wd, {wd + "/mods/hand"}, {inst}, nullptr);
