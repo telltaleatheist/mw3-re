@@ -1294,6 +1294,32 @@ answers the picker for scripted runs and shots.
   `import_folder_refusals`, `import_folder_other_picks_and_links`;
   `MW3_IMPORT_FOLDER=<folder> MW3_TEST=import_folder_real build/mw3tests` runs a
   real one (game/mw3-1.0 against 1.2: 14 files taken, 96 the same, under 2 s).
+- **The mod's installer program itself** (Owen, 2026-11-10: one step, nothing
+  run; `upgrades/mods/installer_read`, `import_installer_prepare`;
+  docs/installer-format.md has the format). The mods we know of ship as
+  installers made with Clickteam Install Creator. IMPORT given such a program
+  (told by its bytes, not its name) reads it as an archive: its file list is
+  laid over a game folder by where `zbd\` sits in the names, else by the
+  default folder's tail (refused, said, when neither tells); then the same
+  rule as a modded folder: each file under the folders the player's install
+  has is unpacked in memory, one at a time, and compared with the player's;
+  only those that differ or are new are written, into the same kind of staging
+  folder, and added by the add above. The name is the installer's title, else
+  its file name; the game is told from its files and its default folder, and
+  the other game's installer is refused. Left, and said: the program and dlls;
+  `Mech3Msg.dll` by name ("its text file Mech3Msg.dll is not part of a mod
+  here, so names it adds may show as their ids"); installers carried inside it
+  ("this installer also carries N more installers: import each on its own");
+  pilots, settings; files outside the game's folders. The installer's own
+  choices: none of the 15 has optional components; every data file is taken.
+  A `.rar` we cannot take says "unpack this .rar first, then IMPORT the
+  program inside it" (no RAR reader of ours). Progress goes to the log every
+  20 files ("mw3: import: 40 of 221 files read from the installer"); the
+  largest (408 MB packed, 641 MB unpacked, 221 files) takes about a minute on
+  the Mac, a file at a time in memory. Tests:
+  `import_installer_takes_what_differs`, `import_installer_refusals_and_case`;
+  `MW3_IMPORT_INSTALLERS=<folder or file> MW3_TEST=import_installer_real
+  build/mw3tests` runs real ones, a line each.
 - No mod.txt: one is written, its name the archive's or folder's and for=
   from the names only one game ships (MW3's c4b and t1 worlds and its own
   mission readers, Pirate's Moon's readersa and readeria4); when they cannot

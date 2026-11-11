@@ -332,6 +332,8 @@ add_library(mw3core STATIC
   src/upgrades/mods/anim_defs.cpp
   src/upgrades/mods/save_mods.cpp
   src/upgrades/mods/import_folder.cpp
+  src/upgrades/mods/bz2_read.cpp
+  src/upgrades/mods/installer_read.cpp
   src/upgrades/settings/upgrades.cpp
   src/upgrades/mods/mod_report.cpp
   src/upgrades/mods/mod_test.cpp
@@ -553,6 +555,7 @@ add_library(mw3probe SHARED
   tests/probe_veh_stealth.cpp
   tests/probe_veh_dock.cpp
   tests/probe_veh_waynet.cpp
+  tests/probe_bz2.cpp
   tests/probe_mech_repair.cpp
   tests/probe_mech_repair_store.cpp
   tests/probe_field_cut.cpp
@@ -624,6 +627,7 @@ add_executable(mw3tests
   tests/test_mods.cpp
   tests/test_mod_install.cpp
   tests/test_import_folder.cpp
+  tests/test_installer_read.cpp
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp
   tests/test_campaign_entries.cpp

@@ -33,6 +33,12 @@ struct ImportFolder {
   int programs = 0;          // the program, dlls, dgVoodoo's files: left
   int own = 0;               // the player's own kind (pilots, configs, saves, settings, logs): left
   int other = 0;             // loose at the top, or in a folder the install does not have: left
+  // From an installer program (import_installer_prepare):
+  bool installer = false;    // the source was a mod's installer, read as an archive
+  bool msg_dll = false;      // it carries Mech3Msg.dll (the texts): left, and said by name
+  int nested = 0;            // installers it carries inside: left, each to import on its own
+  std::vector<std::string> same_names;  // the files left as the player's own already (an installer's)
+  std::string title;         // its own name for the mod, when it has one
   // The data's version on each side ("1.0", "1.2", "" when it cannot be told),
   // by the data files neither a mod nor the patch's other version changed; and
   // what is said when they differ (the versions' differences are taken too).
@@ -44,6 +50,13 @@ struct ImportFolder {
 // and `install` are read only.
 ImportFolder import_folder_prepare(const std::string& write_dir, const std::string& folder, const std::string& install,
                                    const ModAddLimits& limits = {});
+// A mod's installer program (upgrades/mods/installer_read.h: Clickteam Install Creator) read as the modded
+// folder would be, nothing of it run: its files laid over the game's folders, each one under the folders the
+// install has unpacked in memory and compared with the player's, and only those that differ or are new written,
+// into the same kind of staging folder. One file at a time (the largest installer is 641 MB unpacked).
+// `progress(done, total)`, when given, is called as it goes. `install` false in the result: not such an installer.
+ImportFolder import_installer_prepare(const std::string& write_dir, const std::string& installer, const std::string& install,
+                                      const ModAddLimits& limits = {}, const std::function<void(int, int)>& progress = nullptr);
 // The staging folder removed (only with our marker in it).
 void import_folder_discard(ImportFolder& f);
 // The line that says what was taken and what was left (the log's), and the
