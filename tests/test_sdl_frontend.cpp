@@ -7911,7 +7911,7 @@ TEST(sdl_pm_program_mods_play_test_and_save_as) {
   std::printf("  Save as: asked %d, named %d, saved %d, MODS on the copy %d\n", edit_asked != none, named != none, saved_at != none, chosen != none);
   EXPECT(edit_asked != none && named != none && saved_at != none && chosen != none && named < saved_at && saved_at < chosen);
   EXPECT(fs::is_regular_file(dir + "/wd/mods/Campaign, my edit/mw3-editor.txt") && fs::is_directory(dir + "/wd/mods/Campaign, my edit/zbd/c1"));
-  EXPECT(pm_bytes(dir + "/wd/mods/Campaign, my edit/mod.txt").find("base=campaign") != none);
+  EXPECT(pm_bytes(dir + "/wd/mods/Campaign, my edit/mod.txt").find("base=campaign\nfor=mw3pm\n") != none);  // this game's word: mw3pm refuses any other
   EXPECT(pm_bytes(dir + "/wd/campaigns/campaign/mods.txt") == "mod=weps\n" && pm_bytes(dir + "/wd/campaigns/pirate/mods.txt") == "mod=hud\n");
   if (!std::getenv("MW3_KEEP_TMP")) fs::remove_all(dir, ec);
 }

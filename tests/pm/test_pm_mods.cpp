@@ -50,6 +50,7 @@
 #include "platform/silent_sound.h"
 #include "pm/pm_game.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/mod_test.h"
 #include "upgrades/mods/mod_export.h"
 #include "upgrades/mods/mod_needs.h"
@@ -571,8 +572,13 @@ TEST(pm_mods_test_rows_in_play_order) {
   EXPECT(listed == "c1 1; c1 2; c2 3; c2 4; c1 5; c3 6; c3 7; c2 8; c4 9; c4 10; ");
 }
 
-// MODS, a mod with no missions, TEST, ENTER on c2 mission 3: PM's mission played with the editor closed and the
-// mechs' definitions let go first; the pause's QUIT lands on MODS again, the stand-in pilot let go.
+// MODS's TEST on Pirate's Moon through the entry (step 4a; MechWarrior 3's twin is
+// mods_screen_test_plays_a_mission_and_comes_back_headless): a mod ticked for the Campaign, TEST lists PM's ten
+// missions, PLAY on c2 mission 3 asks the program to start again into the Campaign and that mission and plays
+// nothing in place. Then the run inside the entry, as --entry campaign --entry-test c2 3: PM's mission starts at
+// once with the editor closed; the pause's QUIT lands on MODS in its test mode ("TEST in Campaign", the stand-in
+// pilot let go); PLAY there plays another mission in place, the mechs' definitions read again; QUIT, and BACK
+// leaves the entry once.
 TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
   if (!fs::exists(MW3PM_GAME_DIR)) return;
   in_child("pm_mods_screen_test_plays_c2_mission_3_headless", [] {
@@ -623,9 +629,14 @@ TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
     mech3::Platform p;
     p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
     p.sound = &sound, p.files = &files, p.input = &keys;
-    int stage = 0, core = 0, rows = 0;
-    bool played = false, editor_closed = false, reloaded = false, mods_again = false;
+    int stage = 0, core = 0, rows = 0, left = 0, plays = 0;
+    bool played = false, editor_closed = false, reloaded = false, mods_again = false, nothing_in_place = false, second_played = false, second_back = false;
     uint32_t real_pilot = 0, pilot_after = 0;
+    std::string title;
+    std::vector<std::string> asked;
+    mech3::mods_menu_test_restart() = [&](const std::string& entry, const std::string& world, int32_t number, std::string*) {
+      return asked.push_back(entry + " " + world + " " + std::to_string(number)), true;
+    };
     {
       mech3::GameEngine engine(p, "mech3.exe -nofmv");
       engine.quiet = true;
@@ -635,54 +646,77 @@ TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
       mech3::States& st = mech3::states();
       engine.on_present = [&](int) {
         zgame::State* now = app.current();
+        auto* ms = dynamic_cast<mech3::ModsState*>(now);
+        auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
         if (stage == 0 && now == &st.main && mech3::main_menu()) {
           real_pilot = engine.peek32(0x60861c);
           const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();  // MODS
           stage = 1;
-        } else if (stage == 1) {
-          auto* ms = dynamic_cast<mech3::ModsState*>(now);
-          auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
-          if (!scr) return;
-          scr->mod_list.FileList::select(0);
-          scr->on_button(mech3::ModsScreen::kMods, 0, 0);
-          scr->on_button(mech3::ModsScreen::kTest, 0, 0);  // TEST
+        } else if (stage == 1 && scr) {
+          scr->mod_list.select(0);
+          scr->on_button(mech3::ModsScreen::kToggle, 0, 0);  // ticked for the Campaign
+          scr->on_button(mech3::ModsScreen::kTest, 0, 0);    // TEST
           rows = int(scr->edit_rows.size());
           for (size_t i = 0; i < scr->edit_rows.size(); ++i)
             if (scr->edit_rows[i].world == "c2" && scr->edit_rows[i].number == 3) scr->campaign_list.FileList::select(int32_t(i));
           const int32_t reloads = mech3::mod_test_reloads();
-          scr->on_button(mech3::ModsScreen::kEnter, 0, 0);
-          reloaded = mech3::mod_test_reloads() == reloads + 1;
+          scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY: the restart asked for
+          nothing_in_place = mech3::mod_test_reloads() == reloads && !mech3::mods_edit_session().active;
+          scr->on_button(mech3::ModsScreen::kBack, 0, 0);  // the list closed
+          scr->on_button(mech3::ModsScreen::kBack, 0, 0);  // MODS left
+          // The run inside the entry, as the program sets it for --entry campaign --entry-test c2 3.
+          mech3::mods_menu_mounted() = {"wpn"};
+          mech3::EntryRun& run = mech3::entry_run();
+          run = mech3::EntryRun{};
+          run.screen = mech3::EntryRun::kTest, run.id = "campaign", run.world = "c2", run.number = 3;
+          run.leave = [&] { ++left; };
           stage = 2;
-        } else if (stage == 2 && now == &st.core) {
+        } else if ((stage == 2 || stage == 4) && now == &st.core) {
           ++core;
           if (core == 5) {
-            played = mech3::mods_edit_session().active && !mech3::mods_edit_session().editor;
+            (stage == 2 ? played : second_played) = mech3::mods_edit_session().active && !mech3::mods_edit_session().editor;
             editor_closed = mech3::editor_state().active == 0;
             keys.key(1, true);  // Escape: the pause
           }
           if (core == 6) keys.key(1, false);
-        } else if (stage == 2 && now == &st.pause) {
+        } else if ((stage == 2 || stage == 4) && now == &st.pause) {
           auto* ps = dynamic_cast<mech3::PauseScreen*>(engine.screen_of(st.pause.screen_));
-          if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), stage = 3;
-        } else if (stage == 3 && dynamic_cast<mech3::ModsState*>(now)) {
-          mods_again = true;
+          if (ps) ps->on_button(mech3::PauseScreen::kQuit, 0, 0), ++stage, core = 0, ++plays;
+        } else if (stage == 3 && scr) {
+          mods_again = scr->test_mode && scr->testing;
+          title = scr->detail.text;
           pilot_after = engine.peek32(0x60861c);
+          for (size_t i = 0; i < scr->edit_rows.size(); ++i)
+            if (scr->edit_rows[i].world == "c1" && scr->edit_rows[i].number == 1) scr->campaign_list.FileList::select(int32_t(i));
+          const int32_t reloads = mech3::mod_test_reloads();
+          scr->on_button(mech3::ModsScreen::kEnter, 0, 0);  // PLAY in place
+          reloaded = mech3::mod_test_reloads() == reloads + 1 && asked.size() == 1;
           stage = 4;
+        } else if (stage == 5 && scr) {
+          second_back = scr->test_mode && left == 0;
+          scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+          stage = 6;
+        } else if (stage == 6 && left) {
+          stage = 7;
         }
       };
       Pump pump;
-      pump.limit = 8000;
-      pump.stop = [&] { return stage == 4; };
+      pump.limit = 16000;
+      pump.stop = [&] { return stage == 7; };
       app.run(pump);
+      mech3::entry_run() = mech3::EntryRun{};
+      mech3::mods_menu_test_restart() = nullptr;
       mech3::missions().cleanup(false);
       app.stop_game();
       app.exit_instance();
       mech3::set_app(nullptr);
     }
-    std::printf("  stage %d, %d rows; played %d, the editor closed %d, reloaded %d, MODS again %d, the pilot back %d\n", stage,
-                rows, played, editor_closed, reloaded, mods_again, pilot_after == real_pilot);
-    EXPECT(rows == 10 && played && editor_closed && reloaded);
-    EXPECT(mods_again && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    std::printf("  stage %d, %d rows; asked %s; played %d, the editor closed %d, the test mode \"%s\" %d; in place %d, again %d, left %d\n", stage, rows,
+                asked.empty() ? "" : asked[0].c_str(), played, editor_closed, title.c_str(), mods_again, reloaded && second_played, second_back, left);
+    EXPECT(rows == 10 && (asked == std::vector<std::string>{"campaign c2 3"}) && nothing_in_place);
+    EXPECT(played && editor_closed && plays == 2);
+    EXPECT(mods_again && title == "TEST in Campaign" && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    EXPECT(reloaded && second_played && second_back && stage == 7 && left == 1);
     mech3::mods_menu_write_dir().clear();
     mech3::mods_menu_mounted().clear();
     mech3::mods_menu_install().clear();

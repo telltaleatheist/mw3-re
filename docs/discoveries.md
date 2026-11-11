@@ -4769,3 +4769,13 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   date and time the game was built. The rebuild opens it as the editor's
   TELEPORT. (From the data and the code: 0x004a37a0, dialog 132.
   docs/editor.md, Teleport)
+- **Pirate's Moon fixed two of MechWarrior 3's data typos and kept two.**
+  The expansion's files have the Firefly's fifth camo labelled SLATE (MW3
+  called it WASP twice) and c1's script no longer misspells the command that
+  scrolls one patch of water. But its Sunder Alternate B still leaves 240 of
+  its 360 LRM 20 missiles unloaded (the `extra` word beside `ammo` instead of
+  inside it), and its Strider still has no recoil slide (the number typed as
+  the text "1.5.0"). The rebuild reads both as meant in Pirate's Moon too,
+  under SMALL FIXES. (From the data: dfn_firefly.zrd, dfn_sunder.zrd and
+  dfn_strider.zrd in each game's reader.zbd, and interp.zbd.
+  docs/fixes.md)

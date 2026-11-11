@@ -74,9 +74,9 @@ TEST(pm_entries_are_the_two_campaigns_and_instant_action) {
   mods(wd);
   const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
   std::printf("  entries: %s\n", ids(all).c_str());
-  EXPECT(ids(all) == "campaign,pirate,ia,camp~night,rewrite");  // the other game's mod left out
-  const mech3::CampaignEntry* rewrite = mech3::find_entry(all, "rewrite");
-  EXPECT(rewrite && rewrite->base == "campaign" && rewrite->campaign.empty());  // over the game's own files: on the Campaign
+  EXPECT(ids(all) == "campaign,pirate,ia,camp~night");  // the other game's mod left out
+  // A mod laid over the game's own files is a tick for either campaign and Instant Action, not a row (Owen, 2026-11-10).
+  EXPECT(!mech3::find_entry(all, "rewrite"));
   EXPECT(!mech3::find_entry(all, "mw3"));  // MechWarrior 3's entry is not one of Pirate's Moon's
 }
 
@@ -133,6 +133,11 @@ TEST(pm_entries_first_start_gives_both_campaigns_the_mods) {
   EXPECT(!fs::exists(wd / "campaigns/mw3"));
   EXPECT(text_of(wd / "mw3.cfg") == cfg + "\r\nmods_moved=1\r\n");
   EXPECT(mech3::entries_migrate(wd.string()).empty());
+  // No mod= line: nothing to move, and mw3.cfg gets no key (it stays byte for byte; no folder of ours is made).
+  const fs::path plain = tmp("pm_entries_migrate_none");
+  put(plain / "mw3.cfg", "install=D:\\PM\r\n");
+  EXPECT(mech3::entries_migrate(plain.string()).empty());
+  EXPECT(text_of(plain / "mw3.cfg") == "install=D:\\PM\r\n" && !fs::exists(plain / "campaigns"));
 }
 
 // Each of Pirate's Moon's entries has its own saved loadouts folder beside its pilots (entry_configs_folder),

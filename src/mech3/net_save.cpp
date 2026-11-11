@@ -351,7 +351,7 @@ std::string editor_mod(const std::string& write_dir, const std::string& source, 
   const fs::path mods = fs::path(write_dir) / "mods";
   std::error_code ec;
   if (!source.empty() && fs::is_regular_file(mods / source / kEditorMarker, ec)) return source;
-  std::string name = "editor", game = "mw3 1.2";
+  std::string name = "editor", game = mods_game() == "mw3" ? "mw3 1.2" : mods_game();  // this game's word: mw3pm refuses "mw3"
   if (!source.empty()) {
     ModInfo info;
     mod_parse(read_text(mods / source / "mod.txt"), &info);

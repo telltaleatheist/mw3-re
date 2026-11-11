@@ -300,7 +300,7 @@ TEST(net_save_into_the_editors_own_mod) {
   EXPECT(text_of(wd / "mods" / "editor edits" / "mod.txt") == "name=Someone's\n");
   const fs::path ours = wd / "mods" / "editor edits (2)";
   EXPECT(fs::is_regular_file(ours / mech3::ai::kEditorMarker));
-  EXPECT(text_of(ours / "mod.txt") == "name=editor edits\nfor=mw3 1.2\n");
+  EXPECT(text_of(ours / "mod.txt") == "name=editor edits\nfor=" + std::string(mech3::mods_game() == "mw3" ? "mw3 1.2" : mech3::mods_game()) + "\n");
   EXPECT(entry(ours / "zbd" / "c1" / "readerm1.zbd") == "one");
   EXPECT(entry(inst / "zbd" / "c1" / "readerm1.zbd") == "install");  // the install untouched
   EXPECT((mech3::entry_mods_on(wd.string()) == std::vector<std::string>{"a", "foo", "b", "editor edits (2)"}));
@@ -595,31 +595,34 @@ TEST(editor_saves_only_as_a_copy_of_the_campaign) {
   mech3::ai::net_save_into_mod().clear();
   // The copy's making and its refusals.
   const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(w);
-  const mech3::CampaignEntry* own = mech3::find_entry(all, "mw3");
+  // The game's own campaign by this build's words: "mw3" / "MechWarrior 3" on main, "campaign" / "Campaign" on pm.
+  const std::string own_id = mech3::official_entries().front().id, own_name = mech3::official_entries().front().name;
+  const std::string game_word = mech3::mods_game() == "mw3" ? "mw3 1.2" : mech3::mods_game();
+  const mech3::CampaignEntry* own = mech3::find_entry(all, own_id);
   EXPECT(own && mech3::entry_save_ticks(w, *own, {"weps"}));
-  EXPECT(mech3::save_as_default_name(w, "mw3") == "MechWarrior 3, my edit" && mech3::save_as_default_name(w, "camp~night") == "Long Night, my edit");
+  EXPECT(mech3::save_as_default_name(w, own_id) == (own_name + ", my edit") && mech3::save_as_default_name(w, "camp~night") == "Long Night, my edit");
   std::string folder, why;
   const std::string hand_before = snapshot(wd / "mods" / "byhand");
-  EXPECT(!mech3::save_as_make_copy(w, "mw3", "byhand", &folder, &why) && why.find("there is a mod folder byhand already") == 0);
+  EXPECT(!mech3::save_as_make_copy(w, own_id, "byhand", &folder, &why) && why.find("there is a mod folder byhand already") == 0);
   EXPECT(snapshot(wd / "mods" / "byhand") == hand_before);  // never written over
-  EXPECT(!mech3::save_as_make_copy(w, "mw3", "  ", &folder, &why) && why == "it needs a name");
+  EXPECT(!mech3::save_as_make_copy(w, own_id, "  ", &folder, &why) && why == "it needs a name");
   EXPECT(!mech3::save_as_make_copy(w, "nowhere", "X", &folder, &why) && why.find("not among the campaigns") != std::string::npos);
   // Inside the game's own campaign: the first save asks once.
   mount({"weps"});
-  mech3::save_as_begin(w, "mw3");
+  mech3::save_as_begin(w, own_id);
   int asked = 0, ran = 0;
   mech3::save_as_ask_hook() = [&](std::string*) { return ++asked, false; };  // Cancel
   const std::string mods_before = snapshot(wd / "mods");
   EXPECT(!mech3::editor_save_ready([&] { ++ran; }) && asked == 1 && ran == 0 && snapshot(wd / "mods") == mods_before);
   mech3::save_as_ask_hook() = [&](std::string* name) {
     ++asked;
-    EXPECT(*name == "MechWarrior 3, my edit");  // the default offered
+    EXPECT(*name == (own_name + ", my edit"));  // the default offered
     return true;
   };
   EXPECT(mech3::editor_save_ready([&] { ++ran; }) && asked == 2);
   const std::string copy = mech3::save_as_session().copy;
-  EXPECT(copy == "MechWarrior 3, my edit" && mech3::save_as_session().made && mech3::editor_owns_mod(w, copy));
-  EXPECT(text_of(wd / "mods" / copy / "mod.txt") == "name=MechWarrior 3, my edit\nkind=campaign\nbase=mw3\nfor=mw3 1.2\n");
+  EXPECT(copy == (own_name + ", my edit") && mech3::save_as_session().made && mech3::editor_owns_mod(w, copy));
+  EXPECT(text_of(wd / "mods" / copy / "mod.txt") == "name=" + own_name + ", my edit\nkind=campaign\nbase=" + own_id + "\nfor=" + game_word + "\n");
   EXPECT((mech3::entry_ticks(w, copy) == std::vector<std::string>{"weps"}));  // the base's ticks
   mech3::ai::NetSave r = mech3::ai::save_archive_edit(rel, "net_01.zrd", one);
   EXPECT(r.ok && r.folder == copy && entry(wd / "mods" / copy / "zbd" / "c1" / "readerm1.zbd") == "one");
@@ -632,8 +635,8 @@ TEST(editor_saves_only_as_a_copy_of_the_campaign) {
   // It is a campaign of its own now, built on the game's; the next default name counts on.
   const std::vector<mech3::CampaignEntry> now = mech3::campaign_entries(w);
   const mech3::CampaignEntry* made = mech3::find_entry(now, copy);
-  EXPECT(made && made->kind == mech3::CampaignEntry::kCopy && made->base == "mw3" && mech3::entry_plays_own_campaign(w, *made));
-  EXPECT(mech3::save_as_default_name(w, "mw3") == "MechWarrior 3, my edit 2");
+  EXPECT(made && made->kind == mech3::CampaignEntry::kCopy && made->base == own_id && mech3::entry_plays_own_campaign(w, *made));
+  EXPECT(mech3::save_as_default_name(w, own_id) == (own_name + ", my edit 2"));
   // An imported campaign edited: its own folder is not touched, the copy holds the file changed.
   mount({"camp"});
   const std::string camp_before = snapshot(wd / "mods" / "camp");
@@ -661,19 +664,19 @@ TEST(editor_saves_only_as_a_copy_of_the_campaign) {
   // the box with the reason and a new suggestion; Cancel closes it and nothing is made; Save makes the copy and
   // runs the command again.
   mount({"weps"});
-  mech3::save_as_begin(w, "mw3");
+  mech3::save_as_begin(w, own_id);
   ran = 0;
   EXPECT(!mech3::editor_save_ready([&] { ++ran; }) && !mech3::editor_forms().empty());
   mech3::EditorForm* box = mech3::editor_forms().empty() ? nullptr : mech3::editor_forms().back();
-  EXPECT(box && box->title == "Save as a new campaign" && box->modal && box->field("Name") && *box->field("Name")->text == "MechWarrior 3, my edit 2");
+  EXPECT(box && box->title == "Save as a new campaign" && box->modal && box->field("Name") && *box->field("Name")->text == (own_name + ", my edit 2"));
   if (box) {
     *box->field("Name")->text = "byhand";
     EXPECT(box->press("Save") && mech3::form_shown(box) && ran == 0 && mech3::save_as_session().copy.empty());
-    EXPECT(box->fields[0].label.find("Not saved: there is a mod folder byhand already") == 0 && *box->field("Name")->text == "MechWarrior 3, my edit 2");
-    EXPECT(box->press("Cancel") && !mech3::form_shown(box) && ran == 0 && !fs::exists(wd / "mods" / "MechWarrior 3, my edit 2"));
+    EXPECT(box->fields[0].label.find("Not saved: there is a mod folder byhand already") == 0 && *box->field("Name")->text == (own_name + ", my edit 2"));
+    EXPECT(box->press("Cancel") && !mech3::form_shown(box) && ran == 0 && !fs::exists(wd / "mods" / (own_name + ", my edit 2")));
     EXPECT(!mech3::editor_save_ready([&] { ++ran; }));
     box = mech3::editor_forms().empty() ? nullptr : mech3::editor_forms().back();
-    EXPECT(box && box->press("Save") && !mech3::form_shown(box) && ran == 1 && mech3::save_as_session().copy == "MechWarrior 3, my edit 2");
+    EXPECT(box && box->press("Save") && !mech3::form_shown(box) && ran == 1 && mech3::save_as_session().copy == (own_name + ", my edit 2"));
   }
   mech3::save_as_end();
   mech3::ai::net_save_into_mod().clear();

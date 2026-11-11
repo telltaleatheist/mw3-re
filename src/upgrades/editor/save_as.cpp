@@ -89,7 +89,7 @@ bool save_as_make_copy(const std::string& write_dir, const std::string& entry, c
   if (fs::exists(fs::symlink_status(dir, ec))) return said = "there is a mod folder " + f + " already; choose another name", false;
   for (const CampaignEntry& other : all)
     if (other.id == f) return said = "there is a campaign " + f + " already; choose another name", false;
-  std::string game = "mw3 1.2";
+  std::string game = mods_game() == "mw3" ? "mw3 1.2" : mods_game();  // this game's word (mods.cpp): mw3pm refuses "mw3"
   for (const ModInfo& m : mods_found(write_dir))
     if (m.folder == e->mod && !m.game.empty()) game = m.game;
   fs::create_directories(dir, ec);
