@@ -787,6 +787,9 @@ Action takes mods from its own screen, not from MODS's list.
   the original and goes back. A ticked mod gone: the list shows which
   (`ia_mods_missing`), and ACCEPT refuses until it is turned off or
   imported again.
+- **The tab's hover line** (`ActionScreen::update`, ours): with the mouse
+  over MODS, two rows under the mission's box say "Play Instant Action with
+  mods. The game starts again to load them."
 - **No mods at all** (playtest W6): ALL OFF is not shown (it was a second
   way out of the screen) and the note says "No mods yet. Get one on the
   main menu: MODS, then IMPORT."

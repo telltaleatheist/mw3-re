@@ -71,7 +71,7 @@ cp assets/fonts/Liberation-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/liberatio
 cp assets/fonts/Anton-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/anton/OFL.txt"
 mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed"
 cp assets/launcher/font-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed/OFL.txt"
-cp tools/windows/dist/README.txt tools/windows/dist/THIRD-PARTY.txt "$APPDIR/usr/share/doc/mw3/"
+cp tools/linux/README.txt tools/windows/dist/THIRD-PARTY.txt "$APPDIR/usr/share/doc/mw3/"
 [ -f LICENSE ] && cp LICENSE "$APPDIR/usr/share/doc/mw3/LICENSE.txt"
 # Each library's licence files: from its source tree when the prefix is
 # build_deps.sh's (FFmpeg installs none), else what the prefix installed.

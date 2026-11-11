@@ -5,6 +5,7 @@
 // memory the size of the original object, so the offsets the states add (a
 // button's +0x111ec) still lead to its parts; a menu object's handle is a block
 // of 0x10, its address for the hooks that name it.
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -268,6 +269,10 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
   };
   std::vector<Move> moves;
   for (ztwod::Object2D* o = s->head; o; o = o->next) {
+    // Each object once: with FastMenu the layout ran before the bake too (widen_before_bake), and the baked
+    // picture is the canvas's width already.
+    if (o == &s->still || std::find(s->widened.begin(), s->widened.end(), o) != s->widened.end()) continue;
+    s->widened.push_back(o);
     const ztwod::Rect* r = o->get_rect();
     const int32_t left = (r ? r->left : o->get_x()) - s->origin_x, right = (r ? r->right : o->get_x()) - s->origin_x;
     const int32_t top = (r ? r->top : o->get_y()) - s->origin_y, bottom = (r ? r->bottom : o->get_y()) - s->origin_y;
@@ -387,8 +392,24 @@ void GameEngine::widen_screen(MenuScreen* s, uint32_t ctor) {
   }
 }
 
+// The screen being made is laid out wide before its bake: by the constructor construct() is in, or for the
+// screens their states make themselves (adopt_screen) by what they are.
+void GameEngine::widen_before_bake(MenuScreen* s) {
+  uint32_t ctor = making_ctor_;
+  if (dynamic_cast<PilotScreen*>(s)) ctor = 0x486f40;
+  else if (dynamic_cast<LoadSavePopupScreen*>(s)) ctor = 0x42da80;
+  else if (dynamic_cast<AxisPopupScreen*>(s)) ctor = 0x42e890;
+  if (ctor && ctor != 0x492750) widen_screen(s, ctor);
+}
+
 Handle GameEngine::construct(uint32_t ctor, std::initializer_list<Arg> args) {
   const Handle a0 = args.size() ? args.begin()->v : 0;
+  struct Making {  // the constructor this call is in, for a bake inside it (a screen may make another)
+    uint32_t& at;
+    uint32_t keep;
+    Making(uint32_t& a, uint32_t c) : at(a), keep(a) { at = c; }
+    ~Making() { at = keep; }
+  } making(making_ctor_, ctor);
   // FIX (B), playtest W13: every menu screen shows on the menus' 640x480
   // (mode 5: 0x00438c90, Core's leave), so its frame is at 0 even when Core
   // makes it on the mission's wide canvas. The pause screen shows over the

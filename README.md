@@ -167,7 +167,9 @@ Nothing yet.
   - macOS 12 or later, Apple silicon or Intel;
   - Linux, x86-64, with your distribution's Vulkan driver.
 
-Pirate's Moon is not supported yet.
+Pirate's Moon, the expansion, is in the same download as its own program, and
+needs your own Pirate's Moon the same way (an installed copy, its disc or a
+disc image). Each game works without the other.
 
 ## Download
 
@@ -219,7 +221,8 @@ is there it goes straight on into it:
   needs into a folder of the rebuild's own, with a progress bar and
   **Cancel**. An installed copy is used where it is. No Windows and no
   original installer needed. Versions 1.0 and 1.2 both work as they are:
-  1.0 plays as 1.2. Pirate's Moon is recognised, but its support comes later.
+  1.0 plays as 1.2. Pirate's Moon is found or installed the same way, from the
+  launcher's GAME FILES.
 
 If something is wrong (not enough space, a damaged download, a file that
 is not MechWarrior 3) it says so in plain words and changes nothing.
