@@ -4881,6 +4881,16 @@ TEST(sdl_program_mods_enter_plays_an_entry_and_back) {
   std::printf("  EDITOR: asked %d, the mission loading %d\n", edit_asked != none, edit_loading != none);
   EXPECT(edit_asked != none && edit_loading != none && has(ed, "mw3: closed, result 0", edit_loading == none ? 0 : edit_loading) != none);
   EXPECT(!fs::exists(dir + "/wd/mods/MechWarrior 3, my edit"));  // nothing saved: no copy made by opening the editor
+  // The same with a save (MW3_EDIT_SAVE_AT: net_01 saved at the editor's 20th frame, the Save as box answered
+  // with its default): the copy made, the save in it, the editor left, MODS again with the copy chosen.
+  setenv("MW3_EDIT_SAVE_AT", "20", 1);
+  const std::string sv = run({"--frames", "1200", "--click-at", "135,435@130", "--click-at", "90,446@170", "--click-at", "420,320@220"}, "sv");
+  unsetenv("MW3_EDIT_SAVE_AT");
+  const size_t named = has(sv, "mw3: Save as answered with \"MechWarrior 3, my edit\""), saved_at = has(sv, "mw3: editor: Saved to mods\\MechWarrior 3, my edit\\zbd\\c1\\readerm1.zbd"),
+               chosen = has(sv, "mw3: MODS opens with the campaign MechWarrior 3, my edit chosen (--mods-entry)");
+  std::printf("  Save as in the window: named %d, saved %d, MODS on the copy %d\n", named != none, saved_at != none, chosen != none);
+  EXPECT(named != none && saved_at != none && chosen != none && named < saved_at && saved_at < chosen);
+  EXPECT(fs::is_regular_file(dir + "/wd/mods/MechWarrior 3, my edit/mw3-editor.txt") && fs::is_regular_file(dir + "/wd/mods/MechWarrior 3, my edit/zbd/c1/readerm1.zbd"));
   EXPECT(own != none && in != none && own < in && has(c, "mod hud (Green HUD) mounted", in) != none && has(c, "mod weps (Weps) mounted", in) != none);
   {
     std::ifstream t(dir + "/wd/campaigns/mw3/mods.txt");

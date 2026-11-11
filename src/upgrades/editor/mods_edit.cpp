@@ -2,7 +2,11 @@
 
 #include "mech3/app_hooks.h"
 #include "mech3/app_keys.h"
+#include <cstdio>
+#include <cstdlib>
+
 #include "mech3/game_editor.h"
+#include "mech3/game_editor_net.h"
 #include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
 #include "mech3/net_save.h"
@@ -36,6 +40,23 @@ void mods_edit_begin(const std::string& mod, std::function<void()> finish, bool 
 
 void mods_edit_frame() {
   ModsEditSession& s = mods_edit_session();
+  // MW3_EDIT_SAVE_AT=N (checks only): at the editor's Nth frame net_01 is opened and saved, the Save as box
+  // answered with the name it offers, and the editor left; ImGui's box cannot be pressed by a scripted click.
+  static int frames = 0;
+  if (const char* at = s.active && s.entered && !s.leave && s.editor ? std::getenv("MW3_EDIT_SAVE_AT") : nullptr; at && ++frames == std::atoi(at)) {
+    save_as_ask_hook() = [](std::string* name) { return std::printf("mw3: Save as answered with \"%s\" (MW3_EDIT_SAVE_AT)\n", name->c_str()), true; };
+    edit_ai_nets(0);
+    NetDialog& d = net_dialog();
+    for (size_t i = 0; i < d.items.size(); ++i)
+      if (d.items[i].first == "net_01") d.selected = static_cast<int32_t>(i);
+    net_dialog_close();
+    net_editor_save(0);
+    std::printf("mw3: editor: %s\n", editor_panel().rows[24]->text);
+    save_as_ask_hook() = nullptr;
+    net_editor_exit(0);
+    editor_exit(0);
+    return;
+  }
   if (!s.active || s.entered || s.leave || !s.editor) return;
   s.entered = true;
   if (!editor_state().active) editor_enter();

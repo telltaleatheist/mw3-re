@@ -2089,6 +2089,99 @@ TEST(entry_pilot_screen_lists_and_brings_the_main_menus_pilots_headless) {
   }
 }
 
+// Ours (modding.md, IMPORT from a modded game folder; upgrades/mods/import_folder.h): the MODS screen's IMPORT
+// given a whole modded install takes what differs from the player's install as a mod, an unticked row of
+// MODS chosen, its two rows saying what was taken; the player's own install and the other game's are refused
+// with the reason.
+TEST(mods_screen_import_from_a_modded_game_folder_headless) {
+  if (!have_game()) return;
+  namespace fs = std::filesystem;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_import_folder_write"), src = temp_dir("mods_screen_import_folder_src");
+  zutl::set_write_dir(wd);
+  auto put = [&](const std::string& path, const std::string& text) {
+    fs::create_directories(fs::path(path).parent_path());
+    std::ofstream(path) << text;
+  };
+  const std::string inst = src + "/install", modded = src + "/Freako Game", pm = src + "/Pirates";
+  for (const std::string& d : {inst, modded}) {
+    put(d + "/Mech3.exe", "the game");
+    put(d + "/zbd/reader.txt", "the reader");
+    put(d + "/zbd/c1/gamez.txt", "abc");
+    put(d + "/zbd/c4b/m5.txt", "a mission only MechWarrior 3 has");
+  }
+  put(modded + "/zbd/reader.txt", "the mod's reader");
+  put(modded + "/zbd/c1/New.txt", "new");
+  put(pm + "/Mech3.exe", "pm"), put(pm + "/zbd/c1/readersa1.txt", "pm's"), put(pm + "/zbd/reader.txt", "pm's reader");
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_install() = inst;
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0;
+    std::string own, other, took, rows, chosen;
+    bool focus_mods = false;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();
+        stage = 1;
+        return;
+      }
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+      if (stage != 1 || !scr) return;
+      auto said = [&] { return std::string(scr->note.text) + " " + scr->restart.text; };
+      scr->add_mod(inst), own = said();
+      scr->add_mod(pm), other = said();
+      scr->add_mod(modded), took = said();
+      for (const auto* i : scr->mod_list.items) rows += std::string(i->text) + "|";
+      if (const mech3::ModsListEntry* m = scr->ticks.chosen()) chosen = m->info.folder;
+      focus_mods = scr->focus == mech3::ModsScreen::kMods;
+      scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+      stage = 2;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 2 && app.current() == &st.main; };
+    app.run(pump);
+    std::printf("  own: \"%s\"\n  other: \"%s\"\n  took: \"%s\"; rows %s\n", own.c_str(), other.c_str(), took.c_str(), rows.c_str());
+    EXPECT(own.find("Not added: that folder is your own install: pick the folder the mod was") == 0);
+    EXPECT(other.find("Not added: that folder is a Pirate's Moon install, and yours is") == 0);
+    EXPECT(took.find("Took 2 files that differ from your install") == 0);
+    EXPECT(rows == "[ ] Freako Game|" && chosen == "Freako Game" && focus_mods && mech3::entry_mods_on(wd).empty());
+    EXPECT(fs::is_regular_file(wd + "/mods/Freako Game/zbd/c1/New.txt") && fs::is_regular_file(wd + "/mods/Freako Game/mw3-mod-added.txt") &&
+           !fs::exists(wd + "/mods/Freako Game/Mech3.exe") && !fs::exists(wd + "/mods/Freako Game/zbd/c4b"));
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_install().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // Ours (modding.md, Deleting and resetting, step 4c): the MODS screen's one
 // tab for it follows the row: RESET on the game's own campaign, DELETE on a
 // copy of ours, an imported mod and what is left of a campaign, none on a

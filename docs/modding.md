@@ -602,6 +602,10 @@ The editor never changes the campaign it opened. Its saves go into a copy.
   wants it as a mod that can be ticked for other campaigns ships it as an
   asset mod of its own; EXPORT packs a copy as it is (a campaign copy, with
   its `base=`), and cannot yet split its weapons out into an asset mod.
+  EXPORT leaves the editor's marker out, as it leaves the import markers
+  out: a copy someone else made and you imported is an imported mod on your
+  machine, never written by your editor; your edits make your own copy,
+  built on it.
 - **Shift+F12 in a campaign played from MODS** saves the same way: into a
   copy of that campaign, not into the campaign's mod.
 - Outside an entry (a developer's `--debug-camera` on a plain run) the saves
@@ -650,7 +654,16 @@ box, saying what goes, with counts read from the folder at that moment.
   there leaves the pilots and saved games alone. After any of them the game's
   own campaign is chosen.
 
-Tests: `mods_delete_remover_takes_only_a_marked_folder`,
+- **IMPORT from a modded game folder** on the screen (`ModsScreen::add_mod`
+  calls `import_folder_run`, upgrades/mods/import_folder.h): a pick that is a
+  whole install becomes a mod of the files that differ from the player's; the
+  two rows say what was taken ("Took 14 files that differ from your install;
+  ..."), the mod's row is chosen, unticked; the player's own install and the
+  other game's are refused with the reason.
+
+Tests: `mods_screen_import_from_a_modded_game_folder_headless`,
+`editor_never_writes_an_imported_copy`,
+`mods_delete_remover_takes_only_a_marked_folder`,
 `mods_delete_by_the_row_chosen` (built folders), `mods_screen_delete_and_reset_headless`.
 
 ### Instant Action's own MODS (first part)

@@ -16,6 +16,7 @@
 #include "mech3/mission.h"
 #include "mech3/mod_install.h"
 #include "upgrades/mods/campaign_entries.h"
+#include "upgrades/mods/import_folder.h"
 #include "upgrades/mods/mods_delete.h"
 #include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/mod_report.h"
@@ -924,7 +925,9 @@ void ModsScreen::tell(const std::string& text) {
 // campaign, shown in its table and said.
 void ModsScreen::add_mod(const std::string& path) {
   // Added unticked: nothing changes for any campaign until the player ticks it.
-  const ModAddDone d = mod_add_run(mods_menu_write_dir(), path, mods_menu_install(), mods_menu_platform().ask_game, nullptr);
+  // A whole modded game folder: what differs from the player's install becomes the mod (upgrades/mods/import_folder.h).
+  std::string took;
+  const ModAddDone d = import_folder_run(mods_menu_write_dir(), path, mods_menu_install(), mods_menu_platform().ask_game, nullptr, &took);
   if (!d.ok) {
     tell(d.message);
     return;
@@ -945,7 +948,9 @@ void ModsScreen::add_mod(const std::string& path) {
       listed = true;
     }
   show_details();
-  tell(d.message);
+  // From a whole install: what was taken, on the two rows; "Added ..." is in the log, and the mod's row is chosen.
+  if (!took.empty()) std::printf("mw3: mods: %s\n", d.message.c_str());
+  tell(took.empty() ? d.message : took);
 }
 
 // EXPORT's answer: the mod chosen when the save box opened, packed into
