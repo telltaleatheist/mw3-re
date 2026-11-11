@@ -1515,6 +1515,36 @@ library: no crash, every cut copy keeps exactly the textures whose bytes it
 still has; table counts past the file or below 0 and an entry's offset or
 palette out of range refused).
 
+**A table entry naming a palette the file lacks** (2026-11-11; hand-edited
+libraries). The last 4 bytes of a 40-byte table entry name one of the
+file's shared palettes, or hold -1 (`ff ff ff ff`) for none. None of the
+game's 38 libraries (both games) has palettes, and the original
+(0x00518db0, the read at 0x00518e2c) looks the palette up unchecked in a
+list that is empty until a file with palettes is opened: it crashes when it
+loads such a texture, whatever the texture's kind (`test_textures.py` runs
+the exe on a made-up library and asserts the fault). Here, with the fixes
+on:
+
+- a texture that needs no shared palette (16-bit pixels, or its own
+  palette) is loaded without one, the same as with -1 in the field;
+- a texture drawn through the shared palette is left out (it shows as a
+  missing texture), the rest of the library used;
+- each is said once in the log and as a warning from `--check-mod`, REPORT
+  and IMPORT in the four parts above: the file, the texture and its table
+  entry's number; the palette named and how many the file has; what was
+  done; that the original crashes when it loads this texture.
+
+The check's findings in a texture library are warnings, never errors (a
+texture left out, or a library whose table does not read and is left out of
+the copy IMPORT adds): no mod is refused for one. Fixing the file: set the
+entry's last 4 bytes to `ff ff ff ff`. Checked in every texture of a mod's
+library: the table's counts, each name's end, each offset, the palette
+field, and the texture's sizes against its bytes. In the community's
+libraries surveyed (23 files, 20,436 textures) the palette field was the
+only slip found (25 textures in two mods). Not checked: whether anything
+asks for a texture by its name, and the picture itself (a texture of the
+wrong size or colours loads as it is).
+
 **`gamez.zbd`'s texture directory, bounded** (2026-11-02,
 `zimg_texture.cpp`): each entry's mip index must be -1 or a row of the
 table; one outside refuses the directory (the table as it was, named in the

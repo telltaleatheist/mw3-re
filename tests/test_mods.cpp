@@ -2,6 +2,7 @@
 // in mw3.cfg's order, the player's own files never served from a mod, a
 // mod's loose .zrd over its archive's entry, nothing changed without mods.
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <cstdint>
 #include <cstring>
@@ -2438,12 +2439,12 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   EXPECT(text.find("error: zbd/t1/anim.zip: gone.json: not there") != std::string::npos);
   EXPECT(text.find("error: zbd/c1/gamez.zip: nodes.json: line 1 (at $[0]): an empty node has one parent") != std::string::npos);
   EXPECT(text.find("error: zbd/c2/gamez/: metadata.json: line 1 (at $): no \"model_array_size\"") != std::string::npos);
-  EXPECT(errors == 17 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
+  EXPECT(errors == 16 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
          text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
          text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&
          text.find("error: ia_world nowhere: no such world") != std::string::npos &&
-         text.find("error: zbd/rimage.zbd: not a texture library the game can read") != std::string::npos &&
+         text.find("warning: zbd/rimage.zbd: it is not a texture library the game can read") != std::string::npos &&
          // one entry no reader could hold: a warning naming the file, which IMPORT leaves out; not a refusal
          text.find("warning: zbd/c1/readerm1.zbd: mission.zrd: a list count of 1000000000, 0 bytes in, that no file could hold. The rebuild: "
                    "nothing of the entry can be read, so it is treated as not there. The original game: asks for memory for that many "

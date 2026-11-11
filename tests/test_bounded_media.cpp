@@ -19,6 +19,7 @@
 #include "gamez/zimage/zimg_texture.h"
 #include "gamez/zinterp/zinterp.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mods.h"
 #include "platform/silent_sound.h"
@@ -205,7 +206,12 @@ TEST(bounded_textures_survive_broken_copies) {
     OneLibrary one(dir, "lib.zbd");
     char name[32];
     std::memcpy(name, &small[0x18], sizeof name);
-    entries += zimg::open(one.lib) && zimg::load(one.lib, name) == nullptr;
+    if (!zimg::open(one.lib)) continue;
+    zimg::Texture* t = zimg::load(one.lib, name);
+    // an offset outside the file's textures: refused; a palette the file lacks on a texture needing none: loaded, said
+    if (at == 0x18 + 32) entries += t == nullptr && zimg::load_notes().size() == 1;
+    else entries += t != nullptr && zimg::load_notes().size() == 1 && zimg::load_notes()[0].did == "loaded it without one";
+    if (t) zimg::free_texture(t);
   }
   EXPECT(tables == 4 && entries == 4);
   std::printf("  %d broken copies: %d refused whole, %d textures read; %d of %d cut copies kept exactly what they have\n",
@@ -497,12 +503,92 @@ TEST(bounded_check_mod_reads_textures_sounds_and_scripts) {
     std::memcpy(n, &scripts[12], 0x78);
     return std::string(n);
   }();
-  EXPECT(errors == 6);  // the cut library: its last four textures
-  EXPECT(out.find("error: zbd/c2/rtexture2.zbd: texture ") != std::string::npos);
+  EXPECT(errors == 2);  // the script and the sound; the cut library's last four textures are warnings
+  EXPECT(out.find("warning: zbd/c2/rtexture2.zbd: texture ") != std::string::npos &&
+         out.find("error: zbd/c2/rtexture2.zbd") == std::string::npos);
   EXPECT(out.find("error: zbd/c1/interp.zbd: script " + first_script + " cannot be read") != std::string::npos);
   EXPECT(out.find("error: zbd/soundsH.zbd: sound " + sounds[3].name + " cannot be read") != std::string::npos);
   EXPECT(out.find("error: zbd/c1/rtexture2.zbd") == std::string::npos && out.find("error: zbd/interp.zbd") == std::string::npos &&
          out.find("error: zbd/soundsL.zbd") == std::string::npos);
+}
+
+// A hand-made table entry naming a palette the file does not have (docs/modding.md, M3; fixes.md): a texture
+// that needs none loads as the same texture with -1 does, one drawn through the palette is left out, each said
+// in the mods' four parts; with the fixes off both are refused. The check gives warnings, never errors.
+TEST(bounded_textures_palette_field_slip) {
+  struct Made {
+    const char* name;
+    int32_t palette;
+    uint8_t flags;
+    int16_t count;
+  };
+  const Made made[] = {{"plain", -1, 5, 0}, {"pal0", 0, 5, 0}, {"pal5", 5, 5, 0}, {"eight", -1, 0x10, 256}, {"eight0", 0, 0x10, 256}};
+  const size_t n = sizeof made / sizeof made[0];
+  std::vector<uint8_t> d(0x18 + n * 0x28);
+  put32(d, 4, 1), put32(d, 12, static_cast<uint32_t>(n));  // no palettes
+  for (size_t i = 0; i < n; ++i) {
+    const size_t e = 0x18 + i * 0x28, at = d.size();
+    std::snprintf(reinterpret_cast<char*>(&d[e]), 32, "%s", made[i].name);
+    put32(d, e + 32, static_cast<uint32_t>(at)), put32(d, e + 36, static_cast<uint32_t>(made[i].palette));
+    d.resize(at + 0x10 + ((made[i].flags & zimg::kTwoBytes) ? 32 : 16));  // 4 x 4
+    d[at] = made[i].flags, d[at + 4] = 4, d[at + 6] = 4;
+    std::memcpy(&d[at + 12], &made[i].count, 2);
+    for (size_t k = at + 0x10; k < d.size(); ++k) d[k] = static_cast<uint8_t>(k);  // the same pixels in each
+  }
+  const std::string dir = scratch("bounded_palette_slip");
+  std::error_code ec;
+  fs::create_directories(dir + "/m/zbd", ec);
+  spit(dir + "/m/zbd/rimage.zbd", d);
+  const zfix::Options keep = zfix::options();
+  const auto bytes = [](const zimg::Texture* t) {
+    const uint8_t* p = static_cast<const uint8_t*>(t->pixels);
+    return std::vector<uint8_t>(p, p + zimg::bytes_per_pixel(*t) * t->pixel_count);
+  };
+  {
+    OneLibrary one(dir + "/m/zbd", "rimage.zbd");
+    zfix::options().fixed = true;
+    EXPECT(zimg::open(one.lib) && one.lib.header.texture_count == static_cast<int32_t>(n));
+    zimg::Texture* plain = zimg::load(one.lib, "plain");
+    EXPECT(plain && zimg::load_notes().empty());
+    for (const char* name : {"pal0", "pal5"}) {
+      zimg::Texture* t = zimg::load(one.lib, name);
+      EXPECT(t && zimg::load_notes().size() == 1);
+      if (t && plain) {
+        EXPECT(t->flags == plain->flags && t->width == 4 && t->height == 4 && t->palette == nullptr && bytes(t).size() == 32);
+      }
+      if (!zimg::load_notes().empty()) {
+        const mech3::ModWarning w = zimg::load_notes()[0];
+        EXPECT(w.wrong.find(std::string("names palette ") + (name[3] == '0' ? "0" : "5")) != std::string::npos &&
+               w.wrong.find("the texture needs none") != std::string::npos && w.did == "loaded it without one" &&
+               w.original.find("crashes when it loads this texture") != std::string::npos);
+      }
+      if (t) zimg::free_texture(t);
+    }
+    EXPECT(zimg::load(one.lib, "eight0") == nullptr && zimg::load_notes().size() == 1 &&
+           zimg::load_notes()[0].did == "left this texture out");
+    zimg::Texture* again = zimg::load(one.lib, "PLAIN");  // the notes are the last load's
+    EXPECT(again != nullptr && zimg::load_notes().empty());
+    if (again) zimg::free_texture(again);
+    zfix::options().fixed = false;  // the exe's path faults here; the port refuses
+    for (const char* name : {"pal0", "pal5", "eight0"}) {
+      EXPECT(zimg::load(one.lib, name) == nullptr && zimg::load_notes().size() == 1 &&
+             zimg::load_notes()[0].did == "left this texture out");
+    }
+    if (plain) zimg::free_texture(plain);
+  }
+  zfix::options() = keep;
+  std::ofstream(dir + "/m/mod.txt") << "name=Slip\n";
+  int errors = 0;
+  std::string out;
+  for (const std::string& l : mech3::mod_check(dir + "/m", "", &errors)) out += l + "\n";
+  std::printf("%s", out.c_str());
+  EXPECT(errors == 0);
+  EXPECT(out.find("warning: zbd/rimage.zbd: texture pal0: its table entry 1 names palette 0") != std::string::npos &&
+         out.find("warning: zbd/rimage.zbd: texture pal5: its table entry 2 names palette 5") != std::string::npos &&
+         out.find("warning: zbd/rimage.zbd: texture eight0: its table entry 4 names palette 0") != std::string::npos &&
+         out.find("The rebuild: left this texture out. The original game: crashes when it loads this texture") != std::string::npos &&
+         out.find("texture plain") == std::string::npos);
+  EXPECT(zfix::options().fixed == keep.fixed);
 }
 
 // gamez.zbd's texture directory (c1's 553 entries): mip indices made huge,
