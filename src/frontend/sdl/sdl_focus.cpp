@@ -60,8 +60,18 @@ bool window_unclip_behind(SDL_Window* w) {
 #if defined(_WIN32)
   const HWND h = hwnd_of(w);
   RECT clip{};
-  if (!h || GetForegroundWindow() == h || !GetClipCursor(&clip)) return false;
+  // State (B) only: SDL still holds the keyboard focus while another window is in front. Once SDL has noted the
+  // loss it lets its own clip go (WIN_UnclipCursorForWindow), and any point clip left is another program's.
+  if (!h || GetForegroundWindow() == h || SDL_GetKeyboardFocus() != w || !GetClipCursor(&clip)) return false;
   if (clip.right - clip.left > 2 || clip.bottom - clip.top > 2) return false;  // not a point: not relative mode's
+  // And a point on our own window, as SDL's own unclip asks (SDL_windowswindow.c, WIN_UpdateClipCursor's
+  // cursor_clipped_rect): this runs each second while we are behind another program, which may hold the cursor
+  // at its own point (a mouse-look game).
+  RECT client{};
+  POINT tl{0, 0};
+  if (!GetClientRect(h, &client) || !ClientToScreen(h, &tl)) return false;
+  OffsetRect(&client, tl.x, tl.y);
+  if (clip.left < client.left || clip.top < client.top || clip.right > client.right || clip.bottom > client.bottom) return false;
   return ClipCursor(nullptr) != 0;
 #else
   (void)w;

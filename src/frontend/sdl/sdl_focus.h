@@ -40,7 +40,7 @@ struct FocusWatch {
   bool operator()();
 };
 // Another window is the foreground one and the cursor is still clipped to a
-// point (SDL's relative mode, kept when SDL missed the loss of the focus):
+// point on ours (SDL's relative mode, kept when SDL missed the loss of the focus):
 // the clip is let go, so the cursor is free where the player now is. True
 // when it was.
 bool window_unclip_behind(SDL_Window* w);
