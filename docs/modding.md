@@ -1695,6 +1695,19 @@ is set before the mount, so nothing there changes. Noted for the plan for
 mods in multiplayer: the gameplay hash is over a mod's files, so the same mod
 added by IMPORT (`.entries`) and put in by hand (whole archives) hash apart.
 
+**On the two real mods (2026-11-11).** Campaign Added Enemies 1.1 and
+Campaign AI Enhanced, each twenty whole mission archives, import as 121 and
+63 changed entries. Of AI Enhanced's 63, 33 are byte for byte in Added
+Enemies too, 5 are its own (they now apply beside the other mod, where its
+whole archives hid them), and 25 differ: `aiv.zrd`, the vehicle list, in all
+twenty missions, three nets and one valves file. An entry both change is
+still the first ticked mod's, so each mission's vehicles are one mod's or the
+other's; putting two mods' changes to one vehicle list together would be a
+merge inside the entry, record by record, which is not built. Played hidden,
+600 frames, the first mission of each world (c1 1, c2 1, c3 1, c4 1, c4b 4),
+both ticked in either order, each alone, and the game alone: every run ended
+normally with no unported function reached.
+
 Not done: REPORT on a copy (`mod_copy_report`) compares files by name, so a
 copy's whole archive is not matched with its base's `.entries`; the MODS
 list does not say that an earlier mod's whole archive hides a later mod's
