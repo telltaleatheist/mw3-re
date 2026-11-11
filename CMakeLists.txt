@@ -361,6 +361,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/anim_defs.cpp
   src/upgrades/mods/save_mods.cpp
   src/upgrades/mods/import_folder.cpp
+  src/upgrades/mods/import_texts.cpp
   src/upgrades/mods/bz2_read.cpp
   src/upgrades/mods/installer_read.cpp
   src/upgrades/settings/upgrades.cpp

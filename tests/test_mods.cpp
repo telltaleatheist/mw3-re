@@ -205,6 +205,27 @@ TEST(mods_check_refuses_only_a_mod_with_nothing_usable) {
          (mech3::mod_sentences(f) == std::vector<std::string>{"It changes nothing in the game.", "Nothing in it is refused."}));
 }
 
+// The check reads a mod by host path (unconfined, modding.md), so no row of mod.txt may name a file outside
+// the mod: a world, an Instant Action world, a campaign file or a mech's model with ".." or a separator is a
+// warning, that row left out, and a file placed outside the mod is never what the row finds.
+TEST(mods_check_rows_cannot_name_files_outside_the_mod) {
+  const std::string root = tmp("mods_rows_outside");
+  put(root + "/secret/gamez.zbd", "x");
+  put(root + "/secret.txt", "name=Out\nop=Op\nmission=c1 1\n");
+  put(root + "/zbd/mechlib/mech_secret.flt.json", "{}");
+  put(root + "/m/mod.txt", "name=M\nworld=../../secret\nworld=..\\..\\secret\nia_world=../secret Out\ncampaign=../secret.txt\n"
+                           "mech=scout tech=any mass=20 class=light model=../../zbd/mechlib/mech_secret\n");
+  put(root + "/m/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  int errors = -1;
+  mech3::ModFindings f;
+  std::string text;
+  for (const std::string& l : mech3::mod_check(root + "/m", "", &errors, &f)) text += l + "\n";
+  std::printf("%s", text.c_str());
+  EXPECT(errors == 0 && f.worlds.empty() && f.ia_worlds.empty() && f.campaigns.empty() && f.mechs.empty());
+  EXPECT(f.notes.size() == 5);  // each of the five rows said and left out
+  EXPECT(text.find(": ok") == std::string::npos && text.find("missions") == std::string::npos);
+}
+
 // The same fault in many items of one file (22 textures of a library, each naming a palette that is not there):
 // the item's number is beside its place, not in the fault's words, so the fault and its fix are said once.
 TEST(mods_report_says_one_fault_in_many_items_once) {
@@ -290,6 +311,40 @@ TEST(mods_report_file_goes_in_a_marked_folder_of_ours) {
          back[0].w.original.empty() && back[0].w.fix == "fix it" && back[0].w.item == "entry 7" &&
          back[0].group == mech3::ModWarningGroup::kStops);
   EXPECT(back.size() == 2 && back[1].where == "zbd/old.zbd" && back[1].w.wrong == "wrong" && back[1].w.item.empty());
+}
+
+// REPORT says which of the game's own missions a mod laid over the game's files replaces: a mission's own archive
+// by its operation and number, a world's own files once for every mission on it; nothing for other files, for
+// new files, or for a world no mission plays on.
+TEST(mods_report_names_the_games_missions_a_mod_replaces) {
+  mech3::ModFindings f;
+  f.against_install = true, f.replaces = 5;
+  f.missions = {"c1 2", "c4b 5", "t1 1", "zz 3"}, f.mission_worlds = {"c2"};
+  std::vector<std::string> s = mech3::mod_sentences(f);
+  for (const std::string& l : s) std::printf("  %s\n", l.c_str());
+  EXPECT(s.size() > 1 && s[0] == "It replaces 5 of the game's files." &&
+         s[1] == "Of the game's own missions it replaces Operation 1 Mission 2 (c1 2), Operation 4 Mission 5 (c4b 5), Training Mission 1 (t1 1) "
+                 "and zz 3; and the world's own files of Operation 2 (c2), which every mission there plays on.");
+  f.missions.clear();
+  s = mech3::mod_sentences(f);
+  EXPECT(s.size() > 1 && s[1] == "It replaces the world's own files of Operation 2 (c2), which every mission there plays on.");
+  // From the check, against an install built here (the files' names are what counts).
+  const std::string root = tmp("mods_report_missions"), install = root + "/install", mod = root + "/mod";
+  for (const char* rel : {"zbd/c1/readerm1.zbd", "zbd/c1/readerm2.zbd", "zbd/c1/gamez.zbd", "zbd/c3/readerm10.zbd", "zbd/c3/readerm1.zbd",
+                          "zbd/c3/anim.zbd", "zbd/lab/gamez.zbd", "zbd/c1/readermp1.zbd", "zbd/reader.zbd", "zbd/c1/texture.zbd"})
+    put(install + "/" + rel, "the game's");
+  for (const char* rel : {"zbd/c1/ReaderM2.zbd", "zbd/c3/readerm10.zbd", "zbd/c3/anim.zbd", "zbd/c3/gamez.zbd", "zbd/lab/gamez.zbd",
+                          "zbd/c1/readermp1.zbd", "zbd/reader.zbd", "zbd/c1/texture.zbd", "zbd/c1/readerm7.zbd"})
+    put(mod + "/" + rel, "the mod's");
+  int errors = 0;
+  mech3::ModFindings facts;
+  mech3::mod_check(mod, install, &errors, &facts);
+  std::string got;
+  for (const std::string& m : facts.missions) got += m + "|";
+  got += "/";
+  for (const std::string& w : facts.mission_worlds) got += w + "|";
+  std::printf("  %s\n", got.c_str());
+  EXPECT(got == "c1 2|c3 10|/c3|");  // c3's gamez is new (added): not a replacement; lab has no missions; readerm7 is new
 }
 
 // Modder step 3 (modding.md, Plain errors on the MODS screen): a mod's check
@@ -700,6 +755,9 @@ TEST(mods_mech_rows_after_the_exes_and_in_the_gameplay_hash) {
   EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=huge", &r, &why) && why.find("class=") != std::string::npos);
   EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=light speed=9", &r, &why) && why == "unknown key speed");
   EXPECT(!mech3::mech_row_parse("sc/out tech=any mass=20 class=light", &r, &why));
+  // model= names files too: one word, no way out of the folders.
+  EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=light model=../../secret", &r, &why) && why.find("model=") != std::string::npos);
+  EXPECT(!mech3::mech_row_parse("scout tech=any mass=20 class=light model=a\\b", &r, &why) && why.find("model=") != std::string::npos);
   SavedMounts keep;
   const std::string wd = tmp("mods_mechs");
   put(wd + "/mods/a/mod.txt", "name=A\nmech=madcat_b tech=clan mass=75 class=heavy model=madcat title=Mad Cat B\n"

@@ -137,6 +137,12 @@ source (Owen, 2026-10-31): `tools/deps/build_deps.sh linux` (docs/deps.md)
 builds it with SDL3, SDL3_ttf (FreeType inside) and SDL3_sound into
 `build-deps/linux/prefix`, which `make-appimage.sh` takes as PREFIX
 (pkg-config finds FFmpeg there; the licence files come from the sources).
+The script stops before building anything when PREFIX has no FFmpeg (its
+four `.pc` files): until 2026-11-11 it went on and made a package without
+`mw3import`, and v1.0.5's AppImage went out that way, built against a prefix
+that held only SDL (found by the 1.1.0 dry run; the published file has no
+`usr/bin/mw3import` and no FFmpeg library). `MW3_PKG_NO_IMPORT=1` builds
+without the importer on purpose, never for a release.
 Only what mw3import uses is in it: the AVI demuxer, the Indeo 5 decoder, the
 MPEG-1 video encoder and muxer, swscale, the file protocol. For WSL the
 script leaves out SDL's XTest (no libXtst headers) and, where nasm is

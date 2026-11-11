@@ -62,10 +62,13 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
 // Each mounted mod's strings.txt (M2) over the message table `text` (the
 // first mod's wins): `id=text` lines, the id decimal, 0x hex or a message's
 // name (`ids`); the text UTF-8, in the game's code page, `\n` a new line, `\\`
-// a backslash; # a comment. The log's lines: each file's count and the
-// lines it could not use.
+// a backslash; # a comment. `NAME@id=text` also gives the message a name
+// the table lacks, added to `names` when given (a modded Mech3Msg.dll's own
+// names, upgrades/mods/import_texts.h). The log's lines: each file's count
+// and the lines it could not use.
 std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text,
-                                            const std::map<std::string, int32_t>& ids);
+                                            const std::map<std::string, int32_t>& ids,
+                                            std::map<std::string, int32_t>* names = nullptr);
 
 // mw3 --check-mod DIR (M3): the mod at `dir` read as the game would read
 // it, nothing mounted into play: mod.txt, its worlds, Instant Action

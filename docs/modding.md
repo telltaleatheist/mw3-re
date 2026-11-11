@@ -150,6 +150,11 @@ number (decimal or `0x` hex, as mech3ax lists them) or a message's name;
 the text is UTF-8, shown in the game's code page (Windows-1252: a character
 it lacks leaves the line out, said in the log), `\n` a line break, `\\` a
 backslash, `#` a comment line. Cut to the original's 511 characters.
+`NAME@id=text` also gives the message a name the game's table lacks (or has
+under another number): the files that name a message (`MSG_...` in a mission's
+records) then find it. The names are added after every line is read, so a
+line cannot use a name another line gives. IMPORT writes such lines for a
+mod's own Mech3Msg.dll (IMPORT, A mod's Mech3Msg.dll).
 
 Tests: `test_mods.cpp` (world= and ia_world= read, a good world numbered 9,
 a name taken, without files, with `..` and an unknown Instant Action world
@@ -1301,6 +1306,19 @@ EXPORT leaves that file out of the zip.
 them. Tick it for a campaign, then PLAY." (one: "1 warning: REPORT says
 what."; the tail is whatever the line ends with when there are none) Refused: "Not added: the game would refuse this mod: <why>."
 
+**Which of the game's missions (2026-11-11).** A mod laid over the game's
+files is a tick, played in the campaign it is ticked for. So that a player
+knows what that changes, the report's second sentence names the game's own
+missions the mod replaces: a mission's own archive (`zbd\<world>\readerm<N>.zbd`)
+by operation and number with the campaign file's words beside it
+("Operation 1 Mission 2 (c1 2)", "Training Mission 1 (t1 1)"), and a world
+whose own files it replaces (gamez, anim or reader.zbd of a world that has
+missions) once: "the world's own files of Operation 2 (c2), which every
+mission there plays on". Only files the install has (a new file replaces
+nothing). `ModFindings::missions`, `mission_worlds`, filled by `mod_check`.
+Test: `mods_report_names_the_games_missions_a_mod_replaces`; break: new
+files counted too.
+
 **The report.** `mod_sentences` puts a totals line after what the mod
 changes ("11 warnings, none of which refuses the mod: 2 stop part of the
 mod working, 4 work here but may crash the original game and 5 are slips
@@ -1365,6 +1383,13 @@ setting. Tests: `bounded_check_mod_reads_textures_sounds_and_scripts` (the check
 same lines) and `sdl_program_mods_import_keeps_a_mods_archives` (the real program: IMPORT of a folder mod with a
 reader archive on the MODS screen; the archive is in the added mod and nothing is left out).
 
+Because the check reads by host path, no row of mod.txt may name a file outside the mod. `world=` is one word (no
+separator or dot), `campaign=` a file inside the mod (no "..", not absolute), a campaign's worlds one word, and
+`ia_world=` must be a world the game or the mod has; `mech=`'s name was letters, digits, `_` and `-` already, and
+its `model=` now is too (it names `mech_<model>.flt` and the motions; before, a model with ".." was looked for
+where it pointed). Each such row is a warning and is left out
+(`mods_check_rows_cannot_name_files_outside_the_mod`).
+
 ### Requirements in mod.txt (modder step 7, 2026-11-10)
 
 Ours (`upgrades/mods/mod_needs`). Three mod.txt keys, warned of and never
@@ -1424,6 +1449,11 @@ answers the picker for scripted runs and shots.
 - The root: the shallowest folder with a mod.txt, else with the game's own
   folders (zbd, video, music) or Mech3.exe, else a lone folder followed down;
   what sits beside it (a pack's readme) is left behind.
+- A mod packed as the contents of the game's zbd folder (`reader.zbd`, `c1\` and the like at its top, no
+  `zbd` folder and no mod.txt; "PM 1.2 Mod - Beta.zip" is one): its top items that the install's `zbd` folder
+  also holds by name, and any `.zbd` file, are put under `zbd`, where the game reads them; the rest stay. The
+  written mod.txt and the log say so. With a mod.txt the author's layout is kept
+  (`mod_install_bare_zbd_contents_go_under_zbd`).
 - A whole install (Mech3.exe in its root) is cut to the files that differ
   from the player's install (byte for byte, names in any case); programs
   (.exe, .dll: an exe patch cannot apply) and the player's own kind of file
@@ -1473,9 +1503,9 @@ answers the picker for scripted runs and shots.
   only those that differ or are new are written, into the same kind of staging
   folder, and added by the add above. The name is the installer's title, else
   its file name; the game is told from its files and its default folder, and
-  the other game's installer is refused. Left, and said: the program and dlls;
-  `Mech3Msg.dll` by name ("its text file Mech3Msg.dll is not part of a mod
-  here, so names it adds may show as their ids"); installers carried inside it
+  the other game's installer is refused. Left, and said: the program and dlls
+  (its `Mech3Msg.dll`'s texts are taken: A mod's Mech3Msg.dll, below);
+  installers carried inside it
   ("this installer also carries N more installers: import each on its own");
   pilots, settings; files outside the game's folders. The installer's own
   choices: none of the 15 has optional components; every data file is taken.
@@ -1527,6 +1557,58 @@ The launcher had the same three, through the same add, until its MODS
 screen was removed (2026-11-10, launcher.md, Mods). The SDL pieces (the
 folder opened, the game asked) are `frontend/sdl/sdl_mods`. In a scripted
 run (`--pick`) the game question answers MechWarrior 3 without a box.
+
+### A mod's Mech3Msg.dll (2026-11-11)
+
+A mod made for the original changes the game's texts (briefings, objectives,
+the names of what it adds) in Mech3Msg.dll, a program file no mod here
+carries. IMPORT takes its texts instead (`upgrades/mods/import_texts`):
+
+- **Where it looks**: a `Mech3Msg.dll` (any case) at the mod's top, in every
+  form IMPORT takes: an archive or folder of files to lay over the game, a
+  modded game folder, a mod's installer (unpacked in memory, as its other
+  files). One that is byte for byte the player's own is a program as before.
+- **What is taken**: the dll's message table and its table of names are read
+  (`zutl::read_message_dll`, the reader the game starts with) and compared
+  with the player's own dll. Each message whose text differs (line ends
+  aside) or that the player's lacks becomes a line `0x<id>=text` of the mod's
+  `strings.txt`; a name the player's lacks, or has under another number,
+  `NAME@0x<id>=text` (Words, above). UTF-8, `\n` for a line break. The lines
+  go at the head of the file; a `strings.txt` the mod already has keeps its
+  own lines after them, so its lines win.
+- **Nothing of the dll is kept**: it is removed from our staging copy and
+  never reaches `mods\`; the modded folder and the player's install are only
+  read.
+- **Said**: the log's line ("mw3: import: <name>: 42 texts taken from its
+  Mech3Msg.dll into strings.txt (38 with a name of their own)") and the
+  import's long line ("; took 42 texts from its Mech3Msg.dll", or "its
+  Mech3Msg.dll's texts are the same as yours").
+- **A dll that does not read** as a message table (or no dll of the player's
+  to compare with) is a warning in the mods' one form, kept in the mod's
+  left-out record so REPORT says it, and the mod is added: "Mech3Msg.dll: it
+  does not read as the game's table of texts. The rebuild: IMPORT left this
+  file out, so the game's own texts are shown where the mod changed or added
+  one. The original game: not known." Never a refusal.
+- **A mod of texts alone** (a modded folder where only the dll differs) is
+  added as a mod of `strings.txt`.
+- Not taken: a message the mod's dll lacks and the player's has (the
+  player's text stays).
+
+Tests: `import_texts_lines_for_what_differs_and_new_names` (a dll made in
+the test, read by the game's reader; numbers, UTF-8, line breaks and
+backslashes; new and moved names), `import_folder_takes_the_texts_of_a_modded_mech3msg_dll`
+(with the program's confinement on: the mod's files, both installs unchanged,
+the texts as the game takes them at a start, the check clean),
+`import_folder_of_texts_alone_and_of_the_players_own_dll`,
+`import_texts_unreadable_dll_warns_and_own_strings_win`,
+`import_installer_takes_the_texts_of_its_mech3msg_dll`,
+`mods_strings_name_at_id_gives_a_message_its_name`, and
+`import_texts_real_dlls_round_trip_through_strings_txt` (the game's own two
+dlls: 1.2's over 1.0's is 42 lines, 38 of them names, and gives exactly
+1.2's 1,577 texts and its names). Re-pinned: `import_installer_takes_what_differs`
+(its made dll is no table: the warning and the left-out record, 3 programs
+where it counted 4, five files unpacked where four). Breaks caught: every
+text taken, the dll kept in the mod, the names not given.
 
 ### IMPORT and EXPORT (Owen, 2026-11-09; modder step 8 brought forward)
 

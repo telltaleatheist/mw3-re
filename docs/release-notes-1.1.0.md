@@ -31,11 +31,15 @@ You need your own copy of each game you play (an installed copy, the disc, or a 
 - **The mouse speed matches your desktop at any screen size.** Fullscreen on a 4K screen made the mouse three to four times too fast, and a bigger window made it slower. It now moves as the original does on Windows 11.
 - **A mission whose files are missing no longer crashes.** If an operation's world or the mission scripts are gone, the load stops and a box says what is missing.
 - **Saving works where Windows refuses its own temporary file** (a very long temp folder path).
+- **Slips in the game's own data are put right.** The Sunder's Alternate B loadout carries all its LRM 20 missiles (240 of 360 were left unloaded), the Strider has its recoil, the Small Pulse Laser has a muzzle flash, the Firefly's fifth camo is named SLATE, and all of mission 1's ocean moves.
+- **Enemy and lancemate mechs behave exactly as in the original.** How they steer, pick targets and aim, and where feet, shots and sight lines meet the ground and walls, now come out the same as the original's sums, not just close to them.
+- **A new resolution reshapes the menus at once.** Picking one in GRAPHICS & AUDIO (4:3 to 16:9 or back) no longer waits for the next start.
+- **Linux: the movies are converted again.** The 1.0.5 AppImage went out without its movie importer; this one has it.
 
 ### New
 
 - **MOUSE SENSITIVITY** on the Game Options screen, under Invert Mouse (0.5 to 3.0, starting at the original's 1.3).
-- **An UPGRADES page** in the options, in the menus and in a mission: the bug-fix and wide-menu switches.
+- **An UPGRADES page** in the options, in the menus and in a mission. The one bug-fixes switch is now five, all on to start: WATER MOVEMENT, MFB REGROUP, IMPROVED AI, ARTEMIS TRACKING and SMALL FIXES. Turn one off and that part plays as in 1999. Crash fixes always stay on. In a network game the host's switches apply to everyone. WIDE MENUS is on the same page.
 - **Joining a host playing the other game** (Pirate's Moon from MechWarrior 3, or the other way round) is refused with a message naming that game.
 
 ### Mods
@@ -44,13 +48,13 @@ You need your own copy of each game you play (an installed copy, the disc, or a 
 - **Mods are played by campaign, from MODS.** The MODS screen lists campaigns at the left: the game's own first, then every campaign you imported and every copy you made. Choose one and its mods are at the right, each with a checkbox. Every campaign keeps its own ticks, so a weapons mod can be on for one and off for another. PLAY closes the game and starts it again in that campaign with its mods. When two ticked mods change the same file, the list says which one wins, and you can reorder them.
 - **Each campaign from MODS has its own pilots, saved games and saved mechs.** Its pilot screen also lists your main-game pilots: pick one and it is copied in at that moment, and your main-game pilot is never changed. In the game's own campaign the copy carries on from where you are; in a different campaign it starts at that campaign's first mission.
 - **Instant Action has its own MODS button.** Tick the mods to play it with and ACCEPT; the ticks are remembered, the screen says what is on, and ALL OFF goes back to the original.
-- **A mod made for the original game works as a tick.** One that is laid over the game's files (missions, weapons and Instant Action scenarios in one) can be ticked for the campaign, for a copy, or for Instant Action. A mod that ships as an installer can be imported from the game folder it was installed over: what differs from your own install becomes the mod.
+- **A mod made for the original game works as a tick.** One that is laid over the game's files (missions, weapons and Instant Action scenarios in one) can be ticked for the campaign, for a copy, or for Instant Action. A mod that ships as an installer is imported from the installer itself: IMPORT reads the files out of it without running it, and what differs from your own install becomes the mod. A game folder the mod was installed over works the same way.
 - **Custom campaigns.** A mod can bring its own campaign (`campaign=` in its mod.txt): missions in order on any world. It gets its own row in CAMPAIGNS.
 - **New mechs and weapons from mod.txt** (`mech=`, `weapon=`). They come after the game's own, appear in Instant Action, the lobby and the mech lab, and count toward multiplayer's check that everyone has the same mods. A pilot that uses one remembers it, so reordering mods doesn't mix it up.
 - **mech3ax's files read as they are.** Worlds, animations, mech models, motions and reader entries can be unzbd's JSON in the mod, so there's no repacking. A loose `.zrd` works too. Anything that doesn't read is named with its line in the log.
 - **Animations one at a time.** A single animation file replaces that animation or adds a new one, so two animation mods can be on together.
-- **IMPORT and EXPORT.** IMPORT takes a mod's .zip, .7z or .rar (or its folder) whatever its layout. EXPORT packs a mod into one .zip with checksums, checks it first, and says what the game would refuse.
-- **REPORT.** It says in plain sentences what a mod replaces and adds, the mechs, weapons, worlds and campaigns it brings, and what the game refuses in it and why.
+- **IMPORT and EXPORT.** IMPORT takes a mod's .zip, .7z or .rar, its folder, or its installer program, whatever its layout, and brings the mod's changed texts (briefings, objectives, names) with it. A mod with one faulty file is not refused: that file is left out, the rest is added, and IMPORT says how many warnings there are. EXPORT packs a mod into one .zip with checksums, checks it first, and says what the game would refuse.
+- **REPORT.** It says in plain sentences what a mod replaces and adds, and the mechs, weapons, worlds and campaigns it brings. For the mod's maker it sorts the warnings into three groups: what stops part of the mod working, what works here but may crash the original game, and harmless slips, each with what to change. The report is also saved as a text file (`mod-reports` in the game's data folder).
 - **TEST.** Choose a campaign, TEST, pick a mission and PLAY: the game starts again in that campaign and goes straight into the mission. Afterwards a short list lets you play another at once, with edits to a mod's weapons and mechs read again, no restart.
 - **A mod can say what it needs** (`needs=`, `conflicts=`, `game_version=`). MODS warns when something is missing; the mod is still ticked.
 - **The game editor the original hid**, for mods: from MODS (EDITOR), or Shift+F12 in a campaign played from MODS. It edits AI nets, vehicles and new weapons, and it only ever saves as a copy: the first save asks for a name and makes a campaign of your own holding just what you changed. The campaign you opened, the game's files and mods you imported are never changed.
@@ -65,6 +69,7 @@ You need your own copy of each game you play (an installed copy, the disc, or a 
 - **Its own mods, settings and saves**, kept apart from MechWarrior 3's. MODS, IMPORT, EXPORT, REPORT, TEST, custom campaigns, mech3ax's files and the game editor for mods work there as in MechWarrior 3. A mod made for one game is left out of the other.
 - **A mission whose files are missing no longer crashes.** Pirate's Moon's scripts make an empty world when the file is gone, so the load now stops on the failed read with a box saying what is missing.
 - **Saving works where Windows refuses its own temporary file**, as in MechWarrior 3.
+- **Its own UPGRADES page**, with the same five switches. Its WATER MOVEMENT slows a wading mech gradually as the water deepens; off, it drops to 60% in one step as the original does.
 - **Mods' animations:** Pirate's Moon reads a world's animations from its anim.zbd only. A mod's other animation files are said to be unused instead of being listed as if they worked.
 <!-- Lead: the "needs" warnings and the checked EXPORT reach pm with the mods-pm merge (next); add them here if they land before the tag.
      The typing-in-boxes and mouse-speed fixes are not in pm's CHANGES: say them here only if pm gets them. -->

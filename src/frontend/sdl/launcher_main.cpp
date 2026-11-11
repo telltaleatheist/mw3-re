@@ -3,7 +3,7 @@
 // SETUP and starts the game the player picks as its own program, mw3 beside
 // it, hiding while the game runs. mw3 itself starts without it.
 //
-//   mw3launcher [--write-dir DIR] [--windowed | --window WxH] [--nosound] [--no-import]
+//   mw3launcher [--version] [--write-dir DIR] [--windowed | --window WxH] [--nosound] [--no-import]
 //               [--launcher-shot FILE [--launcher-screen main|setup|work|notes]]
 //               [--launcher-play] [--launcher-mw1]
 #include <SDL3/SDL.h>
@@ -92,6 +92,10 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     const std::string s = argv[i];
     auto next = [&]() -> std::string { return i + 1 < argc ? argv[++i] : std::string(); };
+    if (s == "--version") {  // as mw3's: the build (the package's version), nothing opened or written
+      std::printf("mw3launcher (MechWarrior 3 rebuild) %s\n", MW3_VERSION);
+      return 0;
+    }
     if (s == "--write-dir") o.write_dir = next();
     else if (s == "--windowed") windowed = true;
     else if (s == "--window") {
@@ -107,7 +111,7 @@ int main(int argc, char** argv) {
     else if (s == "--launcher-pm") o.play_pm = true;
     else {
       std::fprintf(stderr,
-                   "usage: mw3launcher [--write-dir DIR] [--windowed | --window WxH] [--nosound] [--hidden] [--no-import]\n"
+                   "usage: mw3launcher [--version] [--write-dir DIR] [--windowed | --window WxH] [--nosound] [--hidden] [--no-import]\n"
                    "    [--launcher-shot FILE [--launcher-screen main|setup|work|notes]] [--launcher-play] [--launcher-mw1]\n");
       return 2;
     }
