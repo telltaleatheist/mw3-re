@@ -948,6 +948,7 @@ void ModsScreen::add_mod(const std::string& path) {
   // A whole modded game folder: what differs from the player's install becomes the mod (upgrades/mods/import_folder.h).
   std::string took;
   const ModAddDone d = import_folder_run(mods_menu_write_dir(), path, mods_menu_install(), mods_menu_platform().ask_game, nullptr, &took);
+  std::printf("mw3: mods: %s\n", d.message.c_str());  // the log says what IMPORT did, added or not
   if (!d.ok) {
     tell(d.message);
     return;
@@ -969,7 +970,6 @@ void ModsScreen::add_mod(const std::string& path) {
     }
   show_details();
   // From a whole install: what was taken, on the two rows; "Added ..." is in the log, and the mod's row is chosen.
-  if (!took.empty()) std::printf("mw3: mods: %s\n", d.message.c_str());
   tell(took.empty() ? d.message : took);
 }
 
