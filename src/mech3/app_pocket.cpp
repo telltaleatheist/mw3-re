@@ -70,9 +70,18 @@ PocketMarker* program_pocket_marker(zgame::Handle h) {
 }
 
 namespace {
-void own_marker_free(PocketMarker* k) {
+// Pirate's Moon 1.0 @ 0x004eaf70 (the deleting destructor; 0x004eaf90, then AiTarget's 0x004e86c0 and zEntity3d's
+// end 0x004e5c20): its node unbound (0x004e8730 with none), off zEntity's list, its caster freed, deleted.
+// `node_alive`: false once the world is gone (the program's end), when the node is not to be touched.
+void own_marker_free(PocketMarker* k, bool node_alive = true) {
   auto& list = ai::entity_list();
   for (auto it = list.begin(); it != list.end();) it = object(*it) == k ? list.erase(it) : std::next(it);
+  if (node_alive)
+    if (auto* n = static_cast<zcls::Node*>(k->node); n && n->owner == k) {
+      n->owner = nullptr;
+      n->put<uint32_t>(0x28, n->get<uint32_t>(0x28) & ~0x10000u);
+    }
+  k->node = nullptr;
   k->release_shadow();
   if (g_w.forget_object) g_w.forget_object(g_w.engine, k);
   delete k;
@@ -111,10 +120,27 @@ void program_own_marker(ai::Brain& b, bool on) {
 
 // The mission's end on the marker's entry (vt+0x00): zEntity3d's base end
 // 0x004d58a0 frees its caster (0x004814e0 made one within 100 m).
+// A lancemate's own marker (Pirate's Moon): zEntity's list emptied at the mission's end (0x005caf00, from
+// 0x004a0dd0) deletes each entry, the own markers among them (0x004eaf70), while the world still stands. The
+// exe leaves the brain's +0x2cc pointing at it; the brain goes with its controls in the same unload.
 bool program_pocket_marker_end(zgame::Handle h) {
-  if (!h || !g_marker || object(h) != g_marker) return false;  // the panel's globals may be gone by then
+  if (!h) return false;
+  for (auto it = g_own.begin(); it != g_own.end(); ++it)
+    if (object(h) == *it) {
+      PocketMarker* k = *it;
+      g_own.erase(it);
+      own_marker_free(k);
+      return true;
+    }
+  if (!g_marker || object(h) != g_marker) return false;  // the panel's globals may be gone by then
   g_marker->release_shadow();
   return true;
+}
+
+size_t program_own_marker_count(std::vector<uint32_t>* handles) {
+  if (handles)
+    for (PocketMarker* k : g_own) handles->push_back(handle(k));
+  return g_own.size();
 }
 
 void wire_pocket(const MechWiring* w) {
@@ -123,7 +149,7 @@ void wire_pocket(const MechWiring* w) {
   DrawCalls& dc = draw_calls();
   lance_calls().own_marker_place = nullptr, lance_calls().own_marker_show = nullptr;
   if (!w) {
-    for (PocketMarker* k : g_own) own_marker_free(k);
+    for (PocketMarker* k : g_own) own_marker_free(k, false);  // none left after a mission's end; a start cut short may
     g_own.clear();
     g_w = MechWiring{};
     pc.unit_name = nullptr, pc.node_entity = nullptr, pc.entity_team = nullptr;
