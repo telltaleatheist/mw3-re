@@ -43,6 +43,7 @@ struct ModAdd {
   bool full_install = false; // a whole install (Mech3.exe in it), cut to what differs
   int same_dropped = 0;      // files the same as the install's, left out
   int other_dropped = 0;     // programs and the player's own kind of file, left out
+  int bare_zbd = 0;          // packed as the zbd folder's contents (no zbd folder): its top items put under zbd
   bool checksums = false;    // it had an export's checksums file, and they matched
   ModGame game = ModGame::kUnknown;  // from its files (mod.txt's for= when it has one)
   ImportTexts texts;         // its Mech3Msg.dll's texts, taken into strings.txt (upgrades/mods/import_texts.h)

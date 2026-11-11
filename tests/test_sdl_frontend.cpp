@@ -4842,6 +4842,109 @@ TEST(sdl_program_restarts_into_and_out_of_an_entry) {
   fs::remove_all(dir, ec);
 }
 
+// IMPORT's outcome on the screen, in the real program with its real fonts: a mod with one faulty file is added
+// and the two lines under MODS say so with the warnings' count and REPORT (before, an import from an installer
+// showed only what it took, and the warnings were in the log alone); a name too long for the line is left to
+// DETAILS, and its row in the list ends "...". The lines are the log's "on the screen:" line.
+TEST(sdl_program_mods_import_says_the_warnings_on_the_screen) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/import words";
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel, std::ios::binary) << text;
+  };
+  auto import = [&](const std::string& pick, const char* name) {
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    const pid_t pid = spawn_mw3({"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                                 "--frames", "260", "--open-mods", "--pick", dir + "/pick/" + pick, "--click-at", "170,446@150"}, log);
+    EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    const size_t at = text.find("mw3: mods: on the screen: ");
+    const std::string line = at == std::string::npos ? std::string() : text.substr(at + 26, text.find('\n', at) - at - 26);
+    std::printf("  %s: %s\n", name, line.empty() ? "(no line)" : line.c_str());
+    return line;
+  };
+  put("pick/faulty/mod.txt", "name=Faulty\n");
+  put("pick/faulty/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  put("pick/faulty/zbd/broken.zbd", "not an archive");
+  EXPECT(import("faulty", "a") == "Added Faulty: 1 warning: REPORT says what. | Tick it for a campaign, then PLAY.");
+  put("pick/long/mod.txt", "name=A Weapons Mod With A Very Long Name v 2.48.32 And More\n");
+  put("pick/long/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  put("pick/long/zbd/broken.zbd", "not an archive");
+  EXPECT(import("long", "b") == "Added. 1 warning: REPORT says what. | Tick it for a campaign, then PLAY.");
+  put("pick/good/mod.txt", "name=Good\n");
+  put("pick/good/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  EXPECT(import("good", "c") == "Added Good: tick it for a campaign, then PLAY. | ");
+  fs::remove_all(dir, ec);
+}
+
+// DELETE on the MODS screen asks once. DELETE and RESET are two tabs in one place; after a mod was deleted the
+// game's own campaign is chosen and RESET shown, and the click just answered reached that tab too: "Reset
+// MechWarrior 3 to the original?" came up straight after the delete's OK. In the real program, by clicks: a mod
+// imported (its row chosen), DELETE, OK in the box; the log has one question and the mod's folder is gone.
+TEST(sdl_program_mods_delete_asks_once) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/delete once";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/pick/good/zbd", ec);
+  std::ofstream(dir + "/pick/good/mod.txt") << "name=Good\n";
+  std::ofstream(dir + "/pick/good/zbd/fmv.zrd") << "(INTRO (PLAYAVI intro))\n";
+  const std::string log = dir + "/run.log";
+  int status = 0;
+  // IMPORT (148,438), then DELETE (28,353) with the new mod's row chosen, then the box's OK.
+  const pid_t pid = spawn_mw3({"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                               "--frames", "330", "--open-mods", "--pick", dir + "/pick/good", "--click-at", "170,446@150", "--click-at", "50,361@220",
+                               "--click-at", "247,288@260"}, log);
+  EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  int asks = 0;
+  for (size_t i = text.find("mw3: mods: asks: "); i != std::string::npos; i = text.find("mw3: mods: asks: ", i + 1)) {
+    ++asks;
+    std::printf("  %s\n", text.substr(i, text.find('\n', i) - i).c_str());
+  }
+  EXPECT(asks == 1 && text.find("mw3: mods: asks: Delete Good?") != std::string::npos);
+  EXPECT(text.find("mw3: mods: delete mods/Good : done") != std::string::npos && text.find("mods: reset") == std::string::npos);
+  EXPECT(!fs::exists(dir + "/wd/mods/Good", ec));
+  fs::remove_all(dir, ec);
+}
+
+// mw3launcher --version (found missing by a package dry run): the build's version on one line, exit 0, with no
+// window and nothing made, wherever it stands among the arguments; mw3's and the launcher's are the same build.
+TEST(sdl_program_launcher_says_its_version) {
+  namespace fs = std::filesystem;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher version";
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir, ec);
+  auto out_of = [&](const pid_t pid, const std::string& log, int* code) {
+    int status = 0;
+    EXPECT(waited(pid, &status, 60) && WIFEXITED(status));
+    *code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  int code = -1;
+  const std::string a = out_of(spawn_launcher({"--version"}, dir + "/a.log"), dir + "/a.log", &code);
+  std::printf("  %s", a.c_str());
+  const std::string head = "mw3launcher (MechWarrior 3 rebuild) ";
+  EXPECT(code == 0 && a.rfind(head, 0) == 0 && a.size() > head.size() + 1 && a.back() == '\n' && a.find('\n') == a.size() - 1);
+  const std::string b = out_of(spawn_launcher({"--write-dir", dir + "/wd", "--version"}, dir + "/b.log"), dir + "/b.log", &code);
+  EXPECT(code == 0 && b == a && !fs::exists(dir + "/wd", ec));
+  const std::string g = out_of(spawn_mw3({"--version"}, dir + "/g.log"), dir + "/g.log", &code);
+  EXPECT(code == 0 && g.rfind("mw3 (MechWarrior 3 rebuild) ", 0) == 0 && a.substr(head.size()) == g.substr(std::strlen("mw3 (MechWarrior 3 rebuild) ")));
+  fs::remove_all(dir, ec);
+}
+
 // IMPORT on the MODS screen, in the real program, of a folder mod holding a reader archive: the program confines
 // its names to its folders (zutl::Mounts::confined), and IMPORT's check reads the staged copy by its host path.
 // The check ran confined, so inside the game (and only there) every archive of a mod read as "not an archive" and

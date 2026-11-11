@@ -40,6 +40,7 @@ class ModTickList {
   std::vector<std::string> ticks;    // the folders the player ticked, in winning order (never the locked ones)
   std::vector<std::string> locked;
   bool assets_only = false;
+  bool no_campaign_only = false;     // Instant Action's: a mod that is only a campaign is not listed (mod_is_only_campaign)
   std::vector<ModsListEntry> rows;   // mods_list's, as shown
   std::string warned;                // a press's own word: turning one on, what it needs (mod_needs.h); a locked one, why
 };

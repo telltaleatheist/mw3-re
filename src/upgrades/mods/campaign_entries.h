@@ -42,6 +42,9 @@ std::vector<CampaignEntry> official_entries();
 // ticked for. kind=campaign in mod.txt still makes a row of its own, the
 // game's campaign over the mod's files.
 bool mod_is_campaign(const ModInfo& m);
+// A mod that is a campaign and nothing else: kind=campaign, or campaign= lines with no mech, weapon or world
+// rows and no game file of its own (no zbd folder). It has nothing to lay over Instant Action.
+bool mod_is_only_campaign(const ModInfo& m);
 
 // Every entry: the game's own, then the mods' (by folder; a campaign mod's
 // each campaign=, or the mod itself over the game's campaign), then the

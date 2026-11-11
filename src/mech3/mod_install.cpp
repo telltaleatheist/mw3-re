@@ -400,6 +400,29 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
     const std::string word = g.substr(0, g.find_first_of(" \t"));
     a.game = word == "mw3pm" || word == "pm" ? ModGame::kPm : word.empty() || word == "mw3" ? ModGame::kMw3 : ModGame::kUnknown;
   }
+  // Ours: a mod packed as the contents of the game's zbd folder (reader.zbd and c1\ ... at its top, no zbd
+  // folder, no mod.txt; "PM 1.2 Mod - Beta.zip"). Laid as it is, its files would serve nothing. Its top items
+  // that the install's zbd folder also holds by name, and any .zbd file, go under zbd; the rest stay.
+  if (!a.has_mod_txt && !looks_like_root(root) && !install.empty()) {
+    const fs::path theirs = child(fs::path(install), "zbd");
+    std::vector<fs::path> move;
+    if (!theirs.empty() && fs::is_directory(theirs, ec))
+      for (fs::directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)) {
+        if (it->is_symlink(ec)) continue;
+        const std::string name = lower(it->path().filename().string());
+        const bool dir = it->is_directory(ec);
+        const fs::path same = child(theirs, name);
+        const bool zbd_file = !dir && name.size() > 4 && name.compare(name.size() - 4, 4, ".zbd") == 0;
+        if (zbd_file || (!same.empty() && fs::is_directory(same, ec) == dir)) move.push_back(it->path());
+      }
+    if (!move.empty()) {
+      fs::create_directory(root / "zbd", ec);
+      for (const fs::path& p : move) {
+        fs::rename(p, root / "zbd" / p.filename(), ec);
+        if (!ec) ++a.bare_zbd;
+      }
+    }
+  }
   // A whole install: only what differs from the player's, without programs
   // (an exe patch cannot apply) and the player's own kind of file.
   const fs::path exe = child(root, "mech3.exe");
@@ -442,6 +465,9 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     std::ofstream f(root / "mod.txt", std::ios::binary);
     f << "# Written by the game when this mod was added (it had no mod.txt).\n"
       << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "mw3pm" : "mw3") << "\n";  // the game's own word (mods_game), which mod_parse takes
+    if (a.bare_zbd)
+      f << "# It was packed as the contents of the game's zbd folder, with no zbd folder of its own: the game put\n"
+        << "# those files under zbd, where it reads them.\n";
   }
   // Ours (entry_archives.h): a reader archive the install also has is kept as the entries that differ from the
   // install's, so mods that change different entries of one archive both apply. Our staging copy only.
@@ -564,6 +590,9 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   if (r.cut.archives || r.cut.same)
     std::printf("mw3: import: %s: reader archives: %d kept as the entries it changes (%d in all); %d the same as yours left out; %d whole\n",
                 d.name.c_str(), r.cut.archives, r.cut.entries, r.cut.same, r.cut.whole);
+  if (a.bare_zbd)
+    std::printf("mw3: import: %s: packed as the contents of the game's zbd folder (no zbd folder of its own): %d of its top "
+                "items put under zbd\n", d.name.c_str(), a.bare_zbd);
   if (a.texts.read)
     std::printf("mw3: import: %s: %d texts taken from its Mech3Msg.dll into strings.txt (%d with a name of their own)\n", d.name.c_str(),
                 a.texts.taken, a.texts.names);
