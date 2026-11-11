@@ -132,6 +132,41 @@ the menu's first (none in the main menu); the panel's layer updated
 (0x00403140); 0x9c held calls the empty trace; then, up or not, the net
 editor's frame 0x00404290 (nothing without a net editor).
 
+### The pointer (ours, 2026-11-11; Owen's playtest: "there's no cursor")
+
+The exe draws no pointer in the editor: the lit row is the pointer. The
+mouse is held as in any mission and its counts move the game's mouse
+(0x0051b910), so the row under that unseen point lights and takes the
+click (measured in the program with SDL's own motion events and no fix:
+the row followed, a click on EDIT AI NETS opened its dialog, "the mouse
+held, the system's cursor hidden"). A player sees rows and nothing to
+point with, and the dialogs over the frame get no cursor at all.
+
+Ours, while the editor is up in a mission (`editor_state().active`):
+
+- the mouse is let go, in a window and fullscreen, the system's cursor is
+  shown, and zInput's mouse is put where the cursor is each frame
+  (`SdlInput::pointer_free`, the menus' absolute path, 0x0051b4f0), so the
+  point the row and the click read is the point the player sees, at any
+  window size and shape;
+- the game does not move the system's cursor (`set_cursor_pos` does
+  nothing then).
+
+The system's cursor rather than the game's menu cursor drawn at the
+editor's point: the ImGui dialogs are drawn over the frame and need the
+real cursor, and the net editor's picks in the world read the same game
+mouse as the panel, so all three agree. The pause over the editor and the
+mission after it follow the old rules (held in a mission). The ported
+code is unchanged.
+
+`--mouse-at X,Y@N[c]` (ours) moves the system's mouse to a window point at
+frame N as SDL reports it, through SdlInput (c: and clicks); `--click-at`
+sets the game's mouse and cannot show whether the mouse is held. With it
+the program writes "mw3: editor: frame N: up, row R under the mouse (x, y),
+D dialogs, the mouse free|held, the system's cursor shown|hidden" on each
+change. Tests: sdl_editor_frees_the_mouse,
+sdl_program_editor_pointer_points_and_clicks (4:3 and 16:9).
+
 ### The main menu (0x005e0d30, 8 rows; 0x0040e7d0)
 
 | Row | Text | Handler | What it does |

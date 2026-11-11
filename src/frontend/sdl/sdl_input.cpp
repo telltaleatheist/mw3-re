@@ -397,16 +397,31 @@ void SdlInput::refresh() {
         if (buttons_[b]) buttons_[b] = 0, swallow_[b] = true;
       }
   }
-  if (win_ && !mission_ && !absolute_) cursor_moved_ = false;
-  absolute_ = win_ && !mission_;
-  const bool want = acquired_[kMouse] && (coop_[kMouse] & 1) && focused_ && !(win_ && (!mission_ || released_));
+  const bool free = mission_ && pointer_free && pointer_free();
+  const bool absolute = (win_ && !mission_) || free;
+  if (absolute && !absolute_) cursor_moved_ = false;
+  absolute_ = absolute;
+  const bool want = acquired_[kMouse] && (coop_[kMouse] & 1) && focused_ && !free && !(win_ && (!mission_ || released_));
   // Playtest W19: SDL's own state, not only ours; a relative mode refused or
   // dropped (a fullscreen switch, the focus) is asked for again, else the
   // system's cursor showed at the centre the game puts it each frame.
   if (want != captured_ || (window && SDL_GetWindowRelativeMouseMode(window) != want)) capture(want);
   // The menus and a held mouse draw the game's own cursor or none; a mouse let
   // go in a window shows the system's.
-  const bool hide = absolute_ || captured_;
+  if (free != free_) {
+    free_ = free;
+    if (want != captured_) capture(want);
+    // Into the editor: zInput's mouse at the cursor at once (where the system
+    // puts it as the hold ends), when the cursor is over the window.
+    float x = 0, y = 0;
+    if (free && window && SDL_GetMouseFocus() == window) {
+      SDL_GetMouseState(&x, &y);
+      mouse_x = x, mouse_y = y, cursor_moved_ = true;
+    }
+    if (!free) released_ = false;  // out of the editor: held again
+  }
+  // The game editor's pointer is the system's cursor.
+  const bool hide = (absolute_ && !free_) || captured_;
   if (window && (hide != cursor_hidden_ || SDL_CursorVisible() == hide)) {
     if (hide) SDL_HideCursor();
     else SDL_ShowCursor();
@@ -759,6 +774,7 @@ void SdlZinHost::screen_to_client(int32_t* x, int32_t* y) {
 // Windows' cursor follows the game's mouse; a captured (relative) mouse has none.
 // In a window the player's cursor is never moved (sdl_input.h).
 void SdlZinHost::set_cursor_pos(int32_t x, int32_t y) {
+  if (input_ && input_->pointer_is_free()) return;  // the game editor's pointer is the player's too
   if (input_ && input_->window && !input_->in_window() && !SDL_GetWindowRelativeMouseMode(input_->window))
     SDL_WarpMouseInWindow(input_->window, static_cast<float>(x), static_cast<float>(y));
 }
