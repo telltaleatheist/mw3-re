@@ -50,10 +50,10 @@ const char* editor_row_tip() {
 
 const std::vector<std::string>& help_quick_start() {
   static const std::vector<std::string> v = {
-      "Open the editor from the MODS screen: pick a mod or custom campaign, then EDITOR and a mission, and it opens "
-      "with the editor up. A custom campaign played from MODS (ENTER) has it in every mission too: EDITOR in the "
-      "pause menu, or Shift+F12. Its saves go into that mod. The game's own campaign, Pirate Missions, Instant "
-      "Action, training and multiplayer have no editor.",
+      "Open the editor from the MODS screen: choose a campaign at the left, then EDITOR, a mission, and PLAY. The "
+      "game starts again inside that campaign with the mission open in the editor. A mod's campaign played from "
+      "MODS (PLAY) has it in every mission too: EDITOR in the pause menu, or Shift+F12. Nothing started from the "
+      "main menu has the editor.",
       "The menu is on the left; point at a row and click (or press Space). The view is a free camera: fly it with "
       "the movement keys.",
       "EDIT AI NETS: pick a net. Its nodes and links are drawn in the world. Click a node to pick it; picking a "
@@ -61,10 +61,17 @@ const std::vector<std::string>& help_quick_start() {
       "first picked node.",
       "EDIT VEHICLES: pick a vehicle, change its pages, then Apply (the running mission takes it at once) and Save "
       "(it is written for the next start).",
-      "Save Changes (in the net menu) writes the nets. Each save says where: mods\\<the mod>\\zbd\\... or "
-      "mods\\editor edits\\zbd\\...",
-      "To undo a save, the file it replaced is kept beside it as <file>.bak: put the .bak back in its place. For "
-      "\"editor edits\", turning that mod off in MODS undoes them all.",
+      "The editor only saves as. The first save (Save Changes in the net menu, the vehicle editor's Save, Add veh "
+      "to node, New Weapon, Teleport's OK) asks for a name and makes a copy of the campaign under it, a mod of "
+      "your own: mods\\<the name>. That save and every later one go into the copy, and each says where. The "
+      "campaign you opened, the game's own files and a mod you imported are never changed. A copy of yours opened "
+      "in the editor is saved into itself, nothing asked.",
+      "EXIT GAME EDIT goes back to MODS, your copy chosen at the left when a save made one. There PLAY plays it, "
+      "TEST plays one of its missions at once, EDITOR opens it again, REPORT says what it changes, EXPORT packs "
+      "it into a zip to give away, and DELETE removes it with its pilots and saved games.",
+      "To undo a save, the file it replaced in your copy is kept beside it as <file>.bak (the save before, one "
+      "kept): put the .bak back in its place. To undo everything, DELETE the copy on MODS: the campaign it was "
+      "made from is as it was.",
       "Every field, button and row has a tip: hold the mouse over it. The full guide is docs/editor-guide.md.",
   };
   return v;
@@ -72,25 +79,40 @@ const std::vector<std::string>& help_quick_start() {
 
 const std::vector<std::string>& help_workflow() {
   static const std::vector<std::string> v = {
-      "Make the mod: a folder under mods in your write folder with a mod.txt (name=My Mod) and campaign=my.txt, "
-      "and my.txt listing the missions to change (name=My Campaign, then mission=c1 1, one line each; "
-      "docs/modding.md).",
-      "Open it: on the MODS screen pick the campaign, EDITOR lists its missions, ENTER opens the one picked. The "
-      "mission starts with the editor up and a stand-in pilot. Its saves go into the mod itself (zbd\\c1\\"
-      "readerm1.zbd and the like), each keeping the file it replaced as .bak.",
+      "Choose what to start from. MODS lists the campaigns at the left: the game's own first, each campaign a mod "
+      "brought, each copy you made. The mods ticked for it at the right are mounted with it. To start from someone "
+      "else's work, IMPORT it (a zip, a folder, or a game folder a mod's installer was run over): the line says "
+      "how many warnings its files gave, and REPORT lists them in three groups, the worst first (what stops part "
+      "of the mod working, what works here but may crash the original game, slips that do no harm), and writes "
+      "the same to mod-reports\\<the mod's folder>.txt in your settings folder.",
+      "Open a mission: with the campaign chosen, EDITOR lists its missions and PLAY opens the one picked. The game "
+      "starts again inside the campaign, and the mission starts with the editor up and a stand-in pilot.",
       "Change the AI's paths: EDIT AI NETS, pick a net (net_01 is usually the main one). Pick a node and move it "
       "(Move Node, then press the mouse, drag, let go), link nodes (pick one, then the next), delete what is not "
       "wanted, set a node's speed or wait (Node Params). Save Changes.",
+      "Name your copy: the first save asks for a name (offered: \"<campaign>, my edit\") and makes mods\\<the "
+      "name>, a copy of the campaign that holds only the files you change (a mission's archive whole, "
+      "zbd\\c1\\readerm1.zbd and the like) and names the campaign it was saved from (base= in its mod.txt). A "
+      "name already taken is refused, never written over. Cancel saves nothing. Later saves go into the copy, "
+      "nothing asked. A mod folder you made by hand is treated as any other: copied, never written.",
       "Add a vehicle: pick a node, Add veh to node, choose its type and side, OK. It is made at once and written "
-      "into the mission's vehicle list (aiv.zrd).",
+      "into the mission's vehicle list (aiv.zrd) in your copy.",
       "Change a vehicle's AI: EDIT VEHICLES, pick it, set its pages (when it wakes, how far it follows, how it "
       "attacks and retreats, what valve it sets), Apply to try it in the running mission, Save to keep it.",
-      "Add a weapon: EDIT WEAPONS (in a mission opened from MODS, EDITOR), pick the weapon to copy, set its name and "
-      "numbers, OK. It is written into the mod (mod.txt and zbd\\reader.zbd); the mech lab offers it from the next "
+      "Add a weapon: EDIT WEAPONS, pick the weapon to copy, set its name and numbers, OK. It is written into your "
+      "copy (mod.txt and zbd\\reader.zbd) and is part of that campaign; the mech lab offers it from the next "
       "start.",
-      "Try it: EXIT GAME EDIT goes back to MODS. Play the campaign (ENTER on the MODS screen) to see the changes "
-      "as a player would.",
-      "Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save.",
+      "Try it: EXIT GAME EDIT goes back to MODS with your copy chosen. TEST, a mission, PLAY plays that mission "
+      "at once with a stand-in pilot; when it ends a list plays the others, and BACK leaves. PLAY plays the "
+      "campaign as a player would: its pilot screen lists the copy's own pilots and your main-game pilots, and "
+      "picking one of yours copies it in (the main game's pilot is never changed).",
+      "Go on: choose the copy, EDITOR, a mission, PLAY. Its saves go into the copy itself.",
+      "Give it away: EXPORT packs the copy into one zip that IMPORT takes. A copy of a mod's campaign needs that "
+      "mod on the other machine too; there it is an imported mod, which that player's editor copies and never "
+      "writes.",
+      "Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save. DELETE on MODS "
+      "removes a copy whole, with its pilots and saved games; RESET, on the game's own campaign, clears its ticks "
+      "and its pilots there. Neither touches the game's files or your main-game pilots.",
   };
   return v;
 }
@@ -113,13 +135,14 @@ std::string editor_guide_markdown() {
        "docs/editor-guide.md. Do not edit by hand; the test editor_guide_is_current fails when it is stale. -->\n\n";
   o += "MechWarrior 3 shipped with the developers' own editor still inside: a menu over the running mission for "
        "the AI's paths (nets) and the vehicles' AI. The rebuild opens it to players and modders, makes the parts "
-       "the release left empty work, and saves what you change into a mod. The menus are the original's; the "
+       "the release left empty work, and saves what you change as a copy of the campaign, a mod of your own, never "
+       "into the game's files or anyone else's mod. The menus are the original's; the "
        "dialogs are windows of the rebuild's own. Every field, button and row in the editor has a tip (hold the "
        "mouse over it); this guide gathers them. How it works inside: docs/editor.md.\n\n";
   o += "## Quick start\n\n";
   int n = 0;
   for (const std::string& p : help_quick_start()) o += std::to_string(++n) + ". " + p + "\n";
-  o += "\n## From a fresh mod to a changed mission\n\n";
+  o += "\n## From a campaign to your own changed copy\n\n";
   n = 0;
   for (const std::string& p : help_workflow()) o += std::to_string(++n) + ". " + p + "\n";
   for (const HelpForm& f : help_forms()) {
