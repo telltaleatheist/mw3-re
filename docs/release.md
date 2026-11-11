@@ -92,7 +92,7 @@ or upgrade, for Owen to approve.
 - [ ] The release notes are drafted (`docs/release-notes-<version>.md`) and
       Owen has read them.
 - [ ] The players' read-mes match the build: `tools/windows/dist/README.txt`,
-      `tools/macos/README.txt`, the top-level `README.md`.
+      `tools/macos/README.txt`, `tools/linux/README.txt`, the top-level `README.md`.
 - [x] Open since 2026-11-01: the Mac `--deps` release form
       (`tools/macos/make_app.sh --deps`) not built since libarchive, zlib
       and liblzma arrived: rebuild build-deps/mac (`build_deps.sh mac`),

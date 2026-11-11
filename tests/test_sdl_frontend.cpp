@@ -4694,6 +4694,60 @@ TEST(sdl_program_launcher_screens) {
   }
 }
 
+// BEFORE YOU PLAY by measure (Owen's playtest, W3): an install with no movies, no music and an empty
+// soundsH.zbd under a long settings folder (a long user name), ADD FROM MY DISC having answered "No disc in a
+// drive ...". The status line is under the notes and all of it above the button, at a size still read; before,
+// it was drawn at a fixed place over the notes' last lines.
+TEST(sdl_program_launcher_notes_fit_above_the_buttons) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher notes";
+  const std::string wd = dir + "/A Player With A Rather Long Name/AppData/Roaming/MicroProse/MechWarrior 3";
+  fs::remove_all(dir, ec);
+  fs::create_directories(wd + "/install/zbd", ec);
+  for (fs::directory_iterator it(MW3_GAME_DIR, ec), end; !ec && it != end; it.increment(ec)) {
+    std::string n = it->path().filename().string();
+    for (char& ch : n) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    if (n != "zbd" && n != "video") fs::create_symlink(fs::absolute(it->path()), wd + "/install/" + it->path().filename().string(), ec);
+  }
+  for (fs::directory_iterator it(std::string(MW3_GAME_DIR) + "/zbd", ec), end; !ec && it != end; it.increment(ec))
+    if (it->path().filename() != "soundsH.zbd") fs::create_symlink(fs::absolute(it->path()), wd + "/install/zbd/" + it->path().filename().string(), ec);
+  std::ofstream(wd + "/install/zbd/soundsH.zbd") << "";
+  const std::string bmp = dir + "/notes.bmp", log = dir + "/notes.log";
+  int status = 0;
+  const pid_t pid = spawn_launcher({"--write-dir", wd, "--launcher-shot", bmp, "--launcher-screen", "disc"}, log);
+  EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  const size_t at = text.find("mw3: launcher: notes: ");
+  const std::string line = at == std::string::npos ? std::string() : text.substr(at, text.find('\n', at) - at);
+  int notes = 0, size = 0, width = 0, status_y = 0, add_y = 0, ok_y = 0;
+  const int got = std::sscanf(line.c_str(), "mw3: launcher: notes: %d at size %d and width %d, the status line at y %d, ADD FROM MY DISC at %d, OK at %d",
+                              &notes, &size, &width, &status_y, &add_y, &ok_y);
+  std::printf("  %s\n", line.c_str());
+  EXPECT(text.find("no movies (they stayed on the CD) and no music") != std::string::npos && text.find("soundsH.zbd is empty") != std::string::npos);
+  EXPECT(got == 6 && notes == 2 && line.find("above the buttons") != std::string::npos);
+  EXPECT(size >= 12 && add_y == 318 && ok_y == 384);          // read without effort, the buttons where they were
+  EXPECT(status_y > 162 + 4 * size && status_y + 14 <= 312);  // under the notes' lines, above ADD FROM MY DISC
+  // Drawn: the status line's amber is on its own rows, under the notes (the picture behind has warm pixels
+  // of its own, so the rows above are not counted).
+  SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
+  SDL_Surface* c = img ? SDL_ConvertSurface(img, SDL_PIXELFORMAT_ARGB8888) : nullptr;
+  int on_row = 0;
+  auto amberish = [](uint32_t p) {  // the status line's colour, not the notes' white
+    const int r = p >> 16 & 0xff, g = p >> 8 & 0xff, b = p & 0xff;
+    return r > 190 && g > 130 && r - g > 25 && r - b > 35;
+  };
+  for (int y = status_y; c && y < status_y + 16; ++y)
+    for (int x = 200; x < 654; ++x) on_row += amberish(static_cast<const uint32_t*>(c->pixels)[y * (c->pitch / 4) + x]);
+  std::printf("  the status line's colour: %d pixels on its rows\n", on_row);
+  EXPECT(c && on_row > 100);
+  if (c) SDL_DestroySurface(c);
+  if (img) SDL_DestroySurface(img);
+  fs::remove_all(dir, ec);
+}
+
 // A plain mw3 start (docs/games-layout.md): straight into the game when an
 // install is found, no launcher; with none, the find screen alone, and once
 // POINT TO YOUR GAME's pick is installed, on into the game (MW3_START_ONLY
