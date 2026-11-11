@@ -139,7 +139,10 @@ std::string import_folder_report(const ImportFolder& f) {
   if (f.own) t += "; pilots, saves and settings stay yours (" + std::to_string(f.own) + ")";
   if (f.other) t += "; " + files_word(f.other) + " outside the game's folders left";
   for (const std::string& l : f.linked) t += "; a linked folder was left out: " + l;
-  if (f.msg_dll) t += "; its text file Mech3Msg.dll is not part of a mod here, so names it adds may show as their ids";
+  if (f.msg_dll && !f.texts.found) t += "; its Mech3Msg.dll's texts go into the mod's strings.txt";  // before the add
+  else if (f.msg_dll && f.texts.read && f.texts.taken) t += "; took " + std::to_string(f.texts.taken) + (f.texts.taken == 1 ? " text" : " texts") + " from its Mech3Msg.dll";
+  else if (f.msg_dll && f.texts.read) t += "; its Mech3Msg.dll's texts are the same as yours";
+  else if (f.msg_dll) t += "; its Mech3Msg.dll was left out (" + f.texts.why + "), so texts it changes or adds are not shown";
   if (f.nested) t += "; this installer also carries " + std::to_string(f.nested) + " more " + (f.nested == 1 ? "installer" : "installers") + ": import each on its own";
   return t + ".";
 }
@@ -190,10 +193,17 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
     if (it->is_directory(ec) && !it->is_symlink(ec) && !path_is_link(it->path().string())) tops.insert(lower(it->path().filename().string()));
   std::vector<std::pair<std::string, fs::path>> take;  // the relative path as the modded folder spells it
   int64_t bytes = 0;
+  int dll_taken = 0;
   f.other = links;
   for (const auto& [rel, p] : theirs) {
     const size_t slash = rel.find('/');
-    if (program_file(rel)) ++f.programs;
+    // Its Mech3Msg.dll when it is not the player's: staged at the mod's top for the add to take its texts from.
+    if (rel == "mech3msg.dll" && !(ours.count(rel) && same_bytes(p, ours.find(rel)->second))) {
+      f.msg_dll = true;
+      bytes += static_cast<int64_t>(fs::file_size(p, ec));
+      take.emplace_back(fs::relative(p, src, ec).generic_string(), p);
+      ++dll_taken;
+    } else if (program_file(rel)) ++f.programs;
     else if (!zutl::mod_may_serve(rel)) ++f.own;
     else if (slash == std::string::npos || !tops.count(rel.substr(0, slash))) ++f.other;
     else if (const auto it = ours.find(rel); it != ours.end() && same_bytes(p, it->second)) ++f.same;
@@ -235,7 +245,7 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
       return f;
     }
   }
-  f.taken = static_cast<int>(take.size());
+  f.taken = static_cast<int>(take.size()) - dll_taken;  // the dll is not a file of the mod: its texts are counted apart
   f.picked = to.string();
   return f;
 }
@@ -319,7 +329,8 @@ ImportFolder import_installer_prepare(const std::string& write_dir, const std::s
     const size_t slash = rel.find('/');
     const std::string leaf = rel.substr(rel.rfind('/') == std::string::npos ? 0 : rel.rfind('/') + 1);
     if (x.path.empty()) ++f.other;
-    else if (leaf == "mech3msg.dll") f.msg_dll = true, ++f.programs;
+    else if (rel == "mech3msg.dll") maybe.push_back(&x);  // at the game's top: its texts (below)
+    else if (leaf == "mech3msg.dll") ++f.programs;
     else if (ends_with(leaf, ".exe") && leaf != "mech3.exe") {
       // An installer inside it (an add-on's): left, and counted to be said.
       std::vector<uint8_t> bytes;
@@ -348,7 +359,12 @@ ImportFolder import_installer_prepare(const std::string& write_dir, const std::s
       return f.error = "its file " + x->path + " does not unpack (" + w + ")", f;
     }
     const std::string rel = lower(x->path);
-    if (const auto it = ours.find(rel); it != ours.end() && bytes_same_as_file(bytes, it->second)) {  // never written
+    const bool dll = rel == "mech3msg.dll";
+    if (dll && ours.count(rel) && bytes_same_as_file(bytes, ours.find(rel)->second)) {  // the player's own: a program as before
+      ++f.programs;
+      continue;
+    }
+    if (const auto it = ours.find(rel); !dll && it != ours.end() && bytes_same_as_file(bytes, it->second)) {  // never written
       ++f.same;
       f.same_names.push_back(x->path);
       continue;
@@ -367,7 +383,7 @@ ImportFolder import_installer_prepare(const std::string& write_dir, const std::s
     }
     // Under the install's own spelling of its top folder (ZBD\ in an old installer lands in zbd\).
     const size_t slash = x->path.find('/');
-    const fs::path dst = to / fs::path(tops[rel.substr(0, slash)]) / fs::path(x->path.substr(slash + 1));
+    const fs::path dst = dll ? to / "Mech3Msg.dll" : to / fs::path(tops[rel.substr(0, slash)]) / fs::path(x->path.substr(slash + 1));
     fs::create_directories(dst.parent_path(), ec);
     std::ofstream o(dst, std::ios::binary | std::ios::trunc);
     o.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
@@ -376,10 +392,11 @@ ImportFolder import_installer_prepare(const std::string& write_dir, const std::s
       import_folder_discard(f);
       return f.error = "cannot write " + x->path, f;
     }
-    ++f.taken;
+    if (dll) f.msg_dll = true;  // staged for the add to take its texts from; not a file of the mod
+    else ++f.taken;
   }
   if (progress) progress(done, static_cast<int>(maybe.size()));
-  if (f.taken == 0) return f.error = "every file in it is the same as your install's: nothing to add", f;
+  if (f.taken == 0 && !f.msg_dll) return f.error = "every file in it is the same as your install's: nothing to add", f;
   f.picked = to.string();
   return f;
 }
@@ -407,6 +424,7 @@ ModAddDone import_folder_run(const std::string& write_dir, const std::string& so
                   [&](const std::string& name) { return game == ModGame::kPm ? 2 : game == ModGame::kMw3 ? 1 : ask ? ask(name) : 1; },
                   enabled, source);
   import_folder_discard(f);
+  f.texts = d.texts;
   if (d.ok) {
     std::printf("mw3: import: %s: %s\n", d.name.c_str(), import_folder_report(f).c_str());
     if (report) *report = import_folder_report_short(f);

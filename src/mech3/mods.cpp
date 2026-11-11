@@ -626,8 +626,10 @@ bool mods_save_enabled(const std::string& write_dir, const std::vector<std::stri
 }
 
 std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text,
-                                            const std::map<std::string, int32_t>& ids) {
+                                            const std::map<std::string, int32_t>& ids,
+                                            std::map<std::string, int32_t>* names) {
   std::vector<std::string> log;
+  std::vector<std::pair<std::string, int32_t>> named;
   const std::vector<std::string>& mods = zutl::mounts().mods;
   // The last mod first, so the first one's lines are the ones left.
   for (auto m = mods.rbegin(); m != mods.rend(); ++m) {
@@ -640,8 +642,12 @@ std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text
       if (n == 1 && line.rfind("\xef\xbb\xbf", 0) == 0) line.erase(0, 3);  // a UTF-8 mark
       if (trim(line).empty() || trim(line)[0] == '#') continue;
       const size_t eq = line.find('=');
-      const std::string key = trim(line.substr(0, eq == std::string::npos ? 0 : eq));
+      std::string key = trim(line.substr(0, eq == std::string::npos ? 0 : eq));
       int32_t id = -1;
+      // NAME@id: a message name the game's table lacks (or has elsewhere) given its number, with its text
+      // (upgrades/mods/import_texts.h: a modded Mech3Msg.dll's own names).
+      std::string fresh;
+      if (const size_t at = key.find('@'); at != std::string::npos) fresh = trim(key.substr(0, at)), key = trim(key.substr(at + 1));
       if (!key.empty() && std::isdigit(static_cast<unsigned char>(key[0]))) {
         char* end = nullptr;
         errno = 0;
@@ -672,10 +678,14 @@ std::vector<std::string> mods_apply_strings(std::map<int32_t, std::string>& text
         continue;
       }
       text[id] = game.substr(0, 0x1ff);  // the original's 0x200-byte buffers
+      if (!fresh.empty()) named.emplace_back(fresh, id);
       ++used;
     }
     log.insert(log.end() - 0, "mod strings: " + std::to_string(used) + " from " + (fs::path(*m) / "strings.txt").generic_string());
   }
+  // The names last, so no line's lookup above meets a name another line gave (the last mod's first: the first wins).
+  if (names)
+    for (const auto& [name, id] : named) (*names)[name] = id;
   return log;
 }
 

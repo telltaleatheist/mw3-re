@@ -12,6 +12,8 @@
 #include <vector>
 
 #include "check.h"
+#include "message_dll.h"
+#include "upgrades/mods/mod_report.h"
 #include "mech3/mod_install.h"
 #include "upgrades/mods/bz2_read.h"
 #include "upgrades/mods/installer_read.h"
@@ -436,7 +438,9 @@ TEST(import_installer_takes_what_differs) {
   EXPECT(d.ok && d.folder == "A Made-up Mod" && asked == 0);  // named by the installer's title; the game from its files
   const std::string at = wd + "/mods/" + d.folder;
   std::printf("  the mod: %s\n", names_in(at).c_str());
-  EXPECT(names_in(at) == std::string("mod.txt|") + mech3::kModAddedMarker + "|zbd/c1/New.txt|zbd/reader.txt|");
+  // Its Mech3Msg.dll is no table of texts here ("texts"): a warning kept with the mod, the mod added.
+  EXPECT(names_in(at) == std::string("mod.txt|") + mech3::kModAddedMarker + "|" + mech3::kModLeftOutFile + "|zbd/c1/New.txt|zbd/reader.txt|");
+  EXPECT(d.warnings == 1 && d.texts.found && !d.texts.read);
   const auto got = snapshot(at);
   const Bytes text = bz2_fixture_text();
   EXPECT(got.count("zbd/c1/New.txt") && got.at("zbd/c1/New.txt") == std::string(text.begin(), text.end()));
@@ -451,15 +455,41 @@ TEST(import_installer_takes_what_differs) {
   int calls = 0, last_total = -1;
   mech3::ImportFolder f = mech3::import_installer_prepare(wd, path, inst, {}, [&](int, int total) { ++calls, last_total = total; });
   std::printf("  %s\n", mech3::import_folder_report(f).c_str());
-  EXPECT(f.install && f.installer && f.error.empty() && f.taken == 2 && f.same == 2 && f.programs == 4 && f.other == 2 && f.own == 0);
+  EXPECT(f.install && f.installer && f.error.empty() && f.taken == 2 && f.same == 2 && f.programs == 3 && f.other == 2 && f.own == 0);
   EXPECT(f.msg_dll && f.nested == 1 && f.game == mech3::ModGame::kMw3 && f.title == "A Made-up Mod");
-  EXPECT(calls == 5 && last_total == 4);  // the four it had to unpack to compare, and the end
+  EXPECT(calls == 6 && last_total == 5);  // the five it had to unpack to compare (its Mech3Msg.dll one), and the end
   EXPECT(mech3::import_folder_report(f) ==
          "Took 2 files from the installer that differ from your install; left 2 the same; the program and its dlls are not part of a "
-         "mod here (4); 2 files outside the game's folders left; its text file Mech3Msg.dll is not part of a mod here, so names it "
-         "adds may show as their ids; this installer also carries 1 more installer: import each on its own.");
+         "mod here (3); 2 files outside the game's folders left; its Mech3Msg.dll's texts go into the mod's strings.txt; "
+         "this installer also carries 1 more installer: import each on its own.");
   mech3::import_folder_discard(f);
   EXPECT(!fs::exists(wd + "/mod-import", ec));
+}
+
+// An installer whose Mech3Msg.dll is a table of texts: those that differ from the player's go into the mod's
+// strings.txt, the dll not kept; with the player's own dll in it nothing is said of texts.
+TEST(import_installer_takes_the_texts_of_its_mech3msg_dll) {
+  const std::string wd = tmp("import_installer_texts_wd"), inst = tmp("import_installer_texts_inst");
+  build_install(inst);
+  const std::string mine = message_dll({{100, "CAMPAIGN"}, {101, "START"}});
+  put_file(inst + "/Mech3Msg.dll", mine);
+  Made m = sample();
+  for (Made::F& f : m.files)
+    if (f.name == "Game Folder\\Mech3Msg.dll") f.data = bytes_of(message_dll({{100, "KAMPAGNE"}, {101, "START"}, {300, "A new briefing"}}));
+  const std::string path = write_file(tmp("import_installer_texts_src") + "/Words Setup.exe", m.build());
+  std::string report;
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, path, inst, nullptr, nullptr, &report);
+  std::printf("  %s\n", d.message.c_str());
+  const std::string at = wd + "/mods/" + d.folder;
+  EXPECT(d.ok && d.warnings == 0 && d.texts.read && d.texts.taken == 2);
+  EXPECT(names_in(at) == std::string("mod.txt|") + mech3::kModAddedMarker + "|strings.txt|zbd/c1/New.txt|zbd/reader.txt|");
+  EXPECT(snapshot(at).at("strings.txt").find("\n0x64=KAMPAGNE\n0x12c=A new briefing\n") != std::string::npos);
+  // The player's own dll in the installer: a program, as before.
+  for (Made::F& f : m.files)
+    if (f.name == "Game Folder\\Mech3Msg.dll") f.data = bytes_of(mine);
+  mech3::ImportFolder f = mech3::import_installer_prepare(wd, write_file(tmp("import_installer_texts_src2") + "/Same Setup.exe", m.build()), inst);
+  EXPECT(f.error.empty() && !f.msg_dll && f.taken == 2 && f.programs == 3);  // the game, DDraw.dll and the dll
+  mech3::import_folder_discard(f);
 }
 
 // Refused, and said: the other game's installer; one whose every file is the player's already; one that does
