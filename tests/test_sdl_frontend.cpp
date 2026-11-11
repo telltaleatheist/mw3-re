@@ -709,6 +709,98 @@ TEST(sdl_input_mouse_counts_relative_motion) {
   EXPECT(in.mouse_state(&s) == platform::Input::kNotAcquired);
 }
 
+// FIX (A), playtest W4 (sdl_focus.h; docs/input.md, The focus is checked): the window's real focus is asked,
+// so a game that comes up without it (the launcher still in front) does not hold a mouse that gives no motion:
+// a foreground device is not acquired and the mouse not taken until the focus is really the window's, whatever
+// events came; then it is taken with no event at all. A held mouse that has given no motion is let go and taken
+// again at a key or button press, at most once a second and eight times, and never once motion has come.
+TEST(sdl_input_mouse_waits_for_the_real_focus_and_heals) {
+  bool focus = false;
+  uint64_t t = 1000000000ull;
+  auto make = [&](sdlfe::SdlInput& in, uint32_t coop) {
+    in.has_focus = [&] { return focus; };
+    in.now_ns = [&] { return t; };
+    in.set_cooperative_level(platform::Input::kMouse, coop);
+    return in.open(platform::Input::kMouse);
+  };
+  SDL_Event gained{}, key{}, button{}, motion{};
+  gained.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+  key.type = SDL_EVENT_KEY_DOWN, key.key.scancode = SDL_SCANCODE_ESCAPE;
+  button.type = SDL_EVENT_MOUSE_BUTTON_DOWN, button.button.button = SDL_BUTTON_LEFT;
+  motion.type = SDL_EVENT_MOUSE_MOTION, motion.motion.xrel = 3.0f;
+  platform::MouseState s;
+  {  // exclusive and foreground (DISCL_EXCLUSIVE | DISCL_FOREGROUND): not acquired without the focus
+    sdlfe::SdlInput in;
+    EXPECT(make(in, 5));
+    EXPECT(in.acquire(platform::Input::kMouse) == platform::Input::kNotAcquired && !in.captured() && !in.focused());
+    in.on_event(gained);  // an event while the window is not really in front: not believed
+    EXPECT(in.acquire(platform::Input::kMouse) == platform::Input::kNotAcquired && !in.captured());
+    focus = true;  // really ours now, and no event says so
+    EXPECT(in.acquire(platform::Input::kMouse) == 0 && in.captured() && in.focused());
+    focus = false;  // and gone with no event: let go, the device lost as at a real loss
+    EXPECT(in.mouse_state(&s) == platform::Input::kInputLost && !in.captured());
+  }
+  {  // exclusive, not foreground: acquired, the mouse taken only with the focus
+    sdlfe::SdlInput in;
+    focus = false;
+    EXPECT(make(in, 1));
+    EXPECT(in.acquire(platform::Input::kMouse) == 0 && !in.captured());
+    EXPECT(in.mouse_state(&s) == 0 && !in.captured());
+    focus = true;
+    EXPECT(in.mouse_state(&s) == 0 && in.captured() && in.heals() == 0);
+    // No motion yet: a key press in the first three seconds is left alone (a key held as a mission starts);
+    // after them it lets go and takes again; once a second; a button press at any time.
+    in.on_event(key);
+    EXPECT(in.heals() == 0);
+    t += sdlfe::SdlInput::kQuietNs;
+    in.on_event(key);
+    EXPECT(in.heals() == 1 && in.captured());
+    in.on_event(key);
+    EXPECT(in.heals() == 1);
+    t += sdlfe::SdlInput::kHealGapNs;
+    in.on_event(button);
+    EXPECT(in.heals() == 2);
+    // The game sees the press as ever.
+    EXPECT(in.mouse_state(&s) == 0 && s.buttons[0] == 0x80);
+    // Motion came: it works, nothing more is done.
+    in.on_event(motion);
+    t += sdlfe::SdlInput::kHealGapNs;
+    in.on_event(key);
+    EXPECT(in.heals() == 2 && in.mouse_state(&s) == 0 && s.x == 3);
+  }
+  {  // never more than kHeals a capture; a new capture starts again
+    sdlfe::SdlInput in;
+    focus = true;
+    EXPECT(make(in, 1) && in.acquire(platform::Input::kMouse) == 0 && in.captured());
+    in.on_event(button);  // a button at once
+    EXPECT(in.heals() == 1);
+    for (int i = 0; i < 20; ++i) t += sdlfe::SdlInput::kHealGapNs, in.on_event(key);
+    EXPECT(in.heals() == sdlfe::SdlInput::kHeals);
+    in.unacquire(platform::Input::kMouse);
+    EXPECT(!in.captured() && in.acquire(platform::Input::kMouse) == 0 && in.captured());
+    t += sdlfe::SdlInput::kHealGapNs, in.on_event(button);
+    EXPECT(in.heals() == sdlfe::SdlInput::kHeals + 1);
+  }
+  {  // SDL shown a window it has not noted: once a second, kNudges times running, whatever has_focus says
+    sdlfe::SdlInput in;
+    focus = true;  // the system's word taken (FocusWatch's two seconds)
+    int asked = 0;
+    in.nudge_focus = [&] { return ++asked, true; };
+    EXPECT(make(in, 1) && in.acquire(platform::Input::kMouse) == 0 && asked == 1);
+    EXPECT(in.mouse_state(&s) == 0 && asked == 1);  // not twice in a second
+    for (int i = 0; i < 30; ++i) t += sdlfe::SdlInput::kHealGapNs, in.mouse_state(&s);
+    EXPECT(asked == sdlfe::SdlInput::kNudges);
+  }
+  {  // no probe (tests, a hidden window): SDL's events alone, focused from the start, and no heal without a capture
+    sdlfe::SdlInput in;
+    in.set_cooperative_level(platform::Input::kMouse, 5);
+    EXPECT(in.open(platform::Input::kMouse) && in.acquire(platform::Input::kMouse) == 0 && in.captured());
+    in.unacquire(platform::Input::kMouse);
+    in.on_event(key);
+    EXPECT(in.heals() == 0);
+  }
+}
+
 // Ours, for playing fullscreen (FIX (A)): Alt+Enter toggles and the game never
 // sees that Enter; a captured mouse moves at the desktop's speed at any
 // screen size (the system pointer's motion over the frame); leaving the window lets go of
@@ -5977,6 +6069,36 @@ TEST(sdl_program_check_runs_on_without_focus) {
   const bool lost = text.find("focus lost (MW3_FOCUS_LOST_AT)") != std::string::npos;
   std::printf("focus lost at pass 30: %s; the run %s\n", lost ? "yes" : "no", ended ? "ended by itself" : "hung (killed)");
   EXPECT(lost && ended && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+}
+
+// Playtest W4 in the real program (hidden: fullscreen's rules, the menus hold the mouse): the window without
+// the focus until the pump's 60th pass (MW3_FOCUS_AT). The mouse is not taken before, and is taken when the
+// focus comes, with no focus event.
+TEST(sdl_program_mouse_waits_for_the_focus) {
+  const std::string dir = std::string(MW3_TEST_TMP) + "/focus_wait";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/wd", ec);
+  auto run = [&](const char* at, const char* name) {
+    const std::string log = dir + "/" + name + ".log";
+    if (at) setenv("MW3_FOCUS_AT", at, 1);
+    const pid_t pid = spawn_mw3({"--no-launcher", "--write-dir", dir + "/wd", "--hidden", "--nosound", "-nofmv", "--frames", "150"}, log);
+    unsetenv("MW3_FOCUS_AT");
+    int status = 0;
+    EXPECT(waited(pid, &status, 120) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const size_t none = std::string::npos;
+  const std::string a = run("60", "a");
+  const size_t waits = a.find("mw3: focus: the window does not have the focus"), given = a.find("mw3: focus given (MW3_FOCUS_AT)");
+  const size_t now = a.find("mw3: focus: the window has the focus: the mouse is taken now"), taken = a.find("mw3: mouse: taken (");
+  std::printf("  waits %d, given %d, has it %d, taken %d\n", waits != none, given != none, now != none, taken != none);
+  EXPECT(waits != none && given != none && now != none && taken != none && waits < given && given < now && given < taken);
+  EXPECT(a.find("mw3: mouse: taken (", taken + 1) == none);  // once
+  // With the focus from the start (pass 0): taken at once, nothing waited for.
+  const std::string b = run("0", "b");
+  EXPECT(b.find("mw3: mouse: taken (") != none && b.find("does not have the focus") == none);
 }
 
 #if !defined(_WIN32)
