@@ -2801,6 +2801,10 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   EXPECT(std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>()) == before);
   EXPECT(fs::exists(mods + "/starter_mech/mine.txt", ec) && fs::is_regular_file(mods + "/starter_weapon", ec));
   EXPECT(!mech3::starter_make("tank", install, mods).ok && !fs::exists(mods + "/starter_tank", ec));
+  // What the mount registered goes with the test: its mech and weapon rows (ERPPC_B left in the table made
+  // new_weapon_definition_reads_through_zweapon's free name ERPPC_C in a whole run), its world and campaign.
   mech3::mech_rows_clear();
+  mech3::weapon_rows_clear();
+  mech3::mod_worlds().clear(), mech3::mod_ia_worlds().clear(), mech3::mod_campaigns().clear();
   zwep::init_hooks() = hooks;
 }

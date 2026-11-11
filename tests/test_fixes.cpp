@@ -29,6 +29,8 @@
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsound/zsnd.h"
+#include "gamez/znetwork/znet_object.h"
+#include "mech3/zainet_region.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "gamez/zutil/ztimer.h"
@@ -753,9 +755,14 @@ mech3::ai::AivRecord* aiv_record(const char* archive, const char* name, bool fix
   zfix::set_all(true);
   return r;
 }
+// What the record's read made goes with it, as a mission's end frees it: its nets (znet::clear) and its
+// regions (0x004c5fa0; ids from 10000, which znet::clear keeps). Left in the registry they were listed among
+// the editor's own nets in a whole run (game_editor_net_dialog_and_menu, vehicle_editor_pages_show_and_take_back).
 void close_aiv(mech3::ai::AivRecord* r) {
   delete r;
   mech3::ai::aiv_file_reset();
+  znet::clear();
+  mech3::ai::regions_clear();
   zrdr::close_archives(true);
 }
 }  // namespace
