@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "upgrades/mods/entry_archives.h"
 #include "upgrades/mods/import_texts.h"
 #include "mech3/mods.h"
 
@@ -80,6 +81,7 @@ struct ModAddResult {
   std::vector<std::string> report;  // mod_check's lines
   std::vector<std::string> left_out;  // the mod's files not added: the game cannot use them (a warning each)
   int warnings = 0;               // the check's warnings in all
+  ModCut cut;                     // its reader archives cut to their changed entries (upgrades/mods/entry_archives.h)
   std::string message;            // one line for the screen
 };
 // mod.txt written when it has none (for= from `game`), the mod checked
@@ -100,6 +102,7 @@ struct ModAddDone {
   std::string folder, name, message;
   int warnings = 0, left_out = 0;  // the check's warnings; the files left out of the copy added
   ImportTexts texts;           // what came of its Mech3Msg.dll, when it carried one
+  ModCut cut;                  // its reader archives cut to their changed entries
   bool campaign_only = false;  // only campaigns: listed, not turned on (entered from the MODS screen)
 };
 // `from`, when given, is what the marker names as the mod's source (an import's

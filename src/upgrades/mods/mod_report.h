@@ -30,6 +30,10 @@ struct ModFindings {
   // archive (zbd\c1\readerm2.zbd), and the worlds whose own files it replaces (gamez, anim or reader.zbd:
   // every mission on that world plays on them), each once, in the files' order.
   std::vector<std::string> missions, mission_worlds;
+  // The archives it holds as their changed entries (entry_archives.h): "<archive>: <entry>, <entry>..." each,
+  // and the entries in all.
+  std::vector<std::string> cut;
+  int cut_entries = 0;
   std::vector<std::string> refused;   // "<what>: <why>", --check-mod's errors: the mod's as a whole (it is not added)
   std::vector<std::string> warnings;  // "<what>: <why>", --check-mod's warnings, as its lines
   std::vector<ModNote> notes;         // the same warnings in their parts, in the check's order

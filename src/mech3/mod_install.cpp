@@ -443,6 +443,9 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     f << "# Written by the game when this mod was added (it had no mod.txt).\n"
       << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "mw3pm" : "mw3") << "\n";  // the game's own word (mods_game), which mod_parse takes
   }
+  // Ours (entry_archives.h): a reader archive the install also has is kept as the entries that differ from the
+  // install's, so mods that change different entries of one archive both apply. Our staging copy only.
+  r.cut = entries_cut_mod(root.string(), install);
   ModFindings facts;
   r.report = mod_check(root.string(), install, &r.check_errors, &facts);
   // A reader archive with an entry that cannot be read is left out of the copy being added (ours, in the
@@ -557,6 +560,10 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   // left out is in the report.
   d.warnings = r.warnings, d.left_out = static_cast<int>(r.left_out.size());
   d.texts = a.texts;
+  d.cut = r.cut;
+  if (r.cut.archives || r.cut.same)
+    std::printf("mw3: import: %s: %d of its reader archives kept as their %d changed entries; %d the same as yours left out; %d whole\n",
+                d.name.c_str(), r.cut.archives, r.cut.entries, r.cut.same, r.cut.whole);
   if (a.texts.read)
     std::printf("mw3: import: %s: %d texts taken from its Mech3Msg.dll into strings.txt (%d with a name of their own)\n", d.name.c_str(),
                 a.texts.taken, a.texts.names);
