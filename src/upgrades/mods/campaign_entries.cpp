@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "gamez/zutil/zutl_path.h"
 #include "mech3/mod_campaign.h"
 
 namespace fs = std::filesystem;
@@ -100,6 +101,13 @@ bool mod_is_campaign(const ModInfo& m) {
   // with neither, whatever it replaces (the campaign's missions, new worlds, the main reader), is an asset mod:
   // ticked for any campaign and for Instant Action (Owen, 2026-11-10).
   return !m.campaigns.empty() || !m.base.empty();
+}
+
+bool mod_is_only_campaign(const ModInfo& m) {
+  if (lower(m.kind) == "campaign") return true;
+  if (m.campaigns.empty() || !m.mechs.empty() || !m.weapons.empty() || !m.worlds.empty() || !m.ia_worlds.empty()) return false;
+  std::error_code ec;
+  return zutl::any_case(m.path, "zbd").empty() || std::filesystem::is_empty(zutl::any_case(m.path, "zbd"), ec);
 }
 
 std::vector<CampaignEntry> campaign_entries(const std::string& write_dir) {

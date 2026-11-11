@@ -1080,7 +1080,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
     mp.pick = [](bool folder) {
       if (!scripted.empty()) return mech3::mods_menu_picked(scripted);
       auto done = [](void*, const char* const* list, int) { mech3::mods_menu_picked(list && list[0] ? list[0] : ""); };
-      static const SDL_DialogFileFilter filters[] = {{"Mods (.zip, .7z, .rar)", "zip;7z;rar"}};
+      static const SDL_DialogFileFilter filters[] = {{"Mods (.zip, .7z, .rar), mech loadouts (.m3c)", "zip;7z;rar;m3c"}};
       if (folder) SDL_ShowOpenFolderDialog(done, nullptr, parent, nullptr, false);
       else SDL_ShowOpenFileDialog(done, nullptr, parent, filters, 1, nullptr, false);
     };

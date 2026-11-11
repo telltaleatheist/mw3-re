@@ -30,6 +30,7 @@
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/sdl_restart.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "upgrades/mods/entry_archives.h"
 #if defined(MW3_PM_SUITE)
 #include "gamez/zgame/zgame_table.h"
 #include "pm/pm_game.h"
@@ -5116,6 +5117,82 @@ TEST(sdl_program_restarts_into_and_out_of_an_entry) {
   fs::remove_all(dir, ec);
 }
 
+// IMPORT's outcome on the screen, in the real program with its real fonts: a mod with one faulty file is added
+// and the two lines under MODS say so with the warnings' count and REPORT (before, an import from an installer
+// showed only what it took, and the warnings were in the log alone); a name too long for the line is left to
+// DETAILS, and its row in the list ends "...". The lines are the log's "on the screen:" line.
+TEST(sdl_program_mods_import_says_the_warnings_on_the_screen) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/import words";
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel, std::ios::binary) << text;
+  };
+  auto import = [&](const std::string& pick, const char* name) {
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    const pid_t pid = spawn_mw3({"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                                 "--frames", "260", "--open-mods", "--pick", dir + "/pick/" + pick, "--click-at", "170,446@150"}, log);
+    EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    const size_t at = text.find("mw3: mods: on the screen: ");
+    const std::string line = at == std::string::npos ? std::string() : text.substr(at + 26, text.find('\n', at) - at - 26);
+    std::printf("  %s: %s\n", name, line.empty() ? "(no line)" : line.c_str());
+    return line;
+  };
+  put("pick/faulty/mod.txt", "name=Faulty\n");
+  put("pick/faulty/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  put("pick/faulty/zbd/broken.zbd", "not an archive");
+  EXPECT(import("faulty", "a") == "Added Faulty: 1 warning: REPORT says what. | Tick it for a campaign, then PLAY.");
+  put("pick/long/mod.txt", "name=A Weapons Mod With A Very Long Name v 2.48.32 And More\n");
+  put("pick/long/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  put("pick/long/zbd/broken.zbd", "not an archive");
+  EXPECT(import("long", "b") == "Added. 1 warning: REPORT says what. | Tick it for a campaign, then PLAY.");
+  put("pick/good/mod.txt", "name=Good\n");
+  put("pick/good/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  EXPECT(import("good", "c") == "Added Good: tick it for a campaign, then PLAY. | ");
+  fs::remove_all(dir, ec);
+}
+
+// DELETE on the MODS screen asks once. DELETE and RESET are two tabs in one place; after a mod was deleted the
+// game's own campaign is chosen and RESET shown, and the click just answered reached that tab too: "Reset
+// MechWarrior 3 to the original?" came up straight after the delete's OK. In the real program, by clicks: a mod
+// imported (its row chosen), DELETE, OK in the box; the log has one question and the mod's folder is gone.
+TEST(sdl_program_mods_delete_asks_once) {
+  namespace fs = std::filesystem;
+  const std::string game = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/delete once";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/pick/good/zbd", ec);
+  std::ofstream(dir + "/pick/good/mod.txt") << "name=Good\n";
+  std::ofstream(dir + "/pick/good/zbd/fmv.zrd") << "(INTRO (PLAYAVI intro))\n";
+  const std::string log = dir + "/run.log";
+  int status = 0;
+  // IMPORT (148,438), then DELETE (28,353) with the new mod's row chosen, then the box's OK.
+  const pid_t pid = spawn_mw3({"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                               "--frames", "330", "--open-mods", "--pick", dir + "/pick/good", "--click-at", "170,446@150", "--click-at", "50,361@220",
+                               "--click-at", "247,288@260"}, log);
+  EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  std::ifstream f(log);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  int asks = 0;
+  for (size_t i = text.find("mw3: mods: asks: "); i != std::string::npos; i = text.find("mw3: mods: asks: ", i + 1)) {
+    ++asks;
+    std::printf("  %s\n", text.substr(i, text.find('\n', i) - i).c_str());
+  }
+  EXPECT(asks == 1 && text.find("mw3: mods: asks: Delete Good?") != std::string::npos);
+  EXPECT(text.find("mw3: mods: delete mods/Good : done") != std::string::npos && text.find("mods: reset") == std::string::npos);
+  EXPECT(!fs::exists(dir + "/wd/mods/Good", ec));
+  fs::remove_all(dir, ec);
+}
+
 // mw3launcher --version (found missing by a package dry run): the build's version on one line, exit 0, with no
 // window and nothing made, wherever it stands among the arguments; mw3's and the launcher's are the same build.
 TEST(sdl_program_launcher_says_its_version) {
@@ -5166,6 +5243,7 @@ TEST(sdl_program_mods_import_keeps_a_mods_archives) {
       uint32_t size = in.entries[i].length;
       EXPECT(zutl_zar::read(in, i, data.data(), &size) == 0);
       zutl_zar::add(out, in.entries[i].name, data.data(), size);
+      if (i == 0) zutl_zar::add(out, "zz_arch_new.zrd", data.data(), size);  // and one entry the game does not have
     }
     zutl_zar::close(out), zutl_zar::close(in);
     zutl_zar::destroy(out), zutl_zar::destroy(in);
@@ -5178,8 +5256,33 @@ TEST(sdl_program_mods_import_keeps_a_mods_archives) {
   std::ifstream f(log);
   const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   EXPECT(text.find("is outside the game's folders") == std::string::npos);
-  EXPECT(fs::file_size(dir + "/wd/mods/Arch/zbd/reader.zbd", ec) == fs::file_size(dir + "/pick/arch/zbd/reader.zbd", ec) && !ec);
+  // Kept as the one entry it adds to the game's reader.zbd (upgrades/mods/entry_archives.h), read in the program.
+  EXPECT(mech3::archive_entry_names(dir + "/wd/mods/Arch/zbd/reader.zbd.entries") == std::vector<std::string>{"zz_arch_new.zrd"});
+  EXPECT(!fs::exists(dir + "/wd/mods/Arch/zbd/reader.zbd", ec) && text.find("reader archives: 1 kept as the entries it changes (1 in all)") != std::string::npos);
   EXPECT(!fs::exists(dir + "/wd/mods/Arch/mw3-mod-left-out.txt", ec));  // IMPORT's record of what it left out: none
+  fs::remove_all(dir, ec);
+}
+
+// A MODS TEST mission's debriefing names its mission: the test is played by a stand-in pilot with no game of its
+// own, and the title read the dialog's unfilled message ("Operation !d!, Mission !d!", seen on the screen
+// 2026-11-11). The real program, hidden: --entry mw3 --entry-test c2 3, the mission lost by the script.
+TEST(sdl_program_test_mission_debriefing_names_its_mission) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/c2/readerm3.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/test debrief";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir, ec);
+  for (const char* end : {"--lose", "--win"}) {
+    const std::string log = dir + "/run" + end + ".log";
+    int status = 0;
+    const pid_t pid = spawn_mw3({"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
+                                 "--frames", "500", "--entry", "mw3", "--entry-test", "c2", "3", end, "120"}, log);
+    EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    EXPECT(text.find("mw3: debriefing of a MODS test mission: Operation 2, Mission 3\n") != std::string::npos && text.find("!d!") == std::string::npos);
+  }
   fs::remove_all(dir, ec);
 }
 
@@ -7089,6 +7192,7 @@ TEST(sdl_pm_program_mods_import_keeps_a_mods_archives) {
       uint32_t size = in.entries[i].length;
       EXPECT(zutl_zar::read(in, i, data.data(), &size) == 0);
       zutl_zar::add(out, in.entries[i].name, data.data(), size);
+      if (i == 0) zutl_zar::add(out, "zz_arch_new.zrd", data.data(), size);  // and one entry the game does not have
     }
     zutl_zar::close(out), zutl_zar::close(in);
     zutl_zar::destroy(out), zutl_zar::destroy(in);
@@ -7110,7 +7214,14 @@ TEST(sdl_pm_program_mods_import_keeps_a_mods_archives) {
   std::ifstream f(log);
   const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
   EXPECT(text.find("is outside the game's folders") == std::string::npos);
-  EXPECT(fs::file_size(dir + "/wd/mods/Arch/zbd/reader.zbd", ec) == fs::file_size(dir + "/pick/arch/zbd/reader.zbd", ec) && !ec);
+  // Kept as the one entry it adds to the game's reader.zbd (upgrades/mods/entry_archives.h), read in the program.
+  {
+    const zgame::Table& was = zgame::game();
+    zgame::set_game(pm::table());
+    EXPECT(mech3::archive_entry_names(dir + "/wd/mods/Arch/zbd/reader.zbd.entries") == std::vector<std::string>{"zz_arch_new.zrd"});
+    zgame::set_game(was);
+  }
+  EXPECT(!fs::exists(dir + "/wd/mods/Arch/zbd/reader.zbd", ec) && text.find("reader archives: 1 kept as the entries it changes (1 in all)") != std::string::npos);
   EXPECT(!fs::exists(dir + "/wd/mods/Arch/mw3-mod-left-out.txt", ec));  // IMPORT's record of what it left out: none
   fs::remove_all(dir, ec);
 }

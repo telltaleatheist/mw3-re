@@ -4,23 +4,32 @@
 
 #include "mech3/mods_tables.h"
 #include "upgrades/mods/campaign_entries.h"
+#include "upgrades/mods/screen_fit.h"
 
 namespace mech3 {
 
 void ModTickList::fill(const std::string& dir, const std::vector<std::string>& on, const std::vector<std::string>& fixed, bool assets) {
   write_dir = dir, locked = fixed, assets_only = assets;
   ticks.clear();
+  // A mod that is only a campaign has nothing to lay over Instant Action: not listed there, and not ticked.
+  std::vector<std::string> hidden;
+  if (no_campaign_only)
+    for (const ModInfo& m : mods_found(write_dir))
+      if (mod_is_only_campaign(m)) hidden.push_back(m.folder);
+  auto is_hidden = [&](const std::string& f) { return std::find(hidden.begin(), hidden.end(), f) != hidden.end(); };
   for (const std::string& t : on)
-    if (!is_locked(t)) ticks.push_back(t);
+    if (!is_locked(t) && !is_hidden(t)) ticks.push_back(t);
   const int32_t was = list.selected;
   std::vector<std::string> all = locked;
   all.insert(all.end(), ticks.begin(), ticks.end());
   rows.clear();
   for (ModsListEntry& m : mods_list(write_dir, all))
-    if (is_locked(m.info.folder) || !assets_only || !mod_is_campaign(m.info)) rows.push_back(std::move(m));
+    if (is_locked(m.info.folder) || ((!assets_only || !mod_is_campaign(m.info)) && !is_hidden(m.info.folder))) rows.push_back(std::move(m));
   list.clear_items();
+  // A long name is cut to the box with "..." (the selected row's font, the wider of the two); DETAILS has it whole.
   for (size_t i = 0; i < rows.size(); ++i)
-    list.add_item(row_text(rows[i]).c_str(), static_cast<int32_t>(i) | (is_locked(rows[i].info.folder) ? ModsList::kLockedRow : 0));
+    list.add_item(mods_text_fit(row_text(rows[i]), list.rows.empty() ? nullptr : list.rows[0], kModsRowPx, kModsRowChars).c_str(),
+                  static_cast<int32_t>(i) | (is_locked(rows[i].info.folder) ? ModsList::kLockedRow : 0));
   list.layout();
   if (list.item_count()) list.FileList::select(was >= 0 && was < list.item_count() ? was : 0);
 }

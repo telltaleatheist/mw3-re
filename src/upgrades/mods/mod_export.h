@@ -34,6 +34,7 @@ struct ModExportResult {
   int files = 0, left_out = 0;
   int refused = -1;           // ours (modder step 8): the check before packing: above 0, the game would refuse the mod (-1 unchecked)
   int warnings = 0;           // the check's warnings (a file or line left out or partly read)
+  int repacked = 0;           // archives the mod holds as their changed entries, put into the zip whole (entry_archives.h)
   bool made_mod_txt = false;  // a folder without one: a mod.txt written into the zip (never into the folder)
   std::string message;  // one line for the screen
 };

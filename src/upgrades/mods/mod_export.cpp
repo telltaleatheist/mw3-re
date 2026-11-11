@@ -1,3 +1,5 @@
+#include "upgrades/mods/entry_archives.h"
+#include "gamez/zutil/zutl_path.h"
 #include "upgrades/mods/mod_export.h"
 #include "upgrades/mods/mod_report.h"
 
@@ -157,10 +159,11 @@ ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_pa
   };
   if (archive_write_open_filename(a, saving.string().c_str()) != ARCHIVE_OK) fail("cannot write " + saving.filename().string());
   const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-  auto put = [&](const std::string& rel, const std::function<bool(archive*)>& data, int64_t size) {
+  // `as`: its name in the zip when that is not the file's own (the file's time is still the file's).
+  auto put = [&](const std::string& rel, const std::function<bool(archive*)>& data, int64_t size, const std::string& as = std::string()) {
     if (!why.empty()) return;
     archive_entry* e = archive_entry_new();
-    archive_entry_set_pathname_utf8(e, (top + "/" + rel).c_str());
+    archive_entry_set_pathname_utf8(e, (top + "/" + (as.empty() ? rel : as)).c_str());
     archive_entry_set_filetype(e, AE_IFREG);
     archive_entry_set_perm(e, 0644);
     archive_entry_set_size(e, size);
@@ -178,6 +181,31 @@ ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_pa
   std::vector<char> buf(1 << 16);
   for (const std::string& rel : list.files) {
     const fs::path p = root / fs::path(rel);
+    // Both ways (entry_archives.h): an archive the mod holds as its changed entries goes into the zip whole, the
+    // game's own with those entries laid over it, as the mount builds it: the exported mod is ordinary files,
+    // which the original game takes too. The mod's folder is not changed.
+    if (const std::string of = entries_archive_of(rel); !of.empty()) {
+      const std::string own = install.empty() ? std::string() : zutl::any_case(install, of);
+      std::string w;
+      std::vector<uint8_t> whole;
+      if (!own.empty()) {
+        std::ifstream base(own, std::ios::binary);
+        whole = entries_laid_over(std::vector<uint8_t>((std::istreambuf_iterator<char>(base)), std::istreambuf_iterator<char>()), p.string(), nullptr, &w);
+      } else {
+        w = "the game's own " + of + " is not there to lay its changed entries over";
+      }
+      if (whole.empty()) {
+        fail(of + " cannot be made whole: " + w);
+        break;
+      }
+      Sha256 s;
+      s.add(whole.data(), whole.size());
+      put(rel, [&](archive* wr) { return archive_write_data(wr, whole.data(), whole.size()) == static_cast<la_ssize_t>(whole.size()); },
+          static_cast<int64_t>(whole.size()), of);
+      sums += s.hex() + "  " + of + "\n";
+      ++r.repacked;
+      continue;
+    }
     std::ifstream f(p, std::ios::binary);
     const int64_t size = static_cast<int64_t>(fs::file_size(p, ec));
     if (!f || ec) {
@@ -224,6 +252,7 @@ ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_pa
   r.files = static_cast<int>(list.files.size()), r.left_out = static_cast<int>(list.left_out.size());
   r.message = "Exported " + (info.name.empty() ? info.folder : info.name) + " to " + zip.filename().string() + " (" +
               std::to_string(r.files) + (r.files == 1 ? " file" : " files") + (r.made_mod_txt ? " and a mod.txt" : "") + ").";
+  if (r.repacked) r.message += " Its " + std::to_string(r.repacked) + (r.repacked == 1 ? " archive kept as changed entries is whole in the zip." : " archives kept as changed entries are whole in the zip.");
   if (r.refused > 0) r.message += " The game would refuse this mod; its report says why.";
   else if (r.warnings > 0)
     r.message += " The check has " + std::to_string(r.warnings) + (r.warnings == 1 ? " warning about it; its report says what." : " warnings about it; its report lists them.");

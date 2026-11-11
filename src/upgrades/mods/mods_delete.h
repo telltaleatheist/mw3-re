@@ -29,6 +29,7 @@ struct DeletePlan {
   std::string label;     // the tab's: "DELETE", "RESET"; "" when there is nothing to offer
   std::string question;  // the confirm's words
   std::string refused;   // why it is not offered or cannot be done, for the note
+  bool by_hand = false;  // refused because the game did not add it (no marker of ours): the player removes it
   std::string mod;       // the mod folder that goes ("" none)
   const char* mod_marker = nullptr;
   std::string entry;     // the campaign folder that goes or is reset ("" none)

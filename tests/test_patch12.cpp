@@ -17,7 +17,10 @@
 #include "gamez/zutil/zutl_msgdll.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include <fstream>
 #include "mech3/patch12.h"
+#include "mech3/mods.h"
+#include "upgrades/mods/entry_archives.h"
 #include "mech3/patch12_tree.h"
 #include "platform/silent_sound.h"
 
@@ -170,6 +173,78 @@ TEST(patch12_acts_on_10s_files_only) {
     mech3::patch12::uninstall();
   }
   mech3::patch12::forget_files();
+}
+
+// A mod kept as its changed entries (upgrades/mods/entry_archives.h) over a 1.0 install: the archive the game
+// reads is built from 1.0's reader.zbd, so the layer still makes 1.0's own entries 1.2's (as with no mod), and
+// an entry the mod itself changed is left as the mod made it (as in a mod's whole archive, which the layer
+// never touches).
+TEST(patch12_acts_on_10s_entries_under_a_mods_changed_entries) {
+  if (!have_both()) return;
+  SavedMounts keep;
+  const std::string install = kRoot + "/mw3-1.0", wd = std::string(MW3_TEST_TMP) + "/patch12_entries";
+  std::error_code ec;
+  std::filesystem::remove_all(wd, ec);
+  // The 1.2 game's own hud.zrd, as a mod's changed entry; and an entry the game does not have.
+  std::vector<mech3::ArchiveEntry> v12, v10;
+  EXPECT(mech3::archive_read_entries(kRoot + "/mw3-1.2/zbd/reader.zbd", &v12));
+  EXPECT(mech3::archive_read_entries(install + "/zbd/reader.zbd", &v10));
+  const auto mod = [&](const char* folder, const char* file, int with_hud) {
+    std::filesystem::create_directories(wd + "/mods/" + folder + "/zbd", ec);
+    std::ofstream(wd + "/mods/" + folder + "/mod.txt") << "name=" << folder << "\n";
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    zutl_zar::create(a, (wd + "/mods/" + folder + "/zbd/" + file).c_str());
+    const uint32_t extra[] = {4, 2, 1, 7};  // a list of one whole number
+    zutl_zar::add(a, "zz_mod.zrd", extra, sizeof extra);
+    for (const mech3::ArchiveEntry& e : with_hud == 2 ? v10 : v12)
+      if (with_hud && e.name == "hud.zrd") zutl_zar::add(a, e.name.c_str(), e.data.data(), static_cast<uint32_t>(e.data.size()));
+    zutl_zar::close(a);
+    zutl_zar::destroy(a);
+  };
+  mod("adds", "reader.zbd.entries", 0);
+  mod("huds", "reader.zbd.entries", 1);
+  mod("olds", "reader.zbd.entries", 2);  // a mod whose hud.zrd is, byte for byte, 1.0's own
+  const auto loaded_hud = [&](const std::vector<std::string>& mods, bool* ten, bool* edited) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd);
+    if (!mods.empty()) mech3::mods_mount(wd, mods, {install});
+    zutl::mount(install);
+    mech3::patch12::forget_files();
+    *ten = mech3::patch12::is_10("zbd\\reader.zbd");
+    zrdr::Node* raw = read_entry(zutl::find("zbd/reader.zbd"), "hud.zrd");
+    *edited = mech3::patch12::on_load("zbd\\reader.zbd", "HUD.ZRD", raw);
+    zrdr::free_node(raw);
+    mech3::patch12::install();
+    zrdr::init();
+    zrdr::close_archives(true);
+    std::string text;
+    if (zrdr::open_archive("zbd\\reader.zbd", true))
+      if (zrdr::Node* n = zrdr::load("hud.zrd")) text = mech3::patch12::tree::text(*n), zrdr::free_node(n);
+    zrdr::close_archives(true);
+    mech3::patch12::uninstall();
+    mech3::patch12::forget_files();
+    return text;
+  };
+  bool ten = false, edited = false;
+  const std::string plain = loaded_hud({}, &ten, &edited);
+  EXPECT(ten && edited && !plain.empty());
+  // The mod adds an entry: hud.zrd is still 1.0's own, made 1.2's as with no mod.
+  const std::string under = loaded_hud({"adds"}, &ten, &edited);
+  EXPECT(zutl::find("zbd/reader.zbd").find("mod-merged") != std::string::npos);
+  EXPECT(ten && edited && under == plain);
+  // The mod changes hud.zrd itself: left as the mod's (here 1.2's own bytes), not edited.
+  zrdr::Node* want = read_entry(kRoot + "/mw3-1.2/zbd/reader.zbd", "hud.zrd");
+  const std::string theirs = loaded_hud({"huds"}, &ten, &edited);
+  EXPECT(ten && !edited && want && theirs == mech3::patch12::tree::text(*want));
+  zrdr::free_node(want);
+  // A mod's hud.zrd that happens to be 1.0's bytes is still the mod's: not made 1.2's (the layer would change it).
+  zrdr::Node* old = read_entry(install + "/zbd/reader.zbd", "hud.zrd");
+  const std::string kept = loaded_hud({"olds"}, &ten, &edited);
+  EXPECT(ten && !edited && old && kept == mech3::patch12::tree::text(*old) && kept != plain);
+  zrdr::free_node(old);
+  std::printf("  hud.zrd: %zu letters with no mod, the same under a mod's entries: %d; the mod's own: %zu\n", plain.size(), under == plain, theirs.size());
+  std::filesystem::remove_all(wd, ec);
 }
 
 // force_eff.ifr: 1.0's with the layer has 1.2's effects, record for record

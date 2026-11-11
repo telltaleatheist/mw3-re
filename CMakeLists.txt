@@ -362,6 +362,8 @@ add_library(mw3core STATIC
   src/upgrades/mods/save_mods.cpp
   src/upgrades/mods/import_folder.cpp
   src/upgrades/mods/import_texts.cpp
+  src/upgrades/mods/import_loadout.cpp
+  src/upgrades/mods/entry_archives.cpp
   src/upgrades/mods/bz2_read.cpp
   src/upgrades/mods/installer_read.cpp
   src/upgrades/settings/upgrades.cpp
@@ -375,6 +377,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/marked_remove.cpp
   src/upgrades/mods/entry_pilots.cpp
   src/upgrades/mods/mods_tick_list.cpp
+  src/upgrades/mods/screen_fit.cpp
   src/upgrades/mods/ia_mods_menu.cpp
   src/upgrades/mods/starter_mods.cpp
   src/upgrades/update/update.cpp
@@ -662,6 +665,7 @@ add_executable(mw3tests
   tests/test_mods.cpp
   tests/test_mod_install.cpp
   tests/test_import_folder.cpp
+  tests/test_entry_archives.cpp
   tests/test_installer_read.cpp
   tests/test_reference.cpp
   tests/test_mod_campaign_pilots.cpp

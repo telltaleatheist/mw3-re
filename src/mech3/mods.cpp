@@ -1,3 +1,4 @@
+#include "upgrades/mods/entry_archives.h"
 #include "mech3/mods.h"
 #include "mech3/mod_install.h"
 
@@ -176,6 +177,11 @@ bool archive_has(const std::vector<std::string>& roots, const std::string& rel, 
             }))
           return true;
     const fs::path a = fs::path(root) / rel;
+    // The archive kept as its changed entries (entry_archives.h): one of them is the game's; any other entry is
+    // the next holder's.
+    if (const std::string cut = a.string() + kEntriesSuffix; fs::is_regular_file(cut, ec))
+      for (const std::string& e : archive_entry_names(cut))
+        if (crt::msvc_stricmp(e.c_str(), entry.c_str()) == 0) return true;
     if (!fs::is_regular_file(a, ec)) continue;
     zutl_zar::Archive z;
     zutl_zar::init(z);
@@ -300,6 +306,11 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
         continue;
       }
       bool over = false;
+      if (const std::string of = entries_archive_of(rel); !of.empty()) {  // its changed entries: laid over the game's below
+        log.push_back("  " + of + ": its changed entries (" + std::to_string(archive_entry_names((fs::path(it->path) / rel).string()).size()) + ")");
+        ++replaced;
+        continue;
+      }
       for (const std::string& root : later) over = over || fs::is_regular_file(fs::path(root) / rel, ec);
       log.push_back("  " + rel + (over ? " replaces the game's" : " added"));
       ++(over ? replaced : added);
@@ -342,6 +353,12 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     mod_campaigns().push_back(c);
     log.push_back("mod " + c.mod + ": campaign \"" + c.name + "\" (" + c.file + ", " + std::to_string(c.missions.size()) +
                   " missions) added");
+  }
+  // Ours (upgrades/mods/entry_archives.h): the archives the mods hold as their changed entries, built over the
+  // game's own in a folder of ours and mounted in front, so the game reads whole archives.
+  {
+    std::vector<std::string> mod_roots(roots.begin(), roots.end() - static_cast<std::ptrdiff_t>(later.size()));
+    if (const std::string merged = entries_merge(write_dir, mod_roots, later, &log); !merged.empty()) zutl::mount_front(merged);
   }
   return log;
 }
@@ -435,7 +452,14 @@ std::vector<std::string> mod_files(const std::string& path) {
   for (fs::recursive_directory_iterator f(path, ec), end; !ec && f != end; f.increment(ec))
     if (f->is_regular_file(ec)) {
       const std::string rel = lower(fs::relative(f->path(), path, ec).generic_string());
-      if (!mod_own_file(rel)) files.push_back(rel);
+      if (mod_own_file(rel)) continue;
+      // An archive kept as its changed entries (entry_archives.h) shares by entry: two mods that change
+      // different entries of one archive both apply.
+      if (const std::string of = entries_archive_of(rel); !of.empty()) {
+        for (const std::string& e : archive_entry_names(f->path().string())) files.push_back(of + ": " + lower(e));
+        continue;
+      }
+      files.push_back(rel);
     }
   std::sort(files.begin(), files.end());
   return files;
@@ -537,8 +561,14 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
       }
       for (const std::string& w : worlds)
         if (std::find(e.anim_bases.begin(), e.anim_bases.end(), w) == e.anim_bases.end()) e.anim_bases.push_back(w), shared = true;
-      for (const std::string& f : files)
-        if (std::binary_search(before[k].first.begin(), before[k].first.end(), f)) e.shadowed.push_back(f), shared = true;
+      for (const std::string& f : files) {
+        // An entry of an archive kept as changed entries ("<archive>: <entry>") is also the earlier mod's when
+        // that mod holds the whole archive: its archive wins whole.
+        const size_t colon = f.find(": ");
+        if (std::binary_search(before[k].first.begin(), before[k].first.end(), f) ||
+            (colon != std::string::npos && std::binary_search(before[k].first.begin(), before[k].first.end(), f.substr(0, colon))))
+          e.shadowed.push_back(f), shared = true;
+      }
       for (const std::string& r : rows)
         if (std::find(before[k].second.begin(), before[k].second.end(), r) != before[k].second.end()) e.rows_taken.push_back(r), shared = true;
       if (shared) e.conflicts_with.push_back(before_folders[k]);
@@ -886,15 +916,28 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
   std::sort(files.begin(), files.end());
   int archives = 0, entries = 0;
   for (const std::string& rel : files) {
-    const std::string low = lower(rel);
-    if (mod_own_file(low)) continue;
+    const std::string low_rel = lower(rel);
+    if (mod_own_file(low_rel)) continue;
     if (!zutl::mod_may_serve(rel)) {
       out.push_back(rel + ": the player's own kind of file, which a mod cannot replace (ignored)");
       ++fx.ignored;
       continue;
     }
-    const bool over = !install.empty() && fs::is_regular_file(zutl::any_case(install, rel), ec);
-    out.push_back(rel + (install.empty() ? "" : over ? ": replaces the game's" : ": added"));
+    // An archive kept as its changed entries (entry_archives.h): checked as the archive it stands for.
+    const std::string cut_of = entries_archive_of(rel);
+    const std::string low = cut_of.empty() ? low_rel : lower(cut_of);
+    const bool over = !install.empty() && fs::is_regular_file(zutl::any_case(install, cut_of.empty() ? rel : cut_of), ec);
+    if (!cut_of.empty()) {
+      const std::vector<std::string> changed = archive_entry_names((fs::path(dir) / rel).generic_string());
+      out.push_back(rel + ": the changed entries of " + cut_of + " (" + std::to_string(changed.size()) + ")");
+      std::string names;
+      for (size_t i = 0; i < changed.size() && i < 6; ++i) names += (i ? ", " : "") + changed[i];
+      if (changed.size() > 6) names += " and " + std::to_string(changed.size() - 6) + " more";
+      fx.cut.push_back(cut_of + ": " + names);
+      fx.cut_entries += static_cast<int>(changed.size());
+    } else {
+      out.push_back(rel + (install.empty() ? "" : over ? ": replaces the game's" : ": added"));
+    }
     ++fx.files, ++(over ? fx.replaces : fx.adds);
     // Which of the game's missions it replaces (REPORT says them): a mission's own archive, or its world's files.
     if (over && low.rfind("zbd/", 0) == 0 && std::count(low.begin(), low.end(), '/') == 2) {

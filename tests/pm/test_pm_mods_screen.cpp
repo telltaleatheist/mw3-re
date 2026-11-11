@@ -261,18 +261,18 @@ TEST(pm_mods_screen_campaigns_their_own_ticks_and_reset_headless) {
         // RESET on the Pirate Missions: CANCEL first, then OK. The Campaign's folder is not part of it.
         campaign("Pirate Missions");
         answer = 2;
-        scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+        scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
         cancelled = scr->note.text;
         const bool kept = fs::exists(wd + "/campaigns/pirate/mods.txt") && fs::exists(wd + "/campaigns/pirate/pilots/kept.txt");
         answer = 1;
-        scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+        scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
         pirate_reset = kept && !fs::exists(wd + "/campaigns/pirate/mods.txt") && !fs::exists(wd + "/campaigns/pirate/pilots/kept.txt") &&
                        !fs::exists(wd + "/campaigns/pirate/pilots/games/Ace02.mw3") && fs::exists(wd + "/campaigns/pirate/mw3-campaign.txt");
         campaign_kept = text_of(wd + "/campaigns/campaign/mods.txt") == "mod=hud\n" && fs::exists(wd + "/campaigns/campaign/pilots/kept.txt") &&
                         fs::exists(wd + "/campaigns/campaign/pilots/games/Ace02.mw3");
         // The copy saved from the Pirate Missions, by its row.
         campaign("Pirates, mine");
-        scr->on_button(mech3::ModsScreen::kDelete, 0, 0);
+        scr->delete_asked = false, scr->on_button(mech3::ModsScreen::kDelete, 0, 0);  // a click of its own (one question a click)
         copy_gone = !fs::exists(wd + "/mods/mine") && !fs::exists(wd + "/campaigns/mine");
         main_kept = text_of(wd + "/pilots/the main menu's.txt") == "kept" && fs::exists(wd + "/mods/weps/mod.txt");
         rows_end = campaigns();
