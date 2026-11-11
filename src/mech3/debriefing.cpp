@@ -677,6 +677,16 @@ void DebriefScreen::on_button(int32_t id, int32_t a, int32_t b) {
     e.debrief_voice_play(state);
     return;
   }
+  // Ours (upgrades/editor/mods_edit.h): a mission started from MODS (MISSIONS, or the editor's) is played by a
+  // stand-in pilot with no game, so the kind is none of the three below and CONTINUE and ABORT both did
+  // nothing: the player stood on the debriefing with no way on (found 2026-11-11 by a scripted run of a won
+  // mission). Both leave it: the mission cleaned up and the main menu, which opens MODS again.
+  if (mods_edit_session().active && (id == kAbort || id == kContinue)) {
+    std::printf("mw3: debriefing of a MODS mission: %s, back to MODS\n", id == kAbort ? "ABORT" : "CONTINUE");
+    e.mission_cleanup(1);
+    e.replace_state(2);
+    return;
+  }
   if (id == kAbort) {
     if (kind == kInstantAction) {
       e.fade_to_state(kIaDummyState, 0, 1, 2, 2.0f, 0, 0, 0);  // [0x005e7274]: 2 s

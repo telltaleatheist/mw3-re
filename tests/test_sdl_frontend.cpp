@@ -5082,14 +5082,18 @@ TEST(sdl_program_editor_pointer_points_and_clicks) {
 // EDIT MISSION in play) and never leaves the mission; MODS comes back only when the mission is left, and takes
 // clicks. The real program: a mission opened in the editor, Escape and the switch (the editor down, the mission
 // on), Escape and the switch (up again), Escape and QUIT: the game starts again on MODS,
-// where TEST's click (the next run's script, --then) puts TEST's list in the left box.
+// where MISSIONS' click (the next run's script, --then) puts the missions in the left box.
+// The mission that ends by itself (won): the debriefing's CONTINUE, and in a third run its ABORT, leave it for
+// MODS the same way. Before 2026-11-11 neither button did anything there (the stand-in pilot has no game, so
+// the debriefing knew no way on) and the player stood on the debriefing.
 TEST(sdl_program_mission_switch_stays_and_mods_comes_back_alive) {
   namespace fs = std::filesystem;
   const std::string game = MW3_GAME_DIR;
   std::error_code ec;
   if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
   const std::string dir = std::string(MW3_TEST_TMP) + "/mission switch";
-  for (const bool won : {false}) {  // the won way stops at the debriefing, whose Continue no scripted click reaches
+  for (const int way : {0, 1, 2}) {  // QUIT; won and CONTINUE; won and ABORT
+    const bool won = way != 0;
     fs::remove_all(dir, ec);
     fs::create_directories(dir + "/wd", ec);
     const std::string log = dir + "/run.log";
@@ -5097,21 +5101,24 @@ TEST(sdl_program_mission_switch_stays_and_mods_comes_back_alive) {
     std::vector<std::string> args = {"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
                                      "--frames", "480", "--entry", "mw3", "--entry-edit", "c1", "1", "--mouse-at", "1,1@100",
                                      "--tap", "1@150", "--click-at", "60,380@200", "--tap", "1@260", "--click-at", "60,380@300"};
-    if (won) args.insert(args.end(), {"--tap", "1@350", "--click-at", "60,380@380", "--win", "420", "--frames", "900"});  // back in play, then won
+    // Back in play, then won 300 frames into play; the debriefing's CONTINUE (the tick at the right) or ABORT (the list at the left).
+    if (won) args.insert(args.end(), {"--tap", "1@350", "--click-at", "60,380@380", "--win", "300", "--click-at", way == 1 ? "595,450@900" : "57,440@900", "--frames", "1100"});
     else args.insert(args.end(), {"--tap", "1@350", "--click-at", "130,140@400"});  // QUIT
     args.insert(args.end(), {"--then", "--click-at", "70,344@330"});
     const pid_t pid = spawn_mw3(args, log);
     EXPECT(waited(pid, &status, 400) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-    for (const char* line : {"mw3: editor: ", "mw3: entry mw3 left", "mw3: mods: the left box shows MISSIONS"})
+    for (const char* line : {"mw3: editor: ", "mw3: debriefing of a MODS mission:", "mw3: entry mw3 left", "mw3: mods: the left box shows MISSIONS"})
       for (size_t i = text.find(line); i != std::string::npos; i = text.find(line, i + 1))
-        std::printf("  %s: %s\n", won ? "won" : "quit", text.substr(i, text.find('\n', i) - i).c_str());
+        std::printf("  %s: %s\n", way == 0 ? "quit" : way == 1 ? "won, CONTINUE" : "won, ABORT", text.substr(i, text.find('\n', i) - i).c_str());
     const size_t down = text.find(": down, row");
     const size_t up = down == std::string::npos ? down : text.find(": up, row", down);
     const size_t left = text.find("mw3: entry mw3 left: starting again on MODS");
     EXPECT(down != std::string::npos && up != std::string::npos);  // the switch both ways, in the mission
     EXPECT(left != std::string::npos && up < left);                // MODS only after the mission was left
+    const size_t said = text.find(way == 2 ? "mw3: debriefing of a MODS mission: ABORT, back to MODS" : "mw3: debriefing of a MODS mission: CONTINUE, back to MODS");
+    EXPECT(won ? said != std::string::npos && said < left : text.find("mw3: debriefing of a MODS mission:") == std::string::npos);
     EXPECT(text.find("mw3: mods: the left box shows MISSIONS", left == std::string::npos ? 0 : left) != std::string::npos);  // and alive
   }
   fs::remove_all(dir, ec);
@@ -5153,8 +5160,11 @@ TEST(sdl_program_mods_six_buttons) {
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     for (size_t i = text.find("mw3: mods: "); i != std::string::npos; i = text.find("mw3: mods: ", i + 1))
       std::printf("  %s: %s\n", wide ? "16:9" : "4:3", text.substr(i, text.find('\n', i) - i).c_str());
-    const size_t hover = text.find("mw3: mods: hover: Pick a mod's .zip, installer (.exe) or a file in its folder.");
-    EXPECT(hover != std::string::npos && text.find("IMPORT reads the mod out of it.", hover) != std::string::npos);
+    const size_t hover = text.find("mw3: mods: hover: Pick a mod's .zip, its installer (.exe) or a file in its");
+    EXPECT(hover != std::string::npos && text.find("Don't run the installer: IMPORT reads it.", hover) != std::string::npos);
+    // No hover line of the run is cut (the names here are short).
+    for (size_t i = text.find("mw3: mods: hover: "); i != std::string::npos; i = text.find("mw3: mods: hover: ", i + 1))
+      EXPECT(text.substr(i, text.find('\n', i) - i).find("...") == std::string::npos);
     const std::string hover_line = hover == std::string::npos ? std::string() : text.substr(hover, text.find('\n', hover) - hover);
     EXPECT(hover_line.find("...") == std::string::npos);  // whole, in two lines
     size_t ticks = 0;
@@ -5245,6 +5255,8 @@ TEST(sdl_program_mods_import_keeps_a_mods_archives) {
 // A MODS TEST mission's debriefing names its mission: the test is played by a stand-in pilot with no game of its
 // own, and the title read the dialog's unfilled message ("Operation !d!, Mission !d!", seen on the screen
 // 2026-11-11). The real program, hidden: --entry mw3 --entry-test c2 3, the mission lost by the script.
+// And its CONTINUE leaves it (before, no button of that debriefing did anything): the entry's own list of
+// missions comes up, in the same process, for the next one.
 TEST(sdl_program_test_mission_debriefing_names_its_mission) {
   namespace fs = std::filesystem;
   std::error_code ec;
@@ -5256,11 +5268,16 @@ TEST(sdl_program_test_mission_debriefing_names_its_mission) {
     const std::string log = dir + "/run" + end + ".log";
     int status = 0;
     const pid_t pid = spawn_mw3({"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
-                                 "--frames", "500", "--entry", "mw3", "--entry-test", "c2", "3", end, "120"}, log);
+                                 "--frames", "700", "--entry", "mw3", "--entry-test", "c2", "3", end, "120", "--click-at", "595,450@450"}, log);
     EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     EXPECT(text.find("mw3: debriefing of a MODS test mission: Operation 2, Mission 3\n") != std::string::npos && text.find("!d!") == std::string::npos);
+    const size_t on = text.find("mw3: debriefing of a MODS mission: CONTINUE, back to MODS");
+    std::printf("  %s: CONTINUE left the debriefing %d, the missions' list after it %d\n", end, on != std::string::npos,
+                on != std::string::npos && text.find("mw3: mods: the left box shows MISSIONS", on) != std::string::npos);
+    EXPECT(on != std::string::npos && text.find("mw3: mods: the left box shows MISSIONS", on) != std::string::npos);
+    EXPECT(text.find("mw3: entry mw3 left") == std::string::npos);  // still inside the campaign: its list plays the next in place
   }
   fs::remove_all(dir, ec);
 }
@@ -5460,6 +5477,9 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
     std::ofstream(dir + "/" + rel) << text;
   };
   put("wd/mods/hud/mod.txt", "name=Green HUD\n");
+  // A mod that is only a campaign (its campaign= lines, nothing to lay over a game): not a row of Instant Action's list.
+  put("wd/mods/acamp/mod.txt", "name=A Campaign\ncampaign=night.txt\n");
+  put("wd/mods/acamp/night.txt", "name=Long Night\nop=Op 1\nmission=c1 1\n");
   put("wd/configs/keep.mw3", "a saved mech");
   auto run = [&](const std::vector<std::string>& extra, const char* name) {
     std::vector<std::string> args = {"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
@@ -5484,6 +5504,8 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   const size_t brought = d.find("mw3: pilot a brought into ia from the main game (without saved games");
   std::printf("  D: brought quietly %d, restarted with the pilot %d, picked %d\n", brought != none && d.find("mw3: box answered") == none, asked != none, picked != none);
   EXPECT(brought != none && asked < brought && brought < picked && d.find("mw3: box answered") == none);
+  // The list on that screen: the asset mod alone (the campaign-only one, first by its name, would have taken the tick).
+  EXPECT(d.find("mw3: Instant Action's MODS lists: Green HUD\n") != none && d.find("A Campaign", d.find("mw3: Instant Action's MODS lists:")) == none);
   EXPECT(asked != none && picked != none && asked < picked && d.find("mw3: closed, result 0", picked) != none);
   EXPECT(picked != none && d.find("mw3: Instant Action open, MODS: 1 on, 4 maps", picked) != none);  // past the pilot screen, the mod on
   EXPECT(!bytes("wd/pilots/a.mw3").empty() && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));

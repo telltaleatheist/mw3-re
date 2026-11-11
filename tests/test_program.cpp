@@ -2759,6 +2759,146 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The MODS screen's views and their buttons (Owen's playtest W5; modding.md, The MODS screen): the tables have
+// MISSIONS, IMPORT and INFO, never EXPORT or OPEN FOLDER; INFO's view has those two and none of the tables';
+// MISSIONS' list has no tab at all. UP and DOWN show only for a ticked mod that shares something with another
+// ticked mod, and their hover line names the other. Every hover line is whole in the two note rows.
+TEST(mods_screen_each_view_has_its_buttons_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  const std::string wd = temp_dir("mods_screen_views_write");
+  zutl::set_write_dir(wd);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    std::filesystem::create_directories(std::filesystem::path(wd + "/" + rel).parent_path());
+    std::ofstream(wd + "/" + rel) << text;
+  };
+  put("mods/a/mod.txt", "name=Alpha\n");
+  put("mods/a/zbd/shared.txt", "alpha's");
+  put("mods/b/mod.txt", "name=Beta\n");
+  put("mods/b/zbd/shared.txt", "beta's");  // the same file: Alpha and Beta collide
+  put("mods/c/mod.txt", "name=Gamma\n");
+  put("mods/c/zbd/own.txt", "gamma's");
+  mech3::mods_menu_write_dir() = wd;
+  mech3::mods_menu_install() = MW3_GAME_DIR;
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::States& st = mech3::states();
+    int stage = 0;
+    std::string tables, unticked, no_collision, collision, third, info, after_info, missions, up_line, cut;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (stage == 0 && now == &st.main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->mods.on_left_up();
+        stage = 1;
+        return;
+      }
+      auto* ms = dynamic_cast<mech3::ModsState*>(now);
+      auto* scr = ms ? dynamic_cast<mech3::ModsScreen*>(engine.screen_of(ms->screen_)) : nullptr;
+      if (stage != 1 || !scr) {
+        if (stage == 2 && now == &st.main && app.depth() == 0) stage = 3;
+        return;
+      }
+      auto on = [](const ztwod::Object2D& o) { return !(o.flags & ztwod::kHidden); };
+      auto view = [&] {  // the tabs shown, in one word each
+        std::string v;
+        if (on(scr->missions_btn)) v += "MISSIONS ";
+        if (on(scr->add_btn)) v += "IMPORT ";
+        if (on(scr->info_btn)) v += "INFO ";
+        if (on(scr->delete_btn) || on(scr->delete_copy_btn) || on(scr->delete_rest_btn) || on(scr->reset_btn)) v += "delete ";
+        if (on(scr->export_btn)) v += "EXPORT ";
+        if (on(scr->folder_btn)) v += "FOLDER ";
+        if (on(scr->ticks.up)) v += "UP ";
+        if (on(scr->ticks.down)) v += "DOWN ";
+        return v;
+      };
+      auto pick = [&](const char* name) {
+        for (size_t i = 0; i < scr->ticks.rows.size(); ++i)
+          if (scr->ticks.rows[i].info.name == name) scr->mod_list.select(static_cast<int32_t>(i));
+      };
+      auto whole = [&](int32_t id) {  // the hover line said, and whether the two rows hold it whole
+        const std::string line = scr->hover_line(id);
+        scr->tell(line);
+        const std::string shown = std::string(scr->note.text) + (scr->restart.text[0] ? " " : "") + scr->restart.text;
+        if (line.empty() || shown != line) cut += std::to_string(id) + ": \"" + shown + "\" ";
+      };
+      tables = view();  // the game's own campaign chosen, no mod
+      for (int32_t id : {mech3::ModsScreen::kEnter, mech3::ModsScreen::kBack, mech3::ModsScreen::kMissions, mech3::ModsScreen::kAdd,
+                         mech3::ModsScreen::kInfo, mech3::ModsScreen::kDelete})
+        whole(id);
+      pick("Alpha");
+      unticked = view();
+      scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
+      pick("Gamma");
+      scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
+      pick("Alpha");
+      no_collision = view();  // two ticked that share nothing
+      pick("Beta");
+      scr->on_button(mech3::ModsScreen::kToggle, 0, 0);
+      pick("Beta");
+      collision = view();
+      up_line = scr->hover_line(mech3::ModsScreen::kUp);
+      for (int32_t id : {mech3::ModsScreen::kUp, mech3::ModsScreen::kDown, mech3::ModsScreen::kInfo, mech3::ModsScreen::kDelete}) whole(id);
+      pick("Gamma");
+      third = view();
+      pick("Beta");
+      scr->on_button(mech3::ModsScreen::kInfo, 0, 0);
+      info = view() + scr->shown_heading;
+      for (int32_t id : {mech3::ModsScreen::kEnter, mech3::ModsScreen::kBack, mech3::ModsScreen::kExport, mech3::ModsScreen::kOpenFolder}) whole(id);
+      scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+      after_info = view() + scr->shown_heading;
+      scr->campaign_list.select(0);
+      scr->on_button(mech3::ModsScreen::kMissions, 0, 0);
+      missions = view() + scr->shown_heading;
+      for (int32_t id : {mech3::ModsScreen::kEnter, mech3::ModsScreen::kBack}) whole(id);
+      scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+      scr->on_button(mech3::ModsScreen::kBack, 0, 0);
+      stage = 2;
+    };
+    CountingPump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    std::printf("  tables: %s| a mod unticked: %s| two ticked, nothing shared: %s| sharing: %s| the third: %s\n  INFO: %s| after it: %s| MISSIONS: %s\n  UP: %s\n  cut: %s\n",
+                tables.c_str(), unticked.c_str(), no_collision.c_str(), collision.c_str(), third.c_str(), info.c_str(), after_info.c_str(),
+                missions.c_str(), up_line.c_str(), cut.c_str());
+    EXPECT(stage == 3);
+    EXPECT(tables == "MISSIONS IMPORT INFO delete ");  // RESET on the game's own campaign
+    EXPECT(unticked == "MISSIONS IMPORT INFO " && no_collision == "MISSIONS IMPORT INFO ");  // hand-placed mods: no delete tab; no UP, DOWN
+    EXPECT(collision == "MISSIONS IMPORT INFO UP DOWN " && third == "MISSIONS IMPORT INFO ");
+    EXPECT(up_line == "Move it up to make it win where it and Alpha change the same thing.");
+    // BACK from INFO: the campaigns again, the choice back on the campaign (RESET), EXPORT and OPEN FOLDER gone.
+    EXPECT(info == "EXPORT FOLDER INFO" && after_info == "MISSIONS IMPORT INFO delete CAMPAIGNS" && missions == "MISSIONS");
+    EXPECT(cut.empty());
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  mech3::mods_menu_write_dir().clear();
+  mech3::mods_menu_install().clear();
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+}
+
 // Ours (Owen, 2026-11-09; editor.md, The way in): a custom campaign's mission
 // launched from MODS has the editor: Shift+F12 opens it and a net saved goes
 // into the campaign's mod; the pause offers EDITOR, which resumes and opens it.
