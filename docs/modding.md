@@ -1405,6 +1405,11 @@ answers the picker for scripted runs and shots.
 - The root: the shallowest folder with a mod.txt, else with the game's own
   folders (zbd, video, music) or Mech3.exe, else a lone folder followed down;
   what sits beside it (a pack's readme) is left behind.
+- A mod packed as the contents of the game's zbd folder (`reader.zbd`, `c1\` and the like at its top, no
+  `zbd` folder and no mod.txt; "PM 1.2 Mod - Beta.zip" is one): its top items that the install's `zbd` folder
+  also holds by name, and any `.zbd` file, are put under `zbd`, where the game reads them; the rest stay. The
+  written mod.txt and the log say so. With a mod.txt the author's layout is kept
+  (`mod_install_bare_zbd_contents_go_under_zbd`).
 - A whole install (Mech3.exe in its root) is cut to the files that differ
   from the player's install (byte for byte, names in any case); programs
   (.exe, .dll: an exe patch cannot apply) and the player's own kind of file
