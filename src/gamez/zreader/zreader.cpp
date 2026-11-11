@@ -1,3 +1,4 @@
+#include "gamez/zutil/zfix.h"
 #include "gamez/zreader/zreader.h"
 #include "upgrades/reference/reference.h"
 
@@ -54,34 +55,71 @@ Node* alloc_list(int32_t count) {
 // (the original read on into whatever followed, or allocated what the count
 // said); shipped entries read exactly as before.
 namespace {
-long g_entry_end = -1;  // -1: no end known (the original's read)
+// Ours, while an archive's entry is read (load): where the archive's own data ends (its table's start). -1: a
+// bare file, the original's read with no bound at all (the differential test's, the text files').
+long g_data_end = -1;
 int g_depth = 0;
-bool g_broken = false;
+bool g_broken = false;  // a count, a string or nesting no file could hold: the entry is not read
+bool g_short = false;   // the archive's data ran out under a list: its items from there on are empty ones
+bool g_odd = false;     // a word that is no node type was met (read on, as the original)
+constexpr int32_t kShortListMost = 4096;  // ours: the longest list taken on trust when its data is not all there
+bool room(std::FILE* file, long bytes) { return g_data_end < 0 || std::ftell(file) + bytes <= g_data_end; }
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x00557180. Returns the bytes read.
+// The exe reads nodes from the file until every list's count is met and knows no end: an entry whose list
+// says more items than the entry holds (the community's hand-made mpinfo.zrd and aiv.zrd entries do) takes
+// the entries after it as its tail, and loads. Ours: the same, as far as the archive's own data goes. Where
+// that runs out (the exe reads on through the table and past the file's end, into unset memory) the items
+// still owed are empty ones (Int 0) and the entry is kept; a count, a string or nesting no file could hold
+// makes the entry broken, not read (fixes.md).
 uint32_t read_node(std::FILE* file, Node* node) {
-  uint32_t total = read4(file, &node->type);
-  if (g_entry_end >= 0 && (g_broken || std::ftell(file) > g_entry_end)) {
-    g_broken = true;
+  if (g_data_end >= 0 && (g_broken || !room(file, 4))) {
+    if (!g_broken) g_short = true;
     node->type = Int, node->i = 0;
-    return total;
+    return 0;
   }
+  uint32_t total = read4(file, &node->type);
   switch (node->type) {
     case Int:
-      return total + read4(file, &node->i);
     case Float:
-      return total + read4(file, &node->f);
+      if (!room(file, 4)) {  // its value past the data: an empty one
+        g_short = true;
+        node->type = Int, node->i = 0;
+        return total;
+      }
+      return total + (node->type == Int ? read4(file, &node->i) : read4(file, &node->f));
     case String:
+      if (g_data_end >= 0) {  // its length first: the string whole inside the archive's data
+        const long at = std::ftell(file);
+        int32_t length = -1;
+        if (room(file, 4)) read4(file, &length);
+        if (length < 0 || !room(file, length)) {
+          g_broken = true;
+          node->type = Int, node->i = 0;
+          return total;
+        }
+        std::fseek(file, at, SEEK_SET);
+      }
       return zutl_zar::read_string(file, &node->s) + total;
     case List: {
       int32_t count = 0;
+      if (!room(file, 4)) {
+        g_short = true;
+        node->type = Int, node->i = 0;
+        return total;
+      }
       total += read4(file, &count);
-      if (g_entry_end >= 0) {
-        const long left = g_entry_end - std::ftell(file);
-        if (count < 0 || static_cast<long>(count) - 1 > left / 8 || g_depth >= 64) {
+      if (g_data_end >= 0) {
+        const long left = g_data_end - std::ftell(file);
+        // A count the data left cannot hold: a small one is a list short of its items (they are read as far
+        // as the data goes, the rest empty); a large one no file could hold, and is not allocated.
+        const bool fits = static_cast<long>(count) - 1 <= left / 8;
+        if (count < 0 || (!fits && count > kShortListMost) || g_depth >= 64) {
           g_broken = true;
           count = 0;
+        } else if (!fits) {
+          g_short = true;
         }
       }
       node->list = alloc_list(count);
@@ -94,9 +132,12 @@ uint32_t read_node(std::FILE* file, Node* node) {
     }
     default:
       zerr::report(0x400, kFile, 0x4b4, "Invalid reader node type in zRdrReadNode");
-      if (g_entry_end >= 0) {
-        g_broken = true;
-        node->type = Int, node->i = 0;
+      // The exe returns with the word left as the node's type and its value whatever malloc gave, and the
+      // list's loop reads on from the next word. FIX (bug): the node is an empty one (Int 0), so nothing
+      // later takes the word for a type or reads an unset value; the reading on is the exe's.
+      if (g_data_end >= 0) {
+        g_odd = true;
+        if (zfix::options().fixed) node->type = Int, node->i = 0;
       }
       return 0;
   }
@@ -782,14 +823,24 @@ Node* load(const char* path) {
     // A mod's own copy (mod_copy), given to the load hook as the entry is.
     if (Node* root = mod_copy(*a, g_fname)) return upgrades::reference::loaded(g_fname, root);  // ours: the reference test's observer
     Node* root = new_nodes(List, 1);
-    g_entry_end = std::ftell(f) + static_cast<long>(length), g_depth = 0, g_broken = false;
+    g_data_end = zutl_zar::data_end(*a), g_depth = 0, g_broken = false, g_short = false, g_odd = false;
+    const long start = std::ftell(f);
     read_node(f, root);
-    g_entry_end = -1;
-    if (g_broken) {  // ours: a broken entry is read as no entry, said once
+    const long end = std::ftell(f);
+    g_data_end = -1;
+    if (g_broken) {  // ours: a broken entry is read as no entry, said
       free_node(root);
-      std::printf("mw3: %s: its entry %s is broken (a count, type or nesting it cannot hold), not read\n", a->path, g_fname);
+      std::printf("mw3: %s: its entry %s is broken (a count, a string or nesting no file could hold), not read\n", a->path, g_fname);
       return g_missing_hook ? g_missing_hook(g_fname) : nullptr;
     }
+    // Read as the original reads it, and said: a mod's maker may want to know.
+    if (g_short)
+      std::printf("mw3: %s: its entry %s says more items than the archive holds after it; those it has are read, the rest left empty\n",
+                  a->path, g_fname);
+    else if (g_odd) std::printf("mw3: %s: its entry %s has a word that is no node type; read on, as the original does\n", a->path, g_fname);
+    else if (end - start > static_cast<long>(length))
+      std::printf("mw3: %s: its entry %s says more items than it holds; the %ld bytes after it read as its tail, as the original does\n",
+                  a->path, g_fname, end - start - static_cast<long>(length));
     if (g_load_hook) g_load_hook(a->path, g_fname, root);
     return upgrades::reference::loaded(g_fname, root);
   }

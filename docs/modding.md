@@ -1403,12 +1403,26 @@ reads, writes and deletes nothing, and the log says so
 
 **The reader archives' entries, bounded.** Every `reader*.zbd` entry (a
 mission's objectives, a mech's definition, the worlds' settings) is read
-through `zrdr::load` with the entry's own length known: a list whose count
-the bytes left cannot hold (every node is at least 8 bytes), a node of no
-type, or lists nested past 64 deep mark the entry broken. It is then read as
-no entry at all, and the log names the archive and the entry. The original
-read on into the next entries or allocated what the count said; the shipped
-entries read exactly as before (`test_zreader.py`, 178 files identical;
+through `zrdr::load` as the original reads it, inside the archive's own data
+(up to its table). The original's reader (0x00557180) knows no end to an
+entry: it reads nodes until every list's count is met. So an entry whose
+list says more items than the entry holds takes the entries after it as its
+tail, and loads; mods' hand-made `mpinfo.zrd` and `aiv.zrd` entries (their
+multiplayer and Instant Action maps) are often like that, and they load here
+as they do there (since 1.1.0; until then the bound was the entry's own
+length, and such a mod was refused whole). Where the archive's data runs out
+under such a list, the items it has are read and the rest are empty ones (the
+original read on through the table and past the file's end). A word that is
+no node type is an empty node and the reading goes on, as the original's
+does. Each of these is said in the log, naming the archive and the entry.
+Still broken, read as no entry at all: a list of more than 4,096 items that
+the data left cannot hold (every node is at least 8 bytes), a negative count,
+a string that runs past the data, lists nested past 64 deep; the original
+allocated what the count said. `--check-mod` reports such an entry as a
+warning naming the file, and IMPORT leaves that one file out and adds the
+rest of the mod. The shipped
+entries read exactly as before (`test_zreader.py`, 178 files identical, and
+300 made-up archives with over-long lists against the exe's own read;
 `test_zreader_text.py`, 540; `test_ai_readers.py`). Already bounded before
 M3: the archives' tables (`zutl_zar`: a count or a length the file cannot
 hold), strings (to the file's end), the text `.zrd` parser (an unclosed

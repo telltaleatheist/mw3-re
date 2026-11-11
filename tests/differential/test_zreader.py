@@ -157,6 +157,92 @@ def entries(data):
         yield name, start, length
 
 
+def archive(files):
+    """A version-1 archive of [(name, bytes)] (zreader.md)."""
+    body, table = b'', b''
+    for name, data in files:
+        table += struct.pack('<II', len(body), len(data)) + name.encode().ljust(64, b'\0') + bytes(0x94 - 72)
+        body += data
+    return body + table + struct.pack('<II', 1, len(files)), len(body)
+
+
+def tree_bytes(r, depth=0):
+    """A random node tree's bytes."""
+    k = r.choice([1, 1, 2, 3, 4, 4]) if depth < 3 else r.choice([1, 2, 3])
+    if k == 1:
+        return struct.pack('<ii', 1, r.randrange(-50, 50))
+    if k == 2:
+        return struct.pack('<if', 2, r.choice([0.5, -2.0, 1e9]))
+    if k == 3:
+        s = bytes(r.choice(b'abcxyz_0') for _ in range(r.randrange(0, 9)))
+        return struct.pack('<iI', 3, len(s)) + s
+    items = [tree_bytes(r, depth + 1) for _ in range(r.randrange(0, 5))]
+    return struct.pack('<ii', 4, len(items) + 1) + b''.join(items)
+
+
+def tails(buf):
+    """Entries whose lists say more items than they hold (the community's hand-made mpinfo.zrd and aiv.zrd
+    entries): the original reads on into the entries after it, and the port's archive read (zrdr::load, bounded
+    by the archive's own data) must give the same tree. Where the original's read leaves the archive's data
+    (the table, the file's end) the port stops and leaves the items owed empty: only its start is compared."""
+    import random
+    import tempfile
+    probe.probe_zrdr_load_entry.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    same = cut = odd = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / 'tails.zbd'
+        for seed in range(300):
+            r = random.Random(f'tail:{seed}')
+            n = r.randrange(2, 6)
+            files = []
+            for k in range(n):
+                items = [tree_bytes(r, 1) for _ in range(r.randrange(1, 6))]
+                files.append([f'e{k}.zrd', items])
+            victim = r.randrange(n)
+            more = r.choice([1, 1, 1, 2, 3, 12])
+            bad_word = r.random() < 0.15  # a word that is no node type in the victim (a hand edit)
+            blobs = []
+            for k, (name, items) in enumerate(files):
+                count = len(items) + 1 + (more if k == victim else 0)
+                body = b''.join(items)
+                if bad_word and k == victim:
+                    body = struct.pack('<i', r.choice([0, 9, 1024])) + body
+                    count += 1
+                blobs.append((name, struct.pack('<ii', 4, count) + body))
+            data, data_end = archive(blobs)
+            path.write_bytes(data)
+            start = sum(len(b) for _, b in blobs[:victim])
+            emu = Emulated(data)
+            emu.load(start)
+            inside = emu.pos <= data_end
+            out = []
+            emu.walk(emu.root, out, {}, set(), '', set())
+            want = ''.join(out)
+            got_ok = probe.probe_zrdr_load_entry(str(path).encode(), blobs[victim][0].encode())
+            if got_ok != 1:
+                raise SystemExit(f'tail seed {seed}: the port did not read the entry ({got_ok}); original read to '
+                                 f'{emu.pos:#x} of data {data_end:#x}')
+            probe.probe_zrdr_dump(buf, len(buf))
+            got = buf.value.decode('latin-1')
+            if inside:
+                if want != got:
+                    raise SystemExit(f'tail seed {seed}: trees differ\n  original {want[:300]}\n  port     {got[:300]}')
+                same += 1
+                odd += bad_word
+            else:
+                # The items read before the data ran out are the original's; after that the port's are empty.
+                head = 0
+                while head < min(len(want), len(got)) and want[head] == got[head]:
+                    head += 1
+                rest = got[head:].replace('I0 ', '').replace(']', '').strip()
+                if rest and not got[:head].endswith(' '):
+                    rest = got[got.rfind(' ', 0, head) + 1:].replace('I0 ', '').replace(']', '').strip()
+                if rest:
+                    raise SystemExit(f'tail seed {seed}: past the data the port holds more than empty items: {got[head:head + 200]!r}')
+                cut += 1
+    return same, cut, odd
+
+
 def main():
     if not READER.exists():
         raise SystemExit(f'needs {READER}')
@@ -202,6 +288,9 @@ def main():
                 lists += 1
             keys += 1
         files += 1
+    same, cut, odd = tails(buf)
+    print(f'ok: {same} made-up entries with a list longer than the entry read identically through the archive '
+          f'({odd} with a word that is no node type); {cut} whose read leaves the archive\'s data: the same start, the rest empty')
     print(f'ok: {files} files, identical trees; {keys} key lookups agree '
           f'({past} past-the-end reads compared on find only); '
           f'list and boolean getters agree on {lists} keys')

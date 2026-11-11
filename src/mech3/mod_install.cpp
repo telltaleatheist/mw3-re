@@ -14,6 +14,7 @@
 #include "upgrades/mods/campaign_entries.h"
 #include "mech3/source_archive.h"
 #include "upgrades/mods/mod_export.h"
+#include "upgrades/mods/mod_report.h"
 
 namespace mech3 {
 namespace fs = std::filesystem;
@@ -429,7 +430,14 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     f << "# Written by the game when this mod was added (it had no mod.txt).\n"
       << "name=" << a.name << "\nfor=" << (game == ModGame::kPm ? "pm" : "mw3") << "\n";
   }
-  r.report = mod_check(root.string(), install, &r.check_errors);
+  ModFindings facts;
+  r.report = mod_check(root.string(), install, &r.check_errors, &facts);
+  // A reader archive with an entry that cannot be read is left out of the copy being added (ours, in the
+  // staging folder: nothing of the player's), the rest of the mod added.
+  for (const std::string& rel : facts.unread_files) {
+    fs::remove(root / fs::path(rel), ec);
+    if (!ec) r.left_out.push_back(rel);
+  }
   if (r.check_errors > 0) {
     std::string first;
     for (const std::string& l : r.report)
@@ -504,6 +512,9 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   d.message = d.campaign_only ? "Added " + d.name + ": its campaign is listed."
               : !enabled ? "Added " + d.name + (mod_is_campaign(i) ? ": its campaign is listed." : ": tick it for a campaign, then PLAY.")
                          : "Added " + d.name + ": " + entry_on_words(write_dir) + (i.campaigns.empty() ? "." : "; its campaign is listed.");
+  if (!r.left_out.empty())
+    d.message += " Left out " + std::to_string(r.left_out.size()) + (r.left_out.size() == 1 ? " file" : " files") +
+                 " the game cannot read (" + r.left_out.front() + (r.left_out.size() == 1 ? ")." : " and more).");
   return d;
 }
 

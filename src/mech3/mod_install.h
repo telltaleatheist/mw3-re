@@ -76,6 +76,7 @@ struct ModAddResult {
   ModInfo info;                   // its mod.txt as read back
   int check_errors = 0;
   std::vector<std::string> report;  // mod_check's lines
+  std::vector<std::string> left_out;  // the mod's files not added: a reader archive with an entry that cannot be read
   std::string message;            // one line for the screen
 };
 // mod.txt written when it has none (for= from `game`), the mod checked

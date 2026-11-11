@@ -945,7 +945,12 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       for (const std::string& e : names) {
         ++entries;
         if (zrdr::Node* n = zrdr::load(e.c_str())) zrdr::free_node(n);
-        else error(rel + ": entry " + e + " cannot be read");
+        else {
+          // One entry no reader could hold (the original would not load the map either): said, not refused.
+          out.push_back("warning: " + rel + ": its " + e + " cannot be read; the map or mission it belongs to would not load, "
+                        "and IMPORT leaves this file out");
+          if (std::find(fx.unread_files.begin(), fx.unread_files.end(), rel) == fx.unread_files.end()) fx.unread_files.push_back(rel);
+        }
       }
       zrdr::close_archives(true);
     } else if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zrd") == 0) {
