@@ -431,9 +431,13 @@ TEST(bounded_readers_take_more_than_shipped) {
     }
     zrdr::Node* d64 = zrdr::load("deep64.zrd");
     zrdr::Node* d65 = zrdr::load("deep65.zrd");
-    std::printf("  reader: %zu entries, %d read, copies %d of %d; 64 deep read %d, 65 deep refused %d\n", m.size(), base + copies,
-                copies, base * 3, d64 != nullptr, d65 == nullptr);
-    EXPECT(base > 100 && copies == base * 3 && d64 != nullptr && d65 == nullptr);
+    // 65 deep: the 64 the reader allows are kept and it stops there, saying so (the graceful read, zreader.cpp).
+    int kept = 0;
+    for (zrdr::Node* n = d65; n && n->type == zrdr::List; n = zrdr::list_count(n) > 1 ? &n->list[1] : nullptr) ++kept;
+    const bool said = !zrdr::load_notes().empty() && zrdr::load_notes()[0].wrong.find("lists nested more than 64 deep") == 0;
+    std::printf("  reader: %zu entries, %d read, copies %d of %d; 64 deep read %d, 65 deep read to %d lists and said %d\n", m.size(),
+                base + copies, copies, base * 3, d64 != nullptr, kept, said);
+    EXPECT(base > 100 && copies == base * 3 && d64 != nullptr && d65 != nullptr && kept == 64 && said);
     if (d64) zrdr::free_node(d64);
     if (d65) zrdr::free_node(d65);
     zrdr::close_archives(true);

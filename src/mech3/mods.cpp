@@ -944,11 +944,17 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       }
       for (const std::string& e : names) {
         ++entries;
-        if (zrdr::Node* n = zrdr::load(e.c_str())) zrdr::free_node(n);
-        else {
-          // One entry no reader could hold (the original would not load the map either): said, not refused.
-          out.push_back("warning: " + rel + ": its " + e + " cannot be read; the map or mission it belongs to would not load, "
-                        "and IMPORT leaves this file out");
+        zrdr::Node* n = zrdr::load(e.c_str());
+        // What a hand-edited entry has wrong, in the reader's plain words: for the mod's maker, never a refusal.
+        for (const ModWarning& note : zrdr::load_notes()) out.push_back("warning: " + mod_warning_line(rel + ": " + e, note));
+        if (n) {
+          zrdr::free_node(n);
+        } else {
+          // Nothing of the entry reads: the map or mission it belongs to would not load, so IMPORT leaves the file out.
+          if (zrdr::load_notes().empty())
+            out.push_back("warning: " + mod_warning_line(rel + ": " + e, {"it cannot be read", "treated as not there", ""}));
+          out.push_back("warning: " + rel + ": IMPORT leaves this file out, since " + e + " in it cannot be used (the game's own file, if it "
+                        "has one, is used)");
           if (std::find(fx.unread_files.begin(), fx.unread_files.end(), rel) == fx.unread_files.end()) fx.unread_files.push_back(rel);
         }
       }

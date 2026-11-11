@@ -1403,24 +1403,33 @@ reads, writes and deletes nothing, and the log says so
 
 **The reader archives' entries, bounded.** Every `reader*.zbd` entry (a
 mission's objectives, a mech's definition, the worlds' settings) is read
-through `zrdr::load` as the original reads it, inside the archive's own data
-(up to its table). The original's reader (0x00557180) knows no end to an
-entry: it reads nodes until every list's count is met. So an entry whose
-list says more items than the entry holds takes the entries after it as its
-tail, and loads; mods' hand-made `mpinfo.zrd` and `aiv.zrd` entries (their
-multiplayer and Instant Action maps) are often like that, and they load here
-as they do there (since 1.1.0; until then the bound was the entry's own
-length, and such a mod was refused whole). Where the archive's data runs out
-under such a list, the items it has are read and the rest are empty ones (the
-original read on through the table and past the file's end). A word that is
-no node type is an empty node and the reading goes on, as the original's
-does. Each of these is said in the log, naming the archive and the entry.
-Still broken, read as no entry at all: a list of more than 4,096 items that
-the data left cannot hold (every node is at least 8 bytes), a negative count,
-a string that runs past the data, lists nested past 64 deep; the original
-allocated what the count said. `--check-mod` reports such an entry as a
-warning naming the file, and IMPORT leaves that one file out and adds the
-rest of the mod. The shipped
+through `zrdr::load` inside the archive's own data (up to its table), and
+hand-edited ones are made to work where they can (Owen, 2026-11-11: mods'
+makers edit these files by hand, some in a hex editor).
+
+- A list that says more items than its entry holds takes the entries after
+  it as its tail. The original's reader (0x00557180) knows no end to an
+  entry and does the same, so such files work there; mods' hand-made
+  `mpinfo.zrd` and `aiv.zrd` entries (their multiplayer and Instant Action
+  maps) are often like that, and they load here as they do there.
+- At the first thing that is no node (a value that is not a node type, a
+  list count or a text length no file could hold, lists nested past 64, the
+  archive's data running out) the reading of that entry stops: every node
+  read before it is kept and each open list ends there, so the entry is
+  usable with what it has. The original read on, out of step, through the
+  archive's index and past the file's end, or allocated what the count said.
+- Only an entry with nothing readable is treated as not there.
+- Each of these is said, in the log and as a warning from `--check-mod` and
+  REPORT, in four parts (`upgrades/mods/mod_warning.h`): the file and entry;
+  what is wrong, with the offset in bytes ("its list 8 bytes in says 38
+  items and the entry holds 37"); what the rebuild did; and what the
+  original game does with the same bytes, which is what tells a mod's maker
+  why a file works by luck or crashes there.
+- IMPORT refuses no mod for such an entry. A file whose entry cannot be
+  used at all (nothing of it reads) is left out of the copy it adds, said by
+  name, and the rest of the mod is added.
+
+The shipped
 entries read exactly as before (`test_zreader.py`, 178 files identical, and
 300 made-up archives with over-long lists against the exe's own read;
 `test_zreader_text.py`, 540; `test_ai_readers.py`). Already bounded before
