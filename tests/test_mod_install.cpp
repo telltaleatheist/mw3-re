@@ -441,8 +441,8 @@ TEST(mod_export_packs_checked_and_with_its_mod_txt) {
   put(bad / "zbd/a.txt", "a");
   mech3::ModExportResult r = mech3::mod_export(bad.string(), out + "/bad.zip", "", true);
   std::printf("  checked: %s\n", r.message.c_str());
-  EXPECT(r.ok && r.refused == 1 && !r.made_mod_txt && fs::exists(out + "/bad.zip"));
-  EXPECT(r.message.find("The game would refuse 1 thing in it; its report says what.") != std::string::npos);
+  EXPECT(r.ok && r.refused == 0 && r.warnings == 1 && !r.made_mod_txt && fs::exists(out + "/bad.zip"));
+  EXPECT(r.message.find("The check has 1 warning about it; its report says what.") != std::string::npos);
   r = mech3::mod_export(bad.string(), out + "/bad2.zip");  // unchecked: as before
   EXPECT(r.ok && r.refused == -1 && r.message.find("refuse") == std::string::npos);
   // Laid out as an install, no mod.txt.

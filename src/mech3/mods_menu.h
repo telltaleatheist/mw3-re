@@ -129,6 +129,7 @@ class ModsScreen : public MenuScreen {
   std::string edit_mod;              // its mod's folder
   std::vector<ModsEditRow> edit_rows;
   bool reporting = false;            // REPORT's sentences in CUSTOM CAMPAIGNS' box
+  std::string report_file;           // the report up, as saved in <write dir>/mod-reports ("" not saved)
   // Inside an entry started for TEST (upgrades/mods/entry_run.h, kTest): the screen is that entry's test list
   // only ("TEST in <campaign>"): ENTER plays the chosen mission in place, BACK leaves the entry.
   bool test_mode = false;

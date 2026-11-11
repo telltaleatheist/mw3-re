@@ -250,7 +250,8 @@ Texture* load(Library& lib, const char* name) {
         free_texture(t);
         return nullptr;
       }
-      note(lib, name, {wrong + "; the texture needs none", "loaded it without one", original});
+      note(lib, name, {wrong + "; the texture needs none", "loaded it without one", original,
+                       "set the last 4 bytes of " + item + " (each entry is 40 bytes) to ff ff ff ff"});
       return t;
     }
     // The original writes through t unchecked; a failed read would crash there.

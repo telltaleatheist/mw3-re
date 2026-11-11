@@ -1177,26 +1177,125 @@ start's mount left out of it, as sentences for a player.
   adds (counted only against an install), the mechs, weapons, worlds,
   Instant Action worlds and campaigns mod.txt adds, the player's own files
   ignored, the animation files Pirate's Moon does not read, each error
-  (refused) and warning (a note) as `<what>: <why>`.
+  (the mod refused whole) as `<what>: <why>`, and each warning in its parts
+  (`ModNote`: where, the four parts of `mod_warning.h`, its group).
 - `mods_mount` records what it left out per mod folder (`mods_left_out`):
   a mod not found or unusable, a world, campaign, mech, weapon or Instant
   Action world, with why.
 - `mod_sentences` says them in order: "It replaces 2 of the game's files and
   adds 1 new file.", "It adds the mech Thor B and the campaign "Long
-  Night".", what is ignored or unread, "The mech Scout is refused: there is
-  a mech Scout already.", "Note: ...", "At this start the game left out the
-  world x: ...", else "Nothing in it is refused."
+  Night".", what is ignored or unread, why the mod is refused if it is,
+  then the warnings (What a faulty file does to a mod, below), "At this
+  start the game left out the world x: ..." for what no warning says
+  already, else "Nothing in it is refused."
 - In the game: REPORT, a tab under CAMPAIGNS' box (28,336; the bottom row
   past x 452 is inside BACK's hit box, so a tab there also leaves the
   screen), shows the chosen mod's or campaign's mod's sentences in that box,
-  wrapped to 34 characters, with the count refused under DETAILS; REPORT or
-  BACK goes back to the tables, ENTER does nothing there.
+  wrapped to 34 characters, with the count of warnings under DETAILS; REPORT
+  or BACK goes back to the tables, ENTER does nothing there. The whole
+  report is also saved as a text file, and its last line says where.
 - The launcher's CHECK showed the same report until its MODS screen was
   removed (2026-11-10); `mw3pm --mod-report` was its way to PM's readers.
 
 Tests: `mods_report_says_what_a_mod_does_in_sentences` (the sentences, the
 wrap, a mod checked and mounted), `mods_screen_report_shows_a_mods_sentences_headless`
-(REPORT, ENTER ignored, BACK to the tables, then out).
+(REPORT, ENTER ignored, BACK to the tables, then out; the saved file and
+MODS FOLDER on it).
+
+### What a faulty file does to a mod (dev 3, 2026-11-11)
+
+Owen's rule: a mod's maker edits these files by hand, so a fault in one
+file is accommodated, never a reason to refuse the mod. `mod_check` sorts
+what it finds into two kinds.
+
+**The mod's fault as a whole: an error, and the only thing IMPORT refuses.**
+The path is no folder; its mod.txt cannot be used (no `name=`, or `for=`
+the other game); nothing in it is usable (every file and every line of
+mod.txt left out). `--check-mod` and `--mod-report` exit 1 only for these.
+
+**One file's or one line's fault: a warning, the rest of the mod used.**
+Each is a `ModWarning` in four parts, with an optional fifth: where; what
+is wrong; what the rebuild does; what the original game does ("not known"
+rather than a guess); and, where the check can tell, what to change in the
+file ("set the list's count ... to 38"). What the rebuild does is one of:
+
+| What is wrong | Before | Now |
+|---|---|---|
+| mod.txt: a `world=` that exists already or has no `gamez.zbd` | error | warning; the line left out (as the mount leaves it out) |
+| mod.txt: a `world=` without its `.gs` build script | error | warning; the world listed, no mission on it loads until the file is there |
+| mod.txt: an `ia_world=` on no world | error | warning; the line left out |
+| mod.txt: a `campaign=` whose file does not read, or a second of the same id | error | warning; the line left out |
+| mod.txt: a `mech=` that does not read, is taken, or lacks its files | error | warning; the line left out |
+| mod.txt: a `weapon=` that does not read or is taken | error | warning; the line left out |
+| `gamez.zbd` with a wrong signature or version | error | warning; IMPORT leaves the file out |
+| `anim.zbd` that cannot be read | error | warning; IMPORT leaves the file out |
+| a `.zbd` archive whose table cannot be read | error | warning; IMPORT leaves the file out |
+| `mechlib.zbd`: its version, format or materials, or one model | error | warning; IMPORT leaves the file out |
+| `motion.zbd`: cannot be opened, or one motion | error | warning; IMPORT leaves the file out |
+| a sounds archive: one sound | error | warning; that sound is not played, the rest of the file used |
+| `interp.zbd`: its header or directory | error | warning; IMPORT leaves the file out |
+| `interp.zbd`: one script's place past the file, or a line past its end | error | warning; that script not there, or read up to that line |
+| a reader archive the reader cannot open | error | warning; IMPORT leaves the file out |
+| a reader entry with nothing readable | warning, file left out (two lines) | the same, in one warning |
+| a reader entry with a short list or a bad value | warning, read as far as it goes | the same, with what to change |
+| a loose text `.zrd` that does not parse | error | warning; not read, the archive's entry used |
+| JSON or a zip standing in for an archive's entry, a world, animations, a motion, a mechlib entry | error | warning; not read, what it stood in for used |
+| an animation def or node file | error | warning; that animation, or node and its animations, left out |
+| a texture or image library | error | error still: the textures' warnings are their own piece of work |
+
+A file "IMPORT leaves out" is removed from the copy IMPORT adds (never
+from the player's own folder), so the game's own file of that name is used.
+The mechlib and the motions are left out whole on one bad entry, because
+play was not checked to survive a mech or a motion that is not there; a
+sound and a script are, so only the one is lost. IMPORT writes what it left
+out into `mw3-mod-left-out.txt` in the added mod's folder (a line a
+warning, tabs between the parts), and the check says those warnings again
+from it, so REPORT on the added mod still names files no longer in it.
+EXPORT leaves that file out of the zip.
+
+**IMPORT's line.** With warnings: "Added <name>: 9 warnings: REPORT lists
+them. Tick it for a campaign, then PLAY." (one: "1 warning: REPORT says
+what."; the tail is whatever the line ends with when there are none) Refused: "Not added: the game would refuse this mod: <why>."
+
+**The report.** `mod_sentences` puts a totals line after what the mod
+changes ("11 warnings, none of which refuses the mod: 2 stop part of the
+mod working, 4 work here but may crash the original game and 5 are slips
+that do no harm.", and a line on what an entry and "bytes into the entry"
+mean when a warning is about one), then the
+warnings in three groups, the worst first, each headed in plain words and
+numbered, each warning on lines of its own (where; Wrong; To fix it; The
+rebuild; The original game). Warnings of one kind (the same two last
+parts) are put together and those two parts said once after them ("For 1
+to 9: the rebuild: ..."), and within a kind the entries with the very same
+fault are listed and the fault said once ("For 1 to 4: wrong: ..."), so
+sixty entries with the same slip do not say the same sentences sixty
+times:
+
+1. WHAT STOPS PART OF THE MOD WORKING: anything left out or not read.
+2. WHAT WORKS HERE BUT MAY CRASH THE ORIGINAL GAME: read here, and the
+   original's part says "crash".
+3. SLIPS THAT DO NO HARM: the rest, and the plain notes (a campaign's
+   mission on a world only another mod adds; strings.txt's lines).
+
+A line of mod.txt the mount left out is said once, by its warning.
+
+**The report as a file.** REPORT writes the same lines, under "Report on
+<name>.", to `<write dir>/mod-reports/<the mod's folder>.txt`: one file a
+mod, replaced each time. The folder is the game's own, made with
+`mw3-mod-reports.txt` in it; a `mod-reports` folder without that marker is
+not ours and nothing is written into it (the screen says so), nor through
+a link, nor under a name that would leave the folder. With a report up,
+MODS FOLDER opens that folder. `--mod-report` prints the same lines and
+writes nothing.
+
+Tests: `mods_check_refuses_only_a_mod_with_nothing_usable`,
+`mods_report_file_goes_in_a_marked_folder_of_ours` (the marker, a folder
+not ours, links, names that leave it, the left-out record read back),
+`mods_check_mod_reports_what_the_game_would_refuse` (each kind above as a
+warning), `import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest`
+(the count in IMPORT's line, the record, the check on the added mod),
+`bounded_check_mod_reads_textures_sounds_and_scripts` (one sound, one
+script).
 
 ### Requirements in mod.txt (modder step 7, 2026-11-10)
 
@@ -1324,8 +1423,10 @@ answers the picker for scripted runs and shots.
   from the names only one game ships (MW3's c4b and t1 worlds and its own
   mission readers, Pirate's Moon's readersa and readeria4); when they cannot
   tell, a message box asks MechWarrior 3 or Pirate's Moon (Cancel: not added).
-- Checked as `--check-mod` does (`mod_check`): anything the game would refuse
-  and it is not added, the first such line said.
+- Checked as `--check-mod` does (`mod_check`): a mod refused whole (What a
+  faulty file does to a mod) is not added, and why is said; a file the game
+  cannot use is left out of the copy and the mod added, with the count of
+  warnings in the line.
 - Moved into `mods\<name>\` (mod.txt's name, else the archive's) or, when a
   folder of that name exists in any case, `<name> (2)` and on: nothing in
   `mods\` is ever replaced or removed. The marker `mw3-mod-added.txt` in it
@@ -1395,9 +1496,9 @@ code in `src/upgrades/`).
   as it took the mod.
 - **The pack (modder step 8, 2026-11-10):** EXPORT is the pack button, not
   a second one. It checks the mod first (`mod_check` against the install,
-  step 3's check) and says how many things the game would refuse ("The game
-  would refuse 1 thing in it; its report says what."), packing it all the
-  same. A folder with no mod.txt (files laid over an install) gets one in
+  step 3's check) and says how many warnings it has ("The check has 1
+  warning about it; its report says what."), or that the game would refuse
+  it, packing it all the same. A folder with no mod.txt (files laid over an install) gets one in
   the zip, `name=<folder>` and `for=` this game, listed in the checksums;
   the folder itself is not touched. The launcher checks MechWarrior 3's mods
   with its own readers; a Pirate's Moon mod's check is mw3pm's (REPORT/CHECK
@@ -1447,8 +1548,8 @@ makers edit these files by hand, some in a hex editor).
 - Only an entry with nothing readable is treated as not there.
 - Each of these is said, in the log and as a warning from `--check-mod` and
   REPORT, in four parts (`upgrades/mods/mod_warning.h`): the file and entry;
-  what is wrong, with the offset in bytes ("its list 8 bytes in says 38
-  items and the entry holds 37"); what the rebuild did; and what the
+  what is wrong, with the offset in bytes ("its list 8 bytes into the entry
+  says 38 items and the entry holds 37"); what the rebuild did; and what the
   original game does with the same bytes, which is what tells a mod's maker
   why a file works by luck or crashes there.
   What the original does is from its code (0x00557180), and for three cases
@@ -1460,8 +1561,10 @@ makers edit these files by hand, some in a hex editor).
   code reads valid nodes, "can crash" where it may read or write where it
   should not.
 - IMPORT refuses no mod for such an entry. A file whose entry cannot be
-  used at all (nothing of it reads) is left out of the copy it adds, said by
-  name, and the rest of the mod is added.
+  used at all (nothing of it reads) is left out of the copy it adds, said in
+  the report, and the rest of the mod is added. A short list's warning also
+  says what to change: the count's place in the entry and the number that
+  fits what the entry holds.
 
 The shipped
 entries read exactly as before (`test_zreader.py`, 178 files identical, and
@@ -1637,7 +1740,8 @@ original did. Not raised yet: it is the first entry of the fixed limits a missio
 can reach (Planned, Whole campaigns).
 
 **`mw3 --check-mod DIR`** reads a mod as the game would without mounting it
-into play, and exits 1 when anything would be refused, else 0. It reports:
+into play, and exits 1 when the mod would be refused whole, else 0 (a
+faulty file is a warning: What a faulty file does to a mod). It reports:
 mod.txt (a folder without one is checked as an install overlay, files laid
 over the game's folder, which play as an install: no error); each `world=` (its `zbd\<folder>\gamez.zbd` and `<folder>.gs`)
 and `ia_world=`; every file and what it replaces in the install (mw3.cfg's

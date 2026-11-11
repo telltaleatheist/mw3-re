@@ -579,6 +579,12 @@ void ModsScreen::on_button(int32_t id, int32_t a, int32_t) {
     }
     case kOpenFolder: {
       std::error_code ec;
+      // With a report up, the folder its text file was saved in (ours: mod_report.h).
+      if (reporting && !report_file.empty()) {
+        const std::string r = mod_reports_dir(dir);
+        if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(r)) tell("The reports folder: " + r);
+        return;
+      }
       const std::filesystem::path m = std::filesystem::path(dir) / "mods";
       std::filesystem::create_directories(m, ec);
       if (!mods_menu_platform().open_folder || !mods_menu_platform().open_folder(m.string()))
@@ -716,16 +722,30 @@ void ModsScreen::report() {
   // A copy: what it changed from the campaign it was saved from, first (mod_report.h, mod_copy_report).
   for (const std::string& s : mod_copy_report(mods_menu_write_dir(), mods_menu_install(), folder)) sentences.push_back(s);
   for (const std::string& s : mod_report(path, mods_menu_install(), folder, &refused)) sentences.push_back(s);
-  for (const std::string& s : sentences)
+  // The whole report as a text file of ours too, for the mod's maker to read outside the game.
+  std::string why;
+  report_file.clear();
+  int warnings = 0;
+  for (const std::string& s : sentences) warnings += s.rfind("Wrong: ", 0) == 0;
+  std::vector<std::string> text = {"Report on " + name + "."};  // the file's first line; the screen has it in its heading
+  text.insert(text.end(), sentences.begin(), sentences.end());
+  if (mod_report_write(mods_menu_write_dir(), folder, text, &report_file, &why))
+    sentences.push_back(""), sentences.push_back("This report is saved as " + report_file + " (MODS FOLDER opens its folder).");
+  else
+    sentences.push_back(""), sentences.push_back("This report could not be saved as a file: " + why + ".");
+  for (const std::string& s : sentences) {
+    if (s.empty()) lines.push_back("");
     for (const std::string& l : mod_report_wrap(s, kReportWidth)) lines.push_back(l);
+  }
   reporting = true;
   campaign_list.clear_items();
   for (size_t i = 0; i < lines.size(); ++i) campaign_list.add_item(lines[i].c_str(), static_cast<int32_t>(i));
   campaign_list.layout();
   focus = kCampaigns;
   say(detail, "REPORT " + name);
-  say(detail2, refused ? std::to_string(refused) + (refused == 1 ? " thing" : " things") + " the game would refuse" : "nothing refused");
-  say(note, "REPORT or BACK goes back to the tables.");
+  say(detail2, refused ? "the mod is refused"
+               : warnings ? std::to_string(warnings) + (warnings == 1 ? " warning" : " warnings") + ", nothing refused" : "nothing refused");
+  say(note, report_file.empty() ? "REPORT or BACK goes back to the tables." : "REPORT or BACK goes back. MODS FOLDER: the saved report.");
   std::printf("mw3: mods: report on %s: %zu lines\n", folder.c_str(), lines.size());
 }
 

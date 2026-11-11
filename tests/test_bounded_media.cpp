@@ -503,13 +503,15 @@ TEST(bounded_check_mod_reads_textures_sounds_and_scripts) {
     std::memcpy(n, &scripts[12], 0x78);
     return std::string(n);
   }();
-  EXPECT(errors == 2);  // the script and the sound; the cut library's last four textures are warnings
-  EXPECT(out.find("warning: zbd/c2/rtexture2.zbd: texture ") != std::string::npos &&
-         out.find("error: zbd/c2/rtexture2.zbd") == std::string::npos);
-  EXPECT(out.find("error: zbd/c1/interp.zbd: script " + first_script + " cannot be read") != std::string::npos);
-  EXPECT(out.find("error: zbd/soundsH.zbd: sound " + sounds[3].name + " cannot be read") != std::string::npos);
-  EXPECT(out.find("error: zbd/c1/rtexture2.zbd") == std::string::npos && out.find("error: zbd/interp.zbd") == std::string::npos &&
-         out.find("error: zbd/soundsL.zbd") == std::string::npos);
+  EXPECT(errors == 0);  // the cut library's last four textures, the script and the sound: warnings all
+  EXPECT(out.find("warning: zbd/c2/rtexture2.zbd: texture ") != std::string::npos && out.find("error: ") == std::string::npos);
+  // One script and one sound: a warning each, that one not used, the rest of its file used.
+  EXPECT(out.find("warning: zbd/c1/interp.zbd: script " + first_script + ": its place in the file is past the file's end. The rebuild: this "
+                  "script is treated as not there; the rest of the file is used.") != std::string::npos);
+  EXPECT(out.find("warning: zbd/soundsH.zbd: sound " + sounds[3].name + ": it cannot be read as a sound. The rebuild: this sound is not "
+                  "played; the rest of the file is used.") != std::string::npos);
+  EXPECT(out.find("zbd/c1/rtexture2.zbd: ") == out.rfind("zbd/c1/rtexture2.zbd: ") && out.find("warning: zbd/interp.zbd") == std::string::npos &&
+         out.find("warning: zbd/soundsL.zbd") == std::string::npos && out.find("0 errors, 6 warnings") != std::string::npos);
 }
 
 // A hand-made table entry naming a palette the file does not have (docs/modding.md, M3; fixes.md): a texture
