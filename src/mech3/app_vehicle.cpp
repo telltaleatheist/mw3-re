@@ -74,6 +74,15 @@ struct WiredVehicles : VehBasicHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }
+  // A vehicle's weapon manager freed: its handle and its weapons' with it (docs/handles.md).
+  void weapons_free(void* w) override {
+    if (auto* wm = static_cast<WeaponManager*>(w); wm && g_w.forget_object) {
+      for (uint32_t i = 0; i < wm->count; ++i)
+        if (wm->weapons[i]) g_w.forget_object(g_w.engine, wm->weapons[i]);
+      g_w.forget_object(g_w.engine, wm);
+    }
+    VehBasicHooks::weapons_free(w);
+  }
   int32_t view_camera_id() override { return program_view_camera_id(); }  // [0x005f4c8c]+0x58 +0x04
   void view_attach(BasicVehicle& v, CameraMode* mode) override {  // 0x0040adf0 on [0x005f4c8c]
     program_view_attach_vehicle(v, static_cast<void*>(&v), mode);

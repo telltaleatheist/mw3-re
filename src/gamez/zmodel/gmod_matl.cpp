@@ -299,8 +299,14 @@ int read_materials(std::FILE* f) {
   t.capacity = size, t.count = count, t.free_head = free_head, t.used_head = used_head;
   if (size == 0) return 0;
   const int blocks = (size + kBlock - 1) / kBlock;
+  // FIX (A), the owned blocks' other half: the exe reads over the blocks it has (0x0063fbc8, never freed here),
+  // so its last-made material (0x0063fbd0) stays the same slot, now with the new file's contents. The blocks
+  // here are new ones, and the pointer went on into the freed ones (a use after free in material_add, when
+  // a table was read over another without the models' free between: the tests, not a mission's load).
+  const int32_t last = t.index_of(t.last);
   t.blocks.clear();
   for (int b = 0; b < blocks; ++b) t.blocks.emplace_back(new Material[kBlock]{});
+  t.last = last >= 0 && last < blocks * kBlock ? &t.at(last) : nullptr;
   for (int i = 0; i < size; ++i) {
     uint8_t raw[0x2c];
     if (std::fread(raw, 0x2c, 1, f) != 1) return -1;

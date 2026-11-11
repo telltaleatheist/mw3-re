@@ -1,8 +1,13 @@
 # vtscan.py: find code pointers stored in .rdata/.data (vtables, callback tables) whose targets Ghidra did not make functions
-import json, struct, sys
-sys.path.insert(0, __import__('os').path.dirname(__file__)); sys.argv = sys.argv[:1]; import pe  # noqa
+#   vtscan.py [undiscovered.json]
+# Reads procs.json from analysis-output/ and writes there (git-ignored) unless a path is given: never into the
+# folder it happens to be run from.
+import json, os, struct, sys
+AO = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'analysis-output')
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(AO, 'undiscovered.json')
+sys.path.insert(0, os.path.dirname(__file__)); sys.argv = sys.argv[:1]; import pe  # noqa
 b = pe.b
-procs = json.load(open('procs.json'))
+procs = json.load(open(os.path.join(AO, 'procs.json')))
 known = {int(p['address'], 16) for p in procs if not p['address'].startswith('EXTERNAL')}
 text_lo, text_hi = 0x401000, 0x5bb000
 targets = {}
@@ -21,6 +26,7 @@ starts = {t: r for t, r in missing.items() if code(t)[:1] in (b'\x55', b'\x56', 
 print('code pointers in data:', len(targets), 'distinct targets')
 print('targets that are known functions:', len(targets) - len(missing))
 print('targets Ghidra did not mark as functions:', len(missing), ' with a plausible start:', len(starts))
-json.dump({hex(t): [hex(x) for x in r] for t, r in sorted(starts.items())}, open('undiscovered.json', 'w'), indent=0)
+json.dump({hex(t): [hex(x) for x in r] for t, r in sorted(starts.items())}, open(OUT, 'w'), indent=0)
+print('written to', os.path.normpath(OUT))
 from collections import Counter
-fm = json.load(open('func2file.json'))
+fm = json.load(open(os.path.join(AO, 'func2file.json')))
