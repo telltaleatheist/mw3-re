@@ -614,6 +614,9 @@ Result letter_n(Interp& in, const char* argv0) {
 // The node's model into 0x00730c1c and on into one of the model globals.
 Model* model_of(Interp& in) {
   Globals& g = globals();
+  // FIX (bug): with no current node 0x004eb420 writes nothing, and the exe goes on with what 0x00730c1c held:
+  // the last command's model, maybe a freed mission's (fixes.md, The script's model with no current node).
+  if (!in.current && zfix::options().fixed) g.model_out = nullptr;
   call(engine().get_model, in.current, &g.model_out);
   return g.model_out;
 }

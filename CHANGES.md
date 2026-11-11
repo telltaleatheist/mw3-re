@@ -194,6 +194,7 @@ unusual happens.
 - A picture the menus or the HUD let go of twice is no longer freed twice (which could crash); the rebuild reports it instead.
 - Keypad 0 (the zoom lock) no longer crashes when the mech you are looking at has no HUD; it does nothing then.
 - A script that cycles the textures of a model with no material, or turns a scroll off, no longer crashes (neither happens with the shipped scripts).
+- A mission script command that changes an object's model (its colour, priority, facade, back faces, morph or world textures) after the object was not found now does nothing. The original went on with the last object's model, which after a second mission could be one already freed.
 - An edited debriefing dialog missing its buttons' help, its title's, its lance cards' or its rank's lines no longer crashes.
 - An edited mech lab dialog missing the supply list's slot titles (ALIST_TITLES) no longer crashes.
 - An edited mech lab dialog missing the armour panel's texts (ARMOR_TITLES, ARMOR_REMOVE) no longer crashes.

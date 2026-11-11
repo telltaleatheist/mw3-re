@@ -14,6 +14,9 @@
 #include <unistd.h>
 #endif
 
+#include "gamez/zinterp/zinterp.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "mech3/mech3_interp.h"
 #include "check.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zrender/zrndr_prim2d.h"
@@ -2091,4 +2094,58 @@ TEST(fix_light_records_bounded_at_64) {
   EXPECT(G.rec[63][1] == 0.25f + 63 * 0.001f + 0.125f);
   EXPECT(G.rec_extra[99][1] == 0.25f + 99 * 0.001f + 0.125f);
   zmod::build_light_list(np, dp, 0);
+}
+
+// The script's model pointers (0x00730c14..1c). With no current node the model's getter 0x004eb420 writes
+// nothing and the exe's Object3D commands go on with the last command's model, a freed mission's after a
+// mission's end: its flags (+8) and its morph weight (+0x24) written, its polygons' priority set. Fixed: no node,
+// no model; and a mission's end forgets the three. `gone` stands for the freed model.
+TEST(fix_script_model_pointers_do_not_outlive_their_node_or_mission) {
+  const zfix::Options saved = zfix::options();
+  const zint::Engine keep = zint::engine();
+  zint::Engine e = keep;
+  e.get_model = [](zcls::Node* n, zmod::Model** out) {  // as 0x004eb420
+    if (!n) return 5;
+    if (out) *out = n->model;
+    return 0;
+  };
+  e.model_set_priority = zmod::model_set_priority;
+  zint::engine() = e;
+  zint::Globals& g = zint::globals();
+  zint::Interp in;
+  mech3::interp_create(in);
+  auto line = [&](const std::string& text) {
+    std::vector<char> buf(text.begin(), text.end());
+    buf.push_back('\n');
+    buf.resize(buf.size() + 0x400, 0);
+    zint::exec_line(in, buf.data());
+  };
+  for (const bool fixed : {true, false}) {
+    zfix::set_all(true);
+    zfix::options().fixed = fixed;
+    zmod::Model gone{};
+    std::memset(gone.header, 0, sizeof gone.header);
+    uint32_t flags = 0;
+    float weight = 0;
+    g.object_model = g.cycle_model = nullptr;
+    g.model_out = &gone;
+    in.current = nullptr;
+    for (const char* c : {"Object3DRegisterTexturesToWorld ON", "Object3DSetMorphVertex 1", "Object3DSetPriority 3", "Object3DSetColor 1"}) line(c);
+    std::memcpy(&flags, gone.header + 8, 4), std::memcpy(&weight, gone.header + 0x24, 4);
+    std::printf("  fixed %d: the old model's flags %#x, weight %g; the script's models %s %s %s\n", fixed, flags, static_cast<double>(weight),
+                g.object_model ? "kept" : "none", g.cycle_model ? "kept" : "none", g.model_out ? "kept" : "none");
+    if (fixed) {
+      EXPECT(flags == 0 && weight == 0.0f && !g.object_model && !g.cycle_model && !g.model_out);
+    } else {  // the exe's way, which the differential test runs: written through
+      EXPECT(flags == 4 && weight == 1.0f && g.object_model == &gone && g.cycle_model == &gone && g.model_out == &gone);
+    }
+    // A mission's end (Missions::unload's 0x005964c0(1)).
+    g.object_model = g.cycle_model = g.model_out = &gone;
+    zint::scroll_list_clear(true);
+    EXPECT(fixed ? (!g.object_model && !g.cycle_model && !g.model_out) : (g.object_model == &gone && g.cycle_model == &gone && g.model_out == &gone));
+    g.object_model = g.cycle_model = g.model_out = nullptr;
+  }
+  zint::destroy(in);
+  zint::engine() = keep;
+  zfix::options() = saved;
 }
