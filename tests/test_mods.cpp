@@ -2765,6 +2765,7 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   const zwep::WeaponDef* b = zwep::find_def("ERPPC_B");
   const zwep::WeaponDef* e = zwep::find_def("ERPPC");
   const float dmg_b = b ? b->damage : -1, dmg = e ? e->damage : -1;
+  const bool b_after = b && e && b->index > e->index;  // read before the shutdown frees the definitions
   zwep::shutdown(nullptr);
   zutl::MessageDll dll;
   EXPECT(zutl::read_message_dll(install + "/Mech3Msg.dll", dll));
@@ -2777,7 +2778,7 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   std::printf("  Thor B %d accel %.3f (the Thor's %.3f); ER PPC B damage %.3f (ERPPC %.3f); \"%s\", \"%s\"; campaign %s\n",
               thor_b, a_b, a, dmg_b, dmg, campaign.c_str(), quit.c_str(), one ? one->name.c_str() : "none");
   EXPECT(thor_b >= 20 && std::fabs(a_b - a * 1.5f) < 1e-4f);
-  EXPECT(b && e && std::fabs(dmg_b - dmg * 1.25f) < 1e-4f && b->index > e->index);
+  EXPECT(b && e && std::fabs(dmg_b - dmg * 1.25f) < 1e-4f && b_after);
   EXPECT(campaign == "K A M P A G N E" && quit == "B E E N D E N");
   EXPECT(one && one->error.empty() && one->missions.size() == 1 && one->missions[0].world == "c1" && one->missions[0].number == 1);
   zrdr::close_archives(true);
