@@ -742,6 +742,7 @@ if(MW3_BUILD_PM)
     tests/test_editor.cpp  # the editor's menus, net and vehicle editors on PM's logic
     tests/test_teleport.cpp  # the teleport on PM's logic and c3's places
     tests/test_new_weapon.cpp  # New Weapon on PM's weapons.zrd and its version 2 reader.zbd
+    tests/test_entry_archives.cpp  # archives by their changed entries, on PM's version 2 archives
     tests/test_update.cpp  # the updater (main's, shared): its versions, sums and swap
     # IMPORT and the bounded readers (main's, shared), on Pirate's Moon's files and table
     tests/test_installer_read.cpp
