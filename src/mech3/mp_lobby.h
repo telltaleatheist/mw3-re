@@ -138,6 +138,9 @@ class LobbyScreen : public MenuScreen {
   // Ours (the Upgrades page): the five switches' bits after the mods block;
   // false when there are none (a build before 1.1.0).
   static bool upgrades_of(const std::vector<uint32_t>& data, uint32_t* bits);
+  // Ours (mods in multiplayer, upgrades/mods/mp_mods.h): each mod's own hash, after the upgrades block; false
+  // when the player's build sends none.
+  static bool mod_hashes_of(const std::vector<uint32_t>& data, std::vector<uint64_t>* hashes);
   uint8_t mods_checked = 0;          // ours: the joiner compared its mods with the host's
   // Ours (piece 9c, the lead's plan for piece 11): the host's addresses, as
   // on the connection screen, while it waits for players.

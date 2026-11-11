@@ -98,6 +98,7 @@ uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std:
 struct ModsIdentity {
   uint64_t hash = 0;
   std::vector<std::string> names;
+  std::vector<uint64_t> hashes;  // each named mod's own gameplay hash (the lobby's per-mod block, upgrades/mods/mp_mods.h)
 };
 ModsIdentity& mods_identity();
 void mods_identity_set(const std::string& write_dir, const std::vector<std::string>& enabled);

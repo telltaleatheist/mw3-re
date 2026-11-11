@@ -347,6 +347,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/entry_pilots.cpp
   src/upgrades/mods/mods_tick_list.cpp
   src/upgrades/mods/ia_mods_menu.cpp
+  src/upgrades/mods/mp_mods.cpp
   src/upgrades/mods/starter_mods.cpp
   src/upgrades/update/update.cpp
   src/upgrades/reference/reference.cpp

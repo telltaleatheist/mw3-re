@@ -119,6 +119,7 @@
 #include "mech3/pilot.h"
 #include "mech3/mp_connect.h"
 #include "mech3/mp_lobby.h"
+#include "upgrades/mods/mp_mods.h"
 #include "mech3/mods.h"
 #include "upgrades/settings/upgrades.h"
 #include "upgrades/mods/mod_report.h"
@@ -6727,6 +6728,93 @@ TEST(net_lobby_mods_check_headless) {
     EXPECT(!upgrades::hosts() && upgrades::bits() == 0x1f);
   }
   zfix::options() = saved_fix;
+  mine = mech3::ModsIdentity{};
+}
+
+// Mods in multiplayer (upgrades/mods/mp_mods.h): the per-mod block after the upgrades block lets a refusal name
+// the mod. The words for each case; at most three named; a side that sends no block gives none. Then the lobby:
+// a joiner told which mod it lacks and which copy differs; the host's LOCK refused with the player's own lines.
+TEST(net_lobby_mods_named_headless) {
+  using mech3::MpMods;
+  const MpMods host{{"Big Guns", "Clan Pack", "Night Ops"}, {1, 2, 3}};
+  EXPECT(mech3::mp_mods_difference(host, MpMods{{"Big Guns", "Clan Pack", "Night Ops"}, {1, 2, 3}}).empty());
+  EXPECT(mech3::mp_mods_difference(host, MpMods{{"Big Guns"}, {1}}) == "You do not have: Clan Pack, Night Ops.");
+  EXPECT(mech3::mp_mods_difference(host, MpMods{{"Big Guns", "Clan Pack", "Night Ops", "Mine"}, {1, 9, 3, 4}}) ==
+         "Your copy of Clan Pack differs from the host's. The host does not use: Mine.");
+  EXPECT(mech3::mp_mods_difference(MpMods{{"A", "B", "C", "D", "E"}, {1, 2, 3, 4, 5}}, MpMods{}) == "You do not have: A, B, C and 2 more.");
+  EXPECT(mech3::mp_mods_difference(MpMods{{"Big Guns"}, {}}, MpMods{{"Other"}, {7}}).empty());  // an older host: no hashes
+  EXPECT(mech3::mp_mods_difference_of("Bob", host, MpMods{{"Night Ops", "Extra"}, {8, 5}}) ==
+         "Bob does not have: Big Guns, Clan Pack. Bob's copy of Night Ops differs from yours. Bob also uses: Extra.");
+  // The block: put and read back; cut short and over-long counts read only what is there, at most 16.
+  std::vector<uint32_t> d = {7};
+  mech3::mp_mods_each_put(d, {0x1111222233334444ull, 5});
+  std::vector<uint64_t> got;
+  EXPECT(d.size() == 7 && mech3::mp_mods_each_get(d, 1, &got) && got == (std::vector<uint64_t>{0x1111222233334444ull, 5}));
+  EXPECT(!mech3::mp_mods_each_get(d, 0, &got) && !mech3::mp_mods_each_get(d, 99, &got));
+  d[2] = 1000;
+  EXPECT(mech3::mp_mods_each_get(d, 1, &got) && got.size() == 2);
+  d.resize(4);
+  EXPECT(mech3::mp_mods_each_get(d, 1, &got) && got.empty());
+  if (!have_game()) return;
+  mech3::ModsIdentity& mine = mech3::mods_identity();
+  auto with_each = [](uint64_t hash, std::initializer_list<const char*> names, std::vector<uint64_t> each) {
+    std::vector<uint32_t> data = lobby_data_with_mods(hash, names, 0x1f);
+    mech3::mp_mods_each_put(data, each);
+    return data;
+  };
+  // Our own record carries the block, read back by the lobby's reader.
+  {
+    LobbyRig r("net_mods_named_own_write");
+    if (!r.l) return;
+    mine = mech3::ModsIdentity{0xabcull, {"Big Guns", "Clan Pack"}, {11, 22}};
+    znet::SessionDesc sd;
+    sd.name = "Mine", sd.max_players = 4, sd.user[1] = mech3::kGameVersion;
+    EXPECT(znet::host_session(sd, "Ann"));
+    r.enter();
+    uint32_t size = znet::player_data_size(znet::local_id());
+    std::vector<uint32_t> own((size + 3) / 4, 0);
+    EXPECT(znet::get_player_data(znet::local_id(), own.data(), &size));
+    std::vector<uint64_t> each;
+    EXPECT(mech3::LobbyScreen::mod_hashes_of(own, &each) && each == (std::vector<uint64_t>{11, 22}));
+    // The host's LOCK: Bob lacks one and has another copy of the other.
+    znet::Transport* bob = r.hub.endpoint();
+    EXPECT(bob->join("loopback") && bob->create_player("Bob", "Bob") == 2);
+    std::vector<uint32_t> other = with_each(0xdefull, {"Clan Pack"}, {23});
+    bob->set_data(false, 2, other.data(), static_cast<uint32_t>(other.size() * 4));
+    znet::poll(-1);
+    mech3::g_lobby_dirty = 1;
+    r.l->update(0.1f);
+    r.boxes.clear();
+    r.l->lock();
+    std::printf("  LOCK: \"%s\"\n", r.engine->last_box_text.c_str());
+    EXPECT(!r.l->locked && r.engine->last_box_text == "Every player needs the same mods. Bob does not have: Big Guns. Bob's copy of Clan Pack "
+                                                      "differs from yours.");
+  }
+  // A joiner: the host's block says which.
+  {
+    LobbyRig r("net_mods_named_join_write");
+    if (!r.l) return;
+    mine = mech3::ModsIdentity{0xabcull, {"Big Guns", "Old Maps"}, {11, 5}};
+    znet::Transport* bob = r.hub.endpoint();
+    znet::SessionDesc sd;
+    sd.name = "Bob's", sd.max_players = 4, sd.user[1] = mech3::kGameVersion;
+    EXPECT(bob->host(sd) && bob->create_player("Bob", "Bob") == 1);
+    std::vector<uint32_t> hosts = with_each(0xdefull, {"Big Guns", "Clan Pack"}, {12, 22});
+    bob->set_data(false, 1, hosts.data(), static_cast<uint32_t>(hosts.size() * 4));
+    EXPECT(znet::join_session("loopback", "Ann") && znet::local_id() == 2);
+    const uint8_t host_msg[4] = {0x0d, 0, 4, 0};
+    bob->send(0, host_msg, 4, true, nullptr);
+    znet::poll(-1);
+    r.boxes.clear();
+    r.engine->last_box_text.clear();
+    r.enter();
+    r.l->update(0.1f);
+    std::printf("  joining: \"%s\"\n", r.engine->last_box_text.c_str());
+    EXPECT(r.engine->last_box_text == "Your mods don't match the host's. You do not have: Clan Pack. Your copy of Big Guns differs from the "
+                                      "host's. The host does not use: Old Maps.");
+    EXPECT(r.l->mods_checked == 1 && mech3::g_lobby_back == 0 && !znet::session().initialised);  // turned back: BACK pressed for it, the network off
+    r.engine->network_set(0);
+  }
   mine = mech3::ModsIdentity{};
 }
 
