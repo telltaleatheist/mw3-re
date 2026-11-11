@@ -79,6 +79,8 @@ struct WiredVehicles : VehBasicHooks {
     if (auto* wm = static_cast<WeaponManager*>(w); wm && g_w.forget_object) {
       for (uint32_t i = 0; i < wm->count; ++i)
         if (wm->weapons[i]) g_w.forget_object(g_w.engine, wm->weapons[i]);
+      for (WeaponGroup* g : wm->groups)  // Pirate's Moon's AI asks for the group's handle (zai_wire_firing_pm)
+        if (g) g_w.forget_object(g_w.engine, g);
       g_w.forget_object(g_w.engine, wm);
     }
     VehBasicHooks::weapons_free(w);

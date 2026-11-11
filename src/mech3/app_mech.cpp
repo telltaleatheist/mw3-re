@@ -2700,6 +2700,7 @@ const void* wm_weapon_def(const void* wm, int32_t i) {
   return m && i >= 0 && static_cast<uint32_t>(i) < m->count ? m->weapons[i]->def : nullptr;
 }
 void* wm_current_weapon(void* wm) { return wm ? static_cast<WeaponManager*>(wm)->current() : nullptr; }
+void* wm_group(void* wm, int32_t i) { return wm && i >= 0 && i < 5 ? static_cast<WeaponManager*>(wm)->groups[i] : nullptr; }
 // FIX (bug): the exe's firing clears a missing manager's aim through null
 // (a vehicle without weapons standing down).
 void wm_clear_aim(void* wm) {

@@ -736,6 +736,72 @@ TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
   });
 }
 
+// The program's handles on Pirate's Moon (docs/handles.md): the player's weapon manager, its weapons and its
+// weapon groups (PM's AI firing code asks for a group's handle) give null after the mission's world is let go.
+TEST(pm_c1m1_freed_weapon_handles_name_nothing_headless) {
+  if (!fs::exists(MW3PM_GAME_DIR)) return;
+  in_child("pm_c1m1_freed_weapon_handles_name_nothing_headless", [] {
+    MountsBack back;
+    zgame::set_game(pm::table());
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir((std::string(MW3_TEST_TMP_ROOT) + "/pm_handles").c_str());
+    zutl::mount(MW3PM_GAME_DIR);
+    mech3::reset_states();
+    if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    NoKeys keys;
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files, p.input = &keys;
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;  // c1, a campaign mission, mission 1
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      int frames = 0, weapons = 0, groups = 0, alive_before = 0, alive_after = 0;
+      std::vector<zgame::Handle> held;
+      engine.on_present = [&](int) {
+        if (app.current() != &mech3::states().core) return;
+        if (++frames == 6)
+          for (zgame::Handle h : held) alive_before += engine.object_of(h) != nullptr;  // a frame on, in the mission still
+        if (frames != 5) return;
+        void* wm = mech3::mech_weapon_manager(mech3::mission_player_mech());
+        if (!wm) return;
+        held.push_back(engine.handle_of(wm));
+        if (void* w = mech3::wm_current_weapon(wm)) held.push_back(engine.handle_of(w)), ++weapons;
+        for (int32_t i = 0; i < 5; ++i)
+          if (void* g = mech3::wm_group(wm, i)) held.push_back(engine.handle_of(g)), ++groups;
+      };
+      Pump pump;
+      pump.limit = 4000;
+      pump.stop = [&] { return frames >= 6; };
+      app.run(pump);
+      mech3::missions().cleanup(true);  // the world unloaded (0x00490480): the mechs freed
+      for (zgame::Handle h : held) alive_after += engine.object_of(h) != nullptr;
+      std::printf("  the current weapon %d, %d groups: %d handles alive in the mission, %d after it\n", weapons, groups, alive_before, alive_after);
+      EXPECT(weapons > 0 && groups > 0 && alive_before == static_cast<int>(held.size()) && alive_after == 0);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zgame::set_game(zgame::mw3_table());
+  });
+}
+
 // The starter mods on PM (docs/modding.md, Starter mods): each made from PM's install (for=mw3pm, its own message
 // numbers), --check-mod and the report clean, then loaded: Thor B's loadouts with 1.5 times the Thor's accel_rate,
 // ERPPC_B 1.25 times ERPPC's damage, the menu's messages in German, the one-mission campaign of PM's c1 1.

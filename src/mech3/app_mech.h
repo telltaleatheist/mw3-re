@@ -529,6 +529,7 @@ const void* wm_weapon_def(const void* wm, int32_t i);  // its weapon i's definit
 // Ours (the campaign chain): a mech's or basic vehicle's weapon types, as its salvage reads them.
 std::vector<int32_t> salvage_weapon_types(void* object);
 void* wm_current_weapon(void* wm);
+void* wm_group(void* wm, int32_t i);  // for the tests: its weapon group i (+0x2c), null when none
 void wm_clear_aim(void* wm);
 // The aim's (docs/ai.md 17.7): a targeting computer (+0x3e4) or a fire
 // control system (+0x3b8) aboard; the manager aimed at a point (+0x88 set,
