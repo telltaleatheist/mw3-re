@@ -2447,7 +2447,8 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
          // one entry no reader could hold: a warning naming the file, which IMPORT leaves out; not a refusal
          text.find("warning: zbd/c1/readerm1.zbd: mission.zrd: a list count of 1000000000, 0 bytes in, that no file could hold. The rebuild: "
                    "nothing of the entry can be read, so it is treated as not there. The original game: asks for memory for that many "
-                   "items and fills them from whatever follows: a likely crash when this entry is loaded.") != std::string::npos &&
+                   "items, is refused, and writes through the empty answer: a likely crash when this entry is loaded (seen in the "
+                   "emulator).") != std::string::npos &&
          text.find("warning: zbd/c1/readerm1.zbd: IMPORT leaves this file out, since mission.zrd in it cannot be used") != std::string::npos &&
          text.find("error: zbd/broken.zrd: line 1: a '(' never closed") != std::string::npos &&
          text.find("pilots/x.pil: the player's own kind of file") != std::string::npos);
