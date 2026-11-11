@@ -16,25 +16,15 @@
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/app_states.h"
 #include "mech3/pilot.h"
+#include "mech3/mech_names.h"
 
 namespace mech3 {
 
-// mech_names.h (its Engine clashes with the app's): 0x00484670's message and 0x004846e0.
-int32_t mech_name_message(int32_t mech);
-const char* mech_title(int32_t mech);
-float max_mass(int32_t mech);
-int32_t internal_points(int32_t mech, int32_t column);    // 0x00485400..0x00485490
-int32_t armor_points(int32_t tech, bool ferro, float tons);  // 0x00424760
-constexpr int32_t kClan = 1, kAnyTech = 3;               // mech_names.h's Tech
+// Declared here, not included: weapon.h, mech_salvage.h and mech_data.h bring mech_parts.h, whose
+// mech3::Handle clashes with the 2D screens' Handle.
 int32_t lab_rounds(int32_t weapon, int32_t n);           // weapon.h (0x004b4900)
-int32_t mech_tech(int32_t mech);                         // 0x00484720
-int32_t equip_name_message(int32_t kind);                // 0x00484980's table (its text through message)
-double engine_weight_of(int32_t index, uint8_t xl);      // 0x00432f40 (as on the x87)
-int32_t engine_rating_of(int32_t index);                 // 0x00432fa0
 int32_t engine_maker_message(int32_t index);             // 0x00432ec0's message (mech_salvage.h)
 float engine_kph(int32_t engine, float mass, bool run);  // 0x00433050 (mech_data.h)
-bool weapon_uses_ammo(int32_t weapon);                   // 0x00484960
-int32_t weapon_count();                                  // 37, the plain PPC's 38th with zfix small_fixes
 
 namespace {
 int32_t g_none = -1;  // the tabs' and mech buttons' id until bound

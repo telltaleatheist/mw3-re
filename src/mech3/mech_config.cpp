@@ -479,7 +479,7 @@ double EquipmentItem::weight(int32_t n) const {
 
 // Mech3.exe 1.2 @ 0x00473160. The index is clamped to 0..79, one past the table.
 double EngineItem::weight(int32_t n) const {
-  Engine e{engine > 79 ? 79 : engine < 0 ? 0 : engine, xl};
+  ConfigEngine e{engine > 79 ? 79 : engine < 0 ? 0 : engine, xl};
   return engine_weight_x87(e) * (n == -1 ? count : n);
 }
 
@@ -722,13 +722,13 @@ double Config::weight(int32_t what) const {
     case -1: {
       float sum = 0.0f;
       for (int32_t i = 0; i < 8; ++i) sum = static_cast<float>(weight(i) + sum);
-      const Engine e{engine, xl};
+      const ConfigEngine e{engine, xl};
       const auto shielding = static_cast<float>(std::ceil(engine_rating(e) * static_cast<double>(0.009999f)));
       double t = static_cast<double>(sum) + 3.0 + shielding;  // 0x005e24f0
       if (mech == 9) t -= 0.5;  // the Mad Cat is half a ton lighter
       return t;
     }
-    case 0: return engine_weight_x87(Engine{engine, xl});
+    case 0: return engine_weight_x87(ConfigEngine{engine, xl});
     case 1: {
       const double w = static_cast<double>(equip_weight(double_sinks ? 10 : 9, sink_tech)) * (sinks - 10);
       return w < 0.0 ? 0.0 : w;

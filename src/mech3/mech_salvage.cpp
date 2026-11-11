@@ -131,7 +131,7 @@ std::string engine_name(int32_t engine, uint8_t xl, const MessageText& msg) {
   const int32_t index = engine > 78 ? 78 : engine < 0 ? 0 : engine;
   const char* maker = msg(engine_maker_message(index));
   char b[512];
-  std::snprintf(b, sizeof b, "%s %d%s", maker ? maker : "(null)", engine_rating(Engine{index, xl}), xl ? " XL" : "");
+  std::snprintf(b, sizeof b, "%s %d%s", maker ? maker : "(null)", engine_rating(ConfigEngine{index, xl}), xl ? " XL" : "");
   return b;
 }
 

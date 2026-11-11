@@ -11,13 +11,9 @@
 #include "mech3/mech_config.h"
 #include "mech3/pilot.h"
 #include "mech3/player.h"
+#include "mech3/mech_names.h"
 
 namespace mech3 {
-
-// mech_names.h (its Engine clashes with the app's): 0x00484670's message.
-int32_t mech_name_message(int32_t mech);
-const char* mech_title(int32_t mech);
-int32_t mech_count();  // 19, or 20 and the mods' rows (19 none)
 
 // 0x005e6fb0
 const ActionScenario kActionScenarios[6] = {

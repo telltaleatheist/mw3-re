@@ -173,6 +173,8 @@
 #include "mech3/zrdrvalve.h"
 #include "platform/reg_file.h"
 #include "platform/silent_sound.h"
+#include "mech3/mech_names.h"
+#include "mech3/mech_reader.h"
 
 namespace {
 
@@ -5696,15 +5698,6 @@ TEST(mech_build_launches_the_player_c1m1_headless) {
   mech3::options() = mech3::Options{};
 }
 
-namespace mech3 {  // mech_names.h and mech_reader.h (their Engine clashes with the app's)
-int32_t mech_count();
-const char* mech_name(int32_t mech);
-const char* mech_title(int32_t mech);
-void mech_rows_clear();
-void weapon_rows_clear();
-void free_dfns();
-bool mech_row_add_line(const std::string& value, std::string* error);
-}  // namespace mech3
 
 namespace {
 // A reader file's node tree (docs/zreader.md: int32 type then value; 1 int,
