@@ -17,12 +17,11 @@ restored sounds, pictures, voice lines and text stay on (Owen's rule,
 change sits under which switch: [`docs/upgrades-sort.md`](docs/upgrades-sort.md).
 A 1.0 `mw3.cfg`'s `bugfixes=` line becomes the five switches the first time.
 
-Pirate's Moon's page has four: no WATER MOVEMENT, because the water change
-corrects something Pirate's Moon's own game no longer does, so there would be
-nothing to switch. Its SMALL FIXES list is its own, nine lines. A water
-setting already in your settings file is left as it is. A WATER MOVEMENT
-switch for Pirate's Moon follows: the gradual slowing in deep water with it
-on, the original's flat slowing with it off.
+Pirate's Moon's page has the same five. Its WATER MOVEMENT is Pirate's Moon's
+own: the original drops a wading mech to 60% speed in one step; with the
+switch on it slows gradually from full speed to that 60% as the water
+deepens, and with it off it wades exactly as the original. Its SMALL FIXES
+list is its own.
 
 The rule: keep everything as the original did it, quirks that players know
 and plan around included. Change only what stops the game running on today's
@@ -112,7 +111,7 @@ it is clear what the designers meant.
   walking, the right foot snapped straight to its walking angle and the left
   one swung toward the right foot's old angle. Each foot now eases in from
   its own position.
-- Deep water slows a mech as Pirate's Moon has it: a flat 60% past a tenth of its height (no change; MechWarrior 3's rebuild has a fix here that this game does not need).
+- Deep water slows a mech gradually, from full speed where wading starts to Pirate's Moon's 60% when the water reaches its height (the original drops to 60% at once). Under WATER MOVEMENT; off, exactly the original. Only the c2 missions have water to wade in.
 - **Wingmen call out low and empty ammo.** Dom, Alan and Epona have lines
   for it that never played because of a mistake in the sound data. They now
   play, each line at most twice a mission.

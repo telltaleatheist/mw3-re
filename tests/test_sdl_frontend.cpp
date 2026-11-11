@@ -7578,32 +7578,27 @@ TEST(sdl_pm_program_restarts_into_and_out_of_its_entries) {
 #endif
 
 #if defined(MW3_PM_SUITE)
-// Pirate's Moon's UPGRADES page saves four switches and wide menus, never the water key (it shows no WATER: the
-// change gates nothing in Pirate's Moon). So a player's upgrade_water= line, whatever it says, is in mw3.cfg
-// byte for byte after the page's saves, once, and still reads as theirs. (The saver writes every line with a
-// plain line end, a file from Windows too: the shared saver's way for every key, so the file here has plain ones.)
-TEST(pm_upgrades_save_leaves_the_water_line_as_it_is) {
+// Pirate's Moon's UPGRADES page saves its five switches and wide menus (WATER among them since Pirate's Moon's own
+// water switch, Owen 2026-11-10): a player's upgrade_water= line is replaced by the page's, once, and reads back.
+TEST(pm_upgrades_save_writes_the_water_key) {
   const std::string dir = std::string(MW3_TEST_TMP) + "/pm_upgrades_water";
   std::error_code ec;
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir, ec);
-  const std::string water = "upgrade_water=0\n";
   {
     std::ofstream f(dir + "/mw3.cfg", std::ios::binary);
-    f << "install=X\n" << water << "upgrade_small_fixes=1\nwidemenus=0\n";
+    f << "install=X\nupgrade_water=0\nupgrade_small_fixes=1\nwidemenus=0\n";
   }
   // The page's ACCEPT on Pirate's Moon (UpgradesScreen::apply): these keys, through the program's saver.
   for (const auto& [key, on] : std::vector<std::pair<const char*, bool>>{
-           {"upgrade_mfb_regroup", true}, {"upgrade_improved_ai", false}, {"upgrade_artemis", true}, {"upgrade_small_fixes", false}, {"widemenus", true}})
+           {"upgrade_water", true}, {"upgrade_mfb_regroup", true}, {"upgrade_improved_ai", false}, {"upgrade_artemis", true},
+           {"upgrade_small_fixes", false}, {"widemenus", true}})
     EXPECT(sdlfe::save_config_value(dir, key, on ? "1" : "0"));
   std::ifstream f(dir + "/mw3.cfg", std::ios::binary);
   const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-  std::printf("  after the saves: %zu bytes, the water line there %d\n", text.size(), text.find(water) != std::string::npos);
-  EXPECT(text.find(water) != std::string::npos && text.find("upgrade_water=1") == std::string::npos);
-  EXPECT(text.find("upgrade_water", text.find(water) + 1) == std::string::npos && text.find("install=X\n") != std::string::npos);
-  EXPECT(text.find("upgrade_small_fixes=0") != std::string::npos && text.find("upgrade_improved_ai=0") != std::string::npos &&
-         text.find("upgrade_mfb_regroup=1") != std::string::npos && text.find("widemenus=1") != std::string::npos);
-  // Read back: water off as the player had it, the others as saved.
+  const size_t water = text.find("upgrade_water=1");
+  EXPECT(water != std::string::npos && text.find("upgrade_water=0") == std::string::npos &&
+         text.find("upgrade_water", water + 1) == std::string::npos && text.find("install=X\n") != std::string::npos);
   upgrades::Config c;
   std::istringstream in(text);
   for (std::string l; std::getline(in, l);) {
@@ -7611,9 +7606,9 @@ TEST(pm_upgrades_save_leaves_the_water_line_as_it_is) {
     upgrades::read_line(l, c);
   }
   const zfix::Options keep = zfix::options();
-  zfix::set_all(true);
+  zfix::set_all(false);
   sdlfe::apply_upgrades_config("", c, false);
-  EXPECT(!zfix::options().water && zfix::options().mfb_regroup && !zfix::options().improved_ai && zfix::options().artemis && !zfix::options().small_fixes);
+  EXPECT(zfix::options().water && zfix::options().mfb_regroup && !zfix::options().improved_ai && zfix::options().artemis && !zfix::options().small_fixes);
   zfix::options() = keep;
   std::filesystem::remove_all(dir, ec);
 }

@@ -218,12 +218,10 @@ wide canvas it has its own groups (its frame starts left of x 0, so it would
 count as the middle). Our records' small font is the dialog's own (CONTROLS'
 label): ia_small_green in MW3, ia_small_amber in Pirate's Moon. The release
 plan's upgrades page (release.md) grows from this one.
-Pirate's Moon's page has four switches, no WATER MOVEMENT (nothing for it to
-act on there; fixes.md, On Pirate's Moon): the record's rows at y 64 to 154
-with WIDE MENUS at 184, the heading on MFB REGROUP's row, and ACCEPT never
-writes `upgrade_water=`, so a line already in mw3.cfg stays as it is
-(`pm_upgrades_page_has_four_switches_headless`,
-`pm_upgrades_save_leaves_the_water_line_as_it_is`).
+Pirate's Moon's page has the five as MW3's, WATER MOVEMENT gating Pirate's
+Moon's own wading (fixes.md, On Pirate's Moon): the same record and rows
+(`pm_upgrades_page_has_five_switches_headless`,
+`pm_upgrades_save_writes_the_water_key`).
 `options_mouse_sensitivity_slider_headless`, `options_our_records_take_the_dialogs_font`,
 `mission_c1m1_options_from_the_pause_keep_the_menus_frame_headless`.
 

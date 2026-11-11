@@ -473,3 +473,78 @@ float pm_knock(void* mech, float* threshold, int* state) {
 
 // pm-tests item 25: a player command (the keys' Mech::command, e.g. 0x48 E, the next enemy).
 void pm_command(void* player, int32_t cmd) { static_cast<Mech*>(player)->command(cmd); }
+
+// The water survey (PM_WATER; docs/pm-tests.md): the mission's world sampled with the ground query every `step`
+// metres over the box round its points of interest (the player's start, the nav points, the AI mechs), each
+// sample's water depth the water surface less the highest ground under it. One line: the deepest water and where,
+// the samples past a tenth of `low` and of `high` (the shortest and the tallest mech's heights), and how near the
+// nearest such water is to each point of interest. MW3's worlds would take the same function: it asks nothing of
+// Pirate's Moon but the test's mission start.
+#include "mech3/app_vehicle.h"
+#include "mech3/mech_waynet.h"
+#include <vector>
+float pm_mech_height(void* mech) { return static_cast<Mech*>(mech)->height; }
+
+void pm_water_survey(void* player, const char* label, float low, float high, float step) {
+  struct Poi { std::string name; float x, z; float near_low = 1e9f, near_high = 1e9f; };
+  std::vector<Poi> pois;
+  float p[3];
+  mech_world_position(player, p);
+  pois.push_back({"start", p[0], p[2]});
+  if (auto* w = static_cast<Waynet*>(program_mission_waynet()))  // the nav points: the mission waynet's labelled ones
+    for (int32_t i = 0; i < w->count(); ++i)
+      if (const auto* np = dynamic_cast<const WaynetPoint*>(w->elem(i)); np && np->label_or_null())
+        pois.push_back({std::string("nav ") + np->label_or_null(), np->pos[0], np->pos[2]});
+  int32_t made = 0;
+  const AiMechMade* ai = mission_ai_mechs(&made);
+  for (int32_t i = 0; i < made; ++i) {
+    mech_world_position(ai[i].mech, p);
+    pois.push_back({std::string("mech ") + (ai[i].name ? ai[i].name : "?"), p[0], p[2]});
+  }
+  float x0 = 1e9f, x1 = -1e9f, z0 = 1e9f, z1 = -1e9f;
+  for (const Poi& q : pois) x0 = std::min(x0, q.x), x1 = std::max(x1, q.x), z0 = std::min(z0, q.z), z1 = std::max(z1, q.z);
+  const float margin = 1000.0f;
+  x0 -= margin, x1 += margin, z0 -= margin, z1 += margin;
+  static zcls::GroundHits g;
+  const int32_t mode = zmod::zones().mode;
+  zmod::zones().mode = 0;  // every zone's ground
+  int samples = 0, wet = 0, past_low = 0, past_high = 0, no_floor = 0;
+  float deepest = 0, at[3] = {};
+  for (float x = x0; x <= x1; x += step)
+    for (float z = z0; z <= z1; z += step) {
+      float probe[3] = {x, 2000.0f, z};
+      zcls::ground_query(static_cast<zcls::Node*>(world_hooks().world), probe, 1, 4000.0f, &g);
+      ++samples;
+      float surface = -1e9f;
+      for (int k = 0; k < g.count; ++k)
+        if (g.hit[k].material && g.hit[k].material->soil == 1 && g.hit[k].height > surface) surface = g.hit[k].height;  // kWater
+      if (surface == -1e9f) continue;
+      float floor = -1e9f;
+      for (int k = 0; k < g.count; ++k)
+        if (!(g.hit[k].material && g.hit[k].material->soil == 1) && g.hit[k].height <= surface && g.hit[k].height > floor) floor = g.hit[k].height;
+      ++wet;
+      if (floor == -1e9f) {  // water over nothing: off the land's edge
+        ++no_floor;
+        continue;
+      }
+      const float d = surface - floor;
+      if (d > deepest) deepest = d, at[0] = x, at[1] = surface, at[2] = z;
+      const bool lo = d > 0.1f * low, hi = d > 0.1f * high;
+      past_low += lo, past_high += hi;
+      if (!lo) continue;
+      for (Poi& q : pois) {
+        const float dist = std::sqrt((q.x - x) * (q.x - x) + (q.z - z) * (q.z - z));
+        if (dist < q.near_low) q.near_low = dist;
+        if (hi && dist < q.near_high) q.near_high = dist;
+      }
+    }
+  zmod::zones().mode = mode;
+  std::printf("WATER %s: %d samples every %.0f m over %.0f x %.0f m; %d over water (%d with no ground under), deepest %.1f m at %.0f %.0f %.0f; "
+              "past a tenth of the shortest mech (%.1f m of %.1f): %d samples, of the tallest (%.1f m of %.1f): %d\n",
+              label, samples, step, x1 - x0, z1 - z0, wet, no_floor, deepest, at[0], at[1], at[2], 0.1f * low, low, past_low, 0.1f * high, high, past_high);
+  for (const Poi& q : pois) {
+    if (q.near_low > 1e8f) continue;
+    std::printf("WATER %s:   %-22s wadeable water %5.0f m away (the tallest's: %s)\n", label, q.name.c_str(), q.near_low,
+                q.near_high > 1e8f ? "none" : (std::to_string(static_cast<int>(q.near_high)) + " m").c_str());
+  }
+}

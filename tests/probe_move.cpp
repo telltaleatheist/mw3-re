@@ -6,6 +6,7 @@
 
 #include <vector>
 
+#include "gamez/zutil/zfix.h"
 #include "mech3/mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/mech_move.h"
@@ -102,6 +103,9 @@ void anim_io(MechAnim& a, uint8_t* b, bool store) {
 }  // namespace
 
 extern "C" {
+
+// The WATER switch alone (test_pm_water.py; the probes start with it off).
+void probe_zfix_water(int32_t on) { zfix::options().water = on != 0; }
 
 // The gait (op 0, 0x4181c0) or the turn (op 1, 0x418fc0) on a whole mech:
 // images of the mech (0x6d8), controls (0x74), two feet (0x100, the
