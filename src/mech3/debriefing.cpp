@@ -462,7 +462,7 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t mission, const uin
 
 const char* DebriefScreen::continue_help_text() {
   ztwod::Text* h = help(continue_btn);
-  return h && h->text ? h->text : "";
+  return h ? h->text : "";
 }
 
 // Pirate's Moon 1.0 @ 0x0047ee40 (ECX the debriefing; the flag is the Win State's, `won`).

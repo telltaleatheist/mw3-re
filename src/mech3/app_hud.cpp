@@ -1440,7 +1440,7 @@ std::string program_hud_objectives_text() {
   std::string out;
   if (!h || (h->objectives.flags >> 4 & 1)) return out;  // hidden
   for (const ztwod::Text& t : h->objectives.lines)
-    if (t.text && *t.text) out += (out.empty() ? "" : " | ") + std::string(t.text);
+    if (*t.text) out += (out.empty() ? "" : " | ") + std::string(t.text);
   return out;
 }
 
