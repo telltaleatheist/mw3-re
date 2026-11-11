@@ -1,4 +1,5 @@
 #include "mech3/mod_campaign.h"
+#include "mech3/pilot_menu.h"
 
 #include <cctype>
 #include <cstdlib>
@@ -170,9 +171,12 @@ std::string entry_id(const ModCampaign& c) { return c.mod + "~" + c.id; }
 std::string game_folder(const ModCampaign& c) { return entry_pilots_folder(entry_id(c)); }
 fs::path disk_folder(const ModCampaign& c) { return fs::path(zutl::write_path((std::string(kEntriesFolder) + "\\" + entry_id(c)).c_str())); }
 
-// Every pilot let go, each saved while dirty (its destructor), as a new start finds them.
+// Every pilot let go, each saved while dirty (its destructor), as a new start finds them. Nothing of ours keeps
+// a pointer to one: the current pilot and every pilot screen's chosen are cleared first (FIX (bug): the screen's
+// was left, and the games list was filled from the deleted pilot when a mission ended inside a campaign).
 void drop_pilots() {
   current_pilot() = nullptr;
+  pilot_screens_forget_pilots();
   for (Pilot* p : pilots()) delete p;
   pilots().clear();
 }
@@ -185,10 +189,15 @@ bool campaign_enter(const ModCampaign& c, std::string* why) {
   e.kind = CampaignEntry::kImported, e.id = entry_id(c), e.name = c.name, e.mod = c.mod, e.campaign = c.id;
   const fs::path dir = disk_folder(c);
   if (!entry_ensure(dir.parent_path().parent_path().string(), e, why)) return false;  // the write dir, two up
+  // Entered again (the main menu comes back after each mission and opens the entry anew): the pilots are read
+  // again from their files, as written at the mission's end, and the pilot who flew it is found again by name.
+  const bool again = g_entered && g_entered->mod == c.mod && g_entered->id == c.id && current_pilot();
+  const std::string flying = again ? current_pilot()->name : "";
   drop_pilots();
   g_entered = std::make_unique<ModCampaign>(c);
   set_pilots_folder(game_folder(c));
   load_pilots();
+  if (!flying.empty()) current_pilot() = find_pilot(flying.c_str());
   return true;
 }
 

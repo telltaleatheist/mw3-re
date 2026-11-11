@@ -40,6 +40,7 @@ void destroy(Archive& a);                      // 0x00576500
 // game's (zgame::game(): MW3's version 1, PM's version 2).
 bool open(Archive& a, const char* path);
 bool read_table(Archive& a);                   // 0x005767b0, MW3's
+long data_end(const Archive& a);               // ours: where the entries\' data ends (the table\'s start)
 void reserve(Archive& a, int count);           // 0x00576690
 bool close(Archive& a);                        // 0x00576650, writes the table when dirty
 bool create(Archive& a, const char* path);     // 0x005765b0, truncates

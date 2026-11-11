@@ -2,6 +2,7 @@
 // in mw3.cfg's order, the player's own files never served from a mod, a
 // mod's loose .zrd over its archive's entry, nothing changed without mods.
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <cstdint>
 #include <cstring>
@@ -159,6 +160,106 @@ TEST(mods_mount_in_order_and_game_data_only) {
   EXPECT(mech3::mods_found(wd).size() == 3);
 }
 
+// One file's fault never refuses a mod (Owen, 2026-11-11): the file is left out and the rest added. Only the
+// mod's own fault does: here, nothing in it usable.
+TEST(mods_check_refuses_only_a_mod_with_nothing_usable) {
+  const std::string root = tmp("mods_nothing_usable");
+  auto check = [&](const std::string& name, int* errors, mech3::ModFindings* f) {
+    std::string text;
+    for (const std::string& l : mech3::mod_check(root + "/" + name, "", errors, f)) text += l + "\n";
+    return text;
+  };
+  int errors = -1;
+  mech3::ModFindings f;
+  // Its one file no archive: left out, and then nothing is left.
+  put(root + "/a/mod.txt", "name=A\n");
+  put(root + "/a/zbd/broken.zbd", "not an archive");
+  std::string text = check("a", &errors, &f);
+  std::printf("%s", text.c_str());
+  EXPECT(errors == 1 && text.find("warning: zbd/broken.zbd: not an archive the game can read (its table). The rebuild: IMPORT leaves this file "
+                                  "out; the game's own, if it has one, is used. The original game: not known.") != std::string::npos);
+  EXPECT(text.find("error: the mod: nothing in it can be used (every file and line of it is left out)") != std::string::npos);
+  EXPECT((f.unread_files == std::vector<std::string>{"zbd/broken.zbd"}) && f.refused.size() == 1 && f.notes.size() == 1);
+  bool said = false;
+  for (const std::string& l : mech3::mod_sentences(f)) said = said || l == "The whole mod is refused: nothing in it can be used (every file and line of it is left out).";
+  EXPECT(said);
+  // The same with one good file beside it: a warning, the mod taken.
+  put(root + "/b/mod.txt", "name=B\n");
+  put(root + "/b/zbd/broken.zbd", "not an archive");
+  put(root + "/b/zbd/fmv.zrd", "(INTRO (PLAYAVI intro))\n");
+  text = check("b", &errors, &f);
+  EXPECT(errors == 0 && f.notes.size() == 1 && f.notes[0].group == mech3::ModWarningGroup::kStops && f.unread_files.size() == 1 &&
+         text.find("0 errors, 1 warning\n") != std::string::npos);
+  // Only lines of mod.txt, none of them usable: refused; one usable line: taken.
+  put(root + "/c/mod.txt", "name=C\nmech=bad\nia_world=nowhere\n");
+  text = check("c", &errors, &f);
+  EXPECT(errors == 1 && f.notes.size() == 2 && text.find("error: the mod: nothing in it can be used") != std::string::npos);
+  put(root + "/d/mod.txt", "name=D\nmech=bad\nia_world=c1 Canyon\n");
+  text = check("d", &errors, &f);
+  EXPECT(errors == 0 && f.notes.size() == 1 && (f.ia_worlds == std::vector<std::string>{"Canyon"}));
+  // Nothing in it and nothing wrong with it: as before, a mod that changes nothing.
+  put(root + "/e/mod.txt", "name=E\n");
+  text = check("e", &errors, &f);
+  EXPECT(errors == 0 && f.notes.empty());
+  EXPECT((mech3::mod_sentences(f) == std::vector<std::string>{"It holds 0 game files.", "Nothing in it is refused."}) ||
+         (mech3::mod_sentences(f) == std::vector<std::string>{"It changes nothing in the game.", "Nothing in it is refused."}));
+}
+
+// REPORT's text file (mod_report.h): one a mod in <write dir>/mod-reports, a folder of the game's own making with
+// its marker; replaced each time; nothing written into a folder of that name the game did not make, through a
+// link, or outside the folder.
+TEST(mods_report_file_goes_in_a_marked_folder_of_ours) {
+  const std::string root = tmp("mods_report_file");
+  const std::string wd = root + "/wd";
+  std::error_code ec;
+  fs::create_directories(wd, ec);
+  auto text_of = [](const std::string& p) {
+    std::ifstream f(p, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  std::string path, why;
+  EXPECT(mech3::mod_report_write(wd, "My Mod", {"Report on My Mod.", "", "Nothing in it is refused."}, &path, &why));
+  EXPECT(path == wd + "/mod-reports/My Mod.txt" && text_of(path) == "Report on My Mod.\n\nNothing in it is refused.\n");
+  EXPECT(fs::is_regular_file(wd + "/mod-reports/" + mech3::kModReportsMarker, ec) && mech3::mod_reports_dir(wd) == wd + "/mod-reports");
+  // Again: the one file replaced, another mod's beside it.
+  EXPECT(mech3::mod_report_write(wd, "My Mod", {"second"}, &path, &why) && text_of(path) == "second\n");
+  EXPECT(mech3::mod_report_write(wd, "Other", {"other"}, &path, &why) && text_of(wd + "/mod-reports/My Mod.txt") == "second\n");
+  // No name that leaves the folder.
+  for (const char* bad : {"", ".", "..", "../out", "a/b", "a\\b", "c:x"}) {
+    path.clear();
+    EXPECT(!mech3::mod_report_write(wd, bad, {"x"}, &path, &why) && path.empty());
+  }
+  EXPECT(!fs::exists(root + "/out.txt", ec) && !fs::exists(wd + "/out.txt", ec));
+  // A mod-reports folder the game did not make (no marker): nothing written, the player's file as it was.
+  const std::string wd2 = root + "/wd2";
+  put(wd2 + "/mod-reports/My Mod.txt", "mine");
+  path.clear();
+  EXPECT(!mech3::mod_report_write(wd2, "My Mod", {"ours"}, &path, &why) && path.empty());
+  std::printf("  not ours: %s\n", why.c_str());
+  EXPECT(why.find("is not a folder the game made") != std::string::npos && text_of(wd2 + "/mod-reports/My Mod.txt") == "mine");
+  EXPECT(!fs::exists(wd2 + "/mod-reports/" + mech3::kModReportsMarker, ec) && !fs::exists(wd2 + "/mod-reports/New.txt", ec));
+#if !defined(_WIN32)
+  // Through a link: the folder itself, or the report's own file. Never followed.
+  const std::string wd3 = root + "/wd3";
+  put(root + "/elsewhere/" + mech3::kModReportsMarker, "copied marker");
+  fs::create_directories(wd3, ec);
+  fs::create_directory_symlink(root + "/elsewhere", wd3 + "/mod-reports", ec);
+  EXPECT(!ec && !mech3::mod_report_write(wd3, "My Mod", {"ours"}, &path, &why) && !fs::exists(root + "/elsewhere/My Mod.txt", ec));
+  put(root + "/target.txt", "the player's");
+  fs::create_symlink(root + "/target.txt", wd + "/mod-reports/Linked.txt", ec);
+  EXPECT(!ec && !mech3::mod_report_write(wd, "Linked", {"ours"}, &path, &why) && text_of(root + "/target.txt") == "the player's");
+#endif
+  // IMPORT's record of what it left out: lines of ours read back, anything else passed over.
+  const std::string mod = root + "/mod";
+  fs::create_directories(mod, ec);
+  EXPECT(mech3::mod_left_out_read(mod).empty());
+  EXPECT(mech3::mod_left_out_write(mod, {{"zbd/a.zbd: x.zrd", {"a\tb", "left\nout", "", "fix it"}, mech3::ModWarningGroup::kStops, false}}));
+  { std::ofstream more(mod + "/" + mech3::kModLeftOutFile, std::ios::app); more << "junk line\n\tno where\t\t\t\n"; }
+  const std::vector<mech3::ModNote> back = mech3::mod_left_out_read(mod);
+  EXPECT(back.size() == 1 && back[0].where == "zbd/a.zbd: x.zrd" && back[0].w.wrong == "a b" && back[0].w.did == "left out" &&
+         back[0].w.original.empty() && back[0].w.fix == "fix it" && back[0].group == mech3::ModWarningGroup::kStops);
+}
+
 // Modder step 3 (modding.md, Plain errors on the MODS screen): a mod's check
 // and this start's mount as sentences, what it replaces and adds, what it adds
 // by mod.txt, what is ignored, each thing refused and why.
@@ -166,18 +267,67 @@ TEST(mods_report_says_what_a_mod_does_in_sentences) {
   mech3::ModFindings f;
   f.against_install = true, f.replaces = 2, f.adds = 1, f.ignored = 1;
   f.mechs = {"Thor B"}, f.weapons = {"Rail", "Gauss2"}, f.campaigns = {"Long Night"};
-  f.refused = {"zbd/weapons.zrd: line 3: a '(' never closed", "mech Scout: there is a mech Scout already"};
-  f.warnings = {"campaign c.txt: line 4: no world zz in the mod or the game: it plays only with a mod that adds it"};
-  f.left_out = {"world x: there is no zbd/x/gamez.zbd in the mod"};
+  f.refused = {"mod.txt: it is for mw3pm, not MechWarrior 3"};
+  // One warning of each group, given out of the report's order, and a plain note.
+  f.notes = {{"zbd/t1/readermp2.zbd: aiv.zrd",
+              {"its list 8 bytes in says 38 items and the entry holds 37", "reads the items", "reads on into the next entry", "its count should be 37"},
+              mech3::ModWarningGroup::kSlip, false},
+             {"zbd/t1/odd.zbd: x.zrd", {"lists nested more than 64 deep", "reads 64", "has no limit", ""}, mech3::ModWarningGroup::kSlip, false},
+             {"zbd/t1/readermp8.zbd: aiv.zrd",
+              {"its list 8 bytes in says 30 items and the entry holds 29", "reads the items", "reads on into the next entry", "its count should be 29"},
+              mech3::ModWarningGroup::kSlip, false},
+             {"zbd/t1/readermp9.zbd: aiv.zrd",
+              {"its list 8 bytes in says 30 items and the entry holds 29", "reads the items", "reads on into the next entry", "its count should be 29"},
+              mech3::ModWarningGroup::kSlip, false},
+             {"", {"campaign c.txt: line 4: no world zz in the mod or the game: it plays only with a mod that adds it", "", "", ""},
+              mech3::ModWarningGroup::kSlip, true},
+             {"zbd/c4b/readermp1.zbd: mpinfo.zrd", {"its list says 24 items and the entry holds 10", "read the 10", "a likely crash", ""},
+              mech3::ModWarningGroup::kMayCrash, false},
+             {"mech Scout", {"there is a mech Scout already", "this line of mod.txt is left out and the rest of the mod is used", "", ""},
+              mech3::ModWarningGroup::kStops, false}};
+  // What the mount left out: the mech's line is a warning already, said once; the world's is not.
+  f.left_out = {"mech Scout: there is a mech Scout already", "world x: there is no zbd/x/gamez.zbd in the mod"};
   const std::vector<std::string> s = mech3::mod_sentences(f);
   for (const std::string& l : s) std::printf("  %s\n", l.c_str());
   const std::vector<std::string> want = {
       "It replaces 2 of the game's files and adds 1 new file.",
       "It adds the mech Thor B, the weapons Rail and Gauss2 and the campaign \"Long Night\".",
       "1 of its files is the player's own kind (settings, pilots, saved games), which a mod cannot replace: it is ignored.",
-      "The file zbd/weapons.zrd is refused: line 3: a '(' never closed.",
-      "The mech Scout is refused: there is a mech Scout already.",
-      "Note: the campaign file c.txt: line 4: no world zz in the mod or the game: it plays only with a mod that adds it.",
+      "Its mod.txt is refused: it is for mw3pm, not MechWarrior 3.",
+      "7 warnings: 1 stops part of the mod working, 1 works here but may crash the original game and 5 are slips that do no harm.",
+      "In them, an entry is one named part of a .zbd file (\"zbd/t1/readermp2.zbd: aiv.zrd\" is the entry aiv.zrd in that file), and "
+      "\"bytes into the entry\" counts from the entry's first byte.",
+      "",
+      "WHAT STOPS PART OF THE MOD WORKING (1)",
+      "1. mech Scout",
+      "Wrong: there is a mech Scout already.",
+      "The rebuild: this line of mod.txt is left out and the rest of the mod is used.",
+      "The original game: not known.",
+      "",
+      "WHAT WORKS HERE BUT MAY CRASH THE ORIGINAL GAME (1)",
+      "1. zbd/c4b/readermp1.zbd: mpinfo.zrd",
+      "Wrong: its list says 24 items and the entry holds 10.",
+      "The rebuild: read the 10.",
+      "The original game: a likely crash.",
+      "",
+      // the two of one kind together, what is done with them said once; then the other kind; the plain note last
+      // and in a kind, the entries with the very same fault listed, the fault said once
+      "SLIPS THAT DO NO HARM (5)",
+      "1. zbd/t1/readermp2.zbd: aiv.zrd",
+      "Wrong: its list 8 bytes in says 38 items and the entry holds 37.",
+      "To fix it: its count should be 37.",
+      "2. zbd/t1/readermp8.zbd: aiv.zrd",
+      "3. zbd/t1/readermp9.zbd: aiv.zrd",
+      "For 2 to 3: wrong: its list 8 bytes in says 30 items and the entry holds 29.",
+      "For 2 to 3: to fix it: its count should be 29.",
+      "For 1 to 3: the rebuild: reads the items.",
+      "For 1 to 3: the original game: reads on into the next entry.",
+      "4. zbd/t1/odd.zbd: x.zrd",
+      "Wrong: lists nested more than 64 deep.",
+      "The rebuild: reads 64.",
+      "The original game: has no limit.",
+      "5. The campaign file c.txt: line 4: no world zz in the mod or the game: it plays only with a mod that adds it.",
+      "",
       "At this start the game left out the world x: there is no zbd/x/gamez.zbd in the mod."};
   EXPECT(s == want);
   EXPECT((mech3::mod_sentences(mech3::ModFindings{}) == std::vector<std::string>{"It changes nothing in the game.", "Nothing in it is refused."}));
@@ -202,17 +352,20 @@ TEST(mods_report_says_what_a_mod_does_in_sentences) {
   std::string said;
   for (const std::string& l : mech3::mod_report(wd + "/mods/one", install, "one", &refused)) said += l + "\n";
   std::printf("%s", said.c_str());
-  EXPECT(refused == 2);
+  EXPECT(refused == 0);  // two lines of mod.txt the game cannot use: warnings, the mod not refused
   EXPECT(said.find("It replaces 1 of the game's files and adds 1 new file.") != std::string::npos);
   EXPECT(said.find("1 of its files is the player's own kind") != std::string::npos);
-  EXPECT(said.find("The world x is refused: no zbd/x/gamez.zbd.") != std::string::npos);
-  EXPECT(said.find("The mech bad is refused: ") != std::string::npos);
-  EXPECT(said.find("At this start the game left out the world x: there is no zbd/x/gamez.zbd in the mod.") != std::string::npos);
-  EXPECT(said.find("At this start the game left out the mech bad: ") != std::string::npos);
+  EXPECT(said.find("2 warnings, none of which refuses the mod: 2 stop part of the mod working.\n\nWHAT STOPS PART OF THE MOD WORKING (2)\n1. world x\nWrong: no zbd/x/gamez.zbd.\n"
+                   "2. mech bad\nWrong: ") != std::string::npos);  // two faults of one kind: each said, what is done with them once
+  EXPECT(said.find("For 1 to 2: the rebuild: this line of mod.txt is left out and the rest of the mod is used.\n") != std::string::npos &&
+         said.find("is refused") == std::string::npos);
+  // The mount left the same two out: said once, by the warnings.
+  EXPECT(mech3::mods_left_out()["one"].size() == 2 && said.find("At this start the game left out") == std::string::npos);
   EXPECT(said.find("Nothing in it is refused.") == std::string::npos);
   // The launcher's list carries them with CHECK.
   for (const mech3::ModsListEntry& e : mech3::mods_list(wd, {"one"}, true, install))
-    EXPECT(e.check_errors == 2 && !e.report.empty() && e.report[0] == "It replaces 1 of the game's files and adds 1 new file.");
+    EXPECT(e.check_errors == 0 && e.check_warnings == 2 && !e.report.empty() &&
+           e.report[0] == "It replaces 1 of the game's files and adds 1 new file.");
   mech3::mods_left_out().clear();
 }
 
@@ -335,7 +488,8 @@ TEST(mods_loose_weapons_zrd_read_directly) {
               report.c_str());
   EXPECT(shipped > 0.0f && shipped != 1234.5f);
   EXPECT(loose == 1234.5f && both == 1234.5f && broken == shipped);
-  EXPECT(errors == 1 && report.find("zbd/weapons.zrd: line 3: a '(' never closed") != std::string::npos);
+  EXPECT(errors == 0 && report.find("warning: zbd/weapons.zrd: line 3: a '(' never closed. The rebuild: this file is not read; an archive's "
+                                    "entry of that name is used.") != std::string::npos);
   EXPECT(clean_errors == 0);
   // The line found for each kind of imbalance.
   auto why = [&](const std::string& t) {
@@ -1043,10 +1197,16 @@ TEST(mods_worlds_declared) {
   EXPECT(mech3::mission_dir_count() == 9 && std::string(mech3::mission_dir(9)) == "none");
 }
 
-// M3: a reader archive's broken entries are refused, not read on into the
-// next ones or allocated as their counts say; good ones read as before.
-TEST(mods_broken_reader_entries_are_refused) {
+// A reader archive's entries, hand-edited ones included (Owen, 2026-11-11: mods' makers edit these by hand; make
+// them work, and fail gracefully). A list that says more items than its entry holds takes the entries after it
+// as its tail, as the original's 0x00557180 does and the community's mpinfo.zrd and aiv.zrd entries need. At the
+// first thing that is no node (a word of no type, a count or a string no file could hold, nesting past the limit,
+// the archive's data running out) the reading stops: what was read before it is kept, each open list ends
+// there, and the reader says what and where in plain words. Only an entry with nothing readable is no entry.
+TEST(mods_reader_entries_take_their_tail_and_refuse_what_no_file_holds) {
   SavedMounts keep;
+  const zfix::Options saved = zfix::options();
+  zfix::set_all(true);
   const std::string dir = tmp("mods_broken_zrd");
   const std::string path = dir + "/broken.zbd";
   auto le = [](std::vector<uint8_t>& v, int32_t x) {
@@ -1057,13 +1217,17 @@ TEST(mods_broken_reader_entries_are_refused) {
   le(good, 4), le(good, 3), le(good, 1), le(good, 7), le(good, 3), le(good, 2), good.push_back('o'), good.push_back('k');
   std::vector<uint8_t> huge;  // a list claiming a billion children
   le(huge, 4), le(huge, 1000000000), le(huge, 1), le(huge, 7);
-  std::vector<uint8_t> type;  // a node of type 9
-  le(type, 4), le(type, 2), le(type, 9), le(type, 0);
+  std::vector<uint8_t> type;  // a node of type 9, then an int
+  le(type, 4), le(type, 3), le(type, 9), le(type, 1), le(type, 6);
   std::vector<uint8_t> deep;  // 100 nested lists of 2
   for (int i = 0; i < 100; ++i) le(deep, 4), le(deep, 2);
   le(deep, 1), le(deep, 0);
-  std::vector<uint8_t> past;  // a list of 3 holding one int: the rest is the next entry's
+  std::vector<uint8_t> past;  // a list of 3 holding one int: its second item is the next entry
   le(past, 4), le(past, 3), le(past, 1), le(past, 5);
+  std::vector<uint8_t> longstr;  // a string said to be a megabyte long
+  le(longstr, 4), le(longstr, 2), le(longstr, 3), le(longstr, 1 << 20), longstr.push_back('x');
+  std::vector<uint8_t> last;  // the archive's last entry, a list of 4 holding two ints: nothing after it but the table
+  le(last, 4), le(last, 4), le(last, 1), le(last, 8), le(last, 1), le(last, 9);
   zutl_zar::Archive a;
   zutl_zar::init(a);
   EXPECT(zutl_zar::create(a, path.c_str()));
@@ -1073,6 +1237,8 @@ TEST(mods_broken_reader_entries_are_refused) {
   zutl_zar::add(a, "deep.zrd", deep.data(), static_cast<uint32_t>(deep.size()));
   zutl_zar::add(a, "past.zrd", past.data(), static_cast<uint32_t>(past.size()));
   zutl_zar::add(a, "after.zrd", good.data(), static_cast<uint32_t>(good.size()));
+  zutl_zar::add(a, "longstr.zrd", longstr.data(), static_cast<uint32_t>(longstr.size()));
+  zutl_zar::add(a, "last.zrd", last.data(), static_cast<uint32_t>(last.size()));
   EXPECT(zutl_zar::close(a));
   zutl_zar::destroy(a);
   zutl::mounts() = zutl::Mounts{};
@@ -1081,16 +1247,87 @@ TEST(mods_broken_reader_entries_are_refused) {
   zrdr::Node* g = zrdr::load("good.zrd");
   EXPECT(g && zrdr::list_count(g) == 3 && g->list[1].i == 7 && std::string(g->list[2].s) == "ok");
   if (g) zrdr::free_node(g);
-  for (const char* bad : {"huge.zrd", "type.zrd", "deep.zrd", "past.zrd"}) {
-    zrdr::Node* n = zrdr::load(bad);
-    std::printf("  %s: %s\n", bad, n ? "read" : "refused");
-    EXPECT(n == nullptr);
-    if (n) zrdr::free_node(n);
+  auto notes = [] {
+    std::string all;
+    for (const mech3::ModWarning& n : zrdr::load_notes()) all += n.wrong + " -> " + n.did + "|";
+    return all;
+  };
+  EXPECT(notes().empty());  // a well-formed entry: nothing to say
+  // A billion items at the entry's own start: nothing of it reads, it is no entry, and the note says why.
+  zrdr::Node* h = zrdr::load("huge.zrd");
+  EXPECT(h == nullptr && notes() == "a list count of 1000000000, 0 bytes into the entry, that no file could hold -> nothing of the entry can be read, so it "
+                                    "is treated as not there|");
+  EXPECT(!zrdr::load_notes().empty() && zrdr::load_notes()[0].original.find("a likely crash when this entry is loaded") != std::string::npos);
+  if (h) zrdr::free_node(h);
+  // The list one item too long: its own int, then the entry after it, whole, as its last item.
+  zrdr::Node* p = zrdr::load("past.zrd");
+  EXPECT(p && zrdr::list_count(p) == 3 && p->list[1].type == zrdr::Int && p->list[1].i == 5 && p->list[2].type == zrdr::List);
+  if (p && p->list[2].type == zrdr::List) {
+    zrdr::Node* tail = &p->list[2];
+    EXPECT(zrdr::list_count(tail) == 3 && tail->list[1].i == 7 && std::string(tail->list[2].s) == "ok");
   }
+  EXPECT(notes() == "its list 0 bytes into the entry says 2 items and the entry holds 1 -> reads the items the entry holds, and what follows it "
+                    "in the archive (the next entry) as the rest|");
+  EXPECT(!zrdr::load_notes().empty() && zrdr::load_notes()[0].original.find("does the same (it reads on into the next entry)") == 0);
+  // and what to change in the file: the count's own place, and the number that fits what the entry holds
+  EXPECT(!zrdr::load_notes().empty() && zrdr::load_notes()[0].fix == "set the list's count (the four bytes 4 bytes into the entry) to 2 (1 item "
+                                                                     "and the count itself), or add the 1 item that is missing");
+  if (p) zrdr::free_node(p);
+  // The word that is no node type: the list ends before it (the int after it is not read as anything).
+  zrdr::Node* t = zrdr::load("type.zrd");
+  EXPECT(t && t->type == zrdr::List && zrdr::list_count(t) == 1);
+  EXPECT(notes() == "a value that is not a node type (9; the types are 1 a whole number, 2 a decimal, 3 a text, 4 a list) 8 bytes into "
+                    "the entry (its list 0 bytes into the entry says 2 items and holds 0) -> reads what comes before it; the rest of the entry is left out|");
+  if (t) zrdr::free_node(t);
+  // 100 lists nested: the 64 the reader allows are kept, the 65th is where it stops.
+  zrdr::Node* d = zrdr::load("deep.zrd");
+  int depth = 0;
+  for (zrdr::Node* n = d; n && n->type == zrdr::List; n = zrdr::list_count(n) > 1 ? &n->list[1] : nullptr) ++depth;
+  std::printf("  deep.zrd: %d lists kept; %s\n", depth, notes().c_str());
+  EXPECT(d && depth == 64 && notes().find("lists nested more than 64 deep, 512 bytes into the entry") == 0);
+  if (d) zrdr::free_node(d);
+  // A string said to be a megabyte long: the list ends before it.
+  zrdr::Node* ls = zrdr::load("longstr.zrd");
+  EXPECT(ls && zrdr::list_count(ls) == 1 && notes().find("a text said to be 1048576 bytes long, 8 bytes into the entry, which runs past the archive's data") == 0);
+  if (ls) zrdr::free_node(ls);
+  // The archive's last entry short of an item: the two it has, the list ending there; nothing of the table read as a node.
+  zrdr::Node* l = zrdr::load("last.zrd");
+  EXPECT(l && zrdr::list_count(l) == 3 && l->list[1].i == 8 && l->list[2].i == 9);
+  EXPECT(notes().find("the archive's data ends 24 bytes into the entry, before the entry's lists are full (its list 0 bytes into the entry "
+                      "says 3 items and holds 2)") == 0);
+  EXPECT(!zrdr::load_notes().empty() && zrdr::load_notes()[0].fix.find("to 3 (2 items and the count itself), or add the 1 item that is missing") !=
+                                            std::string::npos);
+  if (l) zrdr::free_node(l);
   zrdr::Node* after = zrdr::load("after.zrd");  // the reader is fine after them
   EXPECT(after && zrdr::list_count(after) == 3);
   if (after) zrdr::free_node(after);
   zrdr::close_archives(true);
+  // A list that runs into the entry after it and is still short when the archive's data ends: one fault, one
+  // warning (not a slip and a second warning about the same list), what to change in it said.
+  const std::string path2 = dir + "/short.zbd";
+  std::vector<uint8_t> longer;  // a list of 6 (five items) holding one int
+  le(longer, 4), le(longer, 6), le(longer, 1), le(longer, 5);
+  zutl_zar::Archive a2;
+  zutl_zar::init(a2);
+  EXPECT(zutl_zar::create(a2, path2.c_str()));
+  zutl_zar::add(a2, "longer.zrd", longer.data(), static_cast<uint32_t>(longer.size()));
+  zutl_zar::add(a2, "good.zrd", good.data(), static_cast<uint32_t>(good.size()));
+  EXPECT(zutl_zar::close(a2));
+  zutl_zar::destroy(a2);
+  EXPECT(zrdr::open_archive(path2.c_str(), true));
+  zrdr::Node* lg = zrdr::load("longer.zrd");
+  std::printf("  longer.zrd: %s\n", notes().c_str());
+  EXPECT(lg && zrdr::list_count(lg) == 3 && lg->list[1].i == 5 && lg->list[2].type == zrdr::List);  // its int, then good.zrd whole
+  EXPECT(zrdr::load_notes().size() == 1 &&
+         notes() == "its list 0 bytes into the entry says 5 items and the entry holds 1; reading on, the archive's data ends before the list is "
+                    "full -> reads the items the entry holds and what follows it in the archive as the rest, as far as the data goes; the "
+                    "items still missing are left out|");
+  EXPECT(zrdr::load_notes().size() == 1 && zrdr::load_notes()[0].original.find("can crash") != std::string::npos &&
+         zrdr::load_notes()[0].fix == "set the list's count (the four bytes 4 bytes into the entry) to 2 (1 item and the count itself), or add "
+                                      "the 4 items that are missing");
+  if (lg) zrdr::free_node(lg);
+  zrdr::close_archives(true);
+  zfix::options() = saved;
 }
 
 namespace {
@@ -1837,7 +2074,8 @@ TEST(mods_anim_def_files_on_the_list_and_checked) {
   report.clear();
   for (const std::string& l : mech3::mod_check(d, install, &errors)) report += l + "\n";
   std::printf("  d: %s", report.substr(report.find("zbd/anim/broken.json")).c_str());
-  EXPECT(errors == 1 && report.find("activation") != std::string::npos && report.find("left out") != std::string::npos);
+  EXPECT(errors == 0 && report.find("warning: zbd/anim/broken.json: ") != std::string::npos && report.find("activation") != std::string::npos &&
+         report.find("The rebuild: this animation is left out.") != std::string::npos);
 }
 
 // Both ways (docs/modding.md, Animations a def at a time, step 3): a mod with anim=defs keeps a whole anim.zbd for the
@@ -2018,7 +2256,8 @@ TEST(mods_anim_node_files_bind_their_defs) {
   bool noted = false;
   for (const std::string& l : lines) noted = noted || l.find("mod_muz.flt.json is a node file") != std::string::npos;
   std::printf("  check: node %d, broken %d (%s)\n", node_ok, broken_errors, broken.find("no materials") != std::string::npos ? "no materials" : "?");
-  EXPECT(node_ok && broken_errors == 1 && broken.find("no materials list") != std::string::npos && noted);
+  EXPECT(node_ok && broken_errors == 0 && broken.find("no materials list") != std::string::npos &&
+         broken.find("The rebuild: this node is left out, and the animations on it.") != std::string::npos && noted);
 }
 
 // What a world's anim JSON refuses, with the file, line and place (docs/modding.md).
@@ -2374,24 +2613,32 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   text.clear();
   for (const std::string& l : mech3::mod_check(bad, install, &errors)) text += l + "\n";
   std::printf("%s", text.c_str());
-  EXPECT(text.find("error: zbd/reader/fmv.zrd.json: line 2 (at $[1][1]): true or false") != std::string::npos &&
-         text.find("error: zbd/reader.zip:fmv.zrd.json: line 1 (at $): a '[' never closed") != std::string::npos &&
-         text.find("error: zbd/c1/readerm1.zip: not a zip the game can read") != std::string::npos);
-  EXPECT(text.find("error: zbd/motion/madcat_walk.json: line 2 (at $.frame_count): 0: a motion has at least one frame") != std::string::npos &&
-         text.find("error: zbd/motion.zip:madcat_run.json: line 1 (at $.loop_time): not above 0") != std::string::npos);
-  EXPECT(text.find("error: zbd/mechlib/materials.json: line 2 (at $[0].Colored.alpha): 300: past 0..255") != std::string::npos &&
-         text.find("error: zbd/mechlib.zip:mech_x.flt.json: line 1 (at $): no \"models\"") != std::string::npos);
-  EXPECT(text.find("error: zbd/t1/anim.zip: gone.json: not there") != std::string::npos);
-  EXPECT(text.find("error: zbd/c1/gamez.zip: nodes.json: line 1 (at $[0]): an empty node has one parent") != std::string::npos);
-  EXPECT(text.find("error: zbd/c2/gamez/: metadata.json: line 1 (at $): no \"model_array_size\"") != std::string::npos);
-  EXPECT(errors == 18 && text.find("error: zbd/mechlib.zbd: its version, format or materials cannot be read") != std::string::npos &&
-         text.find("error: zbd/motion.zbd: motion walk cannot be read") != std::string::npos);
+  EXPECT(text.find("warning: zbd/reader/fmv.zrd.json: line 2 (at $[1][1]): true or false") != std::string::npos &&
+         text.find("warning: zbd/reader.zip:fmv.zrd.json: line 1 (at $): a '[' never closed") != std::string::npos &&
+         text.find("warning: zbd/c1/readerm1.zip: not a zip the game can read") != std::string::npos);
+  EXPECT(text.find("warning: zbd/motion/madcat_walk.json: line 2 (at $.frame_count): 0: a motion has at least one frame") != std::string::npos &&
+         text.find("warning: zbd/motion.zip:madcat_run.json: line 1 (at $.loop_time): not above 0") != std::string::npos);
+  EXPECT(text.find("warning: zbd/mechlib/materials.json: line 2 (at $[0].Colored.alpha): 300: past 0..255") != std::string::npos &&
+         text.find("warning: zbd/mechlib.zip:mech_x.flt.json: line 1 (at $): no \"models\"") != std::string::npos);
+  EXPECT(text.find("warning: zbd/t1/anim.zip: gone.json: not there") != std::string::npos);
+  EXPECT(text.find("warning: zbd/c1/gamez.zip: nodes.json: line 1 (at $[0]): an empty node has one parent") != std::string::npos);
+  EXPECT(text.find("warning: zbd/c2/gamez/: metadata.json: line 1 (at $): no \"model_array_size\"") != std::string::npos);
+  // One refuses the mod: its mod.txt. The rest are warnings.
+  EXPECT(errors == 1 && text.find("17 files, 4 archives, 11 reader entries checked; 1 errors, 17 warnings") != std::string::npos);
+  EXPECT(text.find("warning: zbd/mechlib.zbd: its version, format or materials cannot be read. The rebuild: IMPORT leaves this file out; the "
+                   "game's own, if it has one, is used. The original game: not known.") != std::string::npos &&
+         text.find("warning: zbd/motion.zbd: its motion walk cannot be read. The rebuild: IMPORT leaves this file out") != std::string::npos);
   EXPECT(text.find("error: mod.txt: mod.txt has no name= line") != std::string::npos &&
-         text.find("error: world nofiles: no zbd/nofiles/gamez.zbd") != std::string::npos &&
-         text.find("error: ia_world nowhere: no such world") != std::string::npos &&
-         text.find("error: zbd/rimage.zbd: not a texture library the game can read") != std::string::npos &&
-         text.find("error: zbd/c1/readerm1.zbd: entry mission.zrd cannot be read") != std::string::npos &&
-         text.find("error: zbd/broken.zrd: line 1: a '(' never closed") != std::string::npos &&
+         text.find("warning: world nofiles: no zbd/nofiles/gamez.zbd. The rebuild: this line of mod.txt is left out and the rest of the mod "
+                   "is used. The original game: has no mod.txt (mods are the rebuild's own).") != std::string::npos &&
+         text.find("warning: ia_world nowhere: no such world. The rebuild: this line") != std::string::npos &&
+         text.find("warning: zbd/rimage.zbd: it is not a texture library the game can read (its table of names). The rebuild: IMPORT leaves this file out") != std::string::npos &&
+         // one entry no reader could hold: one warning, the file left out by IMPORT; not a refusal
+         text.find("warning: zbd/c1/readerm1.zbd: mission.zrd: a list count of 1000000000, 0 bytes into the entry, that no file could hold. The rebuild: "
+                   "nothing of the entry can be read, so IMPORT leaves this file out; the game's own, if it has one, is used. The original "
+                   "game: asks for memory for that many items, gets none, and writes there all the same: a likely crash when this "
+                   "entry is loaded (seen in the emulator).") != std::string::npos &&
+         text.find("warning: zbd/broken.zrd: line 1: a '(' never closed") != std::string::npos &&
          text.find("pilots/x.pil: the player's own kind of file") != std::string::npos);
   EXPECT(mech3::mod_check(root + "/none", install, &errors).size() == 1 && errors == 1);
   // An install overlay: no mod.txt is a note, not an error; its files are still checked.
@@ -2401,9 +2648,9 @@ TEST(mods_check_mod_reports_what_the_game_would_refuse) {
   text.clear();
   for (const std::string& l : mech3::mod_check(overlay, install, &errors)) text += l + "\n";
   std::printf("%s", text.c_str());
-  EXPECT(errors == 1 && text.find("no mod.txt: checked as an install overlay") != std::string::npos &&
-         text.find("error: no mod.txt") == std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos &&
-         text.find("error: zbd/broken.zrd: line 1: a '(' never closed") != std::string::npos);
+  EXPECT(errors == 0 && text.find("no mod.txt: checked as an install overlay") != std::string::npos &&
+         text.find("error: ") == std::string::npos && text.find("zbd/fmv.zrd: added") != std::string::npos &&
+         text.find("warning: zbd/broken.zrd: line 1: a '(' never closed") != std::string::npos);
 }
 
 // Custom campaigns (docs/custom-campaigns.md): the file's lines, every one
@@ -2518,10 +2765,11 @@ TEST(mods_check_mod_reads_campaigns) {
   EXPECT(has("campaign good.txt \"Good\": 3 missions\n"));
   EXPECT(has("warning: campaign good.txt: line 4: no world other in the mod or the game: it plays only with a mod that adds it\n"));
   EXPECT(text.find("line 2: no world") == std::string::npos && text.find("line 3: no world") == std::string::npos);
-  EXPECT(has("error: campaign bad.txt: line 2: mission=c1: mission=<world> <number>"));
-  EXPECT(has("error: campaign more/GOOD.txt: the mod has a campaign GOOD already"));
-  EXPECT(errors == 3);  // and the stub zbd/mw/gamez.zbd
-  if (errors != 3) std::printf("%s", text.c_str());
+  EXPECT(has("warning: campaign bad.txt: line 2: mission=c1: mission=<world> <number>"));
+  EXPECT(has("warning: campaign more/GOOD.txt: the mod has a campaign GOOD already. The rebuild: this line of mod.txt is left out"));
+  EXPECT(has("warning: zbd/mw/gamez.zbd: not a world the game can read"));  // the stub
+  EXPECT(errors == 0 && has("0 errors, 4 warnings"));
+  if (errors != 0) std::printf("%s", text.c_str());
 }
 
 // Ours (docs/modding.md, Mods by campaign: the CAMPAIGNS screen): CAMPAIGNS'

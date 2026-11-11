@@ -4779,3 +4779,13 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   under SMALL FIXES. (From the data: dfn_firefly.zrd, dfn_sunder.zrd and
   dfn_strider.zrd in each game's reader.zbd, and interp.zbd.
   docs/fixes.md)
+- **None of the game's texture files uses shared palettes, and the code for
+  them crashes without one.** Each texture's table entry ends in 4 bytes
+  naming a shared palette of its file, -1 (`ff ff ff ff`) for none. All 38
+  texture files of MechWarrior 3 and Pirate's Moon have no shared palettes
+  and say -1 everywhere. A hand-made entry that says 0 instead makes the
+  original crash when that texture is loaded (it looks in a palette list
+  that was never made). For mod makers: new entries need `ff ff ff ff`
+  there. The rebuild loads such a texture anyway and says so. (From the
+  code and the emulator: 0x00518db0, the read at 0x00518e2c.
+  docs/modding.md, A table entry naming a palette the file lacks)

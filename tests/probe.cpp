@@ -157,6 +157,22 @@ int probe_zrdr_load(const char* path, long offset) {
   return n;
 }
 
+// One entry of an archive through zrdr::load, the game's way (the archive's own data its only bound): 1 with the
+// tree loaded, 0 when the entry is not read (broken or not there), -1 when the archive does not open.
+int probe_zrdr_load_entry(const char* archive, const char* name) {
+  if (g_probe_loaded) zrdr::free_contents(&g_probe_root);
+  g_probe_loaded = false;
+  zrdr::init();
+  if (!zrdr::open_archive(archive, true)) return -1;
+  zrdr::Node* root = zrdr::load(name);
+  zrdr::close_archives(true);
+  if (!root) return 0;
+  g_probe_root = *root;
+  std::free(root);
+  g_probe_loaded = true;
+  return 1;
+}
+
 int probe_zrdr_dump(char* buf, int size) {
   std::string s;
   dump(g_probe_root, s);

@@ -11,7 +11,9 @@
 #include <vector>
 
 #include "check.h"
+#include "gamez/zutil/zutl_zar.h"
 #include "mech3/mod_install.h"
+#include "upgrades/mods/mod_report.h"
 #include "mech3/mods.h"
 #include "upgrades/mods/import_folder.h"
 
@@ -249,3 +251,52 @@ TEST(import_folder_leaves_a_linked_folder_out_and_says_so) {
   EXPECT(!d.ok && d.message.find("it holds a link (linked)") != std::string::npos && snapshot(elsewhere) == before);
 }
 #endif
+
+// One multiplayer map's reader archive with an entry no reader could hold (a list of a billion; a hand-edited
+// file) does not stop the rest of a mod being added: IMPORT says so and leaves that one file out. A map whose
+// entry only says an item more than it holds (the original reads on into the next entry) is added as it is.
+TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
+  const std::string wd = tmp("import_unread_wd"), inst = tmp("import_unread_inst"), modded = tmp("import_unread_src") + "/Mod";
+  build(inst, modded);
+  auto le = [](std::vector<uint8_t>& v, int32_t x) {
+    for (int i = 0; i < 4; ++i) v.push_back(static_cast<uint8_t>(x >> (8 * i)));
+  };
+  auto archive = [&](const std::string& path, const std::vector<std::pair<const char*, std::vector<uint8_t>>>& entries) {
+    std::error_code ec;
+    fs::create_directories(fs::path(path).parent_path(), ec);
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    EXPECT(zutl_zar::create(a, path.c_str()));
+    for (const auto& [name, bytes] : entries) zutl_zar::add(a, name, bytes.data(), static_cast<uint32_t>(bytes.size()));
+    EXPECT(zutl_zar::close(a));
+    zutl_zar::destroy(a);
+  };
+  std::vector<uint8_t> good, huge, past;
+  le(good, 4), le(good, 2), le(good, 1), le(good, 7);                    // (7)
+  le(huge, 4), le(huge, 1000000000), le(huge, 1), le(huge, 7);           // a list of a billion
+  le(past, 4), le(past, 3), le(past, 1), le(past, 5);                    // one item more than it holds
+  archive(modded + "/zbd/c1/readermp90.zbd", {{"aiv.zrd", huge}, {"mpinfo.zrd", good}});
+  archive(modded + "/zbd/c1/readermp91.zbd", {{"aiv.zrd", past}, {"mpinfo.zrd", good}});
+  const auto before = snapshot(modded);
+  std::vector<std::string> enabled;
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, [](const std::string&) { return 1; }, &enabled);
+  std::printf("  %s\n", d.message.c_str());
+  EXPECT(d.ok && d.warnings == 2 && d.left_out == 1 && d.message.rfind("Added " + d.name + ": 2 warnings: REPORT lists them. ", 0) == 0 &&
+         d.message.size() > ("Added " + d.name + ": 2 warnings: REPORT lists them. ").size());  // then what to do next, as without warnings
+  std::printf("  %s\n", d.message.c_str());
+  const std::string mod = wd + "/mods/" + d.folder;
+  std::error_code ec;
+  EXPECT(!fs::exists(mod + "/zbd/c1/readermp90.zbd", ec) && fs::is_regular_file(mod + "/zbd/c1/readermp91.zbd", ec) &&
+         fs::is_regular_file(mod + "/zbd/reader.txt", ec));
+  EXPECT(snapshot(modded) == before && nothing_staged(wd));  // the player's folder as it was
+  // The check on the added mod: nothing refused, nothing unreadable left in it.
+  int errors = -1;
+  std::string text;
+  for (const std::string& l : mech3::mod_check(mod, inst, &errors)) text += l + "\n";
+  // and what IMPORT left out is still said, from its record in the mod's folder, with the entry read short.
+  EXPECT(errors == 0 && text.find("0 errors, 2 warnings") != std::string::npos);
+  EXPECT(text.find("warning: zbd/c1/readermp90.zbd: aiv.zrd: a list count of 1000000000, 0 bytes into the entry, that no file could hold. The rebuild: "
+                   "nothing of the entry can be read, so IMPORT left this file out; the game's own, if it has one, is used.") != std::string::npos);
+  EXPECT(text.find("warning: zbd/c1/readermp91.zbd: aiv.zrd: ") != std::string::npos);
+  EXPECT(fs::is_regular_file(mod + "/" + mech3::kModLeftOutFile, ec) && text.find(mech3::kModLeftOutFile) == std::string::npos);
+}

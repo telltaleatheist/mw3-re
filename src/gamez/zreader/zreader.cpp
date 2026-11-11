@@ -1,3 +1,5 @@
+#include "upgrades/mods/mod_warning.h"
+#include "gamez/zutil/zfix.h"
 #include "gamez/zreader/zreader.h"
 #include "upgrades/reference/reference.h"
 
@@ -55,34 +57,247 @@ Node* alloc_list(int32_t count) {
 // (the original read on into whatever followed, or allocated what the count
 // said); shipped entries read exactly as before.
 namespace {
-long g_entry_end = -1;  // -1: no end known (the original's read)
+// Ours, while an archive's entry is read (load): where the archive's own data ends (its table's start). -1: a
+// bare file, the original's read with no bound at all (the differential test's, the text files').
+long g_data_end = -1;
 int g_depth = 0;
-bool g_broken = false;
+bool g_broken = false;  // a count, a string or nesting no file could hold: the entry is not read
+bool g_short = false;   // the archive's data ran out under a list: its items from there on are empty ones
+bool g_odd = false;     // a word that is no node type was met (read on, as the original)
+// Ours: the longest list taken on trust when its data is not all there. The longest shipped list has 3,251 items
+// (c3's reg_ionet_c3.zrd; Pirate's Moon's longest 409); a count past this that the data cannot hold is a hand
+// edit gone wrong, not a list. And the nesting limit of 64 used below: the deepest shipped entry nests 10
+// (c1's objectives.zrd), so 64 is far past any real file and only stops a runaway.
+constexpr int32_t kShortListMost = 4096;
+bool room(std::FILE* file, long bytes) { return g_data_end < 0 || std::ftell(file) + bytes <= g_data_end; }
+
+// Ours, the graceful read (FIX (bug), `fixed`): what a hand-edited entry gets instead of the exe's read of
+// whatever follows. A list that runs past its entry into the next entries' nodes is read on (the exe's way,
+// and those maps work); at the first thing that is no node (a word of no type, a count or a string no file
+// could hold, the archive's data running out, nesting past the limit) the reading stops for the whole entry:
+// every node read before it is kept and each open list ends there.
+enum NoteKind { kNone, kRanOut, kBadWord, kBadCount, kBadString, kNesting };
+struct Stop {
+  NoteKind kind = kNone;
+  long at = 0;          // bytes into the entry
+  int32_t value = 0;    // the word, the count or the string's length
+  long list_at = -1;    // the list it cut short: where, what it said, what it holds
+  int32_t said = 0, held = 0;
+};
+struct Tail {
+  bool is = false;      // a list's items ran past its entry's end
+  bool read = false;    // and a node was read from there (the entries after it)
+  long list_at = 0;
+  int32_t said = 0, held = 0;
+};
+long g_entry_start = 0, g_entry_end = -1;
+bool g_stop = false, g_drop = false;
+Stop g_stopped;
+Tail g_tail;
+std::vector<mech3::ModWarning> g_notes;
+
+void stop(NoteKind kind, long at, int32_t value) {
+  if (!g_stop) g_stopped = Stop{kind, at - g_entry_start, value, -1, 0, 0};
+  g_stop = true;
+  g_drop = true;  // what was being read is no node: its list ends before it
+}
+
+uint32_t read_graceful(std::FILE* file, Node* node) {
+  const long at = std::ftell(file);
+  node->type = Int, node->i = 0;
+  if (g_stop || !room(file, 4)) {
+    stop(kRanOut, at, 0);
+    return 0;
+  }
+  int32_t type = 0;
+  uint32_t total = read4(file, &type);
+  switch (type) {
+    case Int:
+    case Float:
+      if (!room(file, 4)) return stop(kRanOut, at, 0), total;
+      node->type = type;
+      return total + (type == Int ? read4(file, &node->i) : read4(file, &node->f));
+    case String: {
+      int32_t length = -1;
+      if (!room(file, 4)) return stop(kRanOut, at, 0), total;
+      read4(file, &length);
+      if (length < 0 || !room(file, length)) return stop(kBadString, at, length), total;
+      std::fseek(file, at + 4, SEEK_SET);
+      node->type = String;
+      return zutl_zar::read_string(file, &node->s) + total;
+    }
+    case List: {
+      int32_t count = 0;
+      if (!room(file, 4)) return stop(kRanOut, at, 0), total;
+      total += read4(file, &count);
+      const long left = g_data_end - std::ftell(file);
+      if (g_depth >= 64) return stop(kNesting, at, count), total;
+      if (count < 0 || (static_cast<long>(count) - 1 > left / 8 && count > kShortListMost)) return stop(kBadCount, at, count), total;
+      node->type = List;
+      node->list = alloc_list(count);
+      node->list[0].type = Int;
+      int32_t have = 1;
+      ++g_depth;
+      for (int32_t i = 1; i < count; ++i) {
+        // This list's items have run past its own entry: the entries after it are its tail.
+        const bool beyond = std::ftell(file) >= g_entry_end;
+        if (!g_tail.is && beyond) g_tail = Tail{true, false, at - g_entry_start, count - 1, i - 1};
+        g_drop = false;
+        total += read_graceful(file, &node->list[i]);
+        if (beyond && !g_drop) g_tail.read = true;
+        if (g_drop) {  // no node there: the list ends before it
+          if (g_stopped.list_at < 0) g_stopped.list_at = at - g_entry_start, g_stopped.said = count - 1, g_stopped.held = i - 1;
+          break;
+        }
+        have = i + 1;  // (a list inside that ended early is kept as it is; the next item here is then none)
+      }
+      --g_depth;
+      g_drop = false;
+      node->list[0].i = have;
+      return total;
+    }
+    default:
+      zerr::report(0x400, kFile, 0x4b4, "Invalid reader node type in zRdrReadNode");
+      return stop(kBadWord, at, type), 0;
+  }
+}
+
+std::string plural(int32_t n, const char* one) { return std::to_string(n) + " " + one + (n == 1 ? "" : "s"); }
+
+// The entry's notes (mod_warning.h's four parts, the `where` the caller's): what is wrong and where, what was
+// done, and what the exe's 0x00557180 does with the same bytes.
+void make_notes(bool none) {
+  g_notes.clear();
+  char b[400];
+  const Stop& s = g_stopped;
+  const bool tail = g_tail.is && g_tail.read;
+  // What to change in the file for a list that says more items than there are: its count's own place.
+  const auto count_fix = [&](long list_at, int32_t said, int32_t held) {
+    std::snprintf(b, sizeof b, "set the list's count (the four bytes %ld bytes into the entry) to %d (%s and the count itself), or add the "
+                  "%s that %s missing", list_at + 4, held + 1, plural(held, "item").c_str(), plural(said - held, "item").c_str(),
+                  said - held == 1 ? "is" : "are");
+    return std::string(b);
+  };
+  // The list that runs into the entries after it and is still short when the archive's data ends: one fault, said once.
+  const bool tail_ran_out = tail && g_stop && s.kind == kRanOut && s.list_at == g_tail.list_at;
+  if (tail) {
+    mech3::ModWarning w;
+    std::snprintf(b, sizeof b, "its list %ld bytes into the entry says %s and the entry holds %d", g_tail.list_at,
+                  plural(g_tail.said, "item").c_str(), g_tail.held);
+    w.wrong = b;
+    if (tail_ran_out) {
+      w.wrong += "; reading on, the archive's data ends before the list is full";
+      w.did = "reads the items the entry holds and what follows it in the archive as the rest, as far as the data goes; the items "
+              "still missing are left out";
+      w.original = "reads on the same way, then through the archive's index and past the end of the file, taking whatever is there as "
+                   "items: it usually gets by, and can crash";
+    } else {
+      w.did = "reads the items the entry holds, and what follows it in the archive (the next entry) as the rest";
+      w.original = "does the same (it reads on into the next entry), so the file works there, by luck: the extra items are the next "
+                   "entry's data";
+    }
+    w.fix = count_fix(g_tail.list_at, g_tail.said, g_tail.held);
+    g_notes.push_back(w);
+  }
+  if (!g_stop || tail_ran_out) return;
+  mech3::ModWarning w;
+  switch (s.kind) {
+    case kBadWord:
+      std::snprintf(b, sizeof b, "a value that is not a node type (%d; the types are 1 a whole number, 2 a decimal, 3 a text, 4 a list) %ld bytes into the entry", s.value, s.at);
+      w.original = "keeps the value as a node of no kind and reads on from the next four bytes, out of step (seen in the emulator): "
+                   "what it reads after that is chance, and it can crash when this entry is loaded";
+      break;
+    case kBadCount:
+      std::snprintf(b, sizeof b, "a list count of %d, %ld bytes into the entry, that no file could hold", s.value, s.at);
+      w.original = "asks for memory for that many items, gets none, and writes there all the same: a likely crash when this "
+                   "entry is loaded (seen in the emulator)";
+      break;
+    case kBadString:
+      std::snprintf(b, sizeof b, "a text said to be %d bytes long, %ld bytes into the entry, which runs past the archive's data", s.value, s.at);
+      w.original = "asks for that much memory and reads to the end of the file; when the memory is refused (seen in the emulator "
+                   "for 2 GB) it writes there all the same: a likely crash when this entry is loaded";
+      break;
+    case kNesting:
+      std::snprintf(b, sizeof b, "lists nested more than 64 deep, %ld bytes into the entry", s.at);
+      w.original = "has no limit and reads them all";
+      break;
+    default:
+      std::snprintf(b, sizeof b, "the archive's data ends %ld bytes into the entry, before the entry's lists are full", s.at);
+      w.original = "reads on through the archive's index and past the end of the file, taking whatever is there as items: it "
+                   "usually gets by, and can crash";
+      w.wrong = b;  // before the fix's words take the buffer
+      if (s.list_at >= 0) w.fix = count_fix(s.list_at, s.said, s.held);
+      break;
+  }
+  if (w.wrong.empty()) w.wrong = b;
+  if (tail && s.list_at == g_tail.list_at) {
+    w.wrong += " (the same list, still short of its items)";
+  } else if (s.list_at >= 0) {
+    std::snprintf(b, sizeof b, " (its list %ld bytes into the entry says %s and holds %d)", s.list_at, plural(s.said, "item").c_str(), s.held);
+    w.wrong += b;
+  }
+  w.did = none ? "nothing of the entry can be read, so it is treated as not there" : "reads what comes before it; the rest of the entry is left out";
+  g_notes.push_back(w);
+}
 }  // namespace
 
+const std::vector<mech3::ModWarning>& load_notes() { return g_notes; }
+
 // Mech3.exe 1.2 @ 0x00557180. Returns the bytes read.
+// The exe reads nodes from the file until every list's count is met and knows no end: an entry whose list
+// says more items than the entry holds (the community's hand-made mpinfo.zrd and aiv.zrd entries do) takes
+// the entries after it as its tail, and loads. Ours: the same, as far as the archive's own data goes. Where
+// that runs out (the exe reads on through the table and past the file's end, into unset memory) the items
+// still owed are empty ones (Int 0) and the entry is kept; a count, a string or nesting no file could hold
+// makes the entry broken, not read (fixes.md).
 uint32_t read_node(std::FILE* file, Node* node) {
-  uint32_t total = read4(file, &node->type);
-  if (g_entry_end >= 0 && (g_broken || std::ftell(file) > g_entry_end)) {
-    g_broken = true;
+  if (g_data_end >= 0 && zfix::options().fixed) return read_graceful(file, node);
+  if (g_data_end >= 0 && (g_broken || !room(file, 4))) {
+    if (!g_broken) g_short = true;
     node->type = Int, node->i = 0;
-    return total;
+    return 0;
   }
+  uint32_t total = read4(file, &node->type);
   switch (node->type) {
     case Int:
-      return total + read4(file, &node->i);
     case Float:
-      return total + read4(file, &node->f);
+      if (!room(file, 4)) {  // its value past the data: an empty one
+        g_short = true;
+        node->type = Int, node->i = 0;
+        return total;
+      }
+      return total + (node->type == Int ? read4(file, &node->i) : read4(file, &node->f));
     case String:
+      if (g_data_end >= 0) {  // its length first: the string whole inside the archive's data
+        const long at = std::ftell(file);
+        int32_t length = -1;
+        if (room(file, 4)) read4(file, &length);
+        if (length < 0 || !room(file, length)) {
+          g_broken = true;
+          node->type = Int, node->i = 0;
+          return total;
+        }
+        std::fseek(file, at, SEEK_SET);
+      }
       return zutl_zar::read_string(file, &node->s) + total;
     case List: {
       int32_t count = 0;
+      if (!room(file, 4)) {
+        g_short = true;
+        node->type = Int, node->i = 0;
+        return total;
+      }
       total += read4(file, &count);
-      if (g_entry_end >= 0) {
-        const long left = g_entry_end - std::ftell(file);
-        if (count < 0 || static_cast<long>(count) - 1 > left / 8 || g_depth >= 64) {
+      if (g_data_end >= 0) {
+        const long left = g_data_end - std::ftell(file);
+        // A count the data left cannot hold: a small one is a list short of its items (they are read as far
+        // as the data goes, the rest empty); a large one no file could hold, and is not allocated.
+        const bool fits = static_cast<long>(count) - 1 <= left / 8;
+        if (count < 0 || (!fits && count > kShortListMost) || g_depth >= 64) {
           g_broken = true;
           count = 0;
+        } else if (!fits) {
+          g_short = true;
         }
       }
       node->list = alloc_list(count);
@@ -95,10 +310,9 @@ uint32_t read_node(std::FILE* file, Node* node) {
     }
     default:
       zerr::report(0x400, kFile, 0x4b4, "Invalid reader node type in zRdrReadNode");
-      if (g_entry_end >= 0) {
-        g_broken = true;
-        node->type = Int, node->i = 0;
-      }
+      // The exe returns with the word left as the node's type and its value whatever malloc gave, and the
+      // list's loop reads on from the next word. (With `fixed` an archive's entry never gets here: read_graceful.)
+      if (g_data_end >= 0) g_odd = true;
       return 0;
   }
 }
@@ -802,13 +1016,34 @@ Node* load(const char* path) {
     // A mod's own copy (mod_copy), given to the load hook as the entry is.
     if (Node* root = mod_copy(*a, g_fname)) return upgrades::reference::loaded(g_fname, root);  // ours: the reference test's observer
     Node* root = new_nodes(List, 1);
-    g_entry_end = std::ftell(f) + static_cast<long>(length), g_depth = 0, g_broken = false;
+    g_data_end = zutl_zar::data_end(*a), g_depth = 0, g_broken = false, g_short = false, g_odd = false;
+    const long start = std::ftell(f);
+    g_entry_start = start, g_entry_end = start + static_cast<long>(length);
+    g_stop = g_drop = false, g_stopped = Stop{}, g_tail = Tail{}, g_notes.clear();
     read_node(f, root);
-    g_entry_end = -1;
-    if (g_broken) {  // ours: a broken entry is read as no entry, said once
+    const long end = std::ftell(f);
+    g_data_end = -1;
+    if (zfix::options().fixed) {  // ours, the graceful read: said in plain words, the entry kept with what it has
+      const bool none = g_stop && g_drop;  // the entry's own first node was none
+      make_notes(none);
+      for (const mech3::ModWarning& n : g_notes)
+        std::printf("mw3: %s\n", mech3::mod_warning_line(std::string(a->path) + ": " + g_fname, n).c_str());
+      if (none) {
+        free_node(root);
+        return g_missing_hook ? g_missing_hook(g_fname) : nullptr;
+      }
+    } else if (g_broken) {  // the exe's path, bounded (the tests'): a broken entry is read as no entry
       free_node(root);
-      std::printf("mw3: %s: its entry %s is broken (a count, type or nesting it cannot hold), not read\n", a->path, g_fname);
+      std::printf("mw3: %s: its entry %s is broken (a count, a string or nesting no file could hold), not read\n", a->path, g_fname);
       return g_missing_hook ? g_missing_hook(g_fname) : nullptr;
+    } else if (g_short) {
+      std::printf("mw3: %s: its entry %s says more items than the archive holds after it; those it has are read, the rest left empty\n",
+                  a->path, g_fname);
+    } else if (g_odd) {
+      std::printf("mw3: %s: its entry %s has a word that is no node type; read on, as the original does\n", a->path, g_fname);
+    } else if (end - start > static_cast<long>(length)) {
+      std::printf("mw3: %s: its entry %s says more items than it holds; the %ld bytes after it read as its tail, as the original does\n",
+                  a->path, g_fname, end - start - static_cast<long>(length));
     }
     if (g_load_hook) g_load_hook(a->path, g_fname, root);
     return upgrades::reference::loaded(g_fname, root);

@@ -92,16 +92,160 @@ std::vector<std::string> mod_sentences(const ModFindings& f) {
     split(r, &what, &why);
     out.push_back(sentence(what.empty() ? "Refused: " + why : mod_finding_subject(what) + " is refused: " + why));
   }
-  for (const std::string& w : f.warnings) {
-    split(w, &what, &why);
-    out.push_back(sentence("Note: " + (what.empty() ? why : mod_finding_subject(what) + ": " + why)));
+  // The totals, then the warnings in three groups, the worst first.
+  static const struct { ModWarningGroup group; const char* head; const char* one; const char* many; } kGroups[] = {
+      {ModWarningGroup::kStops, "WHAT STOPS PART OF THE MOD WORKING", "stops part of the mod working", "stop part of the mod working"},
+      {ModWarningGroup::kMayCrash, "WHAT WORKS HERE BUT MAY CRASH THE ORIGINAL GAME", "works here but may crash the original game",
+       "work here but may crash the original game"},
+      {ModWarningGroup::kSlip, "SLIPS THAT DO NO HARM", "is a slip that does no harm", "are slips that do no harm"}};
+  int counts[3] = {0, 0, 0};
+  for (const ModNote& n : f.notes) ++counts[static_cast<int>(n.group)];
+  if (!f.notes.empty()) {
+    std::vector<std::string> parts;
+    for (const auto& g : kGroups)
+      if (const int c = counts[static_cast<int>(g.group)]) parts.push_back(std::to_string(c) + " " + (c == 1 ? g.one : g.many));
+    out.push_back(sentence(counted(static_cast<int>(f.notes.size()), "warning", "warnings") +
+                           (f.refused.empty() ? ", none of which refuses the mod: " : ": ") + listed(parts)));
+    // The two words the warnings about an archive's entries lean on, once.
+    if (std::any_of(f.notes.begin(), f.notes.end(), [](const ModNote& n) {
+          return !n.plain && (n.where.find(".zbd: ") != std::string::npos || n.where.find(".ZBD: ") != std::string::npos);
+        }))
+      out.push_back("In them, an entry is one named part of a .zbd file (\"zbd/t1/readermp2.zbd: aiv.zrd\" is the entry aiv.zrd in that "
+                    "file), and \"bytes into the entry\" counts from the entry's first byte.");
   }
+  for (const auto& g : kGroups) {
+    const int c = counts[static_cast<int>(g.group)];
+    if (!c) continue;
+    out.push_back("");
+    out.push_back(std::string(g.head) + " (" + std::to_string(c) + ")");
+    // Each warning its place, what is wrong and what to change; what the rebuild and the original game do with it
+    // is said once for the warnings that share it ("For 1 to 9: ..."), which are put together: the kinds in the
+    // order the check met them, the check's order within a kind, the plain notes last.
+    std::vector<const ModNote*> in, parts, plain;
+    for (const ModNote& n : f.notes)
+      if (n.group == g.group) (n.plain ? plain : parts).push_back(&n);
+    std::vector<bool> placed(parts.size(), false);
+    for (size_t i = 0; i < parts.size(); ++i) {
+      if (placed[i]) continue;
+      for (size_t m = i; m < parts.size(); ++m)
+        if (!placed[m] && parts[m]->w.did == parts[i]->w.did && parts[m]->w.original == parts[i]->w.original)
+          in.push_back(parts[m]), placed[m] = true;
+    }
+    in.insert(in.end(), plain.begin(), plain.end());
+    for (size_t i = 0; i < in.size();) {
+      size_t end = i + 1;
+      while (!in[i]->plain && end < in.size() && !in[end]->plain && in[end]->w.did == in[i]->w.did && in[end]->w.original == in[i]->w.original)
+        ++end;
+      // Within the kind, entries with the very same fault (and fix) are listed, and the fault said once for them.
+      for (size_t a = i; a < end;) {
+        size_t b = a + 1;
+        while (!in[a]->plain && b < end && in[b]->w.wrong == in[a]->w.wrong && in[b]->w.fix == in[a]->w.fix) ++b;
+        if (in[a]->plain) {
+          split(in[a]->w.wrong, &what, &why);
+          out.push_back(std::to_string(a + 1) + ". " + sentence(what.empty() ? why : mod_finding_subject(what) + ": " + why));
+        } else {
+          for (size_t k = a; k < b; ++k) out.push_back(std::to_string(k + 1) + ". " + in[k]->where);
+          const std::string each = b - a == 1 ? "" : "For " + std::to_string(a + 1) + " to " + std::to_string(b) + ": ";
+          out.push_back(sentence(each + (each.empty() ? "Wrong: " : "wrong: ") + in[a]->w.wrong));
+          if (!in[a]->w.fix.empty()) out.push_back(sentence(each + (each.empty() ? "To fix it: " : "to fix it: ") + in[a]->w.fix));
+        }
+        a = b;
+      }
+      if (!in[i]->plain) {
+        const std::string which = end - i == 1 ? "" : "For " + std::to_string(i + 1) + " to " + std::to_string(end) + ": ";
+        const auto said = [&](const std::string& label, const std::string& text) {
+          out.push_back(sentence(which.empty() ? label + ": " + text : which + label + ": " + text));
+        };
+        if (!in[i]->w.did.empty()) said(which.empty() ? "The rebuild" : "the rebuild", in[i]->w.did);
+        said(which.empty() ? "The original game" : "the original game", in[i]->w.original.empty() ? std::string("not known") : in[i]->w.original);
+      }
+      i = end;
+    }
+  }
+  // What this start's mount left out, but what a warning above says already (a line of mod.txt).
+  std::vector<std::string> left;
   for (const std::string& l : f.left_out) {
+    split(l, &what, &why);
+    if (std::none_of(f.notes.begin(), f.notes.end(), [&](const ModNote& n) { return !n.plain && n.where == what; })) left.push_back(l);
+  }
+  if (!left.empty() && !f.notes.empty()) out.push_back("");
+  for (const std::string& l : left) {
     split(l, &what, &why);
     out.push_back(sentence("At this start the game left out " + (what.empty() ? why : mod_finding_subject(what) + ": " + why)));
   }
-  if (f.refused.empty() && f.left_out.empty()) out.push_back("Nothing in it is refused.");
+  if (f.refused.empty() && left.empty() && f.notes.empty()) out.push_back("Nothing in it is refused.");
   return out;
+}
+
+namespace {
+std::string one_line(std::string s) {
+  for (char& c : s)
+    if (c == '\t' || c == '\n' || c == '\r') c = ' ';
+  return s;
+}
+}  // namespace
+
+std::vector<ModNote> mod_left_out_read(const std::string& dir) {
+  std::vector<ModNote> out;
+  std::ifstream f(std::filesystem::path(dir) / kModLeftOutFile, std::ios::binary);
+  for (std::string line; f && std::getline(f, line) && out.size() < 10000;) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.empty() || line[0] == '#') continue;
+    std::vector<std::string> parts;
+    for (size_t at = 0;;) {
+      const size_t tab = line.find('\t', at);
+      parts.push_back(line.substr(at, tab == std::string::npos ? std::string::npos : tab - at));
+      if (tab == std::string::npos) break;
+      at = tab + 1;
+    }
+    if (parts.size() != 5 || parts[0].empty() || parts[1].empty()) continue;  // not a line of ours
+    out.push_back({parts[0], {parts[1], parts[2], parts[3], parts[4]}, ModWarningGroup::kStops, false});
+  }
+  return out;
+}
+
+bool mod_left_out_write(const std::string& dir, const std::vector<ModNote>& notes) {
+  std::ofstream f(std::filesystem::path(dir) / kModLeftOutFile, std::ios::binary);
+  f << "# Written by the game when it added this mod: the files it left out of it, and why (REPORT shows them).\n";
+  for (const ModNote& n : notes)
+    f << one_line(n.where) << '\t' << one_line(n.w.wrong) << '\t' << one_line(n.w.did) << '\t' << one_line(n.w.original) << '\t'
+      << one_line(n.w.fix) << '\n';
+  return static_cast<bool>(f);
+}
+
+std::string mod_reports_dir(const std::string& write_dir) { return (std::filesystem::path(write_dir) / "mod-reports").generic_string(); }
+
+bool mod_report_write(const std::string& write_dir, const std::string& folder, const std::vector<std::string>& lines,
+                      std::string* path, std::string* why) {
+  namespace fs = std::filesystem;
+  std::string ignored;
+  std::string& said = why ? *why : ignored;
+  std::error_code ec;
+  // One plain file name: the mod's folder name, nothing that leaves the folder.
+  if (folder.empty() || folder == "." || folder == ".." || folder.find_first_of("/\\:") != std::string::npos)
+    return said = "the mod's folder name cannot name a file", false;
+  const fs::path dir = fs::path(mod_reports_dir(write_dir));
+  const fs::path marker = dir / kModReportsMarker;
+  if (fs::exists(fs::symlink_status(dir, ec))) {
+    // There already: ours only with our marker in it, a real folder and a real file.
+    if (fs::is_symlink(fs::symlink_status(dir, ec)) || !fs::is_directory(dir, ec) || fs::is_symlink(fs::symlink_status(marker, ec)) ||
+        !fs::is_regular_file(marker, ec))
+      return said = dir.generic_string() + " is not a folder the game made, so nothing is written into it", false;
+  } else {
+    fs::create_directories(dir, ec);
+    if (ec) return said = "cannot make " + dir.generic_string() + " (" + ec.message() + ")", false;
+    std::ofstream m(marker, std::ios::binary);
+    m << "Made by the game for REPORT's text files, one a mod, replaced each time REPORT is pressed.\n";
+    if (!m) return said = "cannot write in " + dir.generic_string(), false;
+  }
+  const fs::path file = dir / fs::path(folder + ".txt");
+  if (fs::is_symlink(fs::symlink_status(file, ec)) || fs::is_directory(file, ec))
+    return said = file.generic_string() + " is not a file the game can replace", false;
+  std::ofstream f(file, std::ios::binary | std::ios::trunc);
+  for (const std::string& l : lines) f << l << "\n";
+  if (!f) return said = "cannot write " + file.generic_string(), false;
+  if (path) *path = file.generic_string();
+  return true;
 }
 
 std::map<std::string, std::vector<std::string>>& mods_left_out() {

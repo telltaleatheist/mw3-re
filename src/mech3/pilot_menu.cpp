@@ -1,5 +1,8 @@
 #include "mech3/pilot_menu.h"
 
+#include <algorithm>
+#include <vector>
+
 #include <cstdio>
 #include "upgrades/mods/entry_pilots.h"
 
@@ -20,6 +23,11 @@ void set_current(Engine& e, Pilot* p) {
 }
 
 PilotScreen* screen_of(ztwod::Layer* owner) { return dynamic_cast<PilotScreen*>(owner); }
+// Ours: the pilot screens there are (pilot_screens_forget_pilots).
+std::vector<PilotScreen*>& live_screens() {
+  static std::vector<PilotScreen*> s;
+  return s;
+}
 
 // The render target from zVideo's buffers (0x00558290), as the other menus'.
 void target_buffers(Engine& e) {
@@ -206,12 +214,20 @@ PilotScreen::PilotScreen(Engine& e, Handle s)
   rename_bar.hide();
   set_active(1);
   chosen = nullptr;
+  live_screens().push_back(this);  // ours
   load_pilots();
   refresh(false, nullptr);
 }
 
 // Mech3.exe 1.2 @ 0x004878b0
-PilotScreen::~PilotScreen() { delete_other_pilots(); }
+PilotScreen::~PilotScreen() {
+  live_screens().erase(std::remove(live_screens().begin(), live_screens().end(), this), live_screens().end());  // ours
+  delete_other_pilots();
+}
+
+void pilot_screens_forget_pilots() {
+  for (PilotScreen* s : live_screens()) s->chosen = nullptr;
+}
 
 // Mech3.exe 1.2 @ 0x00488170: Delete deletes the chosen pilot, Ctrl+R renames it.
 void PilotScreen::update(float dt) {

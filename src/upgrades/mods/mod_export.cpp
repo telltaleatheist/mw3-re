@@ -1,4 +1,5 @@
 #include "upgrades/mods/mod_export.h"
+#include "upgrades/mods/mod_report.h"
 
 #include <algorithm>
 #include <cctype>
@@ -48,7 +49,7 @@ bool left_out(const std::string& rel) {
   const std::string l = lower(rel);
   // The editor's marker too (net_save.h): a copy exported and imported elsewhere is an imported mod there,
   // never written by that player's editor; their edits make their own copy of it.
-  return l == lower(kModAddedMarker) || l == lower(kModStagingMarker) || l == lower(kModChecksums) || l == lower(ai::kEditorMarker) ||
+  return l == lower(kModAddedMarker) || l == lower(kModStagingMarker) || l == lower(kModChecksums) || l == lower(kModLeftOutFile) || l == lower(ai::kEditorMarker) ||
          !zutl::mod_may_serve(rel) || ends_with(l, ".bak") || ends_with(l, ".saving") || system_note(rel);
 }
 
@@ -137,7 +138,11 @@ ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_pa
   info.folder = root.filename().string();
   std::string top = mod_folder_name(info.name.empty() ? info.folder : info.name);
   // Ours (modder step 8): the check first, said and never stopping the pack.
-  if (check) mod_check(mod_dir, install, &r.refused);
+  if (check) {
+    ModFindings facts;
+    mod_check(mod_dir, install, &r.refused, &facts);
+    r.warnings = static_cast<int>(facts.notes.size());
+  }
   // A folder laid out as an install without a mod.txt: one in the zip, so IMPORT takes it as a mod of this game.
   const bool own_txt = fs::is_regular_file(root / "mod.txt", ec);
   const std::string made_txt = own_txt ? std::string() : "name=" + info.folder + "\nfor=" + mods_game() + "\n";
@@ -219,8 +224,9 @@ ModExportResult mod_export(const std::string& mod_dir, const std::string& zip_pa
   r.files = static_cast<int>(list.files.size()), r.left_out = static_cast<int>(list.left_out.size());
   r.message = "Exported " + (info.name.empty() ? info.folder : info.name) + " to " + zip.filename().string() + " (" +
               std::to_string(r.files) + (r.files == 1 ? " file" : " files") + (r.made_mod_txt ? " and a mod.txt" : "") + ").";
-  if (r.refused > 0)
-    r.message += " The game would refuse " + std::to_string(r.refused) + (r.refused == 1 ? " thing" : " things") + " in it; its report says what.";
+  if (r.refused > 0) r.message += " The game would refuse this mod; its report says why.";
+  else if (r.warnings > 0)
+    r.message += " The check has " + std::to_string(r.warnings) + (r.warnings == 1 ? " warning about it; its report says what." : " warnings about it; its report lists them.");
   return r;
 #endif
 }

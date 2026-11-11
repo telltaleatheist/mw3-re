@@ -467,8 +467,10 @@ TEST(pm_mods_report_needs_and_checked_export) {
   std::string said;
   for (const std::string& l : mech3::mod_report(wd + "/mods/a", install, "a", &refused)) said += l + "\n";
   std::printf("%s", said.c_str());
-  EXPECT(refused == 1 && said.find("It adds 1 new file.") != std::string::npos);
-  EXPECT(said.find("The mech broken is refused: ") != std::string::npos);
+  // A line of mod.txt the game cannot use is a warning, the line left out; nothing refuses the mod.
+  EXPECT(refused == 0 && said.find("It adds 1 new file.") != std::string::npos);
+  EXPECT(said.find("1 warning, none of which refuses the mod: 1 stops part of the mod working.") != std::string::npos &&
+         said.find("1. mech broken\n") != std::string::npos && said.find("this line of mod.txt is left out") != std::string::npos);
   const std::string version = mech3::mods_program_version();
   mech3::mods_program_version() = "pm-v1.0.2-12-gabc";
   std::string needs;
@@ -486,7 +488,7 @@ TEST(pm_mods_report_needs_and_checked_export) {
     if (e.info.folder == "mw3only") EXPECT(e.info.error == "it is for mw3, not Pirate's Moon");
   const mech3::ModExportResult r = mech3::mod_export(wd + "/mods/a", wd + "/a.zip", install, true);
   std::printf("  export: %s\n", r.message.c_str());
-  EXPECT(r.ok && r.refused == 1 && r.message.find("The game would refuse 1 thing in it") != std::string::npos);
+  EXPECT(r.ok && r.refused == 0 && r.message.find("The check has 1 warning about it; its report says what.") != std::string::npos);
   fs::remove_all(wd, ec);
 }
 
