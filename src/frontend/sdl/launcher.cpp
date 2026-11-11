@@ -1,5 +1,6 @@
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/log_start.h"
+#include "frontend/sdl/sdl_focus.h"
 #include "frontend/sdl/data_folder_start.h"
 #include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher_notes.h"
@@ -849,7 +850,10 @@ void Launcher::start_game(bool pm) {
     layout();
     return;
   }
-  std::printf("mw3launcher: started %s\n", line.c_str());
+  // FIX (A), playtest W4 (sdl_focus.h): the game's window may come to the front over ours (Windows gives the
+  // foreground only to a process the foreground one allows), so it starts with the keyboard and the mouse.
+  const bool front = allow_foreground(game_);
+  std::printf("mw3launcher: started %s%s\n", line.c_str(), front ? " (it may take the foreground)" : "");
   status_ = "Starting " + game_name_ + "...", status_good_ = true;
 }
 

@@ -335,6 +335,7 @@ void SdlInput::close(Device d) {
 // taken only while the window has the focus, and lost when it goes.
 int32_t SdlInput::acquire(Device d) {
   if (!opened_[d]) return kNotAcquired;
+  check_focus();  // W4: the focus as it really is
   if ((coop_[d] & 5) == 5 && !focused_) return kNotAcquired;
   acquired_[d] = true;
   lost_[d] = false;
@@ -371,9 +372,56 @@ void SdlInput::note_mouse_state(bool want) {
 }
 
 void SdlInput::capture(bool on) {
+  if (on && !captured_) {  // W4: when it was taken and how the focus stood, for a stuck one's log
+    captured_ns_ = clock(), motion_seen_ = false, quiet_said_ = false, heals_ = 0;
+    if (focus_report) std::printf("mw3: mouse: taken (%s)\n", focus_report().c_str());
+  }
   captured_ = on;
   if (on) SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE, "1");  // the system's speed and acceleration (sdl_input.h)
   if (window) SDL_SetWindowRelativeMouseMode(window, on);
+}
+
+uint64_t SdlInput::clock() const { return now_ns ? now_ns() : SDL_GetTicksNS(); }
+
+// FIX (A), playtest W4 (sdl_input.h, has_focus): the focus as it really is.
+// A difference from what the events said is taken as the event that did not
+// come; a window in front that SDL has not noted is shown to SDL again.
+void SdlInput::check_focus() {
+  if (!has_focus) return;
+  const bool real = has_focus();
+  const uint64_t now = clock();
+  // Asked whatever `real` says: has_focus may take the system's word (FocusWatch) while SDL, which gives the
+  // motion, still has not noted the window. Once a second, kNudges times running at most.
+  if (nudge_focus && (!nudged_ns_ || now - nudged_ns_ >= kHealGapNs)) {
+    if (nudges_ >= kNudges) {
+      // given up until the focus next changes (focus_lost)
+    } else if (nudge_focus()) {
+      nudged_ns_ = now ? now : 1, ++nudges_;
+      std::printf("mw3: focus: the window is in front and SDL has not noted it: asked to look again (%d)\n", nudges_);
+    } else {
+      nudges_ = 0, nudged_ns_ = 0;
+    }
+  }
+  if (real == focused_) return;
+  if (real) {
+    std::printf("mw3: focus: the window has the focus: the mouse is taken now\n");
+    focus_gained(now);
+    return;
+  }
+  std::printf("mw3: focus: the window does not have the focus%s: the mouse waits for it\n", focus_report ? (" (" + focus_report() + ")").c_str() : "");
+  focus_lost();
+}
+
+// W4: let go and taken again, as the quit box or Alt+Tab does by hand.
+void SdlInput::heal(const char* by, bool key) {
+  const uint64_t now = clock();
+  if (!captured_ || motion_seen_ || heals_ >= kHeals || (heals_ && now - healed_ns_ < kHealGapNs)) return;
+  if (key && now - captured_ns_ < kQuietNs) return;  // a key held at a mission's start, the mouse not yet touched: left alone
+  ++heals_, ++heals_total_, healed_ns_ = now;
+  std::printf("mw3: mouse: held %llu ms with no motion yet: let go and taken again at a %s press (%d)%s\n",
+              static_cast<unsigned long long>((now - captured_ns_) / 1000000), by, heals_, focus_report ? (" (" + focus_report() + ")").c_str() : "");
+  if (nudge_focus) nudge_focus();
+  if (window) SDL_SetWindowRelativeMouseMode(window, false), SDL_SetWindowRelativeMouseMode(window, true);
 }
 
 // FIX (A) (docs/input.md, The mouse's speed): a desktop pixel of motion
@@ -393,6 +441,11 @@ float SdlInput::motion_scale() const {
 // An exclusive mouse (DISCL_EXCLUSIVE) held while the window has the focus;
 // in a window only in a mission and not let go (sdl_input.h).
 void SdlInput::refresh() {
+  check_focus();
+  if (captured_ && !motion_seen_ && !quiet_said_ && clock() - captured_ns_ >= kQuietNs) {  // W4: once, for the log
+    quiet_said_ = true;
+    std::printf("mw3: mouse: no motion in 3 s since it was taken%s\n", focus_report ? (" (" + focus_report() + ")").c_str() : "");
+  }
   win_ = windowed && windowed();
   const bool mission = in_mission && in_mission();
   if (mission != mission_) {
@@ -616,6 +669,36 @@ int32_t SdlInput::joystick_set_deadzone(uint32_t ofs, uint32_t dz) {
   return 0;
 }
 
+void SdlInput::focus_gained(uint64_t ns) {
+  focused_ = true;
+  if (held_at_loss_) released_ = false, activation_guard_ = true, gained_ns_ = ns;  // ours
+  held_at_loss_ = false;
+  refresh();  // a mission let go before (Ctrl+Alt) stays let go until a click
+}
+
+void SdlInput::focus_lost() {
+  nudges_ = 0;
+  held_at_loss_ = win_ && mission_ && !released_;
+  activation_guard_ = false;
+  focused_ = false;
+  if (win_) released_ = true;
+  chord_held_ = SDL_KMOD_NONE, chord_armed_ = false;
+  // FIX (A): what is let go while away never comes back as an event, and
+  // DirectInput's state after the next Acquire was the device's as it
+  // was: no button or key stays down from before.
+  std::fill(std::begin(buttons_), std::end(buttons_), 0);
+  std::fill(std::begin(latched_), std::end(latched_), 0);
+  std::fill(std::begin(held_), std::end(held_), false);
+  mouse_buttons = 0;
+  for (int d = 0; d < 3; ++d) {
+    if (acquired_[d] && (coop_[d] & 5) == 5) {  // the system takes a foreground device away
+      acquired_[d] = false;
+      lost_[d] = true;
+    }
+  }
+  refresh();
+}
+
 void SdlInput::on_event(const SDL_Event& e) {
   switch (e.type) {
     case SDL_EVENT_JOYSTICK_REMOVED:  // ours (W54): centred until it is back
@@ -639,39 +722,17 @@ void SdlInput::on_event(const SDL_Event& e) {
       }
       break;
     case SDL_EVENT_WINDOW_FOCUS_GAINED:
-      focused_ = true;
-      // Asked for before the window had the focus, relative mode can read as on and deliver nothing (a dead
-      // mouse at the menu until the next capture): taken again with the focus. The log below tells if it's so.
-      if (captured_) capture(false), capture(true);
-      if (held_at_loss_) released_ = false, activation_guard_ = true, gained_ns_ = e.common.timestamp;  // ours
-      held_at_loss_ = false;
-      refresh();  // a mission let go before (Ctrl+Alt) stays let go until a click
+      if (has_focus && !has_focus()) break;  // W4: not really ours yet; check_focus takes it when it is
+      focus_gained(e.common.timestamp);
       break;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
-      held_at_loss_ = win_ && mission_ && !released_;
-      activation_guard_ = false;
-      focused_ = false;
-      if (win_) released_ = true;
-      chord_held_ = SDL_KMOD_NONE, chord_armed_ = false;
-      // FIX (A): what is let go while away never comes back as an event, and
-      // DirectInput's state after the next Acquire was the device's as it
-      // was: no button or key stays down from before.
-      std::fill(std::begin(buttons_), std::end(buttons_), 0);
-      std::fill(std::begin(latched_), std::end(latched_), 0);
-      std::fill(std::begin(held_), std::end(held_), false);
-      mouse_buttons = 0;
-      for (int d = 0; d < 3; ++d) {
-        if (acquired_[d] && (coop_[d] & 5) == 5) {  // the system takes a foreground device away
-          acquired_[d] = false;
-          lost_[d] = true;
-        }
-      }
-      refresh();
+      focus_lost();
       break;
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
       const bool down = e.type == SDL_EVENT_KEY_DOWN;
       if (!e.key.repeat) release_chord(e.key.scancode, down);
+      if (down && !e.key.repeat) heal("key", true);  // W4
       const uint8_t dik = dik_from_scancode(e.key.scancode);
       if (!dik) break;
       if (down && e.key.repeat) break;  // DirectInput reports a held key once
@@ -685,9 +746,9 @@ void SdlInput::on_event(const SDL_Event& e) {
       break;
     }
     case SDL_EVENT_MOUSE_MOTION:
-      if (!motion_seen_) {
+      if (captured_ && !motion_seen_ && (e.motion.xrel != 0 || e.motion.yrel != 0)) {  // W4: it works
         motion_seen_ = true;
-        std::printf("mw3: mouse: first motion, focused %d captured %d\n", focused_, captured_);
+        std::printf("mw3: mouse: first motion %llu ms after it was taken\n", static_cast<unsigned long long>((clock() - captured_ns_) / 1000000));
       }
       mouse_x = e.motion.x, mouse_y = e.motion.y;
       cursor_moved_ = true;
@@ -707,6 +768,7 @@ void SdlInput::on_event(const SDL_Event& e) {
                     : e.button.button == SDL_BUTTON_MIDDLE ? 2 : e.button.button == SDL_BUTTON_X1 ? 3 : -1;
       if (b < 0) break;
       const bool down = e.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+      if (down) heal("button", false);  // W4
       const bool activating = down && activation_guard_ && e.button.timestamp < gained_ns_ + kActivationNs;
       if (down) activation_guard_ = false;
       if (activating) {  // the click that brought the focus back (the mouse already taken): not the game's

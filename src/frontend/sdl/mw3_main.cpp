@@ -80,6 +80,7 @@
 #include "upgrades/mods/ia_mods_menu.h"
 #include "upgrades/mods/save_mods.h"
 #include "frontend/sdl/sdl_child.h"
+#include "frontend/sdl/sdl_focus.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/sdl_install.h"
 #include "upgrades/editor/help.h"
@@ -1066,6 +1067,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   input.joystick_want = a.cfg_joystick, input.joystick_axes = a.cfg_joystick_axes;
   sdlfe::SdlForceDevice force([&input] { return input.joystick(); });  // FIX (A): IFORCE2 as rumble (sdl_force.h)
   input.window = window.sdl();
+  int focus_at = 0, focus_passes = 0;  // MW3_FOCUS_AT (checks)
   input.shape = &window.shape();       // any_resolution: the frame's rect, not 640 (sdl_fit.h)
   // The MODS screen's ADD MOD (ours, mods_menu.h): SDL's pickers, their
   // answer handed to the screen (it may come on another thread); the mods
@@ -1232,6 +1234,20 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
     // mission's can be let go (sdl_input.h); fullscreen and hidden runs hold it.
     input.windowed = [&window, hidden = a.hidden] { return !hidden && !window.fullscreen(); };
     input.in_mission = [&app] { return app.current() == &mech3::states().core; };
+    // FIX (A), playtest W4 (sdl_focus.h): a shown window's real focus; the mouse is held only when it is ours.
+    // MW3_FOCUS_AT=N (checks, a hidden run): the window without the focus until the pump's Nth pass.
+    if (const char* f = SDL_getenv("MW3_FOCUS_AT")) {
+      focus_at = std::atoi(f);
+      input.has_focus = [&focus_at, &focus_passes] { return focus_passes >= focus_at; };
+      input.focus_report = [&focus_passes] { return "MW3_FOCUS_AT, pass " + std::to_string(focus_passes); };
+    } else if (!a.hidden) {
+      input.has_focus = sdlfe::FocusWatch{window.sdl()};
+      input.nudge_focus = [w = window.sdl()] {
+        if (sdlfe::window_unclip_behind(w)) std::printf("mw3: focus: another window is in front and the cursor was still held at a point: let go\n");
+        return sdlfe::window_focus_nudge(w);
+      };
+      input.focus_report = [w = window.sdl()] { return sdlfe::window_focus_report(w); };
+    }
     input.absolute_cursor = [](float x, float y) {
       zin::mouse_from_cursor(static_cast<int32_t>(std::lround(x)), static_cast<int32_t>(std::lround(y)));
     };
@@ -1993,6 +2009,13 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       pump.stays_active = a.frames > 0 || !a.shot.empty() || chain || modes;  // a check: no pause for focus
       // MW3_FOCUS_LOST_AT=N (checks): the window's focus lost at the pump's
       // Nth pass, as when another app is in front.
+      if (focus_at > 0) {
+        auto before = pump.each_pass;
+        pump.each_pass = [&, before] {
+          if (before) before();
+          if (++focus_passes == focus_at) std::printf("mw3: focus given (MW3_FOCUS_AT)\n");
+        };
+      }
       int focus_lost_at = 0, passes = 0;
       if (const char* f = SDL_getenv("MW3_FOCUS_LOST_AT")) focus_lost_at = std::atoi(f);
       if (focus_lost_at > 0) {
