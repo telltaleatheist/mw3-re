@@ -1,7 +1,11 @@
 # Analysis tools
 
 Scripts used to map `Mech3.exe` 1.2. They write into `analysis-output/`
-(git-ignored) and are run from there. REA needs the Node 24 install noted in
+(git-ignored) or to a path given on the command line, never into the folder
+they happen to be run from: `vtscan.py`, `filemap.py` and `modmap.py` find
+`analysis-output/` themselves and take the output file as an optional
+argument; the others take their output path or write to `analysis-output/`
+or `build/`. REA needs the Node 24 install noted in
 CLAUDE.md; Ghidra headless needs `JAVA_HOME` as noted there.
 
 Decompiling a few more functions with `CreateAndDecompile.java`:
