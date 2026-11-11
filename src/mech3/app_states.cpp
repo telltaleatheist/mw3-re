@@ -979,19 +979,24 @@ bool MainState::enter() {
   const bool back_to_multi = ap.multiplayer() || en.network_lobby_active();
   if (back_to_multi) en.vcall(screen_ + kButtonMulti, 0x30, {});
   entry_run().opened = back_to_multi && entry_run().screen == EntryRun::kMultiplayer;  // ours (upgrades/mods/entry_run.h)
-  // Ours (upgrades/mods/ia_mods.h): a plain start on the multiplayer screen (ALL OFF inside its entry).
-  if (mp_open_once() && !back_to_multi) en.vcall(screen_ + kButtonMulti, 0x30, {});
-  mp_open_once() = false;
-  // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action was given, picked now the pilots are loaded.
+  // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action or multiplayer was given, picked now
+  // the pilots are loaded.
   if (!ia_start_pilot().empty()) {
+    const bool mp = mp_open_once() || entry_run().screen == EntryRun::kMultiplayer;
+    const char* whose = mp ? "multiplayer" : "Instant Action";
     Pilot* p = find_pilot(ia_start_pilot().c_str());
     std::string why;
     if (!p && entry_is_main_pilot(ia_start_pilot())) p = entry_bring_pilot(ia_start_pilot(), &why);  // the main menu's, brought across
-    if (!why.empty()) std::printf("mw3: Instant Action's pilot %s could not be brought: %s\n", ia_start_pilot().c_str(), why.c_str());
-    std::printf("mw3: Instant Action's pilot %s: %s\n", ia_start_pilot().c_str(), p ? "picked" : "not there, the pilot screen");
+    if (!why.empty()) std::printf("mw3: %s's pilot %s could not be brought: %s\n", whose, ia_start_pilot().c_str(), why.c_str());
+    std::printf("mw3: %s's pilot %s: %s\n", whose, ia_start_pilot().c_str(), p ? "picked" : "not there, the pilot screen");
     ia_start_pilot().clear();
-    if (p) current_pilot() = p, ap.set_reopen_instant_action(1, 1);
+    if (p) current_pilot() = p;
+    if (p && mp) mp_pilot_once() = true;
+    else if (p) ap.set_reopen_instant_action(1, 1);
   }
+  // Ours (upgrades/mods/ia_mods.h): a plain start on the multiplayer screen (ALL OFF inside its entry).
+  if (mp_open_once() && !back_to_multi) en.vcall(screen_ + kButtonMulti, 0x30, {});
+  mp_open_once() = false;
   if (ap.reopen_instant_action()) {
     entry_run().opened = entry_run().screen == EntryRun::kInstantAction;
     en.vcall(screen_ + kButtonInstantAction, 0x30, {});

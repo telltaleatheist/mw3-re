@@ -64,7 +64,7 @@ std::vector<std::string> restart_args(const std::vector<std::string>& args, cons
   } else if (to.open_mp) {
     out.push_back("--open-mp");
   }
-  if (!to.pilot.empty() && (to.open_ia || to.screen == RestartTo::kInstantAction)) out.push_back("--entry-pilot"), out.push_back(to.pilot);
+  if (!to.pilot.empty() && (to.open_ia || to.open_mp || to.screen == RestartTo::kInstantAction || to.screen == RestartTo::kMultiplayer)) out.push_back("--entry-pilot"), out.push_back(to.pilot);
   out.push_back("--restarted");
   return out;
 }

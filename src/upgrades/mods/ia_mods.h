@@ -29,6 +29,9 @@ constexpr const char* kMpEntry = "mp";
 std::string mp_mods_line(const std::string& write_dir, int ticked = -1);
 // A plain start that opens the multiplayer screen at once (--open-mp: ALL OFF inside the entry); taken once.
 bool& mp_open_once();
+// The start's pilot (--entry-pilot, ia_start_pilot) was picked for multiplayer: its state takes it as the
+// pilot screen's ACCEPT would, so the multiplayer screen opens at once; taken once.
+bool& mp_pilot_once();
 // What ACCEPT does with the ticks as they were and as they are now.
 enum class IaModsStep { kBack, kIntoEntry, kPlain };
 IaModsStep ia_mods_step(const std::vector<std::string>& before, const std::vector<std::string>& now, bool inside);

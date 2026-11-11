@@ -6770,7 +6770,7 @@ TEST(net_lobby_mods_check_headless) {
     LobbyRig r("net_mods_host_write");
     EXPECT(r.l != nullptr);
     if (!r.l) return;
-    mine = mech3::ModsIdentity{0x1111222233334444ull, {"Big Guns"}};
+    mine = mech3::ModsIdentity{0, {}, 0x1111222233334444ull, {"Big Guns"}};
     znet::SessionDesc d;
     d.name = "Mine", d.max_players = 4, d.user[1] = mech3::kGameVersion;
     EXPECT(znet::host_session(d, "Ann"));
@@ -6822,7 +6822,7 @@ TEST(net_lobby_mods_check_headless) {
     zfix::set_upgrades(true);
     LobbyRig r(differ ? "net_mods_join_write" : older ? "net_mods_join_older_write" : "net_mods_join_same_write");
     if (!r.l) return;
-    mine = mech3::ModsIdentity{0x1111222233334444ull, {"Big Guns"}};
+    mine = mech3::ModsIdentity{0, {}, 0x1111222233334444ull, {"Big Guns"}};
     znet::Transport* bob = r.hub.endpoint();
     znet::SessionDesc d;
     d.name = "Bob's", d.max_players = 4, d.user[1] = mech3::kGameVersion;
@@ -6890,7 +6890,7 @@ TEST(net_lobby_mods_named_headless) {
   {
     LobbyRig r("net_mods_named_own_write");
     if (!r.l) return;
-    mine = mech3::ModsIdentity{0xabcull, {"Big Guns", "Clan Pack"}, {11, 22}};
+    mine = mech3::ModsIdentity{0, {}, 0xabcull, {"Big Guns", "Clan Pack"}, {11, 22}};
     znet::SessionDesc sd;
     sd.name = "Mine", sd.max_players = 4, sd.user[1] = mech3::kGameVersion;
     EXPECT(znet::host_session(sd, "Ann"));
@@ -6918,7 +6918,7 @@ TEST(net_lobby_mods_named_headless) {
   {
     LobbyRig r("net_mods_named_join_write");
     if (!r.l) return;
-    mine = mech3::ModsIdentity{0xabcull, {"Big Guns", "Old Maps"}, {11, 5}};
+    mine = mech3::ModsIdentity{0, {}, 0xabcull, {"Big Guns", "Old Maps"}, {11, 5}};
     znet::Transport* bob = r.hub.endpoint();
     znet::SessionDesc sd;
     sd.name = "Bob's", sd.max_players = 4, sd.user[1] = mech3::kGameVersion;

@@ -1,4 +1,5 @@
 #include "upgrades/mods/entry_archives.h"
+#include "upgrades/mods/mp_mods.h"
 #include "mech3/mods.h"
 #include "mech3/mod_install.h"
 
@@ -377,7 +378,7 @@ bool mod_file_is_gameplay(const std::string& rel) {
   return true;
 }
 
-uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std::string>& enabled) {
+uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std::string>& enabled, const std::string* mounted_over) {
   uint64_t h = 1469598103934665603ull;  // FNV-1a
   auto mix = [&](const char* d, size_t n) {
     for (size_t i = 0; i < n; ++i) h = (h ^ static_cast<uint8_t>(d[i])) * 1099511628211ull;
@@ -413,6 +414,21 @@ uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std:
     for (fs::recursive_directory_iterator f(it->path, ec), end; !ec && f != end; f.increment(ec))
       if (f->is_regular_file(ec)) files.push_back(fs::relative(f->path(), it->path, ec).generic_string());
     std::sort(files.begin(), files.end());
+    if (mounted_over) {  // ours (mp_mods.h): what each file changes in the mounted game, by its mounted path
+      std::vector<std::pair<std::string, std::string>> parts;
+      for (const std::string& rel : files) {
+        if (!mod_file_is_gameplay(rel) && entries_archive_of(rel).empty()) continue;
+        std::string key, bytes;
+        if (mp_mounted_part((fs::path(it->path) / rel).string(), rel, *mounted_over, &key, &bytes)) parts.emplace_back(key, bytes);
+      }
+      std::sort(parts.begin(), parts.end());
+      for (const auto& [key, bytes] : parts) {
+        any = true;
+        mix(key.data(), key.size() + 1);
+        mix(bytes.data(), bytes.size());
+      }
+      continue;
+    }
     for (const std::string& rel : files) {
       if (!mod_file_is_gameplay(rel)) continue;
       any = true;
@@ -431,18 +447,22 @@ ModsIdentity& mods_identity() {
   return id;
 }
 
-void mods_identity_set(const std::string& write_dir, const std::vector<std::string>& enabled) {
+void mods_identity_set(const std::string& write_dir, const std::vector<std::string>& enabled, const std::string& install) {
   ModsIdentity& id = mods_identity();
   id = ModsIdentity{};
   id.hash = mods_gameplay_hash(write_dir, enabled);
-  if (id.hash == 0) return;
+  id.mp_hash = mods_gameplay_hash(write_dir, enabled, &install);
+  if (id.hash == 0 && id.mp_hash == 0) return;
   const std::vector<ModInfo> found = mods_found(write_dir);
   for (const std::string& want : enabled) {
-    const uint64_t own = mods_gameplay_hash(write_dir, {want});
-    if (own == 0) continue;  // strings, images, sounds only
     const auto it = std::find_if(found.begin(), found.end(), [&](const ModInfo& m) { return m.folder == want; });
     const std::string name = it != found.end() && !it->name.empty() ? it->name : want;
-    if (std::find(id.names.begin(), id.names.end(), name) == id.names.end()) id.names.push_back(name), id.hashes.push_back(own);
+    // strings, images, sounds only: not named
+    if (mods_gameplay_hash(write_dir, {want}) != 0 && std::find(id.names.begin(), id.names.end(), name) == id.names.end())
+      id.names.push_back(name);
+    if (const uint64_t own = mods_gameplay_hash(write_dir, {want}, &install);
+        own != 0 && std::find(id.mp_names.begin(), id.mp_names.end(), name) == id.mp_names.end())
+      id.mp_names.push_back(name), id.hashes.push_back(own);
   }
 }
 

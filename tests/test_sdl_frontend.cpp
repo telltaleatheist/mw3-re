@@ -3414,6 +3414,11 @@ TEST(sdl_program_multiplayer_mods_button_ticks_and_starts_again) {
   std::printf("  off %d, started again %d, entered %d, on %d\n", off != none, again != none, entered != none, on != none);
   EXPECT(off != none && again != none && entered != none && on != none && off < again && again < entered && entered < on);
   EXPECT(at(a, "mw3: mod guns (Big Guns) mounted", entered) != none);
+  // The pilot goes along: the entry's multiplayer screen opens with it, not on the entry's pilot screen.
+  const size_t with = at(a, "mw3: multiplayer's MODS: starting again into entry mp, pilot "), picked = at(a, "s pilot ", entered);
+  const size_t opened = at(a, "mw3: multiplayer opens with the pilot ", entered);
+  std::printf("  pilot named %d, picked %d, opened with it %d\n", with != none, picked != none, opened != none);
+  EXPECT(with != none && opened != none && at(a, ": picked", entered) != none && at(a, "the pilot screen", entered) == none);
   std::ifstream t(dir + "/wd/campaigns/mp/mods.txt");
   EXPECT(std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>()) == "mod=guns\n");
   // A plain start after it: nothing mounted, the ticks still kept.

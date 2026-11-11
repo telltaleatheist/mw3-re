@@ -44,6 +44,10 @@ bool& mp_open_once() {
   static bool on = false;
   return on;
 }
+bool& mp_pilot_once() {
+  static bool on = false;
+  return on;
+}
 
 namespace {
 bool inside_entry(const char* entry) {

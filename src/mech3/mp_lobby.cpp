@@ -354,11 +354,11 @@ void LobbyScreen::enter() {
   {
     const ModsIdentity& mods = mods_identity();
     data.push_back(kModsMark);
-    data.push_back(static_cast<uint32_t>(mods.hash));
-    data.push_back(static_cast<uint32_t>(mods.hash >> 32));
-    data.push_back(static_cast<uint32_t>(std::min<size_t>(mods.names.size(), 16)));
-    for (size_t i = 0; i < mods.names.size() && i < 16; ++i) {
-      const std::string cut = mods.names[i].substr(0, 64);
+    data.push_back(static_cast<uint32_t>(mods.mp_hash));
+    data.push_back(static_cast<uint32_t>(mods.mp_hash >> 32));
+    data.push_back(static_cast<uint32_t>(std::min<size_t>(mods.mp_names.size(), 16)));
+    for (size_t i = 0; i < mods.mp_names.size() && i < 16; ++i) {
+      const std::string cut = mods.mp_names[i].substr(0, 64);
       data.push_back(static_cast<uint32_t>(cut.size()));
       for (size_t k = 0; k < cut.size(); k += 4) {
         uint32_t w = 0;
@@ -455,20 +455,20 @@ void LobbyScreen::update(float dt) {
       mods_checked = 1;
       const ModsIdentity& mine = mods_identity();
       uint32_t hosts = 0;
-      if (theirs != mine.hash) {
+      if (theirs != mine.mp_hash) {
         cursor_obj.erase();
         MpMods host{their_names, {}};
         mod_hashes_of(player_data(znet::session().host_id), &host.hashes);
-        const std::string which = mp_mods_difference(host, MpMods{mine.names, mine.hashes});
+        const std::string which = mp_mods_difference(host, MpMods{mine.mp_names, mine.hashes});
         const std::string said = "Your mods don't match the host's. " +
-                                 (which.empty() ? "The host uses: " + mods_text(their_names) + ". You use: " + mods_text(mine.names) + "." : which);
+                                 (which.empty() ? "The host uses: " + mods_text(their_names) + ". You use: " + mods_text(mine.mp_names) + "." : which);
         std::printf("mw3: multiplayer: turned back: %s\n", said.c_str());
         engine().message_box_plain(0x30, 0x2a8, said);
         g_lobby_back = 1;
       } else if (upgrades_of(player_data(znet::session().host_id), &hosts)) {
         const uint32_t own = upgrades::bits();
         upgrades::take_hosts(hosts);  // the game on the host's switches; back at network_set(0)
-        std::printf("mw3: multiplayer: mods the host's (%s)\n", mods_text(mine.names).c_str());
+        std::printf("mw3: multiplayer: mods the host's (%s)\n", mods_text(mine.mp_names).c_str());
         std::printf("mw3: upgrades: the host's switches 0x%x (ours 0x%x)\n", hosts, own);
       } else {
         // A host before 1.1.0 sends none: each side plays on its own (multiplayer-port.md).
@@ -885,16 +885,16 @@ void LobbyScreen::lock() {
       uint64_t theirs = 0;
       std::vector<std::string> names;
       mods_of(player_data(p->id), &theirs, &names);
-      if (theirs == mine.hash) continue;
+      if (theirs == mine.mp_hash) continue;
       MpMods other{names, {}};
       mod_hashes_of(player_data(p->id), &other.hashes);
-      const std::string which = mp_mods_difference_of(p->name, MpMods{mine.names, mine.hashes}, other);
+      const std::string which = mp_mods_difference_of(p->name, MpMods{mine.mp_names, mine.hashes}, other);
       if (which.empty()) lines += p->name + " uses: " + mods_text(names) + ". ";
       else lines += which + " ", named = true;
     }
     if (!lines.empty()) {
       if (named) lines.pop_back();  // the last line's space
-      e.message_box_plain(0, 0x1e3, "Every player needs the same mods. " + lines + (named ? "" : "You use: " + mods_text(mine.names) + "."));
+      e.message_box_plain(0, 0x1e3, "Every player needs the same mods. " + lines + (named ? "" : "You use: " + mods_text(mine.mp_names) + "."));
       return;
     }
   }
