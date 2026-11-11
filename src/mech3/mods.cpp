@@ -887,6 +887,22 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     const bool over = !install.empty() && fs::is_regular_file(zutl::any_case(install, rel), ec);
     out.push_back(rel + (install.empty() ? "" : over ? ": replaces the game's" : ": added"));
     ++fx.files, ++(over ? fx.replaces : fx.adds);
+    // Which of the game's missions it replaces (REPORT says them): a mission's own archive, or its world's files.
+    if (over && low.rfind("zbd/", 0) == 0 && std::count(low.begin(), low.end(), '/') == 2) {
+      const std::string world = low.substr(4, low.find('/', 4) - 4), leaf = low.substr(low.rfind('/') + 1);
+      const auto once = [](std::vector<std::string>& v, const std::string& s) {
+        if (std::find(v.begin(), v.end(), s) == v.end()) v.push_back(s);
+      };
+      if (leaf.size() > 11 && leaf.rfind("readerm", 0) == 0 && leaf.compare(leaf.size() - 4, 4, ".zbd") == 0 &&
+          std::all_of(leaf.begin() + 7, leaf.end() - 4, [](char c) { return c >= '0' && c <= '9'; }))
+        once(fx.missions, world + " " + std::to_string(std::atoi(leaf.c_str() + 7)));
+      else if (leaf == "gamez.zbd" || leaf == "anim.zbd" || leaf == "reader.zbd") {
+        bool has_missions = false;  // a world the campaign or training plays on
+        for (int n = 1; n <= 9 && !has_missions; ++n)
+          has_missions = fs::is_regular_file(zutl::any_case(install, "zbd/" + world + "/readerm" + std::to_string(n) + ".zbd"), ec);
+        if (has_missions) once(fx.mission_worlds, world);
+      }
+    }
     const std::string host = (fs::path(dir) / rel).generic_string();
     const std::string name = low.substr(low.rfind('/') == std::string::npos ? 0 : low.rfind('/') + 1);
     if (anim_file_unread(low)) {
