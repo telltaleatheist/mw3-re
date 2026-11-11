@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "check.h"
+#include "pm_side.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mod_install.h"
@@ -107,6 +108,7 @@ std::string mounted_reader(const std::string& wd, const std::vector<std::string>
 }  // namespace
 
 TEST(entry_archives_names_and_the_cut_of_one_archive) {
+  TestGame game;  // Pirate\'s Moon\'s table in mw3pmtests (pm_side.h)
   EXPECT(mech3::record_archive("zbd/reader.zbd") && mech3::record_archive("ZBD\\C1\\ReaderM2.zbd") && mech3::record_archive("zbd/c4b/readermp3.zbd"));
   EXPECT(!mech3::record_archive("zbd/c1/gamez.zbd") && !mech3::record_archive("zbd/mechlib.zbd") && !mech3::record_archive("reader.zbd") &&
          !mech3::record_archive("zbd/a/b/reader.zbd") && !mech3::record_archive("zbd/reader.zbd.entries") && !mech3::record_archive("zbd/reader.zip"));
@@ -139,7 +141,7 @@ TEST(entry_archives_names_and_the_cut_of_one_archive) {
   EXPECT(there.what == mech3::EntriesCut::kLeft && fs::exists(dir + "/ok.zbd") && snapshot(dir).at("ok.zbd.entries") == "the player's");
   // An entry whose length runs past the file: the table does not read.
   std::string cut = snapshot(dir).at("own.zbd");
-  cut[cut.size() - 8 - 0x94 + 7] = 0x7f;  // the last entry's length: far past the file
+  cut[cut.size() - (TEST_IS_PM ? 12 : 8) - 0x94 + 7] = 0x7f;  // the last entry's length, far past the file (PM's table ends in a CRC too)
   put(dir + "/long.zbd", cut);
   EXPECT(read(dir + "/long.zbd") == "(unreadable)" && left("long.zbd", "own.zbd"));
 }
@@ -148,6 +150,7 @@ TEST(entry_archives_names_and_the_cut_of_one_archive) {
 // the entries it changes; mounted together both apply, the first winning an entry both change; the install and
 // the picked folders are never changed. With the program's confinement on.
 TEST(entry_archives_two_imported_mods_both_apply) {
+  TestGame game;  // Pirate\'s Moon\'s table in mw3pmtests (pm_side.h)
   const std::string wd = tmp("entry_archives_wd"), inst = tmp("entry_archives_inst"), src = tmp("entry_archives_src");
   build_install(inst);
   const std::string one = src + "/One", two = src + "/Two";
@@ -160,7 +163,7 @@ TEST(entry_archives_two_imported_mods_both_apply) {
   const auto before = std::make_pair(snapshot(inst), snapshot(src));
   KeepMounts keep;
   zutl::mounts().confined = true;
-  const mech3::ModAddDone a = mech3::mod_add_run(wd, one, inst, nullptr, nullptr), b = mech3::mod_add_run(wd, two, inst, nullptr, nullptr);
+  const mech3::ModAddDone a = mech3::mod_add_run(wd, one, inst, [](const std::string&) { return TEST_OUR_ANSWER; }, nullptr), b = mech3::mod_add_run(wd, two, inst, [](const std::string&) { return TEST_OUR_ANSWER; }, nullptr);
   std::printf("  %s\n  %s\n", a.message.c_str(), b.message.c_str());
   EXPECT(a.ok && a.cut.archives == 1 && a.cut.entries == 2 && a.cut.same == 1 && a.cut.whole == 1);
   EXPECT(b.ok && b.cut.archives == 1 && b.cut.entries == 2 && b.cut.same == 0 && b.cut.whole == 1);
@@ -211,6 +214,7 @@ TEST(entry_archives_two_imported_mods_both_apply) {
 // A whole archive put in mods\ by hand wins whole from its place: before the cut mods nothing is built for it;
 // after one, the cut mod's entries lie over it. Entries with no archive of the game's under them are left out, said.
 TEST(entry_archives_whole_archives_and_no_base) {
+  TestGame game;  // Pirate\'s Moon\'s table in mw3pmtests (pm_side.h)
   const std::string wd = tmp("entry_archives_whole_wd"), inst = tmp("entry_archives_whole_inst");
   build_install(inst);
   put(wd + "/mods/cut/mod.txt", "name=Cut\n");
@@ -269,13 +273,14 @@ TEST(entry_archives_whole_archives_and_no_base) {
 // the entries laid over it), so the zip is ordinary files; the mod's folder and the install are not changed.
 // Imported again it is cut to the same entries; on an install without that archive it stays whole.
 TEST(entry_archives_export_repacks_the_whole_archive) {
+  TestGame game;  // Pirate\'s Moon\'s table in mw3pmtests (pm_side.h)
   const std::string wd = tmp("entry_archives_export_wd"), inst = tmp("entry_archives_export_inst"), src = tmp("entry_archives_export_src");
   const std::string out = tmp("entry_archives_export_out");
   build_install(inst);
   archive(src + "/One/zbd/reader.zbd", {{"a.zrd", "A"}, {"b.zrd", "B1"}, {"c.zrd", "C"}, {"d.zrd", "D1"}});
   KeepMounts keep;
   zutl::mounts().confined = true;
-  const mech3::ModAddDone a = mech3::mod_add_run(wd, src + "/One", inst, nullptr, nullptr);
+  const mech3::ModAddDone a = mech3::mod_add_run(wd, src + "/One", inst, [](const std::string&) { return TEST_OUR_ANSWER; }, nullptr);
   const std::string mod = wd + "/mods/" + a.folder;
   EXPECT(a.ok && read(mod + "/zbd/reader.zbd.entries") == "b.zrd=B1|d.zrd=D1|");
   const auto before = std::make_pair(snapshot(mod), snapshot(inst));
@@ -286,12 +291,12 @@ TEST(entry_archives_export_repacks_the_whole_archive) {
   // The zip on an install that has no zbd\reader.zbd: the archive stays whole, and is the game's with the two entries.
   const std::string bare = tmp("entry_archives_export_bare"), wd2 = tmp("entry_archives_export_wd2");
   put(bare + "/zbd/c1/gamez.zbd", "a world");
-  const mech3::ModAddDone whole = mech3::mod_add_run(wd2, out + "/one.zip", bare, nullptr, nullptr);
+  const mech3::ModAddDone whole = mech3::mod_add_run(wd2, out + "/one.zip", bare, [](const std::string&) { return TEST_OUR_ANSWER; }, nullptr);
   std::printf("  %s\n  %s\n", whole.message.c_str(), names(wd2 + "/mods/" + whole.folder).c_str());
   EXPECT(whole.ok && read(wd2 + "/mods/" + whole.folder + "/zbd/reader.zbd") == "a.zrd=A|b.zrd=B1|c.zrd=C|d.zrd=D1|");
   // On the player's own install: cut to the same two entries again.
   const std::string wd3 = tmp("entry_archives_export_wd3");
-  const mech3::ModAddDone again = mech3::mod_add_run(wd3, out + "/one.zip", inst, nullptr, nullptr);
+  const mech3::ModAddDone again = mech3::mod_add_run(wd3, out + "/one.zip", inst, [](const std::string&) { return TEST_OUR_ANSWER; }, nullptr);
   EXPECT(again.ok && read(wd3 + "/mods/" + again.folder + "/zbd/reader.zbd.entries") == "b.zrd=B1|d.zrd=D1|");
   // Without the game's own archive to lay them over: not exported, said; no zip left.
   const mech3::ModExportResult none = mech3::mod_export(mod, out + "/none.zip", bare, false);
