@@ -6,6 +6,9 @@
 #include <cstring>
 #include <string>
 #include <tuple>
+#include <map>
+#include <fstream>
+#include <filesystem>
 #include <vector>
 #if !defined(_WIN32)
 #include <unistd.h>
@@ -28,6 +31,7 @@
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "mech3/hud.h"
+#include "upgrades/settings/upgrades.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_reader.h"
 #include "mech3/message_panel.h"
@@ -108,6 +112,66 @@ TEST(fix_smoke_drag_per_second) {
   EXPECT(std::fabs(smoke_speed(30, true) - want) < 0.05f);
   EXPECT(std::fabs(smoke_speed(144, true) - want) < 0.05f);
   EXPECT(smoke_speed(144, false) == 10.0f);  // the exe's table: no drag at all
+}
+
+// The Small fixes list shows exactly what the switch turns off (the lead's rule,
+// 2026-11-10): each of the page's lines has its gates here, by file, and every
+// `options().small_fixes` in src is some line's. A line with no gate fails, and
+// so does a gate with no line (list it, or make the fix always on).
+TEST(small_fixes_list_matches_its_gates) {
+  struct Gate { const char* file; int count; };
+  struct Line { const char* text; std::vector<Gate> gates; };
+  const std::vector<Line> table = {
+      {"A turret's charge or glow goes out when it dies.", {{"mech3/turret.cpp", 1}}},
+      {"Two c4 enemies follow their scripted orders.", {{"mech3/zrdraiv.cpp", 1}}},
+      {"Tripod turrets aim when facing straight up or down.", {{"mech3/turret.cpp", 1}}},
+      {"A vehicle's gun stops at its true aiming limit.", {{"mech3/veh_controls.cpp", 1}}},
+      {"A vehicle file with pitch and no roll keeps its pitch.", {{"mech3/veh_controls.cpp", 1}}},
+      {"The reticle locks past 800 m when the weapons reach.", {{"mech3/hud.cpp", 1}}},
+      {"The mech lab offers the plain PPC the data defines.", {{"mech3/mech_names.cpp", 2}}},
+      {"TAG's strike lands where the target is, not was.", {{"mech3/weapon.cpp", 1}}},
+      {"A held beam stays on a moving mech after release.", {{"mech3/weapon.cpp", 1}}},
+      {"A destroyed weapon's selection moves to a working one.", {{"mech3/weapon.cpp", 1}}},
+      {"A mech re-placed where it stands keeps to its ground.", {{"mech3/mech_place.cpp", 1}}},
+      {"A mission's last animation can be waited for.", {{"gamez/zeffect/zeff_anim_init.cpp", 1}}},
+      {"An animation whose object is missing waits its turn.", {{"gamez/zeffect/zeff_anim_init.cpp", 1}}},
+      {"Leaving c4b mission 5's or 6's area fails it.", {{"mech3/zrdraiv.cpp", 1}}},
+      {"c2 mission 3's objective waits for its two Fireflies.", {{"mech3/mech_objective.cpp", 1}}},
+      {"The Sunder Alternate B loads all 360 LRM 20 missiles.", {{"mech3/mech_reader.cpp", 1}}},
+      {"The Strider has its recoil slide (a number typed as text).", {{"mech3/mech_reader.cpp", 1}}},
+  };
+  // The page's list and the table, line for line.
+  const std::vector<const char*>& list = upgrades::small_fixes_list();
+  EXPECT(list.size() == table.size());
+  for (size_t i = 0; i < list.size() && i < table.size(); ++i) {
+    if (std::strcmp(list[i], table[i].text) != 0) std::printf("  line %zu: \"%s\" has no entry in the table\n", i, list[i]);
+    EXPECT(std::strcmp(list[i], table[i].text) == 0);
+    EXPECT(!table[i].gates.empty());
+  }
+  // Every gate in src, by file, against the table's.
+  std::map<std::string, int> want, have;
+  for (const Line& l : table)
+    for (const Gate& g : l.gates) want[g.file] += g.count;
+  namespace fs = std::filesystem;
+  const fs::path src = fs::path(MW3_SOURCE_DIR) / "src";
+  std::error_code ec;
+  for (fs::recursive_directory_iterator it(src, ec), end; !ec && it != end; it.increment(ec)) {
+    const std::string ext = it->path().extension().string();
+    if (!it->is_regular_file(ec) || (ext != ".cpp" && ext != ".h")) continue;
+    const std::string rel = fs::relative(it->path(), src, ec).generic_string();
+    if (rel.rfind("upgrades/settings/", 0) == 0 || rel == "gamez/zutil/zfix.h") continue;  // the switch itself
+    std::ifstream f(it->path());
+    int n = 0;
+    for (std::string line; std::getline(f, line);)
+      for (size_t at = 0; (at = line.find("options().small_fixes", at)) != std::string::npos; ++at) ++n;
+    if (n) have[rel] = n;
+  }
+  EXPECT(!have.empty());  // the sources are where the build left them
+  for (const auto& [file, n] : have)
+    if (!want.count(file) || want[file] != n) std::printf("  %s: %d gates in the code, %d in the table\n", file.c_str(), n, want.count(file) ? want[file] : 0);
+  for (const auto& [file, n] : want)
+    if (!have.count(file)) std::printf("  %s: %d gates in the table, none in the code\n", file.c_str(), n);
+  EXPECT(have == want);
 }
 
 // Four data typos read as meant (fixes.md; upgrades-sort.md): the Firefly's

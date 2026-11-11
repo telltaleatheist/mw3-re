@@ -888,7 +888,7 @@ int program(int argc, char** argv) {
     lo.fullscreen = !a.windowed && !a.window_given;
     lo.sound = !a.nosound;
     lo.no_import = a.no_import;
-    lo.win_w = a.win_w, lo.win_h = a.win_h;
+    lo.window_from(a.window_given, a.win_w, a.win_h);
     const sdlfe::LauncherChoice c = sdlfe::run_launcher(lo);
     if (c.kind != sdlfe::LauncherChoice::kPlay) {
       SDL_Quit();

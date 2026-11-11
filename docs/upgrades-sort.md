@@ -24,8 +24,8 @@ side this proposes. No code changes with this; Owen approves (or moves rows)
 before anything moves.
 
 478 rows: fixes.md's 473 table rows, its four data typos still to fix (Original bugs
-still to fix) and the Small Pulse Laser's flash. 435 always on, 5 in our own
-tools, 8 under the four own switches, 21 under Small fixes, 4 left as the original, 5 not changes.
+still to fix) and the Small Pulse Laser's flash. 436 always on, 5 in our own
+tools, 8 under the four own switches, 20 under Small fixes, 4 left as the original, 5 not changes.
 Rows are MW3's unless marked PM (a row on both games is listed once, as MW3's).
 
 ## The switches
@@ -42,7 +42,7 @@ and text put back as the data had them.
 | Improved AI | Lancemates find their way round walls, rivers and corners, and keep their floor in another zone. | 4 |
 | Water movement | Deep water slows a mech smoothly instead of stopping it. | 1 |
 | Artemis tracking | Artemis FCS missiles get their extra tracking. | 1 |
-| Small fixes | Everything in the list below: weapons, turrets and vehicles, mission scripts, the mechs' data typos. | 21 |
+| Small fixes | Everything in the list below: weapons, turrets and vehicles, mission scripts, the mechs' data typos. | 20 |
 
 The turrets' pick (their count ran on across missions, so each later mission's
 turrets acted less often) was the one other row noticeable in play; Owen made
@@ -59,7 +59,13 @@ line per switch, and Small fixes a button that shows its list.
 The page's list (`upgrades/settings/upgrades.cpp`) is MechWarrior 3's: these
 lines without the three Pirate's Moon ones (6 to 8, on Pirate's Moon's own
 list), in shorter words to fit the page. The list shows exactly what the
-switch turns off.
+switch turns off: `small_fixes_list_matches_its_gates` (tests/test_fixes.cpp)
+holds each line's gates by file and fails for a line with no gate or a gate
+with no line. Checked line by line on 2026-11-10: LOCK_ON_LEAD's code had no
+gate (off the list, always on); the reticle's lock past 800 m read the
+always-on flag by a mapping slip and reads `small_fixes` now (hud.cpp); TAG's
+beam hold at any frame rate (weapon.cpp) read `small_fixes` with no line and
+is always on, as its twin in zwep_beam.cpp (frame rate to time).
 
 1. A turret's charge or glow goes out when the turret dies.
 2. Two c4 enemies (readeria 1 and 2) follow their scripted orders.
@@ -70,18 +76,17 @@ switch turns off.
 7. Pirate's Moon: a deploy node's valves are read (no shipped file uses them).
 8. Pirate's Moon: range actions on a valve (no shipped file uses them).
 9. The reticle locks on a mech past 800 m when the selected weapons reach it.
-10. LOCK_ON_LEAD reads the right value (a typo).
-11. The mech lab offers the plain PPC the data defines.
-12. TAG's air strike lands where the target is, not where it stood 7 s before.
-13. A beam held after its button is let go stays on a moving mech.
-14. A destroyed weapon's selection moves on to one that still stands.
-15. A mech re-placed where it stands no longer drops under a bridge or onto a roof.
-16. A mission's last animation can be waited for.
-17. An animation whose object is missing waits for its conditions.
-18. Leaving c4b mission 5's or 6's area fails the mission.
-19. c2 mission 3's secondary objective waits for the mission's two Fireflies (it named two that aren't there, so it completed at once).
-20. The Sunder Alternate B carries its LRM 20's extra 240 missiles.
-21. The Strider's recoil slide is read as a number, as on the Cauldron, Bushwacker and Champion.
+10. The mech lab offers the plain PPC the data defines.
+11. TAG's air strike lands where the target is, not where it stood 7 s before.
+12. A beam held after its button is let go stays on a moving mech.
+13. A destroyed weapon's selection moves on to one that still stands.
+14. A mech re-placed where it stands no longer drops under a bridge or onto a roof.
+15. A mission's last animation can be waited for.
+16. An animation whose object is missing waits for its conditions.
+17. Leaving c4b mission 5's or 6's area fails the mission.
+18. c2 mission 3's secondary objective waits for the mission's two Fireflies (it named two that aren't there, so it completed at once).
+19. The Sunder Alternate B carries its LRM 20's extra 240 missiles.
+20. The Strider's recoil slide is read as a number, as on the Cauldron, Bushwacker and Champion.
 
 ## Owen's answers (2026-11-10)
 
@@ -613,7 +618,7 @@ Owen's rule: on for good; the borderline ones he confirmed (Owen's answers, abov
 | The saved mouse settings, the same writes (MouseAccelX/Y at… | MW3 | a value set for a moment would reach the disk; with our MOUSE SENSITIVITY the player's own value must… |
 | A peer's latency, 0x00470a00 (multiplayer-port.md piece 14c, the 1.2… | MW3 | the clamp means a negative trip to give 0; read unsigned, a delay past the round trip (a stall, a peer's… |
 
-### By Owen's call (4), and one with no original to give back (1)
+### By Owen's call (4), and two whose code has no switch (2)
 
 Owen, 2026-11-10: all four multiplayer fixes always on (the latency's is in the restored rows' table above), and the turrets' pick.
 
@@ -624,6 +629,7 @@ Owen, 2026-11-10: all four multiplayer fixes always on (the latency's is in the 
 | A collision's push from a remote mech, 0x004705b0 (multiplayer-port.md… | MW3 | a pilot killed by the push credits no one |
 | The lock's stock loadout, 0x0049b360 (multiplayer-port.md piece 11b) | MW3 | every player is put back on the mech's first stock loadout, even one who chose another stock one |
 | AI backup node's state, 0x4cfad0 | MW3 | the exe's aim is a stack vector it never sets, so there is no original way to give back: the code is unconditional, always on (the lead, 2026-11-10: the list shows exactly what the switch turns off). No shipped net has a backup node |
+| LOCK_ON_LEAD, 0x583fb9 | MW3 | a typo: `[eax+0xc]` for `[eax+4]`; its code is unconditional (zwep_init.cpp, the count read as meant), so always on and off the Small fixes list (the lead, 2026-11-10) |
 
 ### Copy-protection traps, FIX (trap) (5)
 
@@ -654,7 +660,7 @@ importer besides the tables' rows; c2m3's Fireflies there is the Missions row
 below. The list's other entries (the CPU speed, the precision notes, the
 fonts) are port fixes, FIX (A) / (B), or the exe's own precision: always on,
 or no change. Two typos are pictures and text (always on), two play (Small
-fixes, items 20 and 21). Made in the readers (mac4/upgrades-typos), the data untouched:
+fixes, items 19 and 20). Made in the readers (mac4/upgrades-typos), the data untouched:
 
 | Fix | Game | Why |
 |---|---|---|
@@ -695,7 +701,7 @@ fixes, items 20 and 21). Made in the readers (mac4/upgrades-typos), the data unt
 
 Deep water: its row once said "game-breaking per Owen" (2026-10-30, when it was folded into `bugs`); release.md names water movement as an upgrade, so it is listed there.
 
-## (c) Small fixes (21)
+## (c) Small fixes (20)
 
 One switch; the in-game list above names each in the same order.
 
@@ -712,12 +718,11 @@ One switch; the in-game list above names each in the same order.
 | Pirate's Moon's deploy node's valves, 0x4de0e0 (zai_drive_pm… | PM | as MW3's |
 | Pirate's Moon's range actions on a valve, 0x4f5050 (`RangeAction::fire`) | PM | no brain, no write, as the scan switches. No shipped file uses these keys. |
 
-### Weapons (6)
+### Weapons (5)
 
 | Fix | Game | Why |
 |---|---|---|
 | The reticle's pick, 0x00444350 (hud.md section 10) | MW3 | six weapons reach past it (ER large laser and NARC 1000 m, ER PPC 920, Gauss 880, LB 2-X 870, Ultra AC/2… |
-| LOCK_ON_LEAD, 0x583fb9 | MW3 | a typo: `[eax+0xc]` for `[eax+4]` |
 | Plain PPC, weapon table 0x5e64f0 | MW3 | the mech lab cannot offer a weapon the data defines |
 | TAG's strike, 0x4afed0 | MW3 | they arrive 7 s later where the target stood: a mech walking at 30 kph or more is not touched |
 | A beam after its button is let go, 0x004b4230 (weapons.md, Beams) | MW3 | the beam trails a moving mech by a metre or more, and its ray starts there (playtest #24) |

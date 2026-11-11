@@ -1749,9 +1749,9 @@ void BeamWeapon::update(float dt) {
   float v = def->period * dt;
   if (!(v > 1.0f)) v = 1.0f;
   const int32_t n = crt::msvc_ftol(v);
-  if (firing && (def->flags & zwep::kDesignate) && zfix::options().small_fixes && bin->left() >= 0) {
+  if (firing && (def->flags & zwep::kDesignate) && zfix::options().fixed && bin->left() >= 0) {
     // FIX (bug): TAG's beam lasts what it does at 30 fps in the exe, in time:
-    // the same slack over the one-second hold at any frame rate (zfix small_fixes).
+    // the same slack over the one-second hold at any frame rate (always on: frame rate to time, as zwep_beam's).
     fired_time += dt;
     const int32_t per = std::max(1, crt::msvc_ftol(def->period / 30.0f));  // the 30 fps frame's drain
     const int32_t drains = (bin->max - 1 + per - 1) / per;                 // updates that empty it after the trigger's 1
