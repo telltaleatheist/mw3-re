@@ -1098,7 +1098,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       SDL_ShowSaveFileDialog(done, nullptr, parent, filters, 1, start.c_str());
     };
     mp.open_folder = [](const std::string& dir) { return sdlfe::open_folder(dir); };
-    mp.ask_game = [](const std::string& name) { return scripted.empty() ? sdlfe::ask_mod_game(parent, name) : 1; };  // --pick: no box
+    mp.ask_game = [](const std::string& name) { return scripted.empty() ? sdlfe::ask_mod_game(parent, name) : mech3::mods_game() == "mw3pm" ? 2 : 1; };  // --pick: no box, this game
   }
   window.set_auto_size(!a.window_given);
   // Fullscreen by default (ours): the desktop's size, the frame fitted in it
