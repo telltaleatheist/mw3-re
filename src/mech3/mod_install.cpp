@@ -377,6 +377,17 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
     a.error = bad;
     return a;
   }
+  // Ours (import_texts.h): its Mech3Msg.dll's texts that differ from the player's, into strings.txt; the dll
+  // itself is never part of a mod (removed from our staging copy only).
+  if (const fs::path dll = child(root, "mech3msg.dll"); !dll.empty() && fs::is_regular_file(dll, ec)) {
+    a.texts = import_texts(dll.string(), install, root.string());
+    fs::remove(dll, ec);
+    if (a.texts.read && files_under(root).empty()) {  // the dll alone, and its texts the player's
+      mod_add_discard(a);
+      a.error = "its Mech3Msg.dll's texts are the same as yours and it holds nothing else: nothing to add";
+      return a;
+    }
+  }
   const fs::path mt = child(root, "mod.txt");
   a.has_mod_txt = !mt.empty() && fs::is_regular_file(mt, ec);
   a.name = stem_of(source);
@@ -441,6 +452,18 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     if (!ec) r.left_out.push_back(rel);
   }
   r.warnings = static_cast<int>(facts.notes.size());
+  // A Mech3Msg.dll that did not read: a warning in the mods' one form, kept with what was left out; never a refusal.
+  std::vector<ModNote> own_notes;
+  if (a.texts.found && !a.texts.read) {
+    ModNote n;
+    n.where = "Mech3Msg.dll";
+    n.w.wrong = a.texts.why;
+    n.w.did = "IMPORT left this file out, so the game's own texts are shown where the mod changed or added one";
+    n.w.original = "not known";
+    n.group = ModWarningGroup::kStops;
+    own_notes.push_back(n);
+    ++r.warnings;
+  }
   if (r.check_errors > 0) {
     // Only the mod's fault as a whole refuses it (mod_check): the line says which.
     std::string first;
@@ -470,7 +493,7 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
   // What was left out, kept with the mod for its REPORT: the warnings of the files removed above, and any the
   // copy came with (a mod's folder added again).
   {
-    std::vector<ModNote> record;
+    std::vector<ModNote> record = own_notes;
     for (ModNote n : facts.notes) {
       bool gone = n.w.did.find("IMPORT left this file out") != std::string::npos;
       for (const std::string& rel : r.left_out)
@@ -533,6 +556,10 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   // With warnings the line says how many and where they are, then what to do next as without them; what was
   // left out is in the report.
   d.warnings = r.warnings, d.left_out = static_cast<int>(r.left_out.size());
+  d.texts = a.texts;
+  if (a.texts.read)
+    std::printf("mw3: import: %s: %d texts taken from its Mech3Msg.dll into strings.txt (%d with a name of their own)\n", d.name.c_str(),
+                a.texts.taken, a.texts.names);
   if (r.warnings > 0) {
     const std::string head = "Added " + d.name + ": ";
     std::string next = d.message.substr(head.size());

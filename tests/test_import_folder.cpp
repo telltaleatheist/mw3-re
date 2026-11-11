@@ -11,11 +11,15 @@
 #include <vector>
 
 #include "check.h"
+#include "message_dll.h"
+#include "gamez/zutil/zutl_msgdll.h"
+#include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mod_install.h"
 #include "upgrades/mods/mod_report.h"
 #include "mech3/mods.h"
 #include "upgrades/mods/import_folder.h"
+#include "upgrades/mods/import_texts.h"
 
 namespace {
 namespace fs = std::filesystem;
@@ -299,4 +303,214 @@ TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
                    "nothing of the entry can be read, so IMPORT left this file out; the game's own, if it has one, is used.") != std::string::npos);
   EXPECT(text.find("warning: zbd/c1/readermp91.zbd: aiv.zrd: ") != std::string::npos);
   EXPECT(fs::is_regular_file(mod + "/" + mech3::kModLeftOutFile, ec) && text.find(mech3::kModLeftOutFile) == std::string::npos);
+}
+
+// --- A mod's Mech3Msg.dll: its texts into strings.txt (upgrades/mods/import_texts.h) ---------------------
+namespace {
+struct KeepMounts {
+  zutl::Mounts saved = zutl::mounts();
+  ~KeepMounts() { zutl::mounts() = saved; }
+};
+// The mod's strings.txt as the game takes it at a start, over the player's own table.
+std::map<int32_t, std::string> texts_with(const std::string& wd, const std::string& folder, const std::string& inst,
+                                          std::map<std::string, int32_t>* names = nullptr) {
+  KeepMounts keep;
+  zutl::MessageDll mine;
+  zutl::read_message_dll(inst + "/Mech3Msg.dll", mine);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {folder}, {});
+  mech3::mods_apply_strings(mine.text, mine.ids, names);
+  return mine.text;
+}
+const std::map<int32_t, std::string> kMine = {{100, "CAMPAIGN"}, {101, "INSTANT ACTION"}, {102, "Line one\r\nLine two"}, {200, "Caf\xe9"}};
+const std::map<int32_t, std::string> kTheirs = {{100, "KAMPAGNE"}, {101, "INSTANT ACTION"}, {102, "Line one\r\nZwei \\ drei"},
+                                                {200, "Caf\xe9"}, {201, "Stra\xdf" "e"}, {300, "A new briefing"}};
+}  // namespace
+
+// The made dll reads as the game's does, and the lines for what differs: by number, UTF-8, \n and \; a name
+// the player's table lacks, or has under another number, as NAME@id with its text.
+TEST(import_texts_lines_for_what_differs_and_new_names) {
+  const std::string dir = tmp("import_texts_lines");
+  put(dir + "/a.dll", message_dll(kTheirs));
+  zutl::MessageDll theirs, mine;
+  EXPECT(zutl::read_message_dll(dir + "/a.dll", theirs) && theirs.text == kTheirs);
+  mine.text = kMine;
+  int taken = -1, names = -1;
+  const std::string lines = mech3::import_texts_lines(theirs, mine, &taken, &names);
+  std::printf("%s", lines.c_str());
+  EXPECT(lines == "0x64=KAMPAGNE\n0x66=Line one\\nZwei \\\\ drei\n0xc9=Stra\xc3\x9f" "e\n0x12c=A new briefing\n" && taken == 4 && names == 0);
+  EXPECT(mech3::import_texts_lines(mine, mine, &taken, &names).empty() && taken == 0);
+  // Line ends alike are the same text.
+  zutl::MessageDll unix_ends = mine;
+  unix_ends.text[102] = "Line one\nLine two";
+  EXPECT(mech3::import_texts_lines(unix_ends, mine, &taken, &names).empty());
+  // Names: one new, one moved to another number, one the same.
+  mine.ids = {{"MSG_MOVED", 150}, {"MSG_SAME", 100}};
+  theirs.ids = {{"MSG_NEW", 300}, {"MSG_MOVED", 101}, {"MSG_SAME", 100}};
+  const std::string named = mech3::import_texts_lines(theirs, mine, &taken, &names);
+  std::printf("%s", named.c_str());
+  EXPECT(named == "0x64=KAMPAGNE\nMSG_MOVED@0x65=INSTANT ACTION\n0x66=Line one\\nZwei \\\\ drei\n0xc9=Stra\xc3\x9f" "e\n"
+                  "MSG_NEW@0x12c=A new briefing\n" && taken == 5 && names == 2);
+}
+
+// A modded game folder whose Mech3Msg.dll differs: its texts taken into the mod's strings.txt, the dll not in the
+// mod, both installs as they were; the game then shows them. With the program's own confinement on.
+TEST(import_folder_takes_the_texts_of_a_modded_mech3msg_dll) {
+  const std::string wd = tmp("import_texts_wd"), inst = tmp("import_texts_inst"), modded = tmp("import_texts_src") + "/Big Words";
+  build(inst, modded);
+  put(inst + "/Mech3Msg.dll", message_dll(kMine));
+  put(modded + "/Mech3Msg.dll", message_dll(kTheirs));
+  const auto inst_before = snapshot(inst), modded_before = snapshot(modded);
+  KeepMounts keep;
+  zutl::mounts().confined = true;
+  std::string report;
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, nullptr, nullptr, &report);
+  std::printf("  %s\n  %s\n", d.message.c_str(), report.c_str());
+  const std::string at = wd + "/mods/" + d.folder;
+  std::printf("  the mod: %s\n", names(at).c_str());
+  EXPECT(d.ok && d.texts.found && d.texts.read && d.texts.taken == 4 && d.texts.names == 0 && d.warnings == 0);
+  EXPECT(names(at) == std::string("mod.txt|") + mech3::kModAddedMarker + "|strings.txt|zbd/c1/New.txt|zbd/c1/gamez.txt|zbd/reader.txt|");
+  EXPECT(snapshot(at).at("strings.txt").find("\n0x64=KAMPAGNE\n0x66=Line one\\nZwei \\\\ drei\n0xc9=Stra\xc3\x9f" "e\n0x12c=A new briefing\n") !=
+         std::string::npos);
+  EXPECT(snapshot(inst) == inst_before && snapshot(modded) == modded_before && nothing_staged(wd));
+  // The long line says the count; the files' count does not include the dll.
+  mech3::ImportFolder f = mech3::import_folder_prepare(wd, modded, inst);
+  f.texts = d.texts;
+  std::printf("  %s\n", mech3::import_folder_report(f).c_str());
+  EXPECT(f.taken == 3 && f.programs == 5 && f.msg_dll &&
+         mech3::import_folder_report(f).find("; took 4 texts from its Mech3Msg.dll.") != std::string::npos);
+  mech3::import_folder_discard(f);
+  // As the game takes them at a start.
+  const std::map<int32_t, std::string> text = texts_with(wd, d.folder, inst);
+  EXPECT(text.at(100) == "KAMPAGNE" && text.at(101) == "INSTANT ACTION" && text.at(102) == "Line one\r\nZwei \\ drei" &&
+         text.at(200) == "Caf\xe9" && text.at(201) == "Stra\xdf" "e" && text.at(300) == "A new briefing");
+  // The check and the report take the mod as it is: no warning for its strings.txt.
+  int errors = 0;
+  mech3::ModFindings facts;
+  mech3::mod_check(at, inst, &errors, &facts);
+  EXPECT(errors == 0 && facts.notes.empty());
+}
+
+// Only the texts differ: a mod of strings.txt alone. The same dll as the player's: a program as before, and
+// with nothing else changed there is nothing to add.
+TEST(import_folder_of_texts_alone_and_of_the_players_own_dll) {
+  const std::string wd = tmp("import_texts_alone_wd"), inst = tmp("import_texts_alone_inst"), src = tmp("import_texts_alone_src");
+  const std::string words = src + "/Only Words", same = src + "/Same";
+  build(inst, same);
+  put(inst + "/Mech3Msg.dll", message_dll(kMine));
+  std::error_code ec;
+  fs::copy(inst, words, fs::copy_options::recursive, ec);
+  put(words + "/Mech3Msg.dll", message_dll(kTheirs));
+  std::string report;
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, words, inst, nullptr, nullptr, &report);
+  std::printf("  %s\n  %s\n", d.message.c_str(), report.c_str());
+  EXPECT(d.ok && d.texts.taken == 4 && names(wd + "/mods/" + d.folder) == std::string("mod.txt|") + mech3::kModAddedMarker + "|strings.txt|");
+  EXPECT(texts_with(wd, d.folder, inst).at(300) == "A new briefing");
+  // The player's own dll in the modded folder: counted with the programs, as before this.
+  put(same + "/Mech3Msg.dll", message_dll(kMine));
+  mech3::ImportFolder f = mech3::import_folder_prepare(wd, same, inst);
+  EXPECT(f.error.empty() && !f.msg_dll && f.taken == 3 && f.programs == 6);
+  mech3::import_folder_discard(f);
+  // Another dll with the very same texts, and nothing else changed: nothing to add, said.
+  put(words + "/Mech3Msg.dll", message_dll(kMine) + "padding");
+  const mech3::ModAddDone equal = mech3::import_folder_run(wd, words, inst, nullptr, nullptr, &report);
+  std::printf("  %s\n", equal.message.c_str());
+  EXPECT(!equal.ok && equal.message.find("texts are the same as yours and it holds nothing else") != std::string::npos && nothing_staged(wd));
+  fs::copy_file(inst + "/Mech3Msg.dll", words + "/Mech3Msg.dll", fs::copy_options::overwrite_existing, ec);
+  const mech3::ModAddDone none = mech3::import_folder_run(wd, words, inst, nullptr, nullptr, &report);
+  EXPECT(!none.ok && none.message.find("nothing to add") != std::string::npos && nothing_staged(wd));
+}
+
+// A dll that is no message table: a warning in the mods' one form, kept with the mod for REPORT, and the mod
+// added all the same. A zip-shaped mod (no program) with a strings.txt of its own keeps its lines, which win.
+TEST(import_texts_unreadable_dll_warns_and_own_strings_win) {
+  const std::string wd = tmp("import_texts_bad_wd"), inst = tmp("import_texts_bad_inst"), modded = tmp("import_texts_bad_src") + "/Bad Words";
+  build(inst, modded);
+  put(inst + "/Mech3Msg.dll", message_dll(kMine));
+  put(modded + "/Mech3Msg.dll", "not a dll at all");
+  std::string report;
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, nullptr, nullptr, &report);
+  std::printf("  %s\n", d.message.c_str());
+  const std::string at = wd + "/mods/" + d.folder;
+  EXPECT(d.ok && d.texts.found && !d.texts.read && d.warnings == 1 && d.message.find("1 warning: REPORT says what.") != std::string::npos);
+  EXPECT(names(at) == std::string("mod.txt|") + mech3::kModAddedMarker + "|" + mech3::kModLeftOutFile + "|zbd/c1/New.txt|zbd/c1/gamez.txt|zbd/reader.txt|");
+  int errors = 0;
+  mech3::ModFindings facts;
+  mech3::mod_check(at, inst, &errors, &facts);
+  std::string said;
+  for (const mech3::ModNote& n : facts.notes) said += mech3::mod_warning_line(n.where, n.w) + "\n";
+  std::printf("  %s", said.c_str());
+  EXPECT(errors == 0 && facts.notes.size() == 1 && said.find("Mech3Msg.dll: it does not read as the game's table of texts. The rebuild: IMPORT left this file out") == 0);
+  // A folder of files to lay over the game (no program in it), its own strings.txt beside the dll.
+  const std::string loose = tmp("import_texts_loose_src") + "/Loose Words";
+  put(loose + "/zbd/c1/New.txt", "new");
+  put(loose + "/Mech3Msg.dll", message_dll(kTheirs));
+  put(loose + "/strings.txt", "\xef\xbb\xbf" "100=Mine\n");
+  const auto loose_before = snapshot(loose);
+  const mech3::ModAddDone l = mech3::mod_add_run(wd, loose, inst, nullptr, nullptr);
+  std::printf("  %s\n", l.message.c_str());
+  EXPECT(l.ok && l.texts.taken == 4 && snapshot(loose) == loose_before);
+  EXPECT(names(wd + "/mods/" + l.folder) == std::string("mod.txt|") + mech3::kModAddedMarker + "|strings.txt|zbd/c1/New.txt|");
+  const std::map<int32_t, std::string> text = texts_with(wd, l.folder, inst);
+  EXPECT(text.at(100) == "Mine" && text.at(300) == "A new briefing");
+}
+
+// NAME@id in strings.txt: the text set and the name known from then on; the check reads the line without a table.
+TEST(mods_strings_name_at_id_gives_a_message_its_name) {
+  const std::string wd = tmp("import_texts_names_wd");
+  put(wd + "/mods/n/mod.txt", "name=Names\n");
+  put(wd + "/mods/n/strings.txt", "MSG_NEW@0x12c=A new briefing\nMSG_MOVED@101=Moved\nMSG_NEW=by its new name: not yet known on this line\n@5=x\nA@b=y\n");
+  KeepMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"n"}, {});
+  std::map<int32_t, std::string> text = {{101, "START"}};
+  std::map<std::string, int32_t> ids = {{"MSG_MOVED", 150}};
+  std::string log;
+  for (const std::string& l : mech3::mods_apply_strings(text, ids, &ids)) log += l + "\n";
+  std::printf("%s", log.c_str());
+  EXPECT(text[300] == "A new briefing" && text[101] == "Moved" && ids["MSG_NEW"] == 300 && ids["MSG_MOVED"] == 101);
+  EXPECT(text[5] == "x" && ids.size() == 2);  // no name before the @: the number alone
+  EXPECT(log.find("line 3: no id= here") != std::string::npos && log.find("line 5: no id= here") != std::string::npos);
+  // Without a names table (the check's): the texts all the same.
+  std::map<int32_t, std::string> again;
+  mech3::mods_apply_strings(again, {});
+  EXPECT(again[300] == "A new briefing" && again[101] == "Moved");
+}
+
+// The game's own two dlls (1.0's and 1.2's, when both installs are there): 1.2's taken as a mod's over a 1.0
+// player gives, through strings.txt, exactly 1.2's texts and names; a dll against itself gives nothing.
+TEST(import_texts_real_dlls_round_trip_through_strings_txt) {
+  const std::string v12 = std::string(MW3_GAME_DIR) + "/Mech3Msg.dll", v10 = std::string(MW3_GAME_DIR) + "/../mw3-1.0/Mech3Msg.dll";
+  std::error_code ec;
+  if (!fs::exists(v12, ec) || !fs::exists(v10, ec)) return;
+  zutl::MessageDll theirs, mine;
+  EXPECT(zutl::read_message_dll(v12, theirs) && zutl::read_message_dll(v10, mine));
+  int taken = 0, names = 0;
+  EXPECT(mech3::import_texts_lines(theirs, theirs, &taken, &names).empty() && taken == 0 && names == 0);
+  const std::string wd = tmp("import_texts_real_wd");
+  put(wd + "/mods/v12/mod.txt", "name=1.2's texts\n");
+  put(wd + "/mods/v12/strings.txt", mech3::import_texts_lines(theirs, mine, &taken, &names));
+  std::printf("  1.2 over 1.0: %d lines, %d with a name of their own; %zu and %zu messages\n", taken, names, theirs.text.size(), mine.text.size());
+  EXPECT(taken > 0);
+  KeepMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"v12"}, {});
+  std::string log;
+  for (const std::string& l : mech3::mods_apply_strings(mine.text, mine.ids, &mine.ids)) log += l + "\n";
+  EXPECT(log.find("left out") == std::string::npos);
+  auto plain = [](std::string t) {
+    t.erase(std::remove(t.begin(), t.end(), '\r'), t.end());
+    return t.substr(0, 0x1ff);
+  };
+  int differ = 0, missing_names = 0;
+  for (const auto& [id, text] : theirs.text)
+    if (!mine.text.count(id) || plain(mine.text.at(id)) != plain(text)) {
+      if (++differ <= 3) std::printf("    0x%x differs\n", static_cast<unsigned>(id));
+    }
+  for (const auto& [name, id] : theirs.ids)
+    if (!mine.ids.count(name) || mine.ids.at(name) != id) ++missing_names;
+  EXPECT(differ == 0 && missing_names == 0);
 }
