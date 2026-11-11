@@ -649,7 +649,13 @@ box, saying what goes, with counts read from the folder at that moment.
   there (anything but `pilots` and `configs`) stops with nothing removed and
   says so, as `entry_ensure` refuses "files the game did not put there". A
   link inside a folder is removed as a link; what it points at is never
-  entered or touched.
+  entered or touched. "A link" is one test (`path_is_link`,
+  upgrades/mods/marked_remove): a symlink, and on Windows any reparse point,
+  so a directory junction (`mklink /J`, what players use to move a folder to
+  another drive) counts whatever the standard library calls it. The Windows
+  check is `tests/win/delete_check.cpp` (built with
+  `x86_64-w64-mingw32-g++ -std=c++17 -Isrc tests/win/delete_check.cpp src/upgrades/mods/marked_remove.cpp -o delete_check.exe -static`,
+  run on Windows as `delete_check.exe DIR`).
 - A copy's mod folder is removed before its campaign folder, so a failure
   there leaves the pilots and saved games alone. After any of them the game's
   own campaign is chosen.

@@ -102,9 +102,12 @@ TEST(mods_delete_remover_takes_only_a_marked_folder) {
   EXPECT(!mech3::remove_marked_folder(w, "mods", "weps", "", &why) && !mech3::remove_marked_folder(w, "mods", "weps", nullptr, &why));
   EXPECT(snapshot(wd) == before);
 #if !defined(_WIN32)
-  // A link standing for the folder, and a marker that is a link: refused.
+  // A link standing for the folder, and a marker that is a link: refused. (On Windows a junction counts the
+  // same by path_is_link's reparse-point test: tests/win/delete_check.cpp, run on the PC.)
   std::error_code ec;
   fs::create_directory_symlink(wd / "mods/weps", wd / "mods/linked", ec);
+  EXPECT(mech3::path_is_link((wd / "mods/linked").string()) && !mech3::path_is_link((wd / "mods/weps").string()) &&
+         !mech3::path_is_link((wd / "mods/weps/mod.txt").string()) && !mech3::path_is_link((wd / "mods/nowhere").string()));
   EXPECT(!ec && !mech3::remove_marked_folder(w, "mods", "linked", mech3::kModAddedMarker, &why) && why.find("is a link") != std::string::npos);
   fs::remove(wd / "mods/linked", ec);
   put(wd / "outside/real marker.txt", "x");

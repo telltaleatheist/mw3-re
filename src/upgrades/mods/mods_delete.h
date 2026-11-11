@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 
+#include "upgrades/mods/marked_remove.h"
+
 // Ours (docs/mods-campaigns-plan.md, Deleting and resetting; Owen
 // 2026-11-10): DELETE and RESET on the MODS screen. One remover takes a
 // folder directly under this write dir's mods\ or campaigns\ and the marker
@@ -20,13 +22,7 @@
 // campaign another is built on, the campaign the run is inside.
 namespace mech3 {
 
-// The one remover. `under` is "mods" or "campaigns"; `name` one plain folder
-// name; `marker` the file the folder must hold, itself a plain file. Links
-// inside are removed as links, never followed. False with `why`, nothing
-// removed, when: the name is not plain, the folder is missing or is a link,
-// the marker is missing, or (campaigns) it holds a folder the game does not
-// make there (entry_ensure's own refusal).
-bool remove_marked_folder(const std::string& write_dir, const char* under, const std::string& name, const char* marker, std::string* why);
+// The one remover is marked_remove.h's remove_marked_folder.
 
 struct DeletePlan {
   enum Kind { kNone, kCopy, kImportedMod, kImportedCampaign, kLeftover, kReset } kind = kNone;

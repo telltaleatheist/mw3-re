@@ -340,6 +340,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/entry_pilot_copy.cpp
   src/upgrades/mods/entry_run.cpp
   src/upgrades/mods/mods_delete.cpp
+  src/upgrades/mods/marked_remove.cpp
   src/upgrades/mods/entry_pilots.cpp
   src/upgrades/mods/mods_tick_list.cpp
   src/upgrades/mods/ia_mods_menu.cpp

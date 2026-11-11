@@ -20,38 +20,11 @@ std::string lower(std::string s) {
   for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return s;
 }
-bool plain_name(const std::string& n) {
-  return !n.empty() && n != "." && n != ".." && n.find_first_of("/\\") == std::string::npos && n.find('\0') == std::string::npos;
-}
-bool is_link(const fs::path& p) {
-  std::error_code ec;
-  return fs::is_symlink(fs::symlink_status(p, ec));
-}
+bool is_link(const fs::path& p) { return path_is_link(p.string()); }
 // A plain file that is really there (not a link to one).
 bool plain_file(const fs::path& p) {
   std::error_code ec;
-  const fs::file_status s = fs::symlink_status(p, ec);
-  return !ec && fs::is_regular_file(s);
-}
-// Everything in `dir` removed, then `dir`: a link is removed as a link (its target untouched), never entered.
-bool remove_tree(const fs::path& dir, std::string* why) {
-  std::error_code ec;
-  std::vector<fs::path> kids;
-  for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) kids.push_back(it->path());
-  for (const fs::path& k : kids) {
-    const fs::file_status s = fs::symlink_status(k, ec);
-    if (fs::is_directory(s) && !fs::is_symlink(s)) {
-      if (!remove_tree(k, why)) return false;
-    } else if (!fs::remove(k, ec) || ec) {  // a file, or a link itself
-      if (why) *why = "could not remove " + k.generic_string();
-      return false;
-    }
-  }
-  if (!fs::remove(dir, ec) || ec) {
-    if (why) *why = "could not remove " + dir.generic_string();
-    return false;
-  }
-  return true;
+  return !is_link(p) && fs::is_regular_file(fs::symlink_status(p, ec));
 }
 std::string counted(int n, const char* one, const char* many) { return std::to_string(n) + " " + (n == 1 ? one : many); }
 std::string pilots_and_saves(const std::string& write_dir, const std::string& entry) {
@@ -59,38 +32,7 @@ std::string pilots_and_saves(const std::string& write_dir, const std::string& en
   entry_counts(write_dir, entry, &p, &s);
   return counted(p, "pilot", "pilots") + " and " + counted(s, "saved game", "saved games");
 }
-// The folders the game makes in an entry's folder (entry_ensure): anything else there is not ours to remove.
-bool entry_folder_is_ours(const fs::path& dir, std::string* stranger) {
-  std::error_code ec;
-  for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
-    const fs::file_status s = fs::symlink_status(it->path(), ec);
-    const std::string n = lower(it->path().filename().string());
-    if (fs::is_directory(s) && !fs::is_symlink(s) && n != "pilots" && n != "configs") {
-      if (stranger) *stranger = it->path().filename().string();
-      return false;
-    }
-  }
-  return true;
-}
 }  // namespace
-
-bool remove_marked_folder(const std::string& write_dir, const char* under, const std::string& name, const char* marker, std::string* why) {
-  std::string none;
-  std::string& said = why ? *why : none;
-  const std::string u = under ? under : "";
-  if (write_dir.empty() || (u != "mods" && u != kEntriesFolder)) return said = "not a folder of the game's", false;
-  if (!plain_name(name)) return said = "\"" + name + "\" is not a folder's name", false;
-  if (!marker || !*marker) return said = "no marker named", false;
-  const fs::path parent = fs::path(write_dir) / u, dir = parent / name;
-  std::error_code ec;
-  if (is_link(parent) || is_link(dir)) return said = dir.generic_string() + " is a link: not removed", false;
-  if (!fs::is_directory(fs::symlink_status(dir, ec))) return said = dir.generic_string() + " is not there", false;
-  if (!plain_file(dir / marker)) return said = dir.generic_string() + " has no " + marker + ": not made by the game, so not removed", false;
-  std::string stranger;
-  if (u == kEntriesFolder && !entry_folder_is_ours(dir, &stranger))
-    return said = dir.generic_string() + " holds a folder the game did not put there (" + stranger + "): not removed", false;
-  return remove_tree(dir, &said);
-}
 
 void entry_counts(const std::string& write_dir, const std::string& entry, int* pilots, int* saves) {
   auto count = [](const fs::path& dir) {
