@@ -25945,6 +25945,7 @@ namespace {
 struct WideMenus {
   int32_t campaign = -1, credits = -1, credits_line = -1, accept = -1, gfx = -1, level = -1;
   int32_t lines_w = -1, lines_x = -1, width = -1, width_after = -1;
+  int32_t still_w = 0;  // the main menu's baked picture (FastMenu), 0 none
   int32_t gfx_accept = -1, gfx_resolution = -1, shadows_value = -1;  // the value: from its cycle
   int32_t ctl_accept = -1, ctl_reset = -1, ctl_keys = -1, ctl_lines_w = -1;
   int32_t popup_bar = -1, popup_label_dx = -1, popup_label_dy = -1;  // the load/save popup's name bar, its label from it
@@ -25969,7 +25970,7 @@ struct WideMenus {
   std::vector<std::pair<int32_t, int32_t>> mp_ripples;  // the multiplayer screens' ripple buttons: the ripple less the button's place
   int32_t tm_ok = -1, tm_backdrop = -1;  // the new team's dialog
 };
-WideMenus wide_menus_run(bool wide) {
+WideMenus wide_menus_run(bool wide, bool fast = false) {
   WideMenus out;
   SavedMounts keep;
   zutl::mounts() = zutl::Mounts{};
@@ -26007,7 +26008,7 @@ WideMenus wide_menus_run(bool wide) {
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   p.settings = &settings;
   {
-    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    mech3::GameEngine engine(p, fast ? "mech3.exe -nofmv -seasick" : "mech3.exe -nofmv");
     engine.quiet = true;
     struct ImageHost : BoxHost {  // the shipped images, so the backgrounds and overlays are there to widen
       zimg::Texture* image_get(const char* n) override { return n && *n ? zimg::fetch_image(n) : nullptr; }
@@ -26021,8 +26022,12 @@ WideMenus wide_menus_run(bool wide) {
         t->pixels = std::calloc(static_cast<size_t>(w) * h, 2);
         return t;
       }
+      // FastMenu's bake: a picture the canvas's size (the default host grabs nothing).
+      bool grabs = false;
+      zimg::Texture* screen_grab(int32_t b) override { return grabs && e ? image_new(e->buffer_width(), e->buffer_height()) : BoxHost::screen_grab(b); }
     } host;
     host.e = &engine;
+    host.grabs = fast;
     ztwod::set_host(&host);
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
@@ -26200,6 +26205,7 @@ WideMenus wide_menus_run(bool wide) {
         out.campaign = mm->buttons[mech3::MainMenuButton::kNewCampaign].get_rect()->left;
         out.credits = mm->buttons[mech3::MainMenuButton::kCredits].get_rect()->left;
         out.credits_line = mm->buttons[mech3::MainMenuButton::kCredits].line.get_x();
+        out.still_w = mm->still.image ? mm->still.image->width : 0;
         out.width_after = engine.buffer_width();
         {
           ztwod::MessageBox box("dlgMessage.zrd", "MESSAGEBOX", true);
@@ -26551,6 +26557,24 @@ TEST(menus_wide_by_default_at_16_9_only) {
   std::printf("menus' mode with the in-mission 13: %d (off: %d); with 5: %d; with 10: %d\n", wide, off, plain, tall);
   EXPECT(wide == 13 && plain == 5 && tall == 5 && off == 5);
   zfix::options() = keep;
+}
+
+// FastMenu (the original's option, -seasick) with wide menus: a screen that is baked into one picture is laid
+// out wide before the bake, so the art in the picture (the overlays' lines, the baked buttons) is where the
+// live layout puts it. Before, the bake came first: LINES kept its 640 form and the picture its 4:3 places
+// while the controls moved (the main menu's CREDITS and QUIT twice; Owen's Instant Action, playtest W6).
+TEST(menus_wide_with_fast_menu_bake_after_the_layout_headless) {
+  if (!have_game()) return;
+  const WideMenus on = wide_menus_run(true), fast = wide_menus_run(true, true);
+  std::printf("wide: CREDITS %d, LINES %d wide; with FastMenu: CREDITS %d, LINES %d wide, the baked picture %d wide\n", on.credits, on.lines_w,
+              fast.credits, fast.lines_w, fast.still_w);
+  EXPECT(on.width == 853 && fast.width == 853 && on.still_w == 0 && fast.still_w == 853);  // baked, the canvas's width
+  EXPECT(fast.credits == on.credits && fast.credits_line == on.credits_line && fast.campaign == on.campaign);
+  EXPECT(fast.lines_w == on.lines_w && fast.lines_x == on.lines_x);  // the overlay stretched before it went into the picture
+  EXPECT(fast.accept == on.accept && fast.gfx == on.gfx && fast.gfx_accept == on.gfx_accept);
+  EXPECT(fast.ctl_accept == on.ctl_accept && fast.ctl_lines_w == on.ctl_lines_w && fast.ctl_keys == on.ctl_keys);
+  EXPECT(fast.pil_accept == on.pil_accept && fast.pil_lines_w == on.pil_lines_w && fast.games_up == on.games_up);
+  EXPECT(fast.cr_lines_w == on.cr_lines_w && fast.cr_back == on.cr_back);
 }
 
 TEST(menus_wide_spread_by_their_groups_headless) {

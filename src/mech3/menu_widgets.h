@@ -87,6 +87,10 @@ class MenuScreen : public ztwod::Dialog {
   Handle state = 0;                  // +0x10fec
   uint8_t busy_ = 0;                 // +0x10ff0  the buttons take no mouse while set
   ztwod::Image still{0};             // +0x10ff4  FastMenu: the screen drawn once, as one image
+  // Ours (16:9 menus): the objects the wide layout has placed (GameEngine::widen_screen). With FastMenu the
+  // layout runs before the bake's grab, on what is on the list by then, and again after the constructor for
+  // the rest: each object once.
+  std::vector<const ztwod::Object2D*> widened;
   ScrollImage background;            // +0x110b0  BACKGROUND
 };
 
