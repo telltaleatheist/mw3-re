@@ -131,6 +131,75 @@ TEST(fix_lab_loadout_export_import) {
   EXPECT(zutl::exists("import\\mine.m3c.done"));
 }
 
+// IMPORT of a mech loadout (upgrades/mods/import_loadout.h): one player's exported .m3c, picked on another's
+// MODS screen, lands in that player's import folder under a free name (never over one), and the lab's Ctrl+I
+// reads it once; a folder of loadouts the same; a file that is no loadout is refused; no mod is made and the
+// picked files are only read. With the program's confinement on.
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include "mech3/mod_install.h"
+TEST(import_takes_a_mech_loadout_for_the_lab) {
+  namespace fs = std::filesystem;
+  const std::string root = std::string(MW3_TEST_TMP) + "/import_loadout", theirs = root + "/theirs", wd = root + "/mine";
+  std::error_code ec;
+  fs::remove_all(root, ec);
+  const zutl::Mounts saved = zutl::mounts();
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(theirs);  // the player who made it
+  mech3::Config c(3, "Mine"), c2(5, "Other");
+  EXPECT(mech3::lab_export_config(c) && mech3::lab_export_config(c2));
+  const std::string one = theirs + "/export/" + mech3::mech_name(3) + "_Mine.m3c";
+  const auto bytes = [](const std::string& p) {
+    std::ifstream f(p, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  const std::string one_before = bytes(one);
+  EXPECT(!one_before.empty() && mech3::loadout_name(one) && mech3::loadout_reads(one, nullptr));
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);  // the player who was given it
+  zutl::mounts().confined = true;
+  const mech3::ModAddDone a = mech3::mod_add_run(wd, one, "", nullptr, nullptr);
+  std::printf("  %s\n", a.message.c_str());
+  EXPECT(!a.ok && a.loadouts == 1 && a.message == "Added 1 mech loadout: in a mech lab, Ctrl+I takes it.");
+  const std::string name = std::string(mech3::mech_name(3)) + "_Mine";
+  EXPECT(bytes(wd + "/import/" + name + ".m3c") == one_before && bytes(one) == one_before);
+  EXPECT(!fs::exists(wd + "/mods", ec) && !fs::exists(wd + "/mod-staging", ec));  // no mod, nothing staged
+  // Again: a second file, the first as it was. The whole export folder: both, under free names.
+  const mech3::ModAddDone b = mech3::mod_add_run(wd, one, "", nullptr, nullptr);
+  EXPECT(b.loadouts == 1 && bytes(wd + "/import/" + name + " (2).m3c") == one_before && bytes(wd + "/import/" + name + ".m3c") == one_before);
+  const mech3::ModAddDone all = mech3::mod_add_run(wd, theirs + "/export", "", nullptr, nullptr);
+  std::printf("  %s\n", all.message.c_str());
+  EXPECT(!all.ok && all.loadouts == 2 && all.message == "Added 2 mech loadouts: in a mech lab, Ctrl+I takes the next one.");
+  EXPECT(fs::exists(wd + "/import/" + name + " (3).m3c", ec) && !fs::exists(wd + "/mod-staging", ec));
+  // No loadout: refused, nothing made.
+  { std::ofstream(root + "/bad.m3c") << "xx"; }
+  std::string big(8, '\xff');
+  { std::ofstream(root + "/odd.m3c", std::ios::binary) << big << std::string(100, 'a'); }
+  const mech3::ModAddDone bad = mech3::mod_add_run(wd, root + "/bad.m3c", "", nullptr, nullptr), odd = mech3::mod_add_run(wd, root + "/odd.m3c", "", nullptr, nullptr);
+  std::printf("  %s\n  %s\n", bad.message.c_str(), odd.message.c_str());
+  EXPECT(!bad.ok && bad.loadouts == 0 && bad.message.find("Not added: bad.m3c: it does not read as a mech loadout") == 0 && !fs::exists(wd + "/import/bad.m3c", ec));
+  EXPECT(odd.loadouts == 0 && !fs::exists(wd + "/import/odd.m3c", ec));
+  // The lab's own import takes them, each once, as they were made.
+  zutl::mounts().confined = false;
+  int got = 0, mine = 0, other = 0;
+  while (mech3::Config* in = mech3::lab_import_config()) {
+    ++got;
+    if (in->mech == 3 && in->name && std::strcmp(in->name, "Mine") == 0) ++mine;
+    if (in->mech == 5 && in->name && std::strcmp(in->name, "Other") == 0) ++other;
+    delete in;
+  }
+  EXPECT(got == 4 && mine == 3 && other == 1);
+  // One taken before (its .done there): the same file imported again gets a free name, and is read again.
+  const mech3::ModAddDone again = mech3::mod_add_run(wd, one, "", nullptr, nullptr);
+  EXPECT(again.loadouts == 1 && fs::exists(wd + "/import/" + name + " (4).m3c", ec) && fs::exists(wd + "/import/" + name + ".m3c.done", ec));
+  mech3::Config* in = mech3::lab_import_config();
+  EXPECT(in && in->mech == 3);
+  delete in;
+  zutl::mounts() = saved;
+  fs::remove_all(root, ec);
+}
+
 #if defined(_WIN32)
 #include <cstdlib>
 #include <filesystem>

@@ -27,10 +27,13 @@ bool plain_file(const fs::path& p) {
   return !is_link(p) && fs::is_regular_file(fs::symlink_status(p, ec));
 }
 std::string counted(int n, const char* one, const char* many) { return std::to_string(n) + " " + (n == 1 ? one : many); }
-std::string pilots_and_saves(const std::string& write_dir, const std::string& entry) {
+// What goes with a campaign, as a sentence: "Its 2 pilots and 5 saved games <here >go with it." or, with none,
+// "It has no pilots or saved games<here>." (never "0 pilots and 0 saved games").
+std::string goes_with(const std::string& write_dir, const std::string& entry, const char* here) {
   int p = 0, s = 0;
   entry_counts(write_dir, entry, &p, &s);
-  return counted(p, "pilot", "pilots") + " and " + counted(s, "saved game", "saved games");
+  if (!p && !s) return std::string("It has no pilots or saved games") + (*here ? " here" : "") + ".";
+  return "Its " + counted(p, "pilot", "pilots") + " and " + counted(s, "saved game", "saved games") + (*here ? " here" : "") + " go with it.";
 }
 }  // namespace
 
@@ -59,15 +62,15 @@ DeletePlan delete_plan_for_entry(const std::string& write_dir, const std::string
   if (!inside.empty() && inside == e->id) return p.entry.clear(), p.refused = name + " is being played: leave it first.", p;
   if (e->kind == CampaignEntry::kOfficial) {
     p.kind = DeletePlan::kReset, p.label = "RESET";
-    p.question = "Reset " + name + " to the original? Its ticked mods are cleared, and its " + pilots_and_saves(write_dir, e->id) +
-                 " here go with it. Your pilots in the main game are not changed.";
+    p.question = "Reset " + name + " to the original? Its ticked mods are cleared. " + goes_with(write_dir, e->id, "here") +
+                 " Your pilots in the main game are not changed.";
     return p;
   }
   if (e->kind == CampaignEntry::kMultiplayer) return p.entry.clear(), p.refused = "Multiplayer's mods are turned off on its own screen (ALL OFF).", p;
   if (e->kind == CampaignEntry::kInstantAction) return p.entry.clear(), p.refused = "Instant Action's mods are turned off on its own screen (ALL OFF).", p;
   if (e->missing) {
     p.kind = DeletePlan::kLeftover, p.label = "DELETE";
-    p.question = "Delete what is left of " + name + "? Its " + pilots_and_saves(write_dir, e->id) + " go with it.";
+    p.question = "Delete what is left of " + name + "? " + goes_with(write_dir, e->id, "");
     return p;
   }
   // A campaign with its mod: nothing another campaign is built on.
@@ -78,7 +81,7 @@ DeletePlan delete_plan_for_entry(const std::string& write_dir, const std::string
   if (!is_link(mod) && plain_file(mod / ai::kEditorMarker)) {
     // A mod can bring several campaigns; a copy of ours is one mod, one campaign.
     p.kind = DeletePlan::kCopy, p.label = "DELETE", p.mod = e->mod, p.mod_marker = ai::kEditorMarker;
-    p.question = "Delete " + name + "? Its " + pilots_and_saves(write_dir, e->id) + " go with it.";
+    p.question = "Delete " + name + "? " + goes_with(write_dir, e->id, "");
     return p;
   }
   if (!is_link(mod) && plain_file(mod / kModAddedMarker)) {
@@ -88,6 +91,7 @@ DeletePlan delete_plan_for_entry(const std::string& write_dir, const std::string
     return p;
   }
   p.entry.clear();
+  p.by_hand = true;
   p.refused = name + " was not added by the game: remove its folder yourself (MODS FOLDER).";
   return p;
 }
@@ -107,7 +111,7 @@ DeletePlan delete_plan_for_mod(const std::string& write_dir, const std::string& 
       return p.refused = name + " cannot be deleted: " + (o.name.empty() ? o.id : o.name) + " is built on it. Delete that one first.", p;
   const char* marker = !is_link(dir) && plain_file(dir / kModAddedMarker) ? kModAddedMarker
                        : !is_link(dir) && plain_file(dir / ai::kEditorMarker) ? ai::kEditorMarker : nullptr;
-  if (!marker) return p.refused = name + " was not added by the game: remove its folder yourself (MODS FOLDER).", p;
+  if (!marker) return p.by_hand = true, p.refused = name + " was not added by the game: remove its folder yourself (MODS FOLDER).", p;
   // The campaigns it is ticked for, by their names, the game's own and Instant Action's among them.
   std::string where;
   for (const CampaignEntry& e : all) {

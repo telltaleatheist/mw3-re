@@ -1,5 +1,7 @@
 #include "upgrades/mods/ia_mods_menu.h"
 
+#include "upgrades/mods/screen_fit.h"
+
 #include <algorithm>
 
 #include "mech3/pilot.h"
@@ -121,6 +123,7 @@ IaModsScreen::IaModsScreen(Engine& e, Handle s, bool multiplayer)
   set_active(1);
   inside = inside_entry(entry_id());
   before = entry_ticks(mods_menu_write_dir(), entry_id());
+  ticks.no_campaign_only = true;
   ticks.fill(mods_menu_write_dir(), before);
   mods_text_say(title, mp ? "M U L T I P L A Y E R" : "I N S T A N T   A C T I O N");
   show_note();
@@ -135,17 +138,9 @@ IaModsScreen::~IaModsScreen() {
 
 // Two lines under the list, the text wrapped at the box's width.
 void IaModsScreen::tell(const std::string& text) {
-  constexpr size_t kWidth = 58;
-  std::string a = text, b;
-  if (a.size() > kWidth) {
-    size_t cut = a.rfind(' ', kWidth);
-    if (cut == std::string::npos || cut < kWidth / 2) cut = kWidth;
-    b = a.substr(cut + (a[cut] == ' ' ? 1 : 0));
-    a.resize(cut);
-    if (b.size() > kWidth) b = b.substr(0, kWidth - 3) + "...";
-  }
-  mods_text_say(note, a);
-  mods_text_say(note2, b);
+  const auto lines = mods_note_lines(text, [this](const std::string& t) { return mods_text_fits(t, &note, kModsNotePx, kModsNoteChars); });
+  mods_text_say(note, lines.first);
+  mods_text_say(note2, lines.second);
 }
 
 // The line follows the ticks as they stand on the screen; the note is the

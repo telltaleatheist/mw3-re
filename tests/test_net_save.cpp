@@ -23,6 +23,7 @@
 #include "mech3/mod_install.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/save_as.h"
+#include "upgrades/mods/entry_archives.h"
 #include "gamez/zutil/zutl_zar.h"
 #include "mech3/mods.h"
 #include "mech3/net_save.h"
@@ -613,6 +614,86 @@ TEST(editor_saves_only_as_a_copy_of_the_campaign) {
   mech3::ai::net_save_into_mod().clear();
   mech3::current_entry() = mech3::official_entries().front().id;
   zutl::mounts() = saved;
+}
+
+// Save as over a campaign whose mod is kept as changed entries (upgrades/mods/entry_archives.h): the save takes
+// the archive as the game finds it (the game's own with the mod's entries laid over it), so the copy's whole
+// archive holds the mod's entries, the edit, and the rest; the mod, the install and the built folder are not
+// written. Mounted as TEST and PLAY mount a copy (the copy, then what it is built on), the game reads the copy's.
+TEST(editor_save_as_over_a_campaign_kept_as_changed_entries) {
+  const fs::path root = fs::path(MW3_TEST_TMP_ROOT) / "save_as_entries";
+  std::error_code ec;
+  fs::remove_all(root, ec);
+  const fs::path inst = root / "install", wd = root / "write";
+  const zutl::Mounts saved = zutl::mounts();
+  using Made = std::vector<std::pair<std::string, std::string>>;
+  const auto archive = [](const fs::path& p, const Made& made) {
+    fs::create_directories(p.parent_path());
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    zutl_zar::create(a, p.string().c_str());
+    for (const auto& [name, data] : made) zutl_zar::add(a, name.c_str(), data.data(), static_cast<uint32_t>(data.size()));
+    zutl_zar::close(a);
+    zutl_zar::destroy(a);
+  };
+  const auto read = [](const std::string& host) {
+    std::vector<mech3::ArchiveEntry> all;
+    std::string t;
+    if (!mech3::archive_read_entries(host, &all)) return std::string("(unreadable)");
+    for (const mech3::ArchiveEntry& e : all) t += e.name + "=" + std::string(e.data.begin(), e.data.end()) + "|";
+    return t;
+  };
+  const auto tree = [&](const fs::path& dir) {
+    std::string t;
+    std::vector<fs::path> all;
+    for (fs::recursive_directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) all.push_back(it->path());
+    std::sort(all.begin(), all.end());
+    for (const fs::path& f : all)
+      if (fs::is_regular_file(f, ec)) t += f.string() + ":" + std::to_string(fs::file_size(f, ec)) + ":" +
+                                           std::to_string(static_cast<long long>(fs::last_write_time(f, ec).time_since_epoch().count())) + "\n";
+    return t;
+  };
+  const auto put = [](const fs::path& p, const std::string& text) {
+    fs::create_directories(p.parent_path());
+    std::ofstream(p, std::ios::binary) << text;
+  };
+  const char* rel = "zbd\\c1\\readerm1.zbd";
+  archive(inst / "zbd" / "c1" / "readerm1.zbd", {{"other.zrd", "x"}, {"net_01.zrd", "install"}});
+  put(wd / "mods" / "camp" / "mod.txt", "name=Camp\ncampaign=night.txt\n");
+  put(wd / "mods" / "camp" / "night.txt", "name=Long Night\nmission=c1 1\n");
+  put(wd / "mods" / "camp" / "mw3-mod-added.txt", "added by the game\n");
+  archive(wd / "mods" / "camp" / "zbd" / "c1" / "readerm1.zbd.entries", {{"other.zrd", "camp's"}, {"extra.zrd", "new"}});
+  const std::string w = wd.string();
+  const auto mount = [&](const std::vector<std::string>& mods) {
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(w);
+    mech3::mods_mount(w, mods, {inst.string()});
+    zutl::mount(inst.string());
+    return zutl::find("zbd/c1/readerm1.zbd");
+  };
+  // In the campaign: the game reads the built archive.
+  const std::string built = mount({"camp"});
+  EXPECT(built.find("mod-merged") != std::string::npos && read(built) == "other.zrd=camp's|net_01.zrd=install|extra.zrd=new|");
+  const std::string before = tree(wd / "mods" / "camp") + tree(inst) + tree(wd / "mod-merged");
+  mech3::save_as_begin(w, "camp~night");
+  mech3::save_as_ask_hook() = [&](std::string* name) { return *name = "Night, mine", true; };
+  EXPECT(mech3::editor_save_ready(nullptr));
+  const std::vector<uint8_t> one = {'o', 'n', 'e'};
+  const mech3::ai::NetSave r = mech3::ai::save_archive_edit(rel, "net_01.zrd", one);
+  const std::string copy = (wd / "mods" / "Night, mine" / "zbd" / "c1" / "readerm1.zbd").string();
+  std::printf("  %s\n  the copy's: %s\n", r.ok ? r.message.c_str() : r.error.c_str(), read(copy).c_str());
+  EXPECT(r.ok && r.folder == "Night, mine" && read(copy) == "other.zrd=camp's|net_01.zrd=one|extra.zrd=new|");
+  EXPECT(tree(wd / "mods" / "camp") + tree(inst) + tree(wd / "mod-merged") == before);  // none of the three written
+  mech3::save_as_end();
+  mech3::save_as_ask_hook() = nullptr;
+  // As TEST and PLAY mount the copy: its own whole archive is the one read, with all three.
+  const std::string played = mount({"Night, mine", "camp"});
+  EXPECT(played == zutl::find("zbd/c1/readerm1.zbd") && played.find("/mods/Night, mine/") != std::string::npos &&
+         read(played) == "other.zrd=camp's|net_01.zrd=one|extra.zrd=new|");
+  // And the campaign it was saved from is as it was.
+  EXPECT(read(mount({"camp"})) == "other.zrd=camp's|net_01.zrd=install|extra.zrd=new|");
+  zutl::mounts() = saved;
+  fs::remove_all(root, ec);
 }
 
 // A copy exported and imported elsewhere is an imported mod there (EXPORT

@@ -615,6 +615,16 @@ the game's own with a mod ticked on the screen).
   the test screen and the list stays.
 - Changing a tick is not offered inside the test (it needs the restart): BACK,
   tick, TEST again.
+- **The debriefing of a test mission** (2026-11-11): the test is played by a
+  stand-in pilot with no game of its own, so the debriefing's two branches
+  (a campaign's, Instant Action's) filled nothing and its title read the
+  dialog's unfilled message, "Operation !d!, Mission !d!". The start now
+  gives the launch the world's operation (c1..c3 1..3, any other 4, as a
+  mod's campaign counts it), and the debriefing has a branch of ours for a
+  MODS test or editor session: the title as a campaign mission's, the time,
+  won or lost; no salvage and no replay, since nothing is kept of a test.
+  `sdl_program_test_mission_debriefing_names_its_mission` (the real program,
+  hidden, c2 3 lost and won: "Operation 2, Mission 3").
 - EDITOR: step 4b, below.
 
 Tests: `mods_screen_test_plays_a_mission_and_comes_back_headless` (both
@@ -1346,6 +1356,47 @@ its `model=` now is too (it names `mech_<model>.flt` and the motions; before, a 
 where it pointed). Each such row is a warning and is left out
 (`mods_check_rows_cannot_name_files_outside_the_mod`).
 
+### The MODS screen's text fits its boxes (dev 3, 2026-11-11)
+
+Looked at in shots of the real program at 4:3 and 16:9 before the 1.1.0 playtest (the boxes are the same size in
+both shapes; at wide the right-hand ones sit 213 canvas pixels further right). `upgrades/mods/screen_fit` measures
+text with the font it is drawn in (the Text's own way, `DrawTextA` with `DT_CALCRECT` on its font), a width in
+characters standing in where a host cannot measure:
+
+- A mod's row in the MODS list (the MODS screen's and Instant Action's) is cut to the box with "..."; DETAILS
+  shows the whole name.
+- IMPORT's two lines are the outcome, then what to do next: "Added <name>: 9 warnings: REPORT lists them." /
+  "Tick it for a campaign, then PLAY." A name too long for the line is left to DETAILS ("Added. 9 warnings:
+  ..."). Without warnings, an import from an install or installer says how many files it took on the second
+  line. Before, such an import showed only what it took, cut with "...", and the warnings were in the log alone.
+  The whole summary is still the log's; "mw3: mods: on the screen: A | B" is what the two lines hold.
+- REPORT's rows are wrapped to the left box's width (they were 34 characters in a box of about 26), its heading
+  in DETAILS is cut with "...", and its note is "BACK: the list. MODS FOLDER: the saved report."
+- The left box's heading says what it shows: CAMPAIGNS, REPORT, TEST, EDITOR (its list's label; "TEST:
+  MISSIONS" spaced out ran over the frame).
+- A mod or campaign put in the mods folder by hand, chosen: "Put in the mods folder by hand: remove its folder
+  yourself to delete it." (`DeletePlan::by_hand`; it has no DELETE tab).
+- Under a mod's note: "Ticks for: <campaign>" (was "MODS: <campaign>'s.").
+- RESET and DELETE say "It has no pilots or saved games" where they said "0 pilots and 0 saved games".
+- Instant Action's MODS leaves out a mod that is only a campaign (`mod_is_only_campaign`: kind=campaign, or
+  campaign= lines with no mech, weapon or world row and no zbd folder), and the short line that joined the top
+  box to the left box, which that screen does not draw, is gone.
+- The notes wrap by measured width onto the two lines, the second ending "..." when more is left.
+
+Two faults the scripted clicks showed, fixed with it:
+
+- **DELETE asked twice.** DELETE and RESET are two tabs in one place. After a mod's delete was confirmed the
+  game's own campaign is chosen and RESET is shown, and the same click reached that tab: "Reset MechWarrior 3 to
+  the original?" came up straight after the OK, under the cursor's last place. One question a click now
+  (`delete_asked`, cleared by the next frame's update).
+- **Both tabs drawn.** A tab hidden while its own press was still being shown came back, so RESET and DELETE
+  were drawn over each other after a delete. The one not wanted is kept hidden each frame.
+
+Not changed: the list scrolls a row a press (the screens take no keys, so no PageUp or PageDown), the editor's
+colours, MODS FOLDER's label. Tests: `mods_screen_text_fits_its_boxes`, `mods_only_a_campaign_is_told_from_one_with_files`,
+and in the real program `sdl_program_mods_import_says_the_warnings_on_the_screen` and
+`sdl_program_mods_delete_asks_once`.
+
 ### Requirements in mod.txt (modder step 7, 2026-11-10)
 
 Ours (`upgrades/mods/mod_needs`). Three mod.txt keys, warned of and never
@@ -1565,6 +1616,151 @@ dlls: 1.2's over 1.0's is 42 lines, 38 of them names, and gives exactly
 (its made dll is no table: the warning and the left-out record, 3 programs
 where it counted 4, five files unpacked where four). Breaks caught: every
 text taken, the dll kept in the mod, the names not given.
+
+### Archives by their changed entries (2026-11-11)
+
+A mod made for the original carries whole reader archives (`zbd\reader.zbd`,
+a mission's `readerm<N>.zbd`), each many records of which it changed a few.
+A mod's archive wins whole, so two such mods could not both apply: the first
+ticked hid the other's (Campaign Added Enemies and Campaign AI Enhanced each
+bring the same twenty). `upgrades/mods/entry_archives`.
+
+**At IMPORT** (`entries_cut_mod`, in `mod_add_finish` before the check, on
+our staging copy only): a reader archive (`record_archive`: `zbd\reader*.zbd`
+and `zbd\<world>\reader*.zbd`) that the player's install also has is compared
+with it entry by entry, by bytes.
+- Entries that differ or are new are kept, bytes untouched, in
+  `<archive>.entries` beside where the archive was: an archive of the same
+  form holding only those, in the mod's own order and spelling. The whole
+  archive is not kept. It is read back before the whole one is removed.
+- Every entry the install's: the file is dropped, as a file the same as the
+  player's is.
+- Left whole, as before: an archive the install lacks (a new world's); one
+  whose table does not read, or the install's does not; one with two entries
+  of one name; one with a `.entries` file beside it already.
+- An entry the install has and the mod's archive lacks stays the install's.
+  (A change in meaning, accepted: a mod's whole archive without that entry
+  took it away from the game; kept as its changed entries it does not.)
+- A mod already in `mods\` is never rewritten. Every form IMPORT takes goes
+  through it (an archive, a folder, a modded game folder, an installer).
+- The log: "mw3: import: <name>: reader archives: 20 kept as the entries it
+  changes (121 in all); 0 the same as yours left out; 0 whole" (Campaign
+  Added Enemies 1.1's installer; Campaign AI Enhanced's: 20 and 63).
+
+**At the mount** (`entries_merge`, the end of `mods_mount`): for each archive
+some mounted mod holds as `.entries`, the archive is built into a folder of
+ours, `<write dir>\mod-merged\<key>\zbd\...`, and that folder is mounted in
+front (not as a mod). From the lowest: the patch's or the install's archive;
+then the mods from the last to the first: a mod's whole archive replaces the
+lot, an `.entries` file is laid over entry by entry (`entries_laid_over`,
+through the editor save's `archive_with_entry`: every other entry's bytes,
+comment and time as they were; a new entry after the last). So the first
+ticked mod wins an entry two mods change, and a whole archive put in `mods\`
+by hand still wins whole from its place down. The game, the table walks, the
+editor and the graceful reader then see an ordinary whole archive.
+- The key is made of the layers' paths, sizes and times: built once, found
+  again at the next start ("as built before"), built anew when a mod changes.
+- The folder has our marker (`mw3-mod-merged.txt`); folders of earlier builds
+  are removed at a program's first mount, only through the marked remover
+  (`entries_merged_clear`: never one without the marker, never a link).
+- Each archive is written under `<name>.part` and renamed. One that cannot be
+  built (the game's own table does not read, the disk is full) is not there
+  at all, said in the log, and the game reads the first mod's whole archive
+  or its own. With no mounted mod holding `.entries` nothing is written or
+  mounted; a plain start never comes here.
+- Entries with no archive of the game's under them (a world no install has)
+  are left out, said.
+
+**The check and REPORT.** `mod_check` reads a `.entries` file as the archive
+it stands for: each entry through the bounded reader with the same warnings
+(an entry with nothing readable leaves that file out, as a whole archive's
+did), counted as replacing the game's. The report adds: "Of 2 of those files
+it holds only the entries it changes (5 entries), so another mod that changes
+other entries of the same file applies too.", a line an archive naming up to
+six entries, and "The mod is kept in this form for the rebuild; EXPORT puts
+the whole files into its zip, which the original game takes too." The MODS
+list's "Shares ... which wins" goes by entry for such files
+(`zbd/reader.zbd: weapons.zrd`), so two mods on different entries share
+nothing; where they do it says how many and the entry most of them are:
+"Shares 58 entries in 20 files (aiv.zrd in 20) with <mod>, which wins". An
+earlier mod's whole archive wins a later mod's entries of it, said the same
+way. A mech row's definition is looked for in a mod's `.entries` too.
+
+**Both ways: EXPORT.** An `.entries` file goes into the zip as the whole
+archive, the player's install's with the entries laid over it (the mount's
+own function), under the archive's name, so the zip is ordinary files the
+original takes. Without the install's archive to lay them over the export is
+refused, said. Imported again, it is cut to the same entries.
+
+**The 1.2 data layer** (docs/patch12.md) acts on 1.0's files by size and CRC.
+A built archive is measured as the game's own file under it
+(`entries_merged_base`, in `data_version`'s measure), so 1.0's own entries of
+it are still made 1.2's, as with no mod; an entry a mod holds
+(`entries_merged_holds`) is left as the mod made it, as a mod's whole archive
+always was.
+
+**The editor.** A save takes "the archive as the game finds it", which is the
+built one, so a copy saved from such a campaign holds the mod's entries, the
+edit and the rest in one whole archive of its own, which wins when the copy
+is played or tested. The mod, the install and the built folder are not
+written.
+
+**Multiplayer.** No mods mount in multiplayer today, and the lobby's identity
+is set before the mount, so nothing there changes. Noted for the plan for
+mods in multiplayer: the gameplay hash is over a mod's files, so the same mod
+added by IMPORT (`.entries`) and put in by hand (whole archives) hash apart.
+
+**On the two real mods (2026-11-11).** Campaign Added Enemies 1.1 and
+Campaign AI Enhanced, each twenty whole mission archives, import as 121 and
+63 changed entries. Of AI Enhanced's 63, 33 are byte for byte in Added
+Enemies too, 5 are its own (they now apply beside the other mod, where its
+whole archives hid them), and 25 differ: `aiv.zrd`, the vehicle list, in all
+twenty missions, three nets and one valves file. An entry both change is
+still the first ticked mod's, so each mission's vehicles are one mod's or the
+other's; putting two mods' changes to one vehicle list together would be a
+merge inside the entry, record by record, which is not built. Played hidden,
+600 frames, the first mission of each world (c1 1, c2 1, c3 1, c4 1, c4b 4),
+both ticked in either order, each alone, and the game alone: every run ended
+normally with no unported function reached.
+
+Not done: REPORT on a copy (`mod_copy_report`) compares files by name, so a
+copy's whole archive is not matched with its base's `.entries`.
+
+Tests: `entry_archives_names_and_the_cut_of_one_archive`,
+`entry_archives_two_imported_mods_both_apply` (IMPORT with the program's
+confinement on, both orders, built once, built anew, shared by entry, the
+check and the report), `entry_archives_whole_archives_and_no_base` (a whole
+archive's place, no base, nothing written without such a mod, the fallback,
+the clearing), `entry_archives_export_repacks_the_whole_archive`,
+`mods_two_imported_mods_of_one_archive_both_play_c1m1_headless` (the game's
+own reader.zbd: one mod's new weapon, the other's new mech carrying it;
+either order, c1 mission 1 launches the mech and the weapon fires),
+`patch12_acts_on_10s_entries_under_a_mods_changed_entries`,
+`editor_save_as_over_a_campaign_kept_as_changed_entries`.
+
+### A mech loadout (2026-11-11)
+
+A mech variant is often passed around as the lab's exported loadout
+(`export\<mech>_<name>.m3c`, Ctrl+X in the mech lab), which is not a mod.
+IMPORT takes one (`upgrades/mods/import_loadout`): a `.m3c` file, or a folder
+or archive holding only `.m3c` files (and their `.rows`), is copied into the
+write dir's `import\` folder, where the lab's own import (Ctrl+I) reads the
+next one, once, and renames it `.done`. The picker's filter offers `.m3c`.
+- `import\` is the write dir's, one for every campaign: the loadout goes to
+  whichever campaign's lab the player presses Ctrl+I in, and is saved with
+  that campaign's saved mechs.
+- Never over a file: one of that name there (or its `.done`, or a `.rows`)
+  gives "<name> (2).m3c" and on. The picked file is only read. No mod is
+  made and nothing is staged for a single file.
+- Refused, said: a file whose start does not read as a loadout (its two
+  names' lengths, room for the rest), one over 1 MB, a link.
+- The screen: "Added 1 mech loadout: in a mech lab, Ctrl+I takes it."
+- A loadout naming a mod's mech or weapon carries its `.rows`; the lab
+  leaves it for later while no mounted mod adds that row, as before.
+Test: `import_takes_a_mech_loadout_for_the_lab` (confined; one player's
+export into another's write dir, twice, a folder of two, two bad files, the
+lab reading all four, one imported again after its `.done`). Break: a file
+of that name written over.
 
 ### IMPORT and EXPORT (Owen, 2026-11-09; modder step 8 brought forward)
 

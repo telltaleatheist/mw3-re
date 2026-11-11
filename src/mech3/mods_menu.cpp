@@ -1,5 +1,7 @@
 #include "mech3/mods_menu.h"
 
+#include <set>
+#include <map>
 #include <fstream>
 
 #include <algorithm>
@@ -17,6 +19,7 @@
 #include "mech3/mod_install.h"
 #include "upgrades/mods/campaign_entries.h"
 #include "upgrades/mods/import_folder.h"
+#include "upgrades/mods/screen_fit.h"
 #include "upgrades/mods/mods_delete.h"
 #include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/mod_report.h"
@@ -89,9 +92,24 @@ std::string mods_row_note_shared(const ModsListEntry& m, const std::vector<ModsL
       if (o.info.folder == f && !o.info.name.empty()) n = o.info.name;
     names += (names.empty() ? "" : ", ") + n;
   }
-  const size_t files = m.shadowed.size(), rows = m.rows_taken.size();
+  // Whole files, and the entries of archives kept as changed entries ("<archive>: <entry>", entry_archives.h):
+  // those said with the entry most of them are ("58 entries in 20 files (aiv.zrd in 20)").
+  size_t files = 0, entries = 0;
+  std::map<std::string, int> by_entry;
+  std::set<std::string> archives;
+  for (const std::string& f : m.shadowed) {
+    const size_t colon = f.find(": ");
+    if (colon == std::string::npos) ++files;
+    else ++entries, ++by_entry[f.substr(colon + 2)], archives.insert(f.substr(0, colon));
+  }
+  const size_t rows = m.rows_taken.size();
   std::string what;
   if (files) what = std::to_string(files) + (files == 1 ? " file" : " files");
+  if (entries) {
+    const auto top = std::max_element(by_entry.begin(), by_entry.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
+    what += (what.empty() ? "" : " and ") + std::to_string(entries) + (entries == 1 ? " entry" : " entries") + " in " + std::to_string(archives.size()) +
+            (archives.size() == 1 ? " file" : " files") + " (" + top->first + (entries == 1 ? "" : " in " + std::to_string(top->second)) + ")";
+  }
   if (rows) what += (what.empty() ? "" : " and ") + std::to_string(rows) + (rows == 1 ? " mech/weapon" : " mechs/weapons");
   const size_t anims = m.anims_taken.size();
   if (anims) what += (what.empty() ? "" : " and ") + std::to_string(anims) + (anims == 1 ? " animation" : " animations");
@@ -267,7 +285,6 @@ void ModsList::select(int32_t index) {
 
 
 namespace {
-constexpr size_t kReportWidth = 34;  // REPORT's characters a row in the campaigns' box (main_darkgreen)
 // The render target from zVideo's buffers (0x00558290), as the other menus'.
 void target_buffers(Engine& e) {
   const Handle a = e.video_back_buffer();
@@ -298,6 +315,10 @@ zimg::Texture* campaign_lines(zimg::Texture* src, bool left_box = true) {
       out[y * w + x] = cleared ? 0 : in[y * w + x];
       dst->alpha[y * w + x] = cleared ? 0 : src->alpha[y * w + x];
     }
+  // Without the left box (Instant Action's MODS) the short line that joined it to the top box goes too.
+  constexpr int kJoinX0 = 215, kJoinX1 = 235, kJoinY0 = 75;
+  for (int y = kJoinY0; !left_box && y < kToY; ++y)
+    for (int x = kJoinX0; x < kJoinX1 && x < w; ++x) out[y * w + x] = 0, dst->alpha[y * w + x] = 0;
   for (int y = 0; left_box && y < kBoxH; ++y)
     for (int x = 0; x < kBoxW; ++x) {
       out[(kToY + y) * w + kToX + x] = in[(kBoxY + y) * w + kBoxX + x];
@@ -421,7 +442,16 @@ ModsScreen::~ModsScreen() {
   }
 }
 
+// The left box's heading follows what it shows (its list's label, spaced as the dialog's).
+void ModsScreen::heading(const char* words) {
+  if (campaign_list.labels.empty() || !campaign_list.labels[0]) return;
+  std::string spaced;
+  for (const char* c = words; *c; ++c) spaced += *c, spaced += c[1] ? " " : "";
+  say(*campaign_list.labels[0], spaced);
+}
+
 void ModsScreen::refill() {
+  heading("CAMPAIGNS");
   tables.campaigns = mods_entry_rows(mods_menu_write_dir());
   campaign_list.clear_items();
   int32_t at = 0;
@@ -461,6 +491,8 @@ void ModsScreen::show_details() {
     const ModsCampaignRow& c = tables.campaigns[static_cast<size_t>(campaign_list.selected)];
     d = c.name, d2 = mods_campaign_details(c);
     if (!c.error.empty()) n = "Cannot be played: " + c.error;
+    else if (delete_plan_for_entry(mods_menu_write_dir(), c.entry, entry_run().id).by_hand)
+      n = "PLAY starts it. Put in the mods folder by hand: remove its folder yourself to delete it.";
     else n = (c.copy_of.empty() ? std::string() : "A copy of " + c.copy_of + ". ") + "PLAY starts it with the mods ticked here.";
   } else if (focus == kMods && mod_list.selected >= 0 && mod_list.selected < static_cast<int32_t>(ticks.rows.size())) {
     const ModsListEntry& m = ticks.rows[static_cast<size_t>(mod_list.selected)];
@@ -468,7 +500,9 @@ void ModsScreen::show_details() {
     d2 = (m.info.author.empty() ? std::string("unknown author") : m.info.author) +
          (m.info.version.empty() ? "" : ", version " + m.info.version);
     n = ticks.note();
-    (void)m;
+    // One the game did not add has no DELETE tab: said, so the player knows how it goes (playtest M12).
+    if (n.empty() && delete_plan_for_mod(mods_menu_write_dir(), m.info.folder).by_hand)
+      n = "Put in the mods folder by hand: remove its folder yourself to delete it.";
   }
   say(detail, d);
   say(detail2, d2);
@@ -478,8 +512,11 @@ void ModsScreen::show_details() {
     tell(n);
   } else {
     const ModsCampaignRow* row = chosen_row();
-    say(note, n);
-    say(restart, row ? "MODS: " + row->name + "'s." : std::string());
+    // A long one takes both lines; else the second says whose ticks these are.
+    const auto lines = mods_note_lines(n, [this](const std::string& t) { return mods_text_fits(t, &note, kModsNotePx, kModsNoteChars); });
+    say(note, lines.first);
+    say(restart, !lines.second.empty() ? lines.second
+                 : row ? mods_text_fit("Ticks for: " + row->name, &note, kModsNotePx, kModsNoteChars) : std::string());
   }
 }
 
@@ -642,6 +679,7 @@ DeletePlan plan_for(ModsScreen& s) {
 
 void ModsScreen::show_delete_tab() {
   const std::string label = plan_for(*this).label;
+  tab_shown = label == "DELETE" ? 1 : label == "RESET" ? 2 : 0;
   if (label == "DELETE") delete_btn.show_for(-1.0f);
   else delete_btn.hide();
   if (label == "RESET") reset_btn.show_for(-1.0f);
@@ -650,13 +688,22 @@ void ModsScreen::show_delete_tab() {
 
 // DELETE or RESET: the game's own confirm saying what goes, then the one remover (mods_delete.h).
 void ModsScreen::delete_row() {
+  // One question a click. DELETE and RESET are two tabs in one place: after a delete the game's own campaign
+  // is chosen and RESET is shown where DELETE was, and the click that was just answered reached it too, so
+  // "Reset MechWarrior 3 to the original?" came up straight after the delete's OK (seen in a scripted run,
+  // 2026-11-11). The next frame's update lets the tab be pressed again.
+  if (delete_asked) return;
+  delete_asked = true;
   const DeletePlan plan = plan_for(*this);
   if (plan.kind == DeletePlan::kNone) {
     tell(plan.refused);
     return;
   }
   const bool reset = plan.kind == DeletePlan::kReset;
-  if (engine().message_box_words(1, reset ? "Reset" : "Delete", plan.question) != 1) {
+  std::printf("mw3: mods: asks: %s\n", plan.question.c_str());
+  const int answer = engine().message_box_words(1, reset ? "Reset" : "Delete", plan.question);
+  delete_asked = true;  // the box's own frames ran this screen's update
+  if (answer != 1) {
     tell(reset ? "Not reset." : "Not deleted.");
     return;
   }
@@ -735,17 +782,19 @@ void ModsScreen::report() {
     sentences.push_back(""), sentences.push_back("This report could not be saved as a file: " + why + ".");
   for (const std::string& s : sentences) {
     if (s.empty()) lines.push_back("");
-    for (const std::string& l : mod_report_wrap(s, kReportWidth)) lines.push_back(l);
+    for (const std::string& l : mods_text_wrap(s, &detail, kModsRowPx, kModsRowChars)) lines.push_back(l);  // the box's real width
   }
   reporting = true;
   campaign_list.clear_items();
   for (size_t i = 0; i < lines.size(); ++i) campaign_list.add_item(lines[i].c_str(), static_cast<int32_t>(i));
   campaign_list.layout();
   focus = kCampaigns;
-  say(detail, "REPORT " + name);
+  heading("REPORT");
+  say(detail, mods_text_fit("REPORT " + name, &detail, kModsDetailPx, kModsDetailChars));
   say(detail2, refused ? "the mod is refused"
                : warnings ? std::to_string(warnings) + (warnings == 1 ? " warning" : " warnings") + ", nothing refused" : "nothing refused");
-  say(note, report_file.empty() ? "REPORT or BACK goes back to the tables." : "REPORT or BACK goes back. MODS FOLDER: the saved report.");
+  say(note, report_file.empty() ? "BACK: the list." : "BACK: the list. MODS FOLDER: the saved report.");
+  say(restart, "");
   std::printf("mw3: mods: report on %s: %zu lines\n", folder.c_str(), lines.size());
 }
 
@@ -814,7 +863,8 @@ void ModsScreen::missions(bool test) {
   campaign_list.layout();
   campaign_list.FileList::select(0);
   focus = kCampaigns;
-  say(detail, (test ? "TEST " : "EDIT ") + name);
+  heading(test ? "TEST" : "EDITOR");  // short: "TEST: MISSIONS" spaced out runs over the frame's join
+  say(detail, mods_text_fit((test ? "TEST " : "EDIT ") + name, &detail, kModsDetailPx, kModsDetailChars));
   say(detail2, "");
   tell(test ? "Choose a mission; PLAY starts the game again in " + name + " and plays it. TEST again goes back."
             : "Choose a mission; PLAY starts the game again in " + name + " with it open in the editor. Saving there makes a copy.");
@@ -854,7 +904,8 @@ void ModsScreen::open_test_mode() {
   campaign_list.layout();
   if (campaign_list.item_count()) campaign_list.FileList::select(at);
   focus = kCampaigns;
-  say(detail, "TEST in " + name);
+  heading("TEST");
+  say(detail, mods_text_fit("TEST in " + name, &detail, kModsDetailPx, kModsDetailChars));
   say(detail2, std::to_string(mods_menu_mounted().size()) + (mods_menu_mounted().size() == 1 ? " mod on" : " mods on"));
   // A mission that did not load says why here (the load's own words), and the list stays.
   std::string said = run.said;
@@ -885,6 +936,11 @@ void ModsScreen::edit_start() {
 
 void ModsScreen::update(float dt) {
   Window::update(dt);
+  delete_asked = false;
+  // The two tabs share a place: the one not wanted stays hidden (a tab hidden while its own press was still
+  // being shown came back, and RESET and DELETE were drawn over each other after a delete).
+  if (tab_shown != 1) delete_btn.hide();
+  if (tab_shown != 2) reset_btn.hide();
   // The add runs on the update after "Adding ..." was drawn: it can take a
   // while (a big archive) and the screen would look frozen without a word.
   if (!adding.empty()) {
@@ -927,17 +983,9 @@ void ModsScreen::update(float dt) {
 // Two lines under MODS (the note's and the restart's), the text wrapped at
 // a word; what does not fit ends with "...".
 void ModsScreen::tell(const std::string& text) {
-  constexpr size_t kWidth = 58;
-  std::string a = text, b;
-  if (a.size() > kWidth) {
-    size_t cut = a.rfind(' ', kWidth);
-    if (cut == std::string::npos || cut < kWidth / 2) cut = kWidth;
-    b = a.substr(cut + (a[cut] == ' ' ? 1 : 0));
-    a.resize(cut);
-    if (b.size() > kWidth) b = b.substr(0, kWidth - 3) + "...";
-  }
-  say(note, a);
-  say(restart, b);
+  const auto lines = mods_note_lines(text, [this](const std::string& t) { return mods_text_fits(t, &note, kModsNotePx, kModsNoteChars); });
+  say(note, lines.first);
+  say(restart, lines.second);
 }
 
 // ADD MOD's pick: prepared, the game asked when its files cannot tell, added
@@ -969,8 +1017,13 @@ void ModsScreen::add_mod(const std::string& path) {
       listed = true;
     }
   show_details();
-  // From a whole install: what was taken, on the two rows; "Added ..." is in the log, and the mod's row is chosen.
-  tell(took.empty() ? d.message : took);
+  // The outcome first, with the warnings' count and REPORT; then what to do next (screen_fit.h). An import from
+  // an install or installer says all it took in the log (import_folder_run); the screen has no room for it.
+  if (!took.empty()) std::printf("mw3: mods: %s\n", d.message.c_str());
+  const auto lines = mods_import_lines(d, took, [this](const std::string& t) { return mods_text_fits(t, &note, kModsNotePx, kModsNoteChars); });
+  say(note, lines.first);
+  say(restart, lines.second);
+  std::printf("mw3: mods: on the screen: %s | %s\n", note.text, restart.text);  // what the two lines hold now
 }
 
 // EXPORT's answer: the mod chosen when the save box opened, packed into

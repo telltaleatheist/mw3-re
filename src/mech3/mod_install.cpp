@@ -323,6 +323,11 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
   const fs::path src = fs::path(source);
   const bool folder = fs::is_directory(src, ec);
   if (!folder && !fs::is_regular_file(src, ec)) return a.error = "it is not there any more", a;
+  // Ours (upgrades/mods/import_loadout.h): a mech loadout the lab exported is not a mod: into import\ for the lab.
+  if (!folder && loadout_name(source)) {
+    a.loadouts = import_loadouts(write_dir, {source});
+    return a.error = "a loadout", a;
+  }
   const fs::path mods = fs::path(write_dir) / "mods";
   if (folder) {  // never the game's own folders: the write dir, a mod already in mods\, the install
     const std::string c = fs::weakly_canonical(src, ec).generic_string();
@@ -351,6 +356,22 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
     mod_add_discard(a);
     a.error = why;
     return a;
+  }
+  // Only mech loadouts (a folder or an archive of .m3c files, their .rows beside them): each into import\.
+  {
+    const std::vector<std::string> all = files_under(files);
+    std::vector<std::string> picked;
+    bool only = !all.empty();
+    for (const std::string& f : all) {
+      const std::string l = lower(f);
+      if (loadout_name(l)) picked.push_back((files / fs::path(f)).string());
+      else if (!(l.size() > 9 && l.compare(l.size() - 9, 9, ".m3c.rows") == 0)) only = false;
+    }
+    if (only && !picked.empty()) {
+      a.loadouts = import_loadouts(write_dir, picked);
+      mod_add_discard(a);
+      return a.error = "a loadout", a;
+    }
   }
   // Only programs (a mod shipped as its own installer): nothing to add.
   {
@@ -469,6 +490,9 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
       f << "# It was packed as the contents of the game's zbd folder, with no zbd folder of its own: the game put\n"
         << "# those files under zbd, where it reads them.\n";
   }
+  // Ours (entry_archives.h): a reader archive the install also has is kept as the entries that differ from the
+  // install's, so mods that change different entries of one archive both apply. Our staging copy only.
+  r.cut = entries_cut_mod(root.string(), install);
   ModFindings facts;
   r.report = mod_check(root.string(), install, &r.check_errors, &facts);
   // A reader archive with an entry that cannot be read is left out of the copy being added (ours, in the
@@ -556,6 +580,12 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
                        const std::string& from) {
   ModAddDone d;
   ModAdd a = mod_add_prepare(write_dir, source, install);
+  if (!a.loadouts.message.empty()) {  // mech loadouts: no mod made (ok stays false), the line says what was added
+    d.loadouts = static_cast<int>(a.loadouts.added.size());
+    for (const std::string& n : a.loadouts.added) std::printf("mw3: import: mech loadout %s added to the import folder\n", n.c_str());
+    for (const std::string& n : a.loadouts.refused) std::printf("mw3: import: mech loadout %s\n", n.c_str());
+    return d.message = a.loadouts.message, d;
+  }
   if (!a.error.empty()) return d.message = "Not added: " + a.error + ".", d;
   if (!from.empty()) a.source = from;  // the marker's "Added by the game from ..." 
   ModGame game = a.game;
@@ -583,6 +613,10 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
   // left out is in the report.
   d.warnings = r.warnings, d.left_out = static_cast<int>(r.left_out.size());
   d.texts = a.texts;
+  d.cut = r.cut;
+  if (r.cut.archives || r.cut.same)
+    std::printf("mw3: import: %s: reader archives: %d kept as the entries it changes (%d in all); %d the same as yours left out; %d whole\n",
+                d.name.c_str(), r.cut.archives, r.cut.entries, r.cut.same, r.cut.whole);
   if (a.bare_zbd)
     std::printf("mw3: import: %s: packed as the contents of the game's zbd folder (no zbd folder of its own): %d of its top "
                 "items put under zbd\n", d.name.c_str(), a.bare_zbd);

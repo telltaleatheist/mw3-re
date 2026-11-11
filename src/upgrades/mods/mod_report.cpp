@@ -87,6 +87,13 @@ std::vector<std::string> mod_sentences(const ModFindings& f) {
            ", which every mission there plays on";
     out.push_back(sentence(s));
   }
+  // The archives kept as their changed entries: which, and that this form is the rebuild's own.
+  if (!f.cut.empty()) {
+    out.push_back(sentence("Of " + counted(static_cast<int>(f.cut.size()), "of those files", "of those files") + " it holds only the entries it changes (" +
+                           counted(f.cut_entries, "entry", "entries") + "), so another mod that changes other entries of the same file applies too"));
+    for (const std::string& c : f.cut) out.push_back(sentence("In " + c));
+    out.push_back("The mod is kept in this form for the rebuild; EXPORT puts the whole files into its zip, which the original game takes too.");
+  }
   std::vector<std::string> adds;
   auto add = [&](const std::vector<std::string>& v, const char* one, const char* many, bool quote) {
     if (v.empty()) return;

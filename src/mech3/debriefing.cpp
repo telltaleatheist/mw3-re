@@ -14,6 +14,7 @@
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/mission.h"
 #include "mech3/pilot.h"
+#include "upgrades/editor/mods_edit.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -424,6 +425,18 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t campaign, int32_t 
     }
     if (*won)
       if (ztwod::Text* h = help(continue_btn)) h->set_message(0xfb8);
+  } else if (mods_edit_session().active) {
+    // Ours (upgrades/editor/mods_edit.h): MODS's TEST or EDITOR mission is played by a stand-in pilot with no
+    // game of its own, so neither branch above filled the title and it read the dialog's unfilled message
+    // ("Operation !d!, Mission !d!"). Filled as a campaign mission's; nothing is kept of a test, so no salvage
+    // and no replay.
+    if (ztwod::Text* l = label(title, 2)) l->set_text_id(0x177, campaign, mission);  // the start's (app_engine.cpp)
+    if (ztwod::Text* l = label(title, 3)) l->set_text_plain(time);
+    if (ztwod::Text* l = label(title, 1)) l->set_message(e.mission_failed() ? 0x180 : 0x181);
+    if (ztwod::Text* h = help(continue_btn)) h->set_message(0x173);
+    salvage.hide();
+    replay_btn.hide();
+    if (ztwod::Text* l = label(title, 2)) std::printf("mw3: debriefing of a MODS test mission: %s\n", l->text);
   }
   results(kind);
 }
