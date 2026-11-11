@@ -13,6 +13,17 @@ branch and commit when it lands.
 | 4 | MODS, both games | Pirate's Moon's MODS screen has no Campaign or Pirate Missions to choose. | Owen's design (2026-11-10): the MODS screen holds a copy of each game's own campaigns as permanent entries (MW3: Campaign; PM: Campaign and Pirate Missions), played and modded there without touching the original's files, whether or not a mod is downloaded. The main menu's CAMPAIGN stays the original. Not built in either game: CAMPAIGNS lists only mods' campaigns today. | dev 1 | open |
 | 5 | Pirate's Moon (Mac) | Its usual folder's mw3.cfg says `install=` a test worktree (lead-pm's game/pm, from 11-07). | The launcher passes `--install` to its new install, so play is not affected; a start of mw3pm without the launcher would read the stale line. Clean the folder's leftovers from tests, and check the launcher writes the install it made into mw3pm's own cfg. | lead | done 2026-11-10: both cfg files in that folder now name the folder's own install; the 4:3 mode was already replaced by Owen's own pick |
 
+## Windows playtest, 2026-11-11 (main 988ab58f, pm 6af3b325)
+
+Owen's reports from the Windows build, one a row, worked through in order.
+
+| # | Area | Seen | Known so far | Who | State |
+|---|---|---|---|---|---|
+| W1 | Editor | No pointer in the Battlesport editor: the buttons at the left show, and there is nothing to click them with. | In a mission the mouse is held and the pointer hidden; the editor's panel lights the row under the mouse and takes a click or Space, and brings no pointer back. | dev 3 | open |
+| W2 | Editor, MODS | In the editor, Escape then the pause menu's EDITOR closed it and went to the MODS screen, where no button worked. Owen: the pause menu needs no EDITOR button. | Cause not known yet. The button goes (the editor stays on MODS and Shift+F12); every way back to MODS is to be checked. | dev 3 | open |
+| W3 | Launcher | BEFORE YOU PLAY: the status line ("No disc in a drive...") is drawn over the last line of the notes, and ADD FROM MY DISC's second line sits on the button's bottom edge. | The music note wraps to four lines with a long settings path; the status line's place is fixed. | dev 3 | open |
+| W4 | Pirate's Moon | The mouse does not move, the cursor stuck in the middle of the screen: start Pirate's Moon, MODS, PLAY. Seen a few times, with Pirate's Moon. | Not looked at yet. PLAY starts the game again in the entry; the mouse's hold may not be taken up by the new start. | | open |
+
 ## To see with eyes: mods by campaign
 
 Built and tested headless, by scripted clicks, or through a checks-only
