@@ -33,7 +33,7 @@ std::vector<std::string> mods_text_wrap(const std::string& text, const ztwod::Fo
 // The note's two lines: wrapped, what is left over on the second cut with "...".
 std::pair<std::string, std::string> mods_note_lines(const std::string& text, const std::function<bool(const std::string&)>& fits);
 
-// IMPORT's two lines on the screen: the outcome first ("Added <name>: 9 warnings: REPORT lists them." or, when
+// IMPORT's two lines on the screen: the outcome first ("Added <name>: 9 warnings: INFO shows them." or, when
 // that is too wide, without the name, which DETAILS shows), then what to do next, or with no warnings and an
 // import from an install or installer, how many files were taken. `took` is import_folder_report's ("" none).
 std::pair<std::string, std::string> mods_import_lines(const ModAddDone& d, const std::string& took,

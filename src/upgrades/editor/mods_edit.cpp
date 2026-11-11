@@ -35,7 +35,50 @@ void mods_edit_begin(const std::string& mod, std::function<void()> finish, bool 
   }
 }
 
+namespace {
+const ModCampaign* campaign_mission();
+constexpr char kHintWords[] = "PAUSE: EDIT MISSION, or SHIFT+F12";
+constexpr float kHintSeconds = 8.0f;
+struct Hint {
+  ztwod::Layer layer;
+  ztwod::FontText text{"", 0, 0};
+  float left = 0.0f;
+  bool shown = false;
+};
+Hint* g_hint = nullptr;
+void hint_frame() {
+  if (!g_hint) return;
+  Hint& h = *g_hint;
+  const bool show = h.left > 0.0f && !editor_state().active;
+  if (show != h.shown) {
+    h.shown = show;
+    if (show) h.text.show_for(-1.0f);
+    else h.text.hide();
+    h.layer.set_active(show ? 1 : 0);
+  }
+  if (!show) return;
+  h.left -= editor_hooks().frame_dt();
+  h.layer.update(editor_hooks().frame_dt());
+}
+}  // namespace
+
+void mods_edit_mission_started() {
+  delete g_hint;
+  g_hint = nullptr;
+  if (!mods_edit_session().active && !campaign_mission()) return;
+  g_hint = new Hint;
+  if (const ztwod::Handle f = editor_hooks().font("mech_string")) g_hint->text.set_font(f);
+  g_hint->text.set_pos(5, 140);  // under the radar and the objective line, the editor panel's column
+  g_hint->text.set_text("%s", kHintWords);
+  g_hint->text.hide();
+  g_hint->layer.add(&g_hint->text);
+  g_hint->left = kHintSeconds;
+}
+
+const char* mods_edit_hint() { return g_hint && g_hint->shown ? kHintWords : nullptr; }
+
 void mods_edit_frame() {
+  hint_frame();
   ModsEditSession& s = mods_edit_session();
   // MW3_EDIT_SAVE_AT=N (checks only): at the editor's Nth frame net_01 is opened and saved, the Save as box
   // answered with the name it offers, and the editor left; ImGui's box cannot be pressed by a scripted click.
@@ -60,7 +103,7 @@ void mods_edit_frame() {
 }
 
 namespace {
-// A custom campaign's mission: the current pilot's game is the entered
+// A campaign's mission played from MODS: the current pilot's game is the entered
 // campaign's (ModCampaignGame), so the campaign was entered from MODS.
 const ModCampaign* campaign_mission() {
   const ModCampaign* c = entered_campaign();

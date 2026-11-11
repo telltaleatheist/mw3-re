@@ -401,6 +401,22 @@ ImportFolder import_installer_prepare(const std::string& write_dir, const std::s
   return f;
 }
 
+std::string import_pick_root(const std::string& picked) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path p(picked);
+  if (!fs::is_regular_file(p, ec)) return picked;
+  const std::string name = lower(p.filename().string());
+  for (const char* e : {".zip", ".7z", ".rar", ".m3c"})
+    if (ends_with(name, e)) return picked;
+  fs::path d = p.parent_path();
+  for (int up = 0; up < 4 && !d.empty(); ++up, d = d.parent_path()) {
+    if (fs::is_regular_file(d / "mod.txt", ec) || fs::is_directory(d / "zbd", ec)) return d.string();
+    if (d == d.parent_path()) break;
+  }
+  return picked;
+}
+
 ModAddDone import_folder_run(const std::string& write_dir, const std::string& source, const std::string& install,
                              const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled,
                              std::string* report) {

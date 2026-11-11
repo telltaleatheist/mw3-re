@@ -318,6 +318,7 @@ void CoreState::start_mission() {
   en.input_poll(0);
   en.input_reset();
   en.input_center_mouse();
+  mods_edit_mission_started();  // ours: the first seconds' line where the editor can be reached (mods_edit.h)
   if (en.hw_card_flag() != 0) {
     en.camera_set_5ea53c(0);
     en.camera_set_hse_test(0);  // the objects' hidden-surface test off with a card

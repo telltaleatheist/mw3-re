@@ -50,10 +50,10 @@ const char* editor_row_tip() {
 
 const std::vector<std::string>& help_quick_start() {
   static const std::vector<std::string> v = {
-      "Open the editor from the MODS screen: choose a campaign at the left, then EDITOR, a mission, and PLAY. The "
-      "game starts again inside that campaign with the mission open in the editor. A mod's campaign played from "
-      "MODS (PLAY) has it in every mission too: EDITOR in the pause menu, or Shift+F12. Nothing started from the "
-      "main menu has the editor.",
+      "Open the editor from the MODS screen: choose a campaign at the left, then MISSIONS, a mission, and PLAY. "
+      "The game starts again inside that campaign in the mission. There the pause menu's EDIT MISSION, or "
+      "Shift+F12, opens the editor, and PLAY MISSION or the same key goes back to playing. A campaign played "
+      "from MODS (PLAY) has the same switch in every mission. Nothing started from the main menu has the editor.",
       "The menu is on the left; point at a row and click (or press Space). The view is a free camera: fly it with "
       "the movement keys.",
       "EDIT AI NETS: pick a net. Its nodes and links are drawn in the world. Click a node to pick it; picking a "
@@ -69,8 +69,8 @@ const std::vector<std::string>& help_quick_start() {
       "EXIT GAME EDIT (or Shift+F12, or PLAY MISSION on the pause menu) closes the editor and you play the "
       "mission as it now is; the same key or EDIT MISSION opens the editor again. QUIT on the pause menu goes "
       "back to MODS, your copy chosen at the left when a save made one. There PLAY plays it, "
-      "TEST plays one of its missions at once, EDITOR opens it again, REPORT says what it changes, EXPORT packs "
-      "it into a zip to give away, and DELETE removes it with its pilots and saved games.",
+      "MISSIONS plays or edits one of its missions at once, INFO says what it changes and there EXPORT packs "
+      "it into a zip to give away, and DELETE CAMPAIGN removes it with its pilots and saved games.",
       "To undo a save, the file it replaced in your copy is kept beside it as <file>.bak (the save before, one "
       "kept): put the .bak back in its place. To undo everything, DELETE the copy on MODS: the campaign it was "
       "made from is as it was.",
@@ -83,15 +83,17 @@ const std::vector<std::string>& help_workflow() {
   static const std::vector<std::string> v = {
       "Choose what to start from. MODS lists the campaigns at the left: the game's own first, each campaign a mod "
       "brought, each copy you made. The mods ticked for it at the right are mounted with it. To start from someone "
-      "else's work, IMPORT it (a zip, a folder, or a game folder a mod's installer was run over): the line says "
-      "how many warnings its files gave, and REPORT lists them in three groups, the worst first (what stops part "
+      "else's work, IMPORT it (a zip, a mod's installer, or a file inside its folder or inside a game folder an "
+      "installer was run over): the line says "
+      "how many warnings its files gave, and INFO lists them in three groups, the worst first (what stops part "
       "of the mod working, what works here but may crash the original game, slips that do no harm), and writes "
       "the same to mod-reports\\<the mod's folder>.txt in your settings folder. Missions, mech variants and "
       "animations made in other tools need no editor here: a mod holding them as the game's own files, or as "
       "mech3ax's JSON files beside them, loads as it is (docs/modding.md, Readable files read directly), and a "
       "mech loadout (.m3c) picked with IMPORT goes to the mech lab's Ctrl+I.",
-      "Open a mission: with the campaign chosen, EDITOR lists its missions and PLAY opens the one picked. The game "
-      "starts again inside the campaign, and the mission starts with the editor up and a stand-in pilot.",
+      "Open a mission: with the campaign chosen, MISSIONS lists its missions and PLAY starts the one picked. The "
+      "game starts again inside the campaign, in the mission, with a stand-in pilot; EDIT MISSION on the pause "
+      "menu (or Shift+F12) opens the editor.",
       "Change the AI's paths: EDIT AI NETS, pick a net (net_01 is usually the main one). Pick a node and move it "
       "(Move Node, then press the mouse, drag, let go), link nodes (pick one, then the next), delete what is not "
       "wanted, set a node's speed or wait (Node Params). Save Changes.",
@@ -107,12 +109,12 @@ const std::vector<std::string>& help_workflow() {
       "Add a weapon: EDIT WEAPONS, pick the weapon to copy, set its name and numbers, OK. It is written into your "
       "copy (mod.txt and zbd\\reader.zbd) and is part of that campaign; the mech lab offers it from the next "
       "start.",
-      "Try it: EXIT GAME EDIT puts you in the mission at once. Or quit to MODS, your copy chosen: TEST, a "
+      "Try it: EXIT GAME EDIT puts you in the mission at once. Or quit to MODS, your copy chosen: MISSIONS, a "
       "mission, PLAY plays that mission "
-      "at once with a stand-in pilot; when it ends a list plays the others, and BACK leaves. PLAY plays the "
+      "at once with a stand-in pilot; when it ends the list plays the others, and BACK leaves. PLAY plays the "
       "campaign as a player would: its pilot screen lists the copy's own pilots and your main-game pilots, and "
       "picking one of yours copies it in (the main game's pilot is never changed).",
-      "Go on: choose the copy, EDITOR, a mission, PLAY. Its saves go into the copy itself.",
+      "Go on: choose the copy, MISSIONS, a mission, PLAY, then EDIT MISSION. Its saves go into the copy itself.",
       "Give it away: EXPORT packs the copy into one zip that IMPORT takes. A copy of a mod's campaign needs that "
       "mod on the other machine too; there it is an imported mod, which that player's editor copies and never "
       "writes.",

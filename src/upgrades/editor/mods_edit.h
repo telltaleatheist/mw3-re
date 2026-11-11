@@ -41,6 +41,11 @@ bool editor_reachable();
 // mission's mod (EDIT's, the campaign's), or for --debug-camera elsewhere
 // into "editor edits".
 void editor_from_level();
+// A mission started where the editor can be reached (MISSIONS', or a campaign played from MODS): for its
+// first seconds a line on the screen says how ("PAUSE: EDIT MISSION, or SHIFT+F12"), drawn by mods_edit_frame
+// while the editor is down. From the Core state's start of a mission.
+void mods_edit_mission_started();
+const char* mods_edit_hint();  // the line while it shows, else null (for the checks)
 // The pause's switch says what a press does: "EDIT MISSION" in play, "PLAY
 // MISSION" with the editor up.
 bool editor_switch_edits();

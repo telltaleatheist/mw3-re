@@ -192,7 +192,7 @@ TEST(mods_delete_by_the_row_chosen) {
     EXPECT(mech3::delete_plan_for_mod(w, "hud").question == "Delete Green HUD? It is not ticked for any campaign.");
     p = mech3::delete_plan_for_mod(w, "byhand");
     const std::string hand = snapshot(wd / "mods/byhand");
-    EXPECT(p.kind == DeletePlan::kNone && p.label.empty() && p.refused == "By Hand was not added by the game: remove its folder yourself (MODS FOLDER).");
+    EXPECT(p.kind == DeletePlan::kNone && p.label.empty() && p.refused == "By Hand was not added by the game: remove its folder from the mods folder yourself.");
     EXPECT(!mech3::delete_run(w, p, &why) && snapshot(wd / "mods/byhand") == hand);
     // Forced past the plan (a plan made up with the wrong marker): the remover still refuses.
     p.kind = DeletePlan::kImportedMod, p.mod = "byhand", p.mod_marker = mech3::kModAddedMarker;
