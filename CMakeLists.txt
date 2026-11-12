@@ -670,6 +670,7 @@ add_executable(mw3tests
   tests/test_mod_install.cpp
   tests/test_import_folder.cpp
   tests/test_found_worlds.cpp
+  tests/test_mod_export_world.cpp
   tests/test_entry_archives.cpp
   tests/test_installer_read.cpp
   tests/test_reference.cpp
@@ -1074,6 +1075,7 @@ if(SDL3_FOUND)
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
+      tests/test_sdl_new_world.cpp
       tests/test_win_cmdline.cpp
       tests/test_log_start.cpp
       src/frontend/sdl/sdl_update.cpp

@@ -235,7 +235,11 @@ then gets, for each one:
   if taken), `name=<name>` and a `mission=<name> <n>` line each, and `campaign=<name>.txt`. PLAY and
   MISSIONS on MODS then work with no hand edit; the briefing is `brief_<name><n>`, the movie none.
 - Its multiplayer maps (`readermp<n>.zbd`) need nothing more: the lobby's add-on scan looks in every mod
-  world (New worlds and words, Multiplayer).
+  world (New worlds and words, Multiplayer). The exe's scan starts at `readermp3` (the first two of each
+  shipped world are listed by name from the game's messages) and names a map by its `mpinfo.zrd`
+  `db_name`; a mod's world has no shipped two, so on a mod's world (9 on) the scan starts at `readermp1`,
+  and a map with no `mpinfo.zrd` name (a copied world's: c1's `readermp1`/`2` have none) is listed as
+  "<world> <n>" (Z3, 2026-11-12: before, a copied world's maps never showed).
 
 A mod with its own mod.txt is the modder's and is never written; `--check-mod`, REPORT and INFO warn about
 a world folder in it that mod.txt does not name ("the world is not played: add world=<name>").
@@ -287,6 +291,48 @@ of three and its Instant Action entry, its readerm2 read from the mod); a mod wi
 it is, its unnamed world warned about; the mount's two checks (no script: the campaign and the Instant
 Action entry left out, then a script at the root and then in interp.zbd taking them; a line without its
 `readerm<n>.zbd`, on the mod's world and on c1, left out).
+
+**Played** (Z3, 2026-11-12; `tests/test_sdl_new_world.cpp`, the real program hidden and silent): the
+test's world is c1's folder copied as `ironcoast` less `readerm4` (three missions) with c1.gs from the
+game's interp.zbd, its `set DB` changed, as `ironcoast.gs`, in the test's own folder (never committed),
+added by IMPORT's own code. Its campaign, written by IMPORT, is played from its MODS entry by the chain
+(`MW3_CAMPAIGN=1`, about 100 s): the world loaded once ("Loading [ ironcoast ]") and each mission's own
+data after it, as the game does for missions on one world; three missions won; the credits; the pilot
+screen again. An Instant Action wave on it from Instant Action's entry (`--action-chain c5:2`: c5 to c9
+are the rows mods add): the fifth map, Battle Waves lost by REPLAY then won by two waves cleared, tallied.
+The multiplayer lobby on loopback: the host, in multiplayer's entry with the mod ticked, lists "ironcoast
+1" and "ironcoast 2"; a joiner with the same mod ticked stays in and lists them; a joiner on a plain start
+is turned back: "You do not have: Iron Coast."
+
+**Exported** (Z5, 2026-11-12; `tests/test_mod_export_world.cpp`, `tests/differential/test_export_readers.py`):
+the same world added by IMPORT, and a copy of its campaign holding an editor save (net_01's node_00 given a
+speed, written by the editor's own save, `save_archive_edit`, into a save-as copy with the editor's
+marker), each exported by EXPORT (checked against the install first: nothing refused). Both zips are laid
+over a copy of the install (APFS clones of its files, the movies left out), the world first and the copy
+over it, as the mount puts the copy first. The 17 archives laid under `zbd\ironcoast\` are each what the
+mount gives the game, byte for byte and, for the record archives, entry for entry (212 entries); the
+edited `readerm1.zbd` differs from c1's in that one entry. Then the original's own readers, in Unicorn,
+read every one of them as the port does: `gamez.zbd` (texture directory, 497 materials, 2,737 models,
+8,167 live nodes), `anim.zbd` against it, the six texture libraries (3,489 textures) and the ten record
+archives (every entry's tree, the edited net among them). EXPORT's zip holds the mod's files as they are
+(an archive kept as changed entries made whole, `entries_laid_over`), so this holds for any mod whose
+files the game reads.
+
+zStudio's **Initialize** (read in its source, `SourceExtractor.Mw3.cs`, not run) takes a `zbd` folder of
+original files and refuses it ("zStudio can unpack only the original ZBD files") unless: every file there
+is a known game format (worlds of version 27, animation packages of version 39, the scripts archive,
+texture packs, record and sound archives: any other file refuses the whole folder); every world's
+`gamez.zbd` has its `anim.zbd` beside it; and every world's `reader.zbd` holds `anim.zrd` with the
+animation definitions its `anim.zbd` was compiled from (zStudio's own exports leave those in the source
+project, so it refuses them). A world's build script missing from `interp.zbd` is not a refusal: the trace
+of what the build did is then partial (a note). Ours: the zip lays its loose files (`mod.txt`,
+`mw3-checksums.txt`, a world's `<world>.gs`) at the game folder's top, never in `zbd\`, and changes no
+byte of an archive it packs, so the folder Initialize sees is exactly the files the modder's mod put there.
+The test world meets all three (its archives are c1's, whose `reader.zbd` has `anim.zrd`), with its script
+outside `interp.zbd`. A world made by zStudio and exported by us carries zStudio's `reader.zbd` and is refused
+as zStudio's own export is; a mod world without its own `anim.zbd` (which the game plays, taking the
+scenery's) is refused too ("needs each campaign's original world and animation package"). Whether
+Initialize accepts the unpacked folder in fact needs a run of zStudio on Owen's PC.
 
 ## New mechs and weapons (after PM, items 1 and 2, 2026-11-08)
 
