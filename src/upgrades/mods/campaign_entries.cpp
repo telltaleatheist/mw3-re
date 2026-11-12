@@ -34,6 +34,7 @@ bool write_text(const fs::path& p, const std::string& text) {
   {
     std::ofstream o(tmp, std::ios::trunc | std::ios::binary);
     if (!(o << text) || !o.flush()) {
+      o.close();  // Windows refuses to delete a file still open
       fs::remove(tmp, ec);
       return false;
     }

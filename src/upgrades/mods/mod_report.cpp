@@ -235,7 +235,7 @@ std::vector<ModNote> mod_left_out_read(const std::string& dir) {
 
 bool mod_left_out_write(const std::string& dir, const std::vector<ModNote>& notes) {
   std::ofstream f(std::filesystem::path(dir) / kModLeftOutFile, std::ios::binary);
-  f << "# Written by the game when it added this mod: the files it left out of it, and why (REPORT shows them).\n";
+  f << "# Written by the game when it added this mod: the files it left out of it, and why (INFO on the MODS screen shows them).\n";
   for (const ModNote& n : notes)
     f << one_line(n.where) << '\t' << one_line(n.w.wrong) << '\t' << one_line(n.w.did) << '\t' << one_line(n.w.original) << '\t'
       << one_line(n.w.fix) << '\t' << one_line(n.w.item) << '\n';
@@ -264,7 +264,7 @@ bool mod_report_write(const std::string& write_dir, const std::string& folder, c
     fs::create_directories(dir, ec);
     if (ec) return said = "cannot make " + dir.generic_string() + " (" + ec.message() + ")", false;
     std::ofstream m(marker, std::ios::binary);
-    m << "Made by the game for REPORT's text files, one a mod, replaced each time REPORT is pressed.\n";
+    m << "Made by the game for INFO's text files (the MODS screen), one a mod, replaced each time INFO is opened.\n";
     if (!m) return said = "cannot write in " + dir.generic_string(), false;
   }
   const fs::path file = dir / fs::path(folder + ".txt");

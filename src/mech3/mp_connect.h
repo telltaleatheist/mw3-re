@@ -131,6 +131,9 @@ class ConnectScreen : public MenuScreen {
     explicit ModsTab(Engine& e) : btn(e, 9) {}
     ShellButton btn;
     ztwod::Text line;
+    // The tab's hover line (Owen, 2026-11-11: every button says what a press does), two rows under the addresses.
+    ztwod::Text hint, hint2;
+    bool hinted = false;
   };
   std::unique_ptr<ModsTab> mods_tab;
   CopyLine internet_line;            // the public address, or what stands in its way

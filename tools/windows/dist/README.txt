@@ -1,27 +1,32 @@
-MechWarrior 3 rebuild: playtest build for Windows (64-bit)
-==========================================================
+MechWarrior 3 Rebuild for Windows (64-bit)
+==========================================
 
 What this is
 ------------
-An unofficial fan rebuild of MechWarrior 3's program: the original game's
-logic, rewritten to run on modern Windows without DDrawCompat, dgVoodoo or
-other helpers. It is a personal learning project, free and not sold, and is
+An unofficial fan rebuild of the programs of MechWarrior 3 and its expansion
+Pirate's Moon: the original games' logic, rewritten to run on modern Windows
+without DDrawCompat, dgVoodoo or other helpers. One package holds both games
+and a launcher to pick between them. It is a personal learning project, free and not sold, and is
 not affiliated with or endorsed by Microsoft or MicroProse. MechWarrior is a
 trademark of Microsoft.
 
-This is a playtest build: expect bugs, and please report them (below).
+Please report bugs (below).
 
-It contains no part of the game. You need your own MechWarrior 3: an
+It contains no part of either game. You need your own MechWarrior 3: an
 installed copy (version 1.2 is best; 1.0 plays), the disc, a disc image or a
-download of one (.zip, .7z, .rar). Pirate's Moon is not supported yet.
+download of one (.zip, .7z, .rar). Pirate's Moon needs your own Pirate's
+Moon the same way; each game works without the other.
 
 Installing
 ----------
 Run MW3-Rebuild-Setup.exe and start "MechWarrior 3 Rebuild" from the Start
-menu or the desktop: the launcher, which finds your game, sets it up and
-starts it. "MechWarrior 3" in the Start menu goes straight into the game.
+menu or the desktop: the launcher, which finds your games, sets them up and
+starts the one you click (MECHWARRIOR 3 or PIRATE'S MOON). Its GAME FILES
+finds or installs either game and adds music from the disc; UPDATES looks
+for a newer release. "MechWarrior 3" in the Start menu goes straight into
+that game.
 (Or, from the zip: unzip this folder anywhere (not inside your MechWarrior 3
-folder) and run mw3launcher.exe, or mw3.exe for the game alone.)
+folder) and run mw3launcher.exe, or mw3.exe or mw3pm.exe for a game alone.)
 
 The setup asks for the folder every time. Installing a new version to a
 different folder leaves the old folder's files there; delete them yourself.
@@ -39,7 +44,8 @@ On the first start:
   even a zip inside a zip; nothing to unpack by hand). It says what it
   found, installs it into a folder of its own with a progress bar and
   Cancel, then goes on into the game. SEARCH AGAIN looks again, and for a
-  disc in a drive. Pirate's Moon is recognised; its support comes later.
+  disc in a drive. Pirate's Moon's own program (mw3pm.exe) does the same
+  for Pirate's Moon.
 - It names the data version it found. Version 1.0 plays as 1.2: the
   rebuild makes the 1.2 patch's changes itself as the data loads, without
   changing your files. Only data of another version (or a mod) is offered
@@ -73,6 +79,32 @@ music where the game finds it:
 Or put your own rip in the saves folder's music\ folder as track02.ogg,
 track03.ogg and so on (or .wav, .flac, .mp3), numbered as the CD's tracks.
 
+Mods
+----
+A start from the launcher or the main menu always plays the original game.
+Mods are turned on inside the game, per campaign:
+
+1. MODS on the main menu. Campaigns are at the left (the game's own first),
+   your mods at the right.
+2. IMPORT adds a mod: pick the file you downloaded.
+3. Click a mod's box to turn it on for the campaign chosen at the left.
+4. PLAY starts that campaign with its ticked mods. It has its own pilots
+   and saved games; your main-menu pilots are never changed.
+
+Importing a community mod (the weapons mods, map packs): download it, and
+do NOT run its installer. The installer is made for the original game and
+would overwrite that game's files. In the rebuild choose MODS, IMPORT and
+pick the downloaded file itself (the installer .exe, a .zip, .7z or .rar, or
+a file inside an unpacked folder): the rebuild reads the mod out of it
+without running it. Then click its box for a campaign and PLAY.
+
+If IMPORT says "N warnings", the mod has files the game cannot use as they
+are; the rest is added, and INFO lists each warning. MISSIONS plays any one
+mission of a campaign at once. Every button says what it does when the
+mouse is over it. Pirate's Moon has its own MODS screen and takes only mods
+made for Pirate's Moon. In multiplayer every player needs the same mods.
+How to make a mod: docs/modding.md in the project on GitHub.
+
 Keys and options that differ from the original
 -----------------------------------------------
 - The game opens fullscreen at your desktop's resolution, widescreen
@@ -80,10 +112,16 @@ Keys and options that differ from the original
 - In a window, press and let go of Ctrl+Alt to free the mouse; click in the
   window to take it back (that click does not fire).
 - The rebuild fixes some of the original's bugs (the list is CHANGES.md in
-  the project on GitHub). To play exactly as the original did, start with
+  the project on GitHub). The UPGRADES page in the options turns them off
+  in five groups; to play exactly as the original did, start with
       mw3.exe --original
   or put the line  bugfixes=0  in mw3.cfg. The fixes the game needs to run
   on a modern PC stay on.
+- On a wide screen the menus use the whole width (WIDE MENUS on the
+  UPGRADES page; off gives the original's 4:3 menus, centred).
+- MULTIPLAYER on the main menu plays the original's network games over the
+  internet or a local network; every player needs the same game, version
+  and mods.
 - mw3.exe --windowed starts in a window (windowed=1 in mw3.cfg makes that
   the default).
 
@@ -95,8 +133,10 @@ Everything the game writes goes to:
 
 (paste that into Explorer's address bar). It holds mw3.cfg (the install
 folder, windowed=), your pilots and saves, the settings, the converted
-movies (video\) and music (music\), and mw3.log. Uninstalling the rebuild
-keeps this folder. Your MechWarrior 3 install is only read, never changed.
+movies (video\) and music (music\), your mods (mods\) and mw3.log. Pirate's
+Moon keeps its own in the folder "Pirate's Moon" inside it. Uninstalling the
+rebuild keeps this folder, and installing a new version keeps your pilots,
+saves, settings and mods. Your MechWarrior 3 install is only read, never changed.
 Deleting this folder resets everything. To keep it on another drive: in the
 launcher, GAME FILES, MY DATA FOLDER. It is copied and checked first, and the old
 copy is removed only if you say so.
@@ -107,12 +147,10 @@ started the game again since.
 
 Known gaps
 ----------
-- No multiplayer.
-- Pirate's Moon is not supported yet.
-- Widescreen: missions use the whole width; the menus, the mech lab and the
-  briefings keep the original's 4:3 picture, centred. Resizing the window
-  in the middle of a mission may put the HUD out of place (we could not
-  make that happen here; a report with your window size helps).
+- Resizing the window in the middle of a mission may put the HUD out of
+  place (we could not make that happen here; a report with your window size
+  helps).
+- Mech speed in shallow water and on hills is the original's.
 
 Reporting a bug
 ---------------
@@ -120,7 +158,8 @@ Open an issue at https://github.com/telltaleatheist/mw3-re/issues
 Please include:
 - what you did and what happened (a screenshot helps),
 - the mission, and whether --original plays the same way,
-- mw3.log from the folder above (mw3.old.log if you started again since).
+- mw3.log from the folder above (mw3.old.log if you started again since;
+  Pirate's Moon's is in its own folder there).
 
 Licences
 --------

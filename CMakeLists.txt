@@ -679,6 +679,7 @@ if(SDL3_FOUND)
     src/frontend/sdl/net_enet.cpp
     src/frontend/sdl/net_upnp.cpp
     src/frontend/sdl/sdl_child.cpp
+    src/frontend/sdl/sdl_focus.cpp
     src/frontend/sdl/log_start.cpp
     src/frontend/sdl/editor_imgui.cpp
   )

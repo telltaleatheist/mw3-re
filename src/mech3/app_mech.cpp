@@ -1668,14 +1668,14 @@ bool program_net_scores_box_check(NetScoresBoxSeen* out) {
   HudObjectives& box = h->objectives;
   auto written = [&box] {  // its lines with a text (it keeps 25)
     int32_t n = 0;
-    for (const ztwod::Text& t : box.lines) n += t.text && *t.text;
+    for (const ztwod::Text& t : box.lines) n += *t.text != 0;
     return n;
   };
   box.show_for(-1.0f);  // F12: shown and filled
   box.clear();
   net_score_kill(1, 1);  // our own death: the host scores it
   out->refilled_open = written();
-  if (box.lines.size() && box.lines[0].text) out->header = box.lines[0].text;
+  if (box.lines.size()) out->header = box.lines[0].text;
   box.hide();
   box.clear();
   net_score_kill(1, 1);

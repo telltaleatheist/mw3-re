@@ -305,6 +305,7 @@ std::string mod_checksums_verify(const std::string& root_dir, bool* had) {
   if (ec) return "cannot read it: " + ec.message();
   for (const auto& [l, rel] : named)
     if (!found.count(l)) return "a file its checksums list is missing (" + rel + ")";
+  f.close();  // Windows refuses to delete a file still open
   fs::remove(list, ec);
   return "";
 }

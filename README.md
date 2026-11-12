@@ -167,7 +167,9 @@ Nothing yet.
   - macOS 12 or later, Apple silicon or Intel;
   - Linux, x86-64, with your distribution's Vulkan driver.
 
-Pirate's Moon is not supported yet.
+Pirate's Moon, the expansion, is in the same download as its own program, and
+needs your own Pirate's Moon the same way (an installed copy, its disc or a
+disc image). Each game works without the other.
 
 ## Download
 
@@ -219,7 +221,8 @@ is there it goes straight on into it:
   needs into a folder of the rebuild's own, with a progress bar and
   **Cancel**. An installed copy is used where it is. No Windows and no
   original installer needed. Versions 1.0 and 1.2 both work as they are:
-  1.0 plays as 1.2. Pirate's Moon is recognised, but its support comes later.
+  1.0 plays as 1.2. Pirate's Moon is found or installed the same way, from the
+  launcher's GAME FILES.
 
 If something is wrong (not enough space, a damaged download, a file that
 is not MechWarrior 3) it says so in plain words and changes nothing.
@@ -356,24 +359,55 @@ stay the chat's. More in [docs/cheats.md](docs/cheats.md).
 
 ## Mods
 
-The rebuild loads mods: folders of game data in a `mods` folder inside the
-settings folder (below), laid out like the game's own files, each with a
-short `mod.txt`. A mod can change textures, sounds, text, missions and the
-game's data files, or add new worlds and maps; it never touches your
-install or your pilots. List them in `mw3.cfg` (`mod=NAME`, one a line) to
-turn them on; `mw3 --mods` lists what it found, and `mw3 --check-mod
-FOLDER` reads a mod as the game would and says what it would refuse. With
-no mods turned on, nothing changes. How to make one:
+Mods are turned on per campaign, inside the game, on the **MODS** screen
+(main menu). A fresh start always plays the original game: nothing is modded
+until you turn it on.
+
+1. **MODS** on the main menu. The left box lists the campaigns (the game's
+   own first), the right box the mods you have.
+2. **IMPORT** adds a mod: pick the file you downloaded.
+3. Click a mod's **box** to turn it on for the campaign chosen at the left.
+4. **PLAY** starts that campaign with its ticked mods. Each campaign keeps
+   its own ticks, pilots and saved games, apart from the main menu's.
+
+**MISSIONS** plays any one mission of the chosen campaign at once (nothing
+is kept), **INFO** says what a mod changes, and each button says what it
+does when the mouse is over it. A mod never touches your install or your
+main-menu pilots.
+
+### Importing a community mod (the weapons mods, map packs)
+
+Community mods were made for the original game and mostly come as an
+installer program.
+
+1. Download it. **Do not run its installer**: it is made for the original
+   game and would overwrite that game's files.
+2. In the rebuild: MODS, IMPORT, and pick the downloaded file (the .exe
+   installer itself, a .zip/.7z/.rar, or a file inside an unpacked folder).
+   The rebuild reads the mod out of it without running it.
+3. Click its box for a campaign, then PLAY.
+
+IMPORT may say "N warnings": files in the mod the game cannot use as they
+are (often slips that also trouble the original). The rest of the mod is
+added; INFO lists each warning and what was done about it.
+
+Pirate's Moon has its own MODS screen and takes only mods made for Pirate's
+Moon. In multiplayer every player needs the same mods.
+
+Mods live as folders in a `mods` folder inside the settings folder (below),
+laid out like the game's own files, each with a short `mod.txt`. `mw3
+--mods` lists what it found, and `mw3 --check-mod FOLDER` reads a mod as
+the game would and says what it would refuse. How to make one:
 [docs/modding.md](docs/modding.md).
 
 To build or change a world, use [zStudio](https://github.com/Vorta/zStudio) by Vorta
 (Windows): it unpacks the game's files into the editable source tree Zipper's own team
-worked from, and builds them back into game files you can ship as a mod. A guide to
-making whole missions and campaigns, with zStudio for the world and the rebuild's game
-editor for the mission, comes after Pirate's Moon.
+worked from, and builds them back into game files you can ship as a mod.
 
 The game editor itself (the original's own, opened to players: the AI's paths, the
-vehicles' AI, saved into your mod) has a guide: [docs/editor-guide.md](docs/editor-guide.md).
+vehicles' AI, new weapons, saved into your own copy of a campaign) is reached from
+MODS: MISSIONS, a mission, PLAY, then EDIT MISSION on the pause menu (or Shift+F12).
+It has a guide: [docs/editor-guide.md](docs/editor-guide.md).
 In the game every field, button and menu row has a tip, and the menu's HELP row gives a
 quick start.
 

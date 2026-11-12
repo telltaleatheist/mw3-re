@@ -309,12 +309,12 @@ TEST(ia_mods_straight_in_and_missing) {
   const mech3::CampaignEntry* ia = mech3::find_entry(all, mech3::kIaEntry);
   EXPECT(ia != nullptr);
   mech3::entry_run() = mech3::EntryRun{};
-  EXPECT(!mech3::ia_straight_in(wd.string()) && !mech3::ia_straight_in(""));  // nothing ticked: the original
+  EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: off");
   EXPECT(mech3::entry_save_ticks(wd.string(), *ia, V{"hud", "weps"}));
-  EXPECT(mech3::ia_straight_in(wd.string()) && mech3::ia_mods_missing(wd.string()).empty());
+  // A plain run is the original whatever is ticked (playtest W9): the ticks are only remembered.
+  EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: off" && mech3::ia_mods_missing(wd.string()).empty());
   fs::remove_all(wd / "mods/weps");
-  EXPECT(!mech3::ia_straight_in(wd.string()) && (mech3::ia_mods_missing(wd.string()) == V{"weps"}));
-  EXPECT(mech3::ia_mods_line(wd.string()) == "MODS: 1 missing");
+  EXPECT((mech3::ia_mods_missing(wd.string()) == V{"weps"}) && mech3::ia_mods_line(wd.string()) == "MODS: off");
   EXPECT(mech3::ia_mods_line(wd.string(), 2) == "MODS: 2 on");  // the tick list's own count stays the ticks'
 }
 

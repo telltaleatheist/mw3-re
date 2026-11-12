@@ -66,6 +66,13 @@ void import_folder_discard(ImportFolder& f);
 std::string import_folder_report(const ImportFolder& f);
 std::string import_folder_report_short(const ImportFolder& f);
 
+// IMPORT's one file box (Owen, 2026-11-11: ADD FOLDER is gone): a folder mod is picked by a file inside it.
+// The mod's folder for such a pick: the file's own folder, or one of the three above it, the nearest that
+// holds a mod.txt or a zbd folder (a mod's root, or a game folder a mod's installer was run over). An archive
+// (.zip, .7z, .rar), a loadout (.m3c), a folder, or a file with no such folder above it comes back as it is
+// (a lone installer .exe is read as an installer).
+std::string import_pick_root(const std::string& picked);
+
 // IMPORT's pick whole: a whole install prepared as above and added by
 // mod_add_run (the game its files say, else asked), any other pick handed to
 // mod_add_run unchanged. `report`, when given, gets the short line ("" for

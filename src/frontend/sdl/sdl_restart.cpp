@@ -34,17 +34,28 @@ bool g_asked = false;
 
 // 0 not ours, 1 a flag of ours alone, 2 one with its value.
 int ours(const std::string& s) {
-  if (s == "--entry-test" || s == "--entry-edit") return 3;
+  if (s == "--entry-test" || s == "--entry-edit" || s == "--entry-mission") return 3;
   if (s == "--entry" || s == "--mod" || s == "--entry-pilot" || s == "--mods-entry") return 2;
-  if (s == "--click-at" || s == "--tap") return 2;  // a check's script is for the run it was given to
-  if (s == "--entry-play" || s == "--entry-ia" || s == "--entry-mp" || s == "--open-mods" || s == "--open-ia" || s == "--open-mp" || s == "--restarted" || s == "--no-mods") return 1;
+  if (s == "--click-at" || s == "--tap" || s == "--mouse-at") return 2;  // a check's script is for the run it was given to
+  if (s == "--entry-play" || s == "--entry-ia" || s == "--open-mods" || s == "--open-ia" || s == "--entry-mp" || s == "--open-mp" || s == "--restarted" || s == "--no-mods" || s == "--edit") return 1;
   return 0;
 }
 }  // namespace
 
 std::vector<std::string> restart_args(const std::vector<std::string>& args, const RestartTo& to) {
   std::vector<std::string> out;
+  bool later = false;  // past --then: the script for the run this restart starts, kept
   for (size_t i = 0; i < args.size(); ++i) {
+    if (!later && args[i] == "--then") {
+      later = true;
+      continue;
+    }
+    const bool script = args[i] == "--click-at" || args[i] == "--tap" || args[i] == "--mouse-at";
+    if (later && (script || args[i] == "--then")) {
+      out.push_back(args[i]);
+      if (script && i + 1 < args.size()) out.push_back(args[++i]);
+      continue;
+    }
     const int n = ours(args[i]);
     if (n >= 2) i += static_cast<size_t>(n - 1);
     if (n == 0) out.push_back(args[i]);
@@ -54,8 +65,10 @@ std::vector<std::string> restart_args(const std::vector<std::string>& args, cons
     if (to.screen == RestartTo::kPlay) out.push_back("--entry-play");
     if (to.screen == RestartTo::kInstantAction) out.push_back("--entry-ia");
     if (to.screen == RestartTo::kMultiplayer) out.push_back("--entry-mp");
-    if (to.screen == RestartTo::kTest || to.screen == RestartTo::kEdit)
-      out.push_back(to.screen == RestartTo::kTest ? "--entry-test" : "--entry-edit"), out.push_back(to.test_world), out.push_back(std::to_string(to.test_number));
+    if (to.screen == RestartTo::kTest || to.screen == RestartTo::kEdit) {
+      out.push_back("--entry-mission"), out.push_back(to.test_world), out.push_back(std::to_string(to.test_number));
+      if (to.screen == RestartTo::kEdit) out.push_back("--edit");
+    }
   } else if (to.open_mods) {
     out.push_back("--open-mods");
     if (!to.mods_entry.empty()) out.push_back("--mods-entry"), out.push_back(to.mods_entry);

@@ -7,7 +7,7 @@ namespace mech3 {
 void help_weapons(std::vector<HelpForm>& out) {
   out.push_back(
       {"New Weapon", "New Weapon (EDIT WEAPONS)",
-       "A new weapon for your copy of the campaign the editor was opened on from MODS, EDITOR (the first save asks "
+       "A new weapon for your copy of the campaign the editor was opened on from MODS, MISSIONS (the first save asks "
        "the copy's name; the campaign itself and an imported mod are never written). It is part of that campaign: "
        "on whenever the copy is played. It starts as a copy of a weapon the "
        "game knows, under a free name; set its row, its main numbers, its effects and sounds, then OK. Every other "

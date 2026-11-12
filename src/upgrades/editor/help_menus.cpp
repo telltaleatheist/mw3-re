@@ -17,16 +17,17 @@ void help_menus(std::vector<HelpForm>& out) {
                       "The Mech AI window: pick one of the mission's vehicles and change its AI settings."},
                      {"EDIT WEAPONS", "",
                       "New Weapon: a weapon copied from one the game knows, its name and numbers set, written into "
-                      "your copy of the campaign (in a mission opened from MODS, EDITOR only). Empty in the "
+                      "your copy of the campaign (in a mission opened from MODS, MISSIONS only). Empty in the "
                       "original game; ours."},
                      {"HELP", "", "This quick start, in a window. Ours: the original had none."},
                      {"TELEPORT", "",
                       "Move your mech to a place: the mission's nav points, the world's saved places, or one you "
                       "type in. The developers' own tool, which the original never let you reach; ours."},
                      {"EXIT GAME EDIT", "",
-                      "Close the editor. From MODS's EDITOR the game goes back to the MODS screen, your copy "
-                      "chosen when a save made one; in a campaign's mission (Shift+F12, the pause menu's EDITOR) "
-                      "the view goes back to your mech and the mission goes on."},
+                      "Close the editor: the view goes back to your mech and the mission goes on in play. "
+                      "Shift+F12 does the same, and opens the editor again; so does the pause menu's switch "
+                      "(EDIT MISSION, PLAY MISSION). Quitting the mission from the pause menu goes back to the "
+                      "MODS screen, your copy chosen when a save made one."},
                  }});
   out.push_back({"Teleport", "Teleport",
                  "The developers' teleport, which the original carries but never lets you reach. It lists your "

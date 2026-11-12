@@ -87,7 +87,7 @@ std::pair<std::string, std::string> mods_note_lines(const std::string& text, con
 std::pair<std::string, std::string> mods_import_lines(const ModAddDone& d, const std::string& took,
                                                       const std::function<bool(const std::string&)>& fits) {
   if (!d.ok) return mods_note_lines(d.message, fits);
-  // mod_add_run's message: "Added <name>: <outcome>." or, with warnings, "Added <name>: N warnings: REPORT ... . <Next>."
+  // mod_add_run's message: "Added <name>: <outcome>." or, with warnings, "Added <name>: N warnings: INFO ... . <Next>."
   const std::string head = "Added " + d.name + ": ";
   std::string first = d.message, next;
   if (d.warnings > 0 && d.message.rfind(head, 0) == 0) {
@@ -102,8 +102,8 @@ std::pair<std::string, std::string> mods_import_lines(const ModAddDone& d, const
   if (next.empty() && !took.empty()) next = took.substr(0, took.find(';')) + ".";  // "Took N files ... your install."
   std::pair<std::string, std::string> out = mods_note_lines(first, fits);
   if (out.second.empty()) out.second = mods_note_lines(next, fits).first;  // one line of it, whole or cut at a word
-  else if (d.warnings > 0 && first.find("REPORT") != std::string::npos && (out.first + out.second).find("REPORT") == std::string::npos)
-    out.second = "REPORT lists them.";  // never lost to the cut
+  else if (d.warnings > 0 && first.find("INFO") != std::string::npos && (out.first + out.second).find("INFO") == std::string::npos)
+    out.second = "INFO shows them.";  // never lost to the cut
   return out;
 }
 
