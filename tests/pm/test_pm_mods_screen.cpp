@@ -234,8 +234,14 @@ TEST(pm_mods_screen_campaigns_their_own_ticks_and_reset_headless) {
             if (scr->ticks.rows[i].info.name == name) scr->mod_list.select(static_cast<int32_t>(i));
         };
         auto tab = [&] {
-          const bool del = !(scr->delete_btn.flags & ztwod::kHidden), res = !(scr->reset_btn.flags & ztwod::kHidden);
-          return std::string(del && res ? "both" : del ? "DELETE" : res ? "RESET" : "none");
+          // The delete tab's four records, one shown at most: its label is what the press acts on.
+          std::string t;
+          int n = 0;
+          if (!(scr->delete_btn.flags & ztwod::kHidden)) t = "DELETE MOD", ++n;
+          if (!(scr->delete_copy_btn.flags & ztwod::kHidden)) t = "DELETE COPY", ++n;
+          if (!(scr->delete_rest_btn.flags & ztwod::kHidden)) t = "DELETE", ++n;
+          if (!(scr->reset_btn.flags & ztwod::kHidden)) t = "RESET", ++n;
+          return n > 1 ? std::string("several") : n ? t : std::string("none");
         };
         listed = campaigns();
         details = scr->detail.text;
@@ -290,7 +296,7 @@ TEST(pm_mods_screen_campaigns_their_own_ticks_and_reset_headless) {
       EXPECT(campaign_rows == "[ ] Amber HUD|[ ] Weps|" && campaign_after == "[x] Amber HUD|[ ] Weps|");
       EXPECT(pirate_rows == "[ ] Amber HUD|[ ] Weps|" && pirate_after == "[x] Weps|[ ] Amber HUD|" && campaign_again == campaign_after);
       EXPECT((asked == std::vector<std::string>{"pirate", "campaign"}));
-      EXPECT(tabs == "RESET,RESET,DELETE");
+      EXPECT(tabs == "RESET,RESET,DELETE COPY");  // the tab says what goes (a copy of ours, with its pilots)
       EXPECT(cancelled == "Not reset." && pirate_reset && campaign_kept);
       EXPECT(copy_gone && main_kept && rows_end == "Campaign|Pirate Missions|");
       EXPECT(boxes.size() == 3 && boxes[0] == boxes[1] && boxes[0].find("Reset Pirate Missions to the original?") == 0);
