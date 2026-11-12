@@ -905,6 +905,7 @@ void LobbyScreen::lock() {
     for (auto& p : game->lobby_players)
       if (p->id != znet::local_id() && !has_world(p->id, w)) names += p->name + " ", ++n;
     if (n > 0) {
+      std::printf("mw3: multiplayer: not locked: without the chosen world: %s\n", names.c_str());  // ours, for the checks
       e.message_box3(0, 0x1e3, 0xfe0, names.c_str(), nullptr, nullptr);
       return;
     }
@@ -923,6 +924,7 @@ void LobbyScreen::lock() {
     znet::set_game_info(info);
   }
   locked = 1;
+  std::printf("mw3: multiplayer: locked with %d players\n", game ? static_cast<int>(game->lobby_players.size()) : 0);  // ours, for the checks
   host_controls();
   send_rules();
   g_lobby_dirty = 1;

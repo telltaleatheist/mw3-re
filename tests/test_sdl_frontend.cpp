@@ -3691,6 +3691,78 @@ TEST(sdl_two_processes_multiplayer_mods_match_or_turn_back) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn, waitpid
+// Owen, 2026-11-11: "we use the original for the assets only": which version of the original a player's files
+// are never keeps two players apart; both play 1.2 as the rebuild makes it (mech3/patch12.h). The real program
+// on loopback, a host on 1.0's files and a joiner on 1.2's, then the other way round: the joiner gets into the
+// lobby (the session's version word is the rebuild's, the same on both; nothing compares the data), is not
+// turned back, and the host's LOCK OPTIONS locks with both in. Each side's own c3 maps: 1.0's player has the
+// two 1.2 adds in its write dir (patch12::provide_files), so neither is marked as lacking a world.
+TEST(sdl_two_processes_10_and_12_files_share_a_lobby) {
+  namespace fs = std::filesystem;
+  const std::string root = fs::path(MW3_GAME_DIR).parent_path().string(), v10 = root + "/mw3-1.0", v12 = root + "/mw3-1.2";  // game/
+  std::error_code ec;
+  if (!fs::exists(v10 + "/zbd/mechlib.zbd", ec) || !fs::exists(v12 + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_net_10_12";
+  auto spawn = [&](std::vector<std::string> args, const std::string& log) {
+    std::vector<std::string> v = {MW3_BIN};
+    v.insert(v.end(), args.begin(), args.end());
+    std::vector<char*> argv;
+    for (std::string& x : v) argv.push_back(x.data());
+    argv.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) != 0) pid = -1;
+    posix_spawn_file_actions_destroy(&fa);
+    return pid;
+  };
+  auto read = [](const std::string& path) {
+    std::ifstream f(path);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto has = [](const std::string& t, const char* w) { return t.find(w) != std::string::npos; };
+  int round = 0;
+  for (const auto& [host, join] : {std::make_pair(v10, v12), std::make_pair(v12, v10)}) {
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir + "/a", ec), fs::create_directories(dir + "/b", ec);
+    const int base = 39000 + static_cast<int>(getpid() % 2000) * 3 + round++ * 2;
+    const std::string game = std::to_string(base), lan = std::to_string(base + 1);
+    auto menus = [](std::vector<std::string> v, std::initializer_list<const char*> name) {
+      v.insert(v.end(), {"--click-at", "132,285@40"});
+      int at = 70;
+      for (const char* k : name) v.insert(v.end(), {"--tap", std::string(k) + "@" + std::to_string(at)}), at += 4;
+      v.insert(v.end(), {"--click-at", "470,320@100", "-nofmv", "--no-launcher", "--hidden", "--nosound", "--net-bind", "127.0.0.1", "--frame-ms", "33"});
+      return v;
+    };
+    // A: HOST; with B in: LOCK OPTIONS and its OK.
+    const pid_t a = spawn(menus({"--install", host, "--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan, "--click-at", "421,406@180",
+                                 "--click-players", "183,430@60/2", "--click-players", "246,290@100/2", "--frames", "1500"},
+                                {"0x14", "0x12", "0x1f", "0x14"}), dir + "/a.log");
+    for (int i = 0; i < 400 && !has(read(dir + "/a.log"), "multiplayer page 2"); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    const pid_t b = spawn(menus({"--install", join, "--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-at",
+                                 "100,143@420", "--click-at", "240,406@450", "--frames", "1100"},
+                                {"0x30", "0x12", "0x1f", "0x14"}), dir + "/b.log");
+    int st = 0;
+    if (b > 0) waitpid(b, &st, 0);
+    if (a > 0) waitpid(a, &st, 0);
+    const std::string la = read(dir + "/a.log"), lb = read(dir + "/b.log");
+    const bool ten_hosts = host == v10;
+    std::printf("  host on %s, joiner on %s: host in the lobby %d, joiner in the lobby %d, locked %d\n", ten_hosts ? "1.0" : "1.2", ten_hosts ? "1.2" : "1.0",
+                has(la, "multiplayer page 2"), has(lb, "multiplayer page 2"), has(la, "mw3: multiplayer: locked with 2 players"));
+    EXPECT(has(la, ten_hosts ? "mw3: data version 1.0" : "mw3: data version 1.2") && has(lb, ten_hosts ? "mw3: data version 1.2" : "mw3: data version 1.0"));
+    EXPECT(has(la, "multiplayer page 2") && has(lb, "multiplayer page 2"));
+    EXPECT(!has(lb, "join refused") && !has(lb, "turned back") && !has(la, "not locked"));
+    EXPECT(has(la, "mw3: multiplayer: locked with 2 players"));
+    if (!has(la, "locked with 2"))
+      for (size_t at = 0; (at = la.find("mw3: m", at)) != std::string::npos; ++at) std::printf("    %s\n", la.substr(at, la.find('\n', at) - at).c_str());
+  }
+  fs::remove_all(dir, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn, waitpid
 // Two mw3 from the menus through the lobby into one game (the lead's check
 // after piece 11c): A hosts, B finds and joins it; once both are in the
 // lobby (--click-players: counted from the second player's arrival) A locks
