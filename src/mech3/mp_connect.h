@@ -23,6 +23,8 @@ struct MultiplayerSetup {
   int32_t max_players = 0;    // [0x00608e30]  the game's limit
 };
 MultiplayerSetup& multiplayer_setup();
+// Ours, for the checks (--click-sessions): how many games the connection screen's list shows now.
+int32_t connect_sessions_listed();
 
 // The game's version in a session's second word ([0x005e55e8]): a join to a
 // host with another one is refused (0xfdd, 0xfde). Pirate's Moon's is its exe's

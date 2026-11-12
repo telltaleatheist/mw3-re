@@ -3764,7 +3764,7 @@ TEST(sdl_two_processes_host_and_join_from_the_screens) {
                                        "--click-at", "421,406@" + menu_frame(180), "--frames", menu_frame(100000)}, {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
-                                       "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450), "--frames", menu_frame(600)},
+                                       "--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1", "--frames", menu_frame(600)},
                                       {"0x30", "0x12", "0x1f", "0x14"});
   vb.insert(vb.end(), common.begin(), common.end());
   const pid_t a = spawn(va, dir + "/a.log");
@@ -3780,6 +3780,76 @@ TEST(sdl_two_processes_host_and_join_from_the_screens) {
               has(lb, "multiplayer page 2") ? "joined, in the lobby" : "not joined");
   EXPECT(has(la, "multiplayer page 1") && has(la, "multiplayer page 2"));
   EXPECT(has(lb, "multiplayer page 1") && has(lb, "multiplayer page 2"));
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn, waitpid
+// --click-sessions (ours, for the checks): a click N frames after the connection screen first lists a game. A LAN
+// answer comes in real time and the hidden runs outpace it, so a click at a fixed frame could come before the game
+// was listed and never again (pm_net_overtime_ends_on_a_kill, pm-tests.md). Here B is on the connection screen
+// first, with nothing to find; seconds later A hosts; B's clicks wait for the list, and B joins.
+TEST(sdl_two_processes_a_late_session_is_still_clicked) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!std::filesystem::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_net_late";
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/a", ec);
+  std::filesystem::create_directories(dir + "/b", ec);
+  auto spawn = [&](std::vector<std::string> args, const std::string& log) {
+    std::vector<std::string> v = {MW3_BIN};
+    v.insert(v.end(), args.begin(), args.end());
+    std::vector<char*> argv;
+    for (std::string& x : v) argv.push_back(x.data());
+    argv.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) != 0) pid = -1;
+    posix_spawn_file_actions_destroy(&fa);
+    return pid;
+  };
+  auto read = [](const std::string& path) {
+    std::ifstream f(path);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto has = [](const std::string& t, const char* w) { return t.find(w) != std::string::npos; };
+  const int base = 33000 + static_cast<int>(getpid() % 2000) * 3;
+  const std::string game = std::to_string(base), lan = std::to_string(base + 1);
+  auto menus = [](std::vector<std::string> v, std::initializer_list<const char*> name) {
+    std::vector<std::string> m = {"--click-at", "132,285@" + menu_frame(40)};
+    int at = 70 + kMenuShift;
+    for (const char* k : name) m.insert(m.end(), {"--tap", std::string(k) + "@" + std::to_string(at)}), at += 4;
+    m.insert(m.end(), {"--click-at", "470,320@" + menu_frame(100)});
+    v.insert(v.end(), m.begin(), m.end());
+    return v;
+  };
+  const std::vector<std::string> common = {"--install", install, "--no-launcher", "--hidden", "--nosound", "--net-bind",
+                                           "127.0.0.1", "--frame-ms", "33", "--frames", "100000"};
+  std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
+                                       "--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1"},
+                                      {"0x30", "0x12", "0x1f", "0x14"});
+  vb.insert(vb.end(), common.begin(), common.end());
+  std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan, "--click-at", "421,406@" + menu_frame(180)},
+                                      {"0x14", "0x12", "0x1f", "0x14"});
+  va.insert(va.end(), common.begin(), common.end());
+  const pid_t b = spawn(vb, dir + "/b.log");
+  for (int i = 0; i < 400 && !has(read(dir + "/b.log"), "multiplayer page 1"); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  std::this_thread::sleep_for(std::chrono::seconds(5));  // B on the connection screen for some hundreds of frames
+  const std::string before = read(dir + "/b.log");
+  const pid_t a = spawn(va, dir + "/a.log");
+  for (int i = 0; i < 1200 && !has(read(dir + "/b.log"), "multiplayer page 2"); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  int st = 0;
+  for (pid_t p : {b, a})
+    if (p > 0) kill(p, SIGTERM), waitpid(p, &st, 0);
+  const std::string lb = read(dir + "/b.log");
+  const size_t listed = lb.find("mw3: multiplayer: sessions listed 1");
+  std::printf("  B waited on the screen %d, nothing listed then %d; listed after %d, joined %d\n", has(before, "multiplayer page 1"),
+              !has(before, "sessions listed"), listed != std::string::npos, has(lb, "multiplayer page 2"));
+  EXPECT(has(before, "multiplayer page 1") && !has(before, "mw3: multiplayer: sessions listed"));
+  EXPECT(listed != std::string::npos && lb.find("multiplayer page 2", listed) != std::string::npos);
 }
 #endif
 
@@ -3925,8 +3995,8 @@ TEST(sdl_two_processes_multiplayer_mods_match_or_turn_back) {
       {"same", true, "mw3: multiplayer: mods the host's (Big Guns)", "turned back"},
   };
   for (const Join& j : joins) {
-    std::vector<std::string> vb = menus({"--write-dir", dir + "/" + j.name, "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-at",
-                                         "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450), "--frames", menu_frame(600)}, j.entry,
+    std::vector<std::string> vb = menus({"--write-dir", dir + "/" + j.name, "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-sessions",
+                                         "100,143@10/1", "--click-sessions", "240,406@40/1", "--frames", menu_frame(600)}, j.entry,
                                         {"0x30", "0x12", "0x1f", "0x14"});
     vb.insert(vb.end(), common.begin(), common.end());
     const pid_t b = spawn(vb, dir + "/" + j.name + ".log");
@@ -3995,8 +4065,8 @@ TEST(sdl_two_processes_10_and_12_files_share_a_lobby) {
                                  "--click-players", "183,430@60/2", "--click-players", "246,290@100/2", "--frames", "1500"},
                                 {"0x14", "0x12", "0x1f", "0x14"}), dir + "/a.log");
     for (int i = 0; i < 400 && !has(read(dir + "/a.log"), "multiplayer page 2"); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    const pid_t b = spawn(menus({"--install", join, "--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-at",
-                                 "100,143@420", "--click-at", "240,406@450", "--frames", "1100"},
+    const pid_t b = spawn(menus({"--install", join, "--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-sessions",
+                                 "100,143@10/1", "--click-sessions", "240,406@40/1", "--frames", "1100"},
                                 {"0x30", "0x12", "0x1f", "0x14"}), dir + "/b.log");
     int st = 0;
     if (b > 0) waitpid(b, &st, 0);
@@ -4077,7 +4147,7 @@ TEST(sdl_two_processes_from_the_lobby_into_a_game) {
   va.insert(va.end(), common.begin(), common.end());
   // B: the game found, JOIN; in the lobby I AM READY (after A's lock).
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
-                                       "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
+                                       "--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1",
                                        "--click-players", "515,446@300/2", "--frames", menu_frame(2400)},
                                       {"0x30", "0x12", "0x1f", "0x14"});
   vb.insert(vb.end(), common.begin(), common.end());
@@ -4199,7 +4269,7 @@ TEST(sdl_two_processes_a_walk_seen_from_the_other) {
   for (const char* at : {"20/2", "28/2", "36/2", "44/2"}) va.insert(va.end(), {"--click-players", std::string("171,110@") + at});
 #endif
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
-                                       "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
+                                       "--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1",
                                        "--click-players", "515,446@300/2", "--frames", menu_frame(kWalkFrames)},
                                       {"0x30", "0x12", "0x1f", "0x14"});
   vb.insert(vb.end(), common.begin(), common.end());
@@ -4313,7 +4383,7 @@ TEST(sdl_two_processes_an_inactive_window_plays_on) {
                                       {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
-                                       "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
+                                       "--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1",
                                        "--click-players", "515,446@300/2", "--net-walk", "3,60",
                                        "--blur-ingame", "200:3000", "--frames", menu_frame(2400)},
                                       {"0x30", "0x12", "0x1f", "0x14"});
@@ -4417,16 +4487,18 @@ TEST(sdl_two_processes_leave_box_keeps_play_and_leaves) {
     v.insert(v.end(), m.begin(), m.end());
     return v;
   };
+  // A plays on after B leaves until its own cap: the lobby's waits run in real time while a hidden run's frames go
+  // faster, so a loaded machine left A 4 lines after B went (more than 5 wanted); 3600 frames give it room.
   const std::vector<std::string> common = {"--install", install, "--no-launcher", "--hidden", "--nosound", "--net-bind",
                                            "127.0.0.1", "--frame-ms", "33", "--net-soak", "--net-seconds", "60"};
   std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan,
                                        "--click-at", "421,406@" + menu_frame(180), "--click-players", std::string(kLockAt) + "@60/2",
                                        "--click-players", "246,290@100/2", "--click-players", "515,446@140/2",
-                                       "--click-players", "585,418@600/2", "--frames", menu_frame(2400)},
+                                       "--click-players", "585,418@600/2", "--frames", menu_frame(3600)},
                                       {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
-                                       "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
+                                       "--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1",
                                        "--click-players", "515,446@300/2", "--net-walk", "3,60",
                                        "--tap-ingame", "0x01@200:203", "--hold-ingame", "260:290", "--tap-ingame", "0x01@330:333",
                                        "--tap-ingame", "0x01@400:403", "--tap-ingame", "0x31@430:433",
@@ -4565,7 +4637,7 @@ TEST(sdl_two_processes_lobby_game_and_back_twice) {
   va.insert(va.end(), common.begin(), common.end());
   // B: JOIN; I AM READY in the lobby, and again after each game.
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
-                                       "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
+                                       "--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1",
                                        "--click-players", "515,446@300/2", "--click-return", "515,446@" + menu_frame(400),
                                        "--frames", menu_frame(5200)},
                                       {"0x30", "0x12", "0x1f", "0x14"});
@@ -8084,11 +8156,15 @@ TEST(sdl_two_processes_the_other_game_is_refused_by_name) {
     std::vector<std::string> va = menus({"--write-dir", d + "/a", "--net-port", game, "--net-discovery", lan, "--click-at",
                                          "421,406@" + std::to_string(180 + hs), "--frames", "100000", "--install", host_install},
                                         {"0x14", "0x12", "0x1f", "0x14"}, hs);
+    // The session row and JOIN once the game is listed (--click-sessions); the other game's program, given from
+    // outside, may be a build without that flag: at fixed frames then.
+    std::vector<std::string> row = {"--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1"};
+    if (join_bin != self_bin)
+      row = {"--click-at", "100,143@" + std::to_string(420 + js), "--click-at", "240,406@" + std::to_string(450 + js)};
     std::vector<std::string> vb = menus({"--write-dir", d + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
-                                         "--click-at", "100,143@" + std::to_string(420 + js), "--click-at",
-                                         "240,406@" + std::to_string(450 + js), "--frames", std::to_string(700 + js),
-                                         "--install", join_install},
+                                         "--frames", std::to_string(700 + js), "--install", join_install},
                                         {"0x30", "0x12", "0x1f", "0x14"}, js);
+    vb.insert(vb.end(), row.begin(), row.end());
     for (auto* v : {&va, &vb})
       v->insert(v->end(), {"--no-launcher", "--hidden", "--nosound", "--net-bind", "127.0.0.1", "--frame-ms", "33"});
     const pid_t a = spawn(host_bin, va, d + "/a.log");
@@ -8259,7 +8335,7 @@ PmPair pm_mode_pair(const std::string& dir, const std::vector<std::string>& lobb
     va.insert(va.end(), {"--click-players", c});
   va.insert(va.end(), {"--click-return", "515,446@" + menu_frame(100), "--click-return", "585,418@" + menu_frame(650)});
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
-                                       "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
+                                       "--click-sessions", "100,143@10/1", "--click-sessions", "240,406@40/1",
                                        "--click-players", "515,446@" + std::to_string(b_ready) + "/2", "--click-return",
                                        "515,446@" + menu_frame(400)},
                                       "0x30");
