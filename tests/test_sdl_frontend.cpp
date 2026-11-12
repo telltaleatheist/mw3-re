@@ -6548,7 +6548,9 @@ TEST(sdl_program_launcher_starts_pirates_moon) {
   std::printf("launcher pm: %zu arguments, ended \"%s\"\n", args.size(), text.find("Pirate's Moon exited (0)") != std::string::npos ? "exited 0" : "?");
   EXPECT(text.find("Pirate's Moon exited (0)") != std::string::npos);
   EXPECT(args.size() >= 3 && args[0] == "--install" && args[1] == install.string() && args[2] == "--no-launcher");
-  for (const std::string& a : args) EXPECT(a != "--write-dir" && a.find(dir + "/wd") == std::string::npos);
+  // Its own folder, the one this launcher was given (MW3_PM_WRITE_DIR), never MW3's.
+  EXPECT(args.size() >= 5 && args[3] == "--write-dir" && args[4] == dir + "/pmwd");
+  for (const std::string& a : args) EXPECT(a.find(dir + "/wd") == std::string::npos);
 
   // A folder that is not there: no start, the setting left alone (with no
   // Pirate's Moon anywhere the search looks: an empty HOME).
@@ -7225,6 +7227,7 @@ TEST(sdl_program_launcher_game_files_pirates_moon) {
   EXPECT(log.find("MechWarrior 3: Pirate's Moon 1.0 is installed in " + install) != std::string::npos);
   EXPECT(fs::exists(install + "/mw3-install.txt", ec) && fs::exists(pmwd + "/music/track02.wav", ec));
   EXPECT(args().size() >= 2 && args()[0] == "--install" && args()[1] == install);
+  EXPECT(args().size() >= 5 && args()[3] == "--write-dir" && args()[4] == pmwd);  // its own, the usual one
   EXPECT(text(wd + "/mw3.cfg").find("pm_install=" + install) != std::string::npos &&
          text(wd + "/mw3.cfg").find("install=" + std::string(MW3_GAME_DIR)) != std::string::npos);
   EXPECT(!fs::exists(wd + "/install", ec) && !fs::exists(wd + "/music", ec) && !fs::exists(usual + "/install", ec));
@@ -7258,6 +7261,8 @@ TEST(sdl_program_launcher_game_files_pirates_moon) {
   fs::remove(dir + "/args.txt", ec);
   log = run("after", {}, true);
   EXPECT(args().size() >= 2 && args()[1] == to + "/install" && log.find("note: Its zbd") == std::string::npos);
+  // Its own folder handed on: the moved one, by its pointer (mw3pm alone fell back to the usual).
+  EXPECT(args().size() >= 5 && args()[3] == "--write-dir" && args()[4] == to);
 
   setenv("HOME", home_was.c_str(), 1);
   unsetenv("MW3_USUAL_FOLDER");
