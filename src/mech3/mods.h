@@ -32,6 +32,9 @@ struct ModInfo {
   // Ours (upgrades/mods/campaign_entries.h, mods by campaign): kind=campaign|assets over the rule, and a copy's
   // base=, the entry it was saved from.
   std::string kind, base;
+  // Ours (upgrades/mods/salvage_chance.h): salvage_chance=N and mission_salvage=<world> <n> <N>, each line's value.
+  std::string salvage_chance;
+  std::vector<std::string> mission_salvage;
 };
 // An Instant Action world a mod adds: its folder (any world's) and the name shown.
 struct ModIaWorld {
@@ -40,7 +43,7 @@ struct ModIaWorld {
 std::vector<ModIaWorld>& mod_ia_worlds();
 
 // mod.txt: key=value lines (name, version, author, for, description, world,
-// ia_world, mech, weapon, campaign, anim, needs, conflicts, game_version, kind, base), # a comment; `name` required, `for` mw3 when given. False
+// ia_world, mech, weapon, campaign, anim, needs, conflicts, game_version, kind, base, salvage_chance, mission_salvage), # a comment; `name` required, `for` mw3 when given. False
 // with `out->error`.
 bool mod_parse(const std::string& text, ModInfo* out);
 // The game a mod's for= must name (its first word): "mw3" here; the launcher's MODS sets "mw3pm" while it works on

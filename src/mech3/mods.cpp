@@ -1,3 +1,4 @@
+#include "upgrades/mods/salvage_chance.h"
 #include "upgrades/mods/entry_archives.h"
 #include "mech3/mods.h"
 #include "mech3/mod_install.h"
@@ -122,6 +123,8 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (upgrades::reference::key_is(key, "game_version")) out->game_version = value;
     else if (upgrades::reference::key_is(key, "kind")) out->kind = value;
     else if (upgrades::reference::key_is(key, "base")) out->base = value;
+    else if (upgrades::reference::key_is(key, "salvage_chance")) out->salvage_chance = value;
+    else if (upgrades::reference::key_is(key, "mission_salvage") && !value.empty()) out->mission_salvage.push_back(value);
     else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -219,6 +222,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
   free_dfns_above(kBuiltinMechs);
   mech_rows_clear();
   weapon_rows_clear();
+  salvage_rules_clear();  // ours (salvage_chance.h): each mount's own
   mod_campaigns().clear();
   std::vector<ModCampaign> campaigns;  // checked against the worlds once every mod's are known
   std::vector<std::string> done;
@@ -237,6 +241,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       continue;
     }
     zutl::mount_mod(it->path);
+    salvage_rules_take(*it);
     log.push_back("mod " + want + " (" + it->name + (it->version.empty() ? "" : " " + it->version) + ") mounted");
     // Its new worlds: a folder no world has yet, with its files in the mod.
     for (const std::string& w : it->worlds) {
