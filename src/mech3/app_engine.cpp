@@ -459,7 +459,17 @@ uint32_t GameEngine::game_message_box(int32_t style, int32_t caption, const std:
     ztwod::MessageBox box("dlgMessage.zrd", "MESSAGEBOX", false);
     box_ = &box;
     const char* cap = caption_words ? caption_words : message(caption);  // ours: a caption of our own words
+    // Ours: the box's words go to the log too (players' logs; W11).
+    std::string one;
+    for (char c : text) {
+      if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+      if (c != ' ' || (!one.empty() && one.back() != ' ')) one += c;
+    }
+    while (!one.empty() && one.back() == ' ') one.pop_back();
+    std::printf("mw3: message box: [%s] %s\n", cap ? cap : "", one.c_str());
+    std::fflush(stdout);
     r = box.run(text.c_str(), cap ? cap : "", static_cast<uint32_t>(style));
+    std::printf("mw3: message box answered %d\n", r);
     box_ = nullptr;
   }
   exchange_fast_menu(fast & 0xff);
