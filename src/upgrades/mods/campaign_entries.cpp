@@ -84,10 +84,11 @@ void mod_entries(const ModInfo& m, std::vector<CampaignEntry>& out) {
 }  // namespace
 
 std::vector<CampaignEntry> official_entries() {
-  CampaignEntry mw3, ia;
+  CampaignEntry mw3, ia, mp;
+  mp.kind = CampaignEntry::kMultiplayer, mp.id = "mp", mp.name = "Multiplayer";  // ours (upgrades/mods/ia_mods.h, kMpEntry)
   mw3.kind = CampaignEntry::kOfficial, mw3.id = "mw3", mw3.name = "MechWarrior 3";
   ia.kind = CampaignEntry::kInstantAction, ia.id = "ia", ia.name = "Instant Action";
-  return {mw3, ia};
+  return {mw3, ia, mp};
 }
 
 bool mod_is_campaign(const ModInfo& m) {
@@ -180,7 +181,7 @@ bool entry_save_ticks(const std::string& write_dir, const CampaignEntry& e, cons
 }
 
 bool entry_plays_own_campaign(const std::string& write_dir, const CampaignEntry& e) {
-  if (e.kind == CampaignEntry::kInstantAction) return false;
+  if (e.kind == CampaignEntry::kInstantAction || e.kind == CampaignEntry::kMultiplayer) return false;
   const std::vector<CampaignEntry> all = campaign_entries(write_dir);
   int steps = 0;
   for (const CampaignEntry* at = &e; at; at = at->base.empty() ? nullptr : find_entry(all, at->base)) {

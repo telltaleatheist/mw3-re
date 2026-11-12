@@ -21,6 +21,17 @@ std::vector<std::string> ia_mods_missing(const std::string& write_dir);
 // (the app's "back from a game" flags, 0x0048a750); taken once.
 // A pilot the entry lacks is brought from the main menu first, quietly (entry_pilots.h).
 std::string& ia_start_pilot();
+// Ours (Owen, 2026-11-11: mods in multiplayer; docs/modding.md, Multiplayer): multiplayer's own entry, as
+// Instant Action's. The host hosts from it with its ticked mods mounted; a joiner must have the same
+// (mp_mods.h). A plain start mounts none: MULTIPLAYER on the main menu is the original's files, and the ticks
+// are remembered for the MODS button on the multiplayer screen.
+constexpr const char* kMpEntry = "mp";
+std::string mp_mods_line(const std::string& write_dir, int ticked = -1);
+// A plain start that opens the multiplayer screen at once (--open-mp: ALL OFF inside the entry); taken once.
+bool& mp_open_once();
+// The start's pilot (--entry-pilot, ia_start_pilot) was picked for multiplayer: its state takes it as the
+// pilot screen's ACCEPT would, so the multiplayer screen opens at once; taken once.
+bool& mp_pilot_once();
 // What ACCEPT does with the ticks as they were and as they are now: none ticked, back (plain) or the plain
 // game again (inside the entry); some ticked, into the entry, unless inside it with nothing changed.
 enum class IaModsStep { kBack, kIntoEntry, kPlain };

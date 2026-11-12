@@ -30,6 +30,7 @@
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/sdl_restart.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "upgrades/mods/ia_mods.h"
 #include "upgrades/mods/entry_archives.h"
 #include "upgrades/mods/campaign_entries.h"
 #include "mech3/mods.h"
@@ -3532,6 +3533,236 @@ TEST(sdl_two_processes_host_and_join_from_the_screens) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn, waitpid
+// The multiplayer screen's MODS button in the real program: MULTIPLAYER, a new pilot, the screen says "MODS:
+// off"; MODS opens the tick screen, the mod's row chosen and ON/OFF, ACCEPT: the program starts again into the
+// entry mp, the mod mounted, its multiplayer screen made saying "MODS: 1 on" (the start then waits on the
+// entry's pilot screen: sdl_two_processes_multiplayer_mods_match_or_turn_back goes on through it). The ticks
+// are kept: a later plain start mounts nothing and says "MODS: off" again (multiplayer from the main menu is
+// the original's files).
+TEST(sdl_program_multiplayer_mods_button_ticks_and_starts_again) {
+  namespace fs = std::filesystem;
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/mp mods button";  // a space in the path
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/wd/mods/guns/zbd", ec);
+  std::ofstream(dir + "/wd/mods/guns/mod.txt") << "name=Big Guns\n";
+  std::ofstream(dir + "/wd/mods/guns/zbd/thing.dat") << "x";
+  auto run = [&](const std::vector<std::string>& extra, const char* name) {
+    std::vector<std::string> args = {"--install", install, "-nofmv", "--write-dir", dir + "/wd", "--no-launcher", "--hidden", "--nosound",
+                                     "--frame-ms", "33", "--seed", "1", "--frames", "700", "--net-bind", "127.0.0.1", "--net-port", "0",
+                                     "--click-at", "135,285@130", "--tap", "30@200", "--tap", "48@215", "--click-at", "420,320@260"};
+    args.insert(args.end(), extra.begin(), extra.end());
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    const pid_t pid = spawn_mw3(args, log);
+    EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto at = [](const std::string& t, const char* what, size_t from = 0) { return t.find(what, from); };
+  const size_t none = std::string::npos;
+  const std::string a = run({"--click-at", "540,236@520", "--click-at", "470,47@560", "--click-at", "410,254@580", "--click-at", "420,320@600"}, "a");
+  const size_t off = at(a, "mw3: multiplayer screen made, MODS: off"), again = at(a, "mw3: multiplayer's MODS: starting again into entry mp");
+  const size_t entered = at(a, "mw3: entry mp (Multiplayer): 1 mods"), on = at(a, "mw3: multiplayer screen made, MODS: 1 on");
+  std::printf("  off %d, started again %d, entered %d, on %d\n", off != none, again != none, entered != none, on != none);
+  EXPECT(off != none && again != none && entered != none && on != none && off < again && again < entered && entered < on);
+  EXPECT(at(a, "mw3: mod guns (Big Guns) mounted", entered) != none);
+  // The pilot goes along: the entry's multiplayer screen opens with it, not on the entry's pilot screen.
+  const size_t with = at(a, "mw3: multiplayer's MODS: starting again into entry mp, pilot "), picked = at(a, "s pilot ", entered);
+  const size_t opened = at(a, "mw3: multiplayer opens with the pilot ", entered);
+  std::printf("  pilot named %d, picked %d, opened with it %d\n", with != none, picked != none, opened != none);
+  EXPECT(with != none && opened != none && at(a, ": picked", entered) != none && at(a, "the pilot screen", entered) == none);
+  std::ifstream t(dir + "/wd/campaigns/mp/mods.txt");
+  EXPECT(std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>()) == "mod=guns\n");
+  // A plain start after it: nothing mounted, the ticks still kept.
+  const std::string b = run({"--hover-at", "540,236@480"}, "b");
+  EXPECT(at(b, "mw3: multiplayer screen made, MODS: off") != none && at(b, "mounted") == none && at(b, "mw3: entry") == none);
+  // The mouse over the MODS tab says what a press does.
+  EXPECT(at(b, "mw3: multiplayer: hover: Play multiplayer with mods. The game starts again to load them. Everyone needs the same mods.") != none);
+  std::ifstream t2(dir + "/wd/campaigns/mp/mods.txt");
+  EXPECT(std::string((std::istreambuf_iterator<char>(t2)), std::istreambuf_iterator<char>()) == "mod=guns\n");
+  fs::remove_all(dir, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn, waitpid
+// Mods in multiplayer (Owen, 2026-11-11; upgrades/mods/ia_mods.h, mp_mods.h), the real program on loopback. A
+// hosts from multiplayer's entry (--entry mp --entry-mp: the main menu opens MULTIPLAYER itself) with the mod
+// Big Guns ticked. Three joiners in turn, through the screens: one on a plain start (no mods) is turned back and
+// told it does not have Big Guns; one in the entry with another copy of the mod is told its copy differs; one in
+// the entry with the same files stays in the lobby. (A peer that sends no per-mod block: net_lobby_mods_check_headless.)
+TEST(sdl_two_processes_multiplayer_mods_match_or_turn_back) {
+  namespace fs = std::filesystem;
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_net_mp_mods";
+  fs::remove_all(dir, ec);
+  auto put = [&](const std::string& rel, const std::string& text) {
+    fs::create_directories(fs::path(dir + "/" + rel).parent_path(), ec);
+    std::ofstream(dir + "/" + rel, std::ios::binary) << text;
+  };
+  // Each side's write dir: the mod, and the entry's ticks as its MODS screen saves them.
+  auto side = [&](const char* name, const char* bytes, bool ticked) {
+    fs::create_directories(dir + "/" + name, ec);
+    if (!bytes) return;
+    put(std::string(name) + "/mods/guns/mod.txt", "name=Big Guns\n");
+    put(std::string(name) + "/mods/guns/zbd/thing.dat", bytes);
+    if (!ticked) return;
+    const std::string wd = dir + "/" + name;  // the entry's folder made by the game's own code (its marker), the tick in it
+    const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd);
+    const mech3::CampaignEntry* mp = mech3::find_entry(all, mech3::kMpEntry);
+    EXPECT(mp && mech3::entry_save_ticks(wd, *mp, {"guns"}));
+  };
+  side("a", "the host's bytes", true);
+  side("none", nullptr, false);
+  side("other", "another copy", true);
+  side("same", "the host's bytes", true);
+  auto spawn = [&](std::vector<std::string> args, const std::string& log) {
+    std::vector<std::string> v = {MW3_BIN};
+    v.insert(v.end(), args.begin(), args.end());
+    std::vector<char*> argv;
+    for (std::string& x : v) argv.push_back(x.data());
+    argv.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) != 0) pid = -1;
+    posix_spawn_file_actions_destroy(&fa);
+    return pid;
+  };
+  auto read = [](const std::string& path) {
+    std::ifstream f(path);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto has = [](const std::string& t, const char* w) { return t.find(w) != std::string::npos; };
+  const int base = 36000 + static_cast<int>(getpid() % 2000) * 3;
+  const std::string game = std::to_string(base), lan = std::to_string(base + 1);
+  // A new pilot's name typed and ACCEPT; a plain start clicks MULTIPLAYER first (an entry's start opens it).
+  auto menus = [](std::vector<std::string> v, bool entry, std::initializer_list<const char*> name) {
+    if (entry) v.insert(v.end(), {"--entry", "mp", "--entry-mp"});
+    else v.insert(v.end(), {"--click-at", "132,285@40"});
+    int at = 70;
+    for (const char* k : name) v.insert(v.end(), {"--tap", std::string(k) + "@" + std::to_string(at)}), at += 4;
+    v.insert(v.end(), {"--click-at", "470,320@100"});
+    return v;
+  };
+  const std::vector<std::string> common = {"--install", install, "-nofmv", "--no-launcher", "--hidden", "--nosound", "--net-bind",
+                                           "127.0.0.1", "--frame-ms", "33"};
+  std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan, "--click-at", "421,406@180",
+                                       "--frames", "100000"}, true, {"0x14", "0x12", "0x1f", "0x14"});
+  va.insert(va.end(), common.begin(), common.end());
+  const pid_t a = spawn(va, dir + "/a.log");
+  for (int i = 0; i < 400 && !has(read(dir + "/a.log"), "multiplayer page 2"); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  const std::string la0 = read(dir + "/a.log");
+  EXPECT(has(la0, "mw3: entry mp (Multiplayer): 1 mods") && has(la0, "multiplayer screen made, MODS: 1 on") && has(la0, "multiplayer page 2"));
+  struct Join {
+    const char* name;
+    bool entry;
+    const char* want;  // in its log
+    const char* never;
+  };
+  const Join joins[] = {
+      {"none", false, "mw3: multiplayer: turned back: Your mods don't match the host's. You do not have: Big Guns.", "mods the host's"},
+      {"other", true, "mw3: multiplayer: turned back: Your mods don't match the host's. Your copy of Big Guns differs from the host's.", "mods the host's"},
+      {"same", true, "mw3: multiplayer: mods the host's (Big Guns)", "turned back"},
+  };
+  for (const Join& j : joins) {
+    std::vector<std::string> vb = menus({"--write-dir", dir + "/" + j.name, "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-at",
+                                         "100,143@420", "--click-at", "240,406@450", "--frames", "600"}, j.entry, {"0x30", "0x12", "0x1f", "0x14"});
+    vb.insert(vb.end(), common.begin(), common.end());
+    const pid_t b = spawn(vb, dir + "/" + j.name + ".log");
+    int st = 0;
+    if (b > 0) waitpid(b, &st, 0);
+    const std::string lb = read(dir + "/" + j.name + ".log");
+    std::printf("  %s: lobby %d, %s\n", j.name, has(lb, "multiplayer page 2"), has(lb, j.want) ? "as wanted" : "NOT as wanted");
+    EXPECT(has(lb, "multiplayer page 2") && has(lb, j.want) && !has(lb, j.never));
+    if (!has(lb, j.want))
+      for (size_t at = 0; (at = lb.find("mw3: m", at)) != std::string::npos; ++at) std::printf("    %s\n", lb.substr(at, lb.find('\n', at) - at).c_str());
+  }
+  int st = 0;
+  if (a > 0) kill(a, SIGTERM), waitpid(a, &st, 0);
+  fs::remove_all(dir, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn, waitpid
+// Owen, 2026-11-11: "we use the original for the assets only": which version of the original a player's files
+// are never keeps two players apart; both play 1.2 as the rebuild makes it (mech3/patch12.h). The real program
+// on loopback, a host on 1.0's files and a joiner on 1.2's, then the other way round: the joiner gets into the
+// lobby (the session's version word is the rebuild's, the same on both; nothing compares the data), is not
+// turned back, and the host's LOCK OPTIONS locks with both in. Each side's own c3 maps: 1.0's player has the
+// two 1.2 adds in its write dir (patch12::provide_files), so neither is marked as lacking a world.
+TEST(sdl_two_processes_10_and_12_files_share_a_lobby) {
+  namespace fs = std::filesystem;
+  const std::string root = fs::path(MW3_GAME_DIR).parent_path().string(), v10 = root + "/mw3-1.0", v12 = root + "/mw3-1.2";  // game/
+  std::error_code ec;
+  if (!fs::exists(v10 + "/zbd/mechlib.zbd", ec) || !fs::exists(v12 + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_net_10_12";
+  auto spawn = [&](std::vector<std::string> args, const std::string& log) {
+    std::vector<std::string> v = {MW3_BIN};
+    v.insert(v.end(), args.begin(), args.end());
+    std::vector<char*> argv;
+    for (std::string& x : v) argv.push_back(x.data());
+    argv.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) != 0) pid = -1;
+    posix_spawn_file_actions_destroy(&fa);
+    return pid;
+  };
+  auto read = [](const std::string& path) {
+    std::ifstream f(path);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto has = [](const std::string& t, const char* w) { return t.find(w) != std::string::npos; };
+  int round = 0;
+  for (const auto& [host, join] : {std::make_pair(v10, v12), std::make_pair(v12, v10)}) {
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir + "/a", ec), fs::create_directories(dir + "/b", ec);
+    const int base = 39000 + static_cast<int>(getpid() % 2000) * 3 + round++ * 2;
+    const std::string game = std::to_string(base), lan = std::to_string(base + 1);
+    auto menus = [](std::vector<std::string> v, std::initializer_list<const char*> name) {
+      v.insert(v.end(), {"--click-at", "132,285@40"});
+      int at = 70;
+      for (const char* k : name) v.insert(v.end(), {"--tap", std::string(k) + "@" + std::to_string(at)}), at += 4;
+      v.insert(v.end(), {"--click-at", "470,320@100", "-nofmv", "--no-launcher", "--hidden", "--nosound", "--net-bind", "127.0.0.1", "--frame-ms", "33"});
+      return v;
+    };
+    // A: HOST; with B in: LOCK OPTIONS and its OK.
+    const pid_t a = spawn(menus({"--install", host, "--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan, "--click-at", "421,406@180",
+                                 "--click-players", "183,430@60/2", "--click-players", "246,290@100/2", "--frames", "1500"},
+                                {"0x14", "0x12", "0x1f", "0x14"}), dir + "/a.log");
+    for (int i = 0; i < 400 && !has(read(dir + "/a.log"), "multiplayer page 2"); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    const pid_t b = spawn(menus({"--install", join, "--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-at",
+                                 "100,143@420", "--click-at", "240,406@450", "--frames", "1100"},
+                                {"0x30", "0x12", "0x1f", "0x14"}), dir + "/b.log");
+    int st = 0;
+    if (b > 0) waitpid(b, &st, 0);
+    if (a > 0) waitpid(a, &st, 0);
+    const std::string la = read(dir + "/a.log"), lb = read(dir + "/b.log");
+    const bool ten_hosts = host == v10;
+    std::printf("  host on %s, joiner on %s: host in the lobby %d, joiner in the lobby %d, locked %d\n", ten_hosts ? "1.0" : "1.2", ten_hosts ? "1.2" : "1.0",
+                has(la, "multiplayer page 2"), has(lb, "multiplayer page 2"), has(la, "mw3: multiplayer: locked with 2 players"));
+    EXPECT(has(la, ten_hosts ? "mw3: data version 1.0" : "mw3: data version 1.2") && has(lb, ten_hosts ? "mw3: data version 1.2" : "mw3: data version 1.0"));
+    EXPECT(has(la, "multiplayer page 2") && has(lb, "multiplayer page 2"));
+    EXPECT(!has(lb, "join refused") && !has(lb, "turned back") && !has(la, "not locked"));
+    EXPECT(has(la, "mw3: multiplayer: locked with 2 players"));
+    if (!has(la, "locked with 2"))
+      for (size_t at = 0; (at = la.find("mw3: m", at)) != std::string::npos; ++at) std::printf("    %s\n", la.substr(at, la.find('\n', at) - at).c_str());
+  }
+  fs::remove_all(dir, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn, waitpid
 // Two mw3 from the menus through the lobby into one game (the lead's check
 // after piece 11c): A hosts, B finds and joins it; once both are in the
 // lobby (--click-players: counted from the second player's arrival) A locks
@@ -4985,6 +5216,16 @@ TEST(sdl_restart_args_are_the_starts_own) {
   const V back = sdlfe::restart_args(in, out);
   EXPECT((back == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-mods", "--restarted"}));
   EXPECT((sdlfe::restart_args(back, sdlfe::RestartTo{}) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--restarted"}));
+  // Multiplayer's entry and its plain start (upgrades/mods/ia_mods.h, kMpEntry); a start's own --entry-mp and --open-mp go.
+  sdlfe::RestartTo mp;
+  mp.entry = "mp", mp.screen = sdlfe::RestartTo::kMultiplayer;
+  const V in_mp = sdlfe::restart_args(start, mp);
+  EXPECT((in_mp == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--entry", "mp", "--entry-mp", "--restarted"}));
+  sdlfe::RestartTo plain_mp;
+  plain_mp.open_mp = true;
+  const V out_mp = sdlfe::restart_args(in_mp, plain_mp);
+  EXPECT((out_mp == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--open-mp", "--restarted"}));
+  EXPECT((sdlfe::restart_args(out_mp, sdlfe::RestartTo{}) == V{"--write-dir", "C:/my games/mw3", "--windowed", "-nofmv", "--restarted"}));
   // A check's script: its own run's is dropped, the part after --then goes to the next run, a second --then's to the one after.
   const V script = {"--hidden", "--click-at", "1,2@3", "--mouse-at", "4,5@6c", "--then", "--click-at", "7,8@9", "--tap", "1@2", "--then", "--tap", "3@4"};
   const V second = sdlfe::restart_args(script, out);

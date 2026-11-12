@@ -89,7 +89,9 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
 // parsed, a row refused as taken too: every player computes the same), in their order (0
 // with none). A translation or a texture pack does not change it.
 bool mod_file_is_gameplay(const std::string& rel);
-uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std::string>& enabled);
+// `mounted_over` (ours, upgrades/mods/mp_mods.h): the install the mods lie over; the number is then over what
+// the mods change in the mounted result, so a mod imported and the same mod laid by hand give one number.
+uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std::string>& enabled, const std::string* mounted_over = nullptr);
 
 // This program's mods as the lobby gives them to the other players: the
 // gameplay hash, and the names (mod.txt's, else the folder's) of the
@@ -98,9 +100,14 @@ uint64_t mods_gameplay_hash(const std::string& write_dir, const std::vector<std:
 struct ModsIdentity {
   uint64_t hash = 0;
   std::vector<std::string> names;
+  // The lobby's (upgrades/mods/mp_mods.h): the same over the mounted result, so an imported mod and one laid
+  // by hand agree; the mods that change the mounted game, and each one's own number.
+  uint64_t mp_hash = 0;
+  std::vector<std::string> mp_names;
+  std::vector<uint64_t> hashes;
 };
 ModsIdentity& mods_identity();
-void mods_identity_set(const std::string& write_dir, const std::vector<std::string>& enabled);
+void mods_identity_set(const std::string& write_dir, const std::vector<std::string>& enabled, const std::string& install = {});
 
 // The launcher's MODS list (ours, docs/modding.md, item 5): every folder in
 // the write dir's mods\ once, the enabled ones first in mw3.cfg's order, then

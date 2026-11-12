@@ -104,6 +104,54 @@ images, sounds, music and movies do not count, so a translation or a
 texture pack never blocks a game; with none on either side nothing changes.
 The block's layout: multiplayer-port.md, the mods check.
 
+**Mods in multiplayer (Owen, 2026-11-11: "make mods only work if they both
+have the same mods").** The multiplayer screen has a MODS button (ours, beside
+the session list; the line under it says "MODS: off" or "MODS: 2 on"). Its
+screen is Instant Action's: tick the mods, ACCEPT, and the game starts again
+inside multiplayer's own entry (`mp`, `--entry mp --entry-mp`) with those
+mods mounted and the same pilot, on the multiplayer screen again. ALL OFF and
+ACCEPT starts it again plain. The ticks are remembered
+(`campaigns/mp/mods.txt`); MULTIPLAYER on the main menu of a plain start
+still mounts nothing. The host hosts with what it has on; a joiner needs the
+same mods with the same files and is otherwise turned back to the multiplayer
+screen with what differs, mod by mod (`upgrades/mods/mp_mods.h`): "You do not
+have: X.", "Your copy of Y differs from the host's.", "The host does not
+use: Z." (at most three names in each, then "and N more"). The host's LOCK
+says the same about each player. Nothing is sent between players: a joiner
+gets the mod itself and ticks it.
+
+The number the lobby compares is over the mounted result
+(`mods_gameplay_hash` with the install; `mp_mounted_part`), not the mod's
+folder: a reader archive counts as the entries that differ from the
+install's or are new, by name, whether the mod holds it whole or as its
+changed entries (Archives by their changed entries, below), and any other
+gameplay file counts only when its bytes are not the install's. So a player
+who imported a mod and one who laid its whole archives into a mod folder by
+hand match. A whole archive that lacks one of the game's entries does not
+match the imported one (it hides the entry; the imported one keeps the
+game's). Which version of the original a player's files are does not count
+(Owen, 2026-11-11: "they shouldn't need the same version of the original
+game. Ours is built on patch 1.2."): the base is the game as played. On
+1.0's files (by size and CRC, data_version.h) a mod's entry is compared, read
+as a tree, with the install's entry after the 1.2 layer's edits, or with the
+entry the layer adds; a whole file that is 1.2's own counts for nothing over
+1.0's. So an import cut on a 1.0 install (which keeps the entries 1.2
+changed, because they differ from 1.0's) and the same mod on a 1.2 install
+give one number, imported or by hand. What still does not match, on purpose:
+a whole archive that lacks one of the game's entries against the imported
+mod; and a whole archive laid by hand over 1.0's files that still holds
+1.0's value of an entry the 1.2 layer edits (the layer never edits a mod's
+file, so that player would play 1.0's value there) against a player whose
+game plays 1.2's. The saved games' mods line keeps the folder's own number.
+Tests: `mp_mods_hash_importer_and_hand_laid_match`,
+`mp_mods_hash_same_on_10_and_12_installs` (the real 1.0 and 1.2 installs:
+1.2's thirteen patched reader archives over 1.0 count for nothing; one mod
+imported and by hand on each: four equal numbers),
+`net_lobby_mods_named_headless`,
+`sdl_program_multiplayer_mods_button_ticks_and_starts_again`,
+`sdl_two_processes_multiplayer_mods_match_or_turn_back` (two real programs:
+no mods, another copy, the same files).
+
 Tests: `test_mods.cpp` (mod.txt; the folders found; the mounts in order,
 the first winning, unusable names left out, nothing served for pilots or
 mw3.cfg, writes to the settings folder; a loose fmv.zrd over reader.zbd's,
@@ -1790,10 +1838,10 @@ edit and the rest in one whole archive of its own, which wins when the copy
 is played or tested. The mod, the install and the built folder are not
 written.
 
-**Multiplayer.** No mods mount in multiplayer today, and the lobby's identity
-is set before the mount, so nothing there changes. Noted for the plan for
-mods in multiplayer: the gameplay hash is over a mod's files, so the same mod
-added by IMPORT (`.entries`) and put in by hand (whole archives) hash apart.
+**Multiplayer.** The lobby's number is over what the mods change in the
+mounted game, entry by entry for a reader archive, so the same mod added by
+IMPORT (`.entries`) and put in by hand (whole archives) match (Mods in
+multiplayer, above; `mp_mounted_part`).
 
 **On the two real mods (2026-11-11).** Campaign Added Enemies 1.1 and
 Campaign AI Enhanced, each twenty whole mission archives, import as 121 and

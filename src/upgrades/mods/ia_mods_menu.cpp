@@ -28,28 +28,55 @@ IaModsRestart& ia_mods_restart() {
   return r;
 }
 
-namespace {
-bool inside_entry() { return entry_run().screen == EntryRun::kInstantAction && entry_run().id == kIaEntry; }
-}  // namespace
-
-std::string ia_mods_line(const std::string& write_dir, int ticked) {
-  const int n = ticked >= 0 ? ticked : inside_entry() ? static_cast<int>(entry_ticks(write_dir, kIaEntry).size()) : 0;
-  return n ? "MODS: " + std::to_string(n) + " on" : "MODS: off";
+bool& mp_mods_page() {
+  static bool on = false;
+  return on;
+}
+Handle& mp_mods_state() {
+  static Handle h = 0;
+  return h;
+}
+IaModsRestart& mp_mods_restart() {
+  static IaModsRestart r;
+  return r;
+}
+bool& mp_open_once() {
+  static bool on = false;
+  return on;
+}
+bool& mp_pilot_once() {
+  static bool on = false;
+  return on;
 }
 
-std::vector<std::string> ia_mods_missing(const std::string& write_dir) {
+namespace {
+bool inside_entry(const char* entry) {
+  const EntryRun& run = entry_run();
+  return run.id == entry && run.screen == (std::string(entry) == kMpEntry ? EntryRun::kMultiplayer : EntryRun::kInstantAction);
+}
+std::vector<std::string> missing_of(const std::string& write_dir, const char* entry) {
   const std::vector<CampaignEntry> all = campaign_entries(write_dir);
-  const CampaignEntry* e = find_entry(all, kIaEntry);
+  const CampaignEntry* e = find_entry(all, entry);
   return e ? entry_missing_mods(write_dir, *e) : std::vector<std::string>{};
 }
+std::string line_of(const std::string& write_dir, const char* entry, int ticked) {
+  const int n = ticked >= 0 ? ticked : inside_entry(entry) ? static_cast<int>(entry_ticks(write_dir, entry).size()) : 0;
+  return n ? "MODS: " + std::to_string(n) + " on" : "MODS: off";
+}
+}  // namespace
+
+std::string ia_mods_line(const std::string& write_dir, int ticked) { return line_of(write_dir, kIaEntry, ticked); }
+std::string mp_mods_line(const std::string& write_dir, int ticked) { return line_of(write_dir, kMpEntry, ticked); }
+
+std::vector<std::string> ia_mods_missing(const std::string& write_dir) { return missing_of(write_dir, kIaEntry); }
 
 IaModsStep ia_mods_step(const std::vector<std::string>& before, const std::vector<std::string>& now, bool inside) {
   if (now.empty()) return inside ? IaModsStep::kPlain : IaModsStep::kBack;
   return now == before && inside ? IaModsStep::kBack : IaModsStep::kIntoEntry;
 }
 
-IaModsScreen::IaModsScreen(Engine& e, Handle s)
-    : MenuScreen(e, s), accept_btn(e, kAccept), back(e, kBack), all_off(e, kAllOff), ticks(e) {
+IaModsScreen::IaModsScreen(Engine& e, Handle s, bool multiplayer)
+    : MenuScreen(e, s), accept_btn(e, kAccept), back(e, kBack), all_off(e, kAllOff), ticks(e), mp(multiplayer) {
   mods_screen_target(e);
   const bool moving = !e.fast_menu();
   if (load("dialog.zrd", "IAMODSDIALOG", moving)) {
@@ -90,16 +117,16 @@ IaModsScreen::IaModsScreen(Engine& e, Handle s)
   add(&title), add(&line), add(&note), add(&note2);
   set_flags_all(0);
   set_active(1);
-  inside = inside_entry();
-  before = entry_ticks(mods_menu_write_dir(), kIaEntry);
+  inside = inside_entry(entry_id());
+  before = entry_ticks(mods_menu_write_dir(), entry_id());
   ticks.no_campaign_only = true;
   ticks.fill(mods_menu_write_dir(), before);
   {  // for the checks: the rows as listed
     std::string rows;
     for (const ModsListEntry& r : ticks.rows) rows += (rows.empty() ? "" : ", ") + (r.info.name.empty() ? r.info.folder : r.info.name);
-    std::printf("mw3: Instant Action's MODS lists: %s\n", rows.empty() ? "nothing" : rows.c_str());
+    std::printf("mw3: %s's MODS lists: %s\n", mp ? "multiplayer" : "Instant Action", rows.empty() ? "nothing" : rows.c_str());
   }
-  mods_text_say(title, "I N S T A N T   A C T I O N");
+  mods_text_say(title, mp ? "M U L T I P L A Y E R" : "I N S T A N T   A C T I O N");
   show_note();
 }
 
@@ -122,7 +149,7 @@ void IaModsScreen::tell(const std::string& text) {
 // chosen row's (why it cannot be used, what it needs or shares), else what
 // ACCEPT would do.
 void IaModsScreen::show_note() {
-  mods_text_say(line, ia_mods_line(mods_menu_write_dir(), static_cast<int>(ticks.ticks.size())));
+  mods_text_say(line, line_of(mods_menu_write_dir(), entry_id(), static_cast<int>(ticks.ticks.size())));
   const std::string n = ticks.note();
   const std::vector<std::string> running = inside ? before : std::vector<std::string>{};
   // With no mods there is nothing to turn on, off or move: ALL OFF (it was a second way out; playtest W6),
@@ -132,7 +159,9 @@ void IaModsScreen::show_note() {
        : ticks.rows.empty() ? "No mods yet. Get one on the main menu: MODS, then IMPORT."
        : !inside && !ticks.ticks.empty() && ticks.ticks == before ? "Ticked last time. ACCEPT starts the game again with them."
        : ticks.ticks != running ? "ACCEPT starts the game again with these."
-       : inside ? "These mods are on now." : "Tick the mods to play Instant Action with, then ACCEPT.");
+       : inside ? (mp ? "These mods are on now: every player needs the same." : "These mods are on now.")
+       : mp ? "Tick the mods to host or join with, then ACCEPT. Every player needs the same."
+            : "Tick the mods to play Instant Action with, then ACCEPT.");
 }
 
 void IaModsScreen::on_button(int32_t id, int32_t, int32_t) {
@@ -154,7 +183,7 @@ void IaModsScreen::on_button(int32_t id, int32_t, int32_t) {
 void IaModsScreen::accept() {
   const std::string& dir = mods_menu_write_dir();
   const std::vector<CampaignEntry> all = campaign_entries(dir);
-  const CampaignEntry* e = find_entry(all, kIaEntry);
+  const CampaignEntry* e = find_entry(all, entry_id());
   if (!e || !entry_save_ticks(dir, *e, ticks.ticks)) {
     tell("The mods could not be saved (the settings folder cannot be written).");
     return;
@@ -168,7 +197,8 @@ void IaModsScreen::accept() {
   if (step == IaModsStep::kIntoEntry)
     for (const std::string& m : entry_missing_mods(dir, *e))
       why += (why.empty() ? "these mods are not there any more (turn them off or import them again): " : ", ") + m;
-  if (why.empty() && !ia_mods_restart()) why = "the game cannot start again from here";
+  const IaModsRestart& restart = mp ? mp_mods_restart() : ia_mods_restart();
+  if (why.empty() && !restart) why = "the game cannot start again from here";
   if (!why.empty()) {
     tell("Not started: " + why);
     return;
@@ -177,12 +207,12 @@ void IaModsScreen::accept() {
   // picked there, or the main menu's brought across quietly (entry_pilots.h); going out, the main menu's.
   if (current_pilot()) current_pilot()->save();  // on disk as the player sees it (a new pilot has no file until then)
   const std::string pilot = current_pilot() ? current_pilot()->name : "";
-  if (!ia_mods_restart()(step == IaModsStep::kIntoEntry, pilot, &why)) tell("Not started: " + why);
+  if (!restart(step == IaModsStep::kIntoEntry, pilot, &why)) tell("Not started: " + why);
 }
 
 bool IaModsState::enter() {
   Engine& en = e();
-  screen_ = en.construct(kIaModsScreenCtor, {addr()});
+  screen_ = en.construct(mp ? kMpModsScreenCtor : kIaModsScreenCtor, {addr()});
   ShellState::enter();
   return true;
 }

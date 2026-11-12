@@ -217,6 +217,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
   options_upgrades_page() = true;       // ours: the options' UPGRADES page
   mods_menu_page() = true;              // ours: the main menu's MODS
   ia_mods_page() = true;                // ours: Instant Action's MODS tab
+  mp_mods_page() = true;                // ours: the multiplayer screen's MODS button
   // Ours: MODS's EDIT (upgrades/editor/mods_edit.h): the mission started as
   // a debug start is (a stand-in pilot, no briefing), the chosen pilot and
   // the launch put back when it is over.
