@@ -5238,6 +5238,8 @@ TEST(sdl_program_mission_switch_stays_and_mods_comes_back_alive) {
     const size_t up = down == std::string::npos ? down : text.find(": up, row", down);
     const size_t left = text.find("mw3: entry mw3 left: starting again on MODS");
     EXPECT(down != std::string::npos && up != std::string::npos);  // the switch both ways, in the mission
+    const size_t pl = text.find("mw3: pause: the switch is PLAYMISSION");  // its label what a press does: in the editor PLAY, in play EDIT
+    EXPECT(pl != std::string::npos && pl < down && text.find("mw3: pause: the switch is EDITMISSION") > down && text.find("mw3: pause: the switch is EDITMISSION") != std::string::npos);
     EXPECT(left != std::string::npos && up < left);                // MODS only after the mission was left
     const size_t said = text.find(way == 2 ? "mw3: debriefing of a MODS mission: ABORT, back to MODS" : "mw3: debriefing of a MODS mission: CONTINUE, back to MODS");
     EXPECT(won ? said != std::string::npos && said < left : text.find("mw3: debriefing of a MODS mission:") == std::string::npos);
