@@ -740,3 +740,24 @@ the original's bake. Test:
 the options, graphics, controls, pilots and credits with `-seasick` against
 the same without: every place equal, LINES stretched, the picture 853
 wide); break: without the call LINES is 483 wide and four checks fail.
+
+### A control's looks after a stretch (2026-11-12, playtest W6 found)
+
+What Owen's picture showed (Instant Action at 16:9 after its MODS screen:
+the map box and its two cycles' bars at their 640 places, the texts at the
+right) comes from a plainer path than FastMenu: MODS, then BACK. Dev 4
+reproduced it on Windows with exact steps and no mods; on the Mac it shows
+at any wide size, with mods or without. The box's lines and the bars are
+one 576-wide image, a ShellButton's, which the wide layout stretches into
+a new texture (`stretch_image`). A control keeps its looks apart from the
+texture it shows (`img_normal`, `img_disabled`, `img_rollover`,
+`img_activate`), and its refresh (0x0059c790), run as the screen comes
+back, puts the enabled look on: the 576 one, drawn from the box's place,
+its art at the 640 places. Nothing had moved; the picture had.
+Now `replace_looks` (app_menus.cpp) points each look that was the old
+texture at the stretched one, for `stretch_image` and `widen_background`
+alike, letting go of the old as the control's destructor would. Checked:
+`sdl_program_instant_action_mods_back_keeps_its_wide_pictures` (the
+screen's images' width the same through MODS > BACK, no mods and one; the
+break, the looks left, fails both). Multiplayer's MODS > BACK was right
+already: its lines are a plain image, with no looks to put back.
