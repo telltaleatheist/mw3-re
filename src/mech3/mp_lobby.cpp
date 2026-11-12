@@ -147,8 +147,8 @@ bool LobbyScreen::mod_hashes_of(const std::vector<uint32_t>& d, std::vector<uint
   hashes->clear();
   uint32_t bits = 0;
   if (!upgrades_of(d, &bits)) return false;
-  const size_t worlds = d[3] < 64 ? d[3] : 64;
-  size_t at = std::max<size_t>(5, 4 + worlds) + 3;
+  const size_t worlds = d[kPmDataWords] < 64 ? d[kPmDataWords] : 64;  // Pirate's Moon's layout, as mods_of
+  size_t at = kPmDataWords + 1 + worlds + 3;                          // the names' count
   const uint32_t count = std::min<uint32_t>(d[at], 16);
   ++at;
   for (uint32_t k = 0; k < count && at < d.size(); ++k) {

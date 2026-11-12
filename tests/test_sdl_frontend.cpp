@@ -3613,6 +3613,22 @@ const char* const kLockAt = "183,430";
 const char* const kMechLabAt = "329,440";
 #endif
 std::string menu_frame(int n) { return std::to_string(n + kMenuShift); }  // a frame counted from the start
+#if defined(MW3_PM_SUITE) && !defined(_WIN32)
+// The MW3-only part's waitpid with a limit, for the multiplayer mods tests below, which run on mw3pm too.
+bool waited(pid_t pid, int* status, int seconds = 120) {
+  if (pid <= 0) return false;
+  for (int i = 0; i < seconds * 20; ++i) {
+    const pid_t got = waitpid(pid, status, WNOHANG);
+    if (got == pid) return true;
+    if (got < 0) return false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+  std::printf("the program ran past %d s: killed\n", seconds);
+  kill(pid, SIGKILL);
+  waitpid(pid, status, 0);
+  return false;
+}
+#endif
 #if !defined(_WIN32)  // posix_spawn, waitpid
 extern char** environ;
 
@@ -3786,8 +3802,9 @@ TEST(sdl_program_multiplayer_mods_button_ticks_and_starts_again) {
   std::ofstream(dir + "/wd/mods/guns/zbd/thing.dat") << "x";
   auto run = [&](const std::vector<std::string>& extra, const char* name) {
     std::vector<std::string> args = {"--install", install, "-nofmv", "--write-dir", dir + "/wd", "--no-launcher", "--hidden", "--nosound",
-                                     "--frame-ms", "33", "--seed", "1", "--frames", "700", "--net-bind", "127.0.0.1", "--net-port", "0",
-                                     "--click-at", "135,285@130", "--tap", "30@200", "--tap", "48@215", "--click-at", "420,320@260"};
+                                     "--frame-ms", "33", "--seed", "1", "--frames", menu_frame(700), "--net-bind", "127.0.0.1", "--net-port", "0",
+                                     "--click-at", "135,285@" + menu_frame(130), "--tap", "30@" + menu_frame(200), "--tap", "48@" + menu_frame(215),
+                                     "--click-at", "420,320@" + menu_frame(260)};
     args.insert(args.end(), extra.begin(), extra.end());
     const std::string log = dir + "/" + name + ".log";
     int status = 0;
@@ -3798,7 +3815,8 @@ TEST(sdl_program_multiplayer_mods_button_ticks_and_starts_again) {
   };
   auto at = [](const std::string& t, const char* what, size_t from = 0) { return t.find(what, from); };
   const size_t none = std::string::npos;
-  const std::string a = run({"--click-at", "540,236@520", "--click-at", "470,47@560", "--click-at", "410,254@580", "--click-at", "420,320@600"}, "a");
+  const std::string a = run({"--click-at", "540,236@" + menu_frame(520), "--click-at", "470,47@" + menu_frame(560), "--click-at",
+                             "410,254@" + menu_frame(580), "--click-at", "420,320@" + menu_frame(600)}, "a");
   const size_t off = at(a, "mw3: multiplayer screen made, MODS: off"), again = at(a, "mw3: multiplayer's MODS: starting again into entry mp");
   const size_t entered = at(a, "mw3: entry mp (Multiplayer): 1 mods"), on = at(a, "mw3: multiplayer screen made, MODS: 1 on");
   std::printf("  off %d, started again %d, entered %d, on %d\n", off != none, again != none, entered != none, on != none);
@@ -3812,7 +3830,7 @@ TEST(sdl_program_multiplayer_mods_button_ticks_and_starts_again) {
   std::ifstream t(dir + "/wd/campaigns/mp/mods.txt");
   EXPECT(std::string((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>()) == "mod=guns\n");
   // A plain start after it: nothing mounted, the ticks still kept.
-  const std::string b = run({"--hover-at", "540,236@480"}, "b");
+  const std::string b = run({"--hover-at", "540,236@" + menu_frame(480)}, "b");
   EXPECT(at(b, "mw3: multiplayer screen made, MODS: off") != none && at(b, "mounted") == none && at(b, "mw3: entry") == none);
   // The mouse over the MODS tab says what a press does.
   EXPECT(at(b, "mw3: multiplayer: hover: Play multiplayer with mods. The game starts again to load them. Everyone needs the same mods.") != none);
@@ -3880,15 +3898,15 @@ TEST(sdl_two_processes_multiplayer_mods_match_or_turn_back) {
   // A new pilot's name typed and ACCEPT; a plain start clicks MULTIPLAYER first (an entry's start opens it).
   auto menus = [](std::vector<std::string> v, bool entry, std::initializer_list<const char*> name) {
     if (entry) v.insert(v.end(), {"--entry", "mp", "--entry-mp"});
-    else v.insert(v.end(), {"--click-at", "132,285@40"});
-    int at = 70;
+    else v.insert(v.end(), {"--click-at", "132,285@" + menu_frame(40)});
+    int at = 70 + kMenuShift;
     for (const char* k : name) v.insert(v.end(), {"--tap", std::string(k) + "@" + std::to_string(at)}), at += 4;
-    v.insert(v.end(), {"--click-at", "470,320@100"});
+    v.insert(v.end(), {"--click-at", "470,320@" + menu_frame(100)});
     return v;
   };
   const std::vector<std::string> common = {"--install", install, "-nofmv", "--no-launcher", "--hidden", "--nosound", "--net-bind",
                                            "127.0.0.1", "--frame-ms", "33"};
-  std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan, "--click-at", "421,406@180",
+  std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan, "--click-at", "421,406@" + menu_frame(180),
                                        "--frames", "100000"}, true, {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
   const pid_t a = spawn(va, dir + "/a.log");
@@ -3908,7 +3926,8 @@ TEST(sdl_two_processes_multiplayer_mods_match_or_turn_back) {
   };
   for (const Join& j : joins) {
     std::vector<std::string> vb = menus({"--write-dir", dir + "/" + j.name, "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-at",
-                                         "100,143@420", "--click-at", "240,406@450", "--frames", "600"}, j.entry, {"0x30", "0x12", "0x1f", "0x14"});
+                                         "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450), "--frames", menu_frame(600)}, j.entry,
+                                        {"0x30", "0x12", "0x1f", "0x14"});
     vb.insert(vb.end(), common.begin(), common.end());
     const pid_t b = spawn(vb, dir + "/" + j.name + ".log");
     int st = 0;
