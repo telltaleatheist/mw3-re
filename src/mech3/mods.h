@@ -117,6 +117,7 @@ struct ModsListEntry {
   bool on = false;
   std::vector<std::string> shadowed;     // its files an earlier enabled mod holds (lower case, '/')
   std::vector<std::string> rows_taken;   // its mech= / weapon= names an earlier enabled mod adds
+  int salvage_taken = 0;  // ours (salvage_chance.h): its salvage_chance= / mission_salvage= values an earlier enabled mod sets
   // Ours (modding.md, Animations a def at a time): its def files' animations
   // an earlier enabled mod's def files hold ("c1 <key>", "all worlds <key>"),
   // and the worlds where an earlier enabled mod's whole anim file is the base

@@ -47,6 +47,11 @@ File mod_txt() {
                "`campaign=` or `world=` lines or files of the game's own worlds (`zbd\\c1\\` to `zbd\\t1\\`) is a campaign."},
               {"", "base", "an entry's id", "none", "written by the game",
                "A copy's: the campaign it was saved from (`mw3`, or `<mod>~<campaign>`), mounted under it."},
+              {"", "salvage_chance", "int", "the original's 1 in 2", "0 to 100",
+               "How many times in 100 a kill's salvage is offered, in every mission of the campaign the mod is ticked for: a "
+               "destroyed vehicle's weapons, and a destroyed mech that lost a leg. The first ticked mod that sets it wins."},
+              {"", "mission_salvage", "`<world> <n> <N>`", "none", "N 0 to 100; one line a mission",
+               "The same for one mission (its world's folder and number), over `salvage_chance`."},
           }};
 }
 

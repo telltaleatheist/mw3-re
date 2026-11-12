@@ -12,6 +12,8 @@
 #include "mech3/cheats.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/mods.h"
+#include "mech3/mods_menu.h"
+#include "upgrades/mods/mod_report.h"
 #include "mech3/pilot.h"
 #include "upgrades/mods/salvage_chance.h"
 
@@ -168,4 +170,31 @@ TEST(salvage_chance_first_ticked_mod_and_the_missions_line) {
   mount({});  // as a plain start: nothing mounted, nothing set
   EXPECT(mech3::salvage_chance_for("c1", 2) == -1 && mech3::salvage_rules().chance == -1);
   zutl::mounts() = mounts;
+}
+
+// The check, the report and the MODS list: a mod of the one line is usable and its report says what it sets;
+// a line that does not read is a warning and that line left out; of two ticked mods that set it the later
+// one's note says it shares its salvage chance with the first, which wins.
+TEST(salvage_chance_check_report_and_shared_note) {
+  const std::string wd = tmp_dir("salvage_chance_report");
+  put(wd + "/mods/Gen/mod.txt", "name=Generous\nfor=mw3\nsalvage_chance=100\n");
+  put(wd + "/mods/Mean/mod.txt", "name=Mean\nfor=mw3\nsalvage_chance=0\nmission_salvage=c1 1 5\n");
+  put(wd + "/mods/Odd/mod.txt", "name=Odd\nfor=mw3\nsalvage_chance=lots\nmission_salvage=c1 1 50\n");
+  int errors = -1, refused = -1;
+  std::string lines;
+  for (const std::string& l : mech3::mod_check(wd + "/mods/Gen", MW3_GAME_DIR, &errors)) lines += l + "\n";
+  EXPECT(errors == 0 && lines.find("salvage_chance 100: ok") != std::string::npos && lines.find("warning:") == std::string::npos);
+  std::string report;
+  for (const std::string& l : mech3::mod_report(wd + "/mods/Gen", MW3_GAME_DIR, "", &refused)) report += l + "\n";
+  EXPECT(refused == 0);
+  EXPECT(report.find("It sets how often a kill's salvage is offered: 100 in 100; the original's is 1 in 2.") != std::string::npos);
+  EXPECT(report.find("It changes nothing in the game") == std::string::npos);
+  lines.clear();
+  for (const std::string& l : mech3::mod_check(wd + "/mods/Odd", MW3_GAME_DIR, &errors)) lines += l + "\n";
+  EXPECT(errors == 0 && lines.find("warning: salvage_chance lots") != std::string::npos && lines.find("mission_salvage c1 1 50: ok") != std::string::npos);
+  const std::vector<mech3::ModsListEntry> list = mech3::mods_list(wd, {"Gen", "Mean", "Odd"});
+  EXPECT(list.size() == 3 && list[0].info.folder == "Gen" && list[0].salvage_taken == 0 && list[0].conflicts_with.empty());
+  EXPECT(list[1].salvage_taken == 1 && list[1].conflicts_with == std::vector<std::string>{"Gen"});
+  EXPECT(list[2].salvage_taken == 1 && list[2].conflicts_with == std::vector<std::string>{"Mean"});  // its mission's line; its bad value shares nothing
+  EXPECT(mech3::mods_row_note_shared(list[1], list) == "Shares its salvage chance with Generous, which wins");
 }
