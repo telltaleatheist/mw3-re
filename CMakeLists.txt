@@ -636,6 +636,7 @@ add_executable(mw3tests
   tests/test_mod_install.cpp
   tests/test_import_folder.cpp
   tests/test_found_worlds.cpp
+  tests/test_mod_export_world.cpp
   tests/test_entry_archives.cpp
   tests/test_installer_read.cpp
   tests/test_reference.cpp
