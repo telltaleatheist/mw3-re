@@ -517,6 +517,8 @@ data +0x684, or an Elemental, type 7):
   1's tech is always 3).
 
 **0x00472ec0, another vehicle**: on a coin its weapons, Clan tech first.
+(Ours: a mod may set the odds of both coins for a campaign played from MODS,
+modding.md, The salvage chance; unset, the draw is this one.)
 
 Ported: `add_salvage`, `add_weapons`, `add_vehicle_salvage` and
 `lance_salvage` over a `SalvageMech` (what 0x00472f00 reads; the program

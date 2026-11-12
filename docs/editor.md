@@ -1664,6 +1664,25 @@ The exe keeps Apply only in aiv.zrd's record cache and in the running brain
     vehicle editor's Save under MODS EDIT goes into the mod itself, the net's
     save kept as the .bak.
 
+## Mission settings (2026-11-11)
+
+Ours (`upgrades/editor/mission_settings`; Owen: "salvage can be a mission-level setting"): the main menu's one
+blank row is MISSION SETTINGS, a form for the mission that is open, reached as New Weapon is (only in a mission
+opened from MODS; elsewhere the line under the menu says so). One setting for now, "salvage chance": how many
+times in 100 a kill's salvage is offered in this mission (modding.md, The salvage chance), empty for none of its
+own. The form shows the mission ("Mission: c2 3"), the copy's own value when it has one, and what the mission
+plays with now ("Now: 30 in 100 (<mod>)", or the original's 1 in 2).
+
+OK checks the value on the form (a whole number from 0 to 100, or empty), asks the copy's name at a session's
+first save (save_as.h), and writes mod.txt's `mission_salvage=<world> <n> <N>` line into the player's copy:
+in its old line's place, else after the last such line, else at the end; empty takes the mission's line out;
+every other line and its line end kept, the old file as mod.txt.bak. A mod the editor did not make is refused
+on the form and never written. It counts from the next start (the mount reads it). Kept in mod.txt, not in the
+mission's own files: the original's readers never meet it.
+
+Tests: `mission_settings_mod_txt_line`, `mission_settings_form_writes_the_missions_line`; the help's
+coverage (`mission_c1m1_editor_help_covers_every_form_headless`, 14 forms).
+
 ## Teleport (2026-11-10)
 
 **The original's.** The developers' teleport, command 0x95. It is a case of
