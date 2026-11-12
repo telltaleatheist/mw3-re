@@ -22,6 +22,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/zai_valve.h"
 #include "upgrades/editor/aiv_save.h"
+#include "upgrades/editor/zrd_bytes.h"
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/help.h"
 #include "upgrades/editor/node_params.h"
@@ -622,6 +623,42 @@ TEST(add_vehicle_form_and_record) {
   mech3::editor_exit();
   mech3::editor_reset();
   mech3::set_editor_hooks(nullptr);
+}
+
+// Loose words between aiv.zrd's records (a mod's file may hold some, as Pirate's Moon's readermp files do: a comment
+// the file's compiler kept). The game finds a record by its name anywhere (0x004e0680), so the editor's helpers take
+// a record as a name followed by its list and step over the words: the next free name sees apc_02 after them, a
+// save over apc_02 replaces its value where it stands, and the words stay. Two at a time, every pair after them was
+// out of step.
+TEST(aiv_helpers_step_over_loose_words) {
+  // (("apc_01" (3 (1 2 3) 0.5 2) ":spawn" "points" "for" "apc_02" (3 (4 5 6) 0.5 2)))
+  std::vector<uint8_t> b;
+  const auto w = [&](uint32_t v) { b.insert(b.end(), reinterpret_cast<uint8_t*>(&v), reinterpret_cast<uint8_t*>(&v) + 4); };
+  const auto str = [&](const char* t) { w(3), w(uint32_t(std::strlen(t))), b.insert(b.end(), t, t + std::strlen(t)); };
+  const auto flt = [&](float f) { uint32_t u; std::memcpy(&u, &f, 4); w(2), w(u); };
+  const auto rec = [&](float x) { w(4), w(5), w(1), w(3), w(4), w(4), flt(x), flt(2), flt(3), flt(0.5f), w(1), w(2); };
+  w(4), w(2), w(4), w(8);
+  str("apc_01"), rec(1);
+  str(":spawn"), str("points"), str("for");
+  str("apc_02"), rec(4);
+  EXPECT(mech3::aiv_free_name(b.data(), b.size(), "apc") == "apc_03");
+  std::vector<mech3::zrdbytes::Pair> pairs;
+  size_t end = 0;
+  EXPECT(mech3::zrdbytes::record_pairs_of(b.data(), b.size(), &pairs, &end) && end == b.size());
+  EXPECT(pairs.size() == 2 && pairs[0].key == "apc_01" && pairs[1].key == "apc_02");
+  // A save over apc_02: its value replaced in place, the item count and the words as they were.
+  std::vector<uint8_t> v;
+  const auto put = [&](uint32_t x) { v.insert(v.end(), reinterpret_cast<uint8_t*>(&x), reinterpret_cast<uint8_t*>(&x) + 4); };
+  put(4), put(2), put(1), put(7);
+  const std::vector<uint8_t> out = mech3::aiv_with_edits(b.data(), b.size(), {{"apc_02", v}});
+  uint32_t items = 0;
+  if (out.size() > 16) std::memcpy(&items, out.data() + 12, 4);
+  const std::string text(out.begin(), out.end());
+  EXPECT(items == 8 && text.find(":spawn") != std::string::npos && text.find("points") != std::string::npos);
+  EXPECT(out.size() == b.size() - (pairs[1].end - pairs[1].value) + v.size());
+  EXPECT(std::equal(v.begin(), v.end(), out.end() - static_cast<std::ptrdiff_t>(v.size())));  // apc_02's, last as it stood
+  std::printf("  loose words: next free %s, records %zu, a save keeps %u items\n",
+              mech3::aiv_free_name(b.data(), b.size(), "apc").c_str(), pairs.size(), items);
 }
 
 // The vehicle editor's shell (S7c; 0x004b86e0, docs/editor.md, The vehicle

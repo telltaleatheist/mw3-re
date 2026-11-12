@@ -335,7 +335,7 @@ std::vector<uint8_t> aiv_record_written(const uint8_t* was, size_t was_size, con
 std::vector<uint8_t> aiv_with_edits(const uint8_t* p, size_t size, const std::vector<AivEdit>& edits) {
   std::vector<Pair> pairs;
   size_t list_end = 0;
-  if (!pairs_of(p, size, &pairs, &list_end)) return {};
+  if (!record_pairs_of(p, size, &pairs, &list_end)) return {};
   std::vector<uint8_t> body;
   std::vector<bool> used(edits.size());
   size_t q = 16;
@@ -381,7 +381,7 @@ bool record_in_mission(const std::string& name, std::vector<uint8_t>* aiv, std::
   if (!aiv_entry_of_mission(archive, aiv)) return false;
   std::vector<Pair> pairs;
   size_t list_end = 0;
-  if (!pairs_of(aiv->data(), aiv->size(), &pairs, &list_end)) return false;
+  if (!record_pairs_of(aiv->data(), aiv->size(), &pairs, &list_end)) return false;
   *at = *end = 0;
   for (const Pair& pr : pairs)
     if (pr.key == name) *at = pr.value, *end = pr.end;
