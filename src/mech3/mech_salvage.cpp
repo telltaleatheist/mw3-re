@@ -7,11 +7,20 @@
 #include "mech3/mech_names.h"
 #include "mech3/pilot.h"
 #include "mech3/cheats.h"
+#include "upgrades/mods/salvage_chance.h"
 
 namespace mech3 {
 
 namespace {
 constexpr int32_t kSingleSink = 9, kDoubleSink = 10;
+
+// The coin: rand() & 1. Ours: with a mod's odds for the mission (salvage_chance.h) the same one draw, judged
+// against them.
+bool coin(const SalvageCalls& c) {
+  const int32_t r = c.rand();
+  const int32_t chance = c.chance ? c.chance() : -1;
+  return chance < 0 ? (r & 1) != 0 : salvage_coin(r, chance);
+}
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x00472da0. A weapon not made in its tech is taken in the
@@ -40,7 +49,7 @@ bool add_salvage(Store& s, SalvageMech& m, const SalvageCalls& c) {
   if (!m.has_data || m.type == kElemental) return false;
   bool mech = m.chassis;  // Pirate's Moon 0x00474f80, its +0x5ae: MW3's asks the torso and the head
   // Ours: food for thought wins the coin (cheats.h).
-  if (mech && (m.leg_gone[0] || m.leg_gone[1])) mech = cheats().max_salvage || (c.rand() & 1) != 0;
+  if (mech && (m.leg_gone[0] || m.leg_gone[1])) mech = cheats().max_salvage || coin(c);
   if (mech) s.add_mech(m.type);
   add_weapons(s, m, m.tech, c);
   if (m.config) {
@@ -60,7 +69,7 @@ bool add_salvage(Store& s, SalvageMech& m, const SalvageCalls& c) {
 
 // Mech3.exe 1.2 @ 0x00472ec0
 bool add_vehicle_salvage(Store& s, SalvageMech& m, const SalvageCalls& c) {
-  if (!cheats().max_salvage && !(c.rand() & 1)) return true;  // ours: food for thought wins it (cheats.h)
+  if (!cheats().max_salvage && !coin(c)) return true;  // ours: food for thought wins it (cheats.h)
   return add_weapons(s, m, 1, c);
 }
 

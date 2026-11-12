@@ -163,10 +163,23 @@ bool mission(const std::string&, Files* out, std::string*) {
                                 "(MODS, CAMPAIGNS: Starter: One Mission; one_mission.txt).");
   return true;
 }
+
+// One line of mod.txt and nothing of the game's: a tick for any campaign (salvage_chance.h).
+bool salvage(const std::string&, Files* out, std::string*) {
+  (*out)["mod.txt"] = head("Starter: Generous Salvage", "Every kill's salvage is offered (the original offers it one time in two).") +
+                      "# 0 to 100: how many times in 100 a destroyed vehicle's weapons, and a destroyed mech that lost a leg, are offered.\n"
+                      "salvage_chance=100\n"
+                      "# One mission of its own, over the line above: its world's folder, its number, 0 to 100. For example:\n"
+                      "# mission_salvage=c1 2 50\n";
+  (*out)["about_this_mod.txt"] = readme("salvage",
+                                "Sets how often a kill's salvage is offered: always (salvage_chance=100 in mod.txt). Tick it for a "
+                                "campaign on MODS; the main menu's campaign is never changed.");
+  return true;
+}
 }  // namespace
 
 const std::vector<std::string>& starter_kinds() {
-  static const std::vector<std::string> k = {"mech", "weapon", "translation", "mission"};
+  static const std::vector<std::string> k = {"mech", "weapon", "translation", "mission", "salvage"};
   return k;
 }
 
@@ -182,7 +195,8 @@ StarterMade starter_make(const std::string& kind, const std::string& install, co
   else if (kind == "weapon") built = weapon(install, &files, &why);
   else if (kind == "translation") built = translation(install, &files, &why);
   else if (kind == "mission") built = mission(install, &files, &why);
-  else why = "no starter " + kind + " (mech, weapon, translation, mission)";
+  else if (kind == "salvage") built = salvage(install, &files, &why);
+  else why = "no starter " + kind + " (mech, weapon, translation, mission, salvage)";
   if (!built) return r.message = "Not made: " + why + ".", r;
   // Only a new folder: one there already, whatever it holds, is left alone.
   std::error_code ec;

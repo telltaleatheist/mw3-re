@@ -153,6 +153,7 @@
 #include "upgrades/editor/help.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
+#include "upgrades/editor/mission_settings.h"
 #include "upgrades/editor/new_weapon.h"
 #include "upgrades/editor/teleport.h"
 #include "mech3/zainetedit.h"
@@ -2398,7 +2399,7 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
   const std::string wd = temp_dir("mods_screen_report_write");
   zutl::set_write_dir(wd);
   std::filesystem::create_directories(wd + "/mods/lost/zbd");
-  std::ofstream(wd + "/mods/lost/mod.txt") << "name=Lost\ncampaign=lost.txt\nmech=bad\n";
+  std::ofstream(wd + "/mods/lost/mod.txt") << "name=Lost\ncampaign=lost.txt\nmech=bad\nmission_salvage=c1 1 100\n";
   std::ofstream(wd + "/mods/lost/lost.txt") << "name=Lost Frontier\nmission=c1 1\n";
   std::ofstream(wd + "/mods/lost/zbd/notes.bin") << "x";
   // A copy saved from it: one file changed, one added.
@@ -2504,6 +2505,7 @@ TEST(mods_screen_report_shows_a_mods_sentences_headless) {
     EXPECT(!lines.empty() && widest <= 34);
     EXPECT(all.find("It adds 2 new files.") != std::string::npos);  // notes.bin and the campaign's lost.txt
     EXPECT(all.find("It adds the campaign \"Lost Frontier\".") != std::string::npos);
+    EXPECT(all.find("For c1 mission 1 it sets how often a kill's salvage is offered: 100 in 100. The original's is 1 in 2.") != std::string::npos);  // ours: the salvage chance
     // A line of mod.txt the game cannot use: a warning in its parts, said once, the mod not refused.
     EXPECT(all.find("1 warning, none of which refuses the mod: 1 stops part of the mod working.") != std::string::npos && heading == "1 warning, nothing refused");
     EXPECT(all.find("WHAT STOPS PART OF THE MOD WORKING (1) 1. mech bad Wrong: tech= must be clan, sphere or any. The rebuild: this line of "
@@ -29028,6 +29030,9 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
         ++previews;
       }
     mech3::new_weapon_form().press("Cancel");
+    mech3::mission_settings_open(0);  // as New Weapon: from MODS's missions only
+    look(mech3::mission_settings_form());
+    mech3::mission_settings_form().press("Cancel");
     ms = kept;
     mech3::teleport_open(0);
     look(mech3::teleport_form());
@@ -29057,7 +29062,7 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
               seen.missing.size(), stale.size());
   for (const std::string& m : seen.missing) std::printf("    no tip: %s\n", m.c_str());
   for (const std::string& m : stale) std::printf("    tip for nothing: %s\n", m.c_str());
-  EXPECT(forms == 13 && previews == 2 && seen.missing.empty() && stale.empty());
+  EXPECT(forms == 14 && previews == 2 && seen.missing.empty() && stale.empty());
   EXPECT(!saved_at_once && box_closed && nothing_made);
 }
 

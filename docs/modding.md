@@ -212,6 +212,82 @@ an id left out, nothing without mods) and `mod_world_plays_in_instant_action_hea
 (a mod world of c1's files linked, `source c1.gs`, Instant Action on world
 9: its readers read from `zbd\mymap\`, the player's mech in play).
 
+### A world the game does not have, found at IMPORT (Z2, 2026-11-11)
+
+Owen (2026-11-11): making things is zStudio's ([Vorta/zStudio](https://github.com/Vorta/zStudio)), which
+exports ordinary game files for MechWarrior 3 1.2; the rebuild imports them and plays them. A zStudio export
+of a new world is the world's folder under `zbd\` (its `gamez.zbd`, `anim.zbd`, `reader.zbd` with
+`world.zrd`, `readerm<n>.zbd` for each mission, `readeria<n>`/`readermp<n>` for the maps, `rtexture.zbd`)
+and an `interp.zbd` holding every prepared script, the world's `<world>.gs` among them (zStudio's
+docs/mw3-source-project.md: "Prepared scripts build interp.zbd", "aipath/m1 builds readerm1.zbd"). Such an
+export has no mod.txt, so until now its world played only with `world=` written by hand.
+
+**At IMPORT** (`upgrades/mods/found_worlds`), a mod with no mod.txt of its own (a folder, a zip, or a game
+folder it was laid over: the files that differ or are new are taken, a new world's all new) is looked
+through for worlds: `zbd\<name>\` holding a `gamez.zbd` (or our JSON or zip form), `<name>` none of the
+game's nine (any case) and a name the mount takes (no slash, dot or space). The mod.txt the game writes
+then gets, for each one:
+
+- `world=<name>`;
+- `ia_world=<name> <name>` when it has `readeria<n>.zbd` maps;
+- a campaign of its missions (`readerm<n>.zbd`, in number order) when it has any: the file `<name>.txt`
+  (its id the name's letters, digits, `_` and `-`, a name no file at the mod's root has: `<name>_2.txt`
+  if taken), `name=<name>` and a `mission=<name> <n>` line each, and `campaign=<name>.txt`. PLAY and
+  MISSIONS on MODS then work with no hand edit; the briefing is `brief_<name><n>`, the movie none.
+- Its multiplayer maps (`readermp<n>.zbd`) need nothing more: the lobby's add-on scan looks in every mod
+  world (New worlds and words, Multiplayer).
+
+A mod with its own mod.txt is the modder's and is never written; `--check-mod`, REPORT and INFO warn about
+a world folder in it that mod.txt does not name ("the world is not played: add world=<name>").
+
+**What a mission on a new world reads, measured** (2026-11-11: a made-up world, c1's files linked under a
+new name, `source c1.gs` its script, the first mission of a two-mission campaign on it played by the chain
+with one kind of file taken away each time):
+
+| Taken away | What happened |
+|---|---|
+| nothing | won |
+| `anim.zbd` | won: the script's `AnimSetZBDFile %RTIME%\%DB%\anim.zbd` read c1's |
+| `texture*.zbd`, `rtexture*.zbd` | won, drawn without its textures: the Load state searches `zbd\<world>\` then `zbd\` (`textures_begin`), the world's own folder, and `zbd\` has none |
+| `reader.zbd` | "Failed to read world.zrd": it loads and plays, but has no nav points and cannot be won |
+| `readerm1.zbd` | the launch gives up and the game goes back to the main menu with nothing said |
+| `<world>.gs` | "Failed to Interpret: mymap.gs -- Mission Load Aborted" at the briefing's load; the lab's world then fails to load after it ("No world in lab.gs") and the launch crashes |
+
+So the world's own folder always gives `reader.zbd` (`world.zrd`), its numbered archives and its
+textures (`rtexture*.zbd`: the mission's folder, `mission_dir`); the scenery (`gamez.zbd` by the script's
+`set GAMEZ %RTIME%\%DB%\gamez.zbd`, and `anim.zbd`) comes from the folder the script's `DB` names. A script of its own (`set DB <name>`, as a zStudio export's is) reads all
+of it from the world's folder; `source c1.gs` reads c1's. The mount still asks for the world's own
+`gamez.zbd` (the world's mark). INFO says which: "Its script takes c1's scenery (its gamez.zbd and
+animations); its missions, world records and textures are its own." The script is found in the mod's
+`zbd\interp.zbd` (its directory read, a `set DB` line in it read by its words) or as `<name>.gs` at the
+mod's root (the text fallback); neither, and INFO says "nothing on it can load".
+
+**At the mount**, so neither of the last two rows can happen from a mod: a campaign is left out, said in
+the log and on MODS, when a line's world is a mod's whose build script is nowhere the load looks (the
+first `zbd\interp.zbd` in the mounts, which the game reads first, else `<world>.gs` in any mod, the patch or
+the install), or when a line's mission has no `zbd\<world>\readerm<n>.zbd` (or our `.zbd.entries` or zip
+form) anywhere; an `ia_world=` entry on a world with no script is left out the same way. The game's own
+worlds' scripts are the install's. A mod laid over a game folder may bring `<world>.gs` loose at the folder's
+top (the original opens a loose script from its working folder): IMPORT takes a top-level `.gs` file, where
+it leaves other loose files.
+
+**INFO** says what it found: "The world ironcoast has 3 missions, 1 Instant Action map and 1 multiplayer
+map.", its script's scenery, and any file it lacks ("It has no reader.zbd (its world records
+(world.zrd)) and rtexture.zbd (its textures).").  The check now calls a `world=` name taken only when it is one of the game's nine: a mod's
+world of that name is the mod's own once it is mounted (INFO on a ticked mod said "there is a world ironcoast
+already" before), and two mods' worlds of one name are the mount's to say.
+
+Tests (`tests/test_found_worlds.cpp`): found by their files (the game's names in any case, a dot, no
+gamez left out; missions in number order; the script at the root or in interp.zbd, `set DB` and `source`
+read; what it lacks); interp.zbd's directory (the game's 44 scripts; junk and an impossible count read as
+none; c1.gs's first line `set DB c1`); the lines and the campaign file (a taken name, the id rule, the
+file read by the campaign reader); IMPORT from a folder, a zip and a game folder it was laid over (each:
+the mod.txt's three lines, the campaign file, the check's sentences, mounted as world 9 with its campaign
+of three and its Instant Action entry, its readerm2 read from the mod); a mod with its own mod.txt left as
+it is, its unnamed world warned about; the mount's two checks (no script: the campaign and the Instant
+Action entry left out, then a script at the root and then in interp.zbd taking them; a line without its
+`readerm<n>.zbd`, on the mod's world and on c1, left out).
+
 ## New mechs and weapons (after PM, items 1 and 2, 2026-11-08)
 
 **A new mech.** `mech=` in mod.txt, one line a mech:
@@ -1915,6 +1991,68 @@ either order, c1 mission 1 launches the mech and the weapon fires),
 `patch12_acts_on_10s_entries_under_a_mods_changed_entries`,
 `editor_save_as_over_a_campaign_kept_as_changed_entries`.
 
+### The salvage chance (Owen, 2026-11-11)
+
+Owen: "tweaking salvage would mean ... you can increase the amount of salvage taken from each mission"; "the
+coin flip, maybe we can allow the user to change that value in a mod/editor"; "salvage can be a mission-level
+setting. or it can be a mod you activate like the weapons mod, that applies to everything." The room stays the
+original's (a field base's 300 t and 2 mechs); the guaranteed lists are data already (objectives.zrd's salvage
+entries, which a mod's mission archive replaces).
+
+**What the coin is** (campaign.md section 9). Two draws, each `rand() & 1` on the game's one random stream,
+taken at the kill (the kill credit 0x0041b420): a destroyed vehicle that is not a mech gives its weapons, all or
+none (0x00472ec0); a destroyed mech that lost a leg comes as a whole mech or not (0x00472f00; its weapons and
+equipment come either way). Nothing else in salvage is chance.
+
+**The keys** (mod.txt; `upgrades/mods/salvage_chance`):
+
+```
+salvage_chance=100
+mission_salvage=c1 2 50
+```
+
+- `salvage_chance=N`, 0 to 100: how many times in 100 either draw is won, in every mission of the campaign the
+  mod is ticked for. A mod holding only this line is a mod, an asset mod (a tick).
+- `mission_salvage=<world> <n> <N>`: the same for one mission (its world's folder in any case, its `m<n>`
+  number), over the mod-wide value whichever mod that is from. One line a mission. Kept out of the original's
+  files on purpose: no new word in objectives.zrd, which the original's reader would meet (mods work both ways).
+- A value that does not read (not a whole number, over 100, a mission line without its three parts) is left
+  out, said in the log and as a warning by `--check-mod`; the rest of the mod is used.
+- **The first ticked mod that sets a value wins it** (`salvage_rules_take`, in mount order): the mod-wide
+  number, and each mission's line by its mission. The later mod's row on MODS says "Shares its salvage chance
+  with <mod>, which wins". REPORT and INFO say what a mod sets: "It sets how often a kill's salvage is offered:
+  100 in 100; the original's is 1 in 2." (one mission's line: "For c1 mission 2 it sets how often a kill's
+  salvage is offered: 50 in 100.").
+
+**The draw.** Unset, the original's line runs untouched: `rand() & 1`. Set, the same single `rand()` is drawn
+(the stream stays in step with a run without the mod) and judged as `(r * 100 >> 15) < N`: rand() gives 15
+bits, so each hundredth is as likely; 0 never, 100 always, 50 the lower half of the range (not the low bit:
+the same odds, not the same wins as the original's coin). The "food for thought" cheat still wins both without
+a draw. One number for both draws.
+
+**Where it is read.** The mount fills `salvage_rules()` from the mounted mods (cleared at each mount). The
+launch (`GameEngine::mission_launch`, where the mission's salvage store is emptied) sets `salvage_chance_now()`
+for a campaign mission (game type 1) from its world and number, and logs it ("mw3: salvage: a kill's salvage is
+offered 100 times in 100 in this mission (<mod>)"); any other game type gets -1. The two salvage functions ask
+through `SalvageCalls::chance` (the probes leave it unset: the differential runs the original's path). The main
+menu's campaign mounts no mod, so nothing is set there; Instant Action and multiplayer take no salvage. It is
+not in the multiplayer hash (nothing of it reaches a network game) and not behind the bug-fix switch (it is
+mod data, as a mod's weapon is).
+
+**In the editor**: MISSION SETTINGS (editor.md, Mission settings) writes the open mission's
+`mission_salvage=` line into the player's copy. **A starter**: `--make-starter salvage` (Starter mods).
+
+Tests (`tests/test_salvage_chance.cpp`): unset equals `r & 1` for every value of rand(), one draw a decision,
+none for a mech with both legs; set, the share of rand()'s values at 0, 1, 25, 50, 75, 99, 100, and the cheat
+over it; the values' reading and mod.txt's keys; the mount's first-ticked rule, a mission's line over the
+mod-wide value, a bad line left out, a mount of nothing leaving nothing; the check, the report's sentence and
+the shared note; the starter (`mods_starter_mods_made_checked_and_loaded`). In the program, hidden, Op 1
+Mission 1 by kills: at 100 both APCs' weapons are in the debriefing, at 0 neither, and a plain start with the
+mod in the mods folder plays the original's draw with nothing logged. A mod with `salvage_chance=100` and `mission_salvage=c1 1 0`
+ticked for the campaign: Op 1 Mission 1 logs 0 (both APCs give nothing), Missions 2 and 3 log 100. Instant
+Action with that mod ticked mounts it and logs no salvage line (a won round with a kill). INFO on the real MODS
+screen shows the mod's sentence (`mods_screen_report_shows_a_mods_sentences_headless`).
+
 ### A mech loadout (2026-11-11)
 
 A mech variant is often passed around as the lab's exported loadout
@@ -2342,7 +2480,7 @@ calling it.
 
 ## Starter mods (modder-friendly step 5, 2026-11-10)
 
-`mw3 --make-starter mech|weapon|translation|mission` (`mw3pm` the same,
+`mw3 --make-starter mech|weapon|translation|mission|salvage` (`mw3pm` the same,
 `upgrades/mods/starter_mods`) makes one small example mod in the write dir's
 `mods\starter_<kind>`, from the player's own install: the recipe is in the
 code, the game's file is read from the install and the edit applied, so
@@ -2357,6 +2495,7 @@ words for modders: `docs/starter-mods/` (one per kind, and a README).
   the install's own message numbers (read from its Mech3Msg.dll, each name in
   a comment: the games number them apart, and `--check-mod` has no names).
 - mission: `campaign=one_mission.txt`, a campaign of the game's c1 mission 1.
+- salvage: `salvage_chance=100`, mod.txt alone: every kill's salvage offered (The salvage chance).
 Each also has `about_this_mod.txt` (not `README.txt`, which the install has:
 the check would count it as replacing the game's). Each passes `--check-mod`
 with no warning and its report says nothing is refused.

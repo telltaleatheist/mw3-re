@@ -35,6 +35,8 @@ Every key each file a mod can change is read with: its type, what the game takes
 | `game_version` | top | a version (`1.1.0`) | none | - | The least MechWarrior 3 Rebuild version it needs; an older program warns on the MODS screens and still loads it. |
 | `kind` | top | `campaign` or `assets` | by its contents | - | Where MODS lists it: a campaign of its own, or an asset mod ticked per campaign. Without it, a mod with `campaign=` or `world=` lines or files of the game's own worlds (`zbd\c1\` to `zbd\t1\`) is a campaign. |
 | `base` | top | an entry's id | none | written by the game | A copy's: the campaign it was saved from (`mw3`, or `<mod>~<campaign>`), mounted under it. |
+| `salvage_chance` | top | int | the original's 1 in 2 | 0 to 100 | How many times in 100 a kill's salvage is offered, in every mission of the campaign the mod is ticked for: a destroyed vehicle's weapons, and a destroyed mech that lost a leg. The first ticked mod that sets it wins. |
+| `mission_salvage` | top | `<world> <n> <N>` | none | N 0 to 100; one line a mission | The same for one mission (its world's folder and number), over `salvage_chance`. |
 
 ## A custom campaign's file
 

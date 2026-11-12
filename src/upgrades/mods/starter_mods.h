@@ -11,6 +11,7 @@
 //   weapon       ER PPC B: an ER PPC that hits harder and runs hotter (weapons.zrd, a weapon= row)
 //   translation  the main menu's buttons in German (strings.txt)
 //   mission      a one-mission campaign on the game's own c1 mission 1 (campaign=)
+//   salvage      every kill's salvage offered (salvage_chance=100; salvage_chance.h)
 // Only ever a new folder: a target that exists (anything there) is refused
 // and named, nothing in it touched; no replace, no delete.
 namespace mech3 {

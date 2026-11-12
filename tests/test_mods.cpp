@@ -54,6 +54,7 @@
 #include "mech3/mech_reader.h"
 #include "upgrades/mods/mod_test.h"
 #include "upgrades/mods/mod_report.h"
+#include "upgrades/mods/salvage_chance.h"
 #include "upgrades/mods/starter_mods.h"
 #include "upgrades/mods/save_mods.h"
 
@@ -1339,6 +1340,7 @@ TEST(mods_worlds_declared) {
   put(wd + "/mods/w/mod.txt", "name=W\nworld=good\nworld=nofiles\nworld=../evil\nworld=T1\nworld=json\nworld=zipped\nia_world=good Good\n"
                               "ia_world=c3\nia_world=nowhere Lost\n");
   put(wd + "/mods/w/zbd/good/gamez.zbd", "x");
+  put(wd + "/mods/w/good.gs", "set DB good\n");  // its build script (test_found_worlds: without one, left out)
   put(wd + "/mods/w/zbd/json/gamez/metadata.json", "{}");  // a world as unzbd's JSON, a folder or its zip (gamez JSON)
   put(wd + "/mods/w/zbd/zipped/gamez.zip", "x");
   zutl::mounts() = zutl::Mounts{};
@@ -2860,6 +2862,13 @@ TEST(mods_campaigns_mounted) {
   const std::string wd = tmp("mods_campaigns"), install = wd + "/install";
   put(install + "/zbd/c1/gamez.zbd", "x");
   put(install + "/zbd/c4/gamez.zbd", "x");
+  // The missions' own archives and the mod worlds' scripts (test_found_worlds: without them, left out).
+  put(install + "/zbd/c1/readerm1.zbd", "x");
+  put(install + "/zbd/c4/readerm4.zbd", "x");
+  put(wd + "/mods/a/aworld.gs", "set DB aworld\n");
+  put(wd + "/mods/a/zbd/aworld/readerm1.zbd", "x");
+  put(wd + "/mods/b/bworld.gs", "set DB bworld\n");
+  put(wd + "/mods/b/zbd/bworld/readerm2.zbd", "x");
   put(wd + "/mods/a/mod.txt", "name=A\nworld=aworld\ncampaign=one.txt\ncampaign=camps/two.txt\ncampaign=again/ONE.txt\n"
                               "campaign=../x.txt\ncampaign=gone.txt\ncampaign=bad.txt\ncampaign=lost.txt\ncampaign=noc2.txt\n"
                               "campaign=uses_b.txt\ncampaign=my camp.txt\n");
@@ -3153,7 +3162,7 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   zutl::set_write_dir(wd);
   mech3::mech_rows_clear();
   std::string log;
-  for (const std::string& l : mech3::mods_mount(wd, {"starter_mech", "starter_weapon", "starter_translation", "starter_mission"},
+  for (const std::string& l : mech3::mods_mount(wd, {"starter_mech", "starter_weapon", "starter_translation", "starter_mission", "starter_salvage"},
                                                  {install}))
     log += l + "\n";
   zutl::mount(install);
@@ -3184,6 +3193,8 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   EXPECT(thor_b >= 20 && std::fabs(a_b - a * 1.5f) < 1e-4f);
   EXPECT(b && e && std::fabs(dmg_b - dmg * 1.25f) < 1e-4f && b_after);
   EXPECT(campaign == "K A M P A G N E" && quit == "B E E N D E N");
+  EXPECT(mech3::salvage_chance_for("c1", 1) == 100 && mech3::salvage_rules().from == "starter_salvage");
+  mech3::salvage_rules_clear();
   EXPECT(one && one->error.empty() && one->missions.size() == 1 && one->missions[0].world == "c1" && one->missions[0].number == 1);
   zrdr::close_archives(true);
   mech3::free_dfns();

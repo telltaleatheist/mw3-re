@@ -11,6 +11,7 @@
 #include "upgrades/editor/form.h"
 #include "upgrades/editor/help.h"
 #include "upgrades/editor/new_weapon.h"
+#include "upgrades/editor/mission_settings.h"
 #include "upgrades/editor/teleport.h"
 
 namespace mech3 {
@@ -25,7 +26,7 @@ void exit_game_edit(int32_t y) { editor_exit(y); }
 // 0x005e0d30.
 const EditorEntry kMainRows[8] = {
     {"PICK A COMMAND", nullptr},          {" EDIT AI NETS", edit_ai_nets}, {" EDIT VEHICLES", edit_vehicles},
-    {" EDIT WEAPONS", new_weapon_open},    {" HELP", help_open},            {"", nullptr},  // both ours: New Weapon (upgrades/editor/new_weapon; 0x004bf620 empty), HELP
+    {" EDIT WEAPONS", new_weapon_open},    {" HELP", help_open},            {" MISSION SETTINGS", mission_settings_open},  // ours: New Weapon (upgrades/editor/new_weapon; 0x004bf620 empty), HELP, Mission settings (the blank row)
     {" TELEPORT", teleport_open},          {" EXIT GAME EDIT", exit_game_edit},  // TELEPORT: ours (upgrades/editor/teleport)
 };
 const EditorMenu kMainMenu = {8, kMainRows};

@@ -1,3 +1,4 @@
+#include "upgrades/mods/salvage_chance.h"
 #include "upgrades/mods/entry_archives.h"
 #include "upgrades/mods/mp_mods.h"
 #include "mech3/mods.h"
@@ -22,6 +23,7 @@
 #include "upgrades/mods/anim_defs.h"
 #include "upgrades/mods/mod_needs.h"
 #include "upgrades/mods/mod_report.h"
+#include "upgrades/mods/found_worlds.h"
 #include "upgrades/json/gamez_json.h"
 #include "gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
@@ -123,6 +125,8 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (upgrades::reference::key_is(key, "game_version")) out->game_version = value;
     else if (upgrades::reference::key_is(key, "kind")) out->kind = value;
     else if (upgrades::reference::key_is(key, "base")) out->base = value;
+    else if (upgrades::reference::key_is(key, "salvage_chance")) out->salvage_chance = value;
+    else if (upgrades::reference::key_is(key, "mission_salvage") && !value.empty()) out->mission_salvage.push_back(value);
     else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -220,6 +224,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
   free_dfns_above(kBuiltinMechs);
   mech_rows_clear();
   weapon_rows_clear();
+  salvage_rules_clear();  // ours (salvage_chance.h): each mount's own
   mod_campaigns().clear();
   std::vector<ModCampaign> campaigns;  // checked against the worlds once every mod's are known
   std::vector<std::string> done;
@@ -238,6 +243,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       continue;
     }
     zutl::mount_mod(it->path);
+    salvage_rules_take(*it);
     log.push_back("mod " + want + " (" + it->name + (it->version.empty() ? "" : " " + it->version) + ") mounted");
     // Its new worlds: a folder no world has yet, with its files in the mod.
     for (const std::string& w : it->worlds) {
@@ -319,6 +325,39 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
     log.push_back("  " + std::to_string(replaced) + " replaced, " + std::to_string(added) + " added, " +
                   std::to_string(ignored) + " ignored");
   }
+  // Where the game will look, in its order: the enabled mods, then the patch and the install.
+  std::vector<std::string> roots;
+  for (const std::string& m : done)
+    if (const auto f = std::find_if(found.begin(), found.end(), [&](const ModInfo& x) { return x.folder == m; });
+        f != found.end() && f->error.empty())
+      roots.push_back(f->path);
+  roots.insert(roots.end(), later.begin(), later.end());
+  // Ours (found_worlds.h): a mod's world plays only with its build script <world>.gs where the mission load
+  // looks: the first interp.zbd mounted, else the text file in any root. Without it the load aborts and the
+  // next world's load fails after it (a crash at the launch), so its entries are left out here, said.
+  std::string interp;
+  for (const std::string& r : roots)
+    if (interp.empty()) interp = zutl::any_case(r, "zbd/interp.zbd");
+  const std::vector<std::string> scripts = interp.empty() ? std::vector<std::string>{} : interp_archive_names(interp);
+  auto has_script = [&](const std::string& w) {
+    if (mission_dir_index(w.c_str()) < 9) return true;  // the game's own worlds (and no world: said apart)
+    for (const std::string& n : scripts)
+      if (lower(n) == lower(w) + ".gs") return true;
+    std::error_code ec;
+    for (const std::string& r : roots)
+      if (const std::string t = zutl::any_case(r, w + ".gs"); !t.empty() && fs::is_regular_file(t, ec)) return true;
+    return false;
+  };
+  // A mission's own archive, zbd\<world>\readerm<n>.zbd (or our forms of it) in any root: without it the launch
+  // gives up with nothing said.
+  auto has_mission = [&](const std::string& w, int32_t n) {
+    std::error_code ec;
+    const std::string base = "zbd/" + w + "/readerm" + std::to_string(n);
+    for (const std::string& r : roots)
+      for (const char* form : {".zbd", ".zbd.entries", ".zip"})
+        if (const std::string p = zutl::any_case(r, base + form); !p.empty() && fs::is_regular_file(p, ec)) return true;
+    return false;
+  };
   // Instant Action's new entries, once every mod's worlds are known.
   for (const auto& [mod, w] : ia) {
     if (mission_dir_index(w.folder.c_str()) < 0) {
@@ -326,16 +365,15 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       left(mod, "ia_world " + w.folder + ": there is no such world");
       continue;
     }
+    if (!has_script(w.folder)) {
+      log.push_back("mod " + mod + ": Instant Action world " + w.folder + ": no " + w.folder + ".gs (its build script), left out");
+      left(mod, "ia_world " + w.folder + ": its build script " + w.folder + ".gs is in no interp.zbd or folder the game reads");
+      continue;
+    }
     mod_ia_worlds().push_back(w);
     log.push_back("mod " + mod + ": Instant Action world \"" + w.name + "\" on " + w.folder);
   }
   // The campaigns, each mission's world one that has its files somewhere mounted.
-  std::vector<std::string> roots;
-  for (const std::string& m : done)
-    if (const auto f = std::find_if(found.begin(), found.end(), [&](const ModInfo& x) { return x.folder == m; });
-        f != found.end() && f->error.empty())
-      roots.push_back(f->path);
-  roots.insert(roots.end(), later.begin(), later.end());
   auto known = [&](const std::string& w) {
     std::error_code ec;
     if (mission_dir_index(w.c_str()) < 0) return false;
@@ -349,6 +387,16 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
                     " in an enabled mod or the game, the campaign left out");
       left(c.mod, "campaign " + c.file + ": line " + std::to_string(m->line) + " needs the world " + m->world +
                       ", which no enabled mod or the game has");
+      continue;
+    }
+    const auto unplayable = std::find_if(c.missions.begin(), c.missions.end(),
+                                         [&](const CampaignMission& m) { return !has_script(m.world) || !has_mission(m.world, m.number); });
+    if (unplayable != c.missions.end()) {
+      const std::string why = !has_script(unplayable->world)
+                                  ? "its world's build script " + unplayable->world + ".gs is in no interp.zbd or folder the game reads"
+                                  : "there is no zbd/" + unplayable->world + "/readerm" + std::to_string(unplayable->number) + ".zbd (the mission's own archive)";
+      log.push_back("mod " + c.mod + ": campaign " + c.file + ": line " + std::to_string(unplayable->line) + ": " + why + ", the campaign left out");
+      left(c.mod, "campaign " + c.file + ": line " + std::to_string(unplayable->line) + ": " + why);
       continue;
     }
     mod_campaigns().push_back(c);
@@ -557,6 +605,16 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
   std::vector<std::pair<std::vector<std::string>, std::vector<std::string>>> before;  // files, row names
   std::vector<std::string> before_folders;
   std::vector<ModAnims> before_anims;
+  std::vector<std::vector<std::string>> before_salvage;  // each one's values that read: "" the mod-wide, "<world> <n>" a mission's
+  const auto salvage_keys = [](const ModInfo& m) {
+    std::vector<std::string> keys;
+    int32_t n = -1;
+    if (salvage_chance_parse(m.salvage_chance, &n)) keys.emplace_back();
+    MissionSalvage ms;
+    for (const std::string& line : m.mission_salvage)
+      if (mission_salvage_parse(line, &ms)) keys.push_back(lower(ms.world) + " " + std::to_string(ms.number));
+    return keys;
+  };
   for (ModsListEntry& e : out) {
     std::error_code ec;
     for (fs::recursive_directory_iterator f(e.info.path, ec), end; !ec && f != end; f.increment(ec))
@@ -566,6 +624,7 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
     if (!e.on || !e.info.error.empty()) continue;
     const std::vector<std::string> files = mod_files(e.info.path), rows = row_names(e.info);
     ModAnims anims = mod_anims(e.info.path);
+    const std::vector<std::string> salvage = salvage_keys(e.info);
     if (e.info.anim_defs_only) anims.whole.clear();  // anim=defs: its whole files are the original's copy
     for (size_t k = 0; k < before.size(); ++k) {
       bool shared = false;
@@ -592,11 +651,14 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
       }
       for (const std::string& r : rows)
         if (std::find(before[k].second.begin(), before[k].second.end(), r) != before[k].second.end()) e.rows_taken.push_back(r), shared = true;
+      for (const std::string& s : salvage)
+        if (std::find(before_salvage[k].begin(), before_salvage[k].end(), s) != before_salvage[k].end()) ++e.salvage_taken, shared = true;
       if (shared) e.conflicts_with.push_back(before_folders[k]);
     }
     before.emplace_back(files, rows);
     before_folders.push_back(e.info.folder);
     before_anims.push_back(anims);
+    before_salvage.push_back(salvage);
   }
   if (check)
     for (ModsListEntry& e : out) {
@@ -871,15 +933,36 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     if (mod_parse(ss.str(), &m)) out.push_back("mod.txt: " + m.name + (m.version.empty() ? "" : " " + m.version));
     else error("mod.txt: " + m.error);
   }
+  // Ours (found_worlds.h): the mod's world folders the game does not have, by their files.
+  const std::vector<FoundWorld> found = found_worlds(dir);
+  auto found_of = [&](const std::string& w) -> const FoundWorld* {
+    for (const FoundWorld& f : found)
+      if (lower(f.folder) == lower(w)) return &f;
+    return nullptr;
+  };
   for (const std::string& w : m.worlds) {
-    if (mission_dir_index(w.c_str()) >= 0) row("world " + w, "there is a world " + w + " already");
+    const FoundWorld* fw = found_of(w);
+    // The game's nine only: a mod world of that name is this mod's own once it is mounted (INFO on a ticked mod),
+    // and two mods' worlds of one name are the mount's to say.
+    if (game_world_name(w)) row("world " + w, "there is a world " + w + " already");
     else if (w.find_first_of("/\\. ") != std::string::npos || !mod_world_file(dir, w))
       row("world " + w, "no zbd/" + w + "/gamez.zbd");
-    else if (!fs::is_regular_file(fs::path(dir) / (w + ".gs"), ec))
-      warn("world " + w, {"no " + w + ".gs (its build script) at the mod's root",
+    else if (!fs::is_regular_file(fs::path(dir) / (w + ".gs"), ec) && !(fw && fw->script_archive))
+      warn("world " + w, {"no " + w + ".gs (its build script) at the mod's root or in its zbd/interp.zbd",
                           "the world is listed, but no mission on it can load until that file is there", kNoModTxt, ""}, true);
-    else out.push_back("world " + w + ": ok"), fx.worlds.push_back(w), ++usable_rows;
+    else {
+      out.push_back("world " + w + ": ok"), fx.worlds.push_back(w), ++usable_rows;
+      if (fw)
+        for (const std::string& l : found_world_sentences(*fw)) fx.world_notes.push_back(l);
+    }
   }
+  // A world folder of its own that mod.txt does not name is not played (IMPORT names them in the mod.txt it
+  // writes; a mod's own mod.txt is the modder's).
+  if (!fx.overlay)
+    for (const FoundWorld& f : found)
+      if (std::none_of(m.worlds.begin(), m.worlds.end(), [&](const std::string& w) { return lower(w) == lower(f.folder); }))
+        warn("zbd/" + f.folder, {"a world the game does not have (zbd/" + f.folder + "/gamez.zbd) that mod.txt does not name",
+                                 "the world is not played: add world=" + f.folder + " to mod.txt", kNoModTxt, ""}, true);
   for (const auto& [folder, name] : m.ia_worlds) {
     const bool own = std::find(m.worlds.begin(), m.worlds.end(), folder) != m.worlds.end();
     if (!own && mission_dir_index(folder.c_str()) < 0) row("ia_world " + folder, "no such world");
@@ -910,6 +993,18 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
                       " in the mod or the game: it plays only with a mod that adds it");
     }
   }
+  // Ours (salvage_chance.h): the odds of a kill's salvage. A mod of these lines alone is a mod.
+  if (!m.salvage_chance.empty()) {
+    int32_t n = -1;
+    if (!salvage_chance_parse(m.salvage_chance, &n)) row("salvage_chance " + m.salvage_chance, "it is not a whole number from 0 to 100");
+    else out.push_back("salvage_chance " + std::to_string(n) + ": ok"), ++usable_rows;
+  }
+  for (const std::string& line : m.mission_salvage) {
+    MissionSalvage ms;
+    if (!mission_salvage_parse(line, &ms)) row("mission_salvage " + line, "it wants a world, a mission number and a whole number from 0 to 100");
+    else out.push_back("mission_salvage " + ms.world + " " + std::to_string(ms.number) + " " + std::to_string(ms.chance) + ": ok"), ++usable_rows;
+  }
+  fx.salvage = salvage_chance_sentence(m);
   for (const std::string& line : m.mechs) {
     ModMech r;
     std::string why;
