@@ -20511,11 +20511,29 @@ TEST(options_mouse_sensitivity_slider_headless) {
   for (const float a : {1.3f, 2.5f}) {
     st.mouse = zin::MouseInfo{};
     st.width = st.height = 100000;
+    st.frac_x = st.frac_y = 0;
     zin::mouse_set_accel(a, -a);
     st.mouse.dx = 10, st.mouse.dy = 10;
     zin::mouse_integrate();
     EXPECT(st.mouse.dx == static_cast<int32_t>(10 * a) && st.mouse.dy == static_cast<int32_t>(10 * -a));
   }
+  // W19 (Owen's PC, sensitivity 0.9): a slow mouse, one count a read, moves the reticle; the cut's fractions
+  // carry (FIX (A)), where each read alone gave 0 and the mouse could cross the pad with nothing moving.
+  {
+    st.mouse = zin::MouseInfo{};
+    st.width = st.height = 100000;
+    st.frac_x = st.frac_y = 0;
+    zin::mouse_set_accel(0.9f, -0.9f);
+    int32_t sum_x = 0, sum_y = 0;
+    for (int i = 0; i < 100; ++i) {
+      st.mouse.dx = 1, st.mouse.dy = 1;
+      zin::mouse_integrate();
+      sum_x += st.mouse.dx, sum_y += st.mouse.dy;
+    }
+    std::printf("  slow mouse at 0.9: 100 reads of 1 count moved %d, %d\n", sum_x, sum_y);
+    EXPECT(sum_x >= 89 && sum_x <= 90 && sum_y <= -89 && sum_y >= -90);
+  }
+  st.frac_x = st.frac_y = 0;
   st.mouse = keep_mouse, st.width = keep_w, st.height = keep_h, st.accel_x = keep_ax, st.accel_y = keep_ay;
 }
 

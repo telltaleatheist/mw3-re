@@ -126,6 +126,7 @@ struct State {
   MouseInfo mouse;                     // 0x0063d1d8
   uint32_t no_clamp = 0;               // 0x0063d214 (nothing sets it)
   float accel_x = 1.3f, accel_y = 1.3f;  // 0x005ece48, 4c
+  float frac_x = 0, frac_y = 0;        // ours: mouse_integrate's cut-off fractions, carried (FIX (A))
   uint32_t mode = 5;                   // 0x005ece50 the mouse's cooperative level
   int32_t mouse_result = 1;            // 0x005ece54
 
