@@ -448,7 +448,10 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
     const std::string g = lower(info.game);
     // Its first word, as mod.txt's reader takes it: "mw3pm" is Pirate's Moon's ("mw3" alone MechWarrior 3's).
     const std::string word = g.substr(0, g.find_first_of(" \t"));
-    a.game = word == "mw3pm" || word == "pm" ? ModGame::kPm : word.empty() || word == "mw3" ? ModGame::kMw3 : ModGame::kUnknown;
+    // No for= is the game it is added to, as the mods list takes it (mod_parse: only a named other game is
+    // refused); W15 hands a mod over only when its mod.txt names the other game.
+    const ModGame self = mods_game() == "mw3pm" ? ModGame::kPm : ModGame::kMw3;
+    a.game = word == "mw3pm" || word == "pm" ? ModGame::kPm : word == "mw3" ? ModGame::kMw3 : word.empty() ? self : ModGame::kUnknown;
   }
   // Ours: a mod packed as the contents of the game's zbd folder (reader.zbd and c1\ ... at its top, no zbd
   // folder, no mod.txt; "PM 1.2 Mod - Beta.zip"). Laid as it is, its files would serve nothing. Its top items

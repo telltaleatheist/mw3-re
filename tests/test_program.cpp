@@ -2198,6 +2198,19 @@ TEST(import_tells_a_pirates_moon_mod_by_its_records_and_adds_it_there) {
   if (!weapons.empty()) EXPECT(mods_in(root + "/wd_pm") == 1 && mod_txt.find("for=mw3pm") != std::string::npos);
   EXPECT(!fs::exists(root + "/wd_pm/mods-incoming", ec));
   EXPECT(asked == 0);
+  // A mod.txt with no for= is the importing game's (as the mods list takes it): Pirate's Moon keeps it, even with
+  // MechWarrior 3's folders known (the merge into pm caught it: its own tests' mods were handed away).
+  {
+    fs::create_directories(root + "/plain/zbd", ec);
+    std::ofstream(root + "/plain/mod.txt") << "name=Plain\n";
+    std::ofstream(root + "/plain/zbd/notes.bin") << "plain";
+    fs::create_directories(root + "/wd_pm2", ec);
+    mech3::mods_game() = "mw3pm";
+    mech3::mods_other_game() = {root + "/wd_mw3", root + "/mw3"};
+    const mech3::ModAddDone c = mech3::mod_add_run(root + "/wd_pm2", root + "/plain", root + "/pm", ask, nullptr);
+    std::printf("  no for= in Pirate's Moon: ok %d, other %d, \"%s\"\n", c.ok, c.other_game, c.message.c_str());
+    EXPECT(c.ok && !c.other_game && fs::is_directory(root + "/wd_pm2/mods/" + c.folder, ec) && mods_in(root + "/wd_mw3") == 0);
+  }
   mech3::mods_game() = keep_game;
   mech3::mods_other_game() = keep_other;
   fs::remove_all(root, ec);

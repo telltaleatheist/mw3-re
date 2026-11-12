@@ -28,7 +28,19 @@ original.
 
 ### Coming in the next release
 
-Nothing yet.
+**1.1.0** (being tested; the full notes are in
+[docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)):
+
+- **One download holds both games**, MechWarrior 3 and Pirate's Moon, with a
+  launcher to pick between them.
+- **Mods are played by campaign** from a new MODS screen, and community mods
+  are imported straight from their installers, without running them.
+- **Instant Action and multiplayer with mods**: each has its own MODS tab;
+  in multiplayer the host decides and everyone needs the same mods.
+- **An UPGRADES page**: the one bug-fixes switch becomes five (water
+  movement, MFB regroup, improved AI, Artemis tracking, small fixes).
+- Fixes from the playtests: the Windows cursor stuck at the centre, a slow
+  mouse not moving the aim, the game's boxes in its own look, and more.
 
 **Pirate's Moon 1.0.0 (2026-11-09)**
 
@@ -217,8 +229,10 @@ your install: where the original installer put it, `Program Files`,
 installed itself earlier. It says which version it found in its log.
 
 **If it finds none**, choosing MechWarrior 3 opens a screen that finds
-your game (a plain `mw3` start shows only that screen), and once the game
-is there it goes straight on into it:
+your game. From the launcher, once the game is there you are back on the
+launcher's games, so you can set up Pirate's Moon too, then click the game
+to play; a plain `mw3` start (that screen only) goes straight on into the
+game:
 
 - **Find the game** searches this computer and your disc drives first and
   uses what it finds, with nothing to pick. If there is nothing, one
@@ -274,7 +288,7 @@ installed copy does not have. Two ways to get it back:
   the window to take it back. Switching away frees it too, and coming back
   to a mission (Cmd+Tab, Alt+Tab or a click) takes it again at once; that
   click does not fire.
-- **Options > Graphics & Audio > Mouse sensitivity** (ours) sets how fast the mouse aims in a mission; it starts at the original's setting.
+- **Options > Mouse sensitivity** (ours, under Invert Mouse) sets how fast the mouse aims in a mission; it starts at the original's setting. Click the bar where you want it.
 - Gamepads work as they did on Windows 98, and force feedback becomes rumble.
 - Flight sticks' axes (twist, throttle lever) go where the game expects
   them. With several devices, `joystick=Part of its name` in `mw3.cfg`
@@ -330,8 +344,13 @@ plays the rebuild, on any mix of Windows, Mac and Linux.
   for the main menu, **N** or Escape closes the box. The others see you
   leave at once. A match also keeps running when its window is in the
   background, so your 'Mech is never a frozen target.
-- **Mods** must match: a player whose gameplay mods differ from the host's
-  is told which mods each side uses.
+- **Mods**: the multiplayer screen's MODS tab ticks the mods to play with
+  (the game starts again with them). The host decides; a player whose mods
+  are not the same is turned back and told which mod is missing or
+  different. Players on 1.0 and 1.2 game files play together.
+- **Pilot names**: two players can't use the same name (the original refuses
+  the second). Change NET NAME on the multiplayer screen, or click PILOT
+  ENTRY on the pilot screen and type a new pilot's name.
 
 ### Bug fixes, and playing exactly like the original
 
@@ -341,9 +360,14 @@ back, lancemates walking into walls, and more. Quirks that players know and
 plan around are kept. Every change is listed in plain words in
 [CHANGES.md](CHANGES.md).
 
-To play exactly as the original did, turn the fixes off: start with
-`--original`, or put the line `bugfixes=0` in `mw3.cfg` (in the folder
-below). The changes the game needs to run on a modern computer stay on.
+The fixes that change play are grouped under five switches on the
+**UPGRADES** page in the options (in the menus and in a mission), all on
+to start: WATER MOVEMENT, MFB REGROUP, IMPROVED AI, ARTEMIS TRACKING and
+SMALL FIXES (the page lists what the small fixes are). Turn one off and that
+part plays as in 1999. To play exactly as the original did, turn all five
+off, or start with `--original` for one run. In a network game everyone
+plays on the host's switches. The changes the game needs to run on a modern
+computer, and crash fixes, always stay on.
 
 ### Cheat codes
 
@@ -401,8 +425,11 @@ IMPORT may say "N warnings": files in the mod the game cannot use as they
 are (often slips that also trouble the original). The rest of the mod is
 added; INFO lists each warning and what was done about it.
 
-Pirate's Moon has its own MODS screen and takes only mods made for Pirate's
-Moon. In multiplayer every player needs the same mods.
+Pirate's Moon has its own MODS screen. A Pirate's Moon mod imported in
+MechWarrior 3 (or the other way round) is handed to the other game, which
+adds it at its next start, and a box says so; with the game started without
+the launcher, the box says to IMPORT it in the other game. In multiplayer
+every player needs the same mods.
 
 Mods live as folders in a `mods` folder inside the settings folder (below),
 laid out like the game's own files, each with a short `mod.txt`. `mw3
@@ -432,9 +459,11 @@ adds weapons to the original `Mech3.exe`'s mech lab. It isn't part of the rebuil
 | Mac | `~/Library/Application Support/MicroProse/MechWarrior 3/` |
 | Linux | `~/.local/share/MicroProse/MechWarrior 3/` |
 
-It holds `mw3.cfg`, your pilots and saves, the settings, the converted movies
-and the music, and `mw3.log`. Uninstalling the rebuild keeps it; deleting it
-starts you over.
+It holds `mw3.cfg`, your pilots and saves, the settings, your mods, the
+converted movies and the music, and `mw3.log`. Pirate's Moon keeps its own
+beside it, in `MicroProse/Pirate's Moon`. Uninstalling the rebuild keeps
+them; deleting one starts that game over. The launcher's GAME FILES, MY DATA
+FOLDER moves a game's folder to another drive.
 
 ## Known issues
 

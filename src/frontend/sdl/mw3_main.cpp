@@ -79,6 +79,7 @@
 #include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/ia_mods_menu.h"
 #include "upgrades/mods/save_mods.h"
+#include "upgrades/valve_map/valve_map.h"
 #include "frontend/sdl/sdl_child.h"
 #include "frontend/sdl/sdl_focus.h"
 #include "frontend/sdl/launcher.h"
@@ -199,6 +200,7 @@ struct Args {
   // the program itself (sdl_restart.h): no intro movies.
   bool entry_play = false, entry_ia = false, entry_mp = false, open_mods = false, open_ia = false, open_mp = false, restarted = false;
   std::string check_mod;  // --check-mod DIR
+  std::string valve_map;  // --valve-map DIR with --mission (ours, upgrades/valve_map): the mission's valve map as DIR/<mission>.md
   std::string mod_report;  // --mod-report DIR (ours, upgrades/mods/mod_report.h): the check as sentences
   std::string build_anim;  // --build-anim DIR: its def files merged for the original game (upgrades/mods/anim_defs)
   std::string make_starter;  // --make-starter KIND: a starter mod made in the write dir's mods\ (upgrades/mods/starter_mods)
@@ -302,7 +304,7 @@ struct Args {
 void usage() {
   std::printf(
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
-      "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
+      "    [--mission NAME [--valve-map DIR] | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
       "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia | --entry-mission WORLD N [--edit]]] [--entry-pilot NAME] [--open-mods [--mods-entry ID] | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission|salvage] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--mouse-at X,Y@N[c]]... [--then ...] [--click-players X,Y@N/P]... [--click-sessions X,Y@N/S]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
@@ -344,6 +346,7 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--restarted") a.restarted = true;
     else if (s == "--mods") a.list_mods = true;
     else if (s == "--check-mod" && next(1)) a.check_mod = argv[++i];
+    else if (s == "--valve-map" && next(1)) a.valve_map = argv[++i];
     else if (s == "--mod-report" && next(1)) a.mod_report = argv[++i];
     else if (s == "--build-anim" && next(1)) a.build_anim = argv[++i];
     else if (s == "--make-starter" && next(1)) a.make_starter = argv[++i];
@@ -1296,6 +1299,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
     std::vector<double> frame_ms;  // --frame-times: each frame's wall time
     uint64_t frame_last = 0;
     bool launch = false, launch_done = false;
+    std::string valve_dir;  // --valve-map: the mission's world folder and number
+    int valve_number = 0;
     if (!a.mission.empty() && !a.fly) {
       // Through the original's states: the Load state loads the mission
       // (mech3/mission), then the Core state runs it (docs/mission-load.md).
@@ -1335,6 +1340,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         dir = a.mission.substr(0, sa), l.number = std::atoi(a.mission.c_str() + sa + 2), l.type = 5;
       } else {
         split_mission(a.mission, dir, variant, l.number);
+        valve_dir = dir, valve_number = l.number;
       }
       l.index = -1;
       for (int32_t i = 0; i < 9; ++i)
@@ -1430,6 +1436,20 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
             net_over = launch_done = true;
             std::printf("mw3: soak game over, scores %s\n", mech3::program_net_scores().c_str());
           }
+        }
+        // --valve-map DIR (ours, upgrades/valve_map): at the mission's first Core frame, its valve map
+        // written as DIR/<mission>.md, then the run ends.
+        if (!a.valve_map.empty() && !launch_done && app.current() == &mech3::states().core) {
+          const mech3::ValveMap vm = mech3::valve_map_collect(a.mission, valve_dir, valve_number,
+                                                              [&](uint32_t h) -> const void* { return engine.object_of(h); });
+          const std::string out = a.valve_map + "/" + a.mission + ".md";
+          std::error_code vec;
+          std::filesystem::create_directories(a.valve_map, vec);
+          std::ofstream f(out, std::ios::binary);
+          f << mech3::valve_map_markdown(vm);
+          std::printf("mw3: valve map: %s, %zu valves, %d vlist entries, %d valves.zrd records%s\n", out.c_str(), vm.valves.size(),
+                      vm.vlist_entries, vm.valve_records, f ? "" : " (not written)");
+          launch_done = true;
         }
         // --verbose (ours): each state the app moves to, by name, as the menus' driver prints them.
         static const zgame::State* launch_state = nullptr;

@@ -29,7 +29,8 @@ takes whatever you have: the disc, a disc image (.iso, or .cue with its .bin
 files, whose CD audio becomes the music), the file you downloaded (.zip, .7z
 or .rar, even a zip inside a zip; nothing to unpack by hand), or a copy from
 a Windows PC. It says what it found, installs it with a progress bar and
-Cancel, remembers it, and goes on into the game.
+Cancel, remembers it, and comes back to the launcher's games, so you can
+set up Pirate's Moon too; then click the game to play.
 Then it converts the game's movies once (about 3 seconds each, with a
 progress bar; closing it stops, and the next start does the rest) into the
 folder below, so the intro and the mission movies play.
@@ -55,9 +56,11 @@ for a campaign and PLAY.
 
 If IMPORT says "N warnings", the mod has files the game cannot use as they
 are; the rest is added, and INFO lists each warning. Every button says what
-it does when the mouse is over it. Pirate's Moon has its own MODS screen and
-takes only mods made for Pirate's Moon. In multiplayer every player needs
-the same mods.
+it does when the mouse is over it.
+Pirate's Moon has its own MODS screen. A Pirate's Moon mod imported in
+MechWarrior 3 (or the other way round), with the game started from the
+launcher, is handed to the other game, which adds it at its next start.
+In multiplayer every player needs the same mods.
 
 Your settings and saves
 -----------------------
@@ -65,7 +68,7 @@ In ~/Library/Application Support/MicroProse/MechWarrior 3/ (in Finder: Go >
 Go to Folder). It holds mw3.cfg, your pilots and saves, the settings, the
 installed game, its music, the converted movies, your mods and mw3.log (what
 the game reported while it ran; send it with a bug report). Pirate's Moon
-keeps its own in the folder "Pirate's Moon" inside it. Deleting the app
+keeps its own beside it, in .../MicroProse/Pirate's Moon/. Deleting the app
 keeps this folder. To keep it on
 another drive: in the launcher, GAME FILES, MY DATA FOLDER.
 
