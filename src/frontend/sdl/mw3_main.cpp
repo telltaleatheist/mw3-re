@@ -122,6 +122,7 @@ extern "C" const char mw3_version_tag[] = "MW3-PROGRAM-VERSION:" MW3_VERSION;
 #include "mech3/app.h"
 #include "mech3/mod_install.h"
 #include "mech3/mods.h"
+#include "upgrades/game_boxes.h"
 #include "mech3/mods_menu.h"
 #include "frontend/sdl/sdl_mods.h"
 #include "mech3/app_engine.h"
@@ -1011,7 +1012,7 @@ int program(int argc, char** argv) {
   if (plain && a.first_start && !notes.empty()) {
     std::string text;
     for (const std::string& n : notes) text += (text.empty() ? "" : "\n\n") + n;
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "MechWarrior 3: first start", text.c_str(), nullptr);
+    mech3::first_start_notes() = text;  // W16: in the game's box at the main menu, not a system box before the window
   }
   if (a.force_import || (plain && !a.no_import && !vfw)) sdlfe::first_run_import(a.install, a.write_dir, a.force_import);
 
@@ -1113,7 +1114,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       SDL_ShowSaveFileDialog(done, nullptr, parent, filters, 1, start.c_str());
     };
     mp.open_folder = [](const std::string& dir) { return sdlfe::open_folder(dir); };
-    mp.ask_game = [](const std::string& name) { return scripted.empty() ? sdlfe::ask_mod_game(parent, name) : mech3::mods_game() == "mw3pm" ? 2 : 1; };  // --pick: no box, this game
+    // --pick: no box, this game; else unset, and MODS asks in the game's own box (W16).
+    if (!scripted.empty()) mp.ask_game = [](const std::string&) { return mech3::mods_game() == "mw3pm" ? 2 : 1; };
   }
   window.set_auto_size(!a.window_given);
   // Fullscreen by default (ours): the desktop's size, the frame fitted in it

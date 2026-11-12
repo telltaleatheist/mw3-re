@@ -125,6 +125,7 @@
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/mods/entry_archives.h"
 #include "mech3/mod_install.h"
+#include "upgrades/game_boxes.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/mods/campaign_entries.h"
 #include "upgrades/editor/save_as.h"
@@ -3179,7 +3180,7 @@ TEST(mods_screen_add_mod_headless) {
     mech3::mods_menu_picked(picks.empty() ? "" : picks.front());
     if (!picks.empty()) picks.erase(picks.begin());
   };
-  mp.ask_game = [&](const std::string&) { return ++asked, 0; };  // cancelled
+  mp.ask_game = nullptr;  // W16: the question in the game's own box (answered CANCEL below)
   mp.open_folder = [&](const std::string& dir) { return opened = dir, true; };
   std::vector<std::string> saves = {src + "/out/Desert Pack.zip", ""};
   std::string offered;
@@ -3201,9 +3202,17 @@ TEST(mods_screen_add_mod_headless) {
   mech3::MountFiles files;
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  mech3::first_start_notes() = "No music yet (W16 check).";  // W16: a plain first start's notes, in the game's box once
   {
     mech3::GameEngine engine(p, "mech3.exe -nofmv");
     engine.quiet = true;
+    int32_t asked_style = -1;
+    int first_start_boxes = 0;
+    engine.on_message_box = [&](int32_t style, int32_t, int32_t) {  // the game's box: "which game" answered CANCEL
+      if (engine.last_box_text.find("Which game is") != std::string::npos) ++asked, asked_style = style;
+      first_start_boxes += engine.last_box_text == "No music yet (W16 check).";
+      return 2u;
+    };
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
@@ -3263,6 +3272,8 @@ TEST(mods_screen_add_mod_headless) {
     EXPECT(mech3::entry_mods_on(wd).empty() && mech3::mods_enabled(wd).empty() && !std::filesystem::exists(wd + "/campaigns/Desert Pack/mods.txt"));
     EXPECT(std::filesystem::is_regular_file(wd + "/mods/Desert Pack/zbd/t1/notes.txt"));
     EXPECT(asked == 1 && second_note.find("Not added: no game chosen for Plain.") == 0 && !std::filesystem::exists(wd + "/mods/Plain"));
+    EXPECT(asked_style == 3);  // W16: YES MechWarrior 3, NO Pirate's Moon, CANCEL
+    EXPECT(first_start_boxes == 1 && mech3::first_start_notes().empty() && mech3::game_box() != nullptr);
     EXPECT(std::filesystem::equivalent(opened, wd + "/mods"));
     std::printf("  export: offered %s; %s; %s; %s\n", offered.c_str(), exporting_note.c_str(), exported_note.c_str(), cancelled_note.c_str());
     EXPECT(offered == "Desert Pack.zip" && exporting_note == "Exporting to Desert Pack.zip...");
@@ -3272,6 +3283,8 @@ TEST(mods_screen_add_mod_headless) {
     app.exit_instance();
     mech3::set_app(nullptr);
   }
+  EXPECT(mech3::game_box() == nullptr);  // W16: gone with the engine, the system box again
+
   mp = saved;
   mech3::mods_menu_write_dir().clear();
   mech3::mods_menu_install().clear();

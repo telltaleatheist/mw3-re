@@ -31,22 +31,4 @@ bool open_folder(const std::string& dir) {
   return SDL_OpenURL(url.c_str());
 }
 
-int ask_mod_game(SDL_Window* parent, const std::string& name) {
-  const SDL_MessageBoxButtonData buttons[] = {
-      {SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Cancel"},
-      {0, 2, "Pirate's Moon"},
-      {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "MechWarrior 3"},
-  };
-  const std::string text = "Which game is \"" + name + "\" for? Its files do not say.";
-  SDL_MessageBoxData box{};
-  box.flags = SDL_MESSAGEBOX_INFORMATION;
-  box.window = parent;
-  box.title = "Add a mod";
-  box.message = text.c_str();
-  box.numbuttons = 3;
-  box.buttons = buttons;
-  int pressed = 0;
-  return SDL_ShowMessageBox(&box, &pressed) ? pressed : 0;
-}
-
 }  // namespace sdlfe
