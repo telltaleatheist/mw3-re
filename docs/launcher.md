@@ -74,8 +74,13 @@ through the letters of a 46-high plate; ADD FROM MY DISC is 52 high now),
 and ADD FROM MY DISC's own is shorter ("A disc in a drive, or its image or
 any file of the disc": the longer one was cut in the middle). The log has
 "mw3: launcher: notes: N at size S and width W, the status line at y Y,
-...". Test: `sdl_program_launcher_notes_fit_above_the_buttons` (no movies,
-no music, an empty soundsH.zbd, a long folder).
+...". Test: `sdl_program_launcher_notes_fit_above_the_buttons`, three
+cases under a long folder: no movies, no music and an empty soundsH.zbd
+(two notes, 14 px); the same with two operations' missions gone (three
+notes, 12 px); Pirate's Moon's own notes, its empty soundsH.zbd and no
+music (13 px). `--launcher-screen pmnotes` and `pmdisc` (ours, for shots)
+draw Pirate's Moon's notes as its start shows them. Break: the first form
+alone with the status line at its old row says "into the buttons".
 
 Reached by choosing a game without its files (none found at the start, or
 mw3.cfg's gone), or alone on a plain mw3 start with none. At the top, in
