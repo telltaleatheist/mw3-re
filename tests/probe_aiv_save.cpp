@@ -71,7 +71,7 @@ void mutate(ai::AiParams& p, int32_t* mech3) {
     case 1: {  // a flag bit
       const int byte = rnd(2) ? 0xcc : 0xcd;
       p.raw[byte] ^= static_cast<uint8_t>(1u << rnd(byte == 0xcc ? 8 : 2));
-      if ((p.raw[0xcd] & 3) == 3) p.raw[0xcd] &= 1;  // lancemate is 0, 1 or 2
+      if ((p.raw[0xcd] & 3) == 3) p.raw[0xcd] &= static_cast<uint8_t>(~2u);  // lancemate is 0, 1 or 2 (PM's target switches above kept)
       break;
     }
     case 2:
@@ -133,14 +133,18 @@ extern "C" int probe_aiv_save(const char* in, const char* out, uint32_t seed, in
                               int cap) {
   std::ifstream f(in, std::ios::binary);
   const std::vector<uint8_t> a((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-  if (a.size() < 8) return -1;
-  uint32_t count;
-  std::memcpy(&count, a.data() + a.size() - 4, 4);
-  const size_t table = a.size() - 8 - count * sizeof(zutl_zar::Entry);
+  if (a.size() < 12) return -1;
+  // Pirate's Moon's archives are version 2: version, count and a CRC after the table (MW3's: version and count).
+  const bool v2 = get32(a.data() + a.size() - 12) == 2;
+  const size_t tail = v2 ? 12 : 8;
+  const uint32_t count = get32(a.data() + a.size() - tail + 4);
+  if (static_cast<uint64_t>(count) * sizeof(zutl_zar::Entry) > a.size() - tail) return -1;
+  const size_t table = a.size() - tail - count * sizeof(zutl_zar::Entry);
   std::vector<uint8_t> aiv;
   for (uint32_t i = 0; i < count; ++i) {
     zutl_zar::Entry e;
     std::memcpy(&e, a.data() + table + i * sizeof e, sizeof e);
+    if (e.start > table || e.length > table - e.start) return -1;
     if (std::strncmp(e.name, "aiv.zrd", sizeof e.name) == 0) aiv.assign(a.begin() + e.start, a.begin() + e.start + e.length);
   }
   if (aiv.empty()) return -2;
@@ -150,7 +154,7 @@ extern "C" int probe_aiv_save(const char* in, const char* out, uint32_t seed, in
   regions_for(aiv.data(), aiv.size());
   std::vector<Pair> pairs;
   size_t list_end = 0;
-  if (!pairs_of(aiv.data(), aiv.size(), &pairs, &list_end)) return -3;
+  if (!record_pairs_of(aiv.data(), aiv.size(), &pairs, &list_end)) return -3;
   std::vector<AivEdit> edits;
   for (const Pair& pr : pairs) {
     ++stats[0];
