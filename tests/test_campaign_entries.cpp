@@ -293,7 +293,7 @@ TEST(ia_mods_accept_steps_and_line) {
   EXPECT(mp && !mech3::entry_plays_own_campaign(wd.string(), *mp));
   mech3::entry_run() = mech3::EntryRun{};
   fs::remove_all(wd / "mods/b");
-  EXPECT(mech3::mp_mods_line(wd.string()) == "MODS: 1 missing");  // a plain run whose ticks could not be played
+  EXPECT(mech3::mp_mods_line(wd.string()) == "MODS: off");  // a plain run: off, whatever ticks are remembered (as Instant Action's)
   mech3::entry_run() = mech3::EntryRun{};
 }
 
