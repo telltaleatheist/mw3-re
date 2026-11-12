@@ -71,7 +71,7 @@ int32_t dispatch(AnimDef* def, SeqDef* seq, uint8_t* e, bool* bad) {
     case 2: return ev_sound_node(d, e);
     case 3: return ev_effect(d, e);
     case 4: return zgame::game().zeff_light_state(d, e);
-    case 5: return ev_light_animation(d, s, e);
+    case 5: return zgame::game().zeff_light_animation(d, s, e);
     case 6: return ev_object_active(d, e);
     case 7: return ev_object_translate(d, e);
     case 8: return ev_object_scale(d, e);

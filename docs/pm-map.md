@@ -1748,3 +1748,20 @@ leaves PM's mixed colours (`pm_colors`) as the light was made and judges MW3's s
 directional bit. Now PM's (`pm_weapon_light_takes_pms_setters`; breaks: MW3's colour setter, the range swapped).
 The address map pairs MW3's colour setter 0x004fb510 with 0x0050f760 (PM's ambient colour); PM's weapon calls
 0x0050f460. A third slip of the kind above.
+
+## Anim event 5 through PM's setters (2026-11-11)
+
+PM's light animation 0x0051c060 (no pair in the map; between 0x0051bbf0 and 0x0051c2f0) is MW3's 0x00503910 step for
+step: the rates, the near-range and colour clamps, the time left and the answer. Its calls are PM's: get range
+0x0050eef0, set range 0x0050edd0, get colour 0x0050f3f0, set colour 0x0050f460. The port's shared event called MW3's
+setters on a PM light: the colour's mixes (`pm_colors`) stayed as the light was made and MW3's static test (0x100,
+PM's directional bit) was applied. Now the shared body takes the setters (`zeff::light_animation_with`) and the game
+table's `zeff_light_animation` picks PM's (`pm::zeff::ev_light_animation`). Test `pm_light_animation_takes_pms_setters`
+(breaks: MW3's setters in PM's entry; MW3's entry in PM's table).
+In play: ia1 runs it 22 times by frame 170 (the def `light_flash`, a weapon's flash). Shots at frames 64, 66 and 157,
+before and after: every pixel the same. The draw reads that point light's colour at +0xa4, which both setters write;
+what only PM's keeps right (the mixes, the static bit) is not read for it.
+The map's slip on MW3's colour setter (0x004fb510 to 0x0050f760) misled nothing else: the three differentials that
+hook 0x004fb510 (test_weapons_fly, test_vehicle_glow, test_interp) are MW3's only, and the port's calls now name PM's
+setters directly. Seen on the way: of the script interpreter's light words only the create has an engine call (zinterp.cpp);
+LightSetColor and the other setters are null in both games, so a script's light change does nothing.

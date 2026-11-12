@@ -2,6 +2,12 @@
 #include <memory>
 
 #include "check.h"
+#include <cstring>
+#include <cmath>
+#include "pm/gamez/zclass/light.h"
+#include "pm/pm_game.h"
+#include "gamez/zeffect/zeff_anim_init.h"
+#include "gamez/zgame/zgame_table.h"
 #include <cstdio>
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zclass/cls_node.h"
@@ -124,6 +130,50 @@ TEST(pm_weapon_light_takes_pms_setters) {
     if (n) zcls::node_delete(n);
   }
   mech3::unwire_weapons();
+}
+
+// Event 5, LIGHT_ANIMATION (Pirate's Moon 0x0051c060, through PM's table): the range and colour move by their rates
+// as MW3's, set through PM's setters (0x0050edd0, 0x0050f460), so the colour's mixes in pm_colors follow. The shared
+// event called MW3's colour setter, which left them as the light was made (a weapon's flash in Instant Action).
+TEST(pm_light_animation_takes_pms_setters) {
+  zgame::set_game(pm::table());
+  zcls::Node* n = zgame::game().zcls_light_create();  // PM's 0x0050e470
+  auto* l = n ? static_cast<zcls::Light*>(n->data) : nullptr;
+  EXPECT(l != nullptr);
+  if (l) {
+    pm::zcls::light_set_range(n, 5.0f, 17.0f);
+    pm::zcls::light_set_color(n, 1.0f, 0.97f, 0.94f);
+    zeff::CreatedRef refs[2];
+    refs[1].made = n;
+    zeff::AnimDef d;
+    d.lights = refs;
+    zeff::SeqDef s;
+    s.raw[0x20] = 1;          // not the first run: the rates as they stand
+    *s.floats(0x28) = 0.0f;   // the sequence's time, before the event's end
+    uint8_t e[0x70] = {};
+    const auto putf = [&](int off, float v) { std::memcpy(e + off, &v, 4); };
+    const int32_t ref = 1;
+    std::memcpy(e + 0x2c, &ref, 4);
+    putf(0x40, 10.0f), putf(0x44, 20.0f);                          // the range's rates
+    putf(0x60, 0.0f), putf(0x64, -1.0f), putf(0x68, -2.0f);        // the colour's
+    putf(0x6c, 1.0f);                                              // the end
+    float& left = zeff::anim().time_left();
+    const float was = left;
+    left = 0.1f;
+    const int32_t r = zgame::game().zeff_light_animation(d, s, e);
+    left = was;
+    const float amb = l->get<float>(0xa0);
+    std::printf("  light animation: range %.2f..%.2f colour %.3f %.3f %.3f; ambient mixed %.3f %.3f %.3f\n", l->get<float>(0xb4),
+                l->get<float>(0xb8), l->get<float>(0xa4), l->get<float>(0xa8), l->get<float>(0xac), l->pm_colors[6], l->pm_colors[7],
+                l->pm_colors[8]);
+    EXPECT(r == 1);
+    EXPECT(std::fabs(l->get<float>(0xb4) - 6.0f) < 1e-5f && std::fabs(l->get<float>(0xb8) - 19.0f) < 1e-5f);
+    EXPECT(std::fabs(l->get<float>(0xa8) - 0.87f) < 1e-5f && std::fabs(l->get<float>(0xac) - 0.74f) < 1e-5f);
+    EXPECT(l->pm_colors[6] == l->get<float>(0xa4) * amb && l->pm_colors[7] == l->get<float>(0xa8) * amb &&
+           l->pm_colors[8] == l->get<float>(0xac) * amb);  // ambient mixed by the new colour
+    zcls::node_delete(n);
+  }
+  zgame::set_game(zgame::mw3_table());
 }
 
 // Pirate's Moon 0x00474f80: the chassis by +0x5ae alone, so a head shot's mech comes and one the torso's
