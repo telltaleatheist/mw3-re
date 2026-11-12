@@ -443,19 +443,19 @@ int32_t equip_slots(int32_t kind, int32_t tech) {
 
 // Mech3.exe 1.2 @ 0x00432f40. FIX (A): an index past the table read whatever
 // followed it in the exe; here it weighs 0 (docs/fixes.md).
-double engine_weight_x87(const Engine& e) {
+double engine_weight_x87(const ConfigEngine& e) {
   if (e.index < 0 || e.index >= 79) return 0.0;
   const float t = kEngineTons[e.index];
   return e.xl ? std::ceil(t) * 0.5 : t;
 }
-float engine_weight(const Engine& e) { return static_cast<float>(engine_weight_x87(e)); }
+float engine_weight(const ConfigEngine& e) { return static_cast<float>(engine_weight_x87(e)); }
 
 // Mech3.exe 1.2 @ 0x00432fa0. FIX (A) as above: 0 past the table.
-int32_t engine_rating(const Engine& e) { return e.index >= 0 && e.index < 79 ? 10 + 5 * e.index : 0; }
+int32_t engine_rating(const ConfigEngine& e) { return e.index >= 0 && e.index < 79 ? 10 + 5 * e.index : 0; }
 
 // For lab_screen.cpp, where the app's Engine hides this one.
-double engine_weight_of(int32_t index, uint8_t xl) { return engine_weight_x87(Engine{index, xl}); }
-int32_t engine_rating_of(int32_t index) { return engine_rating(Engine{index, 0}); }
+double engine_weight_of(int32_t index, uint8_t xl) { return engine_weight_x87(ConfigEngine{index, xl}); }
+int32_t engine_rating_of(int32_t index) { return engine_rating(ConfigEngine{index, 0}); }
 
 void set_weapon_lab(WeaponLabFn fn) { g_weapon_lab = fn; }
 

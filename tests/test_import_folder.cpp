@@ -135,6 +135,33 @@ TEST(import_folder_takes_what_differs_from_the_install) {
 
 // Refused, and said: the player's own install, one the same as it, the other
 // game's, a folder that holds the write dir. Nothing is made for any.
+// IMPORT's one file box takes a folder mod by a file inside it: the mod.txt, a file beside it, one under zbd
+// (three folders up at most); an archive, a loadout, a folder or a lone program is the pick itself.
+TEST(import_pick_root_is_the_mods_folder) {
+  namespace fs = std::filesystem;
+  // Two folders down: the walk up from a pick (four at most) never reaches the tests' shared root, where another
+  // test may have left a zbd folder.
+  const std::string top = std::string(MW3_TEST_TMP) + "/pick root", dir = top + "/in/here";
+  std::error_code ec;
+  fs::remove_all(top, ec);
+  fs::create_directories(dir + "/mod/zbd/c1", ec);
+  fs::create_directories(dir + "/laid/zbd", ec);
+  fs::create_directories(dir + "/loose/a/b/c/d", ec);
+  for (const char* f : {"/mod/mod.txt", "/mod/readme.txt", "/mod/zbd/c1/readerm1.zbd", "/laid/Mech3.exe", "/laid/zbd/reader.zbd", "/mod/pack.zip",
+                        "/mod/Thor.m3c", "/loose/setup.exe", "/loose/a/b/c/d/deep.txt"})
+    std::ofstream(dir + f) << "x";
+  const auto root = [&](const char* f) { return fs::path(mech3::import_pick_root(dir + f)).lexically_normal().generic_string(); };
+  const std::string mod = fs::path(dir + "/mod").lexically_normal().generic_string(), laid = fs::path(dir + "/laid").lexically_normal().generic_string();
+  EXPECT(root("/mod/mod.txt") == mod && root("/mod/readme.txt") == mod && root("/mod/zbd/c1/readerm1.zbd") == mod);
+  EXPECT(root("/laid/Mech3.exe") == laid && root("/laid/zbd/reader.zbd") == laid);  // a game folder a mod was laid over
+  EXPECT(root("/mod/pack.zip") == fs::path(dir + "/mod/pack.zip").lexically_normal().generic_string());
+  EXPECT(root("/mod/Thor.m3c") == fs::path(dir + "/mod/Thor.m3c").lexically_normal().generic_string());
+  EXPECT(root("/loose/setup.exe") == fs::path(dir + "/loose/setup.exe").lexically_normal().generic_string());  // a lone installer
+  EXPECT(root("/loose/a/b/c/d/deep.txt") == fs::path(dir + "/loose/a/b/c/d/deep.txt").lexically_normal().generic_string());
+  EXPECT(root("/mod") == mod && mech3::import_pick_root(dir + "/none.txt") == dir + "/none.txt");
+  fs::remove_all(top, ec);
+}
+
 TEST(import_folder_refusals) {
   const std::string wd = tmp("import_refuse_wd"), inst = tmp("import_refuse_inst"), modded = tmp("import_refuse_src") + "/Mod";
   build(inst, modded);
@@ -300,8 +327,8 @@ TEST(import_folder_leaves_out_an_unreadable_reader_archive_and_adds_the_rest) {
   std::vector<std::string> enabled;
   const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, [](const std::string&) { return TEST_OUR_ANSWER; }, &enabled);
   std::printf("  %s\n", d.message.c_str());
-  EXPECT(d.ok && d.warnings == 2 && d.left_out == 1 && d.message.rfind("Added " + d.name + ": 2 warnings: REPORT lists them. ", 0) == 0 &&
-         d.message.size() > ("Added " + d.name + ": 2 warnings: REPORT lists them. ").size());  // then what to do next, as without warnings
+  EXPECT(d.ok && d.warnings == 2 && d.left_out == 1 && d.message.rfind("Added " + d.name + ": 2 warnings: INFO shows them. ", 0) == 0 &&
+         d.message.size() > ("Added " + d.name + ": 2 warnings: INFO shows them. ").size());  // then what to do next, as without warnings
   std::printf("  %s\n", d.message.c_str());
   const std::string mod = wd + "/mods/" + d.folder;
   std::error_code ec;
@@ -444,7 +471,7 @@ TEST(import_texts_unreadable_dll_warns_and_own_strings_win) {
   const mech3::ModAddDone d = mech3::import_folder_run(wd, modded, inst, nullptr, nullptr, &report);
   std::printf("  %s\n", d.message.c_str());
   const std::string at = wd + "/mods/" + d.folder;
-  EXPECT(d.ok && d.texts.found && !d.texts.read && d.warnings == 1 && d.message.find("1 warning: REPORT says what.") != std::string::npos);
+  EXPECT(d.ok && d.texts.found && !d.texts.read && d.warnings == 1 && d.message.find("1 warning: INFO shows it.") != std::string::npos);
   EXPECT(names(at) == std::string("mod.txt|") + mech3::kModAddedMarker + "|" + mech3::kModLeftOutFile + "|zbd/c1/New.txt|zbd/c1/gamez.txt|zbd/reader.txt|");
   int errors = 0;
   mech3::ModFindings facts;

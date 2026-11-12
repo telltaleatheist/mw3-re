@@ -27,8 +27,8 @@ class PauseScreen : public MenuScreen {
   ztwod::Image backdrop{0};              // +0x11a5c  the grab of the frame behind
   Handle sounds = 0;                     // +0x11b18  the sounds paused (0x0056eb10)
   Handle groups = 0;                     // +0x11b1c  the sound groups taken away (0x005732f0)
-  // Ours (docs/editor.md, The way in): EDITOR, in a mission the MODS screen
-  // launched only (editor_reachable).
+  // Ours (docs/editor.md, The way in): EDIT MISSION or PLAY MISSION, in a
+  // mission the MODS screen launched only (editor_reachable).
   SlideButton editor;
   bool has_editor = false;
 };

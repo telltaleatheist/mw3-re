@@ -57,6 +57,31 @@ found or installed. The launcher below is its own program, `mw3launcher`
 
 ## The find screen and the notes (v1.0, Owen and the lead, 2026-11-02)
 
+**BEFORE YOU PLAY is laid out by measure (2026-11-11, Owen's playtest W3).**
+The status line ("No disc in a drive. Pick its image ...") was drawn at a
+fixed row and landed on the last lines of a long note (a long settings
+folder in the music note; several notes at once). `Launcher::notes_layout`
+measures the notes wrapped and takes the first of six forms at which they
+and the status line end above the first button: 14 px at 470, 600 or 700
+wide (the panel is the frame's whole width there), then 13, 12 and 11 px at
+700. The status line goes under the notes; a line's room is kept for it
+whenever ADD FROM MY DISC is there, so the notes do not change form when it
+speaks. The buttons keep their places (the frame's bottom edge is just
+under OK). Nothing is cut: if even the smallest form ran into the button
+the log would say "into the buttons". A plate's second line is drawn 8
+below its middle and its name 11 above (the art's rule along the bottom ran
+through the letters of a 46-high plate; ADD FROM MY DISC is 52 high now),
+and ADD FROM MY DISC's own is shorter ("A disc in a drive, or its image or
+any file of the disc": the longer one was cut in the middle). The log has
+"mw3: launcher: notes: N at size S and width W, the status line at y Y,
+...". Test: `sdl_program_launcher_notes_fit_above_the_buttons`, three
+cases under a long folder: no movies, no music and an empty soundsH.zbd
+(two notes, 14 px); the same with two operations' missions gone (three
+notes, 12 px); Pirate's Moon's own notes, its empty soundsH.zbd and no
+music (13 px). `--launcher-screen pmnotes` and `pmdisc` (ours, for shots)
+draw Pirate's Moon's notes as its start shows them. Break: the first form
+alone with the status line at its old row says "into the buttons".
+
 Reached by choosing a game without its files (none found at the start, or
 mw3.cfg's gone), or alone on a plain mw3 start with none. At the top, in
 the launcher's text, `kFindWords`: "MechWarrior 3 needs your own copy of the

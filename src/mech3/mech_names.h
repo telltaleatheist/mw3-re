@@ -87,13 +87,13 @@ int32_t equip_slots(int32_t kind, int32_t tech); // 0x00484a20
 
 // The engine table 0x005e2f50 (79 entries: rating, name id, tons), through
 // a config's engine (+0x24 index, +0x28 xl).
-struct Engine {
+struct ConfigEngine {
   int32_t index;
   uint8_t xl;
 };
-float engine_weight(const Engine& e);      // 0x00432f40, XL: half the tons rounded up
-double engine_weight_x87(const Engine& e); // the same, as left on the x87 stack
-int32_t engine_rating(const Engine& e);    // 0x00432fa0
+float engine_weight(const ConfigEngine& e);       // 0x00432f40, XL: half the tons rounded up
+double engine_weight_x87(const ConfigEngine& e);  // the same, as left on the x87 stack
+int32_t engine_rating(const ConfigEngine& e);     // 0x00432fa0
 double engine_weight_of(int32_t index, uint8_t xl);  // the same two on plain numbers
 int32_t engine_rating_of(int32_t index);
 

@@ -66,7 +66,7 @@ struct SavedMounts {
 void put(const fs::path& p, const std::string& text) {
   std::error_code ec;
   fs::create_directories(p.parent_path(), ec);
-  std::ofstream(p) << text;
+  std::ofstream(p, std::ios::binary) << text;  // byte for byte (text mode adds \r on Windows)
 }
 // The same file, whatever the separators (Windows' test folder has \\).
 bool same(const std::string& a, const std::string& b) {
@@ -235,18 +235,18 @@ TEST(mods_screen_text_fits_its_boxes) {
   const auto fits = [](const std::string& t) { return t.size() * 4 <= 200; };  // 50 characters
   mech3::ModAddDone d;
   d.ok = true, d.name = "Short", d.warnings = 9;
-  d.message = "Added Short: 9 warnings: REPORT lists them. Tick it for a campaign, then PLAY.";
+  d.message = "Added Short: 9 warnings: INFO shows them. Tick it for a campaign, then PLAY.";
   auto l = mech3::mods_import_lines(d, "", fits);
-  EXPECT(l.first == "Added Short: 9 warnings: REPORT lists them." && l.second == "Tick it for a campaign, then PLAY.");
+  EXPECT(l.first == "Added Short: 9 warnings: INFO shows them." && l.second == "Tick it for a campaign, then PLAY.");
   // A name too long for the line: the outcome without it (DETAILS shows the name), never the count or REPORT lost.
   d.name = "A Weapons Mod With A Very Long Name v 2.48.32";
-  d.message = "Added " + d.name + ": 9 warnings: REPORT lists them. Tick it for a campaign, then PLAY.";
+  d.message = "Added " + d.name + ": 9 warnings: INFO shows them. Tick it for a campaign, then PLAY.";
   const std::string took = "Took 135 files from the installer that differ from your install; the program and its dlls are not part of a mod here (7)";
   l = mech3::mods_import_lines(d, took, fits);
-  EXPECT(l.first == "Added. 9 warnings: REPORT lists them." && l.second == "Tick it for a campaign, then PLAY.");
-  d.warnings = 1, d.message = "Added " + d.name + ": 1 warning: REPORT says what. Tick it for a campaign, then PLAY.";
+  EXPECT(l.first == "Added. 9 warnings: INFO shows them." && l.second == "Tick it for a campaign, then PLAY.");
+  d.warnings = 1, d.message = "Added " + d.name + ": 1 warning: INFO shows it. Tick it for a campaign, then PLAY.";
   l = mech3::mods_import_lines(d, took, fits);
-  EXPECT(l.first == "Added. 1 warning: REPORT says what." && fits(l.first) && fits(l.second));
+  EXPECT(l.first == "Added. 1 warning: INFO shows it." && fits(l.first) && fits(l.second));
   // No warnings, from an install or installer: what to do, then how many files were taken (the rest is the log's).
   d.name = "Game", d.warnings = 0, d.message = "Added Game: tick it for a campaign, then PLAY.";
   l = mech3::mods_import_lines(d, took, fits);
@@ -1254,10 +1254,12 @@ TEST(mods_list_for_the_launcher) {
          (l2[1].conflicts_with == std::vector<std::string>{"x"}) && l2[0].check_errors >= 0 && l2[1].check_errors >= 0);
   // Saved: mod= lines at the first old one's place, the rest kept.
   EXPECT(mech3::mods_save_enabled(wd, {"x", "z"}));
-  std::ifstream f(wd + "/mw3.cfg");
-  std::stringstream ss;
-  ss << f.rdbuf();
-  EXPECT(ss.str() == "install=/somewhere\nmod=x\nmod=z\nwidemenus=1\n");
+  {  // closed before the next save: Windows will not rename over an open file
+    std::ifstream f(wd + "/mw3.cfg");
+    std::stringstream ss;
+    ss << f.rdbuf();
+    EXPECT(ss.str() == "install=/somewhere\nmod=x\nmod=z\nwidemenus=1\n");
+  }
   EXPECT(mech3::mods_save_enabled(wd, {}) && mech3::mods_enabled(wd).empty());
   // The write goes through mw3.cfg.new renamed over it: when that cannot be
   // written (a folder in its place here, a full disk in play) the save fails
@@ -1277,10 +1279,12 @@ TEST(mods_list_for_the_launcher) {
     o << "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=old\r\n# a note  \r\nlast=1";
   }
   EXPECT(mech3::mods_save_enabled(wd, {"a", "b"}));
-  std::ifstream crlf(wd + "/mw3.cfg", std::ios::binary);
-  std::stringstream cs;
-  cs << crlf.rdbuf();
-  EXPECT(cs.str() == "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=a\r\nmod=b\r\n# a note  \r\nlast=1\r\n");
+  {
+    std::ifstream crlf(wd + "/mw3.cfg", std::ios::binary);
+    std::stringstream cs;
+    cs << crlf.rdbuf();
+    EXPECT(cs.str() == "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=a\r\nmod=b\r\n# a note  \r\nlast=1\r\n");
+  }
   EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"a", "b"}));
   // And a plain one stays plain.
   {

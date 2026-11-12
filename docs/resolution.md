@@ -712,3 +712,31 @@ salvage screen is opened: its board 853 wide, ACCEPT 106 right. Before LAUNCH th
 0, the right 107 wider, ACCEPT 106 right, the 3D window at (210 + 106) x
 render / canvas; without the panels' and the window's changes, 3 checks
 fail.
+
+### FastMenu with wide menus (2026-11-11, playtest W6)
+
+FastMenu (the original's option: `-seasick`, bit 0x200 of GameOptions)
+draws a menu screen once into one picture (`MenuScreen::bake`, 0x00486ed0:
+the background, the overlays' lines and the first buttons are grabbed, then
+taken off the list or left without an image). The wide layout ran after the
+constructor, so with FastMenu on the picture held the art at its 4:3 places
+and was then widened as if it were a background, while the controls bound
+after the bake moved: the main menu showed CREDITS and QUIT twice, Instant
+Action's map box and its two cycles' bars stood in the middle with their
+texts at the right. (Owen's W6 picture of Pirate's Moon's Instant Action
+shows the same split; his option bit is off in both games' settings, and
+the state was not reproduced on the Mac without the bit, so what put his
+screen on that path is not known.)
+
+Now the layout runs before the grab too: `bake` asks the engine
+(`Engine::widen_before_bake`), which lays out what is on the list by then,
+by the constructor `construct` is in (`making_ctor_`; the pilot screen and
+the controls' popups, made by their states, by what they are). Each object
+is placed once (`MenuScreen::widened`), and the baked picture, already the
+canvas's width, is left alone by the second pass. At 640 nothing changes
+(`widen_screen` returns at once), so the probes and the differentials run
+the original's bake. Test:
+`menus_wide_with_fast_menu_bake_after_the_layout_headless` (the main menu,
+the options, graphics, controls, pilots and credits with `-seasick` against
+the same without: every place equal, LINES stretched, the picture 853
+wide); break: without the call LINES is 483 wide and four checks fail.

@@ -1,5 +1,6 @@
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/log_start.h"
+#include "frontend/sdl/sdl_focus.h"
 #include "frontend/sdl/data_folder_start.h"
 #include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher_notes.h"
@@ -45,6 +46,8 @@ namespace fs = std::filesystem;
 // 16:9 (Owen, 2026-11-08): the art across the width, the plates and boxes a
 // 640-wide block in the middle (kX in), as laid out for 640x480 before.
 constexpr int W = 854, H = 480, kX = (W - 640) / 2;
+// ADD FROM MY DISC's line under its name: short enough for the plate at its font (it was cut in the middle).
+constexpr char kAddDiscSub[] = "A disc in a drive, or its image or any file of the disc";
 constexpr int kBadge = 76;  // a game's badge across, on the 640x480 canvas
 
 // ---- art ----
@@ -447,6 +450,15 @@ class Launcher {
   void draw(float dt);
   void background(float dt);
   void plate(const Button& b, bool hot);
+  static constexpr int kNotesTop = 162;  // BEFORE YOU PLAY's first note
+  struct NotesLayout {
+    int size = 14, gap = 14;        // the notes' font and the space after each
+    int width = 470;                // their lines' width
+    int status_y = 296;             // the status line's first row
+    int add_y = -1, ok_y = 384;     // ADD FROM MY DISC (-1: not there) and OK
+    bool fits = true;               // above the frame's bottom at this size
+  };
+  NotesLayout notes_layout();
   void activate(int id);
   void ask_file(int what, const SDL_DialogFileFilter* filters, int n);
   void ask_folder(int what);
@@ -849,7 +861,10 @@ void Launcher::start_game(bool pm) {
     layout();
     return;
   }
-  std::printf("mw3launcher: started %s\n", line.c_str());
+  // FIX (A), playtest W4 (sdl_focus.h): the game's window may come to the front over ours (Windows gives the
+  // foreground only to a process the foreground one allows), so it starts with the keyboard and the mouse.
+  const bool front = allow_foreground(game_);
+  std::printf("mw3launcher: started %s%s\n", line.c_str(), front ? " (it may take the foreground)" : "");
   status_ = "Starting " + game_name_ + "...", status_good_ = true;
 }
 
@@ -992,7 +1007,7 @@ void Launcher::layout() {
       if (from_files_ && (files_pm_ || !o_.write_dir_fixed)) add(kData, {130, 278, 380, 36}, "MY DATA FOLDER");
       if (files_pm_ ? !pm_dir_.empty() && (pm_lacks_music_ || pm_lacks_sounds_)
                     : install_.ok && (lacks_music_ || lacks_movies_))  // what the install in use lacks, from the disc
-        add(kAddDisc, {130, 318, 380, 46}, "ADD FROM MY DISC", "A disc in a drive first, else its image or any file of the disc");
+        add(kAddDisc, {130, 318, 380, 52}, "ADD FROM MY DISC", kAddDiscSub);
       add(kBack, {250, 384, 140, 34}, o_.setup_only ? "QUIT" : "BACK");
       break;
     }
@@ -1022,11 +1037,15 @@ void Launcher::layout() {
       add(kUpdateNotNow, {438, 384, 132, 34}, "NOT NOW");
       break;
     }
-    case kNotes:
-      if (files_pm_ ? pm_lacks_music_ || pm_lacks_sounds_ : lacks_music_ || lacks_movies_)  // what the install lacks, from the disc (lead, 2026-11-02)
-        add(kAddDisc, {130, 318, 380, 46}, "ADD FROM MY DISC", "A disc in a drive first, else its image or any file of the disc");
-      add(kNotesOk, {250, 384, 140, 34}, "OK");
+    case kNotes: {
+      // Placed after the notes' measured height (notes_layout): the status line and the buttons never land on them.
+      const NotesLayout n = notes_layout();
+      std::printf("mw3: launcher: notes: %zu at size %d and width %d, the status line at y %d, ADD FROM MY DISC at %d, OK at %d, %s\n", notes_.size(), n.size,
+                  n.width, n.status_y, n.add_y, n.ok_y, n.fits ? "above the buttons" : "into the buttons");  // for the checks
+      if (n.add_y >= 0) add(kAddDisc, {130, n.add_y, 380, 52}, "ADD FROM MY DISC", kAddDiscSub);
+      add(kNotesOk, {250, n.ok_y, 140, 34}, "OK");
       break;
+    }
   }
   {  // the screen and its plates (the checks follow them)
     static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "update"};
@@ -1070,6 +1089,33 @@ void Launcher::background(float dt) {
   } else {
     text_.draw(canvas_, "MW3 REBUILD", 40, kWhite, W / 2, 48);
   }
+}
+
+// BEFORE YOU PLAY by measure (Owen's playtest, W3: the status line "No disc in a drive ..." was at a fixed
+// place and landed on the last lines of a long note; several notes at once are the worst case). The buttons
+// keep their places (the frame's bottom edge is just under OK). The notes are drawn at the first of six
+// forms (wider first, then smaller) at which they and the status line (a line's room kept for it whenever ADD FROM MY DISC is there, so
+// the notes do not change size when it speaks) end above the first button; the status line goes under the
+// notes. `fits` false: even the smallest runs into the button (said in the log; no note is cut).
+Launcher::NotesLayout Launcher::notes_layout() {
+  const bool add = files_pm_ ? pm_lacks_music_ || pm_lacks_sounds_ : lacks_music_ || lacks_movies_;  // what the install lacks, from the disc (lead, 2026-11-02)
+  const int status_lines = std::max(add ? 1 : 0, status_.empty() ? 0 : static_cast<int>(text_.wrap(status_, 13, 480).size()));
+  const int status_h = status_lines * text_.line_skip(13);
+  NotesLayout l;
+  l.add_y = add ? 318 : -1, l.ok_y = 384;
+  const int bottom = (add ? l.add_y : l.ok_y) - 6;
+  // Wider before smaller: the panel is the frame's whole width at this height.
+  static constexpr int kTries[][2] = {{14, 470}, {14, 600}, {14, 700}, {13, 700}, {12, 700}, {11, 700}};
+  for (const auto& t : kTries) {
+    const int size = t[0];
+    l.size = size, l.width = t[1], l.gap = size >= 14 ? 14 : size >= 12 ? 10 : 7;
+    int h = 0;
+    for (const std::string& n : notes_) h += static_cast<int>(text_.wrap(n, size, l.width).size()) * text_.line_skip(size) + l.gap;
+    l.status_y = kNotesTop + h - l.gap + (status_lines ? 8 : 0);
+    l.fits = l.status_y + status_h <= bottom;
+    if (l.fits) break;
+  }
+  return l;
 }
 
 void Launcher::plate(const Button& b, bool hot) {
@@ -1117,8 +1163,10 @@ void Launcher::plate(const Button& b, bool hot) {
   if (b.sub.empty()) {
     text_.draw(canvas_, b.label, big, c, cx, cy + 1);
   } else {
-    text_.draw(canvas_, b.label, big, c, cx, cy - 8);
-    text_.draw(canvas_, text_.fit(b.sub, 12, r.w - 20, b.sub_keep), 12, b.enabled ? kDim : kGrey, cx, cy + 13);
+    // The line under the name stays inside the plate, above the art's rule along its bottom (it ran through
+    // the letters; playtest W3).
+    text_.draw(canvas_, b.label, big, c, cx, cy - 11);
+    text_.draw(canvas_, text_.fit(b.sub, 12, r.w - 20, b.sub_keep), 12, b.enabled ? kDim : kGrey, cx, cy + 8);
   }
 }
 
@@ -1146,12 +1194,11 @@ void Launcher::draw(float dt) {
     }
     case kNotes: {
       text_.draw(canvas_, "BEFORE YOU PLAY", 24, kAmber, W / 2, 128);
-      int y = 162;
-      for (const std::string& n : notes_) {
-        y += text_.draw_wrapped(canvas_, n, 14, kWhite, W / 2, y, 470) + 14;
-      }
-      if (!status_.empty())  // what ADD FROM MY DISC did, or where to look
-        text_.draw_wrapped(canvas_, status_, 13, status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, 296, 480);
+      const NotesLayout l = notes_layout();
+      int y = kNotesTop;
+      for (const std::string& n : notes_) y += text_.draw_wrapped(canvas_, n, l.size, kWhite, W / 2, y, l.width) + l.gap;
+      if (!status_.empty())  // what ADD FROM MY DISC did, or where to look: under the notes, above the buttons
+        text_.draw_wrapped(canvas_, status_, 13, status_good_ ? kAmber : SDL_Color{240, 190, 180, 255}, W / 2, l.status_y, 480);
       break;
     }
     case kConfirm:
@@ -2014,6 +2061,14 @@ LauncherChoice Launcher::run() {
       screen_ = kSetupScreen, from_files_ = o_.screen == "files";
     if (o_.screen == "pick") status_ = "Not found on this computer or in a disc drive. Pick it: a disc image, a download, or Mech3.exe.";
     if (o_.screen == "notes" || o_.screen == "disc") screen_ = kNotes;
+    // Pirate's Moon's notes as its start shows them (start_pm), and with ADD FROM MY DISC's answer.
+    if (o_.screen == "pmnotes" || o_.screen == "pmdisc") {
+      files_pm_ = true;
+      notes_ = pm_notes(nullptr);
+      for (const std::string& n : notes_) std::printf("mw3: launcher: note: %s\n", n.c_str());
+      screen_ = kNotes;
+    }
+    if (o_.screen == "pmdisc") status_ = "No disc in a drive. Pick its image (.cue .iso) or any file of the disc.";
     if (o_.screen == "data") screen_ = kDataScreen;
     if (o_.screen == "update") {  // the check (MW3_UPDATE_API in shots) and a newer release's screen
       update_ = std::make_shared<upgrades::update::Verdict>(check_for_updates(MW3_VERSION));

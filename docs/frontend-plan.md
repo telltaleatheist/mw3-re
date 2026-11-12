@@ -23,7 +23,10 @@ so they are estimates.
 `build/mw3 -nofmv --write-dir DIR` starts at the main menu. For checking
 (ours): `--click-at X,Y@N` clicks at a game pixel (640 x 480) after frame
 N (the cursor put there through zInput's 0x0051b440, then the press and
-the release a frame apart), `--tap DIK@N[:M]` presses a key, `--shot F.bmp
+the release a frame apart), `--mouse-at X,Y@N[c]` moves the system's mouse
+to a window point as SDL reports it (through SdlInput; c: and clicks;
+editor.md, The pointer), `--then` gives the script after it to the run
+after the next restart (sdl_restart.h), `--tap DIK@N[:M]` presses a key, `--shot F.bmp
 --shot-frame N [--shot-series K]` writes frames. The walk used here:
 
 ```

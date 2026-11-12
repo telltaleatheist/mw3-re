@@ -462,7 +462,7 @@ DebriefScreen::DebriefScreen(Engine& e, Handle state, int32_t mission, const uin
 
 const char* DebriefScreen::continue_help_text() {
   ztwod::Text* h = help(continue_btn);
-  return h && h->text ? h->text : "";
+  return h ? h->text : "";
 }
 
 // Pirate's Moon 1.0 @ 0x0047ee40 (ECX the debriefing; the flag is the Win State's, `won`).
@@ -721,6 +721,16 @@ void DebriefScreen::on_button(int32_t id, int32_t a, int32_t b) {
   const int32_t kind = e.game_kind();
   if (id == kReplay) {
     e.debrief_voice_play(state);
+    return;
+  }
+  // Ours (upgrades/editor/mods_edit.h): a mission started from MODS (MISSIONS, or the editor's) is played by a
+  // stand-in pilot with no game, so the kind is none of the three below and CONTINUE and ABORT both did
+  // nothing: the player stood on the debriefing with no way on (found 2026-11-11 by a scripted run of a won
+  // mission). Both leave it: the mission cleaned up and the main menu, which opens MODS again.
+  if (mods_edit_session().active && (id == kAbort || id == kContinue)) {
+    std::printf("mw3: debriefing of a MODS mission: %s, back to MODS\n", id == kAbort ? "ABORT" : "CONTINUE");
+    e.mission_cleanup(1);
+    e.replace_state(2);
     return;
   }
   if (id == kAbort) {

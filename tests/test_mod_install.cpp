@@ -618,13 +618,16 @@ TEST(mod_export_refusals) {
   r = mech3::mod_export(empty.string(), out + "/e.zip");
   EXPECT(!r.ok && r.message.find("no files of its own") != std::string::npos && !fs::exists(out + "/e.zip"));
   EXPECT(!mech3::mod_export((fs::path(wd) / "mods" / "gone").string(), out + "/g.zip").ok);
-  // A name Windows cannot hold: IMPORT would refuse the zip, so EXPORT does.
+  // A name Windows cannot hold: IMPORT would refuse the zip, so EXPORT does. (Off Windows only: there no such
+  // file can be made to export.)
+#if !defined(_WIN32)
   const fs::path bad = fs::path(wd) / "mods" / "B";
   put(bad / "mod.txt", "name=B\n");
   put(bad / "zbd/what?.txt", "x");
   r = mech3::mod_export(bad.string(), out + "/b.zip");
   std::printf("  bad name: %s\n", r.message.c_str());
   EXPECT(!r.ok && r.message.find("Windows cannot hold (zbd/what?.txt)") != std::string::npos && !fs::exists(out + "/b.zip"));
+#endif
 #if !defined(_WIN32)
   // A link (it could point anywhere): refused, not followed.
   const fs::path linked = fs::path(wd) / "mods" / "L";

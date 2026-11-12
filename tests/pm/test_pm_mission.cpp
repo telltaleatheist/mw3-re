@@ -16,6 +16,9 @@
 #if !defined(_WIN32)
 #include <sys/wait.h>
 #include <unistd.h>
+#else
+#include <process.h>  // _getpid, as tests/main.cpp
+#define getpid _getpid
 #endif
 
 #include "gamez/zmath/zmth_matrix.h"
@@ -2961,7 +2964,7 @@ TEST(pm_ia_wave_rows_show_the_waves_loadout_headless) {
     mech3::Mech3App app(&engine);
     mech3::set_app(&app);
     EXPECT(app.init_instance());
-    auto label = [](mech3::CycleButton& c) { return std::string(c.labels.empty() || !c.labels[0]->text ? "" : c.labels[0]->text); };
+    auto label = [](mech3::CycleButton& c) { return std::string(c.labels.empty() ? "" : c.labels[0]->text); };
     auto stock = [&](int32_t mech) {  // the mech's loadouts but training's
       std::vector<std::string> v;
       if (const mech3::ConfigList* l = engine.mech_loadouts(mech))
