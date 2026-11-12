@@ -47,6 +47,7 @@ struct ImportFolder {
   std::string version, install_version, warning;
   std::vector<std::string> linked;  // linked folders in the modded folder (a symlink, a Windows junction): left out, said
   std::string error;         // why it was refused ("" when not; the staging then gone)
+  bool wrong_game = false;   // W15: refused as the other game's (its install given instead takes it)
 };
 // What would be taken, copied into a new staging folder. The modded folder
 // and `install` are read only.

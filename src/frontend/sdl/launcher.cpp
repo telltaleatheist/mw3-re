@@ -841,6 +841,10 @@ void Launcher::start_game(bool pm) {
     args.insert(args.end(), o_.game_args.begin(), o_.game_args.end());
   }
   args.push_back("--ready-file"), args.push_back(ready_file_);
+  // W15: the other game's data folder and install, where a mod imported for it is added.
+  const std::string other_wd = pm ? o_.write_dir : pm_wd(), other_install = pm ? (install_.ok ? install_.dir : "") : pm_dir_;
+  if (!other_wd.empty() && !other_install.empty())
+    args.insert(args.end(), {"--other-write-dir", other_wd, "--other-install", other_install});
   std::vector<const char*> argv;
   std::string line;
   for (const std::string& a : args) argv.push_back(a.c_str()), line += (line.empty() ? "" : " ") + a;

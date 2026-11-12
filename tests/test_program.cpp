@@ -2122,6 +2122,86 @@ TEST(entry_pilot_screen_lists_and_brings_the_main_menus_pilots_headless) {
   }
 }
 
+// Playtest W15 (Owen, 2026-11-12): Freako's "PM 1.2 Mod - Beta" zip holds only names both games ship (a
+// reader.zbd, the worlds' textures), and MechWarrior 3's IMPORT asked which game it was for. Its records tell:
+// a Pirate's Moon reader.zbd has records MechWarrior 3's lacks (its new mechs' files). Imported in MechWarrior 3
+// it goes to Pirate's Moon's mods when the launcher said where that game is, else it is not added and the line
+// says where to IMPORT it; nobody is asked, and nothing lands in MechWarrior 3's mods either way.
+TEST(import_tells_a_pirates_moon_mod_by_its_records_and_adds_it_there) {
+  namespace fs = std::filesystem;
+  EXPECT(mech3::mod_game_of_records({"dfn_atlas.zrd", "IA_Progression.zrd", "weapons.zrd"}) == mech3::ModGame::kPm);
+  EXPECT(mech3::mod_game_of_records({"mechs.zrd", "player.zrd", "weapons.zrd"}) == mech3::ModGame::kMw3);
+  EXPECT(mech3::mod_game_of_records({"weapons.zrd", "dfn_atlas.zrd"}) == mech3::ModGame::kUnknown);  // one alone: not enough
+  EXPECT(mech3::mod_game_of_records({"dfn_atlas.zrd", "mobile_hq.zrd", "mechs.zrd"}) == mech3::ModGame::kUnknown);  // both
+  const std::string root = temp_dir("import_w15");
+  std::error_code ec;
+  auto archive = [](const std::string& path, const std::vector<std::pair<std::string, std::string>>& entries) {
+    fs::create_directories(fs::path(path).parent_path());
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    zutl_zar::create(a, path.c_str());
+    for (const auto& [name, text] : entries)
+      zutl_zar::add(a, name.c_str(), reinterpret_cast<const uint8_t*>(text.data()), static_cast<uint32_t>(text.size()));
+    zutl_zar::close(a);
+    zutl_zar::destroy(a);
+  };
+  archive(root + "/mw3/zbd/reader.zbd", {{"mechs.zrd", "(mw3)"}, {"weapons.zrd", "(w)"}});
+  archive(root + "/pm/zbd/reader.zbd", {{"dfn_atlas.zrd", "(atlas)"}, {"ia_progression.zrd", "(ia)"}, {"weapons.zrd", "(w)"}});
+  // The mod's records real ones (the game's weapons.zrd under each name, so the receiving game's check reads
+  // them); what tells the game is their names.
+  std::string weapons;
+  if (have_game()) {
+    zutl_zar::Archive g;
+    zutl_zar::init(g);
+    if (zutl_zar::open(g, (std::string(MW3_GAME_DIR) + "/zbd/reader.zbd").c_str()))
+      for (int i = 0; i < g.count; ++i)
+        if (std::string(g.entries[i].name) == "weapons.zrd") {
+          weapons.resize(g.entries[i].length);
+          uint32_t size = g.entries[i].length;
+          zutl_zar::read(g, i, reinterpret_cast<uint8_t*>(weapons.data()), &size);
+        }
+    zutl_zar::destroy(g);
+  }
+  archive(root + "/mod/zbd/reader.zbd", {{"dfn_atlas.zrd", weapons}, {"ia_progression.zrd", weapons}, {"weapons.zrd", weapons}});
+  fs::create_directories(root + "/wd_mw3", ec), fs::create_directories(root + "/wd_pm", ec);
+  const std::string keep_game = mech3::mods_game();
+  const mech3::OtherGame keep_other = mech3::mods_other_game();
+  mech3::mods_game() = "mw3";
+  int asked = 0;
+  const auto ask = [&](const std::string&) { return ++asked, 1; };
+  auto mods_in = [&](const std::string& wd) {
+    int n = 0;
+    for (fs::directory_iterator it(wd + "/mods", ec), end; !ec && it != end; it.increment(ec)) ++n;
+    return n;
+  };
+  // Started alone (no word on Pirate's Moon): not added, the line says where.
+  mech3::mods_other_game() = {};
+  const mech3::ModAddDone a = mech3::mod_add_run(root + "/wd_mw3", root + "/mod", root + "/mw3", ask, nullptr);
+  std::printf("  alone: ok %d, other %d, \"%s\"\n", a.ok, a.other_game, a.message.c_str());
+  EXPECT(!a.ok && a.other_game && a.message.find("is for Pirate's Moon") != std::string::npos &&
+         a.message.find("IMPORT it from Pirate's Moon's MODS screen") != std::string::npos);
+  EXPECT(mods_in(root + "/wd_mw3") == 0 && mods_in(root + "/wd_pm") == 0);
+  // From the launcher: handed to Pirate's Moon (its mods-incoming), nothing added here; Pirate's Moon's next
+  // start adds it with its own check, marked for it, and removes the hand-over.
+  mech3::mods_other_game() = {root + "/wd_pm", root + "/pm"};
+  const mech3::ModAddDone b = mech3::mod_add_run(root + "/wd_mw3", root + "/mod", root + "/mw3", ask, nullptr);
+  std::printf("  launcher: ok %d, other %d, \"%s\"\n", b.ok, b.other_game, b.message.c_str());
+  EXPECT(b.ok && b.other_game && b.message.find("put in Pirate's Moon's mods") != std::string::npos);
+  EXPECT(mods_in(root + "/wd_mw3") == 0 && mods_in(root + "/wd_pm") == 0 && fs::is_directory(b.folder + "/files/zbd", ec));
+  mech3::mods_game() = "mw3pm";  // Pirate's Moon's start
+  for (const std::string& l : mech3::mods_take_incoming(root + "/wd_pm", root + "/pm")) std::printf("  pm start: %s\n", l.c_str());
+  std::string added;
+  for (fs::directory_iterator it(root + "/wd_pm/mods", ec), end; !ec && it != end; it.increment(ec)) added = it->path().filename().string();
+  std::ifstream txt(root + "/wd_pm/mods/" + added + "/mod.txt");
+  const std::string mod_txt((std::istreambuf_iterator<char>(txt)), std::istreambuf_iterator<char>());
+  if (!weapons.empty()) EXPECT(mods_in(root + "/wd_pm") == 1 && mod_txt.find("for=mw3pm") != std::string::npos);
+  EXPECT(!fs::exists(root + "/wd_pm/mods-incoming", ec));
+  EXPECT(asked == 0);
+  mech3::mods_game() = keep_game;
+  mech3::mods_other_game() = keep_other;
+  fs::remove_all(root, ec);
+}
+
 // Ours (modding.md, IMPORT from a modded game folder; upgrades/mods/import_folder.h): the MODS screen's IMPORT
 // given a whole modded install takes what differs from the player's install as a mod, an unticked row of
 // MODS chosen, its two rows saying what was taken; the player's own install and the other game's are refused

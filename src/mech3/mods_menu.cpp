@@ -1137,6 +1137,12 @@ void ModsScreen::add_mod(const std::string& path) {
   std::string took;
   // A file inside a folder mod stands for the folder (import_folder.h, import_pick_root).
   const ModAddDone d = import_folder_run(mods_menu_write_dir(), import_pick_root(path), mods_menu_install(), mods_menu_platform().ask_game, nullptr, &took);
+  if (d.other_game) {  // W15 (Owen, 2026-11-12): the other game's mod, put in its mods (or not), said in the game's own box
+    std::printf("mw3: mods: %s\n", d.message.c_str());
+    engine().message_box_words(0, "Add a mod", d.message);
+    tell(d.ok ? "Added to the other game's mods." : "Not added.");
+    return;
+  }
   if (!d.ok) {
     tell(d.message);
     return;
