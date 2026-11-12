@@ -341,6 +341,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/installer_read.cpp
   src/upgrades/settings/upgrades.cpp
   src/upgrades/mods/mod_report.cpp
+  src/upgrades/mods/found_worlds.cpp
   src/upgrades/mods/mod_test.cpp
   src/upgrades/mods/mod_needs.cpp
   src/upgrades/mods/campaign_entries.cpp
@@ -634,6 +635,7 @@ add_executable(mw3tests
   tests/test_mods.cpp
   tests/test_mod_install.cpp
   tests/test_import_folder.cpp
+  tests/test_found_worlds.cpp
   tests/test_entry_archives.cpp
   tests/test_installer_read.cpp
   tests/test_reference.cpp

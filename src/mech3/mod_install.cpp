@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +16,7 @@
 #include "mech3/source_archive.h"
 #include "upgrades/mods/mod_export.h"
 #include "upgrades/mods/mod_report.h"
+#include "upgrades/mods/found_worlds.h"
 
 namespace mech3 {
 namespace fs = std::filesystem;
@@ -489,6 +491,16 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
     if (a.bare_zbd)
       f << "# It was packed as the contents of the game's zbd folder, with no zbd folder of its own: the game put\n"
         << "# those files under zbd, where it reads them.\n";
+    // Ours (found_worlds.h): a world the game does not have, its lines and its missions' campaign written for it.
+    const std::vector<FoundWorld> worlds = found_worlds(root.string());
+    if (!worlds.empty()) {
+      std::vector<std::string> log;
+      const std::vector<std::string> lines = found_worlds_mod_txt(root.string(), worlds, nullptr, &log);
+      f << "# Worlds the game does not have, found in its zbd folder: each one's line, its Instant Action maps and a\n"
+        << "# campaign of its missions in number order.\n";
+      for (const std::string& l : lines) f << l << "\n";
+      for (const std::string& l : log) std::printf("mw3: import: %s\n", l.c_str());
+    }
   }
   // Ours (entry_archives.h): a reader archive the install also has is kept as the entries that differ from the
   // install's, so mods that change different entries of one archive both apply. Our staging copy only.

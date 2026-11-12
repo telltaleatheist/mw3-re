@@ -212,6 +212,82 @@ an id left out, nothing without mods) and `mod_world_plays_in_instant_action_hea
 (a mod world of c1's files linked, `source c1.gs`, Instant Action on world
 9: its readers read from `zbd\mymap\`, the player's mech in play).
 
+### A world the game does not have, found at IMPORT (Z2, 2026-11-11)
+
+Owen (2026-11-11): making things is zStudio's ([Vorta/zStudio](https://github.com/Vorta/zStudio)), which
+exports ordinary game files for MechWarrior 3 1.2; the rebuild imports them and plays them. A zStudio export
+of a new world is the world's folder under `zbd\` (its `gamez.zbd`, `anim.zbd`, `reader.zbd` with
+`world.zrd`, `readerm<n>.zbd` for each mission, `readeria<n>`/`readermp<n>` for the maps, `rtexture.zbd`)
+and an `interp.zbd` holding every prepared script, the world's `<world>.gs` among them (zStudio's
+docs/mw3-source-project.md: "Prepared scripts build interp.zbd", "aipath/m1 builds readerm1.zbd"). Such an
+export has no mod.txt, so until now its world played only with `world=` written by hand.
+
+**At IMPORT** (`upgrades/mods/found_worlds`), a mod with no mod.txt of its own (a folder, a zip, or a game
+folder it was laid over: the files that differ or are new are taken, a new world's all new) is looked
+through for worlds: `zbd\<name>\` holding a `gamez.zbd` (or our JSON or zip form), `<name>` none of the
+game's nine (any case) and a name the mount takes (no slash, dot or space). The mod.txt the game writes
+then gets, for each one:
+
+- `world=<name>`;
+- `ia_world=<name> <name>` when it has `readeria<n>.zbd` maps;
+- a campaign of its missions (`readerm<n>.zbd`, in number order) when it has any: the file `<name>.txt`
+  (its id the name's letters, digits, `_` and `-`, a name no file at the mod's root has: `<name>_2.txt`
+  if taken), `name=<name>` and a `mission=<name> <n>` line each, and `campaign=<name>.txt`. PLAY and
+  MISSIONS on MODS then work with no hand edit; the briefing is `brief_<name><n>`, the movie none.
+- Its multiplayer maps (`readermp<n>.zbd`) need nothing more: the lobby's add-on scan looks in every mod
+  world (New worlds and words, Multiplayer).
+
+A mod with its own mod.txt is the modder's and is never written; `--check-mod`, REPORT and INFO warn about
+a world folder in it that mod.txt does not name ("the world is not played: add world=<name>").
+
+**What a mission on a new world reads, measured** (2026-11-11: a made-up world, c1's files linked under a
+new name, `source c1.gs` its script, the first mission of a two-mission campaign on it played by the chain
+with one kind of file taken away each time):
+
+| Taken away | What happened |
+|---|---|
+| nothing | won |
+| `anim.zbd` | won: the script's `AnimSetZBDFile %RTIME%\%DB%\anim.zbd` read c1's |
+| `texture*.zbd`, `rtexture*.zbd` | won, drawn without its textures: the Load state searches `zbd\<world>\` then `zbd\` (`textures_begin`), the world's own folder, and `zbd\` has none |
+| `reader.zbd` | "Failed to read world.zrd": it loads and plays, but has no nav points and cannot be won |
+| `readerm1.zbd` | the launch gives up and the game goes back to the main menu with nothing said |
+| `<world>.gs` | "Failed to Interpret: mymap.gs -- Mission Load Aborted" at the briefing's load; the lab's world then fails to load after it ("No world in lab.gs") and the launch crashes |
+
+So the world's own folder always gives `reader.zbd` (`world.zrd`), its numbered archives and its
+textures (`rtexture*.zbd`: the mission's folder, `mission_dir`); the scenery (`gamez.zbd` by the script's
+`set GAMEZ %RTIME%\%DB%\gamez.zbd`, and `anim.zbd`) comes from the folder the script's `DB` names. A script of its own (`set DB <name>`, as a zStudio export's is) reads all
+of it from the world's folder; `source c1.gs` reads c1's. The mount still asks for the world's own
+`gamez.zbd` (the world's mark). INFO says which: "Its script takes c1's scenery (its gamez.zbd and
+animations); its missions, world records and textures are its own." The script is found in the mod's
+`zbd\interp.zbd` (its directory read, a `set DB` line in it read by its words) or as `<name>.gs` at the
+mod's root (the text fallback); neither, and INFO says "nothing on it can load".
+
+**At the mount**, so neither of the last two rows can happen from a mod: a campaign is left out, said in
+the log and on MODS, when a line's world is a mod's whose build script is nowhere the load looks (the
+first `zbd\interp.zbd` in the mounts, which the game reads first, else `<world>.gs` in any mod, the patch or
+the install), or when a line's mission has no `zbd\<world>\readerm<n>.zbd` (or our `.zbd.entries` or zip
+form) anywhere; an `ia_world=` entry on a world with no script is left out the same way. The game's own
+worlds' scripts are the install's. A mod laid over a game folder may bring `<world>.gs` loose at the folder's
+top (the original opens a loose script from its working folder): IMPORT takes a top-level `.gs` file, where
+it leaves other loose files.
+
+**INFO** says what it found: "The world ironcoast has 3 missions, 1 Instant Action map and 1 multiplayer
+map.", its script's scenery, and any file it lacks ("It has no reader.zbd (its world records
+(world.zrd)) and rtexture.zbd (its textures).").  The check now calls a `world=` name taken only when it is one of the game's nine: a mod's
+world of that name is the mod's own once it is mounted (INFO on a ticked mod said "there is a world ironcoast
+already" before), and two mods' worlds of one name are the mount's to say.
+
+Tests (`tests/test_found_worlds.cpp`): found by their files (the game's names in any case, a dot, no
+gamez left out; missions in number order; the script at the root or in interp.zbd, `set DB` and `source`
+read; what it lacks); interp.zbd's directory (the game's 44 scripts; junk and an impossible count read as
+none; c1.gs's first line `set DB c1`); the lines and the campaign file (a taken name, the id rule, the
+file read by the campaign reader); IMPORT from a folder, a zip and a game folder it was laid over (each:
+the mod.txt's three lines, the campaign file, the check's sentences, mounted as world 9 with its campaign
+of three and its Instant Action entry, its readerm2 read from the mod); a mod with its own mod.txt left as
+it is, its unnamed world warned about; the mount's two checks (no script: the campaign and the Instant
+Action entry left out, then a script at the root and then in interp.zbd taking them; a line without its
+`readerm<n>.zbd`, on the mod's world and on c1, left out).
+
 ## New mechs and weapons (after PM, items 1 and 2, 2026-11-08)
 
 **A new mech.** `mech=` in mod.txt, one line a mech:
