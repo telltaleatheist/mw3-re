@@ -1853,7 +1853,8 @@ mission_salvage=c1 2 50
 - **The first ticked mod that sets a value wins it** (`salvage_rules_take`, in mount order): the mod-wide
   number, and each mission's line by its mission. The later mod's row on MODS says "Shares its salvage chance
   with <mod>, which wins". REPORT and INFO say what a mod sets: "It sets how often a kill's salvage is offered:
-  100 in 100; the original's is 1 in 2."
+  100 in 100; the original's is 1 in 2." (one mission's line: "For c1 mission 2 it sets how often a kill's
+  salvage is offered: 50 in 100.").
 
 **The draw.** Unset, the original's line runs untouched: `rand() & 1`. Set, the same single `rand()` is drawn
 (the stream stays in step with a run without the mod) and judged as `(r * 100 >> 15) < N`: rand() gives 15
@@ -1879,7 +1880,10 @@ over it; the values' reading and mod.txt's keys; the mount's first-ticked rule, 
 mod-wide value, a bad line left out, a mount of nothing leaving nothing; the check, the report's sentence and
 the shared note; the starter (`mods_starter_mods_made_checked_and_loaded`). In the program, hidden, Op 1
 Mission 1 by kills: at 100 both APCs' weapons are in the debriefing, at 0 neither, and a plain start with the
-mod in the mods folder plays the original's draw with nothing logged.
+mod in the mods folder plays the original's draw with nothing logged. A mod with `salvage_chance=100` and `mission_salvage=c1 1 0`
+ticked for the campaign: Op 1 Mission 1 logs 0 (both APCs give nothing), Missions 2 and 3 log 100. Instant
+Action with that mod ticked mounts it and logs no salvage line (a won round with a kill). INFO on the real MODS
+screen shows the mod's sentence (`mods_screen_report_shows_a_mods_sentences_headless`).
 
 ### A mech loadout (2026-11-11)
 

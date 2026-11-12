@@ -108,7 +108,7 @@ std::string salvage_chance_sentence(const ModInfo& m) {
   if (missions) {
     if (!out.empty()) out += " ";
     out += missions == 1 && mission_salvage_parse(m.mission_salvage.front(), &ms) && m.mission_salvage.size() == 1
-               ? "For " + ms.world + " mission " + std::to_string(ms.number) + " it sets it to " + std::to_string(ms.chance) + " in 100."
+               ? "For " + ms.world + " mission " + std::to_string(ms.number) + " it sets how often a kill's salvage is offered: " + std::to_string(ms.chance) + " in 100."
                : "For " + std::to_string(missions) + " missions it sets its own odds of a kill's salvage.";
     if (n < 0) out += " The original's is 1 in 2.";
   }

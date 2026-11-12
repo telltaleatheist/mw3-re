@@ -135,7 +135,7 @@ TEST(salvage_chance_values_read) {
   EXPECT(mech3::salvage_chance_sentence(info) == "It sets how often a kill's salvage is offered: 100 in 100; the original's is 1 in 2.");
   mech3::ModInfo one;
   mech3::mod_parse("name=One\nmission_salvage=c1 2 75\n", &one);
-  EXPECT(mech3::salvage_chance_sentence(one) == "For c1 mission 2 it sets it to 75 in 100. The original's is 1 in 2.");
+  EXPECT(mech3::salvage_chance_sentence(one) == "For c1 mission 2 it sets how often a kill's salvage is offered: 75 in 100. The original's is 1 in 2.");
   EXPECT(mech3::salvage_chance_sentence(two) == "For 2 missions it sets its own odds of a kill's salvage. The original's is 1 in 2.");
   mech3::ModInfo none;
   mech3::mod_parse("name=None\n", &none);
