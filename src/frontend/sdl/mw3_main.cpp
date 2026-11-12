@@ -92,6 +92,7 @@
 #include "upgrades/reference/reference.h"
 #include "upgrades/settings/upgrades.h"
 #include "mech3/game_editor.h"
+#include "mech3/mp_connect.h"
 #include "mech3/options_menu.h"
 #include "mech3/game_setup.h"
 #include "frontend/sdl/sdl_force.h"
@@ -251,7 +252,7 @@ struct Args {
   std::vector<Tap> taps;  // --tap DIK@N[:M]
   // group: a wide menu's left (0), middle (1) or right (2); players: N > 0
   // counts the frame from the first one the session holds N players (ours)
-  struct ClickAt { int frame, x, y, group = 0, players = 0, back = 0, ingame = 0, hover = 0; };
+  struct ClickAt { int frame, x, y, group = 0, players = 0, back = 0, ingame = 0, hover = 0, sessions = 0; };
   std::vector<ClickAt> clicks_at;  // --click-at X,Y@N (the game's 640 x 480 pixels)
   // --mouse-at X,Y@N[c] (ours): the system's mouse moved to a window point at
   // frame N, as SDL reports it (through SdlInput, unlike --click-at); c: then
@@ -300,7 +301,7 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia | --entry-mission WORLD N [--edit]]] [--entry-pilot NAME] [--open-mods [--mods-entry ID] | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission|salvage] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--mouse-at X,Y@N[c]]... [--then ...] [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia | --entry-mission WORLD N [--edit]]] [--entry-pilot NAME] [--open-mods [--mods-entry ID] | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission|salvage] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--mouse-at X,Y@N[c]]... [--then ...] [--click-players X,Y@N/P]... [--click-sessions X,Y@N/S]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
@@ -412,6 +413,11 @@ bool parse(int argc, char** argv, Args& a) {
       Args::MouseAt m{};
       char c = 0;
       if (std::sscanf(argv[++i], "%d,%d@%d%c", &m.x, &m.y, &m.frame, &c) >= 3) m.click = c == 'c', a.mouse_at.push_back(m);
+    }
+    else if (s == "--click-sessions" && next(1)) {  // X,Y@N/S: N frames after the connection screen first lists S games
+      Args::ClickAt c{};
+      if (std::sscanf(argv[++i], "%d,%d@%d/%d", &c.x, &c.y, &c.frame, &c.sessions) == 4 && c.sessions > 0)
+        a.clicks_at.push_back(c);
     }
     else if (s == "--click-players" && next(1)) {  // X,Y@N/P: N frames after the session first holds P players
       Args::ClickAt c{};
@@ -1804,6 +1810,14 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
           if (s_players_at[n] < 0) s_players_at[n] = menu_frames;
         for (Args::ClickAt& c : clicks)
           if (c.players > 0) c.frame = c.players < 9 && s_players_at[c.players] >= 0 ? s_players_at[c.players] + c.frame : -100;
+        // --click-sessions: the first frame the connection screen listed each number of games (a LAN answer comes in
+        // real time, which hidden runs outpace: a click at a fixed frame could come before it and never again).
+        static int s_sessions_at[9] = {-1, -1, -1, -1, -1, -1, -1, -1, -1};
+        const int32_t listed = mech3::connect_sessions_listed();
+        for (int32_t n = 1; n <= listed && n < 9; ++n)
+          if (s_sessions_at[n] < 0) s_sessions_at[n] = menu_frames;
+        for (Args::ClickAt& c : clicks)
+          if (c.sessions > 0) c.frame = c.sessions < 9 && s_sessions_at[c.sessions] >= 0 ? s_sessions_at[c.sessions] + c.frame : -100;
         // --click-return: from the frame the lobby was last entered after a game.
         static int s_entries = 0, s_back_at = -1;
         if (engine.lobby_entries() != s_entries) {

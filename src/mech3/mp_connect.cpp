@@ -13,6 +13,10 @@
 namespace mech3 {
 
 namespace {
+int32_t g_sessions_listed = 0;  // ours: the connection screen's games listed (connect_sessions_listed)
+}  // namespace
+
+namespace {
 // The bars' rejected characters (0x005a4840 with [0x005e28e8]) as a file
 // name's, as the pilot screen's.
 constexpr char kReject[] = ":|\\<>/?\"*\t";
@@ -98,7 +102,12 @@ void SessionList::refill(int32_t count) {
     layout();
   }
   select(again);  // +0x98
+  // Ours, for the checks: the list's size, said as it changes (--click-sessions waits on it).
+  if (item_count() != g_sessions_listed)
+    g_sessions_listed = item_count(), std::printf("mw3: multiplayer: sessions listed %d\n", g_sessions_listed);
 }
+
+int32_t connect_sessions_listed() { return g_sessions_listed; }
 
 // Mech3.exe 1.2 @ 0x004938f0
 void ConnectBox::on_left_up() { set_checked(screen->connect(checked == 0)); }
