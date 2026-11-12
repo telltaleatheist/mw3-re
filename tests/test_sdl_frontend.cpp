@@ -7965,3 +7965,62 @@ TEST(sdl_editor_forms_click_through_imgui) {
   EXPECT(applied_under_modal == 1 && asked == 1 && !mech3::form_shown(&m));
   mech3::form_hide(&f);
 }
+
+#if !defined(_WIN32)  // posix_spawn, waitpid
+// The valve map (ours, upgrades/valve_map; docs/valves/README.md): the real program on c1 mission 1 and
+// mission 3, hidden, writes each page at the mission's first frame and ends. Its counts, a link of each
+// kind (a target's health_below, an objective, an animation's callback, a delayed update, the player's
+// region trigger, a net's valve_assign, an AI record's health trigger, a valve's condition), no game text
+// (objectives by their message ids), and c1m1's page as committed in docs/valves (made by this tool).
+TEST(sdl_program_valve_map_c1m1_and_c1m3) {
+  namespace fs = std::filesystem;
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/valve map";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/wd", ec);
+  auto make = [&](const char* mission) {
+    int status = 0;
+    const pid_t pid = spawn_mw3({"--install", install, "-nofmv", "--write-dir", dir + "/wd", "--no-launcher", "--hidden", "--nosound",
+                                 "--frame-ms", "33", "--mission", mission, "--valve-map", dir + "/out"},
+                                dir + "/" + mission + ".log");
+    EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(dir + "/out/" + mission + ".md", std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto has = [](const std::string& t, const char* w) { return t.find(w) != std::string::npos; };
+  // The section of one valve: from its heading to the next.
+  auto section = [](const std::string& t, const char* id) {
+    const size_t a = t.find(std::string("<a id=\"") + id + "\">");
+    if (a == std::string::npos) return std::string();
+    const size_t b = t.find("\n### ", a);
+    return t.substr(a, b == std::string::npos ? std::string::npos : b - a);
+  };
+  const std::string m1 = make("c1m1");
+  std::printf("  c1m1: %zu bytes\n", m1.size());
+  EXPECT(has(m1, "62 valves; 21 valves.zrd records, 37 vlist entries, 2 target triggers, 26 net links, 3 objective links, 20 animation links."));
+  const std::string down = section(m1, "v-comcntr-down");
+  EXPECT(has(down, "targets.zrd `satdish`: to 1 when its health falls below 0 (destroyed)"));
+  EXPECT(has(down, "objectives.zrd `m1` primary > `valve_change` (`MSG_OBJ_0xA00`, nav `Able`): done when the valve is 1"));
+  EXPECT(has(section(m1, "v-bramp"), "anim.zbd `call_ramp` at node `bramp`: to 1 by its callback event"));
+  EXPECT(has(section(m1, "v-bramp"), "to 1: wakes (powers up) `owens_01`"));
+  EXPECT(has(section(m1, "v-c1m1dialogue1"), "10 s after [dialogue_trigger](#v-dialogue-trigger) changes"));
+  EXPECT(has(section(m1, "v-outside-c1m1"), "aiv.zrd `player` vlist #31: to 1 when outside `reg_outside_c1m1`"));
+  EXPECT(has(section(m1, "v-destroy-truck-01"), "`net_01 node_17`: to 1 when a pilot takes its links (valve_assign)"));
+  EXPECT(has(section(m1, "v-reach-mfb"), "objectives.zrd `m1` final > `valve_change` (`MSG_OBJ_0xA03`, nav `Baker`)"));
+  // No objective's or briefing's words: the ids only.
+  EXPECT(!has(m1, "desc") && !has(m1, "MSG_AIV"));
+  const std::string m3 = make("c1m3");
+  const std::string strider = section(m3, "v-strider-defeated");
+  EXPECT(has(strider, "aiv.zrd `strider_01` vlist #1: to 1 when health <= 0 (items 5, 6)"));
+  EXPECT(has(strider, "valves.zrd: [cross_river](#v-cross-river)'s condition (any member nonzero)"));
+  // The page committed in the repository is this tool's (regenerate it, never edit it by hand).
+  const fs::path repo = fs::path(install).parent_path().parent_path();
+  std::ifstream c(repo / "docs/valves/c1m1.md", std::ios::binary);
+  const std::string committed((std::istreambuf_iterator<char>(c)), std::istreambuf_iterator<char>());
+  std::printf("  docs/valves/c1m1.md as made: %d\n", committed == m1);
+  EXPECT(committed == m1);
+  fs::remove_all(dir, ec);
+}
+#endif

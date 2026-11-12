@@ -340,6 +340,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/bz2_read.cpp
   src/upgrades/mods/installer_read.cpp
   src/upgrades/settings/upgrades.cpp
+  src/upgrades/valve_map/valve_map.cpp
   src/upgrades/mods/mod_report.cpp
   src/upgrades/mods/found_worlds.cpp
   src/upgrades/mods/mod_test.cpp
