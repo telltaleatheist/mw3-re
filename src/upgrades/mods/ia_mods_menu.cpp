@@ -94,6 +94,11 @@ IaModsScreen::IaModsScreen(Engine& e, Handle s)
   before = entry_ticks(mods_menu_write_dir(), kIaEntry);
   ticks.no_campaign_only = true;
   ticks.fill(mods_menu_write_dir(), before);
+  {  // for the checks: the rows as listed
+    std::string rows;
+    for (const ModsListEntry& r : ticks.rows) rows += (rows.empty() ? "" : ", ") + (r.info.name.empty() ? r.info.folder : r.info.name);
+    std::printf("mw3: Instant Action's MODS lists: %s\n", rows.empty() ? "nothing" : rows.c_str());
+  }
   mods_text_say(title, "I N S T A N T   A C T I O N");
   show_note();
 }

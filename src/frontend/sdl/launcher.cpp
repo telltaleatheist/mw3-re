@@ -2061,6 +2061,14 @@ LauncherChoice Launcher::run() {
       screen_ = kSetupScreen, from_files_ = o_.screen == "files";
     if (o_.screen == "pick") status_ = "Not found on this computer or in a disc drive. Pick it: a disc image, a download, or Mech3.exe.";
     if (o_.screen == "notes" || o_.screen == "disc") screen_ = kNotes;
+    // Pirate's Moon's notes as its start shows them (start_pm), and with ADD FROM MY DISC's answer.
+    if (o_.screen == "pmnotes" || o_.screen == "pmdisc") {
+      files_pm_ = true;
+      notes_ = pm_notes(nullptr);
+      for (const std::string& n : notes_) std::printf("mw3: launcher: note: %s\n", n.c_str());
+      screen_ = kNotes;
+    }
+    if (o_.screen == "pmdisc") status_ = "No disc in a drive. Pick its image (.cue .iso) or any file of the disc.";
     if (o_.screen == "data") screen_ = kDataScreen;
     if (o_.screen == "update") {  // the check (MW3_UPDATE_API in shots) and a newer release's screen
       update_ = std::make_shared<upgrades::update::Verdict>(check_for_updates(MW3_VERSION));

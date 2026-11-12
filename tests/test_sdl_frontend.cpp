@@ -5064,54 +5064,84 @@ TEST(sdl_program_launcher_screens) {
 // BEFORE YOU PLAY by measure (Owen's playtest, W3): an install with no movies, no music and an empty
 // soundsH.zbd under a long settings folder (a long user name), ADD FROM MY DISC having answered "No disc in a
 // drive ...". The status line is under the notes and all of it above the button, at a size still read; before,
-// it was drawn at a fixed place over the notes' last lines.
+// it was drawn at a fixed place over the notes' last lines. Three cases: those two notes; a third with them
+// (two operations' missions gone); Pirate's Moon's own notes (its empty soundsH.zbd and no music, the folder
+// in the music note longer still: Owen's own case).
 TEST(sdl_program_launcher_notes_fit_above_the_buttons) {
   namespace fs = std::filesystem;
   std::error_code ec;
   if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/reader.zbd", ec)) return;
   const std::string dir = std::string(MW3_TEST_TMP) + "/launcher notes";
   const std::string wd = dir + "/A Player With A Rather Long Name/AppData/Roaming/MicroProse/MechWarrior 3";
-  fs::remove_all(dir, ec);
-  fs::create_directories(wd + "/install/zbd", ec);
-  for (fs::directory_iterator it(MW3_GAME_DIR, ec), end; !ec && it != end; it.increment(ec)) {
-    std::string n = it->path().filename().string();
-    for (char& ch : n) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    if (n != "zbd" && n != "video") fs::create_symlink(fs::absolute(it->path()), wd + "/install/" + it->path().filename().string(), ec);
-  }
-  for (fs::directory_iterator it(std::string(MW3_GAME_DIR) + "/zbd", ec), end; !ec && it != end; it.increment(ec))
-    if (it->path().filename() != "soundsH.zbd") fs::create_symlink(fs::absolute(it->path()), wd + "/install/zbd/" + it->path().filename().string(), ec);
-  std::ofstream(wd + "/install/zbd/soundsH.zbd") << "";
-  const std::string bmp = dir + "/notes.bmp", log = dir + "/notes.log";
-  int status = 0;
-  const pid_t pid = spawn_launcher({"--write-dir", wd, "--launcher-shot", bmp, "--launcher-screen", "disc"}, log);
-  EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
-  std::ifstream f(log);
-  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-  const size_t at = text.find("mw3: launcher: notes: ");
-  const std::string line = at == std::string::npos ? std::string() : text.substr(at, text.find('\n', at) - at);
-  int notes = 0, size = 0, width = 0, status_y = 0, add_y = 0, ok_y = 0;
-  const int got = std::sscanf(line.c_str(), "mw3: launcher: notes: %d at size %d and width %d, the status line at y %d, ADD FROM MY DISC at %d, OK at %d",
-                              &notes, &size, &width, &status_y, &add_y, &ok_y);
-  std::printf("  %s\n", line.c_str());
-  EXPECT(text.find("no movies (they stayed on the CD) and no music") != std::string::npos && text.find("soundsH.zbd is empty") != std::string::npos);
-  EXPECT(got == 6 && notes == 2 && line.find("above the buttons") != std::string::npos);
-  EXPECT(size >= 12 && add_y == 318 && ok_y == 384);          // read without effort, the buttons where they were
-  EXPECT(status_y > 162 + 4 * size && status_y + 14 <= 312);  // under the notes' lines, above ADD FROM MY DISC
-  // Drawn: the status line's amber is on its own rows, under the notes (the picture behind has warm pixels
-  // of its own, so the rows above are not counted).
-  SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
-  SDL_Surface* c = img ? SDL_ConvertSurface(img, SDL_PIXELFORMAT_ARGB8888) : nullptr;
-  int on_row = 0;
-  auto amberish = [](uint32_t p) {  // the status line's colour, not the notes' white
-    const int r = p >> 16 & 0xff, g = p >> 8 & 0xff, b = p & 0xff;
-    return r > 190 && g > 130 && r - g > 25 && r - b > 35;
+  const fs::path pm_game = fs::path(MW3_GAME_DIR).parent_path() / "pm";
+  // An install of links to `from`, without its movies, its soundsH.zbd empty, and without the zbd folders named.
+  auto stage = [&](const fs::path& from, const std::string& to, const std::vector<std::string>& without) {
+    fs::create_directories(to + "/zbd", ec);
+    for (fs::directory_iterator it(from, ec), end; !ec && it != end; it.increment(ec)) {
+      std::string n = it->path().filename().string();
+      for (char& ch : n) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+      if (n != "zbd" && n != "video") fs::create_symlink(fs::absolute(it->path()), to + "/" + it->path().filename().string(), ec);
+    }
+    for (fs::directory_iterator it(from / "zbd", ec), end; !ec && it != end; it.increment(ec)) {
+      const std::string n = it->path().filename().string();
+      if (n != "soundsH.zbd" && std::find(without.begin(), without.end(), n) == without.end())
+        fs::create_symlink(fs::absolute(it->path()), to + "/zbd/" + n, ec);
+    }
+    std::ofstream(to + "/zbd/soundsH.zbd") << "";
   };
-  for (int y = status_y; c && y < status_y + 16; ++y)
-    for (int x = 200; x < 654; ++x) on_row += amberish(static_cast<const uint32_t*>(c->pixels)[y * (c->pitch / 4) + x]);
-  std::printf("  the status line's colour: %d pixels on its rows\n", on_row);
-  EXPECT(c && on_row > 100);
-  if (c) SDL_DestroySurface(c);
-  if (img) SDL_DestroySurface(img);
+  struct Case {
+    const char* name;
+    std::vector<std::string> without;
+    const char* screen;
+    int notes;
+    const char* says;
+  };
+  for (const Case& c : {Case{"two notes", {}, "disc", 2, "no movies (they stayed on the CD) and no music"},
+                        Case{"three notes", {"c3", "c4"}, "disc", 3, "The missions of operations 3 and 4 are missing or empty"},
+                        Case{"Pirate's Moon", {}, "pmdisc", 2, "ADD FROM MY DISC puts the disc's copy in your settings folder"}}) {
+    const bool pm = std::string(c.screen) == "pmdisc";
+    if (pm && !fs::is_regular_file(pm_game / "Mech3.exe", ec)) continue;
+    fs::remove_all(dir, ec);
+    stage(MW3_GAME_DIR, wd + "/install", c.without);
+    if (pm) {
+      stage(pm_game, dir + "/pm game", {});
+      std::ofstream(wd + "/mw3.cfg") << "pm_install=" << dir << "/pm game\n";
+      setenv("MW3_PM_WRITE_DIR", (wd + "/Pirate's Moon").c_str(), 1);
+      setenv("MW3_PM_BIN", "/usr/bin/true", 1);
+    }
+    const std::string bmp = dir + "/notes.bmp", log = dir + "/notes.log";
+    int status = 0;
+    const pid_t pid = spawn_launcher({"--write-dir", wd, "--launcher-shot", bmp, "--launcher-screen", c.screen}, log);
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    if (pm) unsetenv("MW3_PM_WRITE_DIR"), unsetenv("MW3_PM_BIN");
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    const size_t at = text.find("mw3: launcher: notes: ");
+    const std::string line = at == std::string::npos ? std::string() : text.substr(at, text.find('\n', at) - at);
+    int notes = 0, size = 0, width = 0, status_y = 0, add_y = 0, ok_y = 0;
+    const int got = std::sscanf(line.c_str(), "mw3: launcher: notes: %d at size %d and width %d, the status line at y %d, ADD FROM MY DISC at %d, OK at %d",
+                                &notes, &size, &width, &status_y, &add_y, &ok_y);
+    std::printf("  %s: %s\n", c.name, line.c_str());
+    EXPECT(text.find(c.says) != std::string::npos && text.find("soundsH.zbd is empty") != std::string::npos);
+    EXPECT(got == 6 && notes == c.notes && line.find("above the buttons") != std::string::npos);
+    EXPECT(size >= 12 && add_y == 318 && ok_y == 384);          // read without effort, the buttons where they were
+    EXPECT(status_y > 162 + 4 * size && status_y + 14 <= 312);  // under the notes' lines, above ADD FROM MY DISC
+    // Drawn: the status line's amber is on its own rows, under the notes (the picture behind has warm pixels
+    // of its own, so the rows above are not counted).
+    SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
+    SDL_Surface* cs = img ? SDL_ConvertSurface(img, SDL_PIXELFORMAT_ARGB8888) : nullptr;
+    int on_row = 0;
+    auto amberish = [](uint32_t p) {  // the status line's colour, not the notes' white
+      const int r = p >> 16 & 0xff, g = p >> 8 & 0xff, b = p & 0xff;
+      return r > 190 && g > 130 && r - g > 25 && r - b > 35;
+    };
+    for (int y = status_y; cs && y < status_y + 16; ++y)
+      for (int x = 200; x < 654; ++x) on_row += amberish(static_cast<const uint32_t*>(cs->pixels)[y * (cs->pitch / 4) + x]);
+    std::printf("  %s: the status line's colour: %d pixels on its rows\n", c.name, on_row);
+    EXPECT(cs && on_row > 100);
+    if (cs) SDL_DestroySurface(cs);
+    if (img) SDL_DestroySurface(img);
+  }
   fs::remove_all(dir, ec);
 }
 
@@ -5449,14 +5479,18 @@ TEST(sdl_program_editor_pointer_points_and_clicks) {
 // EDIT MISSION in play) and never leaves the mission; MODS comes back only when the mission is left, and takes
 // clicks. The real program: a mission opened in the editor, Escape and the switch (the editor down, the mission
 // on), Escape and the switch (up again), Escape and QUIT: the game starts again on MODS,
-// where TEST's click (the next run's script, --then) puts TEST's list in the left box.
+// where MISSIONS' click (the next run's script, --then) puts the missions in the left box.
+// The mission that ends by itself (won): the debriefing's CONTINUE, and in a third run its ABORT, leave it for
+// MODS the same way. Before 2026-11-11 neither button did anything there (the stand-in pilot has no game, so
+// the debriefing knew no way on) and the player stood on the debriefing.
 TEST(sdl_program_mission_switch_stays_and_mods_comes_back_alive) {
   namespace fs = std::filesystem;
   const std::string game = MW3_GAME_DIR;
   std::error_code ec;
   if (!fs::exists(game + "/zbd/reader.zbd", ec)) return;
   const std::string dir = std::string(MW3_TEST_TMP) + "/mission switch";
-  for (const bool won : {false}) {  // the won way stops at the debriefing, whose Continue no scripted click reaches
+  for (const int way : {0, 1, 2}) {  // QUIT; won and CONTINUE; won and ABORT
+    const bool won = way != 0;
     fs::remove_all(dir, ec);
     fs::create_directories(dir + "/wd", ec);
     const std::string log = dir + "/run.log";
@@ -5464,21 +5498,24 @@ TEST(sdl_program_mission_switch_stays_and_mods_comes_back_alive) {
     std::vector<std::string> args = {"--install", game, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
                                      "--frames", "480", "--entry", "mw3", "--entry-edit", "c1", "1", "--mouse-at", "1,1@100",
                                      "--tap", "1@150", "--click-at", "60,380@200", "--tap", "1@260", "--click-at", "60,380@300"};
-    if (won) args.insert(args.end(), {"--tap", "1@350", "--click-at", "60,380@380", "--win", "420", "--frames", "900"});  // back in play, then won
+    // Back in play, then won 300 frames into play; the debriefing's CONTINUE (the tick at the right) or ABORT (the list at the left).
+    if (won) args.insert(args.end(), {"--tap", "1@350", "--click-at", "60,380@380", "--win", "300", "--click-at", way == 1 ? "595,450@900" : "57,440@900", "--frames", "1100"});
     else args.insert(args.end(), {"--tap", "1@350", "--click-at", "130,140@400"});  // QUIT
     args.insert(args.end(), {"--then", "--click-at", "70,344@330"});
     const pid_t pid = spawn_mw3(args, log);
     EXPECT(waited(pid, &status, 400) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-    for (const char* line : {"mw3: editor: ", "mw3: entry mw3 left", "mw3: mods: the left box shows MISSIONS"})
+    for (const char* line : {"mw3: editor: ", "mw3: debriefing of a MODS mission:", "mw3: entry mw3 left", "mw3: mods: the left box shows MISSIONS"})
       for (size_t i = text.find(line); i != std::string::npos; i = text.find(line, i + 1))
-        std::printf("  %s: %s\n", won ? "won" : "quit", text.substr(i, text.find('\n', i) - i).c_str());
+        std::printf("  %s: %s\n", way == 0 ? "quit" : way == 1 ? "won, CONTINUE" : "won, ABORT", text.substr(i, text.find('\n', i) - i).c_str());
     const size_t down = text.find(": down, row");
     const size_t up = down == std::string::npos ? down : text.find(": up, row", down);
     const size_t left = text.find("mw3: entry mw3 left: starting again on MODS");
     EXPECT(down != std::string::npos && up != std::string::npos);  // the switch both ways, in the mission
     EXPECT(left != std::string::npos && up < left);                // MODS only after the mission was left
+    const size_t said = text.find(way == 2 ? "mw3: debriefing of a MODS mission: ABORT, back to MODS" : "mw3: debriefing of a MODS mission: CONTINUE, back to MODS");
+    EXPECT(won ? said != std::string::npos && said < left : text.find("mw3: debriefing of a MODS mission:") == std::string::npos);
     EXPECT(text.find("mw3: mods: the left box shows MISSIONS", left == std::string::npos ? 0 : left) != std::string::npos);  // and alive
   }
   fs::remove_all(dir, ec);
@@ -5520,8 +5557,11 @@ TEST(sdl_program_mods_six_buttons) {
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     for (size_t i = text.find("mw3: mods: "); i != std::string::npos; i = text.find("mw3: mods: ", i + 1))
       std::printf("  %s: %s\n", wide ? "16:9" : "4:3", text.substr(i, text.find('\n', i) - i).c_str());
-    const size_t hover = text.find("mw3: mods: hover: Pick a mod's .zip, installer (.exe) or a file in its folder.");
-    EXPECT(hover != std::string::npos && text.find("IMPORT reads the mod out of it.", hover) != std::string::npos);
+    const size_t hover = text.find("mw3: mods: hover: Pick a mod's .zip, its installer (.exe) or a file in its");
+    EXPECT(hover != std::string::npos && text.find("Don't run the installer: IMPORT reads it.", hover) != std::string::npos);
+    // No hover line of the run is cut (the names here are short).
+    for (size_t i = text.find("mw3: mods: hover: "); i != std::string::npos; i = text.find("mw3: mods: hover: ", i + 1))
+      EXPECT(text.substr(i, text.find('\n', i) - i).find("...") == std::string::npos);
     const std::string hover_line = hover == std::string::npos ? std::string() : text.substr(hover, text.find('\n', hover) - hover);
     EXPECT(hover_line.find("...") == std::string::npos);  // whole, in two lines
     size_t ticks = 0;
@@ -5612,6 +5652,8 @@ TEST(sdl_program_mods_import_keeps_a_mods_archives) {
 // A MODS TEST mission's debriefing names its mission: the test is played by a stand-in pilot with no game of its
 // own, and the title read the dialog's unfilled message ("Operation !d!, Mission !d!", seen on the screen
 // 2026-11-11). The real program, hidden: --entry mw3 --entry-test c2 3, the mission lost by the script.
+// And its CONTINUE leaves it (before, no button of that debriefing did anything): the entry's own list of
+// missions comes up, in the same process, for the next one.
 TEST(sdl_program_test_mission_debriefing_names_its_mission) {
   namespace fs = std::filesystem;
   std::error_code ec;
@@ -5623,11 +5665,16 @@ TEST(sdl_program_test_mission_debriefing_names_its_mission) {
     const std::string log = dir + "/run" + end + ".log";
     int status = 0;
     const pid_t pid = spawn_mw3({"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33", "--seed", "1",
-                                 "--frames", "500", "--entry", "mw3", "--entry-test", "c2", "3", end, "120"}, log);
+                                 "--frames", "700", "--entry", "mw3", "--entry-test", "c2", "3", end, "120", "--click-at", "595,450@450"}, log);
     EXPECT(waited(pid, &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     EXPECT(text.find("mw3: debriefing of a MODS test mission: Operation 2, Mission 3\n") != std::string::npos && text.find("!d!") == std::string::npos);
+    const size_t on = text.find("mw3: debriefing of a MODS mission: CONTINUE, back to MODS");
+    std::printf("  %s: CONTINUE left the debriefing %d, the missions' list after it %d\n", end, on != std::string::npos,
+                on != std::string::npos && text.find("mw3: mods: the left box shows MISSIONS", on) != std::string::npos);
+    EXPECT(on != std::string::npos && text.find("mw3: mods: the left box shows MISSIONS", on) != std::string::npos);
+    EXPECT(text.find("mw3: entry mw3 left") == std::string::npos);  // still inside the campaign: its list plays the next in place
   }
   fs::remove_all(dir, ec);
 }
@@ -5827,6 +5874,9 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
     std::ofstream(dir + "/" + rel) << text;
   };
   put("wd/mods/hud/mod.txt", "name=Green HUD\n");
+  // A mod that is only a campaign (its campaign= lines, nothing to lay over a game): not a row of Instant Action's list.
+  put("wd/mods/acamp/mod.txt", "name=A Campaign\ncampaign=night.txt\n");
+  put("wd/mods/acamp/night.txt", "name=Long Night\nop=Op 1\nmission=c1 1\n");
   put("wd/configs/keep.mw3", "a saved mech");
   auto run = [&](const std::vector<std::string>& extra, const char* name) {
     std::vector<std::string> args = {"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound",
@@ -5851,6 +5901,8 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   const size_t brought = d.find("mw3: pilot a brought into ia from the main game (without saved games");
   std::printf("  D: brought quietly %d, restarted with the pilot %d, picked %d\n", brought != none && d.find("mw3: box answered") == none, asked != none, picked != none);
   EXPECT(brought != none && asked < brought && brought < picked && d.find("mw3: box answered") == none);
+  // The list on that screen: the asset mod alone (the campaign-only one, first by its name, would have taken the tick).
+  EXPECT(d.find("mw3: Instant Action's MODS lists: Green HUD\n") != none && d.find("A Campaign", d.find("mw3: Instant Action's MODS lists:")) == none);
   EXPECT(asked != none && picked != none && asked < picked && d.find("mw3: closed, result 0", picked) != none);
   EXPECT(picked != none && d.find("mw3: Instant Action open, MODS: 1 on, 4 maps", picked) != none);  // past the pilot screen, the mod on
   EXPECT(!bytes("wd/pilots/a.mw3").empty() && fs::is_regular_file(dir + "/wd/campaigns/ia/pilots/a.mw3"));
