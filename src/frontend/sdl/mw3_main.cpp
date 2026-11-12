@@ -121,8 +121,10 @@ extern "C" const char mw3_version_tag[] = "MW3-PROGRAM-VERSION:" MW3_VERSION;
 #include "gamez/zutil/zfix.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/app.h"
+#include "mech3/mod_install.h"
 #include "mech3/mods.h"
 #include "mech3/zai_wire_pm.h"
+#include "upgrades/game_boxes.h"
 #include "mech3/mods_menu.h"
 #include "frontend/sdl/sdl_mods.h"
 #include "mech3/app_engine.h"
@@ -234,6 +236,7 @@ struct Args {
   bool no_import = false, force_import = false;  // --no-import, --import (ours: first_run_import.h)
   bool no_launcher = false;   // --no-launcher (ours: launcher.h): no find screen, the old dialog if there is no install
   std::string ready_file;     // --ready-file F (ours, sdl_child.h): written at the first frame shown, for mw3launcher
+  std::string other_write_dir, other_install;  // --other-write-dir, --other-install (ours, W15): the other game's, from mw3launcher
   std::string vfw_helper;     // --vfw-helper EXE (ours, sdl_vfw.h): the movies' Video for Windows helper; "-" none
   std::string patch;          // --patch PATH (ours, patch_import.h): the official 1.2 patch into the write dir's overlay
   std::string install_from, install_to;  // --install-from PATH, --install-to DIR (ours, disc_install.h)
@@ -462,6 +465,8 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-import") a.no_import = true;
     else if (s == "--no-launcher") a.no_launcher = true;
     else if (s == "--ready-file" && next(1)) a.ready_file = argv[++i];
+    else if (s == "--other-write-dir" && next(1)) a.other_write_dir = argv[++i];
+    else if (s == "--other-install" && next(1)) a.other_install = argv[++i];
     else if (s == "--wide-menus") a.wide_menus = 1;
     else if (s == "--debug-camera") a.debug_camera = true;
     else if (s == "--no-wide-menus") a.wide_menus = 0;
@@ -910,6 +915,7 @@ int program(int argc, char** argv) {
                             a.install_from.empty() && a.patch.empty() && a.original.find("-nofmv") == std::string::npos;
   bool setup_only = false;
   if (!a.ready_file.empty()) sdlfe::set_ready_file(a.ready_file);
+  mech3::mods_other_game() = {a.other_write_dir, a.other_install};  // W15: a mod for the other game goes there
   if (player_start && !a.no_launcher) {
     std::vector<std::string> more;
 #ifdef MW3_GAME_DIR
@@ -1001,6 +1007,9 @@ int program(int argc, char** argv) {
     return 1;
   }
   std::printf("mw3: install %s, write dir %s\n", a.install.c_str(), a.write_dir.c_str());
+  // W15: mods the other game's IMPORT handed over, added now with this game's own check.
+  if (!a.write_dir.empty() && !a.install.empty())
+    for (const std::string& line : mech3::mods_take_incoming(a.write_dir, a.install)) std::printf("mw3: %s\n", line.c_str());
   const mech3::DataVersion data = mech3::detect_data_version();
   std::printf("mw3: %s\n", data.describe().c_str());  // ours: assets.md, Data versions
   // The movies on a first run (ours, FIX (A): first_run_import.h): on a
@@ -1025,7 +1034,7 @@ int program(int argc, char** argv) {
   if (plain && a.first_start && !notes.empty()) {
     std::string text;
     for (const std::string& n : notes) text += (text.empty() ? "" : "\n\n") + n;
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Pirate's Moon: first start", text.c_str(), nullptr);
+    mech3::first_start_notes() = text;  // W16: in the game's box at the main menu, not a system box before the window
   }
   if (a.force_import || (plain && !a.no_import && !vfw)) sdlfe::first_run_import(a.install, a.write_dir, a.force_import);
 
@@ -1127,7 +1136,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       SDL_ShowSaveFileDialog(done, nullptr, parent, filters, 1, start.c_str());
     };
     mp.open_folder = [](const std::string& dir) { return sdlfe::open_folder(dir); };
-    mp.ask_game = [](const std::string& name) { return scripted.empty() ? sdlfe::ask_mod_game(parent, name) : mech3::mods_game() == "mw3pm" ? 2 : 1; };  // --pick: no box, this game
+    // --pick: no box, this game; else unset, and MODS asks in the game's own box (W16).
+    if (!scripted.empty()) mp.ask_game = [](const std::string&) { return mech3::mods_game() == "mw3pm" ? 2 : 1; };
   }
   window.set_auto_size(!a.window_given);
   // Fullscreen by default (ours): the desktop's size, the frame fitted in it

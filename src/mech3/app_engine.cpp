@@ -5,6 +5,7 @@
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
 #include "mech3/lab_filebox.h"
+#include "upgrades/game_boxes.h"
 #include "mech3/game_editor.h"
 #include "mech3/mods.h"
 #include "mech3/force_feedback.h"
@@ -265,6 +266,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
 }
 
 GameEngine::~GameEngine() {
+  game_box() = nullptr;  // ours (upgrades/game_boxes.h): the game's box is gone with the engine
   if (force_) program_force_feedback(nullptr), force_.reset();  // an engine gone without the app's stop: its calls off
   delete_screens();
   if (g_engine == this) {
@@ -464,7 +466,17 @@ uint32_t GameEngine::game_message_box(int32_t style, const char* cap, const std:
   {
     ztwod::MessageBox box("dlgMessage.zrd", "MESSAGEBOX", false);
     box_ = &box;
+    // Ours: the box's words go to the log too (players' logs; W11).
+    std::string one;
+    for (char c : text) {
+      if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+      if (c != ' ' || (!one.empty() && one.back() != ' ')) one += c;
+    }
+    while (!one.empty() && one.back() == ' ') one.pop_back();
+    std::printf("mw3: message box: [%s] %s\n", cap ? cap : "", one.c_str());
+    std::fflush(stdout);
     r = box.run(text.c_str(), cap ? cap : "", static_cast<uint32_t>(style));
+    std::printf("mw3: message box answered %d\n", r);
     box_ = nullptr;
   }
   exchange_fast_menu(fast & 0xff);

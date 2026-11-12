@@ -48,6 +48,19 @@ description=Rain on every world.
 `name` is required; `for`, when given, must have `mw3` as its first word, a
 version after it if any (a Pirate's Moon mod, `for=mw3pm`, is left out of MW3). Other keys are ignored, `#` starts a comment.
 
+**Which game a mod is for, at IMPORT** (playtest W15, Owen, 2026-11-12). A mod with no mod.txt is told by
+the names only one game ships (`mod_game_of`: MW3's c4b and t1 worlds and its own mission readers, PM's
+readersa and readeria4), and when every name is one both games ship (a `reader.zbd`, the worlds'
+textures, as Freako's "PM 1.2 Mod - Beta") by its `zbd/reader.zbd`'s records (`mod_game_of_records`:
+PM's reader holds 26 records MW3's lacks, its new mechs' `dfn_`, `anim_` and prints files among them;
+MW3's 6 PM's lacks; two of one game's and none of the other's decide). Only when neither tells is the
+player asked. A mod for the other game is never added to this game's mods: started from the launcher
+(which passes `--other-write-dir` and `--other-install`), its prepared files are handed to the other
+game's `mods-incoming\<name>\` (our marker in it) and that game adds them at its next start with its own
+check and install, as its IMPORT would (`mods_take_incoming`); started alone, it is not added. Either way
+the game's own box says what was done. An installer or a modded game folder of the other game goes the
+same way (it was refused before).
+
 **Enabling.** Since mods by campaign (below, step 2b) a plain start mounts no
 mods: a mod is ticked for a campaign entry (`campaigns\<id>\mods.txt`, the
 same lines) and mounted when that entry is played from MODS; `--mod NAME`

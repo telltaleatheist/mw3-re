@@ -15,6 +15,8 @@
 #endif
 
 #include "gamez/zinterp/zinterp.h"
+#include "gamez/zclass/light.h"
+#include "gamez/zclass/cls_data.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "mech3/mech3_interp.h"
 #include "check.h"
@@ -2155,6 +2157,43 @@ TEST(fix_script_model_pointers_do_not_outlive_their_node_or_mission) {
   zint::destroy(in);
   zint::engine() = keep;
   zfix::options() = saved;
+}
+
+// Playtest W12: the script's light setters were left null in the engine table, so each world script's sun
+// (c1.gs: LightNew sunlight, LightSetColor 1 1 1, LightSetRanges 750, LightSetDirectedSource, ..., LightSetSaturated
+// off, LightSetStatic) kept a new light's state: a point light (0x10), ambient only (0x20).
+// Wired to the ported Light.c setters by address, the script's commands now set it as the exe's do.
+TEST(fix_script_light_setters_set_the_suns_light) {
+  zint::Interp in;
+  mech3::interp_create(in);
+  auto line = [&](const std::string& text) {
+    std::vector<char> buf(text.begin(), text.end());
+    buf.push_back('\n');
+    buf.resize(buf.size() + 0x400, 0);
+    zint::exec_line(in, buf.data());
+  };
+  line("LightNew w12_sun");
+  zcls::Node* sun = in.current;
+  EXPECT(sun != nullptr);
+  if (!sun) return zint::destroy(in);
+  auto* l = static_cast<zcls::Light*>(sun->data);
+  const uint32_t before = l->get<uint32_t>(0xb0);
+  for (const char* c : {"LightSetColor 0.5 0.25 0.75", "LightSetRanges 750", "LightSetDirectedSource", "LightSetOrientation -20.0 45.0",
+                        "LightSetDiffuse 1.0", "LightSetAmbient 0.4", "LightSetSaturated off", "LightSetStatic"})
+    line(c);
+  const uint32_t after = l->get<uint32_t>(0xb0);
+  float r = 0, g = 0, b = 0;
+  zcls::light_get_color(sun, &r, &g, &b);
+  float nr = 0, fr = 0;
+  zcls::light_get_range(sun, &nr, &fr);
+  std::printf("  flags %#x -> %#x, colour %g %g %g, range %g..%g, ambient %g\n", before, after, static_cast<double>(r), static_cast<double>(g),
+              static_cast<double>(b), static_cast<double>(nr), static_cast<double>(fr), static_cast<double>(l->get<float>(0xa0)));
+  EXPECT((before & 0x10) && (before & 0x20) && !(before & 0x08));                   // a new light: a point light, ambient only
+  // The script's: directed, not ambient only. A bare "LightSetStatic" reads as off (the exe's arg_bool default),
+  // so the sun is not static though the script's author likely meant it: the exe's reading, kept.
+  EXPECT((after & 0x08) && !(after & 0x10) && !(after & 0x20) && !(after & 0x80));
+  EXPECT(r == 0.5f && g == 0.25f && b == 0.75f && fr == 750.0f && l->get<float>(0xa0) == 0.4f);
+  zint::destroy(in);
 }
 
 // A material table read over another without the models' free between (0x005363d0 twice): the exe reads

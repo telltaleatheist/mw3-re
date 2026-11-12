@@ -185,8 +185,16 @@ int32_t mouse_read(bool callbacks) {
 void mouse_integrate() {
   State& s = state();
   MouseInfo& m = s.mouse;
-  m.dx = static_cast<int32_t>(static_cast<float>(m.dx) * s.accel_x);
-  m.dy = static_cast<int32_t>(static_cast<float>(m.dy) * s.accel_y);
+  // FIX (A) (docs/fixes.md, Slow mouse motion lost): the fraction the cut drops is carried to the next read.
+  // A read here is a frame's motion in 640-wide pixels (sdl_input's motion_scale), mostly 0 or 1 when the
+  // mouse moves slowly on a large screen; with a sensitivity under 1 the cut made every such 1 a 0, and slow
+  // motion never moved the reticle. The original read raw mouse counts, several a frame on a modern mouse.
+  const float fx = static_cast<float>(m.dx) * s.accel_x + s.frac_x;
+  const float fy = static_cast<float>(m.dy) * s.accel_y + s.frac_y;
+  m.dx = static_cast<int32_t>(fx);
+  m.dy = static_cast<int32_t>(fy);
+  s.frac_x = fx - static_cast<float>(m.dx);
+  s.frac_y = fy - static_cast<float>(m.dy);
   m.x += m.dx;
   m.y += m.dy;
   m.z += m.dz;

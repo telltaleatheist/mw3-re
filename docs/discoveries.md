@@ -3154,6 +3154,13 @@ From the weapons' effects (details: `weapon-effects.md`):
   loaded with the mission, not with the weapon: the weapons' own looping
   sounds are found by name there.
 
+## Lights
+
+- **Every world's sun is told to be static, and isn't.** Each world's build script ends its sun's setup
+  with a bare `LightSetStatic`. The game reads a missing on/off as off, so the sun is never made
+  static, though the line is plainly there to turn it on. It changes nothing you can see: the sun is
+  lit the same either way, and the static flag only decides how often lit models are recomputed.
+
 ## Menus
 
 From the 2D front end, zTwoD (details: `twod.md`).

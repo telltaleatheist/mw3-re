@@ -41,9 +41,12 @@ float sensitivity_of_slider(float v);   // the slider's 0..1 to a magnitude, in 
 float slider_of_sensitivity(float s);   // and back
 bool& options_sensitivity_slider();     // on in the program (GameEngine)
 
+// Ours: a press on the bar sets it there, as the volumes' (VolumeSlider), with their +0x8c (set_value,
+// 0x0059e350) so the fill follows the press; zTwoD's own (0x0059fad0) stores the value only (W18).
 class SensitivitySlider : public ztwod::Slider {
  public:
   void on_left_up() override { set_from_mouse(); }
+  void set_raw(float v) override { set_value(v); }
 };
 
 // Ours (Owen, 2026-11-07): the UPGRADES page, one press from the options (its

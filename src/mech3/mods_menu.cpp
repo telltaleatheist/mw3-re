@@ -1141,7 +1141,23 @@ void ModsScreen::add_mod(const std::string& path) {
   // A whole modded game folder: what differs from the player's install becomes the mod (upgrades/mods/import_folder.h).
   std::string took;
   // A file inside a folder mod stands for the folder (import_folder.h, import_pick_root).
-  const ModAddDone d = import_folder_run(mods_menu_write_dir(), import_pick_root(path), mods_menu_install(), mods_menu_platform().ask_game, nullptr, &took);
+  // "Which game is it for?" when nothing in the mod says: the game's own box (W16, Owen, 2026-11-12: no
+  // system dialogs outside the editor): YES MechWarrior 3, NO Pirate's Moon, CANCEL not added.
+  std::function<int(const std::string&)> ask = mods_menu_platform().ask_game;
+  if (!ask)
+    ask = [this](const std::string& name) {
+      const uint32_t r = engine().message_box_words(3, "Add a mod", "Which game is \"" + name + "\" for? Its files do not say.\n\n"
+                                                    "YES: MechWarrior 3.   NO: Pirate's Moon.");
+      std::printf("mw3: mods: which game for %s: %s\n", name.c_str(), r == 6 ? "MechWarrior 3" : r == 7 ? "Pirate's Moon" : "cancelled");
+      return r == 6 ? 1 : r == 7 ? 2 : 0;
+    };
+  const ModAddDone d = import_folder_run(mods_menu_write_dir(), import_pick_root(path), mods_menu_install(), ask, nullptr, &took);
+  if (d.other_game) {  // W15 (Owen, 2026-11-12): the other game's mod, put in its mods (or not), said in the game's own box
+    std::printf("mw3: mods: %s\n", d.message.c_str());
+    engine().message_box_words(0, "Add a mod", d.message);
+    tell(d.ok ? "Added to the other game's mods." : "Not added.");
+    return;
+  }
   std::printf("mw3: mods: %s\n", d.message.c_str());  // the log says what IMPORT did, added or not
   if (!d.ok) {
     tell(d.message);

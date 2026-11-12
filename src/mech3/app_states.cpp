@@ -2,6 +2,7 @@
 #include "mech3/mod_campaign.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/editor/mods_edit.h"
+#include "upgrades/game_boxes.h"
 #include "upgrades/mods/entry_pilots.h"
 #include "upgrades/mods/entry_run.h"
 #include "upgrades/mods/ia_mods_menu.h"
@@ -977,6 +978,16 @@ bool MainState::enter() {
   if (mods_menu_page()) mods_menu_state() = en.construct(kModsStateCtor, {});  // ours
   en.twod_reset(en.peek32(0x609854));
   reset_idle();
+  // Ours (upgrades/game_boxes.h, W16): the original's own message boxes in the game's box from here on (the
+  // engine clears it at its end), and the first start's notes, once, in it.
+  game_box() = [&en](const std::string& text, const std::string& caption, uint32_t style) {
+    return static_cast<int32_t>(en.message_box_words(static_cast<int32_t>(style & 0xf), caption, text));
+  };
+  if (!first_start_notes().empty()) {
+    const std::string notes = first_start_notes();
+    first_start_notes().clear();
+    en.message_box_words(0, "First start", notes);
+  }
   Mech3App& ap = a();
   const bool back_to_multi = ap.multiplayer() || en.network_lobby_active();
   if (back_to_multi) en.vcall(screen_ + kButtonMulti, 0x30, {});

@@ -115,6 +115,22 @@ Engine make_engine() {
   e.lod_add_child = zcls::node_link;            // 0x004fe0a0 is a jmp to it
   e.display_set_clear_color = zcls::display_set_clear_color;
   e.light_create = zcls::light_create;
+  // FIX (bug), playtest W12: the light setters were left null, so each world script's sun (c1.gs: LightNew
+  // sunlight, LightSetColor ... LightSetStatic) kept a new light's state: a point light, ambient only. Wired by
+  // address to the ported Light.c setters (their names in zcls are the flags' meanings, the script's the
+  // commands').
+  e.light_set_ambient = zcls::light_set_ambient;           // 0x004fa940
+  e.light_set_color = zcls::light_set_color;               // 0x004fb510
+  e.light_set_diffuse = zcls::light_set_diffuse;           // 0x004fa9b0
+  e.light_set_directed = zcls::light_set_bit3;             // 0x004faaa0
+  e.light_set_directional = zcls::light_set_bit2;          // 0x004faa20
+  e.light_set_orientation = zcls::light_set_orientation;   // 0x004faff0
+  e.light_set_point = zcls::light_set_bit4;                // 0x004fab20
+  e.light_set_ranges = zcls::light_set_range;              // 0x004fadf0
+  e.light_set_saturated = zcls::light_set_ambient_only;    // 0x004faba0
+  e.light_set_static = zcls::light_set_directional;        // 0x004fad30
+  e.light_set_subdivide = zcls::light_set_diffuse_only;    // 0x004fac70
+  e.light_set_translate = zcls::light_set_position;        // 0x004faf80
   e.object3d_create = zcls::object3d_create;
   e.model_set_priority = [](Model* m, int32_t v) { return pm_of(m) ? pm::zmod::model_set_priority(pm_of(m), v) : zmod::model_set_priority(m, v); };  // Object3DSetPriority's
   // The support scripts' render settings (item 7's census: every mission).

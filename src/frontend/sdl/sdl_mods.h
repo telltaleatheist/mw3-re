@@ -11,7 +11,5 @@ namespace sdlfe {
 // `dir` in Finder, Explorer or the desktop's file browser (SDL_OpenURL on its
 // percent-encoded file:// URL); false when the system would not.
 bool open_folder(const std::string& dir);
-// "Which game is <name> for?": 1 MechWarrior 3, 2 Pirate's Moon, 0 cancelled.
-int ask_mod_game(SDL_Window* parent, const std::string& name);
 
 }  // namespace sdlfe

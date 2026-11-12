@@ -4115,6 +4115,74 @@ TEST(sdl_two_processes_10_and_12_files_share_a_lobby) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn, waitpid
+// W11 (playtest 1.1.0): a joiner whose pilot has the host's pilot's name. The original refuses it at JOIN
+// (0x00495490 asks 0x00589600, then message 0x2a9) and so does the port; the box's words go to the log. Then the
+// same joiner, its pilot list no longer empty, clicks PILOT ENTRY, types another name (the original's pilot screen
+// gives typing to that bar only when it has the focus) and gets into the lobby with it.
+TEST(sdl_two_processes_same_name_refused_then_new_name_joins) {
+  namespace fs = std::filesystem;
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/mechlib.zbd", ec)) return;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_net_same_name";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/a", ec), fs::create_directories(dir + "/b", ec);
+  auto spawn = [&](std::vector<std::string> args, const std::string& log) {
+    std::vector<std::string> v = {MW3_BIN};
+    v.insert(v.end(), args.begin(), args.end());
+    std::vector<char*> argv;
+    for (std::string& x : v) argv.push_back(x.data());
+    argv.push_back(nullptr);
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 1, log.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_adddup2(&fa, 1, 2);
+    pid_t pid = 0;
+    if (posix_spawn(&pid, argv[0], &fa, nullptr, argv.data(), environ) != 0) pid = -1;
+    posix_spawn_file_actions_destroy(&fa);
+    return pid;
+  };
+  auto read = [](const std::string& path) {
+    std::ifstream f(path);
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  };
+  auto has = [](const std::string& t, const char* w) { return t.find(w) != std::string::npos; };
+  const int base = 42000 + static_cast<int>(getpid() % 2000) * 3;
+  const std::string game = std::to_string(base), lan = std::to_string(base + 1);
+  // MULTIPLAYER, then (when asked) a click on PILOT ENTRY, the name typed, ACCEPT.
+  auto menus = [&](std::vector<std::string> v, bool click_bar, std::initializer_list<const char*> name) {
+    v.insert(v.end(), {"--install", install, "--click-at", "132,285@40"});
+    if (click_bar) v.insert(v.end(), {"--click-at", "150,52@60"});
+    int at = 70;
+    for (const char* k : name) v.insert(v.end(), {"--tap", std::string(k) + "@" + std::to_string(at)}), at += 4;
+    v.insert(v.end(), {"--click-at", "470,320@100", "-nofmv", "--no-launcher", "--hidden", "--nosound", "--net-bind", "127.0.0.1", "--frame-ms", "33"});
+    return v;
+  };
+  const pid_t a = spawn(menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan, "--click-at", "421,406@180", "--frames", "2200"},
+                              false, {"0x14", "0x12", "0x1f", "0x14"}), dir + "/a.log");
+  for (int i = 0; i < 400 && !has(read(dir + "/a.log"), "multiplayer page 2"); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  const std::vector<std::string> join = {"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-sessions",
+                                         "100,143@10/1", "--click-sessions", "240,406@40/1", "--frames", "700"};
+  int st = 0;
+  const pid_t b1 = spawn(menus(join, false, {"0x14", "0x12", "0x1f", "0x14"}), dir + "/b1.log");  // "test", as the host
+  if (b1 > 0) waitpid(b1, &st, 0);
+  const pid_t b2 = spawn(menus(join, true, {"0x30", "0x12", "0x1f", "0x14"}), dir + "/b2.log");  // "best", its bar clicked first
+  if (b2 > 0) waitpid(b2, &st, 0);
+  if (a > 0) waitpid(a, &st, 0);
+  const std::string la = read(dir + "/a.log"), l1 = read(dir + "/b1.log"), l2 = read(dir + "/b2.log");
+  const bool refused = has(l1, "mw3: message box: [Network Problem] Your name is already in use. Pick a different player name.");
+  std::printf("  host in the lobby %d; same name: refused with the box's words logged %d, in the lobby %d; new name: made %d, in the lobby %d\n",
+              has(la, "multiplayer page 2"), refused, has(l1, "multiplayer page 2"), fs::exists(dir + "/b/pilots/best.mw3", ec),
+              has(l2, "multiplayer page 2"));
+  EXPECT(has(la, "multiplayer page 2"));
+  EXPECT(refused && !has(l1, "multiplayer page 2"));
+  EXPECT(fs::exists(dir + "/b/pilots/test.mw3", ec) && fs::exists(dir + "/b/pilots/best.mw3", ec));
+  EXPECT(has(l2, "multiplayer page 2") && !has(l2, "already in use"));
+  fs::remove_all(dir, ec);
+}
+#endif
+
+#if !defined(_WIN32)  // posix_spawn, waitpid
 // Two mw3 from the menus through the lobby into one game (the lead's check
 // after piece 11c): A hosts, B finds and joins it; once both are in the
 // lobby (--click-players: counted from the second player's arrival) A locks
@@ -6642,6 +6710,18 @@ TEST(sdl_program_launcher_finds_the_game_then_plays) {
   EXPECT(c.exited && !c.args.empty() && c.args[0] == MW3_GAME_DIR && screen(c.log, "the game's first frame"));
   EXPECT(screen(c.log, "screen notes: ADD FROM MY DISC, OK\n") && screen(c.log, "note: No music yet"));
   EXPECT(c.log.find("screen notes:") < c.log.find("the game's first frame"));
+  // W13 (Owen, 2026-11-12): a player's pick (no check's click on MECHWARRIOR 3 after it) ends on the games,
+  // with nothing started, so Pirate's Moon can be added first; the notes' OK goes back to them too.
+  auto stay = pick;
+  stay.push_back({"MW3_LAUNCHER_NO_PLAY", "1"});
+  stay[2].second = "120";  // MW3_LAUNCHER_FRAMES: about 2 s on the games, then QUIT
+  const LauncherRun w = run_launcher_with("launcher_v1_w13_stays", "READY\nsleep 2", nullptr, stay);
+  const size_t notes = w.log.find("screen notes:");
+  const size_t main_after = notes == std::string::npos ? notes : w.log.find("screen main: MECHWARRIOR 3", notes);
+  std::printf("W13: notes %d, the games after them %d, started %d\n", notes != std::string::npos, main_after != std::string::npos,
+              !w.args.empty());
+  EXPECT(w.exited && w.args.empty() && !screen(w.log, "the game's first frame"));
+  EXPECT(notes != std::string::npos && main_after != std::string::npos);
   // A CD-type install (its video folder empty, the movies left on the disc):
   // the notes say both are missing.
   const std::string cd = std::string(MW3_TEST_TMP) + "/launcher_v1_cd_install";
