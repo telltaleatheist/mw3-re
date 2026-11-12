@@ -4216,12 +4216,14 @@ TEST(sdl_two_processes_leave_box_keeps_play_and_leaves) {
     v.insert(v.end(), m.begin(), m.end());
     return v;
   };
+  // A plays on after B leaves until its own cap: the lobby's waits run in real time while a hidden run's frames go
+  // faster, so a loaded machine left A 4 lines after B went (more than 5 wanted); 3600 frames give it room.
   const std::vector<std::string> common = {"--install", install, "--no-launcher", "--hidden", "--nosound", "--net-bind",
                                            "127.0.0.1", "--frame-ms", "33", "--net-soak", "--net-seconds", "60"};
   std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan,
                                        "--click-at", "421,406@180", "--click-players", "183,430@60/2",
                                        "--click-players", "246,290@100/2", "--click-players", "515,446@140/2",
-                                       "--click-players", "585,418@600/2", "--frames", "2400"},
+                                       "--click-players", "585,418@600/2", "--frames", "3600"},
                                       {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
