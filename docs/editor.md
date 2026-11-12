@@ -1783,9 +1783,31 @@ own code is a port of MW3's onto its models, now ported on pm
 it had kept MW3's 19, so six of PM's mechs could not be added), and
 test_new_weapon.cpp runs in mw3pmtests on PM's weapons.zrd and its version 2
 reader.zbd (49 definitions, 38 offered to copy). The guide on pm says what
-PM's editor has and lacks. Not checked on PM's files: the vehicle editor's
-Save over PM's aiv.zrd records (test_aiv_save_mech3ax.py reads MW3's 48
-files only; PM's `target` tag is not one of aiv_save's groups).
+PM's editor has and lacks.
+
+**The vehicle editor's Save on PM's aiv.zrd** (2026-11-11,
+test_pm_aiv_save_mech3ax.py, the twin of MW3's): all 1,041 records of PM's
+45 aiv.zrd files written over themselves come back byte for byte, 6,246
+changed ones (six seeds) read back changed by PM's compare 0x4f02b0, and
+mech3ax (as PM's) reads every save. PM's `target` tag is no group of
+aiv_save's: it is kept as the file has it, and the 438 records holding one
+keep it through every save. Two things the test found:
+- PM's multiplayer readers (`readermp*.zbd`) hold loose words between
+  records (`:spawn points for one base`, a comment the file's compiler
+  kept). The game finds a record by its name anywhere (0x4e0680), so it
+  reads them; the save took the top list two items at a time and refused
+  the 42 records after the words. The aiv paths (the save, Add vehicle) now
+  take a record as a name followed by its list and step over loose items
+  (`record_pairs_of`, zrd_bytes.h), which leave them where they are.
+- The probe read only MW3's 8-byte archive footer (PM's is 12, version 2).
+Breaks caught: the target tag dropped, its value replaced, the old pairing.
+
+**Not in PM's editor, so not added** (read from PM's exe): its Node Params
+0x4d2c80 makes template 180, which PM's resources do not hold (only 132 and
+188), and hands it to an empty function 0x5c7a30 (MW3's 0x4bf620), so it had
+no fields, PM's via, terminus and static_mfb among them; Save Changes writes
+those keys as read (the net save above). No page of PM's vehicle editor
+shows the target block (P1 above).
 
 **The vehicle editor's chassis list** (0x4c2d00) runs to 25, PM's mechs
 with MW3's, where MW3's 0x4bc860 stopped at 19; the port on pm had kept 19.

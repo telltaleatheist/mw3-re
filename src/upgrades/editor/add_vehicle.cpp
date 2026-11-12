@@ -183,7 +183,7 @@ std::vector<uint8_t> aiv_tags_of_type(const uint8_t* p, size_t size, const std::
   *items = 0;
   std::vector<Pair> pairs;
   size_t list_end = 0;
-  if (!pairs_of(p, size, &pairs, &list_end)) return {};
+  if (!record_pairs_of(p, size, &pairs, &list_end)) return {};
   for (const Pair& pr : pairs) {
     if (!prefixed(pr.key, type) || get32(p + pr.value) != zrdr::List) continue;
     const uint32_t n = get32(p + pr.value + 4);
@@ -201,7 +201,7 @@ std::vector<uint8_t> aiv_with_record(const uint8_t* p, size_t size, const std::s
                                      const std::vector<uint8_t>& value) {
   std::vector<Pair> pairs;
   size_t list_end = 0;
-  if (!pairs_of(p, size, &pairs, &list_end)) return {};
+  if (!record_pairs_of(p, size, &pairs, &list_end)) return {};
   std::vector<uint8_t> o;
   put32(o, zrdr::List), put32(o, get32(p + 4));
   put32(o, zrdr::List), put32(o, get32(p + 12) + 2);
@@ -215,7 +215,7 @@ std::vector<uint8_t> aiv_with_record(const uint8_t* p, size_t size, const std::s
 std::string aiv_free_name(const uint8_t* p, size_t size, const std::string& type) {
   std::vector<Pair> pairs;
   size_t list_end = 0;
-  pairs_of(p, size, &pairs, &list_end);
+  record_pairs_of(p, size, &pairs, &list_end);
   for (int32_t n = 1; n < 1000; ++n) {
     char b[64];
     std::snprintf(b, sizeof b, "%s_%02d", type.c_str(), n);

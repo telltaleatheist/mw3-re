@@ -73,4 +73,28 @@ inline bool pairs_of(const uint8_t* p, size_t size, std::vector<Pair>* out, size
   *list_end = q;
   return true;
 }
+// aiv.zrd's records: a name followed by its list. The game finds a record by its name anywhere in the file
+// (0x004e0680), so loose words between records (PM's readermp files have ":spawn points for one base", a comment
+// the file's compiler kept) are stepped over one by one, not taken as pairs; they stay where they are.
+inline bool record_pairs_of(const uint8_t* p, size_t size, std::vector<Pair>* out, size_t* list_end) {
+  if (size < 16 || get32(p) != zrdr::List || get32(p + 8) != zrdr::List) return false;
+  const uint32_t n = get32(p + 12);
+  size_t q = 16;
+  for (uint32_t i = 1; i < n;) {
+    const size_t k_end = skip(p, size, q);
+    if (!k_end) return false;
+    if (get32(p + q) == zrdr::String && i + 1 < n && k_end + 8 <= size && get32(p + k_end) == zrdr::List) {
+      Pair pr;
+      pr.key = string_at(p, size, q);
+      pr.value = k_end;
+      if (!(pr.end = skip(p, size, k_end))) return false;
+      out->push_back(pr);
+      q = pr.end, i += 2;
+    } else {
+      q = k_end, ++i;  // a loose item
+    }
+  }
+  *list_end = q;
+  return true;
+}
 }  // namespace mech3::zrdbytes
