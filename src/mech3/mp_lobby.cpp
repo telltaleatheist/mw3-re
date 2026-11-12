@@ -324,21 +324,27 @@ void LobbyScreen::enter() {
   for (int32_t i = 0; i < 7; ++i) worlds.add_item(e.message(0x321 + i), kShipped[i][1] << 8 | kShipped[i][0]);
   // The add-on worlds (readermp3 on): each folder's numbered readers, named
   // by their mpinfo.zrd's db_name, recorded in the data. Ours: on past the
-  // exe's six to the mods' worlds (9 on), t1, lab and dev1/dev2 still left out.
+  // exe's six to the mods' worlds (9 on), t1, lab and dev1/dev2 still left out;
+  // a mod's world has no shipped two, so its maps count from readermp1, one
+  // with no db_name named "<world> <n>" (a copied world's, docs/modding.md).
   for (int32_t dir = 0; dir < mission_dir_count(); ++dir) {
     if (dir >= 6 && dir < 9) continue;
     const std::string folder = e.mission_dir(static_cast<uint32_t>(dir));
     for (const std::string& file : e.list_files(("zbd\\" + folder + "\\readermp*.zbd").c_str())) {
       if (file.size() < 8) continue;
       const int32_t n = std::atoi(file.substr(8, file.find('.') == std::string::npos ? std::string::npos : file.find('.') - 8).c_str());
-      if (n <= 2) continue;
+      const bool mod_world = dir >= 9;
+      if (n <= 2 && !(mod_world && n >= 1)) continue;
       char path[160];
       std::snprintf(path, sizeof path, "zbd\\%s\\readermp%d.zbd", folder.c_str(), n);
       if (!zrdr::open_archive(path, false)) continue;
       zrdr::Node* info = zrdr::load("mpinfo.zrd");
-      if (const char* s = zrdr::get_string(info, "db_name")) {
+      const char* named = zrdr::get_string(info, "db_name");
+      const std::string fallback = mod_world && !named ? folder + " " + std::to_string(n) : std::string();
+      if (const char* s = named ? named : fallback.empty() ? nullptr : fallback.c_str()) {
         const int32_t v = n << 8 | dir;
         worlds.add_item(s, v);
+        if (mod_world) std::printf("mw3: multiplayer lists the mod world's map \"%s\" (%s readermp%d)\n", s, folder.c_str(), n);  // ours, for the checks
         data[3] += 1;  // 0x00498160
         data.resize(4 + data[3]);
         data[3 + data[3]] = static_cast<uint32_t>(v);

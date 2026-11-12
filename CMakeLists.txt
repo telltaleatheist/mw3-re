@@ -861,6 +861,7 @@ if(SDL3_FOUND)
     add_executable(mw3sdltests
       tests/main.cpp
       tests/test_sdl_frontend.cpp
+      tests/test_sdl_new_world.cpp
       tests/test_win_cmdline.cpp
       tests/test_log_start.cpp
       src/frontend/sdl/sdl_update.cpp

@@ -48,13 +48,13 @@ Tally g_before;
 
 }  // namespace
 
-// "all", or "<world>:<scenario>" (c2:4), or a world alone (c3).
+// "all", or "<world>:<scenario>" (c2:4), or a world alone (c3); c5 to c9 are the rows a mod's worlds add.
 ModesChain::ModesChain(mech3::GameEngine& e, mech3::Mech3App& app, std::string which) : e_(e), app_(app) {
   training_ = which == "training";
   if (training_) return;
   if (which != "all" && !which.empty()) {
     const int w = which.size() >= 2 && which[0] == 'c' ? which[1] - '1' : -1;
-    if (w >= 0 && w <= 3) first_world_ = last_world_ = w;
+    if (w >= 0 && w <= 8) first_world_ = last_world_ = w;  // c5 on: the rows mods add after the game's four
     const size_t colon = which.find(':');
     if (colon != std::string::npos) first_scenario_ = last_scenario_ = std::atoi(which.c_str() + colon + 1);
   }
@@ -146,7 +146,7 @@ void ModesChain::action_screen() {
     for (int i = 1; i <= cases_ % 4; ++i) a->enemies[i].select(3 + i), ++enemies;
   win_round_ = cases_ % 2 == 0;  // the round ABORT tallies: won in even cases, lost in odd
   round_ = 1;
-  case_ = std::string(kWorlds[world_]) + " " + kScenarios[scenario_];
+  case_ = (world_ < 4 ? std::string(kWorlds[world_]) : "mod row " + std::to_string(world_ + 1)) + " " + kScenarios[scenario_];
   std::printf("mw3: modes case %s: world %d, scenario %d (%s), %d lancemate(s), %d enemy slot(s)%s; ends %s\n",
               case_.c_str(), a->worlds.selected_value(), a->scenarios.index, a->scenarios.labels.empty() ? "?" : a->scenarios.labels[0]->text,
               lancemates, enemies, a->fixed ? "" : " (the wave's)", win_round_ ? "won" : "lost");
