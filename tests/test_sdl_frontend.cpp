@@ -3944,7 +3944,7 @@ TEST(sdl_two_processes_multiplayer_mods_match_or_turn_back) {
 }
 #endif
 
-#if !defined(_WIN32)  // posix_spawn, waitpid
+#if !defined(_WIN32) && !defined(MW3_PM_SUITE)  // posix_spawn, waitpid; MechWarrior 3's two versions (PM has one)
 // Owen, 2026-11-11: "we use the original for the assets only": which version of the original a player's files
 // are never keeps two players apart; both play 1.2 as the rebuild makes it (mech3/patch12.h). The real program
 // on loopback, a host on 1.0's files and a joiner on 1.2's, then the other way round: the joiner gets into the

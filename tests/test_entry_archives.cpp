@@ -312,13 +312,15 @@ TEST(entry_archives_export_repacks_the_whole_archive) {
 // folder by hand hold the same number and the same per-mod one; a changed entry, or one the whole archive
 // lacks, is a different number, and the refusal names the mod.
 TEST(mp_mods_hash_importer_and_hand_laid_match) {
+  TestGame game;
+  const std::string for_us = std::string("for=") + (TEST_IS_PM ? "mw3pm" : "mw3") + "\n";
   const std::string wa = tmp("mp_hash_wa"), wb = tmp("mp_hash_wb"), inst = tmp("mp_hash_inst"), src = tmp("mp_hash_src");
   build_install(inst);
   const mech3::ModsIdentity keep_id = mech3::mods_identity();
   KeepMounts keep;
   zutl::mounts().confined = true;
   const auto lay = [&](const std::string& root, const Entries& reader) {
-    put(root + "/mod.txt", "name=Big Guns\nfor=mw3\n");
+    put(root + "/mod.txt", "name=Big Guns\n" + for_us);
     archive(root + "/zbd/reader.zbd", reader);
     archive(root + "/zbd/c1/readerm1.zbd", {{"y.zrd", "Y"}, {"x.zrd", "X"}});  // every entry the game's, in another order
     put(root + "/zbd/thing.dat", "new data");                                  // gameplay, not a reader archive
@@ -358,7 +360,7 @@ TEST(mp_mods_hash_importer_and_hand_laid_match) {
   EXPECT(identity(wb, "hand").mp_hash != imp.mp_hash);
   // Nothing the mounted game would read otherwise: no number, not named (the folder's own number is not 0).
   const std::string wc = tmp("mp_hash_wc");
-  put(wc + "/mods/same/mod.txt", "name=Same\nfor=mw3\n");
+  put(wc + "/mods/same/mod.txt", "name=Same\n" + for_us);
   archive(wc + "/mods/same/zbd/reader.zbd", kReader);
   put(wc + "/mods/same/zbd/c1/gamez.zbd", "a world");
   const mech3::ModsIdentity same = identity(wc, "same");
@@ -369,6 +371,7 @@ TEST(mp_mods_hash_importer_and_hand_laid_match) {
   mech3::mods_identity() = keep_id;
 }
 
+#if !TEST_IS_PM  // MechWarrior 3's two versions; Pirate's Moon has one
 // Owen, 2026-11-11: "they shouldn't need the same version of the original game. Ours is built on patch 1.2."
 // The lobby's number is against the game as played: on 1.0's files the rebuild plays 1.2 (mech3/patch12.h), so
 // the same mod gives one number on a 1.0 install and on a 1.2 one, imported or laid by hand. On the real
@@ -461,3 +464,4 @@ TEST(mp_mods_hash_same_on_10_and_12_installs) {
          "Your copy of Big Guns differs from the host's.");
   mech3::mods_identity() = keep_id;
 }
+#endif
