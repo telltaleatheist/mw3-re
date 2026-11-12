@@ -23,6 +23,7 @@
 #include "mech3/mainmenu.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mech_salvage.h"
+#include "mech3/options.h"
 #include "mech3/zai_valve.h"
 #include "gamez/zclass/cls_node.h"
 #include "mech3/menu_states.h"
@@ -121,7 +122,7 @@ void CampaignChain::shoot(const char* what) {
   for (;;) {  // the next free number: a resumed run adds to the first run's shots
     std::snprintf(path, sizeof path, "%s/chain_%02d_%s.bmp", o_.dir.c_str(), shots_, what);
     bool taken = false;
-    for (const char* w : {"briefing", "debriefing"}) {
+    for (const char* w : {"briefing", "debriefing", "salvage"}) {
       char p2[512];
       std::snprintf(p2, sizeof p2, "%s/chain_%02d_%s.bmp", o_.dir.c_str(), shots_, w);
       if (std::FILE* f = std::fopen(p2, "rb")) std::fclose(f), taken = true;
@@ -585,6 +586,10 @@ void CampaignChain::frame() {
       std::printf("mw3: chain lab: %d slots, ACCEPT\n", lab.slots_);
       ls->on_button(6, 0, 0);  // ACCEPT
     }
+  } else if (now == &st.briefing_salvage && frames_in_state_ == 20 && !salvage_shot_) {
+    salvage_shot_ = true;  // the first SALVAGE a run reaches, once (FastMenu's still picture among them: -seasick)
+    std::printf("mw3: chain salvage screen, FastMenu %s\n", mech3::fast_menu() ? "on" : "off");
+    shoot("salvage");
   } else if (now == &st.briefing_salvage && frames_in_state_ == 30) {
     auto* sv = dynamic_cast<mech3::SalvageScreen*>(e_.screen_of(st.briefing_salvage.screen_));
     if (sv) {
