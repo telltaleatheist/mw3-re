@@ -5,6 +5,8 @@
 #include "mech3/pilot.h"
 #include "upgrades/editor/mods_edit.h"
 
+#include <cstdio>
+
 #pragma STDC FP_CONTRACT OFF
 
 namespace mech3 {
@@ -38,7 +40,9 @@ PauseScreen::PauseScreen(Engine& e, Handle s)
     bind_button(&options, "OPTIONS");
     if (e.game_kind() == kCampaign || e.game_kind() == kInstantAction) bind_button(&replay, "REPLAY");
     // Ours (patch12_edits.cpp): the switch between playing and editing, its label what a press does.
-    if (editor_reachable()) has_editor = bind_button(&editor, editor_switch_edits() ? "EDITMISSION" : "PLAYMISSION");
+    const char* sw = editor_switch_edits() ? "EDITMISSION" : "PLAYMISSION";
+    if (editor_reachable()) has_editor = bind_button(&editor, sw);
+    if (has_editor) std::printf("mw3: pause: the switch is %s\n", sw);
     unload();
   }
   // [0x006099c4] is never written: OPTIONS always stays.
