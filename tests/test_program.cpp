@@ -20522,7 +20522,7 @@ TEST(options_mouse_sensitivity_slider_headless) {
   mech3::Platform p;
   p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
   int stage = 0;
-  bool bound = false, default_kept = false, set_both = false, invert_after = false, sens_after = false;
+  bool bound = false, default_kept = false, set_both = false, invert_after = false, sens_after = false, click_moves = false;
   bool page = false, page_read = false, page_applied = false;
   std::vector<std::string> saved;
   mech3::options_upgrades_saver() = [&](const char* key, bool on) { saved.push_back(std::string(key) + "=" + (on ? "1" : "0")); };
@@ -20558,6 +20558,20 @@ TEST(options_mouse_sensitivity_slider_headless) {
         g->sensitivity.set_value(mech3::slider_of_sensitivity(0.8f));
         g->apply(1);
         sens_after = std::fabs(accel[0] - 0.8f) < 1e-6f && std::fabs(accel[1] + 0.8f) < 1e-6f;
+        // W18: a press on the bar three quarters along sets it there and its fill follows (as the volumes').
+        {
+          mech3::SensitivitySlider& s = g->sensitivity;
+          zimg::Texture bar{}, filled{};  // headless the images are not loaded: the shipped bars' size stands in
+          bar.width = filled.width = 200, bar.height = filled.height = 12;
+          zimg::Texture *keep_image = s.image, *keep_fill = s.fill, *keep_empty = s.empty;
+          s.image = s.empty = &bar, s.fill = &filled;
+          s.dialog->m.x = s.get_x() + 150;
+          s.on_left_up();
+          click_moves = std::fabs(s.value - 0.75f) < 1e-6f && s.fill_src.right == 150 && s.empty_src.left == 150 && s.empty_dx == 150;
+          std::printf("  a press at 3/4: value %.3f, fill to %d of %d\n", s.value, static_cast<int>(s.fill_src.right), filled.width);
+          s.set_value(mech3::slider_of_sensitivity(0.8f));
+          s.image = keep_image, s.fill = keep_fill, s.empty = keep_empty;
+        }
         page = g->has_upgrades;
         g->upgrades.on_left_up();  // the UPGRADES page
         stage = 2;
@@ -20592,6 +20606,7 @@ TEST(options_mouse_sensitivity_slider_headless) {
               default_kept, set_both, invert_after, sens_after);
   std::printf("  upgrades: page %d, read %d, applied %d, saved %zu\n", page, page_read, page_applied, saved.size());
   EXPECT(stage == 3 && bound && default_kept && set_both && invert_after && sens_after);
+  EXPECT(click_moves);
   EXPECT(page && page_read && page_applied);
   EXPECT(saved == std::vector<std::string>({"upgrade_water=1", "upgrade_mfb_regroup=0", "upgrade_improved_ai=0", "upgrade_artemis=0",
                                             "upgrade_small_fixes=1", "widemenus=0"}));
