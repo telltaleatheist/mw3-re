@@ -7966,7 +7966,7 @@ TEST(sdl_editor_forms_click_through_imgui) {
   mech3::form_hide(&f);
 }
 
-#if !defined(_WIN32)  // posix_spawn, waitpid
+#if !defined(_WIN32) && !defined(MW3_PM_SUITE)  // posix_spawn, waitpid; MechWarrior 3's c1 pages (not Pirate's Moon's suite)
 // The valve map (ours, upgrades/valve_map; docs/valves/README.md): the real program on c1 mission 1 and
 // mission 3, hidden, writes each page at the mission's first frame and ends. Its counts, a link of each
 // kind (a target's health_below, an objective, an animation's callback, a delayed update, the player's
