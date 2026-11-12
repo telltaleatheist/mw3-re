@@ -1725,3 +1725,26 @@ By the pair map (`analysis-output/pm-diff/pairs.json`, pm-map's columns: compile
 
 None of this is ported for PM, nothing has been run, and nothing here was compared with a test: it's the pair map read by file. It sits in the remainder (pm-tests.md, Single player against network, and the remainder).
 
+
+## The ground's shade at frame 220 (playtest W10, 2026-11-11)
+
+In Instant Action on c1 (`mw3pm --mission ia1 --seed 1 --frame-ms 33`) the ground's mean colour in the shot falls from
+about (53,49,41) on frame 219 to (36,37,32) on frame 220, the sky and cockpit unchanged. It is the original's:
+- At load (zClass frame 0) the world's nodes (l1, l2 and about 2,200 more) go on the changed list. PM's push 0x0050b9e0
+  (MW3's 0x004f8080, `list.cpp`) gives each subtree the expiry `frame + 0xa0` (0x004ff790, MW3's 0x004ed990).
+- The draw bakes a static-lit model only once its node's expiry has passed (`gmod_draw.cpp`, the static bake,
+  0x0055fb30). Until then the static lights are worked out in the per-frame shade (0x005603f0). All 73 bakes ran on
+  zClass frame 160, the shot's frame 219 (the mission's first frame is the shot's 60th).
+- The two paths are the exe's: `test_pm_bake.py` (83,496 floats exact) and `test_pm_lighting.py` (fog only off) pass.
+  The campaign's c1m1 changes at the same frame, less (44,42,36 to 40,39,33).
+Ruled out on the way, by traces: the lights (no setter, add or remove near 220), the clouds (base 0.9, amplitude 0.1,
+smooth), the material sweep (frees 9 at frame 359), the AI headlights (none lit), the frame stamp (never touched).
+Not seen on the original itself (no run on the PC). docs/discoveries.md, The ground's light settles.
+
+**Found on the way: zWeapon's light hooks on PM.** PM's weapon code (0x005a8767..0x005a8855) calls PM's own light
+setters: create 0x0050e470, position 0x0050ef50, range 0x0050edd0, colour 0x0050f460. The port's hooks
+(`app_weapons.cpp`) called MW3's three setters on a PM light (light_create already went to PM's). MW3's colour setter
+leaves PM's mixed colours (`pm_colors`) as the light was made and judges MW3's static bit 0x100, which on PM is the
+directional bit. Now PM's (`pm_weapon_light_takes_pms_setters`; breaks: MW3's colour setter, the range swapped).
+The address map pairs MW3's colour setter 0x004fb510 with 0x0050f760 (PM's ambient colour); PM's weapon calls
+0x0050f460. A third slip of the kind above.

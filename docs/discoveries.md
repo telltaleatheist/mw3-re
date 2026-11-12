@@ -4439,6 +4439,22 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   probably there too. The original's three-stage path reads as dropping the fade
   anyway, so that wants a look at the original itself. (docs/pm-map.md, gmod_matl.c)
 
+### The ground's light settles about five seconds into a mission
+
+- A mission's ground is drawn with its lights worked out afresh every frame for
+  the first 160 frames after the world loads (about five seconds at 30 frames a
+  second), and only then baked: the sun and the other fixed lights are worked
+  into the ground once and kept. The two ways do not give quite the same colour,
+  so the ground changes shade at that moment. On Pirate's Moon's c1 night map in
+  Instant Action it turns from a warmer brown to a duller grey; in the campaign's
+  first mission on the same map the change is smaller. The wait is the game's
+  own: everything the load moves goes on the "changed" list with a 160-frame
+  hold, and the bake waits for it (Pirate's Moon 0x0050b9e0, MechWarrior 3
+  0x004f8080, both `frame + 0xa0`). From the code and the rebuild's runs, whose
+  two lighting paths match the original's in the emulator; not seen on the
+  original itself. The rebuild keeps it. (docs/pm-map.md, The ground's shade at
+  frame 220)
+
 - Pirate's Moon: fog on a polygon that also carries a shadow or a light map can
   flicker at the very edge of the screen nearest you. When the camera's plane
   cuts such a polygon, the game makes new corners for it, and on this one kind

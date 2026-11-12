@@ -31,6 +31,7 @@
 #include "gamez/zweapon/zweapon.h"
 #include "gamez/zweapon/zwep_init.h"
 #include "pm/gamez/zclass/cls_clutter.h"
+#include "pm/gamez/zclass/light.h"
 #include "mech3/hit_log.h"
 #include "mech3/mech_headlight.h"
 #include "mech3/mech_lib.h"
@@ -326,9 +327,11 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   r.set_uniform_scale = [](zwep::Handle n, float v) { zcls::object3d_set_opacity(zn(n), v); };  // 0x004fba20
   r.set_flag_4fbb90 = [](zwep::Handle n, int32_t on) { zcls::object3d_use_opacity(zn(n), on); };
   r.light_create = []() -> zwep::Handle { return zcls::light_create(); };                  // 0x004fa720
-  r.light_position = [](zwep::Handle l, float x, float y, float z) { zcls::light_set_position(zn(l), x, y, z); };
-  r.light_range = [](zwep::Handle l, float a, float b) { zcls::light_set_range(zn(l), a, b); };
-  r.light_color = [](zwep::Handle l, float cr, float cg, float cb) { zcls::light_set_color(zn(l), cr, cg, cb); };
+  // Pirate's Moon 0x005a8767..0x005a8855: PM's own setters (0x0050ef50, 0x0050edd0, 0x0050f460). MW3's colour setter left PM's
+  // mixed colours (pm_colors) as the light was made and judged MW3's static bit 0x100 (PM's directional bit).
+  r.light_position = [](zwep::Handle l, float x, float y, float z) { pm::zcls::light_set_position(zn(l), x, y, z); };
+  r.light_range = [](zwep::Handle l, float a, float b) { pm::zcls::light_set_range(zn(l), a, b); };
+  r.light_color = [](zwep::Handle l, float cr, float cg, float cb) { pm::zcls::light_set_color(zn(l), cr, cg, cb); };
   // Pirate's Moon 0x005a4d80 (0, node, 1, 0x00513c60), 0x005a4dc0 (0, node, 0x00513cf0): a clutter piece's record is
   // the hit's owner. The collide handler leaves nothing on the x87 stack, so its caller's test fails: no block.
   pm::zcls::clutter_hooks().watch_hits = [](zcls::Node* n) {

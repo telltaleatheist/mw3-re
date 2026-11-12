@@ -2,6 +2,10 @@
 #include <memory>
 
 #include "check.h"
+#include <cstdio>
+#include "gamez/zweapon/zweapon.h"
+#include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/cls_data.h"
 #include "mech3/app_mech.h"
 #include "pm/gamez/zclass/cls_clutter.h"
 #include "mech3/mech_config.h"
@@ -91,6 +95,35 @@ TEST(pm_clutter_break_has_its_anim) {
   EXPECT(h.anim_find != nullptr && h.anim_start != nullptr && h.watch_hits != nullptr);
   mech3::unwire_weapons();
   EXPECT(pm::zcls::clutter_hooks().anim_find == nullptr);
+}
+
+// A weapon's light (zWeapon's hooks, Pirate's Moon 0x005a8767..0x005a8855) goes through PM's own setters: its colour
+// mixed by its ambient and diffuse into pm_colors (0x0050f460), its range (0x0050edd0). MW3's colour setter left the
+// mixes as the light was made (white).
+TEST(pm_weapon_light_takes_pms_setters) {
+  mech3::wire_weapons([](const char*) -> uint32_t { return 0; });
+  const zwep::RunHooks& r = zwep::run_hooks();
+  EXPECT(r.light_create && r.light_color && r.light_range && r.light_position);
+  if (r.light_create && r.light_color && r.light_range && r.light_position) {
+    zwep::Handle h = r.light_create();
+    auto* n = static_cast<zcls::Node*>(h);
+    auto* l = n ? static_cast<zcls::Light*>(n->data) : nullptr;
+    EXPECT(l != nullptr);
+    if (l) {
+      r.light_color(h, 1.0f, 0.5f, 0.25f);
+      r.light_range(h, 60.0f, 10.0f);
+      r.light_position(h, 1.0f, 2.0f, 3.0f);
+      const float amb = l->get<float>(0xa0), dif = l->get<float>(0x9c);  // as made: 1 and 0
+      std::printf("  weapon light: ambient %.2f diffuse %.2f; mixed", amb, dif);
+      for (float v : l->pm_colors) std::printf(" %.3f", v);
+      std::printf("; range %.1f..%.1f\n", l->get<float>(0xb4), l->get<float>(0xb8));
+      EXPECT(l->pm_colors[6] == 1.0f * amb && l->pm_colors[7] == 0.5f * amb && l->pm_colors[8] == 0.25f * amb);  // ambient mixed
+      EXPECT(l->pm_colors[9] == l->pm_colors[3] + l->pm_colors[6] && l->pm_colors[11] == l->pm_colors[5] + l->pm_colors[8]);  // summed
+      EXPECT(l->get<float>(0xb4) == 10.0f && l->get<float>(0xb8) == 60.0f && l->get<float>(0x10) == 2.0f);
+    }
+    if (n) zcls::node_delete(n);
+  }
+  mech3::unwire_weapons();
 }
 
 // Pirate's Moon 0x00474f80: the chassis by +0x5ae alone, so a head shot's mech comes and one the torso's
