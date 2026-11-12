@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -54,6 +55,11 @@ bool message_is_ours(int32_t id);
 // 5's paths and regions, from missions 6 and 4), copied from the player's own
 // file and edited to 1.2's. Null when none.
 zrdr::Node* provide(const char* entry);
+// Ours (upgrades/mods/mp_mods.h): the entry 1.2 adds to `archive` (a data path) as the layer would give it to
+// 1.0's data, with no archive open: `read` gives the source archive's entry (a data path, the entry) as read
+// from the install. Null when 1.2 adds no such entry or it cannot be made.
+zrdr::Node* provided_with(const std::string& archive, const std::string& entry,
+                          const std::function<zrdr::Node*(const std::string& source, const std::string& entry)>& read);
 // The same for one entry, without the checks on the open archives.
 zrdr::Node* copy_entry(const std::string& archive, const std::string& entry, const std::string& source,
                        uint32_t size, uint32_t crc);

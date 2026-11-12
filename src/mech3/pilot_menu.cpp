@@ -5,6 +5,7 @@
 
 #include <cstdio>
 #include "upgrades/mods/entry_pilots.h"
+#include "upgrades/mods/ia_mods.h"
 
 #include <cstring>
 #include <string>
@@ -629,6 +630,14 @@ bool GameMenuState::enter() {
       want = en.network_lobby_active() ? 2 : 1;
       shell_enter();
       pilot_state_mode(en, mech3::kMultiplayer);
+      // Ours (upgrades/mods/ia_mods.h): the pilot the start was given, taken as the pilot screen's ACCEPT.
+      if (mp_pilot_once() && current_pilot()) {
+        mp_pilot_once() = false;
+        std::printf("mw3: multiplayer opens with the pilot %s\n", current_pilot()->name);
+        resume(2);
+        return true;
+      }
+      mp_pilot_once() = false;
       break;
   }
   en.push_state(en.peek32(0x609858), 0);

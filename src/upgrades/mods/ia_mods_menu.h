@@ -26,11 +26,19 @@ Handle& ia_mods_state();  // its menu object, made at the first press, let go wi
 // `pilot`: the one to pick there ("" none: the pilot screen).
 using IaModsRestart = std::function<bool(bool into_entry, const std::string& pilot, std::string* why)>;
 IaModsRestart& ia_mods_restart();
+// Multiplayer's (ia_mods.h, kMpEntry): the same screen on the entry `mp`, opened by the MODS button on the
+// multiplayer screen (mp_connect.h); its start again goes into the entry (--entry mp --entry-mp) or plain on
+// the multiplayer screen (--open-mp).
+constexpr uint32_t kMpModsScreenCtor = 0xf0000009;
+constexpr uint32_t kMpModsStateCtor = 0xf000000a;
+bool& mp_mods_page();
+Handle& mp_mods_state();
+IaModsRestart& mp_mods_restart();
 
 class IaModsScreen : public MenuScreen {
  public:
   enum Id : int32_t { kAccept = 1, kBack, kAllOff };
-  IaModsScreen(Engine& e, Handle state);
+  IaModsScreen(Engine& e, Handle state, bool multiplayer = false);
   ~IaModsScreen() override;
   void on_button(int32_t id, int32_t a, int32_t b) override;
   void accept();
@@ -45,11 +53,14 @@ class IaModsScreen : public MenuScreen {
   ztwod::Text title, line, note, note2;
   std::vector<std::string> before;  // the entry's ticks as the screen opened
   bool inside = false;              // the run is inside the entry
+  bool mp = false;                  // multiplayer's (the entry `mp`), else Instant Action's
+  const char* entry_id() const { return mp ? kMpEntry : kIaEntry; }
 };
 
 class IaModsState : public MenuState {
  public:
-  explicit IaModsState(Handle addr) : MenuState("IA Mods State", addr) {}
+  explicit IaModsState(Handle addr, bool multiplayer = false) : MenuState(multiplayer ? "MP Mods State" : "IA Mods State", addr), mp(multiplayer) {}
+  bool mp;
   bool enter() override;
   void leave() override;
 };

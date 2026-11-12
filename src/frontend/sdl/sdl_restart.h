@@ -11,16 +11,17 @@
 namespace sdlfe {
 
 struct RestartTo {
-  enum Screen { kNone, kPlay, kInstantAction, kTest, kEdit };
+  enum Screen { kNone, kPlay, kInstantAction, kTest, kEdit, kMultiplayer };
   std::string entry;       // the MODS campaign entry's id; "" a plain start
   Screen screen = kNone;   // the entry's screen: its pilots (--entry-play) or Instant Action (--entry-ia)
   bool open_mods = false;  // a plain start with MODS open (--open-mods)
   bool open_ia = false;    // a plain start on Instant Action (--open-ia)
+  bool open_mp = false;    // a plain start on the multiplayer screen (--open-mp)
   std::string test_world;  // kTest: the mission played at once (--entry-test WORLD N), then MODS's test mode in the entry;
                            // kEdit: opened in the editor at once (--entry-edit WORLD N)
   int test_number = 0;
   std::string mods_entry;  // with open_mods: the campaign chosen on MODS (--mods-entry ID)
-  std::string pilot;       // Instant Action's pilot picked at once (--entry-pilot NAME), so its screen opens, not the pilot screen
+  std::string pilot;       // Instant Action's or multiplayer's pilot picked at once (--entry-pilot NAME), so its screen opens, not the pilot screen
 };
 
 // The next start's arguments from this start's (without the program's name):

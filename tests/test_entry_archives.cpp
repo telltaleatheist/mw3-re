@@ -14,12 +14,14 @@
 #include "pm_side.h"
 #include "gamez/zutil/zutl_path.h"
 #include "gamez/zutil/zutl_zar.h"
+#include "mech3/data_version.h"
 #include "mech3/mod_install.h"
 #include "mech3/mods.h"
 #include "mech3/mods_menu.h"
 #include "upgrades/mods/entry_archives.h"
 #include "upgrades/mods/mod_export.h"
 #include "upgrades/mods/mod_report.h"
+#include "upgrades/mods/mp_mods.h"
 
 namespace {
 namespace fs = std::filesystem;
@@ -302,5 +304,164 @@ TEST(entry_archives_export_repacks_the_whole_archive) {
   const mech3::ModExportResult none = mech3::mod_export(mod, out + "/none.zip", bare, false);
   std::printf("  %s\n", none.message.c_str());
   EXPECT(!none.ok && none.message.find("zbd/reader.zbd cannot be made whole") != std::string::npos && names(out) == "one.zip|");
+}
+#endif
+
+// Mods in multiplayer (upgrades/mods/mp_mods.h): the lobby's number is over the mounted result, so a player who
+// imported a mod (its archives cut to their changed entries) and one who laid its whole archives into a mod
+// folder by hand hold the same number and the same per-mod one; a changed entry, or one the whole archive
+// lacks, is a different number, and the refusal names the mod.
+TEST(mp_mods_hash_importer_and_hand_laid_match) {
+  TestGame game;
+  const std::string for_us = std::string("for=") + (TEST_IS_PM ? "mw3pm" : "mw3") + "\n";
+  const std::string wa = tmp("mp_hash_wa"), wb = tmp("mp_hash_wb"), inst = tmp("mp_hash_inst"), src = tmp("mp_hash_src");
+  build_install(inst);
+  const mech3::ModsIdentity keep_id = mech3::mods_identity();
+  KeepMounts keep;
+  zutl::mounts().confined = true;
+  const auto lay = [&](const std::string& root, const Entries& reader) {
+    put(root + "/mod.txt", "name=Big Guns\n" + for_us);
+    archive(root + "/zbd/reader.zbd", reader);
+    archive(root + "/zbd/c1/readerm1.zbd", {{"y.zrd", "Y"}, {"x.zrd", "X"}});  // every entry the game's, in another order
+    put(root + "/zbd/thing.dat", "new data");                                  // gameplay, not a reader archive
+    put(root + "/zbd/skin.png", "a picture");                                  // not gameplay
+  };
+  const Entries changed = {{"a.zrd", "A"}, {"b.zrd", "B1"}, {"c.zrd", "C"}, {"d.zrd", "D1"}};
+  lay(src + "/Big Guns", changed);
+  const mech3::ModAddDone a = mech3::mod_add_run(wa, src + "/Big Guns", inst, nullptr, nullptr);
+  std::printf("  %s\n  imported: %s\n", a.message.c_str(), names(wa + "/mods/" + a.folder).c_str());
+  EXPECT(a.ok && a.cut.archives == 1 && a.cut.same == 1);
+  if (!a.ok) return;
+  const auto identity = [&](const std::string& wd, const std::string& folder) {
+    mech3::mods_identity_set(wd, {folder}, inst);
+    return mech3::mods_identity();
+  };
+  const mech3::ModsIdentity imp = identity(wa, a.folder);
+  // By hand: the same files, whole, the table in another order and the folders spelt otherwise.
+  lay(wb + "/mods/hand", {{"d.zrd", "D1"}, {"c.zrd", "C"}, {"B.ZRD", "B1"}, {"a.zrd", "A"}});
+  const mech3::ModsIdentity hand = identity(wb, "hand");
+  std::printf("  imported %016llx, by hand %016llx (the folders' own: %016llx, %016llx)\n", static_cast<unsigned long long>(imp.mp_hash),
+              static_cast<unsigned long long>(hand.mp_hash), static_cast<unsigned long long>(imp.hash), static_cast<unsigned long long>(hand.hash));
+  EXPECT(imp.mp_hash != 0 && imp.mp_hash == hand.mp_hash && imp.hash != hand.hash);
+  EXPECT(imp.mp_names == std::vector<std::string>{"Big Guns"} && hand.mp_names == imp.mp_names && imp.hashes.size() == 1 && imp.hashes == hand.hashes);
+  EXPECT(mech3::mp_mods_difference(mech3::MpMods{imp.mp_names, imp.hashes}, mech3::MpMods{hand.mp_names, hand.hashes}).empty());
+  // And they play the same archive.
+  const std::string ra = mounted_reader(wa, {a.folder}, inst), rb = mounted_reader(wb, {"hand"}, inst);
+  EXPECT(ra == "a.zrd=A|b.zrd=B1|c.zrd=C|d.zrd=D1|" && rb == "d.zrd=D1|c.zrd=C|B.ZRD=B1|a.zrd=A|");
+  // One entry otherwise: another number, and the mod named.
+  lay(wb + "/mods/hand", {{"a.zrd", "A"}, {"b.zrd", "B2"}, {"c.zrd", "C"}, {"d.zrd", "D1"}});
+  const mech3::ModsIdentity other = identity(wb, "hand");
+  EXPECT(other.mp_hash != 0 && other.mp_hash != imp.mp_hash && other.mp_names == imp.mp_names && other.hashes != imp.hashes);
+  const std::string said = mech3::mp_mods_difference(mech3::MpMods{imp.mp_names, imp.hashes}, mech3::MpMods{other.mp_names, other.hashes});
+  std::printf("  %s\n", said.c_str());
+  EXPECT(said == "Your copy of Big Guns differs from the host's.");
+  // A whole archive without one of the game's entries hides it; the imported one keeps the game's: not the same game.
+  lay(wb + "/mods/hand", {{"a.zrd", "A"}, {"b.zrd", "B1"}, {"d.zrd", "D1"}});
+  EXPECT(identity(wb, "hand").mp_hash != imp.mp_hash);
+  // Nothing the mounted game would read otherwise: no number, not named (the folder's own number is not 0).
+  const std::string wc = tmp("mp_hash_wc");
+  put(wc + "/mods/same/mod.txt", "name=Same\n" + for_us);
+  archive(wc + "/mods/same/zbd/reader.zbd", kReader);
+  put(wc + "/mods/same/zbd/c1/gamez.zbd", "a world");
+  const mech3::ModsIdentity same = identity(wc, "same");
+  EXPECT(same.mp_hash == 0 && same.mp_names.empty() && same.hashes.empty() && same.hash != 0);
+  // No install given (a test's, or a bare start): every file counts, as the folder's own number does.
+  mech3::mods_identity_set(wb, {"hand"});
+  EXPECT(mech3::mods_identity().mp_hash != 0);
+  mech3::mods_identity() = keep_id;
+}
+
+#if !TEST_IS_PM  // MechWarrior 3's two versions; Pirate's Moon has one
+// Owen, 2026-11-11: "they shouldn't need the same version of the original game. Ours is built on patch 1.2."
+// The lobby's number is against the game as played: on 1.0's files the rebuild plays 1.2 (mech3/patch12.h), so
+// the same mod gives one number on a 1.0 install and on a 1.2 one, imported or laid by hand. On the real
+// installs (game/mw3-1.0 and game/mw3-1.2, only read): 1.2's own archives laid over 1.0 count for nothing; a mod
+// made from 1.2's reader.zbd and c4b mission 5 with one entry really changed matches all four ways and is named
+// when another player's copy changes that entry otherwise.
+TEST(mp_mods_hash_same_on_10_and_12_installs) {
+  const std::string root = std::string(MW3_SOURCE_DIR) + "/game", v10 = root + "/mw3-1.0", v12 = root + "/mw3-1.2";
+  if (!fs::exists(v10 + "/zbd/reader.zbd") || !fs::exists(v12 + "/zbd/reader.zbd")) return;
+  const mech3::ModsIdentity keep_id = mech3::mods_identity();
+  KeepMounts keep;
+  zutl::mounts().confined = true;
+  // Every reader archive the patch touched: 1.2's whole file over 1.0's is the game as played already.
+  int count = 0, archives = 0;
+  const mech3::DataFile* all = mech3::data_files(&count);
+  for (int i = 0; i < count; ++i) {
+    if (!mech3::record_archive(all[i].path)) continue;
+    ++archives;
+    std::string key, bytes;
+    const bool counts = mech3::mp_mounted_part(v12 + "/" + all[i].path, all[i].path, v10, &key, &bytes);
+    if (counts) std::printf("  %s over 1.0's still counts (%zu bytes): %.200s\n", all[i].path, bytes.size(), bytes.c_str());
+    EXPECT(!counts);
+    EXPECT(!mech3::mp_mounted_part(v12 + "/" + all[i].path, all[i].path, v12, &key, &bytes));
+    // And 1.0's own whole file over a 1.2 install is not 1.2: it counts.
+    if (all[i].size_10) EXPECT(mech3::mp_mounted_part(v10 + "/" + all[i].path, all[i].path, v12, &key, &bytes));
+  }
+  std::printf("  %d reader archives of the patch's\n", archives);
+  EXPECT(archives >= 10);
+  // The mod: 1.2's two archives, one entry of reader.zbd changed.
+  const auto remake = [&](const std::string& from, const std::string& to, const char* entry, const std::string& text) {
+    std::vector<mech3::ArchiveEntry> in;
+    EXPECT(mech3::archive_read_entries(from, &in));
+    std::error_code ec;
+    fs::create_directories(fs::path(to).parent_path(), ec);
+    const bool confined = zutl::mounts().confined;
+    zutl::mounts().confined = false;
+    zutl_zar::Archive a;
+    zutl_zar::init(a);
+    zutl_zar::create(a, to.c_str());
+    bool found = false;
+    for (const mech3::ArchiveEntry& e : in) {
+      const bool it = entry && e.name == entry;
+      found = found || it;
+      const std::string data = it ? zrd(text) : std::string(e.data.begin(), e.data.end());
+      zutl_zar::add(a, e.name.c_str(), data.data(), static_cast<uint32_t>(data.size()));
+    }
+    zutl_zar::close(a);
+    zutl_zar::destroy(a);
+    zutl::mounts().confined = confined;
+    EXPECT(found || !entry);
+  };
+  const auto lay = [&](const std::string& dir, const std::string& text) {
+    put(dir + "/mod.txt", "name=Big Guns\nfor=mw3\n");
+    remake(v12 + "/zbd/reader.zbd", dir + "/zbd/reader.zbd", "sounds.zrd", text);
+    remake(v12 + "/zbd/c4b/readerm5.zbd", dir + "/zbd/c4b/readerm5.zbd", nullptr, "");
+  };
+  const std::string src = tmp("mp_ver_src");
+  lay(src + "/Big Guns", "changed");
+  const auto identity = [&](const std::string& wd, const std::string& folder, const std::string& inst) {
+    mech3::mods_identity_set(wd, {folder}, inst);
+    return mech3::mods_identity();
+  };
+  std::vector<mech3::ModsIdentity> ids;
+  const char* names_of[] = {"imported on 1.0", "imported on 1.2", "by hand on 1.0", "by hand on 1.2"};
+  for (int i = 0; i < 4; ++i) {
+    const std::string wd = tmp(("mp_ver_w" + std::to_string(i)).c_str()), inst = i % 2 ? v12 : v10;
+    std::string folder = "hand";
+    if (i < 2) {
+      const mech3::ModAddDone d = mech3::mod_add_run(wd, src + "/Big Guns", inst, nullptr, nullptr);
+      std::printf("  %s: %s (%d archives cut, %d entries, %d same, %d whole)\n", names_of[i], d.message.c_str(), d.cut.archives, d.cut.entries, d.cut.same, d.cut.whole);
+      EXPECT(d.ok);
+      if (!d.ok) return;
+      folder = d.folder;
+    } else {
+      lay(wd + "/mods/hand", "changed");
+    }
+    ids.push_back(identity(wd, folder, inst));
+    std::printf("  %s: %016llx\n", names_of[i], static_cast<unsigned long long>(ids.back().mp_hash));
+  }
+  for (int i = 0; i < 4; ++i) {
+    EXPECT(ids[i].mp_hash != 0 && ids[i].mp_hash == ids[0].mp_hash && ids[i].hashes == ids[0].hashes);
+    EXPECT(ids[i].mp_names == std::vector<std::string>{"Big Guns"});
+  }
+  // Another player's copy changes that entry otherwise, on the other version's files: named.
+  const std::string wo = tmp("mp_ver_other");
+  lay(wo + "/mods/hand", "changed otherwise");
+  const mech3::ModsIdentity other = identity(wo, "hand", v10);
+  EXPECT(other.mp_hash != 0 && other.mp_hash != ids[1].mp_hash);
+  EXPECT(mech3::mp_mods_difference(mech3::MpMods{ids[1].mp_names, ids[1].hashes}, mech3::MpMods{other.mp_names, other.hashes}) ==
+         "Your copy of Big Guns differs from the host's.");
+  mech3::mods_identity() = keep_id;
 }
 #endif

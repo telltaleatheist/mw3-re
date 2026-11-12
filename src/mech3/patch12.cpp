@@ -144,6 +144,25 @@ zrdr::Node* provide(const char* entry) {
   return nullptr;
 }
 
+zrdr::Node* provided_with(const std::string& archive, const std::string& entry,
+                          const std::function<zrdr::Node*(const std::string&, const std::string&)>& read) {
+  for (const Copy& c : kCopies) {
+    if (archive != c.archive || entry != c.entry) continue;
+    zrdr::Node* root = read ? read(c.source, c.entry) : nullptr;
+    if (root && has_edits(archive, entry) && !apply_edits(archive, entry, root)) zrdr::free_node(root), root = nullptr;
+    return root;
+  }
+  for (const Added& a : kAdded) {
+    if (archive != a.archive || entry != a.entry) continue;
+    zrdr::Node v{};
+    if (!parse_value(a.text, &v)) return nullptr;
+    zrdr::Node* root = zrdr::new_nodes(zrdr::List, 1);
+    *root = v;
+    return root;
+  }
+  return nullptr;
+}
+
 zrdr::Node* copy_entry(const std::string& archive, const std::string& entry, const std::string& source,
                        uint32_t size, uint32_t crc) {
   std::string path = source;

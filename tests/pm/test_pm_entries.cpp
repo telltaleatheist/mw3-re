@@ -65,16 +65,17 @@ void mods(const fs::path& wd) {
 TEST(pm_entries_are_the_two_campaigns_and_instant_action) {
   PmMods game;
   const std::vector<mech3::CampaignEntry> own = mech3::official_entries();
-  EXPECT(ids(own) == "campaign,pirate,ia");
-  EXPECT(own.size() == 3 && own[0].kind == mech3::CampaignEntry::kOfficial && own[0].name == "Campaign" &&
+  EXPECT(ids(own) == "campaign,pirate,ia,mp");  // and multiplayer's, ours (upgrades/mods/ia_mods.h, kMpEntry)
+  EXPECT(own.size() == 4 && own[0].kind == mech3::CampaignEntry::kOfficial && own[0].name == "Campaign" &&
          own[1].kind == mech3::CampaignEntry::kOfficial && own[1].name == "Pirate Missions" &&
-         own[2].kind == mech3::CampaignEntry::kInstantAction && own[2].name == "Instant Action");
+         own[2].kind == mech3::CampaignEntry::kInstantAction && own[2].name == "Instant Action" &&
+         own[3].kind == mech3::CampaignEntry::kMultiplayer && own[3].name == "Multiplayer");
   for (const auto& e : own) EXPECT(e.mod.empty() && e.campaign.empty() && e.base.empty() && e.error.empty() && !e.missing);
   const fs::path wd = tmp("pm_entries_listed");
   mods(wd);
   const std::vector<mech3::CampaignEntry> all = mech3::campaign_entries(wd.string());
   std::printf("  entries: %s\n", ids(all).c_str());
-  EXPECT(ids(all) == "campaign,pirate,ia,camp~night");  // the other game's mod left out
+  EXPECT(ids(all) == "campaign,pirate,ia,mp,camp~night");  // the other game's mod left out
   // A mod laid over the game's own files is a tick for either campaign and Instant Action, not a row (Owen, 2026-11-10).
   EXPECT(!mech3::find_entry(all, "rewrite"));
   EXPECT(!mech3::find_entry(all, "mw3"));  // MechWarrior 3's entry is not one of Pirate's Moon's

@@ -20,8 +20,8 @@ constexpr const char* kEntryTicksFile = "mods.txt";        // in an entry's fold
 constexpr const char* kEntriesMovedKey = "mods_moved";     // mw3.cfg's, once the migration ran
 
 struct CampaignEntry {
-  enum Kind { kOfficial, kInstantAction, kImported, kCopy } kind = kOfficial;
-  std::string id;        // its folder under campaigns\: "campaign", "pirate", "ia", "<mod>" or "<mod>~<campaign id>"
+  enum Kind { kOfficial, kInstantAction, kImported, kCopy, kMultiplayer } kind = kOfficial;
+  std::string id;        // its folder under campaigns\: "campaign", "pirate", "ia", "mp", "<mod>" or "<mod>~<campaign id>"
   std::string name;      // shown
   std::string mod;       // the mod it is (imported, copy); "" for the game's own and Instant Action
   std::string campaign;  // the mod's campaign= id; "" when the mod plays the game's own campaign over its files
