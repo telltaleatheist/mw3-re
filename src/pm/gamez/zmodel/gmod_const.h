@@ -82,6 +82,10 @@ Model* model_at(int32_t index);
 // 3; a full pool grows by a block first (0x00557be0; MW3's aborted). The exe
 // returns null before the pool's set-up ([0x008d4ae4], always done in play).
 Model* model_alloc();
+// Pirate's Moon 1.0 @ 0x00559310: MW3's 0x005392c0 (the models nothing holds, released) left empty: frees none, 0.
+int32_t models_free_unused();
+// Pirate's Moon 1.0 @ 0x00559320 (MW3's 0x005394c0): the models (the empty 0x00559310), then the materials (0x00557890).
+void models_purge(bool models, bool materials);
 // Pirate's Moon 1.0 @ 0x005590f0: every array freed, the slot back on the
 // free list. 5 for no model, 1 while a node uses it.
 int model_release(Model* m);

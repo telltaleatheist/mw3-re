@@ -50,6 +50,7 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zreader/zreader.h"
@@ -666,7 +667,7 @@ void GameEngine::input_poll(uint8_t callbacks) { zin::poll(callbacks != 0); }
 uint32_t GameEngine::key_state(int32_t key) { return zin::key_state(key); }
 void GameEngine::input_clear() { zin::kbd_reset(); }
 void GameEngine::input_reset() { zin::reset(); }
-void GameEngine::model_purge(int32_t models, int32_t materials) { zmod::models_purge(models != 0, materials != 0); }
+void GameEngine::model_purge(int32_t models, int32_t materials) { pm::zmod::models_purge(models != 0, materials != 0); }  // PM 0x00559320
 void GameEngine::scene_begin_3d() { zrndr::flares_clear(); }
 Handle GameEngine::scene_begin() { return static_cast<Handle>(zrndr::flare_count()); }
 void GameEngine::input_capture() { zin::mouse_use(); }

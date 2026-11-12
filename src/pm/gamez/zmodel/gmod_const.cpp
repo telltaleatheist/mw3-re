@@ -905,4 +905,14 @@ Model* model_copy(const Model& m, int32_t own_materials, int32_t shared) {
   return c;
 }
 
+// Pirate's Moon 1.0 @ 0x00559310: returns 0 and does nothing else. A model nothing holds stays in the pool until the
+// world goes (docs/pm-map.md, The unused models).
+int32_t models_free_unused() { return 0; }
+
+// Pirate's Moon 1.0 @ 0x00559320
+void models_purge(bool models, bool materials) {
+  if (models) models_free_unused();
+  if (materials) ::zmod::materials_purge();
+}
+
 }  // namespace pm::zmod

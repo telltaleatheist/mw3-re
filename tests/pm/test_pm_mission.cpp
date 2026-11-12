@@ -2833,6 +2833,47 @@ TEST(pm_ia_wave_config_past_the_last_spawns_with_the_first_headless) {
 #endif
 }
 
+// Pirate's Moon 0x00559310 is empty (`xor eax, eax; ret`): no model is freed at Instant Action's next wave (the hook
+// where MW3 called 0x005392c0) or by the purge 0x00559320 (the lab's, a mission's end that keeps the world). The port
+// ran MW3's, which releases every model nothing holds. A model held by nobody stays through all three.
+TEST(pm_unused_models_stay_at_the_wave_and_the_purge) {
+  zgame::set_game(pm::table());
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    ::zmod::ModelPool keep = std::move(::zmod::models());
+    ::zmod::reset_pool();  // zModel's start (the engine's, in play)
+    ::zmod::Model* m = ::zmod::model_alloc();
+    EXPECT(m != nullptr);
+    if (m) {
+      const uint32_t type = 3;
+      std::memcpy(m->header, &type, 4);  // a model, held by nobody (+0x0c 0)
+      const auto kept = [&] { return m->count(0) == 3 && m->count(0xc) == 0; };
+      mech3::mission_hooks().fn_5392c0();
+      EXPECT(kept());  // the next wave
+      engine.model_purge(1, 0);
+      EXPECT(kept());  // the lab's purge
+      mech3::mission_hooks().fn_5394c0();
+      EXPECT(kept());  // a mission's end that keeps the world
+      std::printf("  a model nobody holds, after the wave and both purges: %s\n", kept() ? "kept" : "freed");
+      EXPECT(::zmod::model_release(m) == 0);
+    }
+    ::zmod::models() = std::move(keep);
+  }
+  zgame::set_game(zgame::mw3_table());
+}
+
 static void ia32_spawn_run() {
   zgame::set_game(pm::table());
   zutl::mounts() = zutl::Mounts{};
