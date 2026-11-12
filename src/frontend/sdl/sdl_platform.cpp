@@ -239,10 +239,11 @@ void SdlAlert::abort_message(const std::string& message) {
 }
 
 int32_t SdlAlert::message_box(const std::string& text, const std::string& caption, uint32_t style) {
+  // W16 (upgrades/game_boxes.h): the game's own box while its screens are up (it logs the words, W11); this
+  // system box only before.
+  if (!headless_ && mech3::game_box()) return mech3::game_box()(text, caption, style);
   std::fprintf(stderr, "mw3: [%s] %s\n", caption.c_str(), text.c_str());
   if (headless_) return 1;
-  // W16 (upgrades/game_boxes.h): the game's own box while its screens are up; this system box only before.
-  if (mech3::game_box()) return mech3::game_box()(text, caption, style);
   const bool ok_cancel = (style & 0xf) == 1;
   SDL_MessageBoxButtonData buttons[2] = {
       {SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "OK"},
