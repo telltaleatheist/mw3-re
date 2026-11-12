@@ -52,6 +52,12 @@ bool ends_with(const std::string& s, const char* e) {
 
 // The program and what runs with it: never part of a mod here (an exe patch
 // cannot apply to the port; dgVoodoo and its like are the original's helpers).
+// A world's build script loose at the game folder's top, <world>.gs: the original's text fallback opens it from
+// its working folder, the game's (zinterp open_loose), so a mod laid over the game may bring one (found_worlds.h).
+bool loose_script(const std::string& lower_rel) {
+  return lower_rel.size() > 3 && lower_rel.compare(lower_rel.size() - 3, 3, ".gs") == 0 && lower_rel.find('/') == std::string::npos;
+}
+
 bool program_file(const std::string& lower_rel) {
   const std::string name = lower_rel.substr(lower_rel.rfind('/') == std::string::npos ? 0 : lower_rel.rfind('/') + 1);
   for (const char* e : {".exe", ".dll", ".msi", ".bat", ".com", ".cmd", ".lnk", ".ini", ".conf", ".cfg", ".reg"})
@@ -205,7 +211,7 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
       ++dll_taken;
     } else if (program_file(rel)) ++f.programs;
     else if (!zutl::mod_may_serve(rel)) ++f.own;
-    else if (slash == std::string::npos || !tops.count(rel.substr(0, slash))) ++f.other;
+    else if ((slash == std::string::npos && !loose_script(rel)) || (slash != std::string::npos && !tops.count(rel.substr(0, slash)))) ++f.other;
     else if (const auto it = ours.find(rel); it != ours.end() && same_bytes(p, it->second)) ++f.same;
     else {
       bytes += static_cast<int64_t>(fs::file_size(p, ec));
@@ -339,7 +345,7 @@ ImportFolder import_installer_prepare(const std::string& write_dir, const std::s
       else ++f.programs;
     } else if (program_file(rel)) ++f.programs;
     else if (!zutl::mod_may_serve(rel)) ++f.own;
-    else if (slash == std::string::npos || !tops.count(rel.substr(0, slash))) ++f.other;
+    else if ((slash == std::string::npos && !loose_script(rel)) || (slash != std::string::npos && !tops.count(rel.substr(0, slash)))) ++f.other;
     else maybe.push_back(&x);
   }
   if (static_cast<int64_t>(maybe.size()) > limits.max_files)

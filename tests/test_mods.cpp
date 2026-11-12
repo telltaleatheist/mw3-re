@@ -1342,6 +1342,7 @@ TEST(mods_worlds_declared) {
   put(wd + "/mods/w/mod.txt", "name=W\nworld=good\nworld=nofiles\nworld=../evil\nworld=T1\nworld=json\nworld=zipped\nia_world=good Good\n"
                               "ia_world=c3\nia_world=nowhere Lost\n");
   put(wd + "/mods/w/zbd/good/gamez.zbd", "x");
+  put(wd + "/mods/w/good.gs", "set DB good\n");  // its build script (test_found_worlds: without one, left out)
   put(wd + "/mods/w/zbd/json/gamez/metadata.json", "{}");  // a world as unzbd's JSON, a folder or its zip (gamez JSON)
   put(wd + "/mods/w/zbd/zipped/gamez.zip", "x");
   zutl::mounts() = zutl::Mounts{};
@@ -2863,6 +2864,13 @@ TEST(mods_campaigns_mounted) {
   const std::string wd = tmp("mods_campaigns"), install = wd + "/install";
   put(install + "/zbd/c1/gamez.zbd", "x");
   put(install + "/zbd/c4/gamez.zbd", "x");
+  // The missions' own archives and the mod worlds' scripts (test_found_worlds: without them, left out).
+  put(install + "/zbd/c1/readerm1.zbd", "x");
+  put(install + "/zbd/c4/readerm4.zbd", "x");
+  put(wd + "/mods/a/aworld.gs", "set DB aworld\n");
+  put(wd + "/mods/a/zbd/aworld/readerm1.zbd", "x");
+  put(wd + "/mods/b/bworld.gs", "set DB bworld\n");
+  put(wd + "/mods/b/zbd/bworld/readerm2.zbd", "x");
   put(wd + "/mods/a/mod.txt", "name=A\nworld=aworld\ncampaign=one.txt\ncampaign=camps/two.txt\ncampaign=again/ONE.txt\n"
                               "campaign=../x.txt\ncampaign=gone.txt\ncampaign=bad.txt\ncampaign=lost.txt\ncampaign=noc2.txt\n"
                               "campaign=uses_b.txt\ncampaign=my camp.txt\n");
