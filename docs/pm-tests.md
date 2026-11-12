@@ -894,8 +894,7 @@ freed, none a model lists); `pm_ia_wave_config_past_the_last_spawns_with_the_fir
 at 20 s of a real wave, the materials its models list that are freed (none). Breaks: the hook back on
 MW3's sweep fails the second; half of each model's polygons marked fails the first.
 
-Left: the sweep's sibling 0x005392c0 (the last wave's unused models freed at the next wave, and at a
-mission's end that keeps the world) still walks MW3's pool alone on this branch, so Pirate's Moon's unused
-models stay until the world is unloaded: memory, nothing seen. The light animation event (5) still sets a
+The sweep's sibling 0x005392c0 is empty in Pirate's Moon (0x00559310): it frees no model, and the port now
+does the same (pm-map.md, The unused models). The light animation event (5) still sets a
 Pirate's Moon light through MW3's range and colour setters (its mixed colours are not kept up); it made no
 difference to these pictures.

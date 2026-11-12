@@ -1723,7 +1723,7 @@ struct WiredMissionHooks : MissionHooks {
   void sounds_free(Handle bank) override { e->sound_release_all(bank); }
   void fn_414000() override { mechs_shutdown(); }  // 0x00414000 (app_mech.cpp)
   void fn_50b2f0() override { zeff::anim_free_copies(); }        // the instances' own node trees
-  void fn_5394c0() override { zmod::models_purge(true, true); }  // 0x005394c0(1, 1): unused models, materials
+  void fn_5394c0() override { pm::zmod::models_purge(true, true); }  // Pirate's Moon 0x00559320(1, 1): no model freed, materials
   // 0x00576270(0) frees zUtil's default search paths ([0x0072eebc]), which the
   // port never keeps (zsnd_parm.cpp, zinterp.cpp): nothing to free.
   void fn_576270(int32_t) override {}
@@ -1910,7 +1910,7 @@ struct WiredMissionHooks : MissionHooks {
     auto* a = static_cast<ActionGame*>(e->object_of(ia));
     return a ? a->last_wave() : -1;
   }
-  void fn_5392c0() override { zmod::models_free_unused(); }  // 0x005392c0: the last wave's unused models freed
+  void fn_5392c0() override { pm::zmod::models_free_unused(); }  // Pirate's Moon 0x00559310: empty (MW3 0x005392c0 freed them)
   void fn_49dc80(uint8_t v) override { action_lineup(v != 0); }
   void ai_list_reset(Handle list) override {  // 0x004d8610
     if (ai::ResetList* l = ai::reset_list(list)) l->reset();

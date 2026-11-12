@@ -1748,3 +1748,14 @@ leaves PM's mixed colours (`pm_colors`) as the light was made and judges MW3's s
 directional bit. Now PM's (`pm_weapon_light_takes_pms_setters`; breaks: MW3's colour setter, the range swapped).
 The address map pairs MW3's colour setter 0x004fb510 with 0x0050f760 (PM's ambient colour); PM's weapon calls
 0x0050f460. A third slip of the kind above.
+
+## The unused models (0x00559310, 2026-11-11)
+
+MW3's 0x005392c0 releases every model nothing holds; Instant Action's next wave calls it (MW3 0x0048f8a0) and so does
+the purge 0x005394c0 (the lab's, a mission's end that keeps the world). Pirate's Moon's twin is 0x00559310, found by
+its call at the same place in the wave code (0x0049260c, before the line-up 0x004a0e10) and from the purge 0x00559320:
+`xor eax, eax; ret`. PM frees no model before the world goes. The address map has no pair for either.
+The port ran MW3's on PM (the wave hook, `GameEngine::model_purge`, the mission's purge hook), walking MW3's pool. Now
+`pm::zmod::models_free_unused` (empty) and `pm::zmod::models_purge` (the materials as before, 0x00557890). Test:
+`pm_unused_models_stay_at_the_wave_and_the_purge` (a model nobody holds stays through the three; breaks: each caller
+back on MW3's).
