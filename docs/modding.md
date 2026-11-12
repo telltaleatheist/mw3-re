@@ -235,7 +235,11 @@ then gets, for each one:
   if taken), `name=<name>` and a `mission=<name> <n>` line each, and `campaign=<name>.txt`. PLAY and
   MISSIONS on MODS then work with no hand edit; the briefing is `brief_<name><n>`, the movie none.
 - Its multiplayer maps (`readermp<n>.zbd`) need nothing more: the lobby's add-on scan looks in every mod
-  world (New worlds and words, Multiplayer).
+  world (New worlds and words, Multiplayer). The exe's scan starts at `readermp3` (the first two of each
+  shipped world are listed by name from the game's messages) and names a map by its `mpinfo.zrd`
+  `db_name`; a mod's world has no shipped two, so on a mod's world (9 on) the scan starts at `readermp1`,
+  and a map with no `mpinfo.zrd` name (a copied world's: c1's `readermp1`/`2` have none) is listed as
+  "<world> <n>" (Z3, 2026-11-12: before, a copied world's maps never showed).
 
 A mod with its own mod.txt is the modder's and is never written; `--check-mod`, REPORT and INFO warn about
 a world folder in it that mod.txt does not name ("the world is not played: add world=<name>").
@@ -287,6 +291,18 @@ of three and its Instant Action entry, its readerm2 read from the mod); a mod wi
 it is, its unnamed world warned about; the mount's two checks (no script: the campaign and the Instant
 Action entry left out, then a script at the root and then in interp.zbd taking them; a line without its
 `readerm<n>.zbd`, on the mod's world and on c1, left out).
+
+**Played** (Z3, 2026-11-12; `tests/test_sdl_new_world.cpp`, the real program hidden and silent): the
+test's world is c1's folder copied as `ironcoast` less `readerm4` (three missions) with c1.gs from the
+game's interp.zbd, its `set DB` changed, as `ironcoast.gs`, in the test's own folder (never committed),
+added by IMPORT's own code. Its campaign, written by IMPORT, is played from its MODS entry by the chain
+(`MW3_CAMPAIGN=1`, about 100 s): the world loaded once ("Loading [ ironcoast ]") and each mission's own
+data after it, as the game does for missions on one world; three missions won; the credits; the pilot
+screen again. An Instant Action wave on it from Instant Action's entry (`--action-chain c5:2`: c5 to c9
+are the rows mods add): the fifth map, Battle Waves lost by REPLAY then won by two waves cleared, tallied.
+The multiplayer lobby on loopback: the host, in multiplayer's entry with the mod ticked, lists "ironcoast
+1" and "ironcoast 2"; a joiner with the same mod ticked stays in and lists them; a joiner on a plain start
+is turned back: "You do not have: Iron Coast."
 
 ## New mechs and weapons (after PM, items 1 and 2, 2026-11-08)
 
