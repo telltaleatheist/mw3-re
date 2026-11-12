@@ -8594,6 +8594,8 @@ TEST(sdl_pm_program_mods_six_buttons_and_the_mission_switch) {
   const size_t up = b.find(": up, row"), down = up == none ? none : b.find(": down, row", up);
   const size_t on = b.find("mw3: debriefing of a MODS mission: CONTINUE, back to MODS");
   EXPECT(up != none && down != none);  // EDIT MISSION, then PLAY MISSION, both inside the mission
+  const size_t ed = b.find("mw3: pause: the switch is EDITMISSION");  // its label what a press does: in play EDIT, in the editor PLAY
+  EXPECT(ed != none && ed < up && b.find("mw3: pause: the switch is PLAYMISSION", ed) != none && b.find("mw3: pause: the switch is PLAYMISSION") > up);
   EXPECT(on != none && down < on && b.find("mw3: mods: the left box shows MISSIONS", on) != none && b.find("mw3: entry campaign left") == none);
   // C.
   const std::string c = pm_run(dir, {"--entry", "campaign", "--entry-mission", "c1", "1", "--edit", "--window", "640x480", "--mouse-at", "50,125@230",
