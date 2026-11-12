@@ -6341,6 +6341,18 @@ TEST(sdl_program_launcher_finds_the_game_then_plays) {
   EXPECT(c.exited && !c.args.empty() && c.args[0] == MW3_GAME_DIR && screen(c.log, "the game's first frame"));
   EXPECT(screen(c.log, "screen notes: ADD FROM MY DISC, OK\n") && screen(c.log, "note: No music yet"));
   EXPECT(c.log.find("screen notes:") < c.log.find("the game's first frame"));
+  // W13 (Owen, 2026-11-12): a player's pick (no check's click on MECHWARRIOR 3 after it) ends on the games,
+  // with nothing started, so Pirate's Moon can be added first; the notes' OK goes back to them too.
+  auto stay = pick;
+  stay.push_back({"MW3_LAUNCHER_NO_PLAY", "1"});
+  stay[2].second = "120";  // MW3_LAUNCHER_FRAMES: about 2 s on the games, then QUIT
+  const LauncherRun w = run_launcher_with("launcher_v1_w13_stays", "READY\nsleep 2", nullptr, stay);
+  const size_t notes = w.log.find("screen notes:");
+  const size_t main_after = notes == std::string::npos ? notes : w.log.find("screen main: MECHWARRIOR 3", notes);
+  std::printf("W13: notes %d, the games after them %d, started %d\n", notes != std::string::npos, main_after != std::string::npos,
+              !w.args.empty());
+  EXPECT(w.exited && w.args.empty() && !screen(w.log, "the game's first frame"));
+  EXPECT(notes != std::string::npos && main_after != std::string::npos);
   // A CD-type install (its video folder empty, the movies left on the disc):
   // the notes say both are missing.
   const std::string cd = std::string(MW3_TEST_TMP) + "/launcher_v1_cd_install";
