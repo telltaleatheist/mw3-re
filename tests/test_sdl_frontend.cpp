@@ -3059,10 +3059,12 @@ TEST(sdl_program_campaign_chain) {
   const std::string root = std::string(MW3_TEST_TMP) + "/sdl_campaign_chain";
   std::filesystem::remove_all(root);
   const std::string split = root + "/split", single = root + "/single", kills = root + "/kills", retry = root + "/retry";
+  const std::string fast = root + "/fast";  // FastMenu (-seasick): the salvage screen's still picture
   std::filesystem::create_directories(retry);
   std::filesystem::create_directories(split);
   std::filesystem::create_directories(single);
   std::filesystem::create_directories(kills);
+  std::filesystem::create_directories(fast);
   // Every run on a 33 ms frame clock with a fixed seed (--seed, ours): each
   // mission's start reseeds rand (0x00501ab0, 0x00508fc0), so a mission plays
   // the same in the split and the whole run.
@@ -3089,12 +3091,16 @@ TEST(sdl_program_campaign_chain) {
   const pid_t by_kills = spawn_mw3(args("kills:4", kills), kills + "/run.log");
   // Op 1 with each mission failed once first (the pause's REPLAY), then won.
   const pid_t by_retry = spawn_mw3(args("retry:4", retry), retry + "/run.log");
+  std::vector<std::string> fast_args = args("kills:2", fast);
+  fast_args.push_back("-seasick");
+  const pid_t by_fast = spawn_mw3(fast_args, fast + "/run.log");
   const bool first_ok = wait(spawn_mw3(args("new:4", split), split + "/run1.log"));
   const bool second_ok = wait(spawn_mw3(args("resume:16", split), split + "/run2.log"));
   const bool whole_ok = wait(whole);
   const bool kills_ok = wait(by_kills);
   const bool retry_ok = wait(by_retry);
-  EXPECT(first_ok && second_ok && whole_ok && kills_ok && retry_ok);
+  const bool fast_ok = wait(by_fast);
+  EXPECT(first_ok && second_ok && whole_ok && kills_ok && retry_ok && fast_ok);
   auto read = [](const std::string& path) {
     std::string t;
     if (std::FILE* f = std::fopen(path.c_str(), "r")) {
@@ -3220,7 +3226,7 @@ TEST(sdl_program_campaign_chain) {
   for (const std::string& dir : {split, single, kills})
     for (const auto& f : std::filesystem::directory_iterator(dir)) {
       const std::string name = f.path().filename().string();
-      if (name.rfind("chain_", 0) != 0) continue;
+      if (name.rfind("chain_", 0) != 0 || name.find("_salvage") != std::string::npos) continue;  // below
       int w = 0, h = 0;
       double lit = 0, green = 0;
       ++shots;
@@ -3234,6 +3240,28 @@ TEST(sdl_program_campaign_chain) {
     }
   std::printf("  %d of %d briefing and debriefing shots lit\n", lit_ok, shots);
   EXPECT(shots == 90 && lit_ok == shots);  // 81, and the kills run's 5 briefings and 4 debriefings
+  // The salvage screen, shot the first time each run reaches it: lit green panels; with FastMenu on (its still
+  // picture, 0x00486ed0's bake) the same picture as the kills run's without it (both op 1 mission 2, seeded).
+  int salvage = 0, salvage_lit = 0;
+  std::string kills_shot, fast_shot;
+  for (const std::string& dir : {split, single, kills, fast})
+    for (const auto& f : std::filesystem::directory_iterator(dir)) {
+      const std::string name = f.path().filename().string();
+      if (name.rfind("chain_", 0) != 0 || name.find("_salvage") == std::string::npos) continue;
+      int w = 0, h = 0;
+      double lit = 0, green = 0;
+      ++salvage;
+      if (bmp_shares(f.path().string(), &w, &h, &lit, &green) && lit > 0.3 && green > 0.3) ++salvage_lit;
+      else std::printf("  shot %s: lit %.3f green %.3f\n", name.c_str(), lit, green);
+      if (dir == kills) kills_shot = read(f.path().string());
+      if (dir == fast) fast_shot = read(f.path().string());
+    }
+  const std::string lf = read(fast + "/run.log");
+  std::printf("  salvage screens: %d shot, %d lit; FastMenu on %d, its shot the same as without %d\n", salvage, salvage_lit,
+              lf.find("mw3: chain salvage screen, FastMenu on") != std::string::npos, !fast_shot.empty() && fast_shot == kills_shot);
+  EXPECT(salvage >= 2 && salvage_lit == salvage && lf.find("mw3: chain salvage screen, FastMenu on") != std::string::npos);
+  EXPECT(lk.find("mw3: chain salvage screen, FastMenu off") != std::string::npos);
+  EXPECT(!fast_shot.empty() && fast_shot == kills_shot);
 }
 // The whole campaign by its own objectives (MW3_CAMPAIGN_ALL=1, about 5
 // minutes): a new pilot's kills chain through all 20 missions, seeded on the
