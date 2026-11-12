@@ -365,6 +365,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/import_texts.cpp
   src/upgrades/mods/import_loadout.cpp
   src/upgrades/mods/salvage_chance.cpp
+  src/upgrades/mods/loadout_fallback.cpp
   src/upgrades/mods/entry_archives.cpp
   src/upgrades/mods/bz2_read.cpp
   src/upgrades/mods/installer_read.cpp
@@ -683,6 +684,7 @@ add_executable(mw3tests
   tests/test_save_entry.cpp
   tests/test_new_weapon.cpp
   tests/test_salvage_chance.cpp
+  tests/test_loadout_fallback.cpp
   tests/test_teleport.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp

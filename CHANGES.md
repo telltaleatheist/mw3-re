@@ -396,6 +396,7 @@ unusual happens.
 - Clearing a mission's ejection seats can no longer hang if one of them will not come off what holds it (none does in the shipped game).
 - A modded mission script that sets a surface-mark type above 2 no longer overwrites other settings (no shipped script uses surface marks).
 - A mission without an AI boundary (a multiplayer game, or a map without one) played after a campaign mission no longer leaves the AI using the previous mission's freed boundary.
+- A mod whose mech has its primary loadout renamed ("Primary: CN9-D" where the game's own mechs say Primary) no longer loses that mech where the game gives one by its loadout's name: a campaign's start and a mission's gift give the loadout whose name starts with the one asked for (for the primary, the mech's first), and the log says so. The original gave nothing: with Freako's PM 1.2 mod, Pirate's Moon's first mission had neither the Centurion nor the Owens, only the Puma (playtest W20). The game's own mechs all name their primary, so unmodded play is unchanged.
 - A modded map whose boundary names a mission past its operation's last no longer writes past the game's list of boundaries; that one is ignored.
 - An AI pilot at a broken (NaN) position no longer reads leftover memory when the boundary looks for the way out.
 - An objective's text can no longer garble the objectives box: the original used each objective's text as a formatting pattern, so a '%' in it would have printed garbage or crashed. No text in the game has one, so nothing you see changes.
