@@ -831,6 +831,9 @@ void Launcher::start_game(bool pm) {
   std::vector<std::string> args;
   if (pm) {
     args = {o_.pm_bin, "--install", pm_dir_, "--no-launcher"};
+    // Its own folder as this launcher knows it (MW3_PM_WRITE_DIR, a MY DATA FOLDER move, else the usual one or its
+    // pointer's): mw3pm left alone fell back to the usual folder, a named one ignored.
+    if (const std::string wd = pm_wd(); !wd.empty()) args.push_back("--write-dir"), args.push_back(wd);
     args.insert(args.end(), o_.pm_args.begin(), o_.pm_args.end());
   } else {
     args = {o_.game_bin, install_.dir};
