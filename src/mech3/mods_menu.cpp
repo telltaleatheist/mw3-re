@@ -767,7 +767,7 @@ std::string ModsScreen::hover_line(int32_t id) const {
     case kMissions:
       return "Pick one mission of " + campaign + " to play or edit.";
     case kAdd:
-      return "Pick a mod's .zip, installer (.exe) or a file in its folder. Don't run an installer: IMPORT reads the mod out of it.";
+      return "Pick a mod's .zip, its installer (.exe) or a file in its folder. Don't run the installer: IMPORT reads it.";
     case kInfo:
       return m ? "What " + mod + " changes, and its warnings." : "What " + campaign + " is: its mods, and what it changes.";
     case kDelete:

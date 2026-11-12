@@ -1159,6 +1159,12 @@ how the pieces work; the buttons and their names are these now.
     knows none): a click and PLAY. BACK: the campaigns. Leaving the mission
     comes back to the entry's own list (the screen in `test_mode`), and its
     BACK to the campaigns.
+    When the mission ends by itself (won or lost), its debriefing's
+    CONTINUE and ABORT both leave it for that list (`DebriefScreen::
+    on_button`, ours: the stand-in pilot has no game, so the original's
+    three kinds knew no way on and both buttons did nothing until
+    2026-11-11; tests `sdl_program_test_mission_debriefing_names_its_
+    mission`, `sdl_program_mission_switch_stays_and_mods_comes_back_alive`).
   - **IMPORT**: one file box. A .zip/.7z/.rar, a mod's installer (.exe,
     read, never run), a loadout, or a file inside a mod's folder for a
     folder mod. ADD FOLDER is gone. With warnings: "N warnings: INFO shows
@@ -1184,8 +1190,10 @@ how the pieces work; the buttons and their names are these now.
   `conflicts_with`): a player whose mods do not collide never sees them.
 - **Hover lines.** The button under the mouse says in the two note lines
   what a press does and to what ("Play Long Night with its ticked mods.",
-  "Pick a mod's .zip, installer (.exe) or a file in its folder. Don't run
-  an installer: IMPORT reads the mod out of it."); off the buttons what
+  "Pick a mod's .zip, its installer (.exe) or a file in its folder. Don't
+  run the installer: IMPORT reads it."; each line also fits the two rows
+  by the unmeasured rule, 58 characters a row, in case a system's font is
+  wider); off the buttons what
   stood there comes back, unless a press said something new meanwhile
   (`ModsScreen::hover`, `hover_line`). PLAY in INFO's view does nothing and
   its hover says so ("BACK first: ...": a baked button cannot be hidden).
