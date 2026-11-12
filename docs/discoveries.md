@@ -996,6 +996,11 @@ From the settings loader at 0x40c420 and the registry code around 0x5977d0
   "about equal" test (within 2%) nobody used.
 - **The hidden "FastMenu" option (the `-seasick` switch) defaults on below
   200 MHz**, so slow machines got the still menus.
+- **The salvage screen looks the same with FastMenu on.** Its background is a
+  still picture anyway, and the game turns FastMenu off while it builds the
+  screen (0x0047d3b0), so `-seasick` changes nothing there: a shot of it with
+  and without the switch is the same to the byte (the campaign chain test's
+  FastMenu run checks this).
 
 ## Loading a mission
 
