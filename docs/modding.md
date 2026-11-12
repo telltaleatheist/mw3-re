@@ -801,13 +801,24 @@ Action takes mods from its own screen, not from MODS's list.
 - **Leaving** modded Instant Action by its pilot screen's CANCEL starts again
   on the main menu of a plain run (no `--open-mods`: the player came from the
   main menu).
-- **Straight in** (`ia_straight_in`, `MainMenuButton::on_left_up`): on a
-  plain run, INSTANT ACTION (the button, its hotkey and the app's reopen
-  press all go through the button) starts the program again into the entry
-  when it has ticks and none is missing. A ticked mod gone: the original
-  Instant Action opens and its line says "MODS: 1 missing"
-  (`ia_mods_missing`); the list shows which, and ACCEPT there refuses until
-  it is turned off or imported again.
+- **A plain start is unmodded** (Owen, 2026-11-11, playtest W9: "mods
+  should be disabled when you open the game, and you should enable them if
+  you want to play modded"). INSTANT ACTION on the main menu of a plain run
+  opens the original at once, "MODS: off", whatever the last session
+  ticked: the first version started the program again into the entry
+  ("straight in", `ia_straight_in`, gone). The ticks are remembered as
+  ticks: Instant Action's MODS screen opens with them ticked and says
+  "Ticked last time. ACCEPT starts the game again with them."; ACCEPT with
+  any ticked starts again into the entry, with none (or ALL OFF) it stays
+  the original and goes back. A ticked mod gone: the list shows which
+  (`ia_mods_missing`), and ACCEPT refuses until it is turned off or
+  imported again.
+- **The tab's hover line** (`ActionScreen::update`, ours): with the mouse
+  over MODS, two rows under the mission's box say "Play Instant Action with
+  mods. The game starts again to load them."
+- **No mods at all** (playtest W6): ALL OFF is not shown (it was a second
+  way out of the screen) and the note says "No mods yet. Get one on the
+  main menu: MODS, then IMPORT."
 - **The pilot goes along** (`--entry-pilot NAME`, `RestartTo::pilot`,
   `ia_start_pilot`): ACCEPT passes the chosen pilot's name; the main menu's
   state, once the pilots are loaded, picks the pilot of that name in the
@@ -826,8 +837,9 @@ Action takes mods from its own screen, not from MODS's list.
 Tests: `sdl_program_instant_action_mods` (three runs, each one process; the
 pilot brought with no box), `sdl_program_instant_action_mods_pilot_and_straight_in`
 (the pilot and saved mechs brought, picked after the restart; straight in
-from the main menu; a ticked mod gone; a mod's own map; out again with the
-pilot), `ia_mods_accept_steps_and_line`, `ia_mods_straight_in_and_missing`,
+from the main menu no more: a plain start stays the original, the ticks
+remembered on its MODS screen; a ticked mod gone; a mod's own map; out
+again with the pilot), `ia_mods_accept_steps_and_line`, `ia_mods_straight_in_and_missing`,
 `sdl_restart_args_are_the_starts_own`.
 
 ### Pilots inside an entry
@@ -1165,6 +1177,71 @@ Tests: `mod_campaign_advance_over_the_list`,
 the briefing, a won mission, the debriefing, the next briefing, the ending).
 
 ### The MODS screen (begun 2026-11-09)
+
+**The screen since 2026-11-11 (Owen's playtest, W5: "too many buttons ...
+stupid simple, idiot proof, intuitive").** What follows this block describes
+how the pieces work; the buttons and their names are these now.
+
+- Left box CAMPAIGNS, the game's own first; right box MODS, the chosen
+  campaign's, each with its box. **The box flips the tick** (the box and the
+  gap left of it; one flip a click), **the name chooses the mod** (DETAILS
+  shows it); a click on a campaign row puts the choice back on the campaign.
+  There is no ON/OFF button. A chosen mod with nothing else to say reads
+  "Click the box to turn it on for <campaign>."
+- Six buttons:
+  - **PLAY**: the campaign with its ticks (the restart, the entry's pilot
+    screen).
+  - **MISSIONS**: the campaign's missions in the left box (heading
+    MISSIONS, the campaign and the count in DETAILS); a mission chosen and
+    PLAY starts it in play, the game started again into it, with the
+    stand-in pilot, nothing kept. It replaces TEST and EDITOR: in the
+    mission the pause menu's EDIT MISSION / PLAY MISSION, or Shift+F12,
+    switches between playing and editing (editor.md, The switch), and for
+    its first 8 seconds the screen says "PAUSE: EDIT MISSION, or SHIFT+F12"
+    (mods_edit.h, mods_edit_mission_started; a campaign played from MODS
+    says it in each mission). The list box has no double click (FileList
+    knows none): a click and PLAY. BACK: the campaigns. Leaving the mission
+    comes back to the entry's own list (the screen in `test_mode`), and its
+    BACK to the campaigns.
+  - **IMPORT**: one file box. A .zip/.7z/.rar, a mod's installer (.exe,
+    read, never run), a loadout, or a file inside a mod's folder for a
+    folder mod. ADD FOLDER is gone. With warnings: "N warnings: INFO shows
+    them."
+  - **INFO** (was REPORT): a mod chosen: what it changes and its warnings,
+    as before. A campaign chosen: first what it is (the game's own, a mod's,
+    or your copy and where it is kept; the mods on for it; its pilots and
+    saved games and their folder), then its mod's report when it has one.
+    In this view the tabs are EXPORT and OPEN FOLDER (the saved report's
+    folder), with BACK; the game's own campaign has neither (nothing to
+    export, no file).
+  - **The delete tab**, one question a click, its label what it acts on:
+    DELETE MOD (a mod chosen, or an imported campaign: its mod is what
+    goes, pilots kept), DELETE COPY (a copy of yours with its pilots and
+    saved games), DELETE (what is left of a campaign whose mod is gone),
+    RESET (the game's own campaign). Not shown when it could do nothing (a
+    hand-placed mod: the note says why). "DELETE CAMPAIGN" was the word
+    asked for; a tab holds 11 letters, so the label names the thing by what
+    goes.
+  - **BACK**.
+- **UP and DOWN** show only beside a ticked mod that shares something with
+  another ticked mod (the "Shares ... which wins" line's own test,
+  `conflicts_with`): a player whose mods do not collide never sees them.
+- **Hover lines.** The button under the mouse says in the two note lines
+  what a press does and to what ("Play Long Night with its ticked mods.",
+  "Pick a mod's .zip, installer (.exe) or a file in its folder. Don't run
+  an installer: IMPORT reads the mod out of it."); off the buttons what
+  stood there comes back, unless a press said something new meanwhile
+  (`ModsScreen::hover`, `hover_line`). PLAY in INFO's view does nothing and
+  its hover says so ("BACK first: ...": a baked button cannot be hidden).
+- The tabs are records of MODSDIALOG (patch12_edits.cpp): MISSIONS, ADDMOD,
+  INFOMOD, DELETEMOD, DELETECOPY, DELETEREST, RESETROW, EXPORTMOD,
+  MODSFOLDER, MOVEUP, MOVEDOWN; each view hides what it does not have
+  (`show_buttons`, every update). In the wide layout the left group reaches
+  to x 275, past the three tabs under CAMPAIGNS.
+- Flags: `--entry ID --entry-mission WORLD N [--edit]` (`--entry-test` and
+  `--entry-edit` are its old names and still read); a restart writes the
+  new ones.
+
 
 Ours, from the game's own pieces (`mods_menu`, `mods_tables.h`): a MODS
 button on the main menu and its screen, both our records in dialog.zrd
@@ -2162,7 +2239,7 @@ there). With a mod or a custom campaign chosen:
   alone, which has no missions, is tested on the game's.
 - ENTER plays the chosen one with the mods on in this run, started as EDIT's
   is (a debug start: a stand-in pilot in the Mad Cat, no briefing), the editor
-  left closed (Shift+F12 and the pause's EDITOR still reach it, saving into
+  left closed (Shift+F12 and the pause's EDIT MISSION still reach it, saving into
   the mod, as in any mission MODS starts). When the main menu comes back
   (the pause's QUIT is the tested way), MODS is on top again and the chosen
   pilot and the launch are put back (`mods_edit_begin` with `editor`

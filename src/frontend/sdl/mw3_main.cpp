@@ -253,6 +253,11 @@ struct Args {
   // counts the frame from the first one the session holds N players (ours)
   struct ClickAt { int frame, x, y, group = 0, players = 0, back = 0, ingame = 0, hover = 0; };
   std::vector<ClickAt> clicks_at;  // --click-at X,Y@N (the game's 640 x 480 pixels)
+  // --mouse-at X,Y@N[c] (ours): the system's mouse moved to a window point at
+  // frame N, as SDL reports it (through SdlInput, unlike --click-at); c: then
+  // a left click there
+  struct MouseAt { int frame, x, y, click = 0; };
+  std::vector<MouseAt> mouse_at;
   std::string briefing;  // --briefing NAME (ours): a campaign mission's briefing, as the menus reach it
   bool walk = false;  // --walk: full throttle (THROTTLE0's key) at the start (ours)
   // The network (ours, multiplayer-port.md piece 4, until the lobby screens):
@@ -295,16 +300,21 @@ void usage() {
       "mw3 [install-dir] [--install DIR | --install-from DISC|ISO|CUE [--install-to DIR]] [--assets DIR]... [--write-dir DIR] [--version]\n"
       "    [--mission NAME | --fly NAME [--variant BLOCK]] [--pos X Y Z] [--look YAW PITCH] [--vehicle-ahead M [--vehicle-hold]] [--turret-ahead M] [--node-ahead NAME M] [--mech-ahead M] [--dialog FILE NAME]\n"
       "    [--shot FILE.bmp [--shot-frame N] [--shot-any] [--shot-series K]] [--fire N [--fire-group 1..5]] [--objectives N] [--hurt F@N] [--win N] [--lose N] [--lab-mech N]\n"
-      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia | --entry-test WORLD N | --entry-edit WORLD N]] [--entry-pilot NAME] [--open-mods [--mods-entry ID] | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
+      "    [--windowed] [--original] [--import | --no-import] [--no-launcher] [--debug-camera] [--wide-menus | --no-wide-menus] [--mod NAME]... [--no-mods] [--mods] [--entry ID [--entry-play | --entry-ia | --entry-mission WORLD N [--edit]]] [--entry-pilot NAME] [--open-mods [--mods-entry ID] | --open-ia] [--check-mod DIR] [--mod-report DIR] [--build-anim DIR] [--make-starter mech|weapon|translation|mission] [--reference FILE] [--editor-guide FILE] [--pick PATH] [--save-pick PATH] [--patch ZIP|DIR] [--vfw-helper EXE | --no-vfw-helper] [--briefing c1m2] [--click N[:M]] [--click-at X,Y@N]... [--mouse-at X,Y@N[c]]... [--then ...] [--click-players X,Y@N/P]... [--click-return X,Y@N]... [--walk] [--tap DIK@N[:M]]... [--frames N] [--frame-ms N] [--frame-times N] [--seed N] [--window WxH] [--nosound] [--hidden] [--verbose]\n"
       "    [-nofmv] [-seasick] [-cdN]\n"
       "See docs/program.md.\n");
 }
 
 bool parse(int argc, char** argv, Args& a) {
+  bool later = false;
   for (int i = 1; i < argc; ++i) {
     const std::string s = argv[i];
     auto next = [&](int n) { return i + n < argc; };
     if (s == "--help" || s == "-h") return usage(), false;
+    // --then (ours, checks): the scripted input after it is for the run after
+    // the next restart (sdl_restart.h keeps it and drops what stood before).
+    if (s == "--then") { later = true; continue; }
+    if (later && (s == "--click-at" || s == "--tap" || s == "--mouse-at") && next(1)) { ++i; continue; }
     if (s == "--version") {  // ours: the build, and (on Windows) that every DLL it needs loaded
       std::printf("mw3pm (Pirate's Moon rebuild) %s\n", mw3_version_tag + 20);
       std::exit(0);
@@ -316,8 +326,10 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--no-mods") a.no_mods = true;
     else if (s == "--entry" && next(1)) a.entry = argv[++i];
     else if (s == "--entry-pilot" && next(1)) a.entry_pilot = argv[++i];
-    else if (s == "--entry-test" && next(2)) a.entry_test_world = argv[++i], a.entry_test_number = std::atoi(argv[++i]);
+    // --entry-mission WORLD N [--edit] (MODS's MISSIONS): --entry-test and --entry-edit are its old names.
+    else if ((s == "--entry-test" || s == "--entry-mission") && next(2)) a.entry_test_world = argv[++i], a.entry_test_number = std::atoi(argv[++i]);
     else if (s == "--entry-edit" && next(2)) a.entry_test_world = argv[++i], a.entry_test_number = std::atoi(argv[++i]), a.entry_edit = true;
+    else if (s == "--edit") a.entry_edit = true;
     else if (s == "--mods-entry" && next(1)) a.mods_entry = argv[++i];
     else if (s == "--entry-play") a.entry_play = true;
     else if (s == "--entry-ia") a.entry_ia = true;
@@ -393,6 +405,11 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--click-at" && next(1)) {
       Args::ClickAt c{};
       if (std::sscanf(argv[++i], "%d,%d@%d", &c.x, &c.y, &c.frame) == 3) a.clicks_at.push_back(c);
+    }
+    else if (s == "--mouse-at" && next(1)) {
+      Args::MouseAt m{};
+      char c = 0;
+      if (std::sscanf(argv[++i], "%d,%d@%d%c", &m.x, &m.y, &m.frame, &c) >= 3) m.click = c == 'c', a.mouse_at.push_back(m);
     }
     else if (s == "--click-players" && next(1)) {  // X,Y@N/P: N frames after the session first holds P players
       Args::ClickAt c{};
@@ -1234,6 +1251,7 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
     // mission's can be let go (sdl_input.h); fullscreen and hidden runs hold it.
     input.windowed = [&window, hidden = a.hidden] { return !hidden && !window.fullscreen(); };
     input.in_mission = [&app] { return app.current() == &mech3::states().core; };
+    input.pointer_free = [] { return mech3::editor_state().active != 0; };
     // FIX (A), playtest W4 (sdl_focus.h): a shown window's real focus; the mouse is held only when it is ours.
     // MW3_FOCUS_AT=N (checks, a hidden run): the window without the focus until the pump's Nth pass.
     if (const char* f = SDL_getenv("MW3_FOCUS_AT")) {
@@ -1817,6 +1835,40 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
             SDL_PushEvent(&ev);
           }
         }
+        // --mouse-at: SDL's own events, so the capture, the cursor and the
+        // editor's free pointer are the real ones (sdl_input.h).
+        static float s_mouse_x = 0, s_mouse_y = 0;
+        static int s_editor_row = -2;
+        for (const Args::MouseAt& m : a.mouse_at) {
+          const float x = static_cast<float>(m.x), y = static_cast<float>(m.y);
+          if (menu_frames == m.frame) {
+            SDL_Event ev{};
+            ev.type = SDL_EVENT_MOUSE_MOTION;
+            ev.motion.x = x, ev.motion.y = y, ev.motion.xrel = x - s_mouse_x, ev.motion.yrel = y - s_mouse_y;
+            s_mouse_x = x, s_mouse_y = y;
+            SDL_PushEvent(&ev);
+          }
+          if (m.click && (menu_frames == m.frame + 2 || menu_frames == m.frame + 3)) {
+            SDL_Event ev{};
+            ev.type = menu_frames == m.frame + 2 ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
+            ev.button.button = SDL_BUTTON_LEFT;
+            ev.button.down = menu_frames == m.frame + 2;
+            ev.button.x = x, ev.button.y = y;
+            SDL_PushEvent(&ev);
+          }
+        }
+        if (!a.mouse_at.empty()) {
+          static size_t s_forms = 0;
+          const int row = mech3::editor_state().active ? mech3::editor_panel().hovered : -2;
+          const size_t forms = mech3::editor_forms().size();
+          if (row != s_editor_row || forms != s_forms) {
+            s_editor_row = row, s_forms = forms;
+            const zin::MouseInfo* mi = zin::mouse_info();
+            std::fprintf(stderr, "mw3: editor: frame %d: %s, row %d under the mouse (%d, %d), %zu dialogs, the mouse %s, the system's cursor %s\n",
+                         menu_frames, row == -2 ? "down" : "up", row, mi->x, mi->y, forms, input.captured() ? "held" : "free",
+                         SDL_CursorVisible() ? "shown" : "hidden");
+          }
+        }
         if (!a.shot.empty() && a.shot_series > 1 && menu_frames >= a.shot_frame - a.shot_series &&
             menu_frames < a.shot_frame - 1) {
           std::string base = a.shot;
@@ -1909,18 +1961,9 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         };
       // Ours: MODS's TEST on a plain run (mods_menu.h): into the entry and straight into the mission.
       mech3::mods_menu_test_restart() = [&app](const std::string& entry, const std::string& world, int32_t number, std::string*) {
-        std::printf("mw3: MODS: starting again into entry %s to test %s mission %d\n", entry.c_str(), world.c_str(), number);
+        std::printf("mw3: MODS: starting again into entry %s to play %s mission %d\n", entry.c_str(), world.c_str(), number);
         sdlfe::RestartTo to;
         to.entry = entry, to.screen = sdlfe::RestartTo::kTest, to.test_world = world, to.test_number = number;
-        sdlfe::restart_ask(to);
-        app.replace(app.state(4), 0);
-        return true;
-      };
-      // Ours: MODS's EDITOR on a plain run: into the entry and the mission in the editor (upgrades/editor/save_as.h).
-      mech3::mods_menu_edit_restart() = [&app](const std::string& entry, const std::string& world, int32_t number, std::string*) {
-        std::printf("mw3: MODS: starting again into entry %s to edit %s mission %d\n", entry.c_str(), world.c_str(), number);
-        sdlfe::RestartTo to;
-        to.entry = entry, to.screen = sdlfe::RestartTo::kEdit, to.test_world = world, to.test_number = number;
         sdlfe::restart_ask(to);
         app.replace(app.state(4), 0);
         return true;

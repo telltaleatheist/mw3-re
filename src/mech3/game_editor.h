@@ -113,7 +113,6 @@ void editor_enter();                                           // 0x0040e430: co
 void editor_exit(int32_t y = 0);
 // Ours: called at the end of the exit when set (MODS's EDIT: back to MODS;
 // upgrades/editor/mods_edit.h).
-std::function<void()>& editor_after_exit();                               // 0x0040e7f0: EXIT GAME EDIT's (ours: the view back)
 void editor_frame();                                           // 0x0040e4b0, each frame from the HUD's
 // Ours (docs/editor.md S4): command 0x9a, Shift+F12 under --debug-camera
 // (debugcamera=1): the editor's entry, or its exit when it is up.

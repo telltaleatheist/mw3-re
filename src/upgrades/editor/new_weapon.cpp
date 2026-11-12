@@ -677,7 +677,7 @@ std::string mod_txt_with_weapon(const std::string& text, const std::string& name
 
 void new_weapon_open(int32_t) {
   if (!mods_edit_session().active) {
-    editor_status("EDIT WEAPONS writes into a mod: open one from MODS, EDITOR");
+    editor_status("EDIT WEAPONS writes into a mod: open a mission from MODS, MISSIONS");
     return;
   }
   std::string why;

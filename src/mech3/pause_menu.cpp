@@ -38,7 +38,8 @@ PauseScreen::PauseScreen(Engine& e, Handle s)
     bind_button(&resume, "RESUME");
     bind_button(&options, "OPTIONS");
     if (e.game_kind() == kCampaign || e.game_kind() == kInstantAction || e.game_kind() == kStandalone) bind_button(&replay, "REPLAY");
-    if (editor_reachable()) has_editor = bind_button(&editor, "EDITOR");  // ours (patch12_edits.cpp)
+    // Ours (patch12_edits.cpp): the switch between playing and editing, its label what a press does.
+    if (editor_reachable()) has_editor = bind_button(&editor, editor_switch_edits() ? "EDITMISSION" : "PLAYMISSION");
     unload();
   }
   // [0x006099c4] is never written: OPTIONS always stays.
@@ -90,7 +91,7 @@ void PauseScreen::on_button(int32_t id, int32_t a, int32_t b) {
       e.pop_state(0);
       e.mission_abort();
       return;
-    case kEditor:  // ours: as RESUME, then the editor
+    case kEditor:  // ours: as RESUME, then the mission in the other mode (never out of it)
       on_button(kResume, 0, 0);
       editor_from_level();
       return;

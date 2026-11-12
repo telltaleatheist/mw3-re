@@ -57,10 +57,9 @@ using ModsEditStart = std::function<bool(const std::string& mod, const std::stri
 using ModsPlay = std::function<bool(const std::string& entry, std::string* why)>;
 ModsPlay& mods_menu_play();
 // TEST's on a plain run (step 4a): the program's start again into the entry and straight into that mission
-// (--entry ID --entry-test WORLD N). The campaign MODS opens on (--mods-entry ID: the one just left).
+// (--entry ID --entry-mission WORLD N). The campaign MODS opens on (--mods-entry ID: the one just left).
 using ModsTestRestart = std::function<bool(const std::string& entry, const std::string& world, int32_t number, std::string* why)>;
 ModsTestRestart& mods_menu_test_restart();
-ModsTestRestart& mods_menu_edit_restart();  // EDITOR's (step 4b): --entry ID --entry-edit WORLD N
 std::string& mods_menu_open_entry();
 ModsEditStart& mods_menu_edit_start();
 bool& mods_menu_reopen();
@@ -85,7 +84,9 @@ class ModsScreen;
 
 class ModsScreen : public MenuScreen {
  public:
-  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kEditor, kCampaigns, kMods, kAdd, kAddFolder, kOpenFolder, kExport, kReport, kTest, kDelete };
+  // Six buttons (Owen, 2026-11-11): PLAY (kEnter), MISSIONS, IMPORT (kAdd), INFO, the delete tab, BACK. kToggle
+  // has no button: a click on a row's box ticks it. kExport and kOpenFolder are INFO's view's.
+  enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kMissions, kCampaigns, kMods, kAdd, kOpenFolder, kExport, kInfo, kDelete };
   ModsScreen(Engine& e, Handle state);
   void update(float dt) override;    // a picked mod taken in
   ~ModsScreen() override;
@@ -94,23 +95,28 @@ class ModsScreen : public MenuScreen {
   void add_mod(const std::string& path);  // IMPORT's pick: added (mod_install.h), shown, said
   void export_mod(const std::string& zip);  // EXPORT's answer: the chosen mod packed (upgrades/mods/mod_export.h), said
   void tell(const std::string& text);     // the two lines under MODS, the text wrapped
-  void heading(const char* words);        // the left box's: CAMPAIGNS, REPORT, TEST, EDITOR
+  void heading(const char* words);        // the left box's: CAMPAIGNS, MISSIONS, INFO
+  std::string shown_heading;
   void show_details();               // the selected row's lines
   void enter_campaign();             // PLAY
   void choose_entry();               // the campaign chosen at the left: MODS filled with its ticks
   const ModsCampaignRow* chosen_row() const;
-  void edit();                       // EDITOR (ours): the selected mod's or campaign's missions, or back
-  void test();                       // TEST (ours): the same with the game's missions, to play
-  void missions(bool test);          // EDITOR's and TEST's list, or back to the tables
-  void edit_start();                 // ENTER while editing: the chosen mission in the editor (testing: played)
-  void report();                     // REPORT (ours, upgrades/mods/mod_report.h): the chosen mod's sentences, or back
+  void missions();                   // MISSIONS: the chosen campaign's missions in the left box, or back to the tables
+  void edit_start();                 // PLAY in MISSIONS: the chosen mission played (the game started again into it)
+  void report();                     // INFO (ours, upgrades/mods/mod_report.h): the chosen mod's or campaign's sentences, or back
+  void toggle(int32_t tick_id);      // a tick flipped or moved (the box's click, UP, DOWN): the campaign's ticks saved
+  void show_buttons();               // the tabs the view has, the others hidden (each update too)
+  std::string hover_line(int32_t id) const;  // what a press of that button does, and to what
+  void hover();                      // the line of the button under the mouse; off the buttons the last result back
 
   ModsSlideButton enter, back;       // ENTER, BACK
-  ShellButton editor, test_btn;      // EDITOR, TEST (ON/OFF, UP, DOWN are the tick list's)
-  ShellButton add_btn, export_btn, add_folder_btn, folder_btn, report_btn;  // IMPORT, EXPORT, ADD FOLDER, MODS FOLDER, REPORT
-  // DELETE and RESET (upgrades/mods/mods_delete.h), one place, two tabs: the one the chosen row's plan names is
-  // shown (RESET for the game's own campaign), neither when there is nothing of ours to remove.
-  ShellButton delete_btn, reset_btn;
+  ShellButton missions_btn;          // MISSIONS (UP and DOWN are the tick list's)
+  ShellButton add_btn, export_btn, folder_btn, info_btn;  // IMPORT, INFO; in INFO's view EXPORT, OPEN FOLDER
+  // The delete tab (upgrades/mods/mods_delete.h), one place, three records: the one that says what the press
+  // acts on is shown, none when there is nothing of ours to remove: DELETE MOD (a mod, or an imported
+  // campaign, whose mod is what goes), DELETE COPY (a copy of ours with its pilots), DELETE (what is left of a
+  // campaign whose mod is gone), RESET (the game's own campaign). "DELETE CAMPAIGN" does not fit a tab.
+  ShellButton delete_btn, delete_copy_btn, delete_rest_btn, reset_btn;
   void delete_row();                 // the chosen row deleted or reset, after the game's confirm
   void show_delete_tab();
   ModsList campaign_list;
@@ -130,10 +136,15 @@ class ModsScreen : public MenuScreen {
   bool testing = false;              // the list is TEST's
   std::string edit_mod;              // its mod's folder
   std::vector<ModsEditRow> edit_rows;
-  int tab_shown = 0;                 // the tab under REPORT: 0 none, 1 DELETE, 2 RESET (show_delete_tab)
+  int tab_shown = 0;                 // the delete tab: 0 none, 1 DELETE MOD, 2 RESET, 3 DELETE COPY, 4 DELETE (show_delete_tab)
+  bool tick_clicked = false;         // a box's click flipped a tick on this frame already (a click tells the screen twice)
+  int32_t hovered = 0;               // the button the hover line is of (0 none)
+  std::string hover1, hover2;        // the hover line as said, and under it what stood there before
+  std::string under1, under2;
   bool delete_asked = false;         // DELETE or RESET asked on this click already (delete_row)
   bool reporting = false;            // REPORT's sentences in CUSTOM CAMPAIGNS' box
   std::string report_file;           // the report up, as saved in <write dir>/mod-reports ("" not saved)
+  std::string report_mod;            // its mod's folder ("" the game's own campaign: nothing to export)
   // Inside an entry started for TEST (upgrades/mods/entry_run.h, kTest): the screen is that entry's test list
   // only ("TEST in <campaign>"): ENTER plays the chosen mission in place, BACK leaves the entry.
   bool test_mode = false;

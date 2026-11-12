@@ -25,7 +25,7 @@ void mods_edit_begin(const std::string& mod, std::function<void()> finish, bool 
   ModsEditSession& s = mods_edit_session();
   s = ModsEditSession{};
   s.active = true, s.mod = mod, s.finish = std::move(finish), s.editor = editor;
-  if (!editor) mods_menu_reopen() = true;  // TEST's: back to MODS at the main menu
+  mods_menu_reopen() = true;  // back to MODS at the main menu, however the mission is left
   ai::net_save_into_mod() = mod;
   // Inside a campaign entry the saves go into a copy of it (save_as.h): the entry's own mod when that is a copy
   // of ours, else none yet (the first save asks its name).
@@ -33,17 +33,57 @@ void mods_edit_begin(const std::string& mod, std::function<void()> finish, bool 
     save_as_begin(mods_menu_write_dir(), entry_run().id);
     s.mod = ai::net_save_into_mod();
   }
-  editor_after_exit() = [] {
-    if (mods_edit_session().active) mods_edit_session().leave = true;
-  };
 }
 
+namespace {
+const ModCampaign* campaign_mission();
+constexpr char kHintWords[] = "PAUSE: EDIT MISSION, or SHIFT+F12";
+constexpr float kHintSeconds = 8.0f;
+struct Hint {
+  ztwod::Layer layer;
+  ztwod::FontText text{"", 0, 0};
+  float left = 0.0f;
+  bool shown = false;
+};
+Hint* g_hint = nullptr;
+void hint_frame() {
+  if (!g_hint) return;
+  Hint& h = *g_hint;
+  const bool show = h.left > 0.0f && !editor_state().active;
+  if (show != h.shown) {
+    h.shown = show;
+    if (show) h.text.show_for(-1.0f);
+    else h.text.hide();
+    h.layer.set_active(show ? 1 : 0);
+  }
+  if (!show) return;
+  h.left -= editor_hooks().frame_dt();
+  h.layer.update(editor_hooks().frame_dt());
+}
+}  // namespace
+
+void mods_edit_mission_started() {
+  delete g_hint;
+  g_hint = nullptr;
+  if (!mods_edit_session().active && !campaign_mission()) return;
+  g_hint = new Hint;
+  if (const ztwod::Handle f = editor_hooks().font("mech_string")) g_hint->text.set_font(f);
+  g_hint->text.set_pos(5, 140);  // under the radar and the objective line, the editor panel's column
+  g_hint->text.set_text("%s", kHintWords);
+  g_hint->text.hide();
+  g_hint->layer.add(&g_hint->text);
+  g_hint->left = kHintSeconds;
+}
+
+const char* mods_edit_hint() { return g_hint && g_hint->shown ? kHintWords : nullptr; }
+
 void mods_edit_frame() {
+  hint_frame();
   ModsEditSession& s = mods_edit_session();
   // MW3_EDIT_SAVE_AT=N (checks only): at the editor's Nth frame net_01 is opened and saved, the Save as box
   // answered with the name it offers, and the editor left; ImGui's box cannot be pressed by a scripted click.
   static int frames = 0;
-  if (const char* at = s.active && s.entered && !s.leave && s.editor ? std::getenv("MW3_EDIT_SAVE_AT") : nullptr; at && ++frames == std::atoi(at)) {
+  if (const char* at = s.active && s.entered && s.editor ? std::getenv("MW3_EDIT_SAVE_AT") : nullptr; at && ++frames == std::atoi(at)) {
     save_as_ask_hook() = [](std::string* name) { return std::printf("mw3: Save as answered with \"%s\" (MW3_EDIT_SAVE_AT)\n", name->c_str()), true; };
     edit_ai_nets(0);
     NetDialog& d = net_dialog();
@@ -57,23 +97,13 @@ void mods_edit_frame() {
     editor_exit(0);
     return;
   }
-  if (!s.active || s.entered || s.leave || !s.editor) return;
+  if (!s.active || s.entered || !s.editor) return;
   s.entered = true;
   if (!editor_state().active) editor_enter();
 }
 
-bool mods_edit_leave(Engine& en) {
-  ModsEditSession& s = mods_edit_session();
-  if (!s.active || !s.leave) return false;
-  en.mission_cleanup(1);  // 0x00491780
-  mods_edit_end();
-  mods_menu_reopen() = true;
-  en.replace_state(2);  // the main menu, which opens MODS again
-  return true;
-}
-
 namespace {
-// A custom campaign's mission: the current pilot's game is the entered
+// A campaign's mission played from MODS: the current pilot's game is the entered
 // campaign's (ModCampaignGame), so the campaign was entered from MODS.
 const ModCampaign* campaign_mission() {
   const ModCampaign* c = entered_campaign();
@@ -81,6 +111,8 @@ const ModCampaign* campaign_mission() {
   return c && p && dynamic_cast<const ModCampaignGame*>(p->current) ? c : nullptr;
 }
 }  // namespace
+
+bool editor_switch_edits() { return !editor_state().active; }
 
 bool editor_reachable() { return mods_edit_session().active || campaign_mission() || app_key_calls().debug_camera; }
 
@@ -106,7 +138,6 @@ void mods_edit_end() {
   if (!s.active) return;
   if (s.finish) s.finish();
   ai::net_save_into_mod().clear();
-  editor_after_exit() = nullptr;
   s = ModsEditSession{};
 }
 

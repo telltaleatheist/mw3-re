@@ -590,7 +590,7 @@ TEST(pm_mods_test_rows_in_play_order) {
 // mods_screen_test_plays_a_mission_and_comes_back_headless): a mod ticked for the Campaign, TEST lists PM's ten
 // missions, PLAY on c2 mission 3 asks the program to start again into the Campaign and that mission and plays
 // nothing in place. Then the run inside the entry, as --entry campaign --entry-test c2 3: PM's mission starts at
-// once with the editor closed; the pause's QUIT lands on MODS in its test mode ("TEST in Campaign", the stand-in
+// once with the editor closed; the pause's QUIT lands on MODS in its test mode (the campaign.s missions, "Campaign" in DETAILS; the stand-in
 // pilot let go); PLAY there plays another mission in place, the mechs' definitions read again; QUIT, and BACK
 // leaves the entry once.
 TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
@@ -669,7 +669,7 @@ TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
         } else if (stage == 1 && scr) {
           scr->mod_list.select(0);
           scr->on_button(mech3::ModsScreen::kToggle, 0, 0);  // ticked for the Campaign
-          scr->on_button(mech3::ModsScreen::kTest, 0, 0);    // TEST
+          scr->on_button(mech3::ModsScreen::kMissions, 0, 0);  // MISSIONS
           rows = int(scr->edit_rows.size());
           for (size_t i = 0; i < scr->edit_rows.size(); ++i)
             if (scr->edit_rows[i].world == "c2" && scr->edit_rows[i].number == 3) scr->campaign_list.FileList::select(int32_t(i));
@@ -729,7 +729,7 @@ TEST(pm_mods_screen_test_plays_c2_mission_3_headless) {
                 asked.empty() ? "" : asked[0].c_str(), played, editor_closed, title.c_str(), mods_again, reloaded && second_played, second_back, left);
     EXPECT(rows == 10 && (asked == std::vector<std::string>{"campaign c2 3"}) && nothing_in_place);
     EXPECT(played && editor_closed && plays == 2);
-    EXPECT(mods_again && title == "TEST in Campaign" && pilot_after == real_pilot && !mech3::mods_edit_session().active);
+    EXPECT(mods_again && title == "Campaign" && pilot_after == real_pilot && !mech3::mods_edit_session().active);
     EXPECT(reloaded && second_played && second_back && stage == 7 && left == 1);
     mech3::mods_menu_write_dir().clear();
     mech3::mods_menu_mounted().clear();

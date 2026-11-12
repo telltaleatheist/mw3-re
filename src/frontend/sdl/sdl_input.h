@@ -98,6 +98,12 @@ class SdlInput : public platform::Input {
   std::function<bool()> windowed;    // shown, not fullscreen (unset: fullscreen's rules)
   std::function<bool()> in_mission;  // the mission's own state (not a menu or the pause)
   std::function<void(float, float)> absolute_cursor;  // window point -> zInput's mouse
+  // Ours (docs/editor.md, The pointer): the game editor up in a mission. The
+  // mouse is let go, in a window and fullscreen, the system's cursor shows
+  // and zInput's mouse is put where it is, so the panel's lit row, the net
+  // editor's picks and the dialogs all point where the player sees.
+  std::function<bool()> pointer_free;
+  bool pointer_is_free() const { return free_; }  // as of the last refresh
   // FIX (A), playtest W4 (sdl_focus.h; docs/input.md, The focus is checked):
   // the window's real focus, asked at every refresh, so a window that came up
   // without it does not hold a mouse that gives no motion, and takes the mouse
@@ -152,6 +158,7 @@ class SdlInput : public platform::Input {
   uint32_t coop_[3] = {};
   bool focused_ = true;
   bool captured_ = false;  // capture(true) asked: the relative mouse
+  bool muted() const { return released_ && win_ && mission_ && !free_; }
   void focus_gained(uint64_t ns);
   void focus_lost();
   void check_focus();
@@ -161,9 +168,8 @@ class SdlInput : public platform::Input {
   uint64_t captured_ns_ = 0, healed_ns_ = 0, nudged_ns_ = 0;
   bool motion_seen_ = false, quiet_said_ = false;
   int heals_ = 0, heals_total_ = 0;
-  bool muted() const { return released_ && win_ && mission_; }
   void release_chord(SDL_Scancode s, bool down);
-  bool win_ = false, mission_ = false, absolute_ = false;
+  bool win_ = false, mission_ = false, absolute_ = false, free_ = false;
   bool released_ = false;
   bool cursor_hidden_ = false;
   void note_mouse_state(bool want);

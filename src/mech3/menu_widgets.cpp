@@ -153,6 +153,10 @@ uint8_t MenuScreen::set_busy(uint8_t on) {
 
 // Mech3.exe 1.2 @ 0x00486ed0 (called on the main menu, the option screens and the credits)
 void MenuScreen::bake() {
+  // Ours (16:9 menus, FIX (B)): the wide layout first, so the one picture the screen becomes has its art
+  // where the live controls will be. Baked at 640 and then laid out, the picture kept the 4:3 places while
+  // the controls moved (the main menu's CREDITS and QUIT twice, Instant Action's map box in the middle).
+  e_.widen_before_bake(this);
   set_active(1);
   cursor_obj.hide();
   update(0.0f);
