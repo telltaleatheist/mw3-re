@@ -3927,12 +3927,19 @@ TEST(sdl_two_processes_a_walk_seen_from_the_other) {
     v.insert(v.end(), m.begin(), m.end());
     return v;
   };
+#if defined(MW3_PM_SUITE)
+  // PM's lobby and game start later than its menu's 60 frames: at 2400 the host quit with 11 s of the 30-second game
+  // left, so B's lines stopped at 39, the last with A still slowing from its walk (pm-tests.md, the walk's frames).
+  const int kWalkFrames = 3000;
+#else
+  const int kWalkFrames = 2400;
+#endif
   const std::vector<std::string> common = {"--install", install, "--no-launcher", "--hidden", "--nosound", "--net-bind",
                                            "127.0.0.1", "--frame-ms", "33", "--net-soak", "--net-seconds", "30"};
   std::vector<std::string> va = menus({"--write-dir", dir + "/a", "--net-port", game, "--net-discovery", lan,
                                        "--click-at", "421,406@" + menu_frame(180), "--click-players", std::string(kLockAt) + "@60/2",
                                        "--click-players", "246,290@100/2", "--click-players", "515,446@140/2",
-                                       "--click-players", "585,418@600/2", "--net-walk", "5,15", "--frames", menu_frame(2400)},
+                                       "--click-players", "585,418@600/2", "--net-walk", "5,15", "--frames", menu_frame(kWalkFrames)},
                                       {"0x14", "0x12", "0x1f", "0x14"});
   va.insert(va.end(), common.begin(), common.end());
 #if defined(MW3_PM_SUITE)
@@ -3943,7 +3950,7 @@ TEST(sdl_two_processes_a_walk_seen_from_the_other) {
 #endif
   std::vector<std::string> vb = menus({"--write-dir", dir + "/b", "--net-port", "0", "--net-lan", "127.0.0.1:" + lan,
                                        "--click-at", "100,143@" + menu_frame(420), "--click-at", "240,406@" + menu_frame(450),
-                                       "--click-players", "515,446@300/2", "--frames", menu_frame(2400)},
+                                       "--click-players", "515,446@300/2", "--frames", menu_frame(kWalkFrames)},
                                       {"0x30", "0x12", "0x1f", "0x14"});
   vb.insert(vb.end(), common.begin(), common.end());
   const pid_t a = spawn(va, dir + "/a.log");

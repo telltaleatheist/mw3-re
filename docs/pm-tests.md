@@ -899,3 +899,20 @@ mission's end that keeps the world) still walks MW3's pool alone on this branch,
 models stay until the world is unloaded: memory, nothing seen. The light animation event (5) still sets a
 Pirate's Moon light through MW3's range and colour setters (its mixed colours are not kept up); it made no
 difference to these pictures.
+
+## The two-process tests at their limits (2026-11-12)
+
+**The walk's frames.** `sdl_two_processes_a_walk_seen_from_the_other` failed on Pirate's Moon every time (alone too:
+39 of B's lines against "more than 40", the last with A not standing). Neither the limit nor the play was at fault:
+both runs stopped at their frame cap (`--frames`, 2400 past the menu's shift) with 11 s of the 30-second game left.
+B's soak clock counts down from 30.0 and stopped at 8.2; it last saw A at 10.7, when the host quit, A still slowing
+from its walk. PM's lobby and game start later than its menu's 60 frames allow for. On PM both runs now go 3000
+frames: the game ends first, B sees A stand, 79 or 80 lines, 5 of 5 alone.
+
+**The overtime's session.** `pm_net_overtime_ends_on_a_kill` fails in a whole run and now and then after
+`pm_net_two_rounds_from_the_lobby` (2 of 3 that way), never alone. Its failing logs: A hosts and waits in the
+lobby; B stays on the connection screen (page 1) and never joins, so no clock is ever printed. B clicks the
+session row at a fixed frame (`pm_mode_pair`: 100,143 at frame 420 past the shift), while the session list is
+filled by LAN discovery in real time and the hidden runs go faster than that: when the answer comes after the
+click, nothing clicks again. The run is at fault, not the limit. A click that waits for the list (as
+`--click-players` waits for players) would end the race for every pair test; not done here.
