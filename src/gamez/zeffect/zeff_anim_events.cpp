@@ -218,6 +218,12 @@ int32_t ev_light_state(AnimDef& d, uint8_t* e) {
 // own rates +0x38 / +0x54) until +0x6c. A near range below 0 becomes 1; a
 // far one below the near one becomes near + 1. Colour stays in 0..1.
 int32_t ev_light_animation(AnimDef& d, SeqDef& s, uint8_t* e) {
+  return light_animation_with(d, s, e, zcls::light_set_range, zcls::light_set_color);
+}
+
+// The body, the game's range and colour setters given (Pirate's Moon 1.0 @ 0x0051c060 is the same with PM's).
+int32_t light_animation_with(AnimDef& d, SeqDef& s, uint8_t* e, int (*set_range)(zcls::Node*, float, float),
+                             int (*set_color)(zcls::Node*, float, float, float)) {
   if (get<int32_t>(e, 0x2c) < 1) {
     const int32_t i = anim_light_ref(d, reinterpret_cast<const char*>(e + 0xc));
     put(e, 0x2c, i);
@@ -237,7 +243,7 @@ int32_t ev_light_animation(AnimDef& d, SeqDef& s, uint8_t* e) {
   if (hi < lo) hi = lo - -1.0f;
   fref(e, 0x40) = f32(e, 0x38) * t + f32(e, 0x40);
   fref(e, 0x44) = f32(e, 0x3c) * t + f32(e, 0x44);
-  zcls::light_set_range(n, lo, hi);
+  set_range(n, lo, hi);
   float c[3];
   zcls::light_get_color(n, &c[0], &c[1], &c[2]);
   for (int i = 0; i < 3; ++i) {
@@ -248,7 +254,7 @@ int32_t ev_light_animation(AnimDef& d, SeqDef& s, uint8_t* e) {
     if (!not_above(v, 1.0f)) v = 1.0f;
     else if (v < 0.0f) v = 0.0f;
   }
-  zcls::light_set_color(n, c[0], c[1], c[2]);
+  set_color(n, c[0], c[1], c[2]);
   left() = left() - t;
   return sf(s, 0x28) < f32(e, 0x6c) ? 1 : 2;
 }

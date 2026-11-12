@@ -62,6 +62,8 @@ struct Table {
   int (*zeff_anim_read_zbd)();  // 0x0050a0e0; PM 0x00523140
   // Anim event 4, LIGHT_STATE (zeff/zeff_anim_events.h): PM's record and setters differ.
   int32_t (*zeff_light_state)(zeff::AnimDef& def, uint8_t* e);  // 0x00503390; PM 0x0051b910
+  // Event 5, LIGHT_ANIMATION: the same, through the game's own light setters.
+  int32_t (*zeff_light_animation)(zeff::AnimDef& def, zeff::SeqDef& seq, uint8_t* e);  // 0x00503910; PM 0x0051c060
   // Event 25, STOP_ANIMATION: PM's looks in the def's own anim refs first.
   int32_t (*zeff_stop_animation)(zeff::AnimDef& def, uint8_t* e);  // 0x00506d60; PM 0x0051f900
   // Event 12, OBJECT_MOTION_SI_SCRIPT: PM's key frames are in the anim file's SI scripts, not after the event.

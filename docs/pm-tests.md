@@ -112,7 +112,7 @@ The port's event dispatch (zeff_anim_run.cpp) is MW3's; PM's runs through its ow
 | 6 | OBJECT_ACTIVE_STATE | 0x51cd00 34 / 0x5044d0 27, 0.56 | yes | PM skips node ref 0 (`0 < i`, MW3 `-1 < i`); no shipped record has 0 (c1..c4). Ported as PM's: `zgame::Table` anim_active_first_ref |
 | 12 | OBJECT_MOTION_SI_SCRIPT | 0x51e2c0 103 / 0x505b00 120, 0.59 | 412, 237, 187, 377 (c1..c4) | ported, it never played: see below |
 | 1 | SOUND | 0x51b630 60 / 0x503100 52, 0.61 | yes | MW3's logic |
-| 7, 9, 5 | translate, rotate, light animation | 0.68..0.70 | yes | MW3's logic (the colour step and clamps read in the asm) |
+| 7, 9, 5 | translate, rotate, light animation | 0.68..0.70 | yes | MW3's logic (the colour step and clamps read in the asm); 5 (0x0051c060) sets through PM's own range and colour setters, through `zgame::Table` (zeff_light_animation; `pm_light_animation_takes_pms_setters`) |
 | 28 | FOG_STATE | 0x51c2f0 169 / 0x503ba0 36, 0.26 | no | mods only |
 | 43, 44, 45 | per-vertex colours on a node's model (0x50cb90, 0x55b8f0, 0x55b850) | PM only | no | unknown to the port: an anim using one stops (mods only) |
 | 16, 20, 21, 36, 37, 38 | remove child, camera, fbfx, message | PM's | no (16, 20, 21, 37, 38) | 36 shipped |

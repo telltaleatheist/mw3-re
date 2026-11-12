@@ -49,7 +49,10 @@ int32_t ev_object_motion_script_of(AnimDef& def, SeqDef& s, uint8_t* e);
 // The handlers' node pick: refs 1.., -200 the node the anim was started at (its offset into `off` when given).
 zcls::Node* anim_event_node(AnimDef& def, int32_t i, float* off);
 int32_t ev_effect(AnimDef& def, uint8_t* e);                     // 3   0x005031b0 (PM 0x0051b700)
-int32_t ev_light_animation(AnimDef& def, SeqDef& s, uint8_t* e); // 5   0x00503910
+int32_t ev_light_animation(AnimDef& def, SeqDef& s, uint8_t* e); // 5   0x00503910 (MW3's; the game's through zgame::Table)
+// Event 5's body with the game's range and colour setters (Pirate's Moon's 0x0051c060 is MW3's with its own).
+int32_t light_animation_with(AnimDef& def, SeqDef& s, uint8_t* e, int (*set_range)(zcls::Node*, float, float),
+                             int (*set_color)(zcls::Node*, float, float, float));
 int32_t ev_object_active(AnimDef& def, uint8_t* e);              // 6   0x005044d0
 int32_t ev_object_translate(AnimDef& def, uint8_t* e);           // 7   0x00504380
 int32_t ev_object_scale(AnimDef& def, uint8_t* e);               // 8   0x00504350

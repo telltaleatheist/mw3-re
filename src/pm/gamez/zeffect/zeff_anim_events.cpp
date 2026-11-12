@@ -22,6 +22,11 @@ namespace {
 float f32(const uint8_t* e, int off) { return get<float>(e, off); }
 }  // namespace
 
+// Pirate's Moon 1.0 @ 0x0051c060
+int32_t ev_light_animation(::zeff::AnimDef& d, ::zeff::SeqDef& s, uint8_t* e) {
+  return ::zeff::light_animation_with(d, s, e, pm::zcls::light_set_range, pm::zcls::light_set_color);
+}
+
 // Pirate's Moon 1.0 @ 0x0051b910
 int32_t ev_light_state(::zeff::AnimDef& d, uint8_t* e) {
   if (get<int32_t>(e, 0x2c) < 1) {
