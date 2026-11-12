@@ -550,6 +550,7 @@ class Launcher {
   std::shared_ptr<mech3::source::Found> found_;  // the last look's (look_at)
   bool auto_go_ = false;  // MW3_LAUNCHER_PICK (checks): its look's INSTALL pressed too
   bool auto_ok_ = false;  // and the notes' OK after it
+  bool auto_play_ = false;  // and then the game's button on the games screen (W13: an install no longer starts it)
   bool play_after_notes_ = false;  // the notes after an install: their OK starts the game
   bool pm_after_notes_ = false;    // ... Pirate's Moon (its notes, start_pm)
   bool from_files_ = false;        // the find screen opened by GAME FILES: a new pick goes back to the games
@@ -840,6 +841,10 @@ void Launcher::start_game(bool pm) {
     args.insert(args.end(), o_.game_args.begin(), o_.game_args.end());
   }
   args.push_back("--ready-file"), args.push_back(ready_file_);
+  // W15: the other game's data folder and install, where a mod imported for it is added.
+  const std::string other_wd = pm ? o_.write_dir : pm_wd(), other_install = pm ? (install_.ok ? install_.dir : "") : pm_dir_;
+  if (!other_wd.empty() && !other_install.empty())
+    args.insert(args.end(), {"--other-write-dir", other_wd, "--other-install", other_install});
   std::vector<const char*> argv;
   std::string line;
   for (const std::string& a : args) argv.push_back(a.c_str()), line += (line.empty() ? "" : " ") + a;
@@ -1469,12 +1474,10 @@ void Launcher::use_pm(const std::string& dir, const std::string& summary) {
     fs::remove_all(own, ec);
   }
   pm_refresh();
-  if (from_files_) {
-    from_files_ = false;
-    screen_ = kMain, layout();
-    return;
-  }
-  start_pm();
+  // W13: back to the games after an install (or GAME FILES), Pirate's Moon started by its own click.
+  from_files_ = false;
+  screen_ = kMain, layout();
+  if (auto_play_) auto_play_ = false, activate(kPm);  // checks: PIRATE'S MOON pressed
 }
 
 // GAME FILES' line: the install in use and what it lacks.
@@ -1652,9 +1655,9 @@ void Launcher::moved(const mech3::setup::Result& r) {
     activate(std::strcmp(a, "remove") == 0 ? kRemoveOld : kKeepOld);
 }
 
-// A found install used: saved to mw3.cfg, then straight on into the game
-// (Owen, 2026-11-02); when it lacks the movies or the music, or its data is
-// odd, the notes first, their OK the start (lead).
+// A found install used: saved to mw3.cfg, then back to the games (W13, Owen
+// 2026-11-12, replacing 2026-11-02's straight on into the game); when it lacks
+// the movies or the music, or its data is odd, the notes first, their OK back.
 void Launcher::use_install(const std::string& dir, const std::string& version, const std::string& summary) {
   const std::string before = install_.ok ? install_.dir : std::string();
   install_ = {true, dir, version, summary};
@@ -1676,17 +1679,22 @@ void Launcher::use_install(const std::string& dir, const std::string& version, c
     screen_ = kMain, layout();
     return;
   }
+  // W13 (Owen, 2026-11-12): an install ends on the games, not in the game, so Pirate's Moon can be added
+  // before playing either; the notes first when there are any, their OK back to the games. A plain mw3
+  // start (setup_only: no games screen, only the find screen) goes on into the game as before.
+  if (o_.setup_only && notes_.empty()) return play();
   if (!notes_.empty()) {
-    play_after_notes_ = true, status_.clear();
+    play_after_notes_ = o_.setup_only, status_.clear();
     mw3_notes_seen();
     screen_ = kNotes, layout();
     if (auto_ok_) {  // checks (MW3_LAUNCHER_PICK): the notes' OK pressed
       auto_ok_ = false;
       activate(kNotesOk);
     }
-    return;
+  } else {
+    screen_ = kMain, layout();
   }
-  play();
+  if (auto_play_ && !o_.setup_only) auto_play_ = false, activate(kMw3);  // checks (MW3_LAUNCHER_PICK): MECHWARRIOR 3 pressed, as a player would
 }
 
 // What the player pointed at, looked into on the worker (an archive's look
@@ -2148,8 +2156,9 @@ LauncherChoice Launcher::run() {
   const char* pick = SDL_getenv("MW3_LAUNCHER_PICK");
   // --launcher-pm with none yet and a pick: its find screen, the pick installed, then started.
   const bool pm_pick = o_.play_pm && !o_.pm_bin.empty() && pm_dir_.empty() && pick;
-  if (pm_pick) activate(kPm), o_.quit_after_game = true;
-  if (pick && (screen_ == kSetupScreen || !install_.ok)) auto_go_ = auto_ok_ = true, look_at(pick);
+  if (pm_pick) auto_play_ = true, activate(kPm), o_.quit_after_game = true;
+  if (pick && (screen_ == kSetupScreen || !install_.ok))  // MW3_LAUNCHER_NO_PLAY (checks): the game's button left to the player
+    auto_go_ = auto_ok_ = true, auto_play_ = !SDL_getenv("MW3_LAUNCHER_NO_PLAY"), look_at(pick);
   if (o_.play_mw1) activate(kMw1), done_ = !asking_;
   if (o_.play_pm && !pm_pick) {  // never the picker: a check has nobody to answer it
     if (pm_dir_.empty()) done_ = true;

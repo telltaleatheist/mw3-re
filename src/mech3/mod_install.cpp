@@ -13,10 +13,12 @@
 
 #include "gamez/zutil/zutl_path.h"
 #include "upgrades/mods/campaign_entries.h"
+#include "mech3/mods.h"
 #include "mech3/source_archive.h"
 #include "upgrades/mods/mod_export.h"
 #include "upgrades/mods/mod_report.h"
 #include "upgrades/mods/found_worlds.h"
+#include "upgrades/mods/entry_archives.h"
 
 namespace mech3 {
 namespace fs = std::filesystem;
@@ -317,6 +319,31 @@ ModGame mod_game_of(const std::vector<std::string>& rel_paths) {
   return mw3 == pm ? ModGame::kUnknown : mw3 ? ModGame::kMw3 : ModGame::kPm;
 }
 
+ModGame mod_game_of_records(const std::vector<std::string>& names) {
+  static const char* const kPm[] = {"anim_atlas.zrd", "anim_awesome.zrd", "anim_centurion.zrd", "anim_clint.zrd",
+                                    "anim_masakari.zrd", "anim_ryoken.zrd", "atlas_prints.zrd", "awesome_prints.zrd",
+                                    "bubbles.zrd", "cargotruck.zrd", "centurion_prints.zrd", "clint_prints.zrd",
+                                    "clutter_ani.zrd", "dfn_atlas.zrd", "dfn_awesome.zrd", "dfn_centurion.zrd",
+                                    "dfn_clint.zrd", "dfn_masakari.zrd", "dfn_ryoken.zrd", "dlgloadsave.zrd",
+                                    "ia_progression.zrd", "masakari_prints.zrd", "mobile_hq.zrd", "mprounds.zrd",
+                                    "packrat.zrd", "ryoken_prints.zrd"};
+  static const char* const kMw3[] = {"camera.zrd", "dlgmechlab.zrd", "equipment.zrd", "mechlibdemo.zrd", "mechs.zrd", "player.zrd"};
+  int pm = 0, mw3 = 0;
+  for (const std::string& n : names) {
+    const std::string l = lower(n);
+    for (const char* k : kPm) pm += l == k;
+    for (const char* k : kMw3) mw3 += l == k;
+  }
+  if (pm >= 2 && mw3 == 0) return ModGame::kPm;
+  if (mw3 >= 2 && pm == 0) return ModGame::kMw3;
+  return ModGame::kUnknown;
+}
+
+OtherGame& mods_other_game() {
+  static OtherGame o;
+  return o;
+}
+
 ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, const std::string& install,
                        const ModAddLimits& limits) {
   ModAdd a;
@@ -471,7 +498,14 @@ ModAdd mod_add_prepare(const std::string& write_dir, const std::string& source, 
       return a;
     }
   }
-  if (!a.has_mod_txt) a.game = mod_game_of(files_under(root));
+  if (!a.has_mod_txt) {
+    const std::vector<std::string> files = files_under(root);
+    a.game = mod_game_of(files);
+    // W15: names both games ship (a reader.zbd, the worlds' textures): the game read from its records.
+    for (const std::string& rel : files)
+      if (a.game == ModGame::kUnknown && lower(rel) == "zbd/reader.zbd")
+        a.game = mod_game_of_records(archive_entry_names((root / rel).string()));
+  }
   return a;
 }
 
@@ -587,6 +621,54 @@ ModAddResult mod_add_finish(const std::string& write_dir, ModAdd& a, ModGame gam
   return r;
 }
 
+// W15: the prepared mod's files copied to <to_wd>/mods-incoming/<folder>/files, the marker beside them naming
+// what the player picked; `where` the folder (or why not).
+bool mod_hand_over(const ModAdd& a, const std::string& to_wd, std::string* where) {
+  std::error_code ec;
+  const fs::path base = fs::path(to_wd) / kModIncomingDir;
+  fs::create_directories(base, ec);
+  if (ec) return *where = ec.message(), false;
+  const std::string name = mod_folder_name(a.name);
+  fs::path dir = base / name;
+  for (int n = 2; fs::exists(dir, ec) && n < 100; ++n) dir = base / (name + " (" + std::to_string(n) + ")");
+  fs::create_directories(dir, ec);
+  if (ec || fs::exists(dir / kModIncomingMarker, ec)) return *where = "no free folder there", false;
+  { std::ofstream(dir / kModIncomingMarker) << "Handed over by the other game's IMPORT; added at this game's next start.\nsource=" << a.source << "\n"; }
+  fs::copy(fs::path(a.root), dir / "files", fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
+  if (ec) {
+    remove_marked_tree(dir.string(), kModIncomingMarker);
+    return *where = ec.message(), false;
+  }
+  *where = dir.string();
+  return true;
+}
+
+std::vector<std::string> mods_take_incoming(const std::string& write_dir, const std::string& install) {
+  std::vector<std::string> out;
+  std::error_code ec;
+  const fs::path base = fs::path(write_dir) / kModIncomingDir;
+  if (write_dir.empty() || install.empty() || !fs::is_directory(base, ec) || path_is_link(base.string())) return out;
+  std::vector<fs::path> dirs;
+  for (fs::directory_iterator it(base, ec), end; !ec && it != end; it.increment(ec))
+    if (it->is_directory(ec) && !path_is_link(it->path().string()) && fs::is_regular_file(it->path() / kModIncomingMarker, ec))
+      dirs.push_back(it->path());
+  std::sort(dirs.begin(), dirs.end());
+  const int self = mods_game() == "mw3pm" ? 2 : 1;  // handed over as this game's: never asked again
+  for (const fs::path& dir : dirs) {
+    std::string source;
+    std::ifstream marker(dir / kModIncomingMarker);
+    for (std::string line; std::getline(marker, line);)
+      if (line.rfind("source=", 0) == 0) source = line.substr(7);
+    marker.close();
+    const ModAddDone d = mod_add_run(write_dir, (dir / "files").string(), install, [self](const std::string&) { return self; }, nullptr, source);
+    out.push_back("import: handed over by the other game: " + d.message);
+    std::string why;
+    if (!remove_marked_tree(dir.string(), kModIncomingMarker, &why)) out.push_back("import: " + dir.string() + " not removed: " + why);
+  }
+  if (fs::is_empty(base, ec)) fs::remove(base, ec);  // ours, and empty
+  return out;
+}
+
 ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, const std::string& install,
                        const std::function<int(const std::string& name)>& ask, std::vector<std::string>* enabled,
                        const std::string& from) {
@@ -608,6 +690,30 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
       return d.message = "Not added: no game chosen for " + a.name + ".", d;
     }
     game = g == 2 ? ModGame::kPm : ModGame::kMw3;
+  }
+  // W15 (Owen, 2026-11-12): a mod for the other game is added to that game's mods, compared with its install,
+  // and said in the game's box; without the launcher's word on where that game is, not added, with what to do.
+  const ModGame here = mods_game() == "mw3pm" ? ModGame::kPm : ModGame::kMw3;
+  if (game != here) {
+    const std::string other = game == ModGame::kPm ? "Pirate's Moon" : "MechWarrior 3";
+    const OtherGame& o = mods_other_game();
+    if (o.write_dir.empty() || o.install.empty()) {
+      mod_add_discard(a);
+      d.other_game = true;
+      return d.message = "Not added: " + a.name + " is for " + other + ". IMPORT it from " + other + "'s MODS screen.", d;
+    }
+    // Handed over, not added here: that game checks it with its own readers and adds it at its next start
+    // (mods_take_incoming), as its own IMPORT would.
+    std::string where;
+    const bool handed = mod_hand_over(a, o.write_dir, &where);
+    mod_add_discard(a);
+    d.other_game = true;
+    if (!handed) return d.message = "Not added: " + a.name + " is for " + other + ", and it could not be put in " + other + "'s folder (" + where + ").", d;
+    d.ok = true, d.name = a.name, d.folder = where;
+    std::printf("mw3: import: %s is for %s: handed to it in %s\n", a.name.c_str(), other.c_str(), where.c_str());
+    d.message = a.name + " is for " + other + ". It was put in " + other + "'s mods, and is listed on " + other +
+                "'s MODS screen from its next start.";
+    return d;
   }
   const ModAddResult r = mod_add_finish(write_dir, a, game, install);
   if (!r.ok) return d.message = r.message, d;

@@ -186,7 +186,7 @@ ImportFolder import_folder_prepare(const std::string& write_dir, const std::stri
     f.game = mod_game_of(a);
     const ModGame here = mod_game_of(b);
     if (f.game != ModGame::kUnknown && here != ModGame::kUnknown && f.game != here)
-      return f.error = std::string("that folder is a ") + game_name(f.game) + " install, and yours is " + game_name(here), f;
+      return f.wrong_game = true, f.error = std::string("that folder is a ") + game_name(f.game) + " install, and yours is " + game_name(here), f;
   }
   // Another version of the data than the player's: said before anything is taken (it still imports).
   f.version = import_folder_version(folder), f.install_version = import_folder_version(install);
@@ -322,7 +322,7 @@ ImportFolder import_installer_prepare(const std::string& write_dir, const std::s
     }
     const ModGame here = mod_game_of(b);
     if (f.game != ModGame::kUnknown && here != ModGame::kUnknown && f.game != here)
-      return f.error = std::string("that installer is for ") + game_name(f.game) + ", and yours is " + game_name(here), f;
+      return f.wrong_game = true, f.error = std::string("that installer is for ") + game_name(f.game) + ", and yours is " + game_name(here), f;
   }
   // The folders the player's install has at its top, by any case, as the install spells them.
   std::map<std::string, std::string> tops;
@@ -431,6 +431,14 @@ ModAddDone import_folder_run(const std::string& write_dir, const std::string& so
     if (total > 20 && done % 20 == 0) std::printf("mw3: import: %d of %d files read from the installer\n", done, total), std::fflush(stdout);
   });
   if (!f.install) f = import_folder_prepare(write_dir, source, install);
+  // W15: the other game's installer or modded folder, compared with that game's install when the launcher said
+  // where it is; mod_add_run then adds it to that game's mods.
+  if (f.install && f.wrong_game && !mods_other_game().install.empty() && !mods_other_game().write_dir.empty()) {
+    const std::string other = mods_other_game().install;
+    import_folder_discard(f);
+    f = import_installer_prepare(write_dir, source, other, {}, nullptr);
+    if (!f.install) f = import_folder_prepare(write_dir, source, other);
+  }
   if (!f.install) {
     ModAddDone plain = mod_add_run(write_dir, source, install, ask, enabled);
     // A .rar we could not take (no RAR reader, or one holding only the mod's installer): said plainly.

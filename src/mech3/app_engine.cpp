@@ -4,6 +4,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zimage/zimg_library.h"
 #include "mech3/app_engine.h"
+#include "upgrades/game_boxes.h"
 #include "mech3/game_editor.h"
 #include "mech3/mods.h"
 #include "mech3/force_feedback.h"
@@ -263,6 +264,7 @@ GameEngine::GameEngine(const Platform& p, std::string command_line)
 }
 
 GameEngine::~GameEngine() {
+  game_box() = nullptr;  // ours (upgrades/game_boxes.h): the game's box is gone with the engine
   if (force_) program_force_feedback(nullptr), force_.reset();  // an engine gone without the app's stop: its calls off
   delete_screens();
   if (g_engine == this) {

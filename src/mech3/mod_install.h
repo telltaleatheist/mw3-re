@@ -69,6 +69,25 @@ std::string mod_folder_name(const std::string& name);
 // c4b and t1 worlds and its own mission readers, Pirate's Moon's readersa
 // and readeria4): kUnknown when neither or both.
 ModGame mod_game_of(const std::vector<std::string>& rel_paths);
+// Ours (playtest W15): which game a mod's own reader.zbd is from, by the record names only one game's archive
+// has (the two installs' reader.zbd compared: Pirate's Moon's 26 more, its new mechs' files among them;
+// MechWarrior 3's 6): kUnknown with fewer than two of one game's and none of the other's.
+ModGame mod_game_of_records(const std::vector<std::string>& names);
+// Ours (W15): the other game's data folder and install, told by the launcher (--other-write-dir,
+// --other-install): a mod for that game is added to its mods there. Empty when the game was started alone.
+struct OtherGame {
+  std::string write_dir, install;
+};
+OtherGame& mods_other_game();
+constexpr const char* kModIncomingDir = "mods-incoming";            // in a write dir: mods handed over by the other game
+constexpr const char* kModIncomingMarker = "mw3-mod-incoming.txt";  // in each of them
+// W15: a prepared mod for the other game copied into its write dir's mods-incoming (that game adds it at its
+// next start, mods_take_incoming); false with `where` saying why.
+struct ModAdd;
+bool mod_hand_over(const ModAdd& a, const std::string& to_wd, std::string* where);
+// W15: at a start, each mod the other game handed over added as IMPORT adds it (this game's check, its
+// install), then its incoming folder removed (ours: the marker); the lines to log.
+std::vector<std::string> mods_take_incoming(const std::string& write_dir, const std::string& install);
 
 // Unpacks or copies `source` into a new staging folder, finds the root and
 // cuts a whole install to the files that differ from `install`'s. On a
@@ -108,6 +127,7 @@ struct ModAddDone {
   ModCut cut;                  // its reader archives cut to their changed entries
   int loadouts = 0;            // mech loadouts added to import\ instead (no mod: ok is false, the message says).
   bool campaign_only = false;  // only campaigns: listed, not turned on (entered from the MODS screen)
+  bool other_game = false;     // W15: for the other game: handed to it (mods_other_game), or refused without it; said in a box
 };
 // `from`, when given, is what the marker names as the mod's source (an import's
 // modded folder, where `source` is our staging copy of what was taken).
