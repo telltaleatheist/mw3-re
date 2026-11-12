@@ -8516,6 +8516,38 @@ std::string pm_bytes(const std::string& path) {
 }
 }  // namespace
 
+// Playtest W6 on Pirate's Moon (dev 4's steps, Owen's picture), the twin of
+// sdl_program_instant_action_mods_back_keeps_its_wide_pictures: Instant Action at 16:9, MODS, BACK; the screen's
+// pictures the same width after as before (the box's stretched look kept), with no mods and with one.
+TEST(sdl_pm_program_instant_action_mods_back_keeps_its_wide_pictures) {
+  namespace fs = std::filesystem;
+  if (!fs::exists(std::string(MW3_GAME_DIR) + "/zbd/reader.zbd")) return;
+  const size_t none = std::string::npos;
+  for (const bool with_mod : {false, true}) {
+    const std::string dir = std::string(MW3_TEST_TMP) + "/pm ia mods back";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir + "/wd", ec);
+    if (with_mod) fs::create_directories(dir + "/wd/mods/hud", ec), std::ofstream(dir + "/wd/mods/hud/mod.txt") << "name=Amber HUD\n";
+    std::ofstream(dir + "/wd/settings.reg")
+        << "Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\MechWarrior 3 EP1\\1.0]\n\"InGameVMode\"=dword:0000000d\n";
+    const std::string text = pm_run(dir, {"--window", "1280x720", "--wide-menus",
+                                          "--click-at", "60,210@120", "--tap", "30@170", "--click-at", "633,320@200",  // INSTANT ACTION, pilot "a", ACCEPT
+                                          "--click-at", "653,180@300", "--click-at", "708,405@340",                    // MODS, BACK
+                                          "--hover-at", "653,180@400"}, with_mod ? "mod" : "none", "460");
+    std::vector<std::string> pictures;
+    for (size_t i = text.find("mw3: Instant Action's pictures: "); i != none; i = text.find("mw3: Instant Action's pictures: ", i + 1))
+      pictures.push_back(text.substr(i, text.find('\n', i) - i));
+    const size_t mods = text.find("mw3: Instant Action's MODS says: "), hover = mods == none ? none : text.find("mw3: Instant Action: hover: ", mods);
+    std::printf("  %s: %zu picture lines (%s), MODS %d, back and alive %d\n", with_mod ? "a mod" : "no mods", pictures.size(),
+                pictures.empty() ? "-" : pictures.back().c_str(), mods != none, hover != none);
+    EXPECT(mods != none && hover != none);
+    EXPECT(pictures.size() == 1);
+    EXPECT(with_mod || text.find("mw3: Instant Action's MODS says: No mods yet.") != none);
+    fs::remove_all(dir, ec);
+  }
+}
+
 // Instant Action's MODS on Pirate's Moon, the twin of sdl_program_instant_action_mods: the MODS tab on PM's
 // Instant Action screen opens our screen; a tick and ACCEPT start the game again inside entry ia with the mod
 // mounted (the first run was the original), the pilot brought across quietly (no box) and picked, the main
