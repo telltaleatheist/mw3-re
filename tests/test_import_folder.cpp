@@ -139,9 +139,11 @@ TEST(import_folder_takes_what_differs_from_the_install) {
 // (three folders up at most); an archive, a loadout, a folder or a lone program is the pick itself.
 TEST(import_pick_root_is_the_mods_folder) {
   namespace fs = std::filesystem;
-  const std::string dir = std::string(MW3_TEST_TMP) + "/pick root";
+  // Two folders down: the walk up from a pick (four at most) never reaches the tests' shared root, where another
+  // test may have left a zbd folder.
+  const std::string top = std::string(MW3_TEST_TMP) + "/pick root", dir = top + "/in/here";
   std::error_code ec;
-  fs::remove_all(dir, ec);
+  fs::remove_all(top, ec);
   fs::create_directories(dir + "/mod/zbd/c1", ec);
   fs::create_directories(dir + "/laid/zbd", ec);
   fs::create_directories(dir + "/loose/a/b/c/d", ec);
@@ -157,7 +159,7 @@ TEST(import_pick_root_is_the_mods_folder) {
   EXPECT(root("/loose/setup.exe") == fs::path(dir + "/loose/setup.exe").lexically_normal().generic_string());  // a lone installer
   EXPECT(root("/loose/a/b/c/d/deep.txt") == fs::path(dir + "/loose/a/b/c/d/deep.txt").lexically_normal().generic_string());
   EXPECT(root("/mod") == mod && mech3::import_pick_root(dir + "/none.txt") == dir + "/none.txt");
-  fs::remove_all(dir, ec);
+  fs::remove_all(top, ec);
 }
 
 TEST(import_folder_refusals) {
