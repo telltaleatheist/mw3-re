@@ -15,6 +15,8 @@
 #include "mech3/mech_objective.h"
 #include "mech3/mech_reader.h"
 #include "mech3/pilot.h"
+#include "gamez/zutil/zfix.h"
+#include "upgrades/mods/loadout_fallback.h"
 #include "upgrades/mods/save_mods.h"
 
 namespace mech3 {
@@ -67,6 +69,9 @@ int32_t PilotHooks::store_add_mech(Store& s, int32_t mech, const char* config) {
   if (s.full) return 1;
   const MechDfn* d = mech_dfn(mech);
   const Config* c = d && d->configs ? d->configs->find(config) : nullptr;
+  // Ours (upgrades/mods/loadout_fallback.h, W20): a mod's mech with its loadout renamed is given by the nearest.
+  if (!c && d && d->configs && zfix::options().fixed)
+    c = loadout_fallback(*d->configs, config, config && std::strcmp(config, message(0xf20)) == 0, mech_name(mech));
   return c ? (s.give_config(mech, c) ? 1 : 0) : 0;
 }
 

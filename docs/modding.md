@@ -378,6 +378,15 @@ the same. Each mount starts from the exe's tables (`mods_mount` clears the
 rows and the definitions cached for them), so mounting again, as the
 MODS screen's TEST does, adds the rows afresh.
 
+A mech's primary loadout keeps its name, `MSG_CONFIG_PRIMARY` (the
+message "Primary", 0xf20): the campaign's start (0x004351b0 on Pirate's
+Moon, 0x004345a0 on MechWarrior 3) and a mission script's gift give a
+mech by its loadout's name, an exact match (0x00424e90), so in the original a
+mech whose primary is renamed ("Primary: CN9-D", Freako's PM 1.2 mod) is not
+given at all. The rebuild gives the loadout whose name starts with the one
+asked for, or, for the primary, the mech's first, and the log says which
+(`upgrades/mods/loadout_fallback.h`; playtest W20).
+
 The original's quirks stay with their numbers: the Mad Cat's loadouts weigh
 half a ton less (mech 9 only, `Config::weight`), so the Mad Cat's own
 loadouts copied to a new 75 t row are half a ton over and refused; the
