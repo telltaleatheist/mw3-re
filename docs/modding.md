@@ -304,6 +304,36 @@ The multiplayer lobby on loopback: the host, in multiplayer's entry with the mod
 1" and "ironcoast 2"; a joiner with the same mod ticked stays in and lists them; a joiner on a plain start
 is turned back: "You do not have: Iron Coast."
 
+**Exported** (Z5, 2026-11-12; `tests/test_mod_export_world.cpp`, `tests/differential/test_export_readers.py`):
+the same world added by IMPORT, and a copy of its campaign holding an editor save (net_01's node_00 given a
+speed, written by the editor's own save, `save_archive_edit`, into a save-as copy with the editor's
+marker), each exported by EXPORT (checked against the install first: nothing refused). Both zips are laid
+over a copy of the install (APFS clones of its files, the movies left out), the world first and the copy
+over it, as the mount puts the copy first. The 17 archives laid under `zbd\ironcoast\` are each what the
+mount gives the game, byte for byte and, for the record archives, entry for entry (212 entries); the
+edited `readerm1.zbd` differs from c1's in that one entry. Then the original's own readers, in Unicorn,
+read every one of them as the port does: `gamez.zbd` (texture directory, 497 materials, 2,737 models,
+8,167 live nodes), `anim.zbd` against it, the six texture libraries (3,489 textures) and the ten record
+archives (every entry's tree, the edited net among them). EXPORT's zip holds the mod's files as they are
+(an archive kept as changed entries made whole, `entries_laid_over`), so this holds for any mod whose
+files the game reads.
+
+zStudio's **Initialize** (read in its source, `SourceExtractor.Mw3.cs`, not run) takes a `zbd` folder of
+original files and refuses it ("zStudio can unpack only the original ZBD files") unless: every file there
+is a known game format (worlds of version 27, animation packages of version 39, the scripts archive,
+texture packs, record and sound archives: any other file refuses the whole folder); every world's
+`gamez.zbd` has its `anim.zbd` beside it; and every world's `reader.zbd` holds `anim.zrd` with the
+animation definitions its `anim.zbd` was compiled from (zStudio's own exports leave those in the source
+project, so it refuses them). A world's build script missing from `interp.zbd` is not a refusal: the trace
+of what the build did is then partial (a note). Ours: the zip lays its loose files (`mod.txt`,
+`mw3-checksums.txt`, a world's `<world>.gs`) at the game folder's top, never in `zbd\`, and changes no
+byte of an archive it packs, so the folder Initialize sees is exactly the files the modder's mod put there.
+The test world meets all three (its archives are c1's, whose `reader.zbd` has `anim.zrd`), with its script
+outside `interp.zbd`. A world made by zStudio and exported by us carries zStudio's `reader.zbd` and is refused
+as zStudio's own export is; a mod world without its own `anim.zbd` (which the game plays, taking the
+scenery's) is refused too ("needs each campaign's original world and animation package"). Whether
+Initialize accepts the unpacked folder in fact needs a run of zStudio on Owen's PC.
+
 ## New mechs and weapons (after PM, items 1 and 2, 2026-11-08)
 
 **A new mech.** `mech=` in mod.txt, one line a mech:
