@@ -85,13 +85,14 @@ void mod_entries(const ModInfo& m, std::vector<CampaignEntry>& out) {
 
 // Pirate's Moon's: its two campaigns, each an entry with its own folder,
 // pilots and ticks (the Campaign first: a mod over the game's own files and
-// the first start's move of mw3.cfg's mod= lines take it), then Instant Action.
+// the first start's move of mw3.cfg's mod= lines take it), then Instant Action, then multiplayer (ours).
 std::vector<CampaignEntry> official_entries() {
-  CampaignEntry campaign, pirate, ia;
+  CampaignEntry campaign, pirate, ia, mp;
+  mp.kind = CampaignEntry::kMultiplayer, mp.id = "mp", mp.name = "Multiplayer";  // ours (upgrades/mods/ia_mods.h, kMpEntry)
   campaign.kind = CampaignEntry::kOfficial, campaign.id = "campaign", campaign.name = "Campaign";
   pirate.kind = CampaignEntry::kOfficial, pirate.id = "pirate", pirate.name = "Pirate Missions";
   ia.kind = CampaignEntry::kInstantAction, ia.id = "ia", ia.name = "Instant Action";
-  return {campaign, pirate, ia};
+  return {campaign, pirate, ia, mp};
 }
 
 bool mod_is_campaign(const ModInfo& m) {
@@ -184,7 +185,7 @@ bool entry_save_ticks(const std::string& write_dir, const CampaignEntry& e, cons
 }
 
 bool entry_plays_own_campaign(const std::string& write_dir, const CampaignEntry& e) {
-  if (e.kind == CampaignEntry::kInstantAction) return false;
+  if (e.kind == CampaignEntry::kInstantAction || e.kind == CampaignEntry::kMultiplayer) return false;
   const std::vector<CampaignEntry> all = campaign_entries(write_dir);
   int steps = 0;
   for (const CampaignEntry* at = &e; at; at = at->base.empty() ? nullptr : find_entry(all, at->base)) {

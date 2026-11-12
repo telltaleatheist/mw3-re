@@ -194,7 +194,7 @@ struct Args {
   std::string entry_pilot;  // --entry-pilot NAME: Instant Action's pilot picked at once (sdl_restart.h)
   // Its screen opened at once (upgrades/mods/entry_run.h), a plain start with MODS open, and a start made by
   // the program itself (sdl_restart.h): no intro movies.
-  bool entry_play = false, entry_ia = false, open_mods = false, open_ia = false, restarted = false;
+  bool entry_play = false, entry_ia = false, entry_mp = false, open_mods = false, open_ia = false, open_mp = false, restarted = false;
   std::string check_mod;  // --check-mod DIR
   std::string mod_report;  // --mod-report DIR (ours, upgrades/mods/mod_report.h): the check as sentences
   std::string build_anim;  // --build-anim DIR: its def files merged for the original game (upgrades/mods/anim_defs)
@@ -333,6 +333,8 @@ bool parse(int argc, char** argv, Args& a) {
     else if (s == "--mods-entry" && next(1)) a.mods_entry = argv[++i];
     else if (s == "--entry-play") a.entry_play = true;
     else if (s == "--entry-ia") a.entry_ia = true;
+    else if (s == "--entry-mp") a.entry_mp = true;
+    else if (s == "--open-mp") a.open_mp = true;
     else if (s == "--open-mods") a.open_mods = true;
     else if (s == "--open-ia") a.open_ia = true;
     else if (s == "--restarted") a.restarted = true;
@@ -852,16 +854,18 @@ int program(int argc, char** argv) {
       std::printf("mw3: entry %s (%s): %zu mods\n", e->id.c_str(), e->name.c_str(), a.mods.size());
       // Its screen alone (--entry-play, --entry-ia): the main menu opens it and its BACK leaves.
       const bool test = !a.entry_test_world.empty();
-      if (a.entry_play || a.entry_ia || test) {
+      const bool mp = a.entry_mp || e->kind == mech3::CampaignEntry::kMultiplayer;
+      if (a.entry_play || a.entry_ia || mp || test) {
         mech3::EntryRun& run = mech3::entry_run();
         const bool ia = a.entry_ia || e->kind == mech3::CampaignEntry::kInstantAction;
-        run.screen = test ? (a.entry_edit ? mech3::EntryRun::kEdit : mech3::EntryRun::kTest) : ia ? mech3::EntryRun::kInstantAction : mech3::EntryRun::kPlay;
+        run.screen = test ? (a.entry_edit ? mech3::EntryRun::kEdit : mech3::EntryRun::kTest) : ia ? mech3::EntryRun::kInstantAction : mp ? mech3::EntryRun::kMultiplayer : mech3::EntryRun::kPlay;
         run.id = e->id, run.mod = e->mod, run.campaign = e->campaign;
         run.world = a.entry_test_world, run.number = a.entry_test_number;
       }
     }
     // One that cannot be played: the player back on MODS, where it is listed.
     if (a.entry.empty() && (a.entry_play || a.entry_ia || !a.entry_test_world.empty())) a.open_mods = true;
+    if (a.entry.empty() && a.entry_mp) a.open_mp = true;  // multiplayer's came from its own screen: back to it, plain
   }
   mech3::mods_menu_open_entry() = a.mods_entry;
   if (a.open_mods && !a.mods_entry.empty()) std::printf("mw3: MODS opens with the campaign %s chosen (--mods-entry)\n", a.mods_entry.c_str());
@@ -955,7 +959,7 @@ int program(int argc, char** argv) {
   // The 1.2 patch's files, imported (ours: patch_import.h), over the install's.
   const std::string patch_dir = a.write_dir.empty() ? std::string() : a.write_dir + "/patch12";
   // The enabled mods, in front of the patch and the install (docs/modding.md).
-  mech3::mods_identity_set(a.write_dir, a.mods);  // for the lobby: the gameplay mods every player must share
+  mech3::mods_identity_set(a.write_dir, a.mods, a.install);  // for the lobby: the gameplay mods every player must share
   if (!a.mods.empty())
     for (const std::string& line : mech3::mods_mount(a.write_dir, a.mods, {patch_dir, a.install}))
       std::printf("mw3: %s\n", line.c_str());
@@ -1953,7 +1957,8 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
       if (mech3::entry_run().screen != mech3::EntryRun::kNone)
         mech3::entry_run().leave = [&app] {
           sdlfe::RestartTo to;
-          to.open_mods = mech3::entry_run().screen != mech3::EntryRun::kInstantAction;  // Instant Action came from the main menu: back to it
+          to.open_mods = mech3::entry_run().screen != mech3::EntryRun::kInstantAction &&
+                         mech3::entry_run().screen != mech3::EntryRun::kMultiplayer;  // those two came from the main menu: back to it
           if (to.open_mods) to.mods_entry = mech3::entry_run().choose.empty() ? mech3::entry_run().id : mech3::entry_run().choose;  // MODS with that campaign (or the copy just made) chosen
           std::printf("mw3: entry %s left: starting again on %s\n", mech3::entry_run().id.c_str(), to.open_mods ? "MODS" : "the main menu");
           sdlfe::restart_ask(to);
@@ -1980,10 +1985,27 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
         app.replace(app.state(4), 0);
         return true;
       };
+      // Ours: multiplayer's MODS (upgrades/mods/ia_mods.h, kMpEntry): into its entry with the ticks, or plain on the multiplayer screen.
+      mech3::mp_mods_restart() = [&app](bool into_entry, const std::string& pilot, std::string*) {
+        std::printf("mw3: multiplayer's MODS: starting again %s%s%s\n", into_entry ? "into entry mp" : "plain, on multiplayer",
+                    pilot.empty() ? "" : ", pilot ", pilot.c_str());
+        sdlfe::RestartTo to;
+        to.pilot = pilot;
+        if (into_entry) to.entry = mech3::kMpEntry, to.screen = sdlfe::RestartTo::kMultiplayer;
+        else to.open_mp = true;
+        sdlfe::restart_ask(to);
+        app.replace(app.state(4), 0);
+        return true;
+      };
+      if (a.open_mp && mech3::entry_run().screen == mech3::EntryRun::kNone) {
+        mech3::mp_open_once() = true;
+        std::printf("mw3: the main menu opens on multiplayer (--open-mp)\n");
+      }
       // --entry-pilot NAME: that pilot of this run's folder picked, so Instant Action opens on its own screen
       // (the app's "back from a game" flag, 0x0048a750); none of that name: the pilot screen.
       const bool ia_run = mech3::entry_run().screen == mech3::EntryRun::kInstantAction;
-      if (ia_run || a.open_ia) mech3::ia_start_pilot() = a.entry_pilot;  // the main menu's state picks it (ia_mods.h)
+      const bool mp_run = mech3::entry_run().screen == mech3::EntryRun::kMultiplayer;
+      if (ia_run || a.open_ia || mp_run || a.open_mp) mech3::ia_start_pilot() = a.entry_pilot;  // the main menu's state picks it (ia_mods.h)
       if (a.open_ia && !ia_run) {  // the main menu presses it at once
         app.set_reopen_instant_action(1, 0);
         std::printf("mw3: the main menu opens on Instant Action (--open-ia)\n");

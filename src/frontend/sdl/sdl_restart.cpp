@@ -37,7 +37,7 @@ int ours(const std::string& s) {
   if (s == "--entry-test" || s == "--entry-edit" || s == "--entry-mission") return 3;
   if (s == "--entry" || s == "--mod" || s == "--entry-pilot" || s == "--mods-entry") return 2;
   if (s == "--click-at" || s == "--tap" || s == "--mouse-at") return 2;  // a check's script is for the run it was given to
-  if (s == "--entry-play" || s == "--entry-ia" || s == "--open-mods" || s == "--open-ia" || s == "--restarted" || s == "--no-mods" || s == "--edit") return 1;
+  if (s == "--entry-play" || s == "--entry-ia" || s == "--open-mods" || s == "--open-ia" || s == "--entry-mp" || s == "--open-mp" || s == "--restarted" || s == "--no-mods" || s == "--edit") return 1;
   return 0;
 }
 }  // namespace
@@ -64,6 +64,7 @@ std::vector<std::string> restart_args(const std::vector<std::string>& args, cons
     out.push_back("--entry"), out.push_back(to.entry);
     if (to.screen == RestartTo::kPlay) out.push_back("--entry-play");
     if (to.screen == RestartTo::kInstantAction) out.push_back("--entry-ia");
+    if (to.screen == RestartTo::kMultiplayer) out.push_back("--entry-mp");
     if (to.screen == RestartTo::kTest || to.screen == RestartTo::kEdit) {
       out.push_back("--entry-mission"), out.push_back(to.test_world), out.push_back(std::to_string(to.test_number));
       if (to.screen == RestartTo::kEdit) out.push_back("--edit");
@@ -73,8 +74,10 @@ std::vector<std::string> restart_args(const std::vector<std::string>& args, cons
     if (!to.mods_entry.empty()) out.push_back("--mods-entry"), out.push_back(to.mods_entry);
   } else if (to.open_ia) {
     out.push_back("--open-ia");
+  } else if (to.open_mp) {
+    out.push_back("--open-mp");
   }
-  if (!to.pilot.empty() && (to.open_ia || to.screen == RestartTo::kInstantAction)) out.push_back("--entry-pilot"), out.push_back(to.pilot);
+  if (!to.pilot.empty() && (to.open_ia || to.open_mp || to.screen == RestartTo::kInstantAction || to.screen == RestartTo::kMultiplayer)) out.push_back("--entry-pilot"), out.push_back(to.pilot);
   out.push_back("--restarted");
   return out;
 }

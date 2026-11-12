@@ -978,18 +978,27 @@ bool MainState::enter() {
   en.twod_reset(en.peek32(0x609854));
   reset_idle();
   Mech3App& ap = a();
-  if (ap.multiplayer() || en.network_lobby_active()) en.vcall(screen_ + kButtonMulti, 0x30, {});
-  entry_run().opened = false;  // ours (upgrades/mods/entry_run.h)
-  // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action was given, picked now the pilots are loaded.
+  const bool back_to_multi = ap.multiplayer() || en.network_lobby_active();
+  if (back_to_multi) en.vcall(screen_ + kButtonMulti, 0x30, {});
+  entry_run().opened = back_to_multi && entry_run().screen == EntryRun::kMultiplayer;  // ours (upgrades/mods/entry_run.h)
+  // Ours (upgrades/mods/ia_mods.h): the pilot a start into Instant Action or multiplayer was given, picked now
+  // the pilots are loaded.
   if (!ia_start_pilot().empty()) {
+    const bool mp = mp_open_once() || entry_run().screen == EntryRun::kMultiplayer;
+    const char* whose = mp ? "multiplayer" : "Instant Action";
     Pilot* p = find_pilot(ia_start_pilot().c_str());
     std::string why;
     if (!p && entry_is_main_pilot(ia_start_pilot())) p = entry_bring_pilot(ia_start_pilot(), &why);  // the main menu's, brought across
-    if (!why.empty()) std::printf("mw3: Instant Action's pilot %s could not be brought: %s\n", ia_start_pilot().c_str(), why.c_str());
-    std::printf("mw3: Instant Action's pilot %s: %s\n", ia_start_pilot().c_str(), p ? "picked" : "not there, the pilot screen");
+    if (!why.empty()) std::printf("mw3: %s's pilot %s could not be brought: %s\n", whose, ia_start_pilot().c_str(), why.c_str());
+    std::printf("mw3: %s's pilot %s: %s\n", whose, ia_start_pilot().c_str(), p ? "picked" : "not there, the pilot screen");
     ia_start_pilot().clear();
-    if (p) current_pilot() = p, ap.set_reopen_instant_action(1, 1);
+    if (p) current_pilot() = p;
+    if (p && mp) mp_pilot_once() = true;
+    else if (p) ap.set_reopen_instant_action(1, 1);
   }
+  // Ours (upgrades/mods/ia_mods.h): a plain start on the multiplayer screen (ALL OFF inside its entry).
+  if (mp_open_once() && !back_to_multi) en.vcall(screen_ + kButtonMulti, 0x30, {});
+  mp_open_once() = false;
   if (ap.reopen_instant_action()) {
     entry_run().opened = entry_run().screen == EntryRun::kInstantAction;
     en.vcall(screen_ + kButtonInstantAction, 0x30, {});
@@ -1058,6 +1067,7 @@ bool MainState::update() {
     } else {
       run.opened = true;
       if (run.screen == EntryRun::kInstantAction) en.vcall(screen_ + kButtonInstantAction, 0x30, {});
+      else if (run.screen == EntryRun::kMultiplayer) en.vcall(screen_ + kButtonMulti, 0x30, {});
       // Pirate's Moon: the Pirate Missions' entry ("pirate") opens their own state, which sits in the main
       // menu's training slot here (mainmenu.cpp: 0x62d8a4, the Standalone State 0x00489b20); the Campaign's its own.
       else en.push_state(en.peek32(menu_global(run.id == "pirate" ? MainMenuButton::kTraining : MainMenuButton::kNewCampaign)), 0);
@@ -1102,6 +1112,7 @@ void MainState::leave() {
   if (const Handle u = options_upgrades_state()) en.vcall(u, 0x00, {1}), options_upgrades_state() = 0;  // ours
   if (const Handle m = mods_menu_state()) en.vcall(m, 0x00, {1}), mods_menu_state() = 0;  // ours
   if (const Handle m = ia_mods_state()) en.vcall(m, 0x00, {1}), ia_mods_state() = 0;  // ours
+  if (const Handle m = mp_mods_state()) en.vcall(m, 0x00, {1}), mp_mods_state() = 0;  // ours
   if (save_pilots_) en.pilot_delete("mechlab");
 }
 

@@ -1298,6 +1298,21 @@ Ours, in three pieces:
   `net_lobby_mods_check_headless` (the host's word taken, given back; a host
   with none: the box, own kept), `sdl_two_processes_from_the_lobby_into_a_game`
   (the host's small fixes off: the joiner's game on 0xf).
+- **Mods in multiplayer** (Owen, 2026-11-11; ours, 1.1.0;
+  `upgrades/mods/mp_mods.h`, modding.md, Mods in multiplayer): after the
+  upgrades block, "MOD1" (0x31444f4d), a count (at most 16) and each named
+  mod's own number, low word then high, in the names' order. With it a
+  refusal names the mod that is missing, differs or is extra; a side that
+  sends none gets the older sentence with both lists. The mods block's
+  number and names are now over the mounted result (an imported mod and one
+  laid by hand match). The multiplayer screen (0x0049a110's dialog) gains a
+  MODS button (id 9, inserted into `MULTIPLAYER_DIALOG` by the 1.2 data
+  layer, as the main menu's MODS) and a line under it. A start given a pilot
+  (`--entry-pilot`) has the Multiplayer State take it as the pilot screen's
+  ACCEPT (its resume with 2, 0x0049cbb0), so the screen opens at once. A
+  refused joiner is back on the multiplayer screen. Tests:
+  `net_lobby_mods_named_headless`,
+  `sdl_two_processes_multiplayer_mods_match_or_turn_back`.
 - **Mod worlds' maps** (the lead, 2026-11-01): the add-on scan in enter
   (0x00497720, folders 0 to 5) goes on to `mission_dir_count()`, skipping
   6 to 8 as the exe's bound did, so a mod world's `readermp<n>.zbd` maps are

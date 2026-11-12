@@ -34,7 +34,7 @@ std::vector<ModsCampaignRow> mods_entry_rows(const std::string& write_dir) {
   const std::vector<CampaignEntry> all = campaign_entries(write_dir);
   const std::vector<ModInfo> mods = mods_found(write_dir);
   for (const CampaignEntry& e : all) {
-    if (e.kind == CampaignEntry::kInstantAction) continue;  // Instant Action's mods are on its own screen
+    if (e.kind == CampaignEntry::kInstantAction || e.kind == CampaignEntry::kMultiplayer) continue;  // their mods are on their own screens
     ModsCampaignRow r;
     r.entry = e.id, r.name = e.name, r.mod = e.mod, r.file = e.campaign.empty() ? std::string() : e.campaign + ".txt";
     r.mounted = true;
