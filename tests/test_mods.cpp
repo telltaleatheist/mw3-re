@@ -66,7 +66,7 @@ struct SavedMounts {
 void put(const fs::path& p, const std::string& text) {
   std::error_code ec;
   fs::create_directories(p.parent_path(), ec);
-  std::ofstream(p) << text;
+  std::ofstream(p, std::ios::binary) << text;  // byte for byte (text mode adds \r on Windows)
 }
 // The same file, whatever the separators (Windows' test folder has \\).
 bool same(const std::string& a, const std::string& b) {
@@ -1254,10 +1254,12 @@ TEST(mods_list_for_the_launcher) {
          (l2[1].conflicts_with == std::vector<std::string>{"x"}) && l2[0].check_errors >= 0 && l2[1].check_errors >= 0);
   // Saved: mod= lines at the first old one's place, the rest kept.
   EXPECT(mech3::mods_save_enabled(wd, {"x", "z"}));
-  std::ifstream f(wd + "/mw3.cfg");
-  std::stringstream ss;
-  ss << f.rdbuf();
-  EXPECT(ss.str() == "install=/somewhere\nmod=x\nmod=z\nwidemenus=1\n");
+  {  // closed before the next save: Windows will not rename over an open file
+    std::ifstream f(wd + "/mw3.cfg");
+    std::stringstream ss;
+    ss << f.rdbuf();
+    EXPECT(ss.str() == "install=/somewhere\nmod=x\nmod=z\nwidemenus=1\n");
+  }
   EXPECT(mech3::mods_save_enabled(wd, {}) && mech3::mods_enabled(wd).empty());
   // The write goes through mw3.cfg.new renamed over it: when that cannot be
   // written (a folder in its place here, a full disk in play) the save fails
@@ -1277,10 +1279,12 @@ TEST(mods_list_for_the_launcher) {
     o << "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=old\r\n# a note  \r\nlast=1";
   }
   EXPECT(mech3::mods_save_enabled(wd, {"a", "b"}));
-  std::ifstream crlf(wd + "/mw3.cfg", std::ios::binary);
-  std::stringstream cs;
-  cs << crlf.rdbuf();
-  EXPECT(cs.str() == "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=a\r\nmod=b\r\n# a note  \r\nlast=1\r\n");
+  {
+    std::ifstream crlf(wd + "/mw3.cfg", std::ios::binary);
+    std::stringstream cs;
+    cs << crlf.rdbuf();
+    EXPECT(cs.str() == "install=C:\\Games\\MW3\r\nwidemenus=1\r\nmod=a\r\nmod=b\r\n# a note  \r\nlast=1\r\n");
+  }
   EXPECT((mech3::mods_enabled(wd) == std::vector<std::string>{"a", "b"}));
   // And a plain one stays plain.
   {

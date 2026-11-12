@@ -16,6 +16,9 @@
 #if !defined(_WIN32)
 #include <sys/wait.h>
 #include <unistd.h>
+#else
+#include <process.h>  // _getpid, as tests/main.cpp
+#define getpid _getpid
 #endif
 
 #include "gamez/zmath/zmth_matrix.h"
