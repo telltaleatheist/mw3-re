@@ -35,6 +35,7 @@ struct ModFindings {
   // and the entries in all.
   std::vector<std::string> cut;
   int cut_entries = 0;
+  std::string salvage;  // ours (salvage_chance.h): what it sets of a kill's salvage, as a sentence; "" nothing
   std::vector<std::string> refused;   // "<what>: <why>", --check-mod's errors: the mod's as a whole (it is not added)
   std::vector<std::string> warnings;  // "<what>: <why>", --check-mod's warnings, as its lines
   std::vector<ModNote> notes;         // the same warnings in their parts, in the check's order

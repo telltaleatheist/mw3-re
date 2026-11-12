@@ -5918,6 +5918,44 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   fs::remove_all(dir, ec);
 }
 
+// Playtest W6 (dev 4's steps, Owen's picture): Instant Action at 16:9, its MODS tab, BACK. The box's lines and the
+// map and scenario bars are one image the wide layout stretches; the button's own looks kept the 640 one, and its
+// refresh as the screen came back put it on, drawn at the 640 places (the labels stayed right). The screen logs the
+// width its images show: the same after MODS > BACK as before, with no mods (the empty tick screen) and with one, and
+// the screen alive after (the MODS tab's hover line).
+TEST(sdl_program_instant_action_mods_back_keeps_its_wide_pictures) {
+  namespace fs = std::filesystem;
+  const size_t none = std::string::npos;
+  for (const bool with_mod : {false, true}) {
+    const std::string dir = std::string(MW3_TEST_TMP) + "/ia mods back";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir + "/wd", ec);
+    if (with_mod) fs::create_directories(dir + "/wd/mods/hud", ec), std::ofstream(dir + "/wd/mods/hud/mod.txt") << "name=Green HUD\n";
+    std::ofstream(dir + "/wd/settings.reg") << "Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\SOFTWARE\\MicroProse\\MechWarrior 3\\1.0]\n\"InGameVMode\"=dword:0000000b\n";
+    const std::string log = dir + "/run.log";
+    std::vector<std::string> args = {"--install", MW3_GAME_DIR, "-nofmv", "--write-dir", dir + "/wd", "--hidden", "--nosound", "--frame-ms", "33",
+                                     "--seed", "1", "--frames", "460", "--window", "1280x720", "--wide-menus",
+                                     "--click-at", "60,210@120", "--tap", "30@170", "--click-at", "633,320@200",  // INSTANT ACTION, pilot "a", ACCEPT
+                                     "--click-at", "653,180@300", "--click-at", "708,405@340",                    // MODS, BACK
+                                     "--hover-at", "653,180@400"};                                               // over MODS again
+    int status = 0;
+    EXPECT(waited(spawn_mw3(args, log), &status, 240) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(log);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    std::vector<std::string> pictures;
+    for (size_t i = text.find("mw3: Instant Action's pictures: "); i != none; i = text.find("mw3: Instant Action's pictures: ", i + 1))
+      pictures.push_back(text.substr(i, text.find('\n', i) - i));
+    const size_t mods = text.find("mw3: Instant Action's MODS says: "), hover = mods == none ? none : text.find("mw3: Instant Action: hover: ", mods);
+    std::printf("  %s: %zu picture lines (%s), MODS %d, back and alive %d\n", with_mod ? "a mod" : "no mods", pictures.size(),
+                pictures.empty() ? "-" : pictures.back().c_str(), mods != none, hover != none);
+    EXPECT(mods != none && hover != none);
+    EXPECT(pictures.size() == 1);  // the same width through MODS > BACK
+    EXPECT(with_mod || text.find("mw3: Instant Action's MODS says: No mods yet.") != none);
+    fs::remove_all(dir, ec);
+  }
+}
+
 // Pilots inside an entry (upgrades/mods/entry_pilots.h), by the mouse, as a
 // player does it: a start into the game's own campaign entry shows the main
 // menu's pilot on the pilot screen; nothing is brought until the player
@@ -6548,7 +6586,9 @@ TEST(sdl_program_launcher_starts_pirates_moon) {
   std::printf("launcher pm: %zu arguments, ended \"%s\"\n", args.size(), text.find("Pirate's Moon exited (0)") != std::string::npos ? "exited 0" : "?");
   EXPECT(text.find("Pirate's Moon exited (0)") != std::string::npos);
   EXPECT(args.size() >= 3 && args[0] == "--install" && args[1] == install.string() && args[2] == "--no-launcher");
-  for (const std::string& a : args) EXPECT(a != "--write-dir" && a.find(dir + "/wd") == std::string::npos);
+  // Its own folder, the one this launcher was given (MW3_PM_WRITE_DIR), never MW3's.
+  EXPECT(args.size() >= 5 && args[3] == "--write-dir" && args[4] == dir + "/pmwd");
+  for (const std::string& a : args) EXPECT(a.find(dir + "/wd") == std::string::npos);
 
   // A folder that is not there: no start, the setting left alone (with no
   // Pirate's Moon anywhere the search looks: an empty HOME).
@@ -7225,6 +7265,7 @@ TEST(sdl_program_launcher_game_files_pirates_moon) {
   EXPECT(log.find("MechWarrior 3: Pirate's Moon 1.0 is installed in " + install) != std::string::npos);
   EXPECT(fs::exists(install + "/mw3-install.txt", ec) && fs::exists(pmwd + "/music/track02.wav", ec));
   EXPECT(args().size() >= 2 && args()[0] == "--install" && args()[1] == install);
+  EXPECT(args().size() >= 5 && args()[3] == "--write-dir" && args()[4] == pmwd);  // its own, the usual one
   EXPECT(text(wd + "/mw3.cfg").find("pm_install=" + install) != std::string::npos &&
          text(wd + "/mw3.cfg").find("install=" + std::string(MW3_GAME_DIR)) != std::string::npos);
   EXPECT(!fs::exists(wd + "/install", ec) && !fs::exists(wd + "/music", ec) && !fs::exists(usual + "/install", ec));
@@ -7258,6 +7299,8 @@ TEST(sdl_program_launcher_game_files_pirates_moon) {
   fs::remove(dir + "/args.txt", ec);
   log = run("after", {}, true);
   EXPECT(args().size() >= 2 && args()[1] == to + "/install" && log.find("note: Its zbd") == std::string::npos);
+  // Its own folder handed on: the moved one, by its pointer (mw3pm alone fell back to the usual).
+  EXPECT(args().size() >= 5 && args()[3] == "--write-dir" && args()[4] == to);
 
   setenv("HOME", home_was.c_str(), 1);
   unsetenv("MW3_USUAL_FOLDER");

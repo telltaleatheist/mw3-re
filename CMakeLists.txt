@@ -236,6 +236,7 @@ add_library(mw3core STATIC
   src/upgrades/editor/add_vehicle.cpp
   src/upgrades/editor/new_weapon.cpp
   src/upgrades/editor/teleport.cpp
+  src/upgrades/editor/mission_settings.cpp
   src/upgrades/editor/aiv_save.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
@@ -334,6 +335,7 @@ add_library(mw3core STATIC
   src/upgrades/mods/import_folder.cpp
   src/upgrades/mods/import_texts.cpp
   src/upgrades/mods/import_loadout.cpp
+  src/upgrades/mods/salvage_chance.cpp
   src/upgrades/mods/entry_archives.cpp
   src/upgrades/mods/bz2_read.cpp
   src/upgrades/mods/installer_read.cpp
@@ -645,6 +647,7 @@ add_executable(mw3tests
   tests/test_net_save.cpp
   tests/test_save_entry.cpp
   tests/test_new_weapon.cpp
+  tests/test_salvage_chance.cpp
   tests/test_teleport.cpp
   tests/test_bounded_readers.cpp
   tests/test_anim_events.cpp

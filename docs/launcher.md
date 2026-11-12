@@ -223,8 +223,11 @@ filtered to .iso/.cue, .zip, or Mech3.exe.
 `mw3pm` is found in the launcher's own folder (`own_dir`, as `mw3`: a bundle's
 Contents/MacOS, the AppImage's usr/bin; `MW3_PM_BIN` for checks), the final
 package's layout. It is a separate game: it gets `--install <folder>
---no-launcher`, the window and sound choices, and `--ready-file`, never MW3's
-install or write dir; its settings and saves are its own. Its folder is
+--no-launcher`, `--write-dir` with its own folder as the launcher knows it
+(`MW3_PM_WRITE_DIR`, a MY DATA FOLDER move, else the usual one or where its
+pointer leads; until 2026-11-11 it got none and fell back to the usual folder,
+a named one ignored), the window and sound choices, and `--ready-file`, never
+MW3's install or write dir; its settings and saves are its own. Its folder is
 `pm_install=` in the launcher's mw3.cfg, checked at start with `map_source`
 (a Pirate's Moon install, in a plain folder). A click on the entry starts it,
 or, with no folder yet, asks for one. GAME FILES acts on the game last clicked:

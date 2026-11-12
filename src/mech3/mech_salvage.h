@@ -46,6 +46,9 @@ struct SalvageMech {
 struct SalvageCalls {
   std::function<int32_t()> rand;               // MSVCRT rand ([0x005bb668])
   std::function<void(const SalvageMech& m, int32_t bin)> empty_bin;  // 0x004b4d10(0) on the mech's bin
+  // Ours (upgrades/mods/salvage_chance.h): the odds in 100 a mod set for this mission, -1 or no function the
+  // original's coin.
+  std::function<int32_t()> chance;
 };
 
 // Mech3.exe 1.2 @ 0x00472f00 (on the store): the mech itself (its torso

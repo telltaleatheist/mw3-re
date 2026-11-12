@@ -1,6 +1,6 @@
 # Starter mods
 
-Four small example mods, one of each kind, to copy and change. The rebuild
+Five small example mods, one of each kind, to copy and change. The rebuild
 makes each one from your own copy of the game, so nothing of the game's
 comes with the rebuild or with this repository.
 
@@ -12,6 +12,7 @@ mw3 --make-starter mech
 mw3 --make-starter weapon
 mw3 --make-starter translation
 mw3 --make-starter mission
+mw3 --make-starter salvage
 ```
 
 For Pirate's Moon use `mw3pm` instead of `mw3`. Add `--install <your game
@@ -30,3 +31,4 @@ words what the mod changes; each starter's report says nothing is refused.
 - [A weapon](weapon.md): ER PPC B
 - [A translation](translation.md): the main menu in German
 - [A single mission](mission.md): a one-mission campaign
+- [Salvage](salvage.md): every kill's salvage offered

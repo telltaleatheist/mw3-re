@@ -54,6 +54,7 @@
 #include "mech3/mech_reader.h"
 #include "upgrades/mods/mod_test.h"
 #include "upgrades/mods/mod_report.h"
+#include "upgrades/mods/salvage_chance.h"
 #include "upgrades/mods/starter_mods.h"
 #include "upgrades/mods/save_mods.h"
 
@@ -3164,7 +3165,7 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   zutl::set_write_dir(wd);
   mech3::mech_rows_clear();
   std::string log;
-  for (const std::string& l : mech3::mods_mount(wd, {"starter_mech", "starter_weapon", "starter_translation", "starter_mission"},
+  for (const std::string& l : mech3::mods_mount(wd, {"starter_mech", "starter_weapon", "starter_translation", "starter_mission", "starter_salvage"},
                                                  {install}))
     log += l + "\n";
   zutl::mount(install);
@@ -3195,6 +3196,8 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   EXPECT(thor_b >= 20 && std::fabs(a_b - a * 1.5f) < 1e-4f);
   EXPECT(b && e && std::fabs(dmg_b - dmg * 1.25f) < 1e-4f && b_after);
   EXPECT(campaign == "K A M P A G N E" && quit == "B E E N D E N");
+  EXPECT(mech3::salvage_chance_for("c1", 1) == 100 && mech3::salvage_rules().from == "starter_salvage");
+  mech3::salvage_rules_clear();
   EXPECT(one && one->error.empty() && one->missions.size() == 1 && one->missions[0].world == "c1" && one->missions[0].number == 1);
   zrdr::close_archives(true);
   mech3::free_dfns();

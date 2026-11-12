@@ -108,6 +108,7 @@ std::vector<std::string> mod_sentences(const ModFindings& f) {
   add(f.campaigns, "the campaign", "the campaigns", true);
   if (!adds.empty()) out.push_back(sentence("It adds " + listed(adds)));
   out.insert(out.end(), f.world_notes.begin(), f.world_notes.end());
+  if (!f.salvage.empty()) out.push_back(f.salvage);
   if (out.empty() && f.refused.empty()) out.push_back("It changes nothing in the game.");
   if (f.ignored)
     out.push_back(sentence(counted(f.ignored, "of its files is", "of its files are") +

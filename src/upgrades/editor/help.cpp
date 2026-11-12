@@ -109,6 +109,9 @@ const std::vector<std::string>& help_workflow() {
       "Add a weapon: EDIT WEAPONS, pick the weapon to copy, set its name and numbers, OK. It is written into your "
       "copy (mod.txt and zbd\\reader.zbd) and is part of that campaign; the mech lab offers it from the next "
       "start.",
+      "Set a mission's salvage: MISSION SETTINGS, type how many times in 100 a kill's salvage is offered in the "
+      "mission that is open (empty for none of its own), OK. It is written into your copy (mod.txt) and counts "
+      "from the next start.",
       "Try it: EXIT GAME EDIT puts you in the mission at once. Or quit to MODS, your copy chosen: MISSIONS, a "
       "mission, PLAY plays that mission "
       "at once with a stand-in pilot; when it ends the list plays the others, and BACK leaves. PLAY plays the "

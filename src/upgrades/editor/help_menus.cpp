@@ -20,6 +20,10 @@ void help_menus(std::vector<HelpForm>& out) {
                       "your copy of the campaign (in a mission opened from MODS, MISSIONS only). Empty in the "
                       "original game; ours."},
                      {"HELP", "", "This quick start, in a window. Ours: the original had none."},
+                     {"MISSION SETTINGS", "",
+                      "Settings of the mission that is open, written into your copy of the campaign (in a mission "
+                      "opened from MODS, MISSIONS only). For now one: how often a kill's salvage is offered in this "
+                      "mission. Ours."},
                      {"TELEPORT", "",
                       "Move your mech to a place: the mission's nav points, the world's saved places, or one you "
                       "type in. The developers' own tool, which the original never let you reach; ours."},

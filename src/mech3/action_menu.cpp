@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <string>
 
+#include "gamez/zimage/zimg_library.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zutl_path.h"
 #include "mech3/mission.h"
@@ -306,6 +307,10 @@ ActionScreen::ActionScreen(Engine& e, Handle s)
 // Ours: with the mouse over the MODS tab, what a press does, in two rows under the mission's box.
 void ActionScreen::update(float dt) {
   MenuScreen::update(dt);
+  int32_t wide = 0;  // ours: what its images show (a stretched look put back unstretched changes it; W6)
+  for (ztwod::Object2D* o = head; o; o = o->next)
+    if (auto* im = dynamic_cast<ztwod::Image*>(o); im && im->image && !(o->flags & ztwod::kHidden)) wide += im->image->width;
+  if (wide != pictures_wide) pictures_wide = wide, std::printf("mw3: Instant Action's pictures: %d wide in all\n", wide);
   if (!mods_tab) return;
   ModsTab& t = *mods_tab;
   const bool over = cursor && !(t.btn.flags & ztwod::kHidden) && t.btn.hit(cursor->get_x(), cursor->get_y());
