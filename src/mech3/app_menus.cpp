@@ -127,10 +127,31 @@ zimg::Texture* extend_texture(zimg::Texture* src, int32_t left, int32_t right, i
   return dst;
 }
 
+// A control keeps its looks apart from the texture it shows, and its refresh (0x0059c790) puts the enabled one back
+// when the screen comes again (playtest W6: Instant Action's box and selectors drawn at their 640 places after
+// MODS > BACK). Each look that was the old texture becomes the new one, its own hold on the old let go (the
+// destructor lets go of each look that is not the one shown); a button whose images are borrowed only repoints.
+void replace_looks(ztwod::Image& im, zimg::Texture* src, zimg::Texture* dst) {
+  auto* c = dynamic_cast<ztwod::Control*>(&im);
+  if (!c || !src) return;
+  auto* sb = dynamic_cast<ShellButton*>(&im);
+  const bool borrowed = sb && sb->borrowed;
+  std::vector<zimg::Texture**> looks = {&c->img_normal, &c->img_disabled, &c->img_rollover, &c->img_activate};
+  if (auto* cb = dynamic_cast<ztwod::CheckButton*>(&im))
+    looks.insert(looks.end(), {&cb->img_disabled_checked, &cb->img_disabled_unchecked, &cb->img_unchecked, &cb->img_checked});
+  for (zimg::Texture** l : looks)
+    if (*l == src) {
+      *l = dst;
+      if (!borrowed) ztwod::host().image_release(src);
+    }
+}
+
 void widen_background(ztwod::Image& im, int32_t extra, int32_t inset, int32_t shade0, int32_t shade1) {
-  zimg::Texture* dst = extend_texture(im.image, extra / 2, extra - extra / 2, inset, shade0, shade1);
+  zimg::Texture* src = im.image;
+  zimg::Texture* dst = extend_texture(src, extra / 2, extra - extra / 2, inset, shade0, shade1);
   if (!dst) return;
   im.set_image(dst);
+  replace_looks(im, src, dst);
   im.set_pos(im.get_x(), im.get_y());
 }
 
@@ -161,6 +182,7 @@ void stretch_image(ztwod::Image& im, int32_t at, int32_t from_y, int32_t extra) 
     }
   }
   im.set_image(dst);
+  replace_looks(im, src, dst);
   im.set_pos(im.get_x(), im.get_y());
 }
 }  // namespace

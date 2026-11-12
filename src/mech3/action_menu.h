@@ -139,6 +139,8 @@ class ActionScreen : public MenuScreen {
     bool hinted = false;
   };
   std::unique_ptr<ModsTab> mods_tab;
+  // Ours, for the checks (playtest W6): the width the screen's images show, all added, logged as it changes.
+  int32_t pictures_wide = -1;
 };
 
 }  // namespace mech3
