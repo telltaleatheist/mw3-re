@@ -35,7 +35,9 @@ constexpr Edit kEdits[] = {
 // - MOUSE SENSITIVITY (Owen, 2026-11-02; moved 11-07 from the graphics and
 //   audio screen to here): the volumes' slider record under INVERT MOUSE Y,
 //   just below the frame (the column's rows fill it), its label spaced as the
-//   original's ("I N V E R T   M O U S E") and aligned with the column's.
+//   original's ("I N V E R T   M O U S E") and aligned with the column's; its
+//   top at 363, below ACCEPT's image (384,279, to 361), which took a press on
+//   the bar's right third (W18).
 // - UPGRADES (Owen, 2026-11-07): a button under CONTROLS inside its bracket,
 //   GRAPHICS & AUDIO's record, and its page, UPGRADES_DIALOG: the game
 //   options' background, ACCEPT and BACK, the credits' frame (option1_lines'
@@ -51,7 +53,7 @@ constexpr Edit kOurs[] = {
     {"zbd/reader.zbd", "dlgpause.zrd", Insert, R"(PAUSEDIALOG/BUTTONS/EDITMISSION)", R"("PLAYMISSION")",
      R"(("POSITION" (24 352) "BITMAP" ("circlebtn_small") "LABEL" ("P L A Y   M I S S I O N" "offset" (47 35) "font" ("main_red")) "ROLLOVER" ("SOUND" ("menu_rollover" 1.0)) "ACTIVATE" ("SOUND" ("menu_select" 1.0))))"},
     {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GAME_OPTION_DIALOG/BUTTONS/CMD_INVERT_MOUSE_Y)", R"("MOUSE_SENSITIVITY")",
-     R"(("POSITION" (250 352) "BITMAP" ("sliderunfilled") "LABEL" ("M O U S E   S E N S I T I V I T Y" "offset" (-185 1) "font" ("ia_dark_grey")) "ROLLOVER" () "ACTIVATE" ("SOUND" ("menu_select" 1.0)) "FILLBITMAP" ("sliderfilled")))"},
+     R"(("POSITION" (250 363) "BITMAP" ("sliderunfilled") "LABEL" ("M O U S E   S E N S I T I V I T Y" "offset" (-185 1) "font" ("ia_dark_grey")) "ROLLOVER" () "ACTIVATE" ("SOUND" ("menu_select" 1.0)) "FILLBITMAP" ("sliderfilled")))"},
     {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GAME_OPTION_DIALOG/BUTTONS/CONTROLS_CFG)", R"("UPGRADES")",
      R"(("POSITION" (400 160) "BITMAP" ("circlebtn_tiny") "LABEL" ("U P G R A D E S" "offset" (22 8) "font" ("ia_small_green")) "RADIUS" (10) "MAXRADIUS" (100) "ROLLOVER" ("SOUND" ("menu_rollover")) "ACTIVATE" ("SOUND" ("menu_select"))))"},
     {"zbd/reader.zbd", "dlgoptions.zrd", Insert, R"(GFX_AUDIO_OPTIONDIALOG)", R"("UPGRADES_DIALOG")",
