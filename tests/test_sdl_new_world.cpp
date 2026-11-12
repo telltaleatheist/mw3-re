@@ -16,16 +16,22 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "check.h"
 #include "gamez/zutil/zutl_path.h"
+#include "mech3/mods.h"
 #include "upgrades/mods/campaign_entries.h"
 #include "upgrades/mods/found_worlds.h"
 #include "upgrades/mods/ia_mods.h"
 #include "upgrades/mods/import_folder.h"
+#if defined(MW3_PM_SUITE)
+#include "gamez/zgame/zgame_table.h"
+#include "pm/pm_game.h"
+#endif
 
 extern char** environ;
 
@@ -65,6 +71,28 @@ bool have_fonts() { return fs::exists(std::string(MW3_GAME_DIR) + "/arial.ttf");
 
 const char* const kMod = "Iron Coast";                  // the folder IMPORT is given, so the mod's name and folder
 const char* const kEntry = "Iron Coast~ironcoast";      // the campaign IMPORT writes, as MODS lists it
+// Each game's c1 copied: MW3's less readerm4 (missions 1 to 3), Pirate's Moon's whole (its c1 holds missions 1, 2
+// and 5, and the Pirate Missions' readersa1..4); PM's main menu is up 60 frames later (its logos), so the clicks
+// wait as long (test_sdl_frontend.cpp's kMenuShift).
+#if defined(MW3_PM_SUITE)
+const char* const kLeftOut = "";
+const int kMissions[3] = {1, 2, 5};
+constexpr int kShift = 60;
+#else
+const char* const kLeftOut = "readerm4.zbd";
+const int kMissions[3] = {1, 2, 3};
+constexpr int kShift = 0;
+#endif
+#if defined(MW3_PM_SUITE)
+// A mission's own data after its world, as each loader says it (PM's own c1 by the chain: "Loading Environment"
+// for each mission, the world once per operation). The world may load again after a mission won as --win.
+const char* const kMissionData = "mw3: load: Loading Environment";
+constexpr int kWorldLoads = 2;
+#else
+const char* const kMissionData = "mw3: load: Loading InOut data";
+constexpr int kWorldLoads = 1;
+#endif
+std::string at(int frame) { return std::to_string(frame + kShift); }
 
 std::string read(const std::string& path) {
   std::ifstream f(path, std::ios::binary);
@@ -78,7 +106,7 @@ int count(const std::string& t, const std::string& what) {
 bool has(const std::string& t, const std::string& what) { return t.find(what) != std::string::npos; }
 
 // The world made and imported into <dir>/wd; "" when the install lacks c1 or the import fails. The copy is c1's
-// folder less readerm4 (three missions), and c1.gs from the game's interp.zbd with its DB set to the new name,
+// folder (three missions, kLeftOut), and c1.gs from the game's interp.zbd with its DB set to the new name,
 // so the world loads its own gamez.zbd, readers and textures from zbd/ironcoast.
 std::string new_world(const std::string& dir) {
   const std::string install = MW3_GAME_DIR;
@@ -88,7 +116,7 @@ std::string new_world(const std::string& dir) {
   const std::string src = dir + "/export/" + kMod, wd = dir + "/wd";
   fs::create_directories(src + "/zbd/ironcoast", ec), fs::create_directories(wd, ec);
   for (const auto& f : fs::directory_iterator(install + "/zbd/c1", ec))
-    if (f.path().filename() != "readerm4.zbd") fs::copy_file(f.path(), src + "/zbd/ironcoast/" + f.path().filename().string(), ec);
+    if (f.path().filename() != kLeftOut) fs::copy_file(f.path(), src + "/zbd/ironcoast/" + f.path().filename().string(), ec);
   std::string script;
   for (std::vector<std::string> line : mech3::interp_archive_script(install + "/zbd/interp.zbd", "c1.gs")) {
     if (line.size() == 3 && line[0] == "set" && line[1] == "DB" && line[2] == "c1") line[2] = "ironcoast";
@@ -97,10 +125,19 @@ std::string new_world(const std::string& dir) {
   }
   if (count(script, "set DB ironcoast") != 1) return "";
   std::ofstream(src + "/ironcoast.gs", std::ios::binary) << script;
+#if defined(MW3_PM_SUITE)
+  zgame::set_game(pm::table());  // PM's archives (version 2) and worlds, as mw3pm sets them at its start
+#endif
   const bool confined = zutl::mounts().confined;
   zutl::mounts().confined = true;  // as the program has it when IMPORT runs
-  const mech3::ModAddDone d = mech3::import_folder_run(wd, src, install, nullptr, nullptr);
+  std::string report;
+  const mech3::ModAddDone d = mech3::import_folder_run(wd, src, install, nullptr, nullptr, &report);
   zutl::mounts().confined = confined;
+  if (d.warnings) {  // what they are: the check's warning lines on the mod as added
+    int errors = 0;
+    for (const std::string& l : mech3::mod_check(wd + "/mods/" + kMod, install, &errors))
+      if (l.rfind("warning", 0) == 0) std::printf("  %s\n", l.c_str());
+  }
   fs::remove_all(dir + "/export", ec);
   const std::string txt = read(wd + "/mods/" + kMod + "/mod.txt");
   std::printf("  imported: %s; mod.txt %s world=, %s ia_world=, %s campaign=\n", d.message.c_str(), has(txt, "\nworld=ironcoast\n") ? "has" : "LACKS",
@@ -136,21 +173,39 @@ TEST(sdl_program_new_world_campaign_from_mods) {
   const std::string dir = std::string(MW3_TEST_TMP) + "/sdl_new_world_campaign", wd = new_world(dir);
   EXPECT(!wd.empty());
   if (wd.empty()) return;
-  EXPECT(read(wd + "/mods/" + std::string(kMod) + "/ironcoast.txt").find("mission=ironcoast 1\nmission=ironcoast 2\nmission=ironcoast 3\n") !=
-         std::string::npos);
+  std::string lines;
+  for (int n : kMissions) lines += "mission=ironcoast " + std::to_string(n) + "\n";
+  EXPECT(read(wd + "/mods/" + std::string(kMod) + "/ironcoast.txt").find(lines) != std::string::npos);
   EXPECT(tick(wd, kEntry));
   const auto start = std::chrono::steady_clock::now();
-  const std::string log = run(wd, {"--entry", kEntry, "--entry-play", "--campaign-chain", "kills:3"}, dir + "/run.log", 900);
+#if defined(MW3_PM_SUITE)
+  setenv("PM_AI", "1", 1);  // PM's chains play with its AI (pm-tests.md, The campaign chains on pm)
+#endif
+  const std::string log = run(wd, {"--entry", kEntry, "--entry-play", "--campaign-chain", "kills:3"}, dir + "/run.log", 1500);
+#if defined(MW3_PM_SUITE)
+  unsetenv("PM_AI");
+#endif
   const int loads = count(log, "Loading [ ironcoast ]");
   std::printf("  campaign: %d loads of ironcoast, %d of c1, mounted %d, in %.0f s\n", loads, count(log, "Loading [ c1 ]"),
               has(log, "mw3: mod Iron Coast: campaign \"ironcoast\" (ironcoast.txt, 3 missions) added"),
               std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count());
-  for (size_t at = 0; (at = log.find("mw3: chain won ", at)) != std::string::npos; ++at)
-    std::printf("    %s\n", log.substr(at, log.find('\n', at) - at).c_str());
+  {  // the run's course, in its order
+    std::istringstream lines(log);
+    for (std::string l; std::getline(lines, l);)
+      for (const char* what : {"mw3: chain won ", "not won by its kills", "mw3: load: Loading [", kMissionData, "mw3: chain LAUNCH", "mw3: chain credits"})
+        if (l.find(what) != std::string::npos) {
+          std::printf("    %s\n", l.c_str());
+          break;
+        }
+  }
   EXPECT(has(log, "mw3: mod Iron Coast: campaign \"ironcoast\" (ironcoast.txt, 3 missions) added"));
   // The world loaded once, each mission's own data after it (as the game does for missions on one world).
-  EXPECT(loads == 1 && count(log, "Loading [ c1 ]") == 0 && count(log, "mw3: load: Loading InOut data") == 3);
-  EXPECT(has(log, "mw3: chain won op 4 mission 1 ") && has(log, "mw3: chain won op 4 mission 2 ") && has(log, "mw3: chain won op 4 mission 3 "));
+  EXPECT(loads >= 1 && loads <= kWorldLoads && count(log, "Loading [ c1 ]") == 0 && count(log, kMissionData) == 3);
+  // Each mission won: by the chain's kills, or (PM's mission 2, the canyon jump the chain cannot make) as --win
+  // after 40000 frames, as PM's own chains (pm-tests.md, The campaign chains on pm).
+  for (int n : kMissions)
+    EXPECT(has(log, "mw3: chain won op 4 mission " + std::to_string(n) + " ") ||
+           has(log, "mw3: chain op 4 mission " + std::to_string(n) + " not won by its kills"));
   EXPECT(has(log, "mw3: chain credits after 3 wins") && has(log, "mw3: chain pilot screen again after the credits"));
   std::error_code ec;
   fs::remove_all(dir, ec);
@@ -164,7 +219,13 @@ TEST(sdl_program_new_world_instant_action_wave) {
   EXPECT(!wd.empty());
   if (wd.empty()) return;
   EXPECT(tick(wd, mech3::kIaEntry));
+#if defined(MW3_PM_SUITE)
+  setenv("PM_AI", "1", 1);  // the waves come at the player with PM's AI
+#endif
   const std::string log = run(wd, {"--entry", mech3::kIaEntry, "--entry-ia", "--action-chain", "c5:2"}, dir + "/run.log", 600);
+#if defined(MW3_PM_SUITE)
+  unsetenv("PM_AI");
+#endif
   std::printf("  ia: mounted %d, 5 maps %d, loads %d, cleared %d, done %d\n", has(log, "Instant Action world \"ironcoast\" on ironcoast"),
               has(log, "mw3: Instant Action open, MODS: 1 on, 5 maps"), count(log, "Loading [ ironcoast ]"), count(log, "cleared at core frame"),
               has(log, "mw3: modes done: 1 cases, 1 tallied as expected, 0 not"));
@@ -192,16 +253,16 @@ TEST(sdl_two_processes_new_world_multiplayer) {
   EXPECT(!ec && tick(a, mech3::kMpEntry) && tick(same, mech3::kMpEntry));
   auto spawn = [&](const std::string& wd, std::vector<std::string> v, bool entry, std::initializer_list<const char*> name, const std::string& log) {
     if (entry) v.insert(v.end(), {"--entry", "mp", "--entry-mp"});
-    else v.insert(v.end(), {"--click-at", "132,285@40"});
-    int at = 70;
-    for (const char* k : name) v.insert(v.end(), {"--tap", std::string(k) + "@" + std::to_string(at)}), at += 4;
-    v.insert(v.end(), {"--click-at", "470,320@100", "--install", MW3_GAME_DIR, "--write-dir", wd, "-nofmv", "--no-launcher", "--hidden",
+    else v.insert(v.end(), {"--click-at", "132,285@" + at(40)});
+    int f = 70 + kShift;
+    for (const char* k : name) v.insert(v.end(), {"--tap", std::string(k) + "@" + std::to_string(f)}), f += 4;
+    v.insert(v.end(), {"--click-at", "470,320@" + at(100), "--install", MW3_GAME_DIR, "--write-dir", wd, "-nofmv", "--no-launcher", "--hidden",
                        "--nosound", "--net-bind", "127.0.0.1", "--frame-ms", "33"});
     return spawn_mw3(v, log);
   };
   const int base = 43000 + static_cast<int>(getpid() % 2000) * 3;
   const std::string game = std::to_string(base), lan = std::to_string(base + 1);
-  const pid_t host = spawn(a, {"--net-port", game, "--net-discovery", lan, "--click-at", "421,406@180", "--frames", "100000"}, true,
+  const pid_t host = spawn(a, {"--net-port", game, "--net-discovery", lan, "--click-at", "421,406@" + at(180), "--frames", "100000"}, true,
                            {"0x14", "0x12", "0x1f", "0x14"}, dir + "/a.log");
   for (int i = 0; i < 600 && !has(read(dir + "/a.log"), "multiplayer page 2"); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
   const std::string la = read(dir + "/a.log");
@@ -222,8 +283,8 @@ TEST(sdl_two_processes_new_world_multiplayer) {
       {"same", same, true, "mw3: multiplayer: mods the host's (Iron Coast)", "turned back"},
   };
   for (const Join& j : joins) {
-    const pid_t b = spawn(j.wd, {"--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-at", "100,143@420", "--click-at", "240,406@450",
-                                 "--frames", "600"},
+    const pid_t b = spawn(j.wd, {"--net-port", "0", "--net-lan", "127.0.0.1:" + lan, "--click-at", "100,143@" + at(420), "--click-at", "240,406@" + at(450),
+                                 "--frames", at(600)},
                           j.entry, {"0x30", "0x12", "0x1f", "0x14"}, dir + "/" + j.name + ".log");
     int st = 0;
     EXPECT(waited(b, &st, 240));

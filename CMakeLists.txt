@@ -746,6 +746,8 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_entries.cpp
     tests/pm/test_pm_fixes.cpp
     tests/pm/test_pm_mods_screen.cpp
+    tests/pm/test_pm_found_worlds.cpp  # a world PM does not have, found at IMPORT
+    tests/test_salvage_chance.cpp  # the salvage key (main's, shared): one draw judged against a mod's odds, PM's 0x00474f40 / 0x00474f80 as MW3's
     tests/test_net_save.cpp  # the editor's net save on PM's nets
     tests/test_editor.cpp  # the editor's menus, net and vehicle editors on PM's logic
     tests/test_teleport.cpp  # the teleport on PM's logic and c3's places
@@ -1100,7 +1102,7 @@ if(SDL3_FOUND)
     # PM's platform tests (input, window, render, text, net), in the same files. MW3_PM_SUITE
     # leaves out those that read MW3's data or start MW3's programs; a PM version comes with its feature.
     if(MW3_BUILD_PM AND NOT MW3_BUILD_MW3)
-      add_executable(mw3pmsdltests tests/main.cpp tests/test_sdl_frontend.cpp src/frontend/sdl/sdl_update.cpp tests/test_net_enet.cpp tests/test_net_upnp.cpp
+      add_executable(mw3pmsdltests tests/main.cpp tests/test_sdl_frontend.cpp tests/test_sdl_new_world.cpp src/frontend/sdl/sdl_update.cpp tests/test_net_enet.cpp tests/test_net_upnp.cpp
                      src/frontend/sdl/sdl_restart.cpp src/frontend/sdl/win_cmdline.cpp tests/test_win_cmdline.cpp tests/test_log_start.cpp)
       target_link_libraries(mw3pmsdltests PRIVATE mw3text mw3sdl pmcore mw3core SDL3::SDL3)
       target_compile_definitions(mw3pmsdltests PRIVATE MW3_PM_SUITE=1 MW3_GAME_DIR="${MW3PM_GAME_DIR}"

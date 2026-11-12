@@ -334,6 +334,21 @@ as zStudio's own export is; a mod world without its own `anim.zbd` (which the ga
 scenery's) is refused too ("needs each campaign's original world and animation package"). Whether
 Initialize accepts the unpacked folder in fact needs a run of zStudio on Owen's PC.
 
+**On Pirate's Moon** (branch pm, 2026-11-12). PM's folder table (0x00486df0, MW3's 0x00484c50) holds MW3's
+nine names in MW3's order (c1 c2 c3 c4 c4b t1 lab dev1 dev2, read from the exe), though its install has only
+c1 to c4: so the game's names are the same nine, and a mod world can never take one, PM's Pirate Missions
+(`readersa<n>.zbd` in c1 to c4) and its added missions (`c1\readerm5`, `c2\readerm8`, `readeria4`) included:
+those live in the game's own folders, which IMPORT never takes as a new world. PM's worlds are its own
+version, 41 (MW3's are 27): the check before adding read every mod's `gamez.zbd` with MW3's header reader, so
+on mw3pm a new world's `gamez.zbd` was "not a world the game can read" and IMPORT left it out, the world then
+unplayable (found by Z3 on mw3pm). The check now reads it with PM's (`pm::zcls::open_zbd`) when the game is
+Pirate's Moon; a MechWarrior 3 world is then the one refused, as PM cannot read it. A world copied from PM's
+c1 (missions 1, 2 and 5, the Pirate Missions' readers, four Instant Action maps, two multiplayer maps) is
+found and written as on MW3 (`tests/pm/test_pm_found_worlds.cpp`). Z3's three tests run on mw3pm too
+(`mw3pmsdltests`, the clicks 60 frames later for PM's logos, `PM_AI=1` for the chains as PM's own):
+Instant Action's fifth map with a Battle Waves round; the lobby listing "ironcoast 1" and "ironcoast 2" and
+the joiner without the mod turned back by name.
+
 ## New mechs and weapons (after PM, items 1 and 2, 2026-11-08)
 
 **A new mech.** `mech=` in mod.txt, one line a mech:

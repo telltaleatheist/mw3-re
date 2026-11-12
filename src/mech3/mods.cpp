@@ -26,6 +26,7 @@
 #include "upgrades/mods/found_worlds.h"
 #include "upgrades/json/gamez_json.h"
 #include "gamez/zclass/cls_zbd.h"
+#include "pm/gamez/zclass/cls_zbd.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zinterp/zinterp.h"
@@ -1093,8 +1094,11 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       continue;
     }
     if (name == "gamez.zbd") {  // a world, not an archive: its header (the rest needs the world up)
+      // Pirate's Moon's worlds are its own (version 41, pm/gamez/zclass/cls_zbd.h): read by MW3's header (27)
+      // every PM world was "not a world", and IMPORT left a new world's gamez.zbd out.
       zcls::ZbdHeader h;
-      std::FILE* f = zcls::open_zbd(host.c_str(), &h);
+      uint8_t pm_header[0x28] = {};
+      std::FILE* f = mods_game() == "mw3pm" ? pm::zcls::open_zbd(host.c_str(), pm_header) : zcls::open_zbd(host.c_str(), &h);
       if (f) std::fclose(f);
       else leave(rel, "not a world the game can read (its signature or version)");
       continue;

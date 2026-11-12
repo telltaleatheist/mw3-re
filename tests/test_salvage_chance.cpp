@@ -145,13 +145,14 @@ TEST(salvage_chance_values_read) {
 // The mount: the first ticked mod's value wins, a mission's line wins over the mod-wide value whichever mod
 // it is from, a line that does not read is left out, and a mount of nothing leaves nothing set.
 TEST(salvage_chance_first_ticked_mod_and_the_missions_line) {
+  const std::string game = mech3::mods_game();  // "mw3", or "mw3pm" on branch pm: each game takes its own mods
   Rules keep;
   const zutl::Mounts mounts = zutl::mounts();
   const std::string wd = tmp_dir("salvage_chance_mount");
-  put(wd + "/mods/A/mod.txt", "name=A\nfor=mw3\nsalvage_chance=80\nmission_salvage=c1 2 10\nmission_salvage=c9 x 10\n");
-  put(wd + "/mods/B/mod.txt", "name=B\nfor=mw3\nsalvage_chance=20\nmission_salvage=C1 2 90\nmission_salvage=c2 1 0\n");
-  put(wd + "/mods/Bad/mod.txt", "name=Bad\nfor=mw3\nsalvage_chance=many\n");
-  put(wd + "/mods/Plain/mod.txt", "name=Plain\nfor=mw3\n");
+  put(wd + "/mods/A/mod.txt", "name=A\nfor=" + game + "\nsalvage_chance=80\nmission_salvage=c1 2 10\nmission_salvage=c9 x 10\n");
+  put(wd + "/mods/B/mod.txt", "name=B\nfor=" + game + "\nsalvage_chance=20\nmission_salvage=C1 2 90\nmission_salvage=c2 1 0\n");
+  put(wd + "/mods/Bad/mod.txt", "name=Bad\nfor=" + game + "\nsalvage_chance=many\n");
+  put(wd + "/mods/Plain/mod.txt", "name=Plain\nfor=" + game + "\n");
   auto mount = [&](const std::vector<std::string>& on) {
     zutl::mounts() = zutl::Mounts{};
     zutl::set_write_dir(wd);
@@ -181,10 +182,11 @@ TEST(salvage_chance_first_ticked_mod_and_the_missions_line) {
 // a line that does not read is a warning and that line left out; of two ticked mods that set it the later
 // one's note says it shares its salvage chance with the first, which wins.
 TEST(salvage_chance_check_report_and_shared_note) {
+  const std::string game = mech3::mods_game();
   const std::string wd = tmp_dir("salvage_chance_report");
-  put(wd + "/mods/Gen/mod.txt", "name=Generous\nfor=mw3\nsalvage_chance=100\n");
-  put(wd + "/mods/Mean/mod.txt", "name=Mean\nfor=mw3\nsalvage_chance=0\nmission_salvage=c1 1 5\n");
-  put(wd + "/mods/Odd/mod.txt", "name=Odd\nfor=mw3\nsalvage_chance=lots\nmission_salvage=c1 1 50\n");
+  put(wd + "/mods/Gen/mod.txt", "name=Generous\nfor=" + game + "\nsalvage_chance=100\n");
+  put(wd + "/mods/Mean/mod.txt", "name=Mean\nfor=" + game + "\nsalvage_chance=0\nmission_salvage=c1 1 5\n");
+  put(wd + "/mods/Odd/mod.txt", "name=Odd\nfor=" + game + "\nsalvage_chance=lots\nmission_salvage=c1 1 50\n");
   int errors = -1, refused = -1;
   std::string lines;
   for (const std::string& l : mech3::mod_check(wd + "/mods/Gen", MW3_GAME_DIR, &errors)) lines += l + "\n";
