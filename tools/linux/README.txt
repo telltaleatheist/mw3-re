@@ -20,7 +20,8 @@ distribution's Vulkan driver. It opens a launcher: click MECHWARRIOR 3 or
 PIRATE'S MOON. On the first start it looks for your installed copy; if it
 finds none, FIND THE GAME takes whatever you have (the disc, a disc image, a
 download, or Mech3.exe in an installed copy), installs it into a folder of
-its own and goes on into the game. Then it converts the game's movies once.
+its own and comes back to the launcher's games, so you can set up the other
+game too; click the game to play. It converts the game's movies once.
 GAME FILES finds or installs either game later and adds music from the disc;
 UPDATES looks for a newer release.
 
@@ -45,18 +46,20 @@ of it without running it. Then click its box for a campaign and PLAY.
 
 If IMPORT says "N warnings", the mod has files the game cannot use as they
 are; the rest is added, and INFO lists each warning. Every button says what
-it does when the mouse is over it. Pirate's Moon has its own MODS screen and
-takes only mods made for Pirate's Moon. In multiplayer every player needs
-the same mods.
+it does when the mouse is over it.
+Pirate's Moon has its own MODS screen. A Pirate's Moon mod imported in
+MechWarrior 3 (or the other way round), with the game started from the
+launcher, is handed to the other game, which adds it at its next start.
+In multiplayer every player needs the same mods.
 
 Your settings and saves
 -----------------------
 In ~/.local/share/MicroProse/MechWarrior 3/ : mw3.cfg, your pilots and
 saves, the settings, the installed game, its music, the converted movies,
 your mods and mw3.log (what the game reported while it ran; send it with a
-bug report). Pirate's Moon keeps its own in the folder "Pirate's Moon"
-inside it. Deleting the AppImage keeps this folder, and a new version keeps
-your pilots, saves, settings and mods.
+bug report). Pirate's Moon keeps its own beside it, in
+~/.local/share/MicroProse/Pirate's Moon/. Deleting the AppImage keeps
+them, and a new version keeps your pilots, saves, settings and mods.
 
 Reporting a bug
 ---------------
