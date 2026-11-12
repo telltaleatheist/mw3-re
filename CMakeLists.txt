@@ -749,6 +749,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_fixes.cpp
     tests/pm/test_pm_mods_screen.cpp
     tests/pm/test_pm_found_worlds.cpp  # a world PM does not have, found at IMPORT
+    tests/test_loadout_fallback.cpp  # W20 (main's, shared): a mod's renamed primary loadout still given at the start
     tests/test_salvage_chance.cpp  # the salvage key (main's, shared): one draw judged against a mod's odds, PM's 0x00474f40 / 0x00474f80 as MW3's
     tests/test_net_save.cpp  # the editor's net save on PM's nets
     tests/test_editor.cpp  # the editor's menus, net and vehicle editors on PM's logic
