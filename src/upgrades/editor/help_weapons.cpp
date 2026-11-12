@@ -46,6 +46,23 @@ void help_weapons(std::vector<HelpForm>& out) {
            {"OK", "", "Write it into your copy of the campaign (mod.txt and zbd\\reader.zbd, or its own zbd\\weapons.zrd), each file's earlier copy kept as .bak."},
            {"Cancel", "", "Close it; nothing is written."},
        }});
+  out.push_back(
+      {"Mission settings", "Mission settings (MISSION SETTINGS)",
+       "Settings of the mission that is open, for your copy of the campaign the editor was opened on from MODS, "
+       "MISSIONS (the first save asks the copy's name; the campaign itself and an imported mod are never written). "
+       "For now one: how often a kill's salvage is offered. The original game tosses a coin, 1 in 2, in two places: "
+       "for a destroyed vehicle's weapons (all or none), and for a destroyed mech that lost a leg (the whole mech, "
+       "or only its weapons and equipment). OK writes the line mission_salvage=<world> <mission> <number> into the "
+       "copy's mod.txt (the old file kept as mod.txt.bak); it counts from the next start, whenever the copy is "
+       "played. A mod ticked for the campaign can set one number for every mission (salvage_chance= in its "
+       "mod.txt); a mission's own number wins over it. The main menu's campaign is never changed.",
+       {
+           {"salvage chance", "",
+            "How many times in 100 a kill's salvage is offered in this mission: 0 never, 100 always, 50 the "
+            "original's odds. Empty: no number of its own (a ticked mod's, else the original's)."},
+           {"OK", "", "Write it into your copy of the campaign (mod.txt), the earlier mod.txt kept as mod.txt.bak."},
+           {"Cancel", "", "Close it; nothing is written."},
+       }});
 }
 
 }  // namespace mech3

@@ -12,7 +12,12 @@
 #include "mech3/cheats.h"
 #include "mech3/mech_salvage.h"
 #include "mech3/mods.h"
+#include "mech3/mission.h"
 #include "mech3/mods_menu.h"
+#include "upgrades/editor/form.h"
+#include "upgrades/editor/mission_settings.h"
+#include "upgrades/editor/mods_edit.h"
+#include <iterator>
 #include "upgrades/mods/mod_report.h"
 #include "mech3/pilot.h"
 #include "upgrades/mods/salvage_chance.h"
@@ -197,4 +202,86 @@ TEST(salvage_chance_check_report_and_shared_note) {
   EXPECT(list[1].salvage_taken == 1 && list[1].conflicts_with == std::vector<std::string>{"Gen"});
   EXPECT(list[2].salvage_taken == 1 && list[2].conflicts_with == std::vector<std::string>{"Mean"});  // its mission's line; its bad value shares nothing
   EXPECT(mech3::mods_row_note_shared(list[1], list) == "Shares its salvage chance with Generous, which wins");
+}
+
+// mod.txt's line for a mission: put in its old line's place (the world in any case), else after the last
+// mission_salvage= line, else at the end; taken out; every other line and its line end as it was.
+TEST(mission_settings_mod_txt_line) {
+  using mech3::mod_txt_with_mission_salvage;
+  EXPECT(mod_txt_with_mission_salvage("name=Mine\n", "c1", 2, 75) == "name=Mine\nmission_salvage=c1 2 75\n");
+  EXPECT(mod_txt_with_mission_salvage("name=Mine", "c1", 2, 75) == "name=Mine\nmission_salvage=c1 2 75\n");
+  EXPECT(mod_txt_with_mission_salvage("name=Mine\r\nbase=mw3\r\n", "c1", 2, 0) == "name=Mine\r\nbase=mw3\r\nmission_salvage=c1 2 0\r\n");
+  const std::string three = "name=Mine\nmission_salvage=c1 1 10\nMission_Salvage = C1 2 20\nmission_salvage=c2 2 30\nweapon=X ammo=no tech=any\n";
+  EXPECT(mod_txt_with_mission_salvage(three, "c1", 2, 75) ==
+         "name=Mine\nmission_salvage=c1 1 10\nmission_salvage=c1 2 75\nmission_salvage=c2 2 30\nweapon=X ammo=no tech=any\n");
+  EXPECT(mod_txt_with_mission_salvage(three, "c3", 1, 5) ==
+         "name=Mine\nmission_salvage=c1 1 10\nMission_Salvage = C1 2 20\nmission_salvage=c2 2 30\nmission_salvage=c3 1 5\nweapon=X ammo=no tech=any\n");
+  EXPECT(mod_txt_with_mission_salvage(three, "c1", 2, -1) == "name=Mine\nmission_salvage=c1 1 10\nmission_salvage=c2 2 30\nweapon=X ammo=no tech=any\n");
+  EXPECT(mod_txt_with_mission_salvage(three, "c4", 4, -1) == three);
+  EXPECT(mech3::mod_txt_mission_salvage(three, "c1", 2) == 20 && mech3::mod_txt_mission_salvage(three, "C2", 2) == 30 &&
+         mech3::mod_txt_mission_salvage(three, "c2", 1) == -1);
+  // What it writes, the mod's reader takes.
+  mech3::ModInfo info;
+  EXPECT(mech3::mod_parse(mod_txt_with_mission_salvage(three, "c1", 2, 75), &info) && info.mission_salvage.size() == 3 &&
+         info.mission_salvage[1] == "c1 2 75");
+}
+
+// The form (the editor's MISSION SETTINGS row): only in a mission opened from MODS; the value typed is
+// checked on the form; OK writes the mission's line into the editor's own copy (the old mod.txt kept), which
+// the next mount reads; empty takes it out; a mod the editor did not make is never written.
+TEST(mission_settings_form_writes_the_missions_line) {
+  Rules keep;
+  const zutl::Mounts mounts = zutl::mounts();
+  const mech3::Missions was = mech3::missions();
+  const std::string wd = tmp_dir("mission_settings_form");
+  const fs::path mod = fs::path(wd) / "mods" / "mine", other = fs::path(wd) / "mods" / "theirs";
+  put(mod / "mod.txt", "name=Mine\nbase=mw3\n");
+  put(mod / "mw3-editor.txt", "the editor's own (a copy it made): the only kind it writes (save_as.h)\n");
+  put(other / "mod.txt", "name=Theirs\nsalvage_chance=30\n");
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd);
+  mech3::mods_mount(wd, {"mine", "theirs"}, {MW3_GAME_DIR});
+  mech3::missions().current = 1, mech3::missions().number = 3;  // c2 mission 3
+  mech3::EditorForm& f = mech3::mission_settings_form();
+  mech3::mission_settings_open(0);  // no session: a line under the menu, no form
+  EXPECT(!mech3::form_shown(&f));
+  mech3::mods_edit_begin("mine", nullptr);
+  mech3::mission_settings_open(0);
+  EXPECT(mech3::form_shown(&f) && f.title == "Mission settings" && f.fields.front().label == "Mission: c2 3");
+  EXPECT(f.field("salvage chance") && f.field("salvage chance")->text->empty());
+  EXPECT(f.fields.back().label.rfind("Now: 30 in 100 (theirs)", 0) == 0);
+  for (const char* bad : {"101", "lots", "-5", "7.5"}) {
+    *f.field("salvage chance")->text = bad;
+    EXPECT(f.press("OK") && mech3::form_shown(&f) && f.fields.back().label.find("0 to 100") != std::string::npos);
+  }
+  std::ifstream same(mod / "mod.txt", std::ios::binary);
+  EXPECT(std::string((std::istreambuf_iterator<char>(same)), std::istreambuf_iterator<char>()) == "name=Mine\nbase=mw3\n");
+  *f.field("salvage chance")->text = " 85 ";
+  EXPECT(f.press("OK") && !mech3::form_shown(&f) && mech3::mission_settings_last() == "mission_salvage=c2 3 85");
+  auto text = [](const fs::path& p) {
+    std::ifstream in(p, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  EXPECT(text(mod / "mod.txt") == "name=Mine\nbase=mw3\nmission_salvage=c2 3 85\n" && text(mod / "mod.txt.bak") == "name=Mine\nbase=mw3\n");
+  // The next start: the mission's own number over the other mod's, whichever is ticked first.
+  mech3::mods_mount(wd, {"theirs", "mine"}, {MW3_GAME_DIR});
+  std::string from;
+  EXPECT(mech3::salvage_chance_for("c2", 3, &from) == 85 && from == "mine" && mech3::salvage_chance_for("c2", 2) == 30);
+  // Opened again: its own value shown; emptied: the line taken out.
+  mech3::mission_settings_open(0);
+  EXPECT(*f.field("salvage chance")->text == "85" && f.fields.back().label.rfind("Now: 85 in 100 (mine)", 0) == 0);
+  f.field("salvage chance")->text->clear();
+  EXPECT(f.press("OK") && !mech3::form_shown(&f) && mech3::mission_settings_last() == "removed");
+  EXPECT(text(mod / "mod.txt") == "name=Mine\nbase=mw3\n");
+  mech3::mods_edit_end();
+  // A mod the editor did not make: refused on the form, its mod.txt as it was.
+  mech3::mods_edit_begin("theirs", nullptr);
+  mech3::mission_settings_open(0);
+  *f.field("salvage chance")->text = "5";
+  EXPECT(f.press("OK") && mech3::form_shown(&f) && f.fields.back().label.find("never written") != std::string::npos);
+  EXPECT(text(other / "mod.txt") == "name=Theirs\nsalvage_chance=30\n" && !fs::exists(other / "mod.txt.bak"));
+  f.press("Cancel");
+  mech3::mods_edit_end();
+  mech3::missions().current = was.current, mech3::missions().number = was.number;
+  zutl::mounts() = mounts;
 }

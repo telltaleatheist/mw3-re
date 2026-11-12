@@ -152,6 +152,7 @@
 #include "upgrades/editor/help.h"
 #include "upgrades/editor/node_params.h"
 #include "upgrades/editor/add_vehicle.h"
+#include "upgrades/editor/mission_settings.h"
 #include "upgrades/editor/new_weapon.h"
 #include "upgrades/editor/teleport.h"
 #include "mech3/zainetedit.h"
@@ -28799,6 +28800,9 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
         ++previews;
       }
     mech3::new_weapon_form().press("Cancel");
+    mech3::mission_settings_open(0);  // as New Weapon: from MODS's missions only
+    look(mech3::mission_settings_form());
+    mech3::mission_settings_form().press("Cancel");
     ms = kept;
     mech3::teleport_open(0);
     look(mech3::teleport_form());
@@ -28828,7 +28832,7 @@ TEST(mission_c1m1_editor_help_covers_every_form_headless) {
               seen.missing.size(), stale.size());
   for (const std::string& m : seen.missing) std::printf("    no tip: %s\n", m.c_str());
   for (const std::string& m : stale) std::printf("    tip for nothing: %s\n", m.c_str());
-  EXPECT(forms == 13 && previews == 2 && seen.missing.empty() && stale.empty());
+  EXPECT(forms == 14 && previews == 2 && seen.missing.empty() && stale.empty());
   EXPECT(!saved_at_once && box_closed && nothing_made);
 }
 

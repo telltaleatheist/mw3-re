@@ -236,6 +236,7 @@ add_library(mw3core STATIC
   src/upgrades/editor/add_vehicle.cpp
   src/upgrades/editor/new_weapon.cpp
   src/upgrades/editor/teleport.cpp
+  src/upgrades/editor/mission_settings.cpp
   src/upgrades/editor/aiv_save.cpp
   src/mech3/mech_anim.cpp
   src/mech3/mech_net.cpp
