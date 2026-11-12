@@ -129,10 +129,24 @@ gameplay file counts only when its bytes are not the install's. So a player
 who imported a mod and one who laid its whole archives into a mod folder by
 hand match. A whole archive that lacks one of the game's entries does not
 match the imported one (it hides the entry; the imported one keeps the
-game's). Both players need the same install: on a 1.0 install an imported
-mod keeps the entries that differ from 1.0's, on 1.2 from 1.2's, and those
-two do not match. The saved games' mods line keeps the folder's own number.
+game's). Which version of the original a player's files are does not count
+(Owen, 2026-11-11: "they shouldn't need the same version of the original
+game. Ours is built on patch 1.2."): the base is the game as played. On
+1.0's files (by size and CRC, data_version.h) a mod's entry is compared, read
+as a tree, with the install's entry after the 1.2 layer's edits, or with the
+entry the layer adds; a whole file that is 1.2's own counts for nothing over
+1.0's. So an import cut on a 1.0 install (which keeps the entries 1.2
+changed, because they differ from 1.0's) and the same mod on a 1.2 install
+give one number, imported or by hand. What still does not match, on purpose:
+a whole archive that lacks one of the game's entries against the imported
+mod; and a whole archive laid by hand over 1.0's files that still holds
+1.0's value of an entry the 1.2 layer edits (the layer never edits a mod's
+file, so that player would play 1.0's value there) against a player whose
+game plays 1.2's. The saved games' mods line keeps the folder's own number.
 Tests: `mp_mods_hash_importer_and_hand_laid_match`,
+`mp_mods_hash_same_on_10_and_12_installs` (the real 1.0 and 1.2 installs:
+1.2's thirteen patched reader archives over 1.0 count for nothing; one mod
+imported and by hand on each: four equal numbers),
 `net_lobby_mods_named_headless`,
 `sdl_program_multiplayer_mods_button_ticks_and_starts_again`,
 `sdl_two_processes_multiplayer_mods_match_or_turn_back` (two real programs:
