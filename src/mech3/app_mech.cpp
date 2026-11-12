@@ -81,6 +81,7 @@
 #include "mech3/mech_reader.h"
 #include "mech3/mech_salvage.h"
 #include "crt/msvc_rand.h"
+#include "upgrades/mods/salvage_chance.h"
 #include "mech3/mission_launch.h"
 #include "mech3/mission_world.h"
 #include "gamez/zentity/zent_manager.h"
@@ -2223,6 +2224,7 @@ const SalvageCalls& salvage_calls() {
   static const SalvageCalls c = [] {
     SalvageCalls k;
     k.rand = [] { return static_cast<int32_t>(crt::msvc_rand()); };
+    k.chance = [] { return salvage_chance_now(); };  // ours: a mod's odds for this mission, else -1
     k.empty_bin = [](const SalvageMech& v, int32_t bin) {
       const_cast<AmmoBin*>(static_cast<const AmmoBin*>(v.owner_bins[bin]))->set_amount(0);
     };

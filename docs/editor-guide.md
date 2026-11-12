@@ -24,10 +24,11 @@ MechWarrior 3 shipped with the developers' own editor still inside: a menu over 
 5. Add a vehicle: pick a node, Add veh to node, choose its type and side, OK. It is made at once and written into the mission's vehicle list (aiv.zrd) in your copy.
 6. Change a vehicle's AI: EDIT VEHICLES, pick it, set its pages (when it wakes, how far it follows, how it attacks and retreats, what valve it sets), Apply to try it in the running mission, Save to keep it.
 7. Add a weapon: EDIT WEAPONS, pick the weapon to copy, set its name and numbers, OK. It is written into your copy (mod.txt and zbd\reader.zbd) and is part of that campaign; the mech lab offers it from the next start.
-8. Try it: EXIT GAME EDIT puts you in the mission at once. Or quit to MODS, your copy chosen: MISSIONS, a mission, PLAY plays that mission at once with a stand-in pilot; when it ends the list plays the others, and BACK leaves. PLAY plays the campaign as a player would: its pilot screen lists the copy's own pilots and your main-game pilots, and picking one of yours copies it in (the main game's pilot is never changed).
-9. Go on: choose the copy, MISSIONS, a mission, PLAY, then EDIT MISSION. Its saves go into the copy itself.
-10. Give it away: EXPORT packs the copy into one zip that IMPORT takes. A copy of a mod's campaign needs that mod on the other machine too; there it is an imported mod, which that player's editor copies and never writes.
-11. Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save. DELETE on MODS removes a copy whole, with its pilots and saved games; RESET, on the game's own campaign, clears its ticks and its pilots there. Neither touches the game's files or your main-game pilots.
+8. Set a mission's salvage: MISSION SETTINGS, type how many times in 100 a kill's salvage is offered in the mission that is open (empty for none of its own), OK. It is written into your copy (mod.txt) and counts from the next start.
+9. Try it: EXIT GAME EDIT puts you in the mission at once. Or quit to MODS, your copy chosen: MISSIONS, a mission, PLAY plays that mission at once with a stand-in pilot; when it ends the list plays the others, and BACK leaves. PLAY plays the campaign as a player would: its pilot screen lists the copy's own pilots and your main-game pilots, and picking one of yours copies it in (the main game's pilot is never changed).
+10. Go on: choose the copy, MISSIONS, a mission, PLAY, then EDIT MISSION. Its saves go into the copy itself.
+11. Give it away: EXPORT packs the copy into one zip that IMPORT takes. A copy of a mod's campaign needs that mod on the other machine too; there it is an imported mod, which that player's editor copies and never writes.
+12. Undo: every save keeps the file it replaced as <file>.bak; put it back to undo that save. DELETE on MODS removes a copy whole, with its pilots and saved games; RESET, on the game's own campaign, clears its ticks and its pilots there. Neither touches the game's files or your main-game pilots.
 
 ## The editor's menu
 
@@ -40,6 +41,7 @@ The menu over the mission when the editor is up (the original's, with HELP added
 | EDIT VEHICLES | The Mech AI window: pick one of the mission's vehicles and change its AI settings. |
 | EDIT WEAPONS | New Weapon: a weapon copied from one the game knows, its name and numbers set, written into your copy of the campaign (in a mission opened from MODS, MISSIONS only). Empty in the original game; ours. |
 | HELP | This quick start, in a window. Ours: the original had none. |
+| MISSION SETTINGS | Settings of the mission that is open, written into your copy of the campaign (in a mission opened from MODS, MISSIONS only). For now one: how often a kill's salvage is offered in this mission. Ours. |
 | TELEPORT | Move your mech to a place: the mission's nav points, the world's saved places, or one you type in. The developers' own tool, which the original never let you reach; ours. |
 | EXIT GAME EDIT | Close the editor: the view goes back to your mech and the mission goes on in play. Shift+F12 does the same, and opens the editor again; so does the pause menu's switch (EDIT MISSION, PLAY MISSION). Quitting the mission from the pause menu goes back to the MODS screen, your copy chosen when a save made one. |
 
@@ -345,4 +347,14 @@ A new weapon for your copy of the campaign the editor was opened on from MODS, M
 | impact | The animation where it hits (IMPACT default ANIMATION); the other soils' are the copy's. |
 | impact sound | The sound where it hits (IMPACT default SOUND). |
 | OK | Write it into your copy of the campaign (mod.txt and zbd\reader.zbd, or its own zbd\weapons.zrd), each file's earlier copy kept as .bak. |
+| Cancel | Close it; nothing is written. |
+
+## Mission settings (MISSION SETTINGS)
+
+Settings of the mission that is open, for your copy of the campaign the editor was opened on from MODS, MISSIONS (the first save asks the copy's name; the campaign itself and an imported mod are never written). For now one: how often a kill's salvage is offered. The original game tosses a coin, 1 in 2, in two places: for a destroyed vehicle's weapons (all or none), and for a destroyed mech that lost a leg (the whole mech, or only its weapons and equipment). OK writes the line mission_salvage=<world> <mission> <number> into the copy's mod.txt (the old file kept as mod.txt.bak); it counts from the next start, whenever the copy is played. A mod ticked for the campaign can set one number for every mission (salvage_chance= in its mod.txt); a mission's own number wins over it. The main menu's campaign is never changed.
+
+| Item | What it does |
+|---|---|
+| salvage chance | How many times in 100 a kill's salvage is offered in this mission: 0 never, 100 always, 50 the original's odds. Empty: no number of its own (a ticked mod's, else the original's). |
+| OK | Write it into your copy of the campaign (mod.txt), the earlier mod.txt kept as mod.txt.bak. |
 | Cancel | Close it; nothing is written. |

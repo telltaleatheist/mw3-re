@@ -1,3 +1,4 @@
+#include "upgrades/mods/salvage_chance.h"
 #include "upgrades/mods/entry_archives.h"
 #include "upgrades/mods/mp_mods.h"
 #include "mech3/mods.h"
@@ -123,6 +124,8 @@ bool mod_parse(const std::string& text, ModInfo* out) {
     else if (upgrades::reference::key_is(key, "game_version")) out->game_version = value;
     else if (upgrades::reference::key_is(key, "kind")) out->kind = value;
     else if (upgrades::reference::key_is(key, "base")) out->base = value;
+    else if (upgrades::reference::key_is(key, "salvage_chance")) out->salvage_chance = value;
+    else if (upgrades::reference::key_is(key, "mission_salvage") && !value.empty()) out->mission_salvage.push_back(value);
     else if (upgrades::reference::key_is(key, "ia_world") && !value.empty()) {
       const size_t sp = value.find_first_of(" \t");
       out->ia_worlds.emplace_back(value.substr(0, sp), sp == std::string::npos ? std::string() : trim(value.substr(sp)));
@@ -220,6 +223,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
   free_dfns_above(kBuiltinMechs);
   mech_rows_clear();
   weapon_rows_clear();
+  salvage_rules_clear();  // ours (salvage_chance.h): each mount's own
   mod_campaigns().clear();
   std::vector<ModCampaign> campaigns;  // checked against the worlds once every mod's are known
   std::vector<std::string> done;
@@ -238,6 +242,7 @@ std::vector<std::string> mods_mount(const std::string& write_dir, const std::vec
       continue;
     }
     zutl::mount_mod(it->path);
+    salvage_rules_take(*it);
     log.push_back("mod " + want + " (" + it->name + (it->version.empty() ? "" : " " + it->version) + ") mounted");
     // Its new worlds: a folder no world has yet, with its files in the mod.
     for (const std::string& w : it->worlds) {
@@ -557,6 +562,16 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
   std::vector<std::pair<std::vector<std::string>, std::vector<std::string>>> before;  // files, row names
   std::vector<std::string> before_folders;
   std::vector<ModAnims> before_anims;
+  std::vector<std::vector<std::string>> before_salvage;  // each one's values that read: "" the mod-wide, "<world> <n>" a mission's
+  const auto salvage_keys = [](const ModInfo& m) {
+    std::vector<std::string> keys;
+    int32_t n = -1;
+    if (salvage_chance_parse(m.salvage_chance, &n)) keys.emplace_back();
+    MissionSalvage ms;
+    for (const std::string& line : m.mission_salvage)
+      if (mission_salvage_parse(line, &ms)) keys.push_back(lower(ms.world) + " " + std::to_string(ms.number));
+    return keys;
+  };
   for (ModsListEntry& e : out) {
     std::error_code ec;
     for (fs::recursive_directory_iterator f(e.info.path, ec), end; !ec && f != end; f.increment(ec))
@@ -566,6 +581,7 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
     if (!e.on || !e.info.error.empty()) continue;
     const std::vector<std::string> files = mod_files(e.info.path), rows = row_names(e.info);
     ModAnims anims = mod_anims(e.info.path);
+    const std::vector<std::string> salvage = salvage_keys(e.info);
     if (e.info.anim_defs_only) anims.whole.clear();  // anim=defs: its whole files are the original's copy
     for (size_t k = 0; k < before.size(); ++k) {
       bool shared = false;
@@ -592,11 +608,14 @@ std::vector<ModsListEntry> mods_list(const std::string& write_dir, const std::ve
       }
       for (const std::string& r : rows)
         if (std::find(before[k].second.begin(), before[k].second.end(), r) != before[k].second.end()) e.rows_taken.push_back(r), shared = true;
+      for (const std::string& s : salvage)
+        if (std::find(before_salvage[k].begin(), before_salvage[k].end(), s) != before_salvage[k].end()) ++e.salvage_taken, shared = true;
       if (shared) e.conflicts_with.push_back(before_folders[k]);
     }
     before.emplace_back(files, rows);
     before_folders.push_back(e.info.folder);
     before_anims.push_back(anims);
+    before_salvage.push_back(salvage);
   }
   if (check)
     for (ModsListEntry& e : out) {
@@ -910,6 +929,18 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
                       " in the mod or the game: it plays only with a mod that adds it");
     }
   }
+  // Ours (salvage_chance.h): the odds of a kill's salvage. A mod of these lines alone is a mod.
+  if (!m.salvage_chance.empty()) {
+    int32_t n = -1;
+    if (!salvage_chance_parse(m.salvage_chance, &n)) row("salvage_chance " + m.salvage_chance, "it is not a whole number from 0 to 100");
+    else out.push_back("salvage_chance " + std::to_string(n) + ": ok"), ++usable_rows;
+  }
+  for (const std::string& line : m.mission_salvage) {
+    MissionSalvage ms;
+    if (!mission_salvage_parse(line, &ms)) row("mission_salvage " + line, "it wants a world, a mission number and a whole number from 0 to 100");
+    else out.push_back("mission_salvage " + ms.world + " " + std::to_string(ms.number) + " " + std::to_string(ms.chance) + ": ok"), ++usable_rows;
+  }
+  fx.salvage = salvage_chance_sentence(m);
   for (const std::string& line : m.mechs) {
     ModMech r;
     std::string why;

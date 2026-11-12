@@ -113,6 +113,7 @@ std::string mods_row_note_shared(const ModsListEntry& m, const std::vector<ModsL
   if (rows) what += (what.empty() ? "" : " and ") + std::to_string(rows) + (rows == 1 ? " mech/weapon" : " mechs/weapons");
   const size_t anims = m.anims_taken.size();
   if (anims) what += (what.empty() ? "" : " and ") + std::to_string(anims) + (anims == 1 ? " animation" : " animations");
+  if (m.salvage_taken) what += (what.empty() ? "" : " and ") + std::string(m.salvage_taken == 1 ? "its salvage chance" : "its salvage chances");
   std::string bases;
   for (const std::string& w : m.anim_bases) bases += (bases.empty() ? "" : ", ") + w;
   std::string note;

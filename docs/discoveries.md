@@ -3527,6 +3527,12 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   salvaged even when the mech is not (except TAG), each with whatever
   ammunition was left in its bin, its equipment unless the part it sat in
   was destroyed, and any heat sinks beyond the engine's ten.
+- **A destroyed vehicle's weapons are a coin flip too.** A tank, APC or
+  other vehicle you destroy gives all of its weapons (with the ammunition
+  left) or none of them, one time in two. So salvage has exactly two
+  matters of luck: this one, and the mech that lost a leg. In the rebuild a
+  mod can set those odds for a campaign played from MODS (docs/modding.md,
+  The salvage chance); the main menu's campaign keeps the original's.
 - **Salvaged weapons can change tech:** a weapon is salvaged in the tech of
   its owner's loadout; if that weapon does not exist in that tech, it comes
   out as the other side's version (an Inner Sphere-only weapon on a Clan

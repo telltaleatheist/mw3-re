@@ -18,6 +18,7 @@
 #include "gamez/ztwod/twod.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zimage/zimg_library.h"
+#include "upgrades/mods/salvage_chance.h"
 #include "upgrades/settings/upgrades.h"
 #include "mech3/app.h"
 #include "mech3/app_engine.h"
@@ -1061,6 +1062,11 @@ bool GameEngine::missions_loaded() { return missions().finished(); }
 bool GameEngine::mission_launch() {
   const bool ok = launch_player();
   if (ok) mission_salvage().clear();
+  // Ours (salvage_chance.h): a campaign mission's odds, when a mounted mod sets them.
+  std::string from;
+  salvage_chance_now() = launch_.type == 1 ? salvage_chance_for(mission_dir(launch_.index), launch_.number, &from) : -1;
+  if (salvage_chance_now() >= 0)
+    std::printf("mw3: salvage: a kill's salvage is offered %d times in 100 in this mission (%s)\n", salvage_chance_now(), from.c_str());
   return ok;
 }
 Handle GameEngine::mission_salvage_store() { return store_handle(&mission_salvage()); }

@@ -1871,6 +1871,68 @@ either order, c1 mission 1 launches the mech and the weapon fires),
 `patch12_acts_on_10s_entries_under_a_mods_changed_entries`,
 `editor_save_as_over_a_campaign_kept_as_changed_entries`.
 
+### The salvage chance (Owen, 2026-11-11)
+
+Owen: "tweaking salvage would mean ... you can increase the amount of salvage taken from each mission"; "the
+coin flip, maybe we can allow the user to change that value in a mod/editor"; "salvage can be a mission-level
+setting. or it can be a mod you activate like the weapons mod, that applies to everything." The room stays the
+original's (a field base's 300 t and 2 mechs); the guaranteed lists are data already (objectives.zrd's salvage
+entries, which a mod's mission archive replaces).
+
+**What the coin is** (campaign.md section 9). Two draws, each `rand() & 1` on the game's one random stream,
+taken at the kill (the kill credit 0x0041b420): a destroyed vehicle that is not a mech gives its weapons, all or
+none (0x00472ec0); a destroyed mech that lost a leg comes as a whole mech or not (0x00472f00; its weapons and
+equipment come either way). Nothing else in salvage is chance.
+
+**The keys** (mod.txt; `upgrades/mods/salvage_chance`):
+
+```
+salvage_chance=100
+mission_salvage=c1 2 50
+```
+
+- `salvage_chance=N`, 0 to 100: how many times in 100 either draw is won, in every mission of the campaign the
+  mod is ticked for. A mod holding only this line is a mod, an asset mod (a tick).
+- `mission_salvage=<world> <n> <N>`: the same for one mission (its world's folder in any case, its `m<n>`
+  number), over the mod-wide value whichever mod that is from. One line a mission. Kept out of the original's
+  files on purpose: no new word in objectives.zrd, which the original's reader would meet (mods work both ways).
+- A value that does not read (not a whole number, over 100, a mission line without its three parts) is left
+  out, said in the log and as a warning by `--check-mod`; the rest of the mod is used.
+- **The first ticked mod that sets a value wins it** (`salvage_rules_take`, in mount order): the mod-wide
+  number, and each mission's line by its mission. The later mod's row on MODS says "Shares its salvage chance
+  with <mod>, which wins". REPORT and INFO say what a mod sets: "It sets how often a kill's salvage is offered:
+  100 in 100; the original's is 1 in 2." (one mission's line: "For c1 mission 2 it sets how often a kill's
+  salvage is offered: 50 in 100.").
+
+**The draw.** Unset, the original's line runs untouched: `rand() & 1`. Set, the same single `rand()` is drawn
+(the stream stays in step with a run without the mod) and judged as `(r * 100 >> 15) < N`: rand() gives 15
+bits, so each hundredth is as likely; 0 never, 100 always, 50 the lower half of the range (not the low bit:
+the same odds, not the same wins as the original's coin). The "food for thought" cheat still wins both without
+a draw. One number for both draws.
+
+**Where it is read.** The mount fills `salvage_rules()` from the mounted mods (cleared at each mount). The
+launch (`GameEngine::mission_launch`, where the mission's salvage store is emptied) sets `salvage_chance_now()`
+for a campaign mission (game type 1) from its world and number, and logs it ("mw3: salvage: a kill's salvage is
+offered 100 times in 100 in this mission (<mod>)"); any other game type gets -1. The two salvage functions ask
+through `SalvageCalls::chance` (the probes leave it unset: the differential runs the original's path). The main
+menu's campaign mounts no mod, so nothing is set there; Instant Action and multiplayer take no salvage. It is
+not in the multiplayer hash (nothing of it reaches a network game) and not behind the bug-fix switch (it is
+mod data, as a mod's weapon is).
+
+**In the editor**: MISSION SETTINGS (editor.md, Mission settings) writes the open mission's
+`mission_salvage=` line into the player's copy. **A starter**: `--make-starter salvage` (Starter mods).
+
+Tests (`tests/test_salvage_chance.cpp`): unset equals `r & 1` for every value of rand(), one draw a decision,
+none for a mech with both legs; set, the share of rand()'s values at 0, 1, 25, 50, 75, 99, 100, and the cheat
+over it; the values' reading and mod.txt's keys; the mount's first-ticked rule, a mission's line over the
+mod-wide value, a bad line left out, a mount of nothing leaving nothing; the check, the report's sentence and
+the shared note; the starter (`mods_starter_mods_made_checked_and_loaded`). In the program, hidden, Op 1
+Mission 1 by kills: at 100 both APCs' weapons are in the debriefing, at 0 neither, and a plain start with the
+mod in the mods folder plays the original's draw with nothing logged. A mod with `salvage_chance=100` and `mission_salvage=c1 1 0`
+ticked for the campaign: Op 1 Mission 1 logs 0 (both APCs give nothing), Missions 2 and 3 log 100. Instant
+Action with that mod ticked mounts it and logs no salvage line (a won round with a kill). INFO on the real MODS
+screen shows the mod's sentence (`mods_screen_report_shows_a_mods_sentences_headless`).
+
 ### A mech loadout (2026-11-11)
 
 A mech variant is often passed around as the lab's exported loadout
@@ -2285,7 +2347,7 @@ calling it.
 
 ## Starter mods (modder-friendly step 5, 2026-11-10)
 
-`mw3 --make-starter mech|weapon|translation|mission` (`mw3pm` the same,
+`mw3 --make-starter mech|weapon|translation|mission|salvage` (`mw3pm` the same,
 `upgrades/mods/starter_mods`) makes one small example mod in the write dir's
 `mods\starter_<kind>`, from the player's own install: the recipe is in the
 code, the game's file is read from the install and the edit applied, so
@@ -2300,6 +2362,7 @@ words for modders: `docs/starter-mods/` (one per kind, and a README).
   the install's own message numbers (read from its Mech3Msg.dll, each name in
   a comment: the games number them apart, and `--check-mod` has no names).
 - mission: `campaign=one_mission.txt`, a campaign of the game's c1 mission 1.
+- salvage: `salvage_chance=100`, mod.txt alone: every kill's salvage offered (The salvage chance).
 Each also has `about_this_mod.txt` (not `README.txt`, which the install has:
 the check would count it as replacing the game's). Each passes `--check-mod`
 with no warning and its report says nothing is refused.
