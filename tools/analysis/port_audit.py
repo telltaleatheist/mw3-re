@@ -292,6 +292,11 @@ def write_doc(o, g, rows):
                 'pairs, matched by their place in the call order: 47 equal by the same compare, the other 21 mispaired by that',
                 'order or differing). Each unmapped PM callee has a row of its own here, so a difference in it is labelled on',
                 'that row, not on its caller\'s.',
+                'A function reached only through a table is paired **by its slot**: the MW3 function in the same slot of',
+                'its vtable\'s MW3 twin (pm-diff/vtables.json). A pair the feature compare finds equal takes the MW3 function\'s',
+                'class, the label naming the pairing; a pair that differs is read, since PM\'s longer vtables move the later',
+                'slots (the pairing then names another function). A scalar deleting destructor (one call to a destructor,',
+                'then delete when bit 0 is set, matched on its whole body) is folded, its destructor labelled on its own row.',
                 '**Checked by test** means a passing PM differential test ran the',
                 'function\'s body (a block trace of the emulator, per entry the test calls) and compares what that body',
                 'produces; the label names the compared value. Reaching a function, or running a caller, is not enough.', '']
