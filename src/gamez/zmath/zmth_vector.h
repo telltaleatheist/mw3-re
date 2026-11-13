@@ -23,6 +23,9 @@ float distance_sq(const Vec3& a, const Vec3& b);         // 0x0051dfa0 (keeps a 
 float distance_sq_x87(const Vec3& a, const Vec3& b);     // 0x0051dfa0, the squares summed as the x87 does
 void perpendicular(const Vec3& v, Vec3* out);            // 0x0051e740: in the xy plane, by the fast square root
 void quat_axis_angle(const Vec3& axis, float angle, Quat* q);  // 0x00525490
+// Mech3.exe 1.2 @ 0x00522170 (ECX angles, EDX out): the way pitch (angles[0]) and yaw (angles[1]) face:
+// (-cos p sin y, sin p, -cos p cos y).
+void look_dir(const float angles[2], float out[3]);
 // Mech3.exe 1.2 @ 0x00523e70 (ECX out, EDX in, may be the same): `in` turned
 // about y by `angle`: x' = x cos + z sin, z' = z cos - x sin.
 void rotate_y(float out[3], const float in[3], float angle);

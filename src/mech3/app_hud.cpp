@@ -503,6 +503,13 @@ struct ProgramHudHooks : HudHooks {
     out[0] = m->torso->flat_front.x, out[1] = m->torso->flat_front.y, out[2] = m->torso->flat_front.z;
   }
   float mission_time(bool) override { return mech_game_time(); }
+  // 0x00522170 on the view camera's pitch and yaw ([[0x005f4c8c]+4]'s data +0x20): the way it
+  // faces, for the radar's wedge over the mission map.
+  void radar_view_dir(float out[3]) override {
+    static const float none[3] = {};
+    zcls::Camera* c = camera_data();
+    zmth::look_dir(c ? c->floats(0x20) : none, out);
+  }
   // The radar (hud.md section 15): the mission map is not ported (no map
   // mode), nor the nav route's polylines (no points). The
   // contacts' objects are of every class, each with its own blips (vt+0x3c).
@@ -866,6 +873,9 @@ void wire_hud() {
     h.set_active(0);
   };
   update_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };
+  damage_calls().zaps_hud = [](void* s, float level, int kind, float hold) {  // 0x0043be70
+    static_cast<Hud*>(s)->zap_static(level, kind, hold);
+  };
   damage_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.refresh_all(); };
   damage_calls().message = [](int id) { return hud_hooks().message(id); };
   // 0x00586ce0: in a network game a destroyed part always takes the first
@@ -1007,6 +1017,7 @@ void unwire_hud() {
   update_calls().hud_weapons = nullptr;
   damage_calls().hud_weapons = nullptr;
   damage_calls().head_hit_hud = nullptr;
+  damage_calls().zaps_hud = nullptr;
   WeaponCalls& wc = weapon_calls();
   wc.screen = nullptr, wc.hud_screen = nullptr, wc.hud_groups = nullptr, wc.hud_weapons = nullptr;
   wc.hud_fire = nullptr, wc.hud_highlight = nullptr, wc.lock_shot = nullptr;

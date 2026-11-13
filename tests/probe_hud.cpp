@@ -414,6 +414,7 @@ void apply_op(mech3::Hud& h, uint32_t k, uint32_t v) {
     case 26: call("poke32", {mech3::hud_hooks().id(h.mech) + 0x3d8, v}); break;
     case 39: h.static_tick(zgame::from_bits(v)); break;
     case 40: h.add_static(kStaticStep[v >> 4 & 3], static_cast<int32_t>(v & 0xf), kStaticHold[v >> 8 & 3], kStaticMost[v >> 12 & 3]); break;
+    case 44: h.zap_static(kStaticStep[v >> 4 & 3], static_cast<int32_t>(v & 0xf), kStaticHold[v >> 8 & 3]); break;
     case 41: call("poke32", {0x608e4c, v}); break;
     case 42: h.reticle.draw3d(zgame::from_bits(v)); break;
     case 43: {  // 0x0040f330: ECX and EDX none or an options rect (test_hud.py PANEL_RECTS)

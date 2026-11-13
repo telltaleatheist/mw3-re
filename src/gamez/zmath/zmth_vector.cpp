@@ -420,6 +420,17 @@ void quat_slerp(const float a_in[4], const float b_in[4], float t, float out[4])
   for (int i = 0; i < 4; ++i) out[i] = inv * out[i];
 }
 
+// Mech3.exe 1.2 @ 0x00522170. Each sine and cosine is stored as a float before the products
+// (the exe's two branches by |angle| against 9.22e18 compute the same).
+void look_dir(const float angles[2], float out[3]) {
+  const float cp = static_cast<float>(std::cos(double{angles[0]}));
+  out[1] = static_cast<float>(std::sin(double{angles[0]}));
+  const float sy = static_cast<float>(std::sin(double{angles[1]}));
+  const float cy = static_cast<float>(std::cos(double{angles[1]}));
+  out[0] = -cp * sy;
+  out[2] = -cp * cy;
+}
+
 namespace {
 // x87 compares: an unordered operand reads as equal (zero) or below.
 bool zeroish(float x) { return !(x < 0.0f || x > 0.0f); }

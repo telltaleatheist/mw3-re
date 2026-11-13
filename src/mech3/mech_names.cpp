@@ -308,6 +308,14 @@ bool equip_has_tech(int32_t kind, int32_t tech) {
   return kind >= 0 && kind < 15 && (kTech[kind] & tech) != 0;
 }
 
+// Mech3.exe 1.2 @ 0x00485360: the voice an equipment kind calls out (an index into
+// 0x00608fc0, mech_lib's equipment_voice; 0 is empty). The exe reads past the 15
+// rows for a larger kind; none is made.
+int32_t equip_voice_index(int32_t kind) {
+  static const int32_t kVoice[15] = {1, 0, 0, 7, 2, 3, 4, 0, 5, 10, 11, 12, 9, 14, 15};
+  return kind >= 0 && kind < 15 ? kVoice[kind] : 0;
+}
+
 // Mech3.exe 1.2 @ 0x00484670: Mech3Msg.dll's 0xd82.. in the mech table (-1
 // for a mod's row: its title, mech_title).
 int32_t mech_name_message(int32_t mech) { return mech >= 0 && mech < 19 ? 0xd82 + mech : -1; }
