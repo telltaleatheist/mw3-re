@@ -90,7 +90,8 @@ copy of the tree), 0x430ad0 (HUD model).
   2. Otherwise: zar find (0x576a80) + seek (0x576ae0, handle or -1), then
      0x4fcdc0(handle, parent 0) reads the tree, 0x4fcd40(root) resolves the
      materials, and if 0x553450 (flag 0x72be74, set by zvid_init.c at 0x579e79
-     in one video mode) is set, 0x4fc8b0(root) post-processes every model.
+     when the Direct3D flag [0x72f348] is set, so in hardware mode) is set,
+     0x4fc8b0(root) turns every model's triangles into strips (below).
   3. A non-null new root is appended to the list (`new(0xc)`, size +1).
   Returns the root (or 0).
 
@@ -170,11 +171,31 @@ material. Returns the world material, or 0 while unresolved. So all mechs share
 
 ### 0x4fc8b0 `post_process(node)`
 
-Recursive; for each model calls 0x552540(model ecx, 0x7fffffff edx, 4). That
-function (between `gmod_puff.cpp` and `zreader.cpp`, about 300 lines) walks
-polygons with normals (0x200) and either tri-strip (0x400) or at most 4 vertices
-and builds edge lists, likely an edge/adjacency pass for one renderer. Not
-traced; only on when 0x72be74 is set.
+Recursive; for each model calls 0x552540(model ecx, 0x7fffffff edx, 4), a
+triangle stripper (about 45 functions, 3,500 decompiled lines, much of it STL
+map and list code). It runs whenever 0x72be74 is set, which zvid_init sets in
+hardware (Direct3D) mode, so in the mode the port draws like. It takes the
+polygons with vertex normals (0x200) whose material's flag 1 is set and that
+are already strips (0x400) or have at most 4 vertices, maps each edge to its
+polygons, and joins two polygons along a shared edge (0x554150) when their
+material and priority (+0x04) match, neither is two-sided (0x100), the corners
+of the shared edge carry the same vertex, normal, UV and colour, and the joined
+strip stays within 64 vertices (and the edx limit). The joined polygon is a
+strip (flag 0x400, count = triangles + 2) in the model's polygon array, so the
+model has fewer polygons, in a new order. The counters 0x72be64..0x72be70
+(polygons seen, strips, triangles, longest strip) are written and never read.
+
+Who reads the result: every ported reader of model polygons already has a
+strip branch (0x400), which walks the strip as its triangles: the draw and
+the shadow fill (`gmod_cull.cpp:269`), the ground, point and segment tests
+(`gmod_hit.cpp`), and the strip expander 0x553160. So the triangles drawn and
+tested are the same either way, and the GPU path draws the same picture
+without it. What changes is the polygon order and count. The ground and
+segment tests stop at the first polygon that covers every probe and cache its
+index (+0x58), so where two upward faces of a mech lie over the same probe,
+the first one found, and the hits recorded before it, can differ. Whether that
+shows in play (mech-on-mech probes, shots on mechs) is not measured; see
+`docs/port-audit.md`. Not ported.
 
 ## Closing
 
@@ -235,8 +256,9 @@ bytes (the texture by name through zImage's 0x518c60 / 0x518cc0, now
 `zimg::add_texture`) and asks the world table for an equal one or a new one
 (0x536ad0 with the compare 0x536f10, `zmod::material_add`): the 442
 library materials become world materials once, shared by every mech. The
-post-pass 0x4fc8b0 (0x552540) runs only when 0x553450 is set (one video
-mode) and is not ported (`mechlib_post_process()` stays false).
+post-pass 0x4fc8b0 (0x552540, the triangle stripper) runs when 0x553450 is
+set, which hardware mode does, and is not ported (`mechlib_post_process()`
+stays false).
 
 MW3's side (`mech3/mech_lib`): 0x484270 makes the library once and opens
 `zbd\mechlib.zbd`, then loads two voice tables (by equipment kind, 1 ams ..
@@ -362,7 +384,7 @@ differ:
    (0x536ad0, `gmod_matl.c`), so it waits for those.
 7. **Ported.** MW3 side: 0x484270, 0x484740, 0x484760, 0x4847e0, 0x4844b0, and the mech
    table at 0x5e6078.
-8. Last or never: 0x4fc8b0 / 0x552540 (only in one video mode) and the writer
+8. Last or never: 0x4fc8b0 / 0x552540 (the stripper, in hardware mode) and the writer
    (0x4fc990, 0x4fcca0, 0x4fc4d0), which is dead.
 
 **A node's matrix from its angles (2026-11-09, mechlib JSON).** Where a
