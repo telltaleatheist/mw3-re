@@ -6768,7 +6768,14 @@ TEST(sdl_program_launcher_starts_pirates_moon) {
   EXPECT(args.size() >= 3 && args[0] == "--install" && args[1] == install.string() && args[2] == "--no-launcher");
   // Its own folder, the one this launcher was given (MW3_PM_WRITE_DIR), never MW3's.
   EXPECT(args.size() >= 5 && args[3] == "--write-dir" && args[4] == dir + "/pmwd");
-  for (const std::string& a : args) EXPECT(a.find(dir + "/wd") == std::string::npos);
+  // MW3's folder only as the other game's, where a mod imported for MW3 is handed (W15), never as its own.
+  for (size_t i = 0; i < args.size(); ++i) {
+    if (args[i] == "--other-write-dir" || args[i] == "--other-install") {
+      ++i;
+      continue;
+    }
+    EXPECT(args[i].find(dir + "/wd") == std::string::npos);
+  }
 
   // A folder that is not there: no start, the setting left alone (with no
   // Pirate's Moon anywhere the search looks: an empty HOME).
