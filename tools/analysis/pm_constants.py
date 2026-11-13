@@ -115,6 +115,8 @@ if len(sys.argv) > 2:
                     elif is_float(b): out.add(round(struct.unpack('<f', b)[0], 6))
                 continue
             v = imm(ins, intel)
+            nxt_ = ops[srt[j]] if j < len(srt) else ''
+            if v is not None and ins.startswith('mov') and re.match(r'i?mul\b', nxt_): continue  # a division's magic number
             if v is not None and (0x3a000000 <= v < 0x4f000000 or 0xba000000 <= v < 0xcf000000):
                 out.add(round(struct.unpack('<f', struct.pack('<I', v))[0], 6))
         return out

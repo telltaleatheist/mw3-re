@@ -12,10 +12,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | Class | Functions |
 |---|---|
 | folded | 2378 |
-| unlabelled | 1866 |
+| unlabelled | 1865 |
 | replaced (SDL or the platform layer) | 222 |
 | UNSURE | 215 |
-| MISSING LOGIC | 105 |
+| MISSING LOGIC | 106 |
 | software renderer | 105 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 104 |
 | debug or dev tool: PORT (preserve) | 80 |
@@ -33,6 +33,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x004311e0** (1 functions, 228 decomp lines; MISSING LOGIC): PM values the shared port keeps as MW3's (pm only): the god camera (mode 3) at 120 m and pitched -81 degrees (-1.413716) in PM, 150 m and -90 degrees in MW3 (player_view.cpp:446-447)
 - **0x0043cf50** (1 functions, 57 decomp lines; MISSING LOGIC): PM's HUD ZAPS static (MW3 0x0043be70's version, the hit's static on a HUD channel): unported, and its hook is the census stand-in DamageCalls.zaps_hud, as in MW3 (docs/port-audit.md, BROKEN row 3)
 - **0x00440ac0** (1 functions, 33 decomp lines; MISSING LOGIC): as MW3 0x0043f2d0: the radar's map-mode position (HudRadar 0x0043f2d0): stores the mech's position and, with the mission map shown, moves the mech's marker line on the map (0x00491c80, 0x005a6880); not ported, and its hook radar_heading (hud.h:880) is never overridden: see BROKEN
+- **0x00482ca0** (1 functions, 193 decomp lines; MISSING LOGIC): PM's sound range at low detail (pm only): at start-up PM sets [0x00613488] to 0.5 when the object detail is 2 (0x0040b1e0), else 1 (0x00482ca0 -> 0x00591830), and a sound's default RANGE (50 400) is scaled by it (0x005912a0, MW3's 0x005700f0 unscaled): at low detail every sound without its own RANGE is heard to 25 / 200 m. The port's start-up and the sound set's defaults are MW3's
 - **0x004b0790** (1 functions, 76 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the vehicle's above camera pitched -81 degrees (-1.413716) in PM, -90 in MW3; its 150 m the same in both (veh_basic_object.cpp:500)
 - **0x004fd0d0, 0x004fd160, 0x004fd1f0** (3 functions, 39 decomp lines; MISSING LOGIC): PM's per-node light override in the model draw 0x00507f30 (pm only: the fix goes in PM's draw on the pm branch): node +0x2c bit 7 with an ambient value in bits 9..16 (0x004fd0d0 -> 0x0050e6f0), bit 8 with a diffuse value in bits 17..24 (0x004fd160 / 0x004fd1f0 -> 0x0050e7c0); the shared draw (camera.cpp:79) has none. Counted with the port's PM mechlib reader (probe_pm_mechlib_overrides, all 76 trees, 1,847 nodes): 24 nodes carry it, the cockpit 'grill' of every mech_*_hud.flt (+0x2c 0xb281 in the file: an ambient override of 0x59, no diffuse). No MW3 world or mechlib node and no PM world node sets these bits
 - **0x00510ab0, 0x0056b230, 0x0056b2d0, 0x0056b540, 0x0056b580, 0x0056b980 ...** (90 functions, 7486 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
@@ -1983,7 +1984,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004826e0 | 173 | unlabelled |  |
 | 0x00482a60 | 25 | replaced (SDL or the platform layer) | as MW3 0x00480340, whose class PM's changes keep: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
 | 0x00482ac0 | 19 | replaced (SDL or the platform layer) | as MW3 0x004803a0: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
-| 0x00482ca0 | 193 | unlabelled |  |
+| 0x00482ca0 | 193 | MISSING LOGIC | PM's sound range at low detail (pm only): at start-up PM sets [0x00613488] to 0.5 when the object detail is 2 (0x0040b1e0), else 1 (0x00482ca0 -> 0x00591830), and a sound's default RANGE (50 400) is scaled by it (0x005912a0, MW3's 0x005700f0 unscaled): at low detail every sound without its own RANGE is heard to 25 / 200 m. The port's start-up and the sound set's defaults are MW3's |
 | 0x00483020 | 48 | unlabelled |  |
 | 0x004832a0 | 9 | debug or dev tool: PORT (preserve) | follows 0x00483d50: as MW3 0x004810d0, whose class PM's changes keep: the debug console's overlay toggle (0x00608f74; game-loop.md: from 0x00480b20, itself never called) |
 | 0x004832b0 | 11 | unlabelled |  |
