@@ -15,10 +15,9 @@ can move, as multisets over the function's instructions:
   flagged: PM's layouts shift them.
 
 --flag marks a function when a call, an immediate above 1 or a float constant
-differs. Ranges run from each function's start to the next decompiled function
-(MW3's capped at 1.3 x PM's size + 64, past which MW3's next decompiled
-function can lie). Reads analysis-output/{pm.asm,mech3.asm,decomp,pm-decomp,
-pm-diff} and the two exes under game/ (git-ignored).
+differs. Each function is Ghidra's body (pm-decomp/functions.jsonl,
+pm-diff/mw3/functions.jsonl: its ranges). Reads analysis-output/{pm.asm,
+mech3.asm,pm-decomp,pm-diff} and the two exes under game/ (git-ignored).
 """
 import bisect
 import collections
@@ -45,6 +44,20 @@ def starts(d):
 
 
 PM_STARTS, MW_STARTS = starts(AO / 'pm-decomp'), starts(AO / 'decomp')
+
+
+def ranges(path):
+    out = {}
+    for line in open(path):
+        f = json.loads(line)
+        out[int(f['addr'], 16)] = [(int(a, 16), int(b, 16)) for a, b in f['ranges']]
+    return out
+
+
+# Ghidra's own bodies (a function's ranges, its end exclusive of the last
+# instruction's start); the next decompiled file is no end: the MW3 folder has
+# chunks decompiled apart inside functions, and PM's misses some functions.
+RANGES = {'pm': ranges(AO / 'pm-decomp/functions.jsonl'), 'mw3': ranges(AO / 'pm-diff/mw3/functions.jsonl')}
 
 
 def load(path, bytes_col):
@@ -90,13 +103,11 @@ IMM = re.compile(r'(?<![+\-\[] )(?<!\[)\b(0x[0-9a-f]+)\b(?!\])')
 FLD = re.compile(r'(dword|qword) ptr \[0x([0-9a-f]+)\]')
 
 
-def features(game, s, e):
+def features(game, addr):
     ins, idx = asm(game)
     c = collections.Counter()
-    for k in range(bisect.bisect_left(idx, s), len(ins)):
+    for k in (k for s, e in RANGES[game][addr] for k in range(bisect.bisect_left(idx, s), bisect.bisect_right(idx, e))):
         ad, mn, ops = ins[k]
-        if ad >= e:
-            break
         if mn.startswith('j') or mn == 'ret' or ops.startswith('esp,'):
             continue
         for m in OFF.finditer(ops):
@@ -125,9 +136,7 @@ def features(game, s, e):
 
 def compare(pm):
     mw = TWIN[pm]
-    pe = PM_STARTS[bisect.bisect_right(PM_STARTS, pm)]
-    me = min(MW_STARTS[bisect.bisect_right(MW_STARTS, mw)], mw + int((pe - pm) * 1.3) + 64)
-    fp, fw = features('pm', pm, pe), features('mw3', mw, me)
+    fp, fw = features('pm', pm), features('mw3', mw)
     diff = [(k, fw[k], fp[k]) for k in sorted(set(fp) | set(fw)) if fw[k] != fp[k]]
     flagged = [k for k, _, _ in diff
                if k.startswith('call') or k.startswith('const')
