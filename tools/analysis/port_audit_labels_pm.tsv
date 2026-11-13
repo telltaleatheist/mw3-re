@@ -1326,3 +1326,9 @@
 0x004d2460	folded	fd0 read: the same logic (the 2D normalise, 0 for a zero length; the net's node add, index lookup and its paths), PM's compiler and layout (the net's fields 0x10 on)
 0x004d26c0	folded	fd0 read: the same logic (the 2D normalise, 0 for a zero length; the net's node add, index lookup and its paths), PM's compiler and layout (the net's fields 0x10 on)
 0x004d28d0	folded	fd0 read: the same logic (the 2D normalise, 0 for a zero length; the net's node add, index lookup and its paths), PM's compiler and layout (the net's fields 0x10 on)
+0x004d0fc0	folded	fd0 read: the same logic (the region's random pick and its entry lookup; the net editor's query, path walk and step (a dev dialog's), with PM's layout one dword on), PM's compiler
+0x004d1200	folded	fd0 read: the same logic (the region's random pick and its entry lookup; the net editor's query, path walk and step (a dev dialog's), with PM's layout one dword on), PM's compiler
+0x004022b0	folded	fd0 read: the same logic (the region's random pick and its entry lookup; the net editor's query, path walk and step (a dev dialog's), with PM's layout one dword on), PM's compiler
+0x004c3f20	folded	fd0 read: the same logic (the region's random pick and its entry lookup; the net editor's query, path walk and step (a dev dialog's), with PM's layout one dword on), PM's compiler
+0x004c4300	folded	fd0 read: the same logic (the region's random pick and its entry lookup; the net editor's query, path walk and step (a dev dialog's), with PM's layout one dword on), PM's compiler
+0x004c4490	folded	fd0 read: the same logic (the region's random pick and its entry lookup; the net editor's query, path walk and step (a dev dialog's), with PM's layout one dword on), PM's compiler
