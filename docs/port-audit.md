@@ -11,7 +11,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2999 |
+| folded | 3000 |
 | replaced (SDL or the platform layer) | 221 |
 | software renderer | 111 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 110 |
@@ -20,7 +20,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | dev dialog (MFC), its window plumbing: replaced | 50 |
 | MISSING LOGIC | 50 |
 | dev dialog (MFC), its logic: PORT (preserve) | 42 |
-| UNSURE | 23 |
+| UNSURE | 22 |
 
 ## MISSING LOGIC
 
@@ -112,7 +112,6 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 0x004c9d20, 0x004c9d70, 0x004c9db0, 0x004c9de0 (4 functions, 74 decomp lines): Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d7160 (1 functions, 12 decomp lines): an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it
 - 0x004dee50 (1 functions, 58 decomp lines): the aiv reader's vtable slot 0x005cd42c (58 lines): a name checked against zEntity's list (0x005a8210) and the reader's records (std::map find 0x004e1a30), no caller found; probably the editor's 'is this name free'; to settle by its slot and callers
-- 0x005a7e10 (1 functions, 47 decomp lines): zEntity's base constructor (0x005a7e10: its frames and, with a parent, the registration 0x005a8390 + 0x005a7f50); the port's AiTarget initialisers stand in (app_engine.cpp:312), but targets.zrd's CZAiTargets are not put on the entity list (ai.md:1537), so their vt+0x34 (0x005a8000, zEntity3d's step by its velocity and spin) does not run; harmless if nothing gives a target a velocity, not checked
 
 ## By module
 
@@ -3382,7 +3381,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005a7cd0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
 | 0x005a7dd0 | 9 | folded | follows 0x005a8750: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005a7de0 | 9 | folded | a thunk: one call to another function |
-| 0x005a7e10 | 47 | UNSURE | zEntity's base constructor (0x005a7e10: its frames and, with a parent, the registration 0x005a8390 + 0x005a7f50); the port's AiTarget initialisers stand in (app_engine.cpp:312), but targets.zrd's CZAiTargets are not put on the entity list (ai.md:1537), so their vt+0x34 (0x005a8000, zEntity3d's step by its velocity and spin) does not run; harmless if nothing gives a target a velocity, not checked |
+| 0x005a7e10 | 47 | folded | zEntity's base constructor (frames, and with a parent the registration 0x005a8390 + 0x005a7f50); the port's AiTarget initialisers stand in (app_engine.cpp:312). targets.zrd's CZAiTargets are not on the port's entity list (ai.md:1537), so their vt+0x34 (0x005a8000, the step by velocity +0x30 and spin +0x58) does not run; checked harmless: both start as the zero vector [0x0063d870] (BSS), targets.zrd has no velocity or spin key (ai.md:153) and no script command sets an entity's (interp.md: only CameraSetRotate and GlobalWindStaticVelocity) |
 | 0x005a7f30 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a7f50 | 11 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005a7f70 | 11 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
