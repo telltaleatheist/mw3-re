@@ -68,9 +68,9 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3850 |
-| unlabelled | 294 |
-| MISSING LOGIC | 275 |
+| folded | 3859 |
+| unlabelled | 284 |
+| MISSING LOGIC | 276 |
 | replaced (SDL or the platform layer) | 242 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 114 |
 | software renderer | 108 |
@@ -89,6 +89,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x0040b120** (1 functions, 47 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the object detail's level 2 sets the camera's LOD scale to 0.2 in PM (0x3e4ccccd), 0.4 in MW3 (options.cpp:260, cam_scale)
 - **0x0040c340, 0x0048dca0, 0x0048dd60** (3 functions, 98 decomp lines; MISSING LOGIC): pm only, minor: the Instant Action world list's select and step (0x0048dca0 / 0x0048dd60: CycleButton's, then the pilot's action game's vt+0x4c, 0x0040c340: the world at +0xd0, the progression waves loaded again for it when the mode is Progression, 0x0040c410). PM updates the game's world as the list moves; the pm port sets it only at ACCEPT (action_menu.cpp:559, set_world 0x0040c360), so while choosing, Progression's waves are the last world's
 - **0x00414ba0** (1 functions, 25 decomp lines; MISSING LOGIC): pm only, minor, effect to check: PM's mech_set_skin (MW3's 0x00414390, mech_build.cpp mech_set_skin; unpaired by the diff), from the mech build 0x00415190, the network (0x0046f510, 0x004701d0), the mission launch 0x00494500 and the player 0x004a0e10 / 0x004a17d0: when the torso's headlight (torso part +0x7c) is there, its node's only child is detached before the skin is applied (0x00479c30, kept at +0x38) and put back after (0x00479c60); the port applies the skin with the child in place. Whether the skin apply (0x004773e0) touches that child is not read; 0x0041b900 (a vt slot) also detaches it
+- **0x00415190** (1 functions, 112 decomp lines; MISSING LOGIC): pm only, minor: the mech made again in place (MW3's 0x004148c0, mech_rebuild, mech_build.cpp:188), read: the same steps (the type's data, the controls kept, destroyed and constructed again, the skin by name, the HUD's fall mode 0); and when it is rebuilt as its own type with MASC on (+0x598 not 0), PM turns MASC on again afterwards (0x0041eec0(1), MW3's masc 0x0041df50); the port's rebuild leaves MASC off
 - **0x00415940, 0x005a35f0** (2 functions, 206 decomp lines; MISSING LOGIC): pm only, minor (a mech deleted mid-mission: a network player leaving): PM's mech destructor (0x00415940, MW3's 0x00414f40, mech_build.cpp:225) first clears the owner (+0x6c, +0x70, +0x74) of every live shot that mech fired (0x005a35f0 over zWeapon's pools); MW3 and the port do not (all three free the node's handler table: MW3 0x00583400, PM 0x005a4de0, the port app_mech.cpp:848), so a shot outliving its mech keeps the gone owner. To check: whether the port's shot reads that owner afterwards (its hit credit, its tether)
 - **0x00415fc0** (1 functions, 159 decomp lines; MISSING LOGIC): pm only, visible: the field base's repair of a mech (MW3's 0x004154e0, Mech::repair, mech_repair.cpp:46; stubbed in test_pm_refit, so not checked by it). Read against MW3: the structure, armour (from the store, only in a campaign), coolant, jump fuel and AMS as MW3; but the ammo: outside a campaign (the game's kind not 1) PM refills each weapon's bin by all it lacks, free (0x00415fef: cmp 1, setne; then the bin's add 0x004b8df0 with the whole need), where MW3 and the port take ammo only from a campaign's store, so an Instant Action, Standalone or multiplayer field base gives no ammo in the port. In a campaign the same as MW3 (the store's count, unlimited items free)
 - **0x0041c630** (1 functions, 21 decomp lines; MISSING LOGIC): as MW3 0x0041b930: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
@@ -656,7 +657,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00407160 | 21 | folded | the briefing map's markers, read against MW3's slots (briefing.cpp:148-240): MapText::set_pos (0x00406f40, MW3's 0x00407cf0), MapCircle::update with the shrink by max(20 x dt, 1) pixels to the end radius (0x00407010, MW3's 0x00407ea0; the same 20.0 and 1.0), MapCircle::set_pos (0x00407160, MW3's 0x004080a0 with set_radius inline), MapTriangle::erase (0x00407450, MW3's 0x00408470); the destructors of two marker texts (0x00407200, 0x004073f0) |
 | 0x004071b0 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:59) |
 | 0x00407200 | 19 | folded | the briefing map's markers, read against MW3's slots (briefing.cpp:148-240): MapText::set_pos (0x00406f40, MW3's 0x00407cf0), MapCircle::update with the shrink by max(20 x dt, 1) pixels to the end radius (0x00407010, MW3's 0x00407ea0; the same 20.0 and 1.0), MapCircle::set_pos (0x00407160, MW3's 0x004080a0 with set_radius inline), MapTriangle::erase (0x00407450, MW3's 0x00408470); the destructors of two marker texts (0x00407200, 0x004073f0) |
-| 0x00407250 | 62 | unlabelled |  |
+| 0x00407250 | 62 | folded | read, its twin corrected: MW3's 0x004081a0 (MapWaypoint::update, briefing.cpp:217), not the address map's 0x00407ea0 (MapCircle::update, which is 0x00407010): shown, with a nav, a mission map and the world up, the nav's place projected (0x00459870, MW3's 0x004586e0) and the marker moved there, then the circle's shrink inline (20 x dt, at least 1, to the end radius) |
 | 0x004073d0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004073f0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004073f0 | 19 | folded | the briefing map's markers, read against MW3's slots (briefing.cpp:148-240): MapText::set_pos (0x00406f40, MW3's 0x00407cf0), MapCircle::update with the shrink by max(20 x dt, 1) pixels to the end radius (0x00407010, MW3's 0x00407ea0; the same 20.0 and 1.0), MapCircle::set_pos (0x00407160, MW3's 0x004080a0 with set_radius inline), MapTriangle::erase (0x00407450, MW3's 0x00408470); the destructors of two marker texts (0x00407200, 0x004073f0) |
 | 0x00407450 | 12 | folded | the briefing map's markers, read against MW3's slots (briefing.cpp:148-240): MapText::set_pos (0x00406f40, MW3's 0x00407cf0), MapCircle::update with the shrink by max(20 x dt, 1) pixels to the end radius (0x00407010, MW3's 0x00407ea0; the same 20.0 and 1.0), MapCircle::set_pos (0x00407160, MW3's 0x004080a0 with set_radius inline), MapTriangle::erase (0x00407450, MW3's 0x00408470); the destructors of two marker texts (0x00407200, 0x004073f0) |
@@ -700,7 +701,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00408980 | 24 | folded | MW3's 0x0040aca0 (PlayerView's constructor, player_view.h:253), read: the same fields and the horizon node found; PM's view class (vtable 0x005dee80) has more virtual slots, the entity base's (0x004b9470, MW3's 0x004b5060) small wrappers on the view's node: its node set (0x004088e0, zClass 0x004fd5e0), active read and set (0x00408900 / 0x00408920, bit 2 of +0x24 and 0x004fca50), the look kept at +0x7c and passed to the camera mode +0x58 (0x00408980), a sub-object's destructor (0x00408950); the port's view calls zClass on its node directly |
 | 0x00408b20 | 50 | MISSING LOGIC | PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog |
 | 0x00408d00 | 25 | MISSING LOGIC | PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged |
-| 0x00408f40 | 145 | unlabelled |  |
+| 0x00408f40 | 145 | folded | MW3's twins by the order-aware compare and features (layout and helper instances only): 0x0040b310 (0x00408f40: PM's stack probe for its larger frame and a fld for a fmul by 1), 0x0040d810 (0x0040b720: a call MW3 left unmapped is PM's 0x0040b320), 0x0040e270 (0x0040ea60: the element 0x4b8 for 0x4b0), 0x0040f730 (0x00410050: the HudPanel destructor 0x0043b8f0), 0x00410700 (0x00410f80: equal) |
 | 0x00409830 | 71 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x0040bb00: the camera dialog (resource 0x6a: the camera's place and angles in degrees, editable; 0x0040bd00 its window): a dev tool's logic |
 | 0x00409a10 | 21 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040bd00: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x00409a60 | 9 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x00401030: MFC dialog plumbing of dev dialogs (CDialog constructors and destructors, EnableWindow): resource 0x67 and the teleport and net dialogs' destructors |
@@ -728,7 +729,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040b6d0 | 8 | folded | covered by the port where it names it (src/mech3/app_hooks.h:91) |
 | 0x0040b6e0 | 9 | folded | a thunk: one call to another function |
 | 0x0040b700 | 9 | folded | a thunk: one call to another function |
-| 0x0040b720 | 69 | unlabelled |  |
+| 0x0040b720 | 69 | folded | MW3's twins by the order-aware compare and features (layout and helper instances only): 0x0040b310 (0x00408f40: PM's stack probe for its larger frame and a fld for a fmul by 1), 0x0040d810 (0x0040b720: a call MW3 left unmapped is PM's 0x0040b320), 0x0040e270 (0x0040ea60: the element 0x4b8 for 0x4b0), 0x0040f730 (0x00410050: the HudPanel destructor 0x0043b8f0), 0x00410700 (0x00410f80: equal) |
 | 0x0040b9f0 | 12 | folded | inside its ported callers (0x00492830): a small helper their ports do their own way |
 | 0x0040bd70 | 34 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040def0: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x0040be40 | 40 | folded | as MW3 0x0040e120: covered where the port does it: src/mech3/game_editor_net.cpp:229 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -767,8 +768,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040d4e0 | 9 | folded | a thunk: one call to another function |
 | 0x0040d510 | 15 | folded | as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x0040d530 | 38 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
-| 0x0040d5e0 | 12 | unlabelled |  |
-| 0x0040d600 | 22 | unlabelled |  |
+| 0x0040d5e0 | 12 | folded | container code inside PM's ported standalone game (as 0x0040d530's label: pilot_games.cpp, StandaloneGame): a mission record (three CStrings) deleted (0x0040d5e0) and its destructor (0x0040d600); the address map's 0x0040a8f0 is another class's deleting destructor |
+| 0x0040d600 | 22 | folded | container code inside PM's ported standalone game (as 0x0040d530's label: pilot_games.cpp, StandaloneGame): a mission record (three CStrings) deleted (0x0040d5e0) and its destructor (0x0040d600); the address map's 0x0040a8f0 is another class's deleting destructor |
 | 0x0040d660 | 117 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
 | 0x0040d900 | 8 | folded | covered by the port where it names it (src/mech3/pilot_standalone.cpp:27) |
 | 0x0040d920 | 45 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
@@ -799,12 +800,12 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040e860 | 78 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040e9c0 | 31 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040ea50 | 9 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
-| 0x0040ea60 | 47 | unlabelled |  |
+| 0x0040ea60 | 47 | folded | MW3's twins by the order-aware compare and features (layout and helper instances only): 0x0040b310 (0x00408f40: PM's stack probe for its larger frame and a fld for a fmul by 1), 0x0040d810 (0x0040b720: a call MW3 left unmapped is PM's 0x0040b320), 0x0040e270 (0x0040ea60: the element 0x4b8 for 0x4b0), 0x0040f730 (0x00410050: the HudPanel destructor 0x0043b8f0), 0x00410700 (0x00410f80: equal) |
 | 0x0040eb80 | 24 | folded | covered by the port where it names it (src/mech3/game_editor.cpp:46) |
 | 0x0040ebf0 | 10 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:307) |
 | 0x0040ec40 | 22 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0040e3b0 with only offsets and sizes of PM's larger structures changed (0x4b0->0x4b8); calls, field counts and every other immediate and float constant as MW3's |
 | 0x0040ecb0 | 9 | folded | a thunk: one call to another function |
-| 0x0040ecd0 | 21 | unlabelled |  |
+| 0x0040ecd0 | 21 | folded | MW3's 0x0040e430 (the game editor opened, game_editor.cpp:118), read: the same steps; PM's key map takes Space and the left button for its own command ids 0xa3 / 0xa4 (MW3's 0x9b / 0x9c, PM's command table renumbered, tools/analysis/pm_command_map.py), its vtable slot one on |
 | 0x0040ef60 | 56 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0040e6a0 with only offsets and sizes of PM's larger structures changed (0x4b0->0x4b8); calls, field counts and every other immediate and float constant as MW3's |
 | 0x0040f0e0 | 12 | folded | by the slot pairing: PM vtable 0x5df330 slot 0x4 is MW3 vtable 0x5bbb30's 0x00404ac0 (MW3 folded: the scalar deleting destructor (the destructor, then delete)), the feature compare equal (7f6e9e10) |
 | 0x0040f100 | 14 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040e8b0: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
@@ -843,7 +844,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040fae0 | 35 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:985) |
 | 0x0040fd00 | 75 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0040f410 with only offsets and sizes of PM's larger structures changed (0x600->0x608); calls, field counts and every other immediate and float constant as MW3's |
 | 0x00410030 | 12 | folded | covered by the port where it names it (src/mech3/message_panel.h:18) |
-| 0x00410050 | 32 | unlabelled |  |
+| 0x00410050 | 32 | folded | MW3's twins by the order-aware compare and features (layout and helper instances only): 0x0040b310 (0x00408f40: PM's stack probe for its larger frame and a fld for a fmul by 1), 0x0040d810 (0x0040b720: a call MW3 left unmapped is PM's 0x0040b320), 0x0040e270 (0x0040ea60: the element 0x4b8 for 0x4b0), 0x0040f730 (0x00410050: the HudPanel destructor 0x0043b8f0), 0x00410700 (0x00410f80: equal) |
 | 0x00410110 | 24 | debug or dev tool: PORT (preserve) | as MW3 0x0040f7f0, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x00410190 | 10 | debug or dev tool: PORT (preserve) | called only from 0x00410110, which are debug |
 | 0x004101b0 | 8 | folded | returns a constant or a global |
@@ -899,7 +900,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00410f10 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00410f00, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00410f40 | 9 | folded | follows 0x004c7560: read after the feature compare's flags: MW3's twin (0x004da570, zrdrainet.cpp:541, the net reader's record; 0x004bf910, zai_steps.cpp:121, a step's slots reserved; 0x004c0570, zai_attack.cpp:62) with PM's layout (record offsets +0x118/+0x128, element sizes that are not a power of two) and the STL's growth and element copy (0x00438800, 0x004d7810) as calls; the one-sided statements are only those |
 | 0x00410f50 | 9 | folded | a thunk: one call to another function |
-| 0x00410f80 | 29 | unlabelled |  |
+| 0x00410f80 | 29 | folded | MW3's twins by the order-aware compare and features (layout and helper instances only): 0x0040b310 (0x00408f40: PM's stack probe for its larger frame and a fld for a fmul by 1), 0x0040d810 (0x0040b720: a call MW3 left unmapped is PM's 0x0040b320), 0x0040e270 (0x0040ea60: the element 0x4b8 for 0x4b0), 0x0040f730 (0x00410050: the HudPanel destructor 0x0043b8f0), 0x00410700 (0x00410f80: equal) |
 | 0x00411080 | 60 | folded | group A, read: the same logic on PM's layout and helpers (the reader's lookup 0x00578630 for 0x00556740, PM's list helpers, the flare's fade with PM's globals, the gravity command, the objective's distance through PM's HUD getter); the call counts differ by how often a getter is called |
 | 0x004111a0 | 18 | folded | as MW3 0x00410920: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x004111d0 | 38 | folded | covered by the port where it names it (src/mech3/controls_cfg.h:24) |
@@ -931,7 +932,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00414b80 | 11 | folded | ported, by docs/symbols.csv: ported (app_mech DamageCalls::roster_x1c): the roster entry's mech definition's skin set (+0x1c) |
 | 0x00414ba0 | 25 | MISSING LOGIC | pm only, minor, effect to check: PM's mech_set_skin (MW3's 0x00414390, mech_build.cpp mech_set_skin; unpaired by the diff), from the mech build 0x00415190, the network (0x0046f510, 0x004701d0), the mission launch 0x00494500 and the player 0x004a0e10 / 0x004a17d0: when the torso's headlight (torso part +0x7c) is there, its node's only child is detached before the skin is applied (0x00479c30, kept at +0x38) and put back after (0x00479c60); the port applies the skin with the child in place. Whether the skin apply (0x004773e0) touches that child is not read; 0x0041b900 (a vt slot) also detaches it |
 | 0x00415160 | 17 | unlabelled |  |
-| 0x00415190 | 112 | unlabelled |  |
+| 0x00415190 | 112 | MISSING LOGIC | pm only, minor: the mech made again in place (MW3's 0x004148c0, mech_rebuild, mech_build.cpp:188), read: the same steps (the type's data, the controls kept, destroyed and constructed again, the skin by name, the HUD's fall mode 0); and when it is rebuilt as its own type with MASC on (+0x598 not 0), PM turns MASC on again afterwards (0x0041eec0(1), MW3's masc 0x0041df50); the port's rebuild leaves MASC off |
 | 0x004158b0 | 8 | folded | by the slot pairing: PM vtable 0x5dfaac slot 0x44 is MW3 vtable 0x5bcef8's 0x004d2a70 (MW3 ported src/mech3/entity_classes.cpp:35), the feature compare equal (7f6e9e10) |
 | 0x004158c0 | 8 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
 | 0x004158d0 | 8 | folded | returns a constant or a global |
@@ -5814,16 +5815,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00530b20 | 13 | replaced (SDL or the platform layer) | as MW3 0x00517230: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 | 0x00530b40 | 20 | replaced (SDL or the platform layer) | as MW3 0x00517250: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
-### zerror (5 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00527250 | 9 | folded | a thunk: one call to another function |
-| 0x00527270 | 15 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0050da90 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
-| 0x00527490 | 22 | folded | read with the feature compare and the order-aware compare (the same calls, tests and constants in order) against its MW3 twin, ported: the immediates that differ are arguments passed another way (MW3's in a register, a byte as its negative: mov dl, -0x5e for push 0xa2), allocation sizes and structure offsets of PM's layouts, stack adjustments, error lines; one (0x0055d2d0) masks a 15-bit colour's red with 0xfc00 where MW3 keeps the upper bits, the add that follows being 16-bit, the same result |
-| 0x00527500 | 38 | unlabelled |  |
-| 0x005275d0 | 30 | unlabelled |  |
-
 ### zsiscript (5 not ported)
 
 | Address | Lines | Class | Why |
@@ -5833,4 +5824,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005cd090 | 27 | unlabelled |  |
+
+### zerror (5 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00527250 | 9 | folded | a thunk: one call to another function |
+| 0x00527270 | 15 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0050da90 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
+| 0x00527490 | 22 | folded | read with the feature compare and the order-aware compare (the same calls, tests and constants in order) against its MW3 twin, ported: the immediates that differ are arguments passed another way (MW3's in a register, a byte as its negative: mov dl, -0x5e for push 0xa2), allocation sizes and structure offsets of PM's layouts, stack adjustments, error lines; one (0x0055d2d0) masks a 15-bit colour's red with 0xfc00 where MW3 keeps the upper bits, the add that follows being 16-bit, the same result |
+| 0x00527500 | 38 | unlabelled |  |
+| 0x005275d0 | 30 | unlabelled |  |
 
