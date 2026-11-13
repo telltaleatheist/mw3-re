@@ -526,3 +526,42 @@ TEST(pm_wire_orders_idle_but_on_the_built_in_net) {
   pm_pop_order(b);
   b.set_net(nullptr);
 }
+
+// PM's lance orders on a brain (Brain::lance_order under PM's AI, 0x004fb420..; the logic is test_pm_lance_orders.py's):
+// an enemy followed on its ten-slot net and kept as the firing's target, the stop back to the first order, the
+// formation net, an order on the pilot's own vehicle refused, "ally" refused on an enemy.
+TEST(pm_wire_lance_orders_on_the_brain) {
+  struct Lance : Fake {
+    AiTarget enemy;
+    AiTarget* targetable(Handle v) override { return v == 7 ? &self : v == 8 ? &enemy : nullptr; }
+  } f;
+  f.enemy.team = 4;  // in the pilot's enemies (every bit but 0), not its allies (none)
+  Installed in(&f);
+  AiParams rec;
+  rec.raw[0xce] |= 2;  // the order may be left (0x004fa320)
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  mech3::ai::VehicleNet base(9);
+  EXPECT(b.set_net(&base));
+  const size_t n = b.orders.size();
+  Contact on{};
+  on.seen = 8;
+  EXPECT(pm_lance_order(b, 3, &on) == 1);  // attack: followed and kept
+  VehicleNet* vn = pm_vehicle_net(8);
+  EXPECT(vn && b.orders.size() == n + 1 && b.current().net && b.current().net->net() == vn);
+  EXPECT(b.current().state && b.current().state->from == vn->follow());
+  EXPECT(pm_firing(b, 7).pick.prefer == 8);
+  EXPECT(pm_lance_order(b, 9, &on) == 1);  // stop: back to the first order, the target dropped
+  EXPECT(b.orders.size() == 1 && pm_firing(b, 7).pick.prefer == 0);
+  EXPECT(pm_lance_order(b, 1, &on) == 1);  // form up: the formation net over the first
+  EXPECT(b.orders.size() == 2 && b.current().net && b.current().net->net() == f.formation_net());
+  on.seen = 7;
+  EXPECT(pm_lance_order(b, 0, &on) == 0 && b.orders.size() == 2);  // its own vehicle: refused
+  on.seen = 8;
+  EXPECT(pm_lance_order(b, 4, &on) == 0 && b.orders.size() == 2);  // "ally" on an enemy: refused
+  while (b.orders.size() > 1) pm_pop_order(b);
+  b.set_net(nullptr);
+  delete f.self.net;
+  delete f.enemy.net;
+}

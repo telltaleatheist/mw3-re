@@ -173,6 +173,7 @@ it is clear what the designers meant.
 
 ## Crashes and broken data that no longer break the game
 
+- Pirate's Moon: an attack or defend order to a lancemate on something that has no vehicle behind it is answered "disregard" instead of crashing the game.
 - Pirate's Moon: an Instant Action Progression wave written with more than six mechs, or a wave line without its loadout, no longer reads past the end (the screen shows the first six; the line is skipped).
 - When the game turns a mech's triangles into strips as it loads it (in 3D-card mode), it no longer reads past its own list of the mech's faces. In the original that read was harmless in practice (the shipped mechs never join there); the rebuild skips it, and the mechs come out the same.
 

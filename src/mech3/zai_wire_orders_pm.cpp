@@ -6,7 +6,10 @@
 #include "mech3/zai_brain_pm.h"
 #include "mech3/zai_steps.h"
 #include "mech3/zai_valve.h"
+#include "mech3/zai_target.h"
 #include "mech3/zai_wire_attack_pm.h"
+#include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_nets_pm.h"
 #include "mech3/zai_wire_pm.h"
 
 namespace mech3::ai {
@@ -215,6 +218,52 @@ bool pm_order_leavable(Brain& b) {
   AiNet* n = o.net ? o.net->net() : nullptr;
   if (n && dynamic_cast<BuiltinNet*>(n)) return false;
   return !o.state || o.state->may_leave();
+}
+
+namespace {
+// PM's lance orders on the brain: the contact is the order's own (one per call), the orders the brain's MW3 deque.
+struct OnLance : LancePmHooks {
+  OnLance(Brain& b, Contact* c) : b(b), c(c), h(brain_hooks()) {}
+  zgame::Handle own_vehicle() override { return b.controls ? b.controls->vehicle() : 0; }
+  zgame::Handle contact_vehicle(zgame::Handle) override { return c ? h.contact_entity(c) : 0; }
+  bool leavable() override { return pm_order_leavable(b); }
+  zgame::Handle vehicle_net(zgame::Handle v) override {  // PM's ten slots
+    return pm_id(static_cast<AiNet*>(pm_vehicle_net(v)));
+  }
+  zgame::Handle follow_behaviour(zgame::Handle net) override {  // 0x004c7920: slot 0
+    auto* vn = dynamic_cast<VehicleNet*>(static_cast<AiNet*>(pm_ptr(net)));
+    return pm_id(vn ? vn->follow() : nullptr);
+  }
+  void give(zgame::Handle net, zgame::Handle beh) override {
+    pm_give_order(b, static_cast<AiNet*>(pm_ptr(net)), static_cast<Behaviour*>(pm_ptr(beh)));
+  }
+  zgame::Handle first_order() override { return b.orders.empty() ? 0 : 1; }
+  void pop_to(zgame::Handle) override {
+    while (b.orders.size() > 1) pm_pop_order(b);
+  }
+  int32_t give_net(zgame::Handle net) override {
+    pm_give_order(b, static_cast<AiNet*>(pm_ptr(net)), nullptr);
+    return 1;
+  }
+  zgame::Handle formation() override { return pm_id(static_cast<AiNet*>(h.formation_net())); }
+  uint32_t team(zgame::Handle v) override { return h.targetable(v) ? h.targetable(v)->team : 0; }
+  uint32_t allies(zgame::Handle own) override { return h.targetable(own) ? h.targetable(own)->allies : 0; }
+  uint32_t enemies(zgame::Handle own) override { return h.targetable(own) ? h.targetable(own)->enemies : 0; }
+  void keep(zgame::Handle target) override {
+    if (const zgame::Handle v = own_vehicle()) pm_firing(b, v).pick.prefer = target;
+  }
+  int32_t refit() override { return h.refit(b); }
+  bool has_radio() override { return b.radio != nullptr; }
+  void radio_line(int32_t line) override { h.radio_line(b, line); }
+  Brain& b;
+  Contact* c;
+  BrainHooks& h;
+};
+}  // namespace
+
+int32_t pm_lance_order(Brain& b, int32_t order, Contact* c) {
+  OnLance h(b, c);
+  return lance_order_pm(h, order, 1);
 }
 
 }  // namespace mech3::ai

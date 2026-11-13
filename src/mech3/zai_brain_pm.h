@@ -247,6 +247,31 @@ void stop_orders_pm(OrdersPmHooks& h, OrdersPm& o);           // 0x004ea5f0
 void give_order_pm(OrdersPmHooks& h, OrdersPm& o, zgame::Handle net, zgame::Handle behaviour);  // 0x004ea740
 void push_behaviour_pm(OrdersPmHooks& h, OrdersPm& o, zgame::Handle behaviour);                 // 0x004ea7f0
 
+// PM's lance orders (the orders the dispatcher 0x0046b4d0 picks, 0x004fb420..0x004fb7f0, on the brain's slots
+// vt+0x2c..+0x54): what each calls, for the exe's order of calls. A contact is the order's object (its handle).
+class LancePmHooks {
+ public:
+  virtual ~LancePmHooks() = default;
+  virtual zgame::Handle own_vehicle() = 0;                        // the brain's +0x11c (through the virtual base)
+  virtual zgame::Handle contact_vehicle(zgame::Handle c) = 0;     // 0x004f8d70
+  virtual bool leavable() = 0;                                    // 0x004fa320
+  virtual zgame::Handle vehicle_net(zgame::Handle v) = 0;         // vt+0xe4
+  virtual zgame::Handle follow_behaviour(zgame::Handle net) = 0;  // 0x004c7920
+  virtual void give(zgame::Handle net, zgame::Handle beh) = 0;    // 0x004fa150
+  virtual zgame::Handle first_order() = 0;                        // 0x004fa1d0 (0x004eab10)
+  virtual void pop_to(zgame::Handle first) = 0;                   // 0x004fa1b0 (0x004ea8d0)
+  virtual int32_t give_net(zgame::Handle net) = 0;                // 0x004fa130 (0x004ea690), its low byte
+  virtual zgame::Handle formation() = 0;                          // 0x00627c18
+  virtual uint32_t team(zgame::Handle v) = 0;                     // vt+0x28's +0xc0
+  virtual uint32_t allies(zgame::Handle own) = 0;                 // +0xc4
+  virtual uint32_t enemies(zgame::Handle own) = 0;                // +0xc8
+  virtual void keep(zgame::Handle target) = 0;                    // the brain's +0x124's +0x8c
+  virtual int32_t refit() = 0;                                    // vt+0x48 (0x004fb850)
+  virtual bool has_radio() = 0;                                   // +0x2c8
+  virtual void radio_line(int32_t line) = 0;                      // 0x004f8ae0 on the radio's word `line`
+};
+int32_t lance_order_pm(LancePmHooks& h, int32_t order, zgame::Handle contact);
+
 }  // namespace mech3::ai
 
 #endif
