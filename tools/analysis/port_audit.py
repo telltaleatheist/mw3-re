@@ -265,6 +265,18 @@ def write_doc(o, g, rows):
            'container code, or covered where the port names it); **replaced** (SDL or the platform layer); **PORT (preserve)**',
            '(debug and dev tools, unused code: to be ported for preservation, not called by the game); **MISSING LOGIC**',
            '(runs in play and the port does not, or does it differently); **UNSURE** (what would settle it is said).', '']
+    if o.game == 'pm':
+        out += ['## Method (pm)', '',
+                'Each PM function is paired with its MW3 twin by analysis-output/pm-diff (pairs.json, addrmap.json). A pair',
+                'the diff calls identical takes the MW3 label ("as MW3 ..."). A changed pair under a shared port was read:',
+                'those whose control flow differs from the twin\'s one by one, by file; those whose text differs but not their',
+                'control flow either by reading or by **the feature compare** (tools/analysis/pm_feature_compare.py, at commit',
+                '74b81af8): the calls and data references (MW3\'s mapped to PM), the immediates and the float constants by their',
+                'raw values, as multisets over the function, field offsets reported apart (PM\'s layouts shift them). A sample',
+                'of 40, read whole, found no change the compare does not flag; the functions it flags are read one by one, the rest',
+                'are labelled "folded, by the feature compare". **Checked by test** means a passing PM differential test ran the',
+                'function\'s body (a block trace of the emulator, per entry the test calls) and compares what that body',
+                'produces; the label names the compared value. Reaching a function, or running a caller, is not enough.', '']
     from collections import Counter as C
     cnt = C(lab or 'unlabelled' for _, lab, _ in done)
     out += ['| Class | Functions |', '|---|---|'] + [f'| {LABEL_WORDS.get(k, k)} | {n} |' for k, n in cnt.most_common()] + ['']
