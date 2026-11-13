@@ -29,14 +29,14 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 2602 |
-| unlabelled | 1721 |
+| folded | 2607 |
+| unlabelled | 1717 |
 | replaced (SDL or the platform layer) | 230 |
-| MISSING LOGIC | 141 |
+| MISSING LOGIC | 146 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 107 |
 | software renderer | 106 |
 | debug or dev tool: PORT (preserve) | 84 |
-| UNSURE | 81 |
+| UNSURE | 75 |
 | unused: PORT (preserve) | 61 |
 | dev dialog (MFC), its window plumbing: replaced | 48 |
 | dev dialog (MFC), its logic: PORT (preserve) | 35 |
@@ -61,6 +61,8 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x0047be40** (1 functions, 29 decomp lines; MISSING LOGIC): pm only, field bases: the MCB waynet's nearest point (0x0047c960, MW3 0x0047a680, the port's McbWaynet::nearest, mech_waynet.cpp:312): PM walks the waynet's points itself (0x0047be40 with 0x0047bdc0 / 0x0047bde0) and takes the nearest whose hidden byte (+0x11) is clear, selecting nothing when none is; MW3's (0x00479b50, the port's Waynet::nearest, mech_waynet.cpp:195) asks the net's nearest step and falls back to the current point. PM hides the dock points that aren't static MFBs as it counts them (the port's dock_count, mech_waynet.cpp:417), so on PM the port can pick a hidden point where PM would not
 - **0x00482ca0** (1 functions, 193 decomp lines; MISSING LOGIC): PM's sound range at low detail (pm only): at start-up PM sets [0x00613488] to 0.5 when the object detail is 2 (0x0040b1e0), else 1 (0x00482ca0 -> 0x00591830), and a sound's default RANGE (50 400) is scaled by it (0x005912a0, MW3's 0x005700f0 unscaled): at low detail every sound without its own RANGE is heard to 25 / 200 m. The port's start-up and the sound set's defaults are MW3's
 - **0x004838b0** (1 functions, 184 decomp lines; MISSING LOGIC): group A, read: PM's mission music (pm only): on a disc of more than five tracks PM plays from a random track on to the end of the disc (mode 3, [0x00607f28] = 3), where MW3 and the port play that one track (mode 6, app_states.cpp:390-392); with 2..5 tracks both pick by mission (PM through the pilot's vt+0x48, the port's vt+0x4c: to check it is the same call on PM's layout); a forced -cdN plays in whatever mode PM last set. The developer lines it writes (Dummy Frame, Let's Play) are 0x00410820's, developer only
+- **0x00488470, 0x004885b0** (2 functions, 147 decomp lines; MISSING LOGIC): pm only, visible: PM's menu background (vtable 0x005e6ea8, built in the screens: briefing, credits, controls, options; MW3's ScrollImage 0x00438cc0 / 0x0040a210, menu_widgets.cpp) scrolls by time: each update moves round(22.0 * dt + the carried fraction) pixels on each axis (steps +0xbc/+0xc0 = 22.0f, fractions +0xc4/+0xc8, 0.5 at 0x005de818), about 22 px a second; MW3 moves 1 px a frame, which the port keeps (FIX (B) frames owed at 33 ms: about 30 px a second). The view rect is (0, 0, w, h - 1) in PM; the object 8 bytes larger (moving at +0x140)
+- **0x0048eaf0, 0x0048f660, 0x0048f970** (3 functions, 607 decomp lines; MISSING LOGIC): pm only, Instant Action's kept line-up: PM keeps the allies' and enemies' mechs in the pilot's game record by item value (the mech number; the field base's -1 or 10; ACCEPT 0x0048eaf0 through 0x00439620) and each enemy's loadout by its place among the mech's loadouts (0x004279e0), not its row in the cycle; it restores them by value (0x0048a2e0; reset 0x0048f970 for the allies, 0x0048f660 for the enemies, the loadout reset to 0 when past the mech's count). The port keeps and restores row indices (action_menu.cpp keep_lineup, show_custom, reset) in the same record fields, which it writes to the pilot file (pilot_games.cpp ActionGame::save). So a pilot saved by the original PM brings back other enemies and allies in the port, and the other way round (rows with none first are one off). Also, with no kept enemies (a new pilot's -1), PM's first enemy is mech 0 with its loadouts listed (hidden ones left out, message 0xd75 for a hidden first); MW3 and the port pick the player's mech. 0x0048f970 and 0x0048eaf0 are put here for this; their other differences are read with the unlabelled pass
 - **0x004943e0** (1 functions, 13 decomp lines; MISSING LOGIC): pm only, multiplayer: a network respawn's objectives reload. PM frees them (0x0045d530) and reads them again through the game's vt+0x3c (0x00435140 for the multiplayer game: objectives.zrd's mp<N>, vt+0x58 0x00436580, for every map), then clears the ended and aborting bytes; the port's objectives_again (mission.cpp:532) is MW3's 0x00491050, maps past 2 from mpinfo.zrd, which PM does not ship (no archive holds it), so on PM a respawn on map 3 or later reads no objectives
 - **0x004a3200** (1 functions, 83 decomp lines; MISSING LOGIC): pm only, vehicles, traced: PM's vehicle collision record (0x004a3cb0) puts hits on a mech's part nodes (0x0040f210, the part's owner) in a new list +0x358 and other entities' (0x0040f1a0) in +0x354, dropping one whose object's byte +8 is 0; the step (0x004a3200, MW3 0x004a09e0) answers either list with 0x004a4320, which runs the collision response 0x004a3e40 (MW3 0x004a0b40) on +0x354 only, and sets the hit flag (+0x374) for both. So in PM a vehicle that runs into a mech is flagged as hit but gets no response from the mech's parts (MW3 and the port respond to every entity hit: veh_move.cpp vehicle_collision_query, one list); the flag still keeps the ground step's own response (the end of 0x004a3200) from running
 - **0x004abc60** (1 functions, 93 decomp lines; MISSING LOGIC): pm only, minor, sensors: PM's sensor frame set-up (0x004abc60, MW3's 0x004a8710, inside the update 0x004ac1e0 / MW3 0x004a8cd0) adds the player and handles the stealth but not the view target; PM's per-entity add (0x004ac6c0, MW3 0x004a91b0) skips only the player and the stealth, so a viewed vehicle that isn't the player comes in list order and only when its vehicle answers vt+0xd8. MW3 adds the view second, whatever its answer, and the port does as MW3 (sensors.cpp:482-485, and the loop's skip of the view at :487); the order sets which pairs run first (the player's, the lancemates', the rest)
@@ -407,12 +409,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x0041e0f0 (1 functions, 9 decomp lines): as MW3 0x0041d300: the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle
 - 0x0041e180 (1 functions, 23 decomp lines): as MW3 0x0041d380: the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle
 - 0x0041ed00 (1 functions, 52 decomp lines): as MW3 0x0041dd90: the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle
-- 0x004854e0 (1 functions, 22 decomp lines): read with group A: a callee of shared ports PM changed (0x004826e0); whether the port does PM's version, this call included, is settled there
-- 0x00488470 (1 functions, 34 decomp lines): read with group A: a callee of shared ports PM changed (0x00404d70, 0x0042a5e0, 0x0042bb80); whether the port does PM's version, this call included, is settled there
-- 0x0048bdf0 (1 functions, 9 decomp lines): read with group A: a callee of shared ports PM changed (0x004916c0); whether the port does PM's version, this call included, is settled there
-- 0x0048f660 (1 functions, 142 decomp lines): read with group A: a callee of shared ports PM changed (0x0048f970); whether the port does PM's version, this call included, is settled there
-- 0x0048fd90 (1 functions, 19 decomp lines): read with group A: a callee of shared ports PM changed (0x0048f240, 0x0048f2a0); whether the port does PM's version, this call included, is settled there
-- 0x00491ea0 (1 functions, 17 decomp lines): read with group A: a callee of shared ports PM changed (0x0048f240); whether the port does PM's version, this call included, is settled there
 - 0x004a70c0, 0x004aaf40 (2 functions, 20 decomp lines): read with group A: a callee of shared ports PM changed (0x004b1030); whether the port does PM's version, this call included, is settled there
 - 0x004a71f0, 0x004aaf80 (2 functions, 63 decomp lines): read with group A: a callee of shared ports PM changed (0x004b10b0); whether the port does PM's version, this call included, is settled there
 - 0x004a7390 (1 functions, 23 decomp lines): read with group A: a callee of shared ports PM changed (0x004a2220, 0x004a95f0); whether the port does PM's version, this call included, is settled there
@@ -1960,7 +1956,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00485130 | 17 | folded | as MW3 0x004822e0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x004852f0 | 31 | folded | as MW3 0x004828d0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00485480 | 29 | folded | inside its ported callers (0x004826e0): a small helper their ports do their own way |
-| 0x004854e0 | 22 | UNSURE | read with group A: a callee of shared ports PM changed (0x004826e0); whether the port does PM's version, this call included, is settled there |
+| 0x004854e0 | 22 | folded | read: PM's disc check (data.tag on any CD-ROM drive, retried with the app's prompt vt+0xc0), from InitInstance 0x004826e0; removed as FIX (trap) like MW3's self-check (app.cpp:168, docs/protection.md, docs/pm-map.md) |
 | 0x00485530 | 12 | folded | inside its ported callers (0x004826e0): a small helper their ports do their own way |
 | 0x00485550 | 26 | replaced (SDL or the platform layer) | as MW3 0x00482c50: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
 | 0x004855b0 | 8 | folded | returns a constant or a global |
@@ -2036,11 +2032,11 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00488370 | 12 | unlabelled |  |
 | 0x004883a0 | 38 | unlabelled |  |
 | 0x00488450 | 10 | unlabelled |  |
-| 0x00488470 | 34 | UNSURE | read with group A: a callee of shared ports PM changed (0x00404d70, 0x0042a5e0, 0x0042bb80); whether the port does PM's version, this call included, is settled there |
+| 0x00488470 | 34 | MISSING LOGIC | pm only, visible: PM's menu background (vtable 0x005e6ea8, built in the screens: briefing, credits, controls, options; MW3's ScrollImage 0x00438cc0 / 0x0040a210, menu_widgets.cpp) scrolls by time: each update moves round(22.0 * dt + the carried fraction) pixels on each axis (steps +0xbc/+0xc0 = 22.0f, fractions +0xc4/+0xc8, 0.5 at 0x005de818), about 22 px a second; MW3 moves 1 px a frame, which the port keeps (FIX (B) frames owed at 33 ms: about 30 px a second). The view rect is (0, 0, w, h - 1) in PM; the object 8 bytes larger (moving at +0x140) |
 | 0x00488530 | 10 | unlabelled |  |
 | 0x00488560 | 14 | unlabelled |  |
-| 0x004885b0 | 113 | unlabelled |  |
-| 0x00488880 | 32 | unlabelled |  |
+| 0x004885b0 | 113 | MISSING LOGIC | pm only, visible: PM's menu background (vtable 0x005e6ea8, built in the screens: briefing, credits, controls, options; MW3's ScrollImage 0x00438cc0 / 0x0040a210, menu_widgets.cpp) scrolls by time: each update moves round(22.0 * dt + the carried fraction) pixels on each axis (steps +0xbc/+0xc0 = 22.0f, fractions +0xc4/+0xc8, 0.5 at 0x005de818), about 22 px a second; MW3 moves 1 px a frame, which the port keeps (FIX (B) frames owed at 33 ms: about 30 px a second). The view rect is (0, 0, w, h - 1) in PM; the object 8 bytes larger (moving at +0x140) |
+| 0x00488880 | 32 | folded | read: PM's menu background draw, MW3's 0x0040a490 (ScrollImage::draw) with its piece count read from data (0x00609588 = 4, never written) and PM's offsets |
 | 0x00488900 | 30 | unlabelled |  |
 | 0x004889d0 | 67 | unlabelled |  |
 | 0x00488bd0 | 20 | unlabelled |  |
@@ -2079,7 +2075,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0048b510 | 10 | unused: PORT (preserve) | fd0 read: the list box's arrows as MW3's 0x0048c910 plus two PM bytes that keep UP (+0x1e0) and DOWN (+0x1e1) enabled; the pm port has the arrows without them (menu_widgets.cpp:1264-1330). Only 0x0048b510 sets them, from the pilot screen's training case (0x004916c0 case 4), which PM's menu doesn't reach (pm-mech-step.md:472), so no shipped path shows it |
 | 0x0048bce0 | 35 | folded | inside its ported callers (0x004916c0): a small helper their ports do their own way |
 | 0x0048bd50 | 57 | folded | checked by test (block trace, 2026-11-13): test_pm_lobby_lines' lines 0x0049bb70 run it; the two lists' lines read after and compared |
-| 0x0048bdf0 | 9 | UNSURE | read with group A: a callee of shared ports PM changed (0x004916c0); whether the port does PM's version, this call included, is settled there |
+| 0x0048bdf0 | 9 | folded | read: a widget's select, vt+0xa0 called through (a thunk) |
 | 0x0048c450 | 60 | unlabelled |  |
 | 0x0048c610 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:397) |
 | 0x0048c860 | 103 | unlabelled |  |
@@ -2120,16 +2116,16 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0048e840 | 20 | unlabelled |  |
 | 0x0048e890 | 12 | folded | covered by the port where it names it (src/mech3/action_menu.h:100) |
 | 0x0048e8b0 | 81 | unlabelled |  |
-| 0x0048eaf0 | 291 | unlabelled |  |
+| 0x0048eaf0 | 291 | MISSING LOGIC | pm only, Instant Action's kept line-up: PM keeps the allies' and enemies' mechs in the pilot's game record by item value (the mech number; the field base's -1 or 10; ACCEPT 0x0048eaf0 through 0x00439620) and each enemy's loadout by its place among the mech's loadouts (0x004279e0), not its row in the cycle; it restores them by value (0x0048a2e0; reset 0x0048f970 for the allies, 0x0048f660 for the enemies, the loadout reset to 0 when past the mech's count). The port keeps and restores row indices (action_menu.cpp keep_lineup, show_custom, reset) in the same record fields, which it writes to the pilot file (pilot_games.cpp ActionGame::save). So a pilot saved by the original PM brings back other enemies and allies in the port, and the other way round (rows with none first are one off). Also, with no kept enemies (a new pilot's -1), PM's first enemy is mech 0 with its loadouts listed (hidden ones left out, message 0xd75 for a hidden first); MW3 and the port pick the player's mech. 0x0048f970 and 0x0048eaf0 are put here for this; their other differences are read with the unlabelled pass |
 | 0x0048f130 | 33 | unlabelled |  |
 | 0x0048f1c0 | 31 | unlabelled |  |
 | 0x0048f240 | 17 | unlabelled |  |
 | 0x0048f2a0 | 24 | unlabelled |  |
 | 0x0048f300 | 66 | unlabelled |  |
-| 0x0048f660 | 142 | UNSURE | read with group A: a callee of shared ports PM changed (0x0048f970); whether the port does PM's version, this call included, is settled there |
-| 0x0048f970 | 174 | unlabelled |  |
+| 0x0048f660 | 142 | MISSING LOGIC | pm only, Instant Action's kept line-up: PM keeps the allies' and enemies' mechs in the pilot's game record by item value (the mech number; the field base's -1 or 10; ACCEPT 0x0048eaf0 through 0x00439620) and each enemy's loadout by its place among the mech's loadouts (0x004279e0), not its row in the cycle; it restores them by value (0x0048a2e0; reset 0x0048f970 for the allies, 0x0048f660 for the enemies, the loadout reset to 0 when past the mech's count). The port keeps and restores row indices (action_menu.cpp keep_lineup, show_custom, reset) in the same record fields, which it writes to the pilot file (pilot_games.cpp ActionGame::save). So a pilot saved by the original PM brings back other enemies and allies in the port, and the other way round (rows with none first are one off). Also, with no kept enemies (a new pilot's -1), PM's first enemy is mech 0 with its loadouts listed (hidden ones left out, message 0xd75 for a hidden first); MW3 and the port pick the player's mech. 0x0048f970 and 0x0048eaf0 are put here for this; their other differences are read with the unlabelled pass |
+| 0x0048f970 | 174 | MISSING LOGIC | pm only, Instant Action's kept line-up: PM keeps the allies' and enemies' mechs in the pilot's game record by item value (the mech number; the field base's -1 or 10; ACCEPT 0x0048eaf0 through 0x00439620) and each enemy's loadout by its place among the mech's loadouts (0x004279e0), not its row in the cycle; it restores them by value (0x0048a2e0; reset 0x0048f970 for the allies, 0x0048f660 for the enemies, the loadout reset to 0 when past the mech's count). The port keeps and restores row indices (action_menu.cpp keep_lineup, show_custom, reset) in the same record fields, which it writes to the pilot file (pilot_games.cpp ActionGame::save). So a pilot saved by the original PM brings back other enemies and allies in the port, and the other way round (rows with none first are one off). Also, with no kept enemies (a new pilot's -1), PM's first enemy is mech 0 with its loadouts listed (hidden ones left out, message 0xd75 for a hidden first); MW3 and the port pick the player's mech. 0x0048f970 and 0x0048eaf0 are put here for this; their other differences are read with the unlabelled pass |
 | 0x0048fd60 | 13 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:144) |
-| 0x0048fd90 | 19 | UNSURE | read with group A: a callee of shared ports PM changed (0x0048f240, 0x0048f2a0); whether the port does PM's version, this call included, is settled there |
+| 0x0048fd90 | 19 | folded | read: before the Instant Action screen's reset, the world and scenario cycles (and the descriptions) select the pilot's kept world and scenario (its game's +0x38, +0x3c); the port's reset does the same first from action_setup(), which is the pilot's in PM (action_menu.cpp ActionScreen::reset) |
 | 0x0048fe80 | 9 | folded | follows 0x0048fe90: the lab file box name bar's focus setter: the edit bar's 0x005c80c0 plus a byte at +0x68c that none of the bar's 80 virtual methods reads (written only); the port's set_focus (lab_filebox.cpp:41); not run under a test (trace) |
 | 0x0048fe90 | 10 | folded | the lab file box name bar's focus setter: the edit bar's 0x005c80c0 plus a byte at +0x68c that none of the bar's 80 virtual methods reads (written only); the port's set_focus (lab_filebox.cpp:41); not run under a test (trace) |
 | 0x0048fed0 | 10 | folded | covered by the port where it names it (src/mech3/lab_filebox.cpp:44) |
@@ -2154,7 +2150,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00491d90 | 32 | unlabelled |  |
 | 0x00491e10 | 9 | folded | a thunk: one call to another function |
 | 0x00491e20 | 29 | unlabelled |  |
-| 0x00491ea0 | 17 | UNSURE | read with group A: a callee of shared ports PM changed (0x0048f240); whether the port does PM's version, this call included, is settled there |
+| 0x00491ea0 | 17 | folded | read: the pilot screen's mode set, MW3's 0x00488ad0 without the training branch (PM has no training): the games list shown and filled (0x004916c0); the port's PilotState::set_mode, whose training-only hiding does nothing in PM's modes (pilot_menu.cpp show_lists shows those three cycles only in training) |
 | 0x00491ee0 | 9 | unlabelled |  |
 | 0x00491ef0 | 9 | folded | a thunk: one call to another function |
 | 0x00491f20 | 9 | unlabelled | follows 0x00491f50:  |
