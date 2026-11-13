@@ -4,7 +4,7 @@ and writes the folds whose constants, immediates or calls differ to OUT.json.
 
     pm_shape_back.py OUT.json
 """
-import sys,re,json,difflib; sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.abspath(__file__)))
+import sys,re,json,difflib,collections; sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.abspath(__file__)))
 import pm_feature_compare as F, pm_shape_compare as P
 COMPARE=re.compile(r'feature compare|slot pairing|layout-shift rule|deleting destructor')
 rows=[l.rstrip('\n').split('\t') for l in open('tools/analysis/port_audit_labels_pm.tsv') if l.count('\t')>=2]
