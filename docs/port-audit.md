@@ -11,17 +11,17 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2917 |
-| unlabelled | 226 |
-| replaced (SDL or the platform layer) | 138 |
-| software renderer | 110 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 91 |
-| debug or dev tool: PORT (preserve) | 67 |
+| folded | 2975 |
+| replaced (SDL or the platform layer) | 197 |
+| software renderer | 111 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 101 |
+| debug or dev tool: PORT (preserve) | 78 |
+| unused: PORT (preserve) | 74 |
+| unlabelled | 60 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
 | MISSING LOGIC | 50 |
-| unused: PORT (preserve) | 48 |
 | dev dialog (MFC), its logic: PORT (preserve) | 42 |
-| UNSURE | 22 |
+| UNSURE | 23 |
 
 ## MISSING LOGIC
 
@@ -35,10 +35,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x004f1cd0, 0x004f3d00, 0x004f3f70** (3 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them
 - **0x004f1d90, 0x004f1dc0, 0x004f2860, 0x004f2880, 0x004f32a0, 0x004f3550 ...** (27 functions, 819 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x004fd1e0, 0x004fd8c0** (2 functions, 54 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
+- **0x005076c0, 0x005a5400, 0x005a6650, 0x005a6760** (4 functions, 135 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
+- **0x0051f390, 0x0051f750** (2 functions, 276 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
 - **0x00526aa0, 0x00526ac0, 0x0053b960, 0x0053bb50, 0x0053bd60** (5 functions, 191 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
 - **0x00542060** (1 functions, 255 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
 - **0x00548250, 0x005484c0, 0x005485b0, 0x00548600, 0x00548650, 0x005487d0** (6 functions, 361 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it
 - **0x00579230** (1 functions, 11 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the script command VideoSetWireFrame: the engine entry is null in the port (hook_allow: counted) and no shipped script uses it
+- **0x005a6a10** (1 functions, 45 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): Line2D's reader from a dialog .zrd (its COLOR and its end), shared by the line classes' vtables; inferred unused by shipped data (the dialog reader matches the exe on every shipped dialog without it), not checked file by file
+- **0x005a7c50, 0x005a7ca0, 0x005a7cd0** (3 functions, 47 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
 
 ## PORT (preserve)
 
@@ -56,7 +60,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 2 functions, 67 decomp lines (0x00518050, 0x005180a0): the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127)
 - 8 functions, 290 decomp lines (0x00519990, 0x005199e0, 0x00519a20, 0x00519a40 ...): the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 2 functions, 406 decomp lines (0x005360c0, 0x005380e0): the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool
+- 1 functions, 225 decomp lines (0x00575b00): the developer's stdout redirect (freopen to a log; editor.md:214)
 - 27 functions, 837 decomp lines (0x0058c590, 0x0058d3c0, 0x0058e440, 0x0058e460 ...): the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
+- 3 functions, 56 decomp lines (0x005960a0, 0x00596170, 0x00596190): the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532)
+- 6 functions, 173 decomp lines (0x005a0050, 0x005a3c40, 0x005a3cd0, 0x005a3de0 ...): the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
+- 1 functions, 17 decomp lines (0x005a98d0): the developers' loose <name>.zan override for motion scripts (motion.md:36), like the reader's loose .zrd files
 
 ### dev dialog (MFC), its logic: PORT (preserve)
 
@@ -85,9 +93,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 3 functions, 78 decomp lines (0x004fc4d0, 0x004fc990, 0x004fcca0): mechlib's material writer at close (0x004fc990 -> 0x004fcca0 -> 0x004fc4d0): dead (mechlib.md)
 - 1 functions, 15 decomp lines (0x005190e0): frees a chain of loaded textures; its only caller 0x005374d0 is unreached
 - 6 functions, 224 decomp lines (0x00519df0, 0x00519e50, 0x00519f70, 0x00519fa0 ...): zFont, the bitmap fonts from fonts.zrd: loaded at start-up (0x00519e50), split into glyphs, measured by id (0x0051a0d0), freed (0x00519f70), but nothing in 1.2 draws them (app_engine.cpp:318, twod.md section 4)
+- 1 functions, 51 decomp lines (0x0051af90): the input module's static object's list walk, whose caller 0x0051af70 nothing reaches (input.md:567)
+- 18 functions, 1112 decomp lines (0x0051e160, 0x00520c60, 0x00521080, 0x005214f0 ...): zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 15 functions, 3789 decomp lines (0x00530d90, 0x00531d90, 0x005331e0, 0x00534745 ...): large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 - 1 functions, 52 decomp lines (0x00548840): the puffers' wind step with a dt argument: dead code, never called (puffers.md)
 - 2 functions, 33 decomp lines (0x00557450, 0x00557490): the defines list's constructor and destructor, no caller reaches them (zreader.md:103)
+- 1 functions, 211 decomp lines (0x005706f0): sounds.zrd's SYNTAX 1 reader: no shipped or community data uses syntax 1 (symbols.csv, sound.md:41)
+- 3 functions, 285 decomp lines (0x00571380, 0x00571f70, 0x005746b0): the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38)
+- 2 functions, 86 decomp lines (0x00596a70, 0x00596c80): list teardown helpers whose callers (0x00596930, 0x00596c60) nothing reaches
+- 1 functions, 9 decomp lines (0x005a92d0): _rmtmp at zSave's stop, unreached
 
 ## UNSURE
 
@@ -96,6 +110,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 0x004c9d20, 0x004c9d70, 0x004c9db0, 0x004c9de0 (4 functions, 74 decomp lines): Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d7160 (1 functions, 12 decomp lines): an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it
 - 0x004dee50 (1 functions, 58 decomp lines): the aiv reader's vtable slot 0x005cd42c (58 lines): a name checked against zEntity's list (0x005a8210) and the reader's records (std::map find 0x004e1a30), no caller found; probably the editor's 'is this name free'; to settle by its slot and callers
+- 0x005a7e10 (1 functions, 47 decomp lines): zEntity's base constructor (0x005a7e10: its frames and, with a parent, the registration 0x005a8390 + 0x005a7f50); the port's AiTarget initialisers stand in (app_engine.cpp:312), but targets.zrd's CZAiTargets are not put on the entity list (ai.md:1537), so their vt+0x34 (0x005a8000, zEntity3d's step by its velocity and spin) does not run; harmless if nothing gives a target a velocity, not checked
 
 ## By module
 
@@ -3122,10 +3137,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x0051af60 | 9 | unlabelled | follows 0x0051b020:  |
+| 0x0051af60 | 9 | folded | follows 0x0051b020: the input module's static object's constructor (zeroes its lists); the port's members start empty |
 | 0x0051af70 | 9 | folded | a thunk: one call to another function |
-| 0x0051af90 | 51 | unlabelled |  |
-| 0x0051b020 | 16 | unlabelled |  |
+| 0x0051af90 | 51 | unused: PORT (preserve) | the input module's static object's list walk, whose caller 0x0051af70 nothing reaches (input.md:567) |
+| 0x0051b020 | 16 | folded | the input module's static object's constructor (zeroes its lists); the port's members start empty |
 | 0x0051b1e0 | 8 | folded | covered by the port where it names it (src/gamez/zinput/zin_init.cpp:71) |
 | 0x0051b1f0 | 8 | folded | covered by the port where it names it (src/gamez/zinput/zin_init.cpp:71) |
 | 0x0051b200 | 12 | folded | covered by the port where it names it (src/gamez/zinput/zin_init.cpp:88) |
@@ -3165,92 +3180,92 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0051d330 | 12 | folded | a thunk: one call to another function |
 | 0x0051d350 | 12 | folded | a thunk: one call to another function |
 | 0x0051d370 | 12 | folded | a thunk: one call to another function |
-| 0x0051daa0 | 16 | unlabelled |  |
-| 0x0051dae0 | 18 | unlabelled |  |
+| 0x0051daa0 | 16 | replaced (SDL or the platform layer) | DirectInput joystick properties (range and dead zone per axis); the port sets the dead zones through the platform (zin_joy.cpp:60) |
+| 0x0051dae0 | 18 | replaced (SDL or the platform layer) | DirectInput joystick properties (range and dead zone per axis); the port sets the dead zones through the platform (zin_joy.cpp:60) |
 | 0x0051db30 | 21 | folded | covered by the port where it names it (src/gamez/zinput/zin_joy.cpp:47) |
 | 0x0051db80 | 21 | folded | covered by the port where it names it (src/gamez/zinput/zin_joy.cpp:46) |
 | 0x0051dda0 | 8 | folded | returns a constant or a global |
 | 0x0051e060 | 13 | folded | covered by the port where it names it (src/mech3/zai_repair.cpp:196) |
 | 0x0051e0a0 | 13 | folded | ported, by docs/symbols.csv: ported inline (zai_node flat_distance) |
-| 0x0051e160 | 29 | unlabelled |  |
-| 0x0051e1c0 | 17 | unlabelled |  |
+| 0x0051e160 | 29 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x0051e1c0 | 17 | folded | the 2D normalise, inline in its ported caller (0x00524247) |
 | 0x0051e380 | 16 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:596) |
-| 0x0051f390 | 136 | unlabelled |  |
-| 0x0051f750 | 140 | unlabelled |  |
+| 0x0051f390 | 136 | MISSING LOGIC (only data the shipped game lacks reaches it) | billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27) |
+| 0x0051f750 | 140 | MISSING LOGIC (only data the shipped game lacks reaches it) | billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27) |
 | 0x00520082 | 83 | folded | a piece of the ported function before it (Ghidra split it there) (0x0051fee0) |
-| 0x00520c60 | 154 | unlabelled |  |
-| 0x00521080 | 169 | unlabelled |  |
-| 0x005214f0 | 67 | unlabelled |  |
-| 0x00521a90 | 61 | unlabelled |  |
-| 0x00521e10 | 89 | unlabelled |  |
-| 0x00522170 | 45 | unlabelled |  |
+| 0x00520c60 | 154 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00521080 | 169 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x005214f0 | 67 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00521a90 | 61 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00521e10 | 89 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00522170 | 45 | folded | pitch and yaw to a direction, ported where the game uses it (mission_world.cpp:82, mech_objective.cpp:122); but the HUD's hook for it, radar_view_dir (hud.h:876), is never overridden: see BROKEN |
 | 0x00522210 | 30 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:373) |
-| 0x00522280 | 49 | unlabelled |  |
-| 0x005223c0 | 17 | unlabelled |  |
+| 0x00522280 | 49 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x005223c0 | 17 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x00522460 | 16 | folded | covered by the port where it names it (src/mech3/player_view.cpp:107) |
-| 0x005224b0 | 50 | unlabelled |  |
-| 0x00523650 | 118 | unlabelled |  |
-| 0x00523df0 | 32 | unlabelled |  |
-| 0x00523ef0 | 33 | unlabelled |  |
+| 0x005224b0 | 50 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00523650 | 118 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00523df0 | 32 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00523ef0 | 33 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x005241b7 | 35 | folded | a piece of the ported function before it (Ghidra split it there) (0x00524020) |
 | 0x00524477 | 35 | folded | a piece of the ported function before it (Ghidra split it there) (0x00524020) |
 | 0x00524544 | 30 | folded | a piece of the ported function before it (Ghidra split it there) (0x00524020) |
 | 0x00524554 | 32 | folded | a piece of the ported function before it (Ghidra split it there) (0x00524020) |
 | 0x005245c7 | 85 | folded | a piece of the ported function before it (Ghidra split it there) (0x00524020) |
 | 0x00524967 | 97 | folded | a piece of the ported function before it (Ghidra split it there) (0x00524020) |
-| 0x00524f80 | 23 | unlabelled |  |
-| 0x00524fd0 | 19 | unlabelled |  |
-| 0x00525020 | 23 | unlabelled |  |
-| 0x005250a0 | 12 | unlabelled |  |
-| 0x005250f0 | 11 | unlabelled |  |
+| 0x00524f80 | 23 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00524fd0 | 19 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00525020 | 23 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x005250a0 | 12 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x005250f0 | 11 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x005251a0 | 28 | folded | covered by the port where it names it (src/gamez/zmath/zmth_vector.cpp:286) |
-| 0x00525fa0 | 156 | unlabelled |  |
-| 0x00526510 | 81 | unlabelled |  |
-| 0x00526780 | 25 | unlabelled |  |
-| 0x00526920 | 25 | unlabelled |  |
+| 0x00525fa0 | 156 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
+| 0x00526510 | 81 | folded | zModel's start, stop and per-mission free: the render state's defaults (gmod_draw.h:37), the pools freed at the app's stop (memory only, app_engine.cpp:325) and the mission's (models_free, app_mission.cpp:1868) |
+| 0x00526780 | 25 | folded | zModel's start, stop and per-mission free: the render state's defaults (gmod_draw.h:37), the pools freed at the app's stop (memory only, app_engine.cpp:325) and the mission's (models_free, app_mission.cpp:1868) |
+| 0x00526920 | 25 | folded | zModel's start, stop and per-mission free: the render state's defaults (gmod_draw.h:37), the pools freed at the app's stop (memory only, app_engine.cpp:325) and the mission's (models_free, app_mission.cpp:1868) |
 
 ### zsound (78 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x0056f460 | 16 | unlabelled |  |
+| 0x0056f460 | 16 | folded | zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
 | 0x0056f480 | 9 | folded | a thunk: one call to another function |
-| 0x0056f4d0 | 16 | unlabelled |  |
+| 0x0056f4d0 | 16 | folded | zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
 | 0x0056f4f0 | 9 | folded | a thunk: one call to another function |
-| 0x0056f570 | 19 | unlabelled |  |
-| 0x0056f760 | 98 | unlabelled |  |
+| 0x0056f570 | 19 | folded | zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
+| 0x0056f760 | 98 | folded | covered where named: the sound set's build (zsnd_init.cpp:260, 265), the archive load (zsnd_parm.cpp:63), 3D placement (zsnd_3d.cpp:138), the group chain step (zsnd_grp.cpp:170) |
 | 0x0056f990 | 18 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:150) |
-| 0x0056f9d0 | 89 | unlabelled |  |
+| 0x0056f9d0 | 89 | folded | covered where named: the sound set's build (zsnd_init.cpp:260, 265), the archive load (zsnd_parm.cpp:63), 3D placement (zsnd_3d.cpp:138), the group chain step (zsnd_grp.cpp:170) |
 | 0x0056fbd0 | 11 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_init.cpp:265) |
-| 0x0056ffc0 | 52 | unlabelled |  |
-| 0x00570068 | 43 | unlabelled | follows 0x0056ffc0:  |
+| 0x0056ffc0 | 52 | folded | covered where named: the sound set's build (zsnd_init.cpp:260, 265), the archive load (zsnd_parm.cpp:63), 3D placement (zsnd_3d.cpp:138), the group chain step (zsnd_grp.cpp:170) |
+| 0x00570068 | 43 | folded | follows 0x0056ffc0: covered where named: the sound set's build (zsnd_init.cpp:260, 265), the archive load (zsnd_parm.cpp:63), 3D placement (zsnd_3d.cpp:138), the group chain step (zsnd_grp.cpp:170) |
 | 0x005700a0 | 26 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:150) |
-| 0x005706f0 | 211 | unlabelled |  |
-| 0x00571380 | 39 | unlabelled |  |
+| 0x005706f0 | 211 | unused: PORT (preserve) | sounds.zrd's SYNTAX 1 reader: no shipped or community data uses syntax 1 (symbols.csv, sound.md:41) |
+| 0x00571380 | 39 | unused: PORT (preserve) | the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38) |
 | 0x005715c0 | 9 | folded | a thunk: one call to another function |
-| 0x005716d0 | 22 | unlabelled |  |
+| 0x005716d0 | 22 | folded | zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
 | 0x00571730 | 9 | folded | a thunk: one call to another function |
 | 0x00571810 | 20 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_3d.cpp:27) |
 | 0x00571830 | 35 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_3d.cpp:27) |
 | 0x005718f0 | 32 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_3d.cpp:95) |
 | 0x00571940 | 77 | folded | ported, by docs/symbols.csv: ported: 2500/s, ends only on an exact landing |
-| 0x00571f70 | 48 | unlabelled |  |
-| 0x00572050 | 113 | unlabelled |  |
-| 0x005723a0 | 17 | unlabelled |  |
+| 0x00571f70 | 48 | unused: PORT (preserve) | the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38) |
+| 0x00572050 | 113 | folded | covered where named: the sound set's build (zsnd_init.cpp:260, 265), the archive load (zsnd_parm.cpp:63), 3D placement (zsnd_3d.cpp:138), the group chain step (zsnd_grp.cpp:170) |
+| 0x005723a0 | 17 | folded | zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
 | 0x005723d0 | 9 | folded | a thunk: one call to another function |
 | 0x005728b0 | 19 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_cd.cpp:24) |
-| 0x00572ec0 | 14 | unlabelled |  |
-| 0x00572ee0 | 40 | unlabelled |  |
+| 0x00572ec0 | 14 | replaced (SDL or the platform layer) | the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
+| 0x00572ee0 | 40 | replaced (SDL or the platform layer) | the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
 | 0x00573040 | 8 | folded | covered by the port where it names it (src/mech3/app_hooks.h:508) |
-| 0x00573060 | 40 | unlabelled |  |
-| 0x00573140 | 18 | unlabelled |  |
-| 0x00573170 | 29 | unlabelled |  |
-| 0x005731f0 | 27 | unlabelled |  |
+| 0x00573060 | 40 | replaced (SDL or the platform layer) | the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
+| 0x00573140 | 18 | replaced (SDL or the platform layer) | the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
+| 0x00573170 | 29 | replaced (SDL or the platform layer) | the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
+| 0x005731f0 | 27 | replaced (SDL or the platform layer) | the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
 | 0x005739f0 | 203 | folded | ported, by docs/symbols.csv: ported |
 | 0x00573cc0 | 50 | folded | ported, by docs/symbols.csv: ported: group state machine |
 | 0x00573da0 | 30 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:141) |
 | 0x00573e00 | 87 | folded | ported, by docs/symbols.csv: ported: weighted rand pick, dynamic weights |
-| 0x00573f90 | 96 | unlabelled |  |
+| 0x00573f90 | 96 | folded | covered where named: the sound set's build (zsnd_init.cpp:260, 265), the archive load (zsnd_parm.cpp:63), 3D placement (zsnd_3d.cpp:138), the group chain step (zsnd_grp.cpp:170) |
 | 0x00574120 | 23 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:162) |
 | 0x00574159 | 8 | folded | follows 0x00574120: covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:162) |
 | 0x00574170 | 24 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:216) |
@@ -3264,32 +3279,32 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00574590 | 27 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:247) |
 | 0x005745f0 | 11 | folded | a thunk: one call to another function |
 | 0x00574660 | 13 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_cd.cpp:32) |
-| 0x005746b0 | 198 | unlabelled |  |
-| 0x00574c90 | 17 | unlabelled |  |
+| 0x005746b0 | 198 | unused: PORT (preserve) | the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38) |
+| 0x00574c90 | 17 | folded | zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
 | 0x00574cc0 | 9 | folded | a thunk: one call to another function |
 | 0x00574d40 | 24 | folded | covered by the port where it names it (src/gamez/zsound/zsnd.h:336) |
-| 0x00574d90 | 14 | unlabelled |  |
-| 0x00574f10 | 23 | unlabelled |  |
+| 0x00574d90 | 14 | replaced (SDL or the platform layer) | DirectSound buffers: made from a WAV (0x00574ff0) and released (0x00574d90, 0x00574f10); SDL audio holds the port's |
+| 0x00574f10 | 23 | replaced (SDL or the platform layer) | DirectSound buffers: made from a WAV (0x00574ff0) and released (0x00574d90, 0x00574f10); SDL audio holds the port's |
 | 0x00574fd0 | 15 | folded | covered by the port where it names it (src/gamez/zsound/zsnd.h:326) |
-| 0x00574ff0 | 101 | unlabelled |  |
-| 0x00575b00 | 225 | unlabelled |  |
-| 0x00575d00 | 11 | unlabelled |  |
-| 0x00575d10 | 8 | unlabelled |  |
-| 0x00575d40 | 63 | unlabelled |  |
-| 0x00575e30 | 39 | unlabelled |  |
-| 0x00575f30 | 17 | unlabelled |  |
-| 0x00575f70 | 12 | unlabelled |  |
-| 0x00575fd0 | 9 | unlabelled | follows 0x00575ff0:  |
-| 0x00575ff0 | 15 | unlabelled |  |
-| 0x00576040 | 21 | unlabelled |  |
+| 0x00574ff0 | 101 | replaced (SDL or the platform layer) | DirectSound buffers: made from a WAV (0x00574ff0) and released (0x00574d90, 0x00574f10); SDL audio holds the port's |
+| 0x00575b00 | 225 | debug or dev tool: PORT (preserve) | the developer's stdout redirect (freopen to a log; editor.md:214) |
+| 0x00575d00 | 11 | replaced (SDL or the platform layer) | Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00575d10 | 8 | replaced (SDL or the platform layer) | Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00575d40 | 63 | replaced (SDL or the platform layer) | Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00575e30 | 39 | replaced (SDL or the platform layer) | Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00575f30 | 17 | replaced (SDL or the platform layer) | Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00575f70 | 12 | replaced (SDL or the platform layer) | Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00575fd0 | 9 | replaced (SDL or the platform layer) | follows 0x00575ff0: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00575ff0 | 15 | replaced (SDL or the platform layer) | Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00576040 | 21 | replaced (SDL or the platform layer) | Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00576080 | 12 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:222) |
 | 0x005760b0 | 19 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_create.cpp:129) |
-| 0x00576100 | 12 | unlabelled |  |
+| 0x00576100 | 12 | folded | zUtil's search path lists: each user keeps its own path string (zsnd_init.cpp:223, mech_fieldbase.h:295, zinterp.cpp:240) and the file finder is the platform's (zimg_library.h:75, zsnd_parm.cpp:17, FIX (A)); the default list's free has nothing to free (mission-frame.md:184) |
 | 0x00576120 | 10 | folded | covered by the port where it names it (src/gamez/zreader/zreader.cpp:626) |
-| 0x00576140 | 40 | unlabelled |  |
+| 0x00576140 | 40 | folded | zUtil's search path lists: each user keeps its own path string (zsnd_init.cpp:223, mech_fieldbase.h:295, zinterp.cpp:240) and the file finder is the platform's (zimg_library.h:75, zsnd_parm.cpp:17, FIX (A)); the default list's free has nothing to free (mission-frame.md:184) |
 | 0x00576250 | 12 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:323) |
-| 0x00576270 | 15 | unlabelled |  |
-| 0x005762b0 | 48 | unlabelled |  |
+| 0x00576270 | 15 | folded | zUtil's search path lists: each user keeps its own path string (zsnd_init.cpp:223, mech_fieldbase.h:295, zinterp.cpp:240) and the file finder is the platform's (zimg_library.h:75, zsnd_parm.cpp:17, FIX (A)); the default list's free has nothing to free (mission-frame.md:184) |
+| 0x005762b0 | 48 | folded | zUtil's search path lists: each user keeps its own path string (zsnd_init.cpp:223, mech_fieldbase.h:295, zinterp.cpp:240) and the file finder is the platform's (zimg_library.h:75, zsnd_parm.cpp:17, FIX (A)); the default list's free has nothing to free (mission-frame.md:184) |
 | 0x005763b0 | 17 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:240) |
 
 ### ztwod (75 not ported)
@@ -3298,23 +3313,23 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 |---|---|---|---|
 | 0x0059fa80 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0059fab0 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod_control.cpp:21) |
-| 0x005a0050 | 16 | unlabelled |  |
+| 0x005a0050 | 16 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
 | 0x005a0660 | 11 | folded | a thunk: one virtual call |
 | 0x005a15f0 | 31 | folded | covered by the port where it names it (src/mech3/debriefing.cpp:461) |
-| 0x005a1cd0 | 9 | unlabelled |  |
-| 0x005a1cf0 | 13 | unlabelled |  |
+| 0x005a1cd0 | 9 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a1cf0 | 13 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005a22c0 | 9 | folded | a thunk: one call to another function |
 | 0x005a2b90 | 11 | folded | sets members (a setter or a small constructor) |
 | 0x005a31e0 | 32 | folded | covered by the port where it names it (src/mech3/briefing.cpp:220) |
 | 0x005a3a40 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a3ba0 | 10 | folded | a getter of a member |
 | 0x005a3bb0 | 11 | folded | sets members (a setter or a small constructor) |
-| 0x005a3c40 | 9 | unlabelled | follows 0x005a3cd0:  |
+| 0x005a3c40 | 9 | debug or dev tool: PORT (preserve) | follows 0x005a3cd0: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
 | 0x005a3c50 | 9 | folded | a thunk: one call to another function |
-| 0x005a3cd0 | 46 | unlabelled |  |
-| 0x005a3de0 | 15 | unlabelled |  |
-| 0x005a3e30 | 18 | unlabelled |  |
-| 0x005a3e80 | 69 | unlabelled |  |
+| 0x005a3cd0 | 46 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a3de0 | 15 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a3e30 | 18 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a3e80 | 69 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
 | 0x005a3fd0 | 11 | folded | a thunk: one call to another function |
 | 0x005a4000 | 9 | folded | a thunk: one call to another function |
 | 0x005a4010 | 9 | folded | a thunk: one call to another function |
@@ -3323,52 +3338,52 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005a4690 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:513) |
 | 0x005a47f0 | 10 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:535) |
 | 0x005a4938 | 8 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a4880) |
-| 0x005a4b90 | 25 | unlabelled |  |
+| 0x005a4b90 | 25 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005a4f80 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a4fa0 | 13 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x005a5280 | 9 | folded | a thunk: one call to another function |
 | 0x005a5310 | 9 | folded | a thunk: one call to another function |
-| 0x005a5400 | 16 | unlabelled |  |
+| 0x005a5400 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005a5620 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a5b10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a5e10 | 109 | unlabelled |  |
+| 0x005a5e10 | 109 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005a60e0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a6100 | 12 | unlabelled |  |
+| 0x005a6100 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005a6600 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:77) |
 | 0x005a6620 | 14 | folded | ported, by docs/symbols.csv: ported: the tint's +0x38 colour, +0x40 alpha, shown for 0 s (vt+0x60) |
-| 0x005a6650 | 18 | unlabelled |  |
+| 0x005a6650 | 18 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005a66b0 | 13 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:66) |
 | 0x005a66d0 | 14 | folded | sets members (a setter or a small constructor) |
 | 0x005a6700 | 9 | folded | a thunk: one call to another function |
 | 0x005a6710 | 9 | folded | a thunk: one call to another function |
-| 0x005a6760 | 13 | unlabelled |  |
+| 0x005a6760 | 13 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005a6860 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a69e8 | 8 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a68b0) |
-| 0x005a6a10 | 45 | unlabelled |  |
+| 0x005a6a10 | 45 | MISSING LOGIC (only data the shipped game lacks reaches it) | Line2D's reader from a dialog .zrd (its COLOR and its end), shared by the line classes' vtables; inferred unused by shipped data (the dialog reader matches the exe on every shipped dialog without it), not checked file by file |
 | 0x005a6b20 | 11 | folded | sets members (a setter or a small constructor) |
 | 0x005a7130 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a7288 | 97 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a7280) |
 | 0x005a7560 | 12 | folded | sets members (a setter or a small constructor) |
 | 0x005a7580 | 12 | folded | sets members (a setter or a small constructor) |
 | 0x005a7640 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:845) |
-| 0x005a7670 | 12 | unlabelled |  |
-| 0x005a7690 | 12 | unlabelled |  |
-| 0x005a76b0 | 12 | unlabelled |  |
-| 0x005a76d0 | 12 | unlabelled |  |
-| 0x005a76f0 | 12 | unlabelled |  |
-| 0x005a7710 | 12 | unlabelled |  |
+| 0x005a7670 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a7690 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a76b0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a76d0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a76f0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a7710 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005a7730 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:822) |
 | 0x005a77d0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a7ac0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a7c50 | 20 | unlabelled |  |
-| 0x005a7ca0 | 15 | unlabelled |  |
-| 0x005a7cd0 | 12 | unlabelled |  |
-| 0x005a7dd0 | 9 | unlabelled | follows 0x005a8750:  |
+| 0x005a7c50 | 20 | MISSING LOGIC (only data the shipped game lacks reaches it) | Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
+| 0x005a7ca0 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
+| 0x005a7cd0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
+| 0x005a7dd0 | 9 | folded | follows 0x005a8750: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005a7de0 | 9 | folded | a thunk: one call to another function |
-| 0x005a7e10 | 47 | unlabelled |  |
+| 0x005a7e10 | 47 | UNSURE | zEntity's base constructor (0x005a7e10: its frames and, with a parent, the registration 0x005a8390 + 0x005a7f50); the port's AiTarget initialisers stand in (app_engine.cpp:312), but targets.zrd's CZAiTargets are not put on the entity list (ai.md:1537), so their vt+0x34 (0x005a8000, zEntity3d's step by its velocity and spin) does not run; harmless if nothing gives a target a velocity, not checked |
 | 0x005a7f30 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a7f50 | 11 | unlabelled |  |
-| 0x005a7f70 | 11 | unlabelled |  |
+| 0x005a7f50 | 11 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a7f70 | 11 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005a7f90 | 25 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x005a80c0 | 9 | folded | a thunk: one call to another function |
 
@@ -3523,7 +3538,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00594dc0 | 9 | folded | a thunk: one call to another function |
 | 0x00594e50 | 9 | folded | a thunk: one call to another function |
 | 0x00594e90 | 9 | folded | a thunk: one call to another function |
-| 0x00594ec0 | 98 | unlabelled |  |
+| 0x00594ec0 | 98 | folded | the script log line's formatter, covered where named (zinterp.cpp:288) |
 | 0x00594f90 | 33 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:303) |
 | 0x00595449 | 22 | folded | a piece of the ported function before it (Ghidra split it there) (0x00595440) |
 | 0x00595b10 | 27 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:405) |
@@ -3531,57 +3546,57 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00595da0 | 19 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:267) |
 | 0x00595e20 | 16 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:271) |
 | 0x00595e40 | 15 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:407) |
-| 0x005960a0 | 27 | unlabelled |  |
+| 0x005960a0 | 27 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
 | 0x00596150 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00596170 | 14 | unlabelled |  |
-| 0x00596190 | 15 | unlabelled |  |
-| 0x005961d0 | 31 | unlabelled |  |
+| 0x00596170 | 14 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
+| 0x00596190 | 15 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
+| 0x005961d0 | 31 | replaced (SDL or the platform layer) | a text object's font set from a GDI font handle (GetObjectA into a LOGFONT; twod.h:319): the SDL text host keeps fonts by name |
 | 0x00596260 | 9 | folded | a thunk: one call to another function |
 | 0x00596270 | 9 | folded | a thunk: one call to another function |
 | 0x00596900 | 9 | folded | a thunk: one call to another function |
 | 0x00596910 | 9 | folded | a thunk: one call to another function |
 | 0x00596930 | 62 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00596a70 | 30 | unlabelled |  |
+| 0x00596a70 | 30 | unused: PORT (preserve) | list teardown helpers whose callers (0x00596930, 0x00596c60) nothing reaches |
 | 0x00596b00 | 45 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00596bd0 | 22 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00596c50 | 9 | folded | a thunk: one call to another function |
 | 0x00596c60 | 9 | folded | a thunk: one call to another function |
-| 0x00596c80 | 56 | unlabelled |  |
+| 0x00596c80 | 56 | unused: PORT (preserve) | list teardown helpers whose callers (0x00596930, 0x00596c60) nothing reaches |
 | 0x00596e10 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00596f70 | 316 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x005974a0 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00597530 | 48 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x005975e0 | 49 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x00597680 | 92 | unlabelled |  |
-| 0x00597e60 | 25 | unlabelled |  |
-| 0x00597eb0 | 12 | unlabelled |  |
-| 0x00597ed0 | 12 | unlabelled |  |
-| 0x00597ef0 | 40 | unlabelled |  |
-| 0x00597f30 | 19 | unlabelled |  |
-| 0x00597f60 | 14 | unlabelled |  |
-| 0x00597fc0 | 55 | unlabelled |  |
-| 0x00598100 | 25 | unlabelled |  |
-| 0x00598150 | 11 | unlabelled |  |
-| 0x00598160 | 12 | unlabelled |  |
-| 0x00598190 | 16 | unlabelled |  |
+| 0x00597680 | 92 | software renderer | SetPaletteName's palette brightness step for the 8-bit palette (0x005975e0's helper; only the software path uses a palette) |
+| 0x00597e60 | 25 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597eb0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597ed0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597ef0 | 40 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597f30 | 19 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597f60 | 14 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597fc0 | 55 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598100 | 25 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598150 | 11 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598160 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598190 | 16 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 | 0x005981b0 | 8 | folded | returns a constant or a global |
-| 0x005981c0 | 17 | unlabelled |  |
-| 0x005981e0 | 12 | unlabelled |  |
-| 0x00598330 | 38 | unlabelled |  |
+| 0x005981c0 | 17 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005981e0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598330 | 38 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 | 0x00598360 | 35 | folded | covered by the port where it names it (src/gamez/zutil/zutl_reg.h:42) |
-| 0x005983c0 | 59 | unlabelled |  |
-| 0x005984a0 | 10 | unlabelled |  |
+| 0x005983c0 | 59 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005984a0 | 10 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 | 0x005984e0 | 8 | folded | returns a constant or a global |
 | 0x00598530 | 8 | folded | returns a constant or a global |
-| 0x00598580 | 35 | unlabelled |  |
-| 0x005985d0 | 56 | unlabelled |  |
-| 0x005986c0 | 48 | unlabelled |  |
-| 0x005987d0 | 59 | unlabelled |  |
-| 0x005988c0 | 110 | unlabelled |  |
-| 0x00598ae0 | 12 | unlabelled |  |
-| 0x00598b00 | 16 | unlabelled |  |
-| 0x00598b30 | 66 | unlabelled |  |
-| 0x00598c80 | 13 | unlabelled |  |
+| 0x00598580 | 35 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005985d0 | 56 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005986c0 | 48 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005987d0 | 59 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005988c0 | 110 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598ae0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598b00 | 16 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598b30 | 66 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598c80 | 13 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 
 ### zimage (62 not ported)
 
@@ -3711,46 +3726,46 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 |---|---|---|---|
 | 0x005a80d0 | 12 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:510) |
 | 0x005a80f0 | 54 | folded | ported, by docs/symbols.csv: ported for the turrets (app_turret.cpp): the zone record of the ground under the node, the camera's zone onto it |
-| 0x005a8210 | 45 | unlabelled |  |
+| 0x005a8210 | 45 | folded | zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005a8280 | 28 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:1640) |
 | 0x005a82b8 | 17 | folded | follows 0x005a8280: covered by the port where it names it (src/mech3/app_mission.cpp:1640) |
-| 0x005a82e0 | 14 | unlabelled |  |
+| 0x005a82e0 | 14 | folded | zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005a8310 | 19 | folded | covered by the port where it names it (src/mech3/mech_build.cpp:274) |
 | 0x005a8350 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a8370 | 12 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:285) |
-| 0x005a84c0 | 13 | unlabelled |  |
+| 0x005a84c0 | 13 | folded | zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005a84e0 | 12 | folded | covered by the port where it names it (src/mech3/mech_place.cpp:102) |
 | 0x005a8540 | 8 | folded | returns a constant or a global |
 | 0x005a8550 | 10 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:522) |
 | 0x005a8580 | 10 | folded | covered by the port where it names it (src/mech3/mech_place.cpp:100) |
-| 0x005a85a0 | 10 | unlabelled |  |
+| 0x005a85a0 | 10 | folded | zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005a8690 | 10 | folded | a getter of a member |
 | 0x005a86a0 | 10 | folded | a getter of a member |
 | 0x005a86b0 | 15 | folded | covered by the port where it names it (src/mech3/mech_place.cpp:108) |
 | 0x005a86e0 | 16 | folded | covered by the port where it names it (src/mech3/mech.h:95) |
 | 0x005a8710 | 11 | folded | covered by the port where it names it (src/mech3/veh_controls.h:82) |
-| 0x005a8730 | 11 | unlabelled |  |
-| 0x005a8750 | 47 | unlabelled |  |
-| 0x005a8820 | 13 | unlabelled |  |
-| 0x005a89c0 | 35 | unlabelled |  |
+| 0x005a8730 | 11 | folded | zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
+| 0x005a8750 | 47 | folded | zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
+| 0x005a8820 | 13 | folded | zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
+| 0x005a89c0 | 35 | folded | zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005a8be0 | 40 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:75) |
 | 0x005a8c58 | 29 | folded | follows 0x005a8be0: covered by the port where it names it (src/gamez/zsave/zsave.cpp:75) |
 | 0x005a8c90 | 12 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:108) |
-| 0x005a8cb0 | 77 | unlabelled |  |
-| 0x005a8d58 | 37 | unlabelled | follows 0x005a8cb0:  |
+| 0x005a8cb0 | 77 | folded | zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
+| 0x005a8d58 | 37 | folded | follows 0x005a8cb0: zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
 | 0x005a8da0 | 35 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:102) |
-| 0x005a8e40 | 145 | unlabelled |  |
+| 0x005a8e40 | 145 | folded | zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
 | 0x005a9140 | 23 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:95) |
 | 0x005a91b0 | 13 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:112) |
 | 0x005a91d0 | 13 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:175) |
 | 0x005a9210 | 22 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:191) |
 | 0x005a9290 | 14 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:212) |
-| 0x005a92d0 | 9 | unlabelled |  |
-| 0x005a92e0 | 158 | unlabelled |  |
-| 0x005a96a0 | 17 | unlabelled |  |
-| 0x005a96d0 | 51 | unlabelled |  |
-| 0x005a97e0 | 17 | unlabelled |  |
-| 0x005a98d0 | 17 | unlabelled |  |
+| 0x005a92d0 | 9 | unused: PORT (preserve) | _rmtmp at zSave's stop, unreached |
+| 0x005a92e0 | 158 | folded | zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
+| 0x005a96a0 | 17 | folded | zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
+| 0x005a96d0 | 51 | folded | zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
+| 0x005a97e0 | 17 | folded | zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
+| 0x005a98d0 | 17 | debug or dev tool: PORT (preserve) | the developers' loose <name>.zan override for motion scripts (motion.md:36), like the reader's loose .zrd files |
 | 0x005a9920 | 27 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:135) |
 | 0x005a9970 | 13 | folded | covered by the port where it names it (src/gamez/zsave/zsave.h:8) |
 
@@ -3821,7 +3836,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00505df0 | 9 | unlabelled |  |
 | 0x00507220 | 53 | unlabelled |  |
 | 0x005073e0 | 18 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:1175) |
-| 0x005076c0 | 88 | unlabelled |  |
+| 0x005076c0 | 88 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x00507960 | 8 | folded | returns a constant or a global |
 | 0x00507970 | 18 | unlabelled |  |
 
@@ -3830,31 +3845,31 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x005900f9 | 11 | folded | a piece of the ported function before it (Ghidra split it there) (0x0058fd70) |
-| 0x00590120 | 58 | unlabelled |  |
-| 0x005901ba | 11 | unlabelled | follows 0x00590120:  |
-| 0x00590780 | 43 | unlabelled |  |
-| 0x00590850 | 16 | unlabelled |  |
-| 0x00590880 | 26 | unlabelled |  |
-| 0x005908e0 | 8 | unlabelled |  |
+| 0x00590120 | 58 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005901ba | 11 | replaced (SDL or the platform layer) | follows 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590780 | 43 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x00590850 | 16 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x00590880 | 26 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005908e0 | 8 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
 | 0x005908f0 | 8 | folded | returns a constant or a global |
 | 0x005908f5 | 8 | folded | follows 0x005908f0: returns a constant or a global |
-| 0x00590900 | 8 | unlabelled |  |
+| 0x00590900 | 8 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
 | 0x00590910 | 8 | folded | returns a constant or a global |
-| 0x00590920 | 17 | unlabelled |  |
+| 0x00590920 | 17 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
 | 0x00590960 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00590980 | 28 | unlabelled |  |
-| 0x005909f0 | 14 | unlabelled |  |
-| 0x00590a10 | 9 | unlabelled |  |
-| 0x00590a50 | 52 | unlabelled |  |
-| 0x00590b40 | 10 | unlabelled |  |
-| 0x00590b60 | 15 | unlabelled |  |
-| 0x00590b80 | 22 | unlabelled |  |
-| 0x00590bd0 | 15 | unlabelled |  |
+| 0x00590980 | 28 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005909f0 | 14 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590a10 | 9 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x00590a50 | 52 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590b40 | 10 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590b60 | 15 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590b80 | 22 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590bd0 | 15 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
 | 0x00590c70 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
 | 0x00590ca0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00590cc0 | 21 | unlabelled |  |
+| 0x00590cc0 | 21 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 | 0x00590d10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00590d30 | 21 | unlabelled |  |
+| 0x00590d30 | 21 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 
 ### zutil (25 not ported)
 
