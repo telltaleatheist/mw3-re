@@ -1309,3 +1309,9 @@
 0x004c6e30	folded	fd0 read: the same logic or PM's own port (the path's next point after the reached one; PM's repair port; the repair test; the steps' dtor, flag set and lookup), PM's compiler, layout (the vehicle's +0xe0/+0xf0 -> +0x100/+0x11c) and vtable slots
 0x004c79b0	folded	fd0 read: the same logic or PM's own port (the path's next point after the reached one; PM's repair port; the repair test; the steps' dtor, flag set and lookup), PM's compiler, layout (the vehicle's +0xe0/+0xf0 -> +0x100/+0x11c) and vtable slots
 0x004d42d0	folded	fd0 read: the same logic or PM's own port (the path's next point after the reached one; PM's repair port; the repair test; the steps' dtor, flag set and lookup), PM's compiler, layout (the vehicle's +0xe0/+0xf0 -> +0x100/+0x11c) and vtable slots
+0x004e30d0	missing	pm only (multiplayer): PM's target takes a collision's damage only when it is no multiplayer base (its mpoption +0x14 of the description, p[0x3a], below 0: zai_target.h TargetDesc mpoption), so a base (mpoption 1 or 2) is not hurt by collisions; the port's on_collide always takes it (zai_target.cpp:664-670) (MW3 0x004d2cd0)
+0x004d43a0	folded	fd0 read: the same logic (the steps' plans and their lists; the target's paths; its contact test), PM's compiler, layout and register arguments
+0x004d4790	folded	fd0 read: the same logic (the steps' plans and their lists; the target's paths; its contact test), PM's compiler, layout and register arguments
+0x004dd800	folded	fd0 read: the same logic (the steps' plans and their lists; the target's paths; its contact test), PM's compiler, layout and register arguments
+0x004e2400	folded	fd0 read: the same logic (the steps' plans and their lists; the target's paths; its contact test), PM's compiler, layout and register arguments
+0x004e2ab0	folded	fd0 read: the same logic (the steps' plans and their lists; the target's paths; its contact test), PM's compiler, layout and register arguments
