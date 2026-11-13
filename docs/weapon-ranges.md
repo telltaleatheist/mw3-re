@@ -86,3 +86,12 @@ Pulse Laser, so in a mech carrying those the sky reading matches the
 weapon. The reticle also stops checking for targets at 800 m, so it
 stays green over a mech further away even when a weapon above reaches
 it (`docs/discoveries.md`, "The reticle stops looking at 800 m").
+
+**Pirate's Moon changed this.** Its reticle looks out to the farther of
+the 800 m view distance and the selected weapon group's range, and aimed
+at the sky the zoom window reads that distance. So with an ER Large
+Laser or a NARC selected it reads 1000 m, with an ER PPC 920 m and with a
+Gauss rifle 880 m, but any group whose reach is under 800 m still
+reads 800 (PM's reticle, 0x00445cf0). The MW3 rebuild's fix (bug fixes on) makes
+the reticle find mechs out to the weapons' range, but its sky reading
+stays 800 m, as in the original MW3.
