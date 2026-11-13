@@ -1,58 +1,303 @@
-0x00408b20	0x0040af30	50	src/mech3/player_view.cpp (shared: MW3 0x0040af30)	MW3 [-50.0]	PM [1024.0]
-0x0040b120	0x0040d310	47	src/mech3/options.cpp (shared: MW3 0x0040d310)	MW3 [0.4]	PM [0.2]
-0x00417ea0	0x00417300	41	src/mech3/mech_move.cpp (shared: MW3 0x00417300)	MW3 []	PM [45.0]
-0x00417f50	0x004173b0	216	src/mech3/mech_move.cpp (shared: MW3 0x004173b0)	MW3 [-0.5, 0.5, 0.7, 5.5, 6.0, 8.0, 30.0]	PM [0.9]
-0x0041cad0	0x0041be80	465	src/mech3/app_hud.cpp (shared: MW3 0x0041be80)	MW3 [-8208.443359, -1.546883, -1.234383, -0.519535, -0.416018, 2.125429]	PM [544.109741, 785.06665]
-0x004232a0	0x004222e0	40	src/mech3/mech_build.cpp (shared: MW3 0x004222e0)	MW3 [0.01]	PM [0.05]
-0x004274d0	0x00425650	119	src/mech3/mech_config.cpp (shared: MW3 0x00425650)	MW3 [-2.000488]	PM [-2.000976]
-0x00427830	0x004259c0	91	src/mech3/mech_config.cpp (shared: MW3 0x004259c0)	MW3 []	PM [0.5]
-0x004299f0	0x00427d60	281	src/mech3/mech_control.cpp (shared: MW3 0x00427d60)	MW3 []	PM [30.0]
-0x004311e0	0x00430e70	228	src/mech3/player_view.cpp (shared: MW3 0x00430e70)	MW3 [-1.570796, 150.0]	PM [-1.413716, 120.0]
-0x0044f740	0x0044d4d0	295	src/mech3/lab_screen.cpp (shared: MW3 0x0044d4d0)	MW3 []	PM [-8209.248047]
-0x0045b340	0x0045a560	58	src/mech3/mech_fieldbase_dock.cpp (shared: MW3 0x0045a560)	MW3 [-0.866]	PM []
-0x004611f0	0x0045fe00	114	src/mech3/mech_part_build.cpp (shared: MW3 0x0045fe00)	MW3 []	PM [513.094849]
-0x00462090	0x00460d50	275	src/mech3/mech_parts.cpp (shared: MW3 0x00460d50)	MW3 []	PM [0.0062, 0.1, 0.143, 0.2]
-0x00465210	0x00463b40	60	src/mech3/mech_parts.cpp (shared: MW3 0x00463b40)	MW3 []	PM [0.5]
-0x0046d690	0x0046ba40	797	src/mech3/mech_reader.cpp (shared: MW3 0x0046ba40)	MW3 [-0.5]	PM []
-0x00470170	0x0046e0a0	28	src/mech3/mech_net.cpp (shared: MW3 0x0046e0a0)	MW3 [-10.0]	PM []
-0x00477f90	0x004765b0	693	src/mech3/mech_skis.cpp (shared: MW3 0x004765b0)	MW3 [-50.0, -0.8]	PM [0.5, 3.5, 1024.0]
-0x004790f0	0x00477620	32	src/mech3/mech_skis.cpp (shared: MW3 0x00477620)	MW3 [0.85, 30.0]	PM [0.84, 20.0]
-0x0047d890	0x0047b430	700	src/mech3/debriefing.cpp (shared: MW3 0x0047b430)	MW3 [0.016667, 60.0]	PM [0.2]
-0x00482ca0	0x00480570	193	src/mech3/app.cpp (shared: MW3 0x00480570)	MW3 []	PM [0.5]
-0x004838b0	0x00480df0	184	src/mech3/app_states.cpp (shared: MW3 0x00480df0)	MW3 []	PM [0.3]
-0x00488370	0x005a53e0	12	src/gamez/ztwod/twod_object.cpp (shared: MW3 0x005a53e0)	MW3 []	PM [50.0]
-0x004891d0	0x0048e6b0	25	src/mech3/mainmenu.cpp (shared: MW3 0x0048e6b0)	MW3 [20.0]	PM []
-0x004916c0	0x004882b0	159	src/mech3/pilot_menu.cpp (shared: MW3 0x004882b0)	MW3 []	PM [1000.0]
-0x00498300	0x00495600	108	src/mech3/mp_connect.cpp (shared: MW3 0x00495600)	MW3 []	PM [10000.0]
-0x004b0790	0x004ace00	76	src/mech3/veh_basic_object.cpp (shared: MW3 0x004ace00)	MW3 [-1.570796]	PM [-1.413716]
-0x004b0d90	0x004ad3f0	71	src/mech3/veh_basic_object.cpp (shared: MW3 0x004ad3f0)	MW3 [0.01]	PM []
-0x004b34d0	0x004af5a0	200	src/mech3/weapon.cpp (shared: MW3 0x004af5a0)	MW3 [0.7, 100.0, 5000.0]	PM []
-0x004b56d0	0x004b1860	145	src/mech3/weapon_planner.cpp (shared: MW3 0x004b1860)	MW3 [-32767.0]	PM []
-0x004bbfa0	0x004b6790	116	src/mech3/zai_firing.cpp (shared: MW3 0x004b6790)	MW3 [0.5, 128.0]	PM []
-0x004c55b0	0x004be690	205	src/mech3/zainetedit.cpp (shared: MW3 0x004be690)	MW3 [-10.0]	PM []
-0x004d2780	0x004c7340	55	src/mech3/zainet.cpp (shared: MW3 0x004c7340)	MW3 [-0.5]	PM []
-0x004d3820	0x004c84b0	45	src/mech3/zai_brain.cpp (shared: MW3 0x004c84b0)	MW3 []	PM [0.140152]
-0x004f56a0	0x004e3ba0	42	src/mech3/zrdrvalve.cpp (shared: MW3 0x004e3ba0)	MW3 []	PM [0.140152]
-0x004faff0	0x004e9d90	97	src/mech3/zai_brain.cpp (shared: MW3 0x004e9d90)	MW3 []	PM [0.140152]
-0x004fd5e0	0x004eb9b0	59	src/gamez/zclass/cls_node.cpp (shared: MW3 0x004eb9b0)	MW3 [-0.000649, -0.000626, -0.000534]	PM []
-0x004fd7a0	0x004ebb40	60	src/gamez/zclass/cls_node.cpp (shared: MW3 0x004ebb40)	MW3 [-0.004456, -0.004089]	PM []
-0x004fda40	0x004ebdb0	136	src/gamez/zclass/class.cpp (shared: MW3 0x004ebdb0)	MW3 [-0.228517]	PM []
-0x00505230	0x004f2060	18	src/gamez/zclass/cls_world.cpp (shared: MW3 0x004f2060)	MW3 [-0.1]	PM []
-0x00507f30	0x004f4ab0	269	src/gamez/zclass/camera.cpp (shared: MW3 0x004f4ab0)	MW3 []	PM [0.003922]
-0x0050bce0	0x004f8390	52	src/gamez/zclass/list.cpp (shared: MW3 0x004f8390)	MW3 [-32.077652]	PM [-0.047608, -0.044434, -0.038086, -0.034912]
-0x0050bdf0	0x004f84b0	280	src/gamez/zclass/list.cpp (shared: MW3 0x004f84b0)	MW3 []	PM [-2.093769, -0.79688]
-0x00517e90	0x004ffad0	179	src/gamez/zdeclient/zdec_crater.cpp (shared: MW3 0x004ffad0)	MW3 [-5.0]	PM []
-0x0051a6d0	0x00502230	179	src/gamez/zdeclient/zdec_qsand.cpp (shared: MW3 0x00502230)	MW3 [-5.0]	PM []
-0x0051cd60	0x00504520	477	src/gamez/zeffect/zeff_anim_events.cpp (shared: MW3 0x005045	MW3 []	PM [1e-05, 0.001, 10.0]
-0x0052a810	0x00510da0	902	src/gamez/zgeometry/zgeo_weiler.cpp (shared: MW3 0x00510da0)	MW3 []	PM [-0.107422, -0.025391, -0.011536, -0.002777, -0.001389, -0.000725]
-0x00548990	0x00526e10	64	src/gamez/zmodel/gmod_init.cpp (shared: MW3 0x00526e10)	MW3 [-0.5, -0.001]	PM []
-0x00563f10	0x005489a0	214	src/gamez/zmodel/gmod_puff.cpp (shared: MW3 0x005489a0)	MW3 []	PM [0.5, 255.0]
-0x00564710	0x005490e0	118	src/gamez/zmodel/gmod_puff.cpp (shared: MW3 0x005490e0)	MW3 [-6.283185]	PM []
-0x00589110	0x00567b90	40	src/gamez/zrender/zrndr_flare.cpp (shared: MW3 0x00567b90)	MW3 [-0.5]	PM []
-0x005893f0	0x00567eb0	60	src/gamez/zrender/zrndr_fog.cpp (shared: MW3 0x00567eb0)	MW3 [-255.0]	PM []
-0x005a0065	0x0057ea20	134	src/gamez/zvideo/zvid_ddd3d.cpp (shared: MW3 0x0057ea20)	MW3 [-255.0, -0.5, 0.003922, 0.5, 255.0, 255.5]	PM []
-0x005a79a0	0x00585cc0	162	src/gamez/zweapon/zweapon.cpp (shared: MW3 0x00585cc0)	MW3 [-10.0]	PM []
-0x005a9980	0x00588a70	272	src/gamez/znetwork/znet_dplay.cpp (shared: MW3 0x00588a70)	MW3 [-0.001958]	PM []
-0x005c5c10	0x005a56e0	36	src/gamez/ztwod/twod_weather.cpp (shared: MW3 0x005a56e0)	MW3 [-1.5]	PM []
-0x005c6080	0x005a5b40	205	src/gamez/ztwod/twod_weather.cpp (shared: MW3 0x005a5b40)	MW3 []	PM [0.5, 1.5, 3.5]
-0x005cd090	0x005aa3b0	27	src/gamez/zsiscript/si_script.cpp (shared: MW3 0x005aa3b0)	MW3 []	PM [0.5]
+0x00408b20	0x0040af30	50	src/mech3/player_view.cpp (shared: MW3 0x0040af30)	MW3 [-50.0]	PM [1024.0]	float
+0x0040b120	0x0040d310	47	src/mech3/options.cpp (shared: MW3 0x0040d310)	MW3 [0.4]	PM [0.2]	float
+0x00417ea0	0x00417300	41	src/mech3/mech_move.cpp (shared: MW3 0x00417300)	MW3 []	PM [45.0]	float
+0x00417f50	0x004173b0	216	src/mech3/mech_move.cpp (shared: MW3 0x004173b0)	MW3 [-0.5, 0.5, 0.7, 5.5, 6.0, 8.0, 30.0]	PM [0.9]	float
+0x0041cad0	0x0041be80	465	src/mech3/app_hud.cpp (shared: MW3 0x0041be80)	MW3 [-8208.443359, -1.546883, -1.234383, -0.519535, -0.416018, 2.125429]	PM [544.109741, 785.06665]	float
+0x004232a0	0x004222e0	40	src/mech3/mech_build.cpp (shared: MW3 0x004222e0)	MW3 [0.01]	PM [0.05]	float
+0x004274d0	0x00425650	119	src/mech3/mech_config.cpp (shared: MW3 0x00425650)	MW3 [-2.000488]	PM [-2.000976]	float
+0x00427830	0x004259c0	91	src/mech3/mech_config.cpp (shared: MW3 0x004259c0)	MW3 []	PM [0.5]	float
+0x004299f0	0x00427d60	281	src/mech3/mech_control.cpp (shared: MW3 0x00427d60)	MW3 []	PM [30.0]	float
+0x004311e0	0x00430e70	228	src/mech3/player_view.cpp (shared: MW3 0x00430e70)	MW3 [-1.570796, 150.0]	PM [-1.413716, 120.0]	float
+0x0044f740	0x0044d4d0	295	src/mech3/lab_screen.cpp (shared: MW3 0x0044d4d0)	MW3 []	PM [-8209.248047]	float
+0x0045b340	0x0045a560	58	src/mech3/mech_fieldbase_dock.cpp (shared: MW3 0x0045a560)	MW3 [-0.866]	PM []	float
+0x004611f0	0x0045fe00	114	src/mech3/mech_part_build.cpp (shared: MW3 0x0045fe00)	MW3 []	PM [513.094849]	float
+0x00462090	0x00460d50	275	src/mech3/mech_parts.cpp (shared: MW3 0x00460d50)	MW3 []	PM [0.0062, 0.1, 0.143, 0.2]	float
+0x00465210	0x00463b40	60	src/mech3/mech_parts.cpp (shared: MW3 0x00463b40)	MW3 []	PM [0.5]	float
+0x0046d690	0x0046ba40	797	src/mech3/mech_reader.cpp (shared: MW3 0x0046ba40)	MW3 [-0.5]	PM []	float
+0x00470170	0x0046e0a0	28	src/mech3/mech_net.cpp (shared: MW3 0x0046e0a0)	MW3 [-10.0]	PM []	float
+0x00477f90	0x004765b0	693	src/mech3/mech_skis.cpp (shared: MW3 0x004765b0)	MW3 [-50.0, -0.8]	PM [0.5, 3.5, 1024.0]	float
+0x004790f0	0x00477620	32	src/mech3/mech_skis.cpp (shared: MW3 0x00477620)	MW3 [0.85, 30.0]	PM [0.84, 20.0]	float
+0x0047d890	0x0047b430	700	src/mech3/debriefing.cpp (shared: MW3 0x0047b430)	MW3 [0.016667, 60.0]	PM [0.2]	float
+0x00482ca0	0x00480570	193	src/mech3/app.cpp (shared: MW3 0x00480570)	MW3 []	PM [0.5]	float
+0x004838b0	0x00480df0	184	src/mech3/app_states.cpp (shared: MW3 0x00480df0)	MW3 []	PM [0.3]	float
+0x00488370	0x005a53e0	12	src/gamez/ztwod/twod_object.cpp (shared: MW3 0x005a53e0)	MW3 []	PM [50.0]	float
+0x004891d0	0x0048e6b0	25	src/mech3/mainmenu.cpp (shared: MW3 0x0048e6b0)	MW3 [20.0]	PM []	float
+0x004916c0	0x004882b0	159	src/mech3/pilot_menu.cpp (shared: MW3 0x004882b0)	MW3 []	PM [1000.0]	float
+0x00498300	0x00495600	108	src/mech3/mp_connect.cpp (shared: MW3 0x00495600)	MW3 []	PM [10000.0]	float
+0x004b0790	0x004ace00	76	src/mech3/veh_basic_object.cpp (shared: MW3 0x004ace00)	MW3 [-1.570796]	PM [-1.413716]	float
+0x004b0d90	0x004ad3f0	71	src/mech3/veh_basic_object.cpp (shared: MW3 0x004ad3f0)	MW3 [0.01]	PM []	float
+0x004b34d0	0x004af5a0	200	src/mech3/weapon.cpp (shared: MW3 0x004af5a0)	MW3 [0.7, 100.0, 5000.0]	PM []	float
+0x004b56d0	0x004b1860	145	src/mech3/weapon_planner.cpp (shared: MW3 0x004b1860)	MW3 [-32767.0]	PM []	float
+0x004bbfa0	0x004b6790	116	src/mech3/zai_firing.cpp (shared: MW3 0x004b6790)	MW3 [0.5, 128.0]	PM []	float
+0x004c55b0	0x004be690	205	src/mech3/zainetedit.cpp (shared: MW3 0x004be690)	MW3 [-10.0]	PM []	float
+0x004d2780	0x004c7340	55	src/mech3/zainet.cpp (shared: MW3 0x004c7340)	MW3 [-0.5]	PM []	float
+0x004d3820	0x004c84b0	45	src/mech3/zai_brain.cpp (shared: MW3 0x004c84b0)	MW3 []	PM [0.140152]	float
+0x004f56a0	0x004e3ba0	42	src/mech3/zrdrvalve.cpp (shared: MW3 0x004e3ba0)	MW3 []	PM [0.140152]	float
+0x004faff0	0x004e9d90	97	src/mech3/zai_brain.cpp (shared: MW3 0x004e9d90)	MW3 []	PM [0.140152]	float
+0x004fd5e0	0x004eb9b0	59	src/gamez/zclass/cls_node.cpp (shared: MW3 0x004eb9b0)	MW3 [-0.000649, -0.000626, -0.000534]	PM []	float
+0x004fd7a0	0x004ebb40	60	src/gamez/zclass/cls_node.cpp (shared: MW3 0x004ebb40)	MW3 [-0.004456, -0.004089]	PM []	float
+0x004fda40	0x004ebdb0	136	src/gamez/zclass/class.cpp (shared: MW3 0x004ebdb0)	MW3 [-0.228517]	PM []	float
+0x00505230	0x004f2060	18	src/gamez/zclass/cls_world.cpp (shared: MW3 0x004f2060)	MW3 [-0.1]	PM []	float
+0x00507f30	0x004f4ab0	269	src/gamez/zclass/camera.cpp (shared: MW3 0x004f4ab0)	MW3 []	PM [0.003922]	float
+0x0050bce0	0x004f8390	52	src/gamez/zclass/list.cpp (shared: MW3 0x004f8390)	MW3 [-32.077652]	PM [-0.047608, -0.044434, -0.038086, -0.034912]	float
+0x0050bdf0	0x004f84b0	280	src/gamez/zclass/list.cpp (shared: MW3 0x004f84b0)	MW3 []	PM [-2.093769, -0.79688]	float
+0x00517e90	0x004ffad0	179	src/gamez/zdeclient/zdec_crater.cpp (shared: MW3 0x004ffad0)	MW3 [-5.0]	PM []	float
+0x0051a6d0	0x00502230	179	src/gamez/zdeclient/zdec_qsand.cpp (shared: MW3 0x00502230)	MW3 [-5.0]	PM []	float
+0x0051cd60	0x00504520	477	src/gamez/zeffect/zeff_anim_events.cpp (shared: MW3 0x005045	MW3 []	PM [1e-05, 0.001, 10.0]	float
+0x0052a810	0x00510da0	902	src/gamez/zgeometry/zgeo_weiler.cpp (shared: MW3 0x00510da0)	MW3 []	PM [-0.107422, -0.025391, -0.011536, -0.002777, -0.001389, -0.000725]	float
+0x00548990	0x00526e10	64	src/gamez/zmodel/gmod_init.cpp (shared: MW3 0x00526e10)	MW3 [-0.5, -0.001]	PM []	float
+0x00563f10	0x005489a0	214	src/gamez/zmodel/gmod_puff.cpp (shared: MW3 0x005489a0)	MW3 []	PM [0.5, 255.0]	float
+0x00564710	0x005490e0	118	src/gamez/zmodel/gmod_puff.cpp (shared: MW3 0x005490e0)	MW3 [-6.283185]	PM []	float
+0x00589110	0x00567b90	40	src/gamez/zrender/zrndr_flare.cpp (shared: MW3 0x00567b90)	MW3 [-0.5]	PM []	float
+0x005893f0	0x00567eb0	60	src/gamez/zrender/zrndr_fog.cpp (shared: MW3 0x00567eb0)	MW3 [-255.0]	PM []	float
+0x005a0065	0x0057ea20	134	src/gamez/zvideo/zvid_ddd3d.cpp (shared: MW3 0x0057ea20)	MW3 [-255.0, -0.5, 0.003922, 0.5, 255.0, 255.5]	PM []	float
+0x005a79a0	0x00585cc0	162	src/gamez/zweapon/zweapon.cpp (shared: MW3 0x00585cc0)	MW3 [-10.0]	PM []	float
+0x005a9980	0x00588a70	272	src/gamez/znetwork/znet_dplay.cpp (shared: MW3 0x00588a70)	MW3 [-0.001958]	PM []	float
+0x005c5c10	0x005a56e0	36	src/gamez/ztwod/twod_weather.cpp (shared: MW3 0x005a56e0)	MW3 [-1.5]	PM []	float
+0x005c6080	0x005a5b40	205	src/gamez/ztwod/twod_weather.cpp (shared: MW3 0x005a5b40)	MW3 []	PM [0.5, 1.5, 3.5]	float
+0x005cd090	0x005aa3b0	27	src/gamez/zsiscript/si_script.cpp (shared: MW3 0x005aa3b0)	MW3 []	PM [0.5]	float
+# integers (compare, mov, push immediates and fixed-address dword reads; addresses, bracketed offsets, 0/1/-1/2, values over 100000 and shifts of 1..256 from a MW3 value dropped):
+0x00404d70	0x00405230	298	src/mech3/briefing.cpp (shared: MW3 0x00405230)	MW3 []	PM [13]	int
+0x004060d0	0x00406650	562	src/mech3/briefing.cpp (shared: MW3 0x00406650)	MW3 [1292]	PM [1157]	int
+0x00408f40	0x0040b310	145	src/mech3/player_view.cpp (shared: MW3 0x0040b310)	MW3 []	PM [4384]	int
+0x0040b720	0x0040d810	69	src/mech3/options.cpp (shared: MW3 0x0040d810)	MW3 []	PM [64]	int
+0x0040fd00	0x0040f410	75	src/mech3/message_panel.cpp (shared: MW3 0x0040f410)	MW3 [320]	PM []	int
+0x00411a10	0x00411150	148	src/mech3/controls_cfg.cpp (shared: MW3 0x00411150)	MW3 [165, 339]	PM [69, 83]	int
+0x00415fc0	0x004154e0	159	src/mech3/mech_repair.cpp (shared: MW3 0x004154e0)	MW3 [510]	PM []	int
+0x00416560	0x00415b00	54	src/mech3/mech_build.cpp (shared: MW3 0x00415b00)	MW3 [979]	PM [977]	int
+0x00416710	0x00415ca0	83	src/mech3/mech_build.cpp (shared: MW3 0x00415ca0)	MW3 [7]	PM [11]	int
+0x00417ea0	0x00417300	41	src/mech3/mech_move.cpp (shared: MW3 0x00417300)	MW3 [7]	PM [11]	int
+0x0041cad0	0x0041be80	465	src/mech3/app_hud.cpp (shared: MW3 0x0041be80)	MW3 [43, 61, 62, 144, 159]	PM [68]	int
+0x004243f0	0x00422ef0	50	src/mech3/mech_collide.cpp (shared: MW3 0x00422ef0)	MW3 [31080]	PM [34156]	int
+0x00424520	0x00423010	89	src/mech3/mech_collide.cpp (shared: MW3 0x00423010)	MW3 []	PM [11]	int
+0x0042a5e0	0x004289a0	66	src/mech3/credits.cpp (shared: MW3 0x004289a0)	MW3 [7, 8, 9]	PM []	int
+0x0042afd0	0x00429600	31	src/mech3/menu_states.cpp (shared: MW3 0x00429600)	MW3 [72416]	PM [72832]	int
+0x0042bb80	0x0042a590	162	src/mech3/controls_menu.cpp (shared: MW3 0x0042a590)	MW3 [25, 26, 27, 28, 29, 30, 31, 32, 33, 34]	PM [1236]	int
+0x0042c8d0	0x0042b880	88	src/mech3/controls_menu.cpp (shared: MW3 0x0042b880)	MW3 [30, 32, 33, 35, 36, 38, 39, 40, 41]	PM [28]	int
+0x0042f6a0	0x0042e6a0	31	src/mech3/controls_menu.cpp (shared: MW3 0x0042e6a0)	MW3 [74132]	PM [74924]	int
+0x0042f890	0x0042e890	64	src/mech3/controls_menu.cpp (shared: MW3 0x0042e890)	MW3 [10, 11, 12, 13, 14]	PM []	int
+0x00430030	0x0042f230	32	src/mech3/controls_menu.cpp (shared: MW3 0x0042f230)	MW3 [72916]	PM [74096]	int
+0x004311e0	0x00430e70	228	src/mech3/player_view.cpp (shared: MW3 0x00430e70)	MW3 [18]	PM [24]	int
+0x00434470	0x004339a0	41	src/mech3/force_feedback.cpp (shared: MW3 0x004339a0)	MW3 [511]	PM [1023]	int
+0x00435410	0x00434740	38	src/mech3/pilot_games.cpp (shared: MW3 0x00434740)	MW3 []	PM [4, 8]	int
+0x004354e0	0x00434820	42	src/mech3/pilot_games.cpp (shared: MW3 0x00434820)	MW3 []	PM [6, 10]	int
+0x00435e80	0x004353a0	67	src/mech3/pilot_games.cpp (shared: MW3 0x004353a0)	MW3 [6, 90]	PM []	int
+0x00436050	0x00435500	61	src/mech3/pilot_games.cpp (shared: MW3 0x00435500)	MW3 []	PM [7]	int
+0x00437ce0	0x00436f10	35	src/mech3/pilot_games.cpp (shared: MW3 0x00436f10)	MW3 [5]	PM []	int
+0x004381d0	0x004373e0	30	src/mech3/pilot_games.cpp (shared: MW3 0x004373e0)	MW3 [8, 13]	PM [5]	int
+0x00438c10	0x004379f0	128	src/mech3/options_menu.cpp (shared: MW3 0x004379f0)	MW3 [18, 19, 20, 21, 22, 23]	PM []	int
+0x00439840	0x00438be0	53	src/mech3/menu_states.cpp (shared: MW3 0x00438be0)	MW3 [82044]	PM [3, 16, 28, 82452]	int
+0x00439a30	0x00438f60	131	src/mech3/options_menu.cpp (shared: MW3 0x00438f60)	MW3 [18, 19, 20, 21]	PM []	int
+0x0043c210	0x0043b190	99	src/mech3/hud.cpp (shared: MW3 0x0043b190)	MW3 []	PM [12]	int
+0x0043c900	0x0043b860	86	src/mech3/hud.cpp (shared: MW3 0x0043b860)	MW3 [17, 25]	PM [13, 22, 34]	int
+0x0043d880	0x0043c820	116	src/mech3/hud.cpp (shared: MW3 0x0043c820)	MW3 []	PM [7]	int
+0x0043e590	0x0043d260	128	src/mech3/hud.cpp (shared: MW3 0x0043d260)	MW3 [8]	PM [255]	int
+0x00441d20	0x00440510	188	src/mech3/hud.cpp (shared: MW3 0x00440510)	MW3 []	PM [162]	int
+0x004422f0	0x00440b00	356	src/mech3/hud.cpp (shared: MW3 0x00440b00)	MW3 [14]	PM [226, 255]	int
+0x00442fd0	0x00441850	180	src/mech3/hud.cpp (shared: MW3 0x00441850)	MW3 []	PM [162, 173, 195]	int
+0x00449890	0x00448070	29	src/mech3/hud.cpp (shared: MW3 0x00448070)	MW3 [110]	PM []	int
+0x0044a010	0x00448a80	109	src/mech3/mech_lab.cpp (shared: MW3 0x00448a80)	MW3 [19]	PM [25]	int
+0x0044cec0	0x0044b920	277	src/mech3/lab_screen.cpp (shared: MW3 0x0044b920)	MW3 [3532]	PM []	int
+0x00451730	0x004504d0	47	src/mech3/lab_view.cpp (shared: MW3 0x004504d0)	MW3 [9]	PM [7]	int
+0x00459940	0x004587b0	36	src/mech3/mission_map.cpp (shared: MW3 0x004587b0)	MW3 [10]	PM [11]	int
+0x0045cde0	0x0045bc90	150	src/mech3/mech_objective.cpp (shared: MW3 0x0045bc90)	MW3 []	PM [8, 9, 10]	int
+0x0045d7a0	0x0045c4a0	156	src/mech3/mech_objective.cpp (shared: MW3 0x0045c4a0)	MW3 [12]	PM [7, 8]	int
+0x0045dc00	0x0045c920	1548	src/mech3/mech_objective.cpp (shared: MW3 0x0045c920)	MW3 [37, 52]	PM [32, 33, 68, 92, 1024]	int
+0x004611f0	0x0045fe00	114	src/mech3/mech_part_build.cpp (shared: MW3 0x0045fe00)	MW3 [11]	PM []	int
+0x00462090	0x00460d50	275	src/mech3/mech_parts.cpp (shared: MW3 0x00460d50)	MW3 [15]	PM [7, 8, 33]	int
+0x00464780	0x00463110	201	src/mech3/mech_part_update.cpp (shared: MW3 0x00463110)	MW3 [3]	PM [11]	int
+0x00469510	0x004679a0	104	src/mech3/pocket_panel.cpp (shared: MW3 0x004679a0)	MW3 [122]	PM []	int
+0x0046ac20	0x004690d0	102	src/mech3/mech_pocket.cpp (shared: MW3 0x004690d0)	MW3 [95]	PM []	int
+0x0046b4d0	0x00469940	182	src/mech3/lance_orders.cpp (shared: MW3 0x00469940)	MW3 []	PM [70]	int
+0x0046c4d0	0x0046a930	39	src/mech3/pocket_panel.cpp (shared: MW3 0x0046a930)	MW3 []	PM [1859]	int
+0x0046d3e0	0x0046b890	72	src/mech3/mech_reader.cpp (shared: MW3 0x0046b890)	MW3 []	PM [64]	int
+0x0046d690	0x0046ba40	797	src/mech3/mech_reader.cpp (shared: MW3 0x0046ba40)	MW3 [32]	PM [8, 128]	int
+0x0046f510	0x0046d450	157	src/mech3/mech_net.cpp (shared: MW3 0x0046d450)	MW3 []	PM [-4, -3, -2]	int
+0x004703c0	0x00430d10	57	src/mech3/mech_data.cpp (shared: MW3 0x00430d10)	MW3 [564]	PM [12]	int
+0x004732b0	0x00470e30	191	src/mech3/pilot_games.cpp (shared: MW3 0x00470e30)	MW3 [19, 37]	PM [25, 56]	int
+0x00473690	0x004711a0	101	src/mech3/mech_objective.cpp (shared: MW3 0x004711a0)	MW3 [20]	PM []	int
+0x00474810	0x00472630	132	src/mech3/pilot_games.cpp (shared: MW3 0x00472630)	MW3 [4]	PM []	int
+0x004754d0	0x004735f0	47	src/mech3/pilot_games.cpp (shared: MW3 0x004735f0)	MW3 [512, 1094]	PM []	int
+0x00476750	0x004749e0	78	src/mech3/mech_skin.cpp (shared: MW3 0x004749e0)	MW3 [28]	PM [20]	int
+0x00477f90	0x004765b0	693	src/mech3/mech_skis.cpp (shared: MW3 0x004765b0)	MW3 [-740, 10, 7704]	PM [-768, 11, 8472]	int
+0x004790f0	0x00477620	32	src/mech3/mech_skis.cpp (shared: MW3 0x00477620)	MW3 [10]	PM []	int
+0x00479d80	0x00477b20	169	src/mech3/pilot.cpp (shared: MW3 0x00477b20)	MW3 []	PM [7, 92]	int
+0x0047d890	0x0047b430	700	src/mech3/debriefing.cpp (shared: MW3 0x0047b430)	MW3 [372, 375, 384, 385, 1000, 65535]	PM [20, 24, 28, 47000]	int
+0x0047f420	0x0047d030	145	src/mech3/debriefing.cpp (shared: MW3 0x0047d030)	MW3 []	PM [5]	int
+0x0047f7c0	0x0047d310	35	src/mech3/app_states.cpp (shared: MW3 0x0047d310)	MW3 [91816]	PM [6, 92328]	int
+0x0047f870	0x0047d3b0	206	src/mech3/salvage_screen.cpp (shared: MW3 0x0047d3b0)	MW3 [11, 12]	PM []	int
+0x00480260	0x0047dcf0	191	src/mech3/salvage_screen.cpp (shared: MW3 0x0047dcf0)	MW3 [5]	PM [8, 12, 16, 20]	int
+0x00480840	0x0047e270	77	src/mech3/salvage_screen.cpp (shared: MW3 0x0047e270)	MW3 [3]	PM []	int
+0x00480db0	0x0047e840	61	src/mech3/debriefing.cpp (shared: MW3 0x0047e840)	MW3 []	PM [162]	int
+0x00481e20	0x0047f7a0	187	src/mech3/app.cpp (shared: MW3 0x0047f7a0)	MW3 [5]	PM []	int
+0x004826e0	0x00480000	173	src/mech3/app.cpp (shared: MW3 0x00480000)	MW3 [4]	PM [3, 5, 9, 12, 14, 15, 16, 48, 148, 176]	int
+0x00483020	0x004808a0	48	src/mech3/app.cpp (shared: MW3 0x004808a0)	MW3 []	PM [6]	int
+0x00483700	0x00480c70	74	src/mech3/app_states.cpp (shared: MW3 0x00480c70)	MW3 [7, 75400]	PM [3, 9, 75816]	int
+0x00483de0	0x00481170	42	src/mech3/app_states.cpp (shared: MW3 0x00481170)	MW3 [4, 7]	PM []	int
+0x00485620	0x00482d10	164	src/mech3/app.cpp (shared: MW3 0x00482d10)	MW3 [7, 17, 80]	PM [9]	int
+0x00486f10	0x00484d70	51	src/mech3/mech_names.cpp (shared: MW3 0x00484d70)	MW3 []	PM [14]	int
+0x004889d0	0x00485780	67	src/mech3/mainmenu.cpp (shared: MW3 0x00485780)	MW3 [23, 25, 26, 27, 29, 30, 31, 32]	PM [16, 20]	int
+0x00488c40	0x00486260	163	src/mech3/mainmenu.cpp (shared: MW3 0x00486260)	MW3 []	PM [29, 30]	int
+0x004891d0	0x0048e6b0	25	src/mech3/mainmenu.cpp (shared: MW3 0x0048e6b0)	MW3 [200]	PM []	int
+0x00489380	0x00486990	128	src/mech3/app_states.cpp (shared: MW3 0x00486990)	MW3 [9, 76828]	PM [24, 77928]	int
+0x004896e0	0x00486d40	56	src/mech3/app_states.cpp (shared: MW3 0x00486d40)	MW3 [20]	PM [25]	int
+0x0048cbd0	0x0048dfe0	39	src/mech3/app_menus.cpp (shared: MW3 0x0048dfe0)	MW3 [7]	PM [5]	int
+0x0048d590	0x00488bc0	196	src/mech3/action_menu.cpp (shared: MW3 0x00488bc0)	MW3 [19, 20, 21, 22]	PM []	int
+0x0048e430	0x004897b0	41	src/mech3/action_menu.cpp (shared: MW3 0x004897b0)	MW3 [19]	PM [4]	int
+0x0048eaf0	0x0048a140	291	src/mech3/action_menu.cpp (shared: MW3 0x0048a140)	MW3 [24]	PM [5]	int
+0x0048f1c0	0x0048a6c0	31	src/mech3/pilot_menu.cpp (shared: MW3 0x0048a6c0)	MW3 [96048]	PM [96648]	int
+0x0048f970	0x0048aac0	174	src/mech3/action_menu.cpp (shared: MW3 0x0048aac0)	MW3 [7, 10, 19]	PM [15, 25]	int
+0x00490980	0x00486f40	116	src/mech3/pilot_menu.cpp (shared: MW3 0x00486f40)	MW3 [15, 17, 18, 19, 20, 21, 25, 26]	PM []	int
+0x004916c0	0x004882b0	159	src/mech3/pilot_menu.cpp (shared: MW3 0x004882b0)	MW3 [3, 638]	PM [4135]	int
+0x00491d90	0x00488910	32	src/mech3/pilot_menu.cpp (shared: MW3 0x00488910)	MW3 [78212]	PM [76984]	int
+0x00492490	0x0048f740	90	src/mech3/mission.cpp (shared: MW3 0x0048f740)	MW3 [19]	PM []	int
+0x00494500	0x00491150	222	src/mech3/mission_launch.cpp (shared: MW3 0x00491150)	MW3 []	PM [4, 6]	int
+0x00495ec0	0x00492750	81	src/mech3/pause_menu.cpp (shared: MW3 0x00492750)	MW3 [9, 10, 11, 12, 13, 14, 15, 16]	PM []	int
+0x00496400	0x00493040	45	src/mech3/app_states.cpp (shared: MW3 0x00493040)	MW3 [72480]	PM [72892]	int
+0x00496660	0x00493260	162	src/mech3/mp_connect.cpp (shared: MW3 0x00493260)	MW3 [28, 29]	PM []	int
+0x00496d30	0x00493a70	73	src/mech3/mp_connect.cpp (shared: MW3 0x00493a70)	MW3 [25, 26, 28, 29, 31, 32, 33, 34, 35]	PM [24]	int
+0x00498190	0x00495490	71	src/mech3/mp_connect.cpp (shared: MW3 0x00495490)	MW3 [40]	PM []	int
+0x00498300	0x00495600	108	src/mech3/mp_connect.cpp (shared: MW3 0x00495600)	MW3 [40]	PM []	int
+0x00498b70	0x00495f90	274	src/mech3/mp_lobby.cpp (shared: MW3 0x00495f90)	MW3 []	PM [40, 41, 42, 43, 44, 45, 46, 47]	int
+0x00499890	0x00496b90	109	src/mech3/mp_lobby.cpp (shared: MW3 0x00496b90)	MW3 []	PM [35, 36, 37, 38, 39, 40, 41, 42, 43, 44]	int
+0x0049faf0	0x0049c2c0	114	src/mech3/mp_lobby.cpp (shared: MW3 0x0049c2c0)	MW3 [8, 25, 128, 3940]	PM [72980, 73012]	int
+0x004a0e10	0x0049dc80	385	src/mech3/player.cpp (shared: MW3 0x0049dc80)	MW3 [6, 19]	PM []	int
+0x004a19c0	0x0049e810	262	src/mech3/player.cpp (shared: MW3 0x0049e810)	MW3 [18]	PM [4, 5, 512, 586]	int
+0x004a3bd0	0x004a0910	33	src/mech3/veh_move.h (shared: MW3 0x004a0910)	MW3 [30820]	PM [33892]	int
+0x004a5510	0x004a2190	137	src/mech3/veh_move.cpp (shared: MW3 0x004a2190)	MW3 [5192]	PM [5696]	int
+0x004a5780	0x004a23f0	184	src/mech3/veh_move.cpp (shared: MW3 0x004a23f0)	MW3 [5192]	PM [5696]	int
+0x004aa080	0x004a6be0	176	src/mech3/turret.cpp (shared: MW3 0x004a6be0)	MW3 []	PM [4]	int
+0x004aabe0	0x004a76b0	119	src/mech3/turret.cpp (shared: MW3 0x004a76b0)	MW3 []	PM [1252]	int
+0x004aba80	0x004a8530	85	src/mech3/sensors.cpp (shared: MW3 0x004a8530)	MW3 [12]	PM []	int
+0x004afb30	0x004ac150	31	src/mech3/app_engine.cpp (shared: MW3 0x004ac150)	MW3 [74904]	PM [75320]	int
+0x004b34d0	0x004af5a0	200	src/mech3/weapon.cpp (shared: MW3 0x004af5a0)	MW3 [17, 18, 19, 20]	PM []	int
+0x004bbfa0	0x004b6790	116	src/mech3/zai_firing.cpp (shared: MW3 0x004b6790)	MW3 [36, 256]	PM [7, 8]	int
+0x004bf810	0x004b92f0	40	src/mech3/game_editor_vehicles.cpp (shared: MW3 0x004b92f0)	MW3 [5]	PM [8]	int
+0x004cd2f0	0x004c3380	161	src/mech3/zainet_inout.cpp (shared: MW3 0x004c3380)	MW3 []	PM [12]	int
+0x004ce4d0	0x004c3ed0	28	src/mech3/zainet_inout.cpp (shared: MW3 0x004c3ed0)	MW3 [2117]	PM [3258]	int
+0x004d13d0	0x004c6050	154	src/mech3/zainet_node.cpp (shared: MW3 0x004c6050)	MW3 [38]	PM [41]	int
+0x004d1790	0x004c63a0	167	src/mech3/zainet_node.cpp (shared: MW3 0x004c63a0)	MW3 [38]	PM [41]	int
+0x004d1fe0	0x004c6bd0	46	src/mech3/zainet_node.cpp (shared: MW3 0x004c6bd0)	MW3 [38]	PM [41]	int
+0x004d3820	0x004c84b0	45	src/mech3/zai_brain.cpp (shared: MW3 0x004c84b0)	MW3 [25]	PM [30]	int
+0x004dd1e0	0x004cf330	89	src/mech3/zai_brain.cpp (shared: MW3 0x004cf330)	MW3 [6]	PM [156]	int
+0x004dd5e0	0x004cf630	96	src/mech3/zai_brain.cpp (shared: MW3 0x004cf630)	MW3 [3]	PM []	int
+0x004e2820	0x004d25c0	73	src/mech3/zai_target.cpp (shared: MW3 0x004d25c0)	MW3 [28]	PM [40]	int
+0x004e7170	0x004d6d20	35	src/mech3/zai_target.cpp (shared: MW3 0x004d6d20)	MW3 [3]	PM []	int
+0x004f0830	0x004df730	486	src/mech3/zrdraiv.cpp (shared: MW3 0x004df730)	MW3 []	PM [18, 929, 949, 959, 8192]	int
+0x004f3130	0x004e1d70	111	src/mech3/zrdrvalve.cpp (shared: MW3 0x004e1d70)	MW3 [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]	PM [17, 18, 19, 20, 21, 22, 23]	int
+0x004f56a0	0x004e3ba0	42	src/mech3/zrdrvalve.cpp (shared: MW3 0x004e3ba0)	MW3 [25]	PM [30]	int
+0x004f5f50	0x004e44b0	317	src/mech3/zrdrvalve.cpp (shared: MW3 0x004e44b0)	MW3 []	PM [12, 1277, 1289, 1296, 1303, 1310]	int
+0x004faff0	0x004e9d90	97	src/mech3/zai_brain.cpp (shared: MW3 0x004e9d90)	MW3 [7, 8, 25]	PM [30]	int
+0x004fdd60	0x004ec150	119	src/gamez/zclass/class.cpp (shared: MW3 0x004ec150)	MW3 [83]	PM []	int
+0x004fe220	0x004ec6b0	117	src/gamez/zclass/class.cpp (shared: MW3 0x004ec6b0)	MW3 []	PM [6]	int
+0x004fe4c0	0x004ec9c0	17	src/gamez/zclass/class.cpp (shared: MW3 0x004ec9c0)	MW3 []	PM [5, 1024, 3459]	int
+0x004feba0	0x004ecf70	163	src/gamez/zclass/class.cpp (shared: MW3 0x004ecf70)	MW3 []	PM [256]	int
+0x004ff8d0	0x004edab0	87	src/gamez/zclass/cls_di.cpp (shared: MW3 0x004edab0)	MW3 [5, 12]	PM []	int
+0x004ffd20	0x004eddb0	161	src/gamez/zclass/cls_di.cpp (shared: MW3 0x004eddb0)	MW3 [739, 781]	PM [634, 676]	int
+0x005003a0	0x004ee2f0	187	src/gamez/zclass/cls_di.cpp (shared: MW3 0x004ee2f0)	MW3 [5, 12, 1293]	PM [1281]	int
+0x005009e0	0x004ee790	184	src/gamez/zclass/cls_di.cpp (shared: MW3 0x004ee790)	MW3 [1574]	PM [1539]	int
+0x00501030	0x004eed90	213	src/gamez/zclass/cls_di.cpp (shared: MW3 0x004eed90)	MW3 [2162, 2163]	PM [2127, 2128]	int
+0x00502590	0x004efef0	231	src/gamez/zclass/cls_di.cpp (shared: MW3 0x004efef0)	MW3 []	PM [12]	int
+0x00505820	0x004f2560	95	src/gamez/zclass/cls_world.cpp (shared: MW3 0x004f2560)	MW3 []	PM [1024, 3328, 32767]	int
+0x00506200	0x004f2e00	67	src/gamez/zclass/cls_world.cpp (shared: MW3 0x004f2e00)	MW3 []	PM [512]	int
+0x005066b0	0x004f32e0	34	src/gamez/zclass/camera.cpp (shared: MW3 0x004f32e0)	MW3 [658]	PM [149]	int
+0x00506760	0x004f33a0	23	src/gamez/zclass/camera.cpp (shared: MW3 0x004f33a0)	MW3 [739, 740]	PM [232, 233]	int
+0x00506830	0x004f3430	36	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3430)	MW3 [798, 799, 800]	PM [295, 296, 297]	int
+0x005068d0	0x004f34c0	35	src/gamez/zclass/camera.cpp (shared: MW3 0x004f34c0)	MW3 [822, 823, 824]	PM [319, 320, 321]	int
+0x00506980	0x004f3560	49	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3560)	MW3 [895, 896, 898, 899, 901, 902]	PM [392, 393, 395, 396, 398, 399]	int
+0x00506ae0	0x004f36b0	41	src/gamez/zclass/camera.cpp (shared: MW3 0x004f36b0)	MW3 [1128, 1129, 1130]	PM [625, 626, 627]	int
+0x00506c10	0x004f37c0	40	src/gamez/zclass/camera.cpp (shared: MW3 0x004f37c0)	MW3 [1184, 1185, 1186]	PM [686, 687, 688]	int
+0x00506cd0	0x004f3870	44	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3870)	MW3 [1277, 1278, 1279]	PM [784, 785, 786]	int
+0x00506d90	0x004f3920	44	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3920)	MW3 [1328, 1329, 1330]	PM [840, 841, 842]	int
+0x00506ef0	0x004f3a70	33	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3a70)	MW3 [1482, 1483, 1484]	PM [1004, 1005, 1006]	int
+0x00506f80	0x004f3b00	32	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3b00)	MW3 [1520, 1521, 1522]	PM [1042, 1043, 1044]	int
+0x00507010	0x004f3b90	56	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3b90)	MW3 [1556, 1557, 1558]	PM [1078, 1079, 1080]	int
+0x005071e0	0x004f3d90	49	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3d90)	MW3 [1651, 1652, 1653]	PM [1173, 1174, 1175]	int
+0x005072e0	0x004f3ee0	32	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3ee0)	MW3 [1704, 1705, 1706]	PM [1226, 1227, 1228]	int
+0x005073f0	0x004f3ff0	34	src/gamez/zclass/camera.cpp (shared: MW3 0x004f3ff0)	MW3 [1771, 1772, 1773]	PM [1293, 1294, 1295]	int
+0x00507480	0x004f4090	29	src/gamez/zclass/camera.cpp (shared: MW3 0x004f4090)	MW3 [1806, 1807, 1808]	PM [1328, 1329, 1330]	int
+0x00507500	0x004f4100	29	src/gamez/zclass/camera.cpp (shared: MW3 0x004f4100)	MW3 [1839, 1840, 1841]	PM [1361, 1362, 1363]	int
+0x00507580	0x004f4170	24	src/gamez/zclass/camera.cpp (shared: MW3 0x004f4170)	MW3 [2081, 2082]	PM [1603, 1604]	int
+0x005090b0	0x004f5a90	94	src/gamez/zclass/camera.cpp (shared: MW3 0x004f5a90)	MW3 [4446]	PM [4055]	int
+0x005092a0	0x004f5c80	274	src/gamez/zclass/camera.cpp (shared: MW3 0x004f5c80)	MW3 [5, 4607, 4793, 4799]	PM [4215, 4393, 4399]	int
+0x00509830	0x004f61b0	286	src/gamez/zclass/camera.cpp (shared: MW3 0x004f61b0)	MW3 [5, 5007, 5203, 5209]	PM [4607, 4808, 4814]	int
+0x00509dd0	0x004f6720	187	src/gamez/zclass/camera.cpp (shared: MW3 0x004f6720)	MW3 [5, 12]	PM [20]	int
+0x0050a600	0x004f6c80	49	src/gamez/zclass/camera.cpp (shared: MW3 0x004f6c80)	MW3 [255, 6200, 6201, 6202]	PM [6006, 6007, 6008]	int
+0x0050b920	0x004f7fe0	47	src/gamez/zclass/list.cpp (shared: MW3 0x004f7fe0)	MW3 []	PM [6]	int
+0x0050f870	0x004fb650	57	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fb650)	MW3 [274, 275]	PM [238, 239]	int
+0x0050f960	0x004fb740	22	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fb740)	MW3 [345]	PM [309]	int
+0x0050f9c0	0x004fb7a0	28	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fb7a0)	MW3 [418, 419, 420]	PM [382, 383, 384]	int
+0x0050fa20	0x004fb7f0	28	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fb7f0)	MW3 [446, 447, 448]	PM [410, 411, 412]	int
+0x0050fa80	0x004fb840	35	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fb840)	MW3 [475, 476, 477]	PM [439, 440, 441]	int
+0x0050fb10	0x004fb8c0	69	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fb8c0)	MW3 [515, 516, 517]	PM [479, 480, 481]	int
+0x0050fc70	0x004fba20	29	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fba20)	MW3 [585, 586, 587]	PM [549, 550, 551]	int
+0x0050fcf0	0x004fbaa0	29	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fbaa0)	MW3 [610, 611, 612]	PM [574, 575, 576]	int
+0x0050fd70	0x004fbb10	29	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fbb10)	MW3 [638, 639, 640]	PM [602, 603, 604]	int
+0x0050fdf0	0x004fbb90	35	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fbb90)	MW3 [667, 668, 669]	PM [631, 632, 633]	int
+0x0050fe80	0x004fbc10	53	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fbc10)	MW3 [731, 732]	PM [695, 696]	int
+0x0050ff80	0x004fbd20	28	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fbd20)	MW3 [888, 889]	PM [852, 853]	int
+0x0050ffe0	0x004fbd80	52	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fbd80)	MW3 [926, 927]	PM [890, 891]	int
+0x005100f0	0x004fbe90	28	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fbe90)	MW3 [1008, 1009]	PM [972, 973]	int
+0x00510150	0x004fbef0	58	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fbef0)	MW3 [1046, 1047]	PM [1010, 1011]	int
+0x00510270	0x004fc020	33	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fc020)	MW3 [1121, 1122, 1123]	PM [1085, 1086, 1087]	int
+0x00510300	0x004fc0b0	49	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fc0b0)	MW3 [1160, 1161]	PM [1124, 1125]	int
+0x00510400	0x004fc1b0	60	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fc1b0)	MW3 [1221, 1222, 1223]	PM [1185, 1186, 1187]	int
+0x00510540	0x004fc300	54	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fc300)	MW3 [1282, 1283, 1284]	PM [1246, 1247, 1248]	int
+0x00510630	0x004fc3f0	23	src/gamez/zclass/object3d.cpp (shared: MW3 0x004fc3f0)	MW3 [1349, 1350, 1351]	PM [1313, 1314, 1315]	int
+0x00515730	0x004f1bd0	22	src/gamez/zclass/cls_world.cpp (shared: MW3 0x004f1bd0)	MW3 [13, 16, 188]	PM [7, 11, 40, 65, 1024]	int
+0x00517b30	0x004ff7a0	47	src/gamez/zclass/cls_zbd.cpp (shared: MW3 0x004ff7a0)	MW3 [1572]	PM [1909]	int
+0x00519eb0	0x00501ab0	182	src/gamez/zdeclient/zdec_init.cpp (shared: MW3 0x00501ab0)	MW3 [7, 4104, 4108]	PM []	int
+0x0051cd60	0x00504520	477	src/gamez/zeffect/zeff_anim_events.cpp (shared: MW3 0x005045	MW3 []	PM [3]	int
+0x0051f750	0x00506bc0	40	src/gamez/zeffect/zeff_anim_run.cpp (shared: MW3 0x00506bc0)	MW3 [316]	PM [268]	int
+0x00520800	0x005079b0	79	src/gamez/zeffect/zeff_anim_run.cpp (shared: MW3 0x005079b0)	MW3 [41, 5725]	PM [4, 46, 6245]	int
+0x00522670	0x005097c0	436	src/gamez/zeffect/zeff_anim_init.cpp (shared: MW3 0x005097c0	MW3 [40, 316, 11716, 11739]	PM [67, 12227, 12250]	int
+0x00522ea0	0x00509eb0	164	src/gamez/zeffect/zeff_anim_init.cpp (shared: MW3 0x00509eb0	MW3 [40, 96, 12057, 12100, 12142]	PM [44, 92, 12596, 12657, 12718]	int
+0x00524300	0x0050ace0	29	src/gamez/zeffect/zeff_anim_run.cpp (shared: MW3 0x0050ace0)	MW3 [316]	PM [268]	int
+0x00524380	0x0050ad60	56	src/gamez/zeffect/zeff_anim_run.cpp (shared: MW3 0x0050ad60)	MW3 [316]	PM [268]	int
+0x00524492	0x0050ae60	99	src/gamez/zeffect/zeff_anim_init.cpp (shared: MW3 0x0050ae60	MW3 [13717, 32768]	PM [14767]	int
+0x00524710	0x0050b0e0	119	src/gamez/zeffect/zeff_anim_init.cpp (shared: MW3 0x0050b0e0	MW3 []	PM [5]	int
+0x00525090	0x0050b970	169	src/gamez/zeffect/zeff_anim_save.cpp (shared: MW3 0x0050b970	MW3 [316]	PM [268]	int
+0x00525460	0x0050bd50	39	src/gamez/zeffect/zeff_anim_save.cpp (shared: MW3 0x0050bd50	MW3 [1000]	PM []	int
+0x0052a810	0x00510da0	902	src/gamez/zgeometry/zgeo_weiler.cpp (shared: MW3 0x00510da0)	MW3 []	PM [82]	int
+0x0052fbf0	0x005162d0	201	src/gamez/zgeometry/zgeo_convexify.cpp (shared: MW3 0x005162	MW3 [907]	PM [905]	int
+0x00531000	0x00517cc0	25	src/gamez/zimage/zimg_library.cpp (shared: MW3 0x00517cc0)	MW3 [14]	PM [15]	int
+0x00533b90	0x0051a300	92	src/gamez/zinput/zin_kbd.cpp (shared: MW3 0x0051a300)	MW3 [32]	PM [83]	int
+0x00533e60	0x0051a5d0	191	src/gamez/zinput/zin_kbd.cpp (shared: MW3 0x0051a5d0)	MW3 []	PM [3]	int
+0x005348b0	0x0051b0a0	40	src/gamez/zinput/zin_init.cpp (shared: MW3 0x0051b0a0)	MW3 [150, 1280]	PM [143, 1792]	int
+0x00537780	0x0051ddc0	97	src/gamez/zinput/zin_init.cpp (shared: MW3 0x0051ddc0)	MW3 []	PM [12, 140]	int
+0x00540450	0x00526ae0	16	src/gamez/zmodel/gmod_init.cpp (shared: MW3 0x00526ae0)	MW3 [725]	PM [569]	int
+0x00548990	0x00526e10	64	src/gamez/zmodel/gmod_init.cpp (shared: MW3 0x00526e10)	MW3 [15]	PM []	int
+0x00557120	0x005376c0	43	src/gamez/zmodel/gmod_draw.cpp (shared: MW3 0x005376c0)	MW3 [1782]	PM [1524]	int
+0x00557200	0x005377a0	17	src/gamez/zmodel/gmod_matl.cpp (shared: MW3 0x005377a0)	MW3 [1831]	PM [1573]	int
+0x00557240	0x005377e0	16	src/gamez/zmodel/gmod_matl.cpp (shared: MW3 0x005377e0)	MW3 [1851]	PM [1593]	int
+0x00558440	0x00538640	187	src/gamez/zmodel/gmod_const.cpp (shared: MW3 0x00538640)	MW3 [16, 23, 48, 803, 816, 829]	PM [25, 737, 750, 763]	int
+0x0055d740	0x00542bb0	21	src/gamez/zmodel/gmod_cull.cpp (shared: MW3 0x00542bb0)	MW3 [3]	PM []	int
+0x0055e720	0x00543b60	85	src/gamez/zmodel/gmod_light.cpp (shared: MW3 0x00543b60)	MW3 [4, 8]	PM []	int
+0x00563f10	0x005489a0	214	src/gamez/zmodel/gmod_puff.cpp (shared: MW3 0x005489a0)	MW3 []	PM [255]	int
+0x00565320	0x0054a090	346	src/gamez/zmodel/gmod_puff.cpp (shared: MW3 0x0054a090)	MW3 []	PM [4, 12, 36, 120]	int
+0x00579880	0x005578f0	90	src/gamez/zrender/zrndr_draw.cpp (shared: MW3 0x005578f0)	MW3 [5]	PM []	int
+0x0057a170	0x005581c0	30	src/gamez/zrender/zrndr_tint.cpp (shared: MW3 0x005581c0)	MW3 [25600]	PM [40000]	int
+0x0058f390	0x0056dfb0	83	src/gamez/zsound/zsnd_play.cpp (shared: MW3 0x0056dfb0)	MW3 [999]	PM []	int
+0x0058ff90	0x0056eb10	168	src/gamez/zsound/zsnd_play.cpp (shared: MW3 0x0056eb10)	MW3 [10]	PM []	int
+0x00591dd0	0x00571460	87	src/gamez/zsound/zsnd_init.cpp (shared: MW3 0x00571460)	MW3 [20, 96, 992, 995, 999, 1027, 1038, 1047]	PM [9, 36, 674, 677, 681, 709, 720, 729]	int
+0x00597340	0x00576520	31	src/gamez/zutil/zutl_zar.cpp (shared: MW3 0x00576520)	MW3 []	PM [91]	int
+0x005a0065	0x0057ea20	134	src/gamez/zvideo/zvid_ddd3d.cpp (shared: MW3 0x0057ea20)	MW3 [3, 5, 11, 16, 17, 19, 20, 24, 27]	PM [141, 1810, 1818, 1826, 2048, 3000, 12000]	int
+0x005a52e0	0x00583880	521	src/gamez/zweapon/zwep_init.cpp (shared: MW3 0x00583880)	MW3 [-324, 23]	PM [-340, 25]	int
+0x005a6650	0x00584b40	42	src/gamez/zweapon/zwep_beam.cpp (shared: MW3 0x00584b40)	MW3 []	PM [1024, 1144]	int
+0x005a6c60	0x00585010	286	src/gamez/zweapon/zwep_shot.cpp (shared: MW3 0x00585010)	MW3 [10]	PM [11]	int
+0x005a9520	0x005885c0	16	src/gamez/znetwork/znet_dplay.cpp (shared: MW3 0x005885c0)	MW3 [355]	PM [319]	int
+0x005a95c0	0x00588660	19	src/gamez/znetwork/znet_dplay.cpp (shared: MW3 0x00588660)	MW3 [390]	PM [354]	int
+0x005a97d0	0x005888a0	26	src/gamez/znetwork/znet_session.cpp (shared: MW3 0x005888a0)	MW3 [473]	PM [435]	int
+0x005a9850	0x00588930	51	src/gamez/znetwork/znet_session.cpp (shared: MW3 0x00588930)	MW3 [535]	PM [481]	int
+0x005a9980	0x00588a70	272	src/gamez/znetwork/znet_dplay.cpp (shared: MW3 0x00588a70)	MW3 [12, 33]	PM [46]	int
+0x005ad3d0	0x0058ba40	194	src/gamez/znetwork/znet_view.cpp (shared: MW3 0x0058ba40)	MW3 []	PM [1030, 1285, 1286, 1541, 1542]	int
+0x005adfe0	0x0058c640	77	src/gamez/znetwork/znet_view.cpp (shared: MW3 0x0058c640)	MW3 [9]	PM []	int
+0x005b1550	0x0058fd70	140	src/gamez/zgame/zgameapp.cpp (shared: MW3 0x0058fd70)	MW3 [15]	PM []	int
+0x005b19c0	0x00590230	17	src/gamez/zgame/zgameapp.cpp (shared: MW3 0x00590230)	MW3 []	PM [16]	int
+0x005b8140	0x00596020	30	src/gamez/zinterp/zinterp.cpp (shared: MW3 0x00596020)	MW3 []	PM [3]	int
+0x005ba110	0x00598d80	450	src/gamez/zfmv/fmv_script.cpp (shared: MW3 0x00598d80)	MW3 [10, 11, 12, 13, 14, 36, 56]	PM []	int
+0x005c7200	0x005a40b0	54	src/gamez/ztwod/twod_console.cpp (shared: MW3 0x005a40b0)	MW3 [280]	PM [1048]	int
+0x005c7700	0x005a46a0	38	src/gamez/ztwod/twod_editbar.cpp (shared: MW3 0x005a46a0)	MW3 [3, 9, 10, 23]	PM [95, 129]	int
+0x005c9280	0x005a7280	104	src/gamez/ztwod/twod_msgbox.cpp (shared: MW3 0x005a7280)	MW3 []	PM [5]	int
+0x005c9bb0	0x005a7b50	48	src/gamez/ztwod/twod_object.cpp (shared: MW3 0x005a7b50)	MW3 [484]	PM [168]	int
+0x005cd090	0x005aa3b0	27	src/gamez/zsiscript/si_script.cpp (shared: MW3 0x005aa3b0)	MW3 [467]	PM [4, 12, 455]	int

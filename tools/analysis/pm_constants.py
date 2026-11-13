@@ -131,3 +131,45 @@ if len(sys.argv) > 2:
             ns += 1
             so.write(f"{r['addr']}\t{r['mw3']}\t{r['lines']}\t{r['ported_in'][:60]}\tMW3 only {only_m[:8]}\tPM only {only_p[:8]}\n")
     print(ns, 'functions whose float values differ as sets')
+
+# Integers, the same way (pm_constants_ints.tsv): compare, mov and push
+# immediates (the operand after the last comma or the push's), and dword
+# reads from a fixed address that are not floats or addresses. Dropped:
+# addresses, anything inside brackets (stack and field offsets), 0, 1, -1, 2.
+if len(sys.argv) > 2:
+    def ints(ops, srt, a, end, exe):
+        out = set()
+        j = bisect.bisect_left(srt, a)
+        while j < len(srt) and srt[j] < end:
+            ins = ops[srt[j]]; j += 1
+            mnem = ins.split()[0] if ins else ''
+            if mnem not in ('cmp', 'mov', 'push'): continue
+            r_ = memref(ins, True)
+            if r_ and r_[1] == 4 and mnem == 'mov' and ins.split(',')[-1].strip().startswith('dword ptr [0x'):
+                b = exe.raw(r_[0], 4)
+                if b:
+                    v = struct.unpack('<i', b)[0]
+                    if not is_float(b) or abs(v) < 0x10000:
+                        if not (0x400000 <= (v & 0xffffffff) < 0xb00000) and v not in (0, 1, -1, 2): out.add(v)
+                continue
+            m = re.search(r'(?:,\s*|push\s+)(0x[0-9a-f]+|\d+)$', ins)
+            if not m: continue
+            v = int(m.group(1), 0)
+            if v >= 0x80000000: v -= 1 << 32
+            if 0x400000 <= (v & 0xffffffff) < 0xb00000 or v in (0, 1, -1, 2): continue
+            b = struct.pack('<I', v & 0xffffffff)
+            if abs(v) >= 0x10000 and is_float(b): continue   # a float immediate: the float check's
+            out.add(v)
+        return out
+    si = open(sys.argv[2].replace('.tsv', '_ints.tsv'), 'w'); ni = 0
+    for r in rows:
+        if (r['status'] != 'changed' and r['addr'] not in extra) or not r['mw3']: continue
+        a, m = int(r['addr'], 16), int(r['mw3'], 16)
+        i = bisect.bisect_right(starts, a); pe_ = starts[i] if i < len(starts) else a + 0x1000
+        k = bisect.bisect_right(mw_starts, m); me_ = mw_starts[k] if k < len(mw_starts) else m + 0x1000
+        pv, mv = ints(pmops, pm_sorted, a, pe_, pmx), ints(mwops, mw_sorted, m, me_, mw3x)
+        om, op_ = sorted(mv - pv), sorted(pv - mv)
+        if om or op_:
+            ni += 1
+            si.write(f"{r['addr']}\t{r['mw3']}\t{r['lines']}\t{r['ported_in'][:60]}\tMW3 {om[:10]}\tPM {op_[:10]}\n")
+    print(ni, 'functions whose integer values differ as sets')
