@@ -11,10 +11,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2363 |
-| unlabelled | 1909 |
+| folded | 2387 |
+| unlabelled | 1897 |
 | replaced (SDL or the platform layer) | 222 |
-| UNSURE | 200 |
+| UNSURE | 188 |
 | software renderer | 105 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 100 |
 | MISSING LOGIC | 96 |
@@ -130,6 +130,18 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x005c9cc0** (1 functions, 20 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a7c50: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
 - **0x005c9d10** (1 functions, 12 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a7ca0, whose class PM's changes keep: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
 - **0x005c9d40** (1 functions, 14 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a7cd0: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
+
+## BROKEN (null hook)
+
+Hooks the ported code calls that the program leaves unset (a null field, a census stand-in, or a
+base virtual that only logs), which shipped play reaches. "Shown by": the chain runs (the census
+of a campaign, Instant Action or training run) or the static check (the data and the callers).
+
+| Hook | Original | Reached by | The original does | In the port | Seen in play | Shown by |
+|---|---|---|---|---|---|---|
+| DamageCalls.zaps_hud (mech.h) | 0x0043cf50 (MW3 0x0043be70) | the hit wrappers on the player's mech | the HUD static from the hitting weapon's ZAPS_HUD | a census stand-in, as in MW3: nothing shown | yes, if a PM weapon has ZAPS_HUD (not checked in PM's weapons.zrd yet) | static (MW3's row) |
+
+Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1, seed 1999, 33 ms) reached 0 functions outside the known table and skipped 0 script calls, but for one report: the mech build's CZMechFirePoint::CFixup message (mech.cpp line 0xee, rows c1sa3 and c3sa3) goes through the unported() report hook instead of zerr::report. The port's fixup itself runs (mech_build.cpp:699); only the report's routing is missing, with no effect in play.
 
 ## PORT (preserve)
 
@@ -420,7 +432,6 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 0x004f9960 (1 functions, 17 decomp lines): read with group A: a callee of shared ports PM changed (0x00483de0); whether the port does PM's version, this call included, is settled there
 - 0x004fa090 (1 functions, 32 decomp lines): read with group A: a callee of shared ports PM changed (0x004dd1e0); whether the port does PM's version, this call included, is settled there
 - 0x004fbe60 (1 functions, 9 decomp lines): read with group A: a callee of shared ports PM changed (0x004d3c30, 0x004d6070); whether the port does PM's version, this call included, is settled there
-- 0x004fcfb0, 0x004fcff0, 0x004fd080, 0x004fd0d0, 0x004fd110, 0x004fd160, 0x004fd1a0, 0x004fd1f0, 0x004fd280, 0x004fd4a0, 0x005067c0, 0x00506a60 (12 functions, 182 decomp lines): PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census
 - 0x005000d0 (1 functions, 21 decomp lines): read with group A: a callee of shared ports PM changed (0x004ffd20, 0x00501ab0); whether the port does PM's version, this call included, is settled there
 - 0x005017e0 (1 functions, 27 decomp lines): read with group A: a callee of shared ports PM changed (0x00501030); whether the port does PM's version, this call included, is settled there
 - 0x0050b8f0 (1 functions, 20 decomp lines): read with group A: a callee of shared ports PM changed (0x0050b920); whether the port does PM's version, this call included, is settled there
@@ -2683,31 +2694,31 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004bad40 | 17 | folded | ported, by docs/symbols.csv: ported as a constant: [0x0060b2ec] = 2/100 (and [0x0060b2b0] = cos(atan(2/100)), never read) |
 | 0x004bad70 | 20 | folded | ported, by docs/symbols.csv: ported; Aim's initialisers |
 | 0x004bb6a0 | 10 | folded | as MW3 0x004b78d0: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
-| 0x004bb6b0 | 21 | unlabelled |  |
-| 0x004bbdc0 | 30 | unlabelled |  |
-| 0x004bbe30 | 34 | unlabelled |  |
+| 0x004bb6b0 | 21 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
+| 0x004bbdc0 | 30 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
+| 0x004bbe30 | 34 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
 | 0x004bbf20 | 25 | UNSURE | read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there |
 | 0x004bbfa0 | 116 | unlabelled |  |
 | 0x004bc230 | 17 | folded | inside its ported callers (0x004bbfa0): a small helper their ports do their own way |
 | 0x004bc260 | 12 | folded | inside its ported callers (0x004bc2e0): a small helper their ports do their own way |
-| 0x004bc2a0 | 12 | unlabelled |  |
+| 0x004bc2a0 | 12 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
 | 0x004bc8c0 | 10 | folded | inside its ported callers (0x004bb700): a small helper their ports do their own way |
 | 0x004bc8e0 | 8 | folded | returns a constant or a global |
 | 0x004bc8f0 | 11 | unlabelled |  |
 | 0x004bc910 | 9 | folded | a thunk: one call to another function |
 | 0x004bc920 | 8 | folded | returns a constant or a global |
-| 0x004bc930 | 76 | unlabelled |  |
+| 0x004bc930 | 76 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
 | 0x004bca70 | 21 | unlabelled |  |
-| 0x004bcad0 | 96 | unlabelled |  |
-| 0x004bd170 | 16 | unlabelled |  |
+| 0x004bcad0 | 96 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
+| 0x004bd170 | 16 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
 | 0x004bd1b0 | 9 | folded | a thunk: one call to another function |
 | 0x004bd220 | 11 | unlabelled |  |
 | 0x004bd240 | 15 | unlabelled |  |
 | 0x004bd280 | 14 | unlabelled |  |
 | 0x004bd2b0 | 11 | folded | inside its ported callers (0x004bcd40): a small helper their ports do their own way |
 | 0x004bd2e0 | 12 | unlabelled |  |
-| 0x004bd310 | 180 | unlabelled |  |
-| 0x004bd610 | 30 | unlabelled |  |
+| 0x004bd310 | 180 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
+| 0x004bd610 | 30 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
 | 0x004bd650 | 24 | folded | as MW3 0x0054be10: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x004bd680 | 26 | folded | as MW3 0x004b7920: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004bd6c0 | 14 | unlabelled |  |
@@ -2715,9 +2726,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004bd710 | 31 | folded | as MW3 0x004b7990: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004bd760 | 47 | UNSURE | read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there |
 | 0x004bd870 | 12 | folded | as MW3 0x004b7ac0: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
-| 0x004bd8a0 | 13 | unlabelled |  |
-| 0x004bd8d0 | 31 | unlabelled |  |
-| 0x004bd920 | 302 | unlabelled |  |
+| 0x004bd8a0 | 13 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
+| 0x004bd8d0 | 31 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
+| 0x004bd920 | 302 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
 | 0x004bddd0 | 22 | folded | as MW3 0x004b7af0: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004bde20 | 132 | unlabelled |  |
 | 0x004be050 | 56 | folded | as MW3 0x004b7b40: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
@@ -3914,24 +3925,24 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004fceb0 | 25 | unlabelled |  |
 | 0x004fcf20 | 18 | unlabelled |  |
 | 0x004fcf70 | 14 | unlabelled |  |
-| 0x004fcfb0 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
-| 0x004fcff0 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fcfb0 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fcff0 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
 | 0x004fd040 | 13 | folded | covered by the port where it names it (src/gamez/zgeometry/zgeo_model.cpp:446) |
-| 0x004fd080 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
-| 0x004fd0d0 | 13 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
-| 0x004fd110 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
-| 0x004fd160 | 13 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
-| 0x004fd1a0 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
-| 0x004fd1f0 | 13 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fd080 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fd0d0 | 13 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fd110 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fd160 | 13 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fd1a0 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fd1f0 | 13 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
 | 0x004fd230 | 18 | unlabelled |  |
-| 0x004fd280 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fd280 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
 | 0x004fd2c0 | 18 | unlabelled |  |
 | 0x004fd310 | 14 | unlabelled |  |
 | 0x004fd350 | 18 | unlabelled |  |
 | 0x004fd3a0 | 18 | unlabelled |  |
 | 0x004fd3f0 | 14 | unlabelled |  |
 | 0x004fd430 | 14 | unlabelled |  |
-| 0x004fd4a0 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fd4a0 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
 | 0x004fd4f0 | 14 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:205) |
 | 0x004fd540 | 16 | unlabelled |  |
 | 0x004fd590 | 18 | unlabelled |  |
@@ -4016,14 +4027,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00506670 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f32a0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x005066b0 | 34 | unlabelled |  |
 | 0x00506760 | 23 | unlabelled |  |
-| 0x005067c0 | 22 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x005067c0 | 22 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
 | 0x00506810 | 9 | folded | a thunk: one call to another function |
 | 0x00506830 | 36 | unlabelled |  |
 | 0x005068d0 | 35 | unlabelled |  |
 | 0x00506960 | 11 | unused: PORT (preserve) | as MW3 0x004f3540: no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60) |
 | 0x00506970 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f3550: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00506980 | 49 | unlabelled |  |
-| 0x00506a60 | 23 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x00506a60 | 23 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
 | 0x00506ae0 | 41 | unlabelled |  |
 | 0x00506c10 | 40 | unlabelled |  |
 | 0x00506cd0 | 44 | unlabelled |  |
@@ -5627,44 +5638,6 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005beca0 | 12 | unlabelled |  |
 | 0x005becd0 | 38 | unlabelled |  |
 
-### zweapon (33 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005a52e0 | 521 | unlabelled |  |
-| 0x005a62a0 | 74 | unlabelled |  |
-| 0x005a6410 | 9 | unlabelled | follows 0x005a6420:  |
-| 0x005a6420 | 63 | unlabelled |  |
-| 0x005a6550 | 9 | unlabelled | follows 0x005a6420:  |
-| 0x005a6650 | 42 | unlabelled |  |
-| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
-| 0x005a6a00 | 37 | unlabelled |  |
-| 0x005a6c20 | 20 | unlabelled |  |
-| 0x005a6c60 | 286 | unlabelled |  |
-| 0x005a7570 | 36 | UNSURE | read with group A: a callee of shared ports PM changed (0x005a3a30); whether the port does PM's version, this call included, is settled there |
-| 0x005a75c0 | 129 | unlabelled |  |
-| 0x005a79a0 | 162 | unlabelled |  |
-| 0x005a8090 | 58 | unlabelled |  |
-| 0x005a8230 | 58 | unlabelled |  |
-| 0x005a8430 | 29 | unlabelled |  |
-| 0x005a8510 | 71 | unlabelled |  |
-| 0x005a8820 | 20 | unlabelled |  |
-| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
-| 0x005a8a90 | 16 | folded | inside its ported callers (0x005a8a40): a small helper their ports do their own way |
-| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
-| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
-| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
-| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-
 ### zgame (33 not ported)
 
 | Address | Lines | Class | Why |
@@ -5702,6 +5675,44 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 | 0x005b2830 | 231 | unlabelled |  |
 | 0x005b2c60 | 16 | unlabelled |  |
+
+### zweapon (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005a52e0 | 521 | unlabelled |  |
+| 0x005a62a0 | 74 | unlabelled |  |
+| 0x005a6410 | 9 | unlabelled | follows 0x005a6420:  |
+| 0x005a6420 | 63 | unlabelled |  |
+| 0x005a6550 | 9 | unlabelled | follows 0x005a6420:  |
+| 0x005a6650 | 42 | unlabelled |  |
+| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
+| 0x005a6a00 | 37 | unlabelled |  |
+| 0x005a6c20 | 20 | unlabelled |  |
+| 0x005a6c60 | 286 | unlabelled |  |
+| 0x005a7570 | 36 | UNSURE | read with group A: a callee of shared ports PM changed (0x005a3a30); whether the port does PM's version, this call included, is settled there |
+| 0x005a75c0 | 129 | unlabelled |  |
+| 0x005a79a0 | 162 | unlabelled |  |
+| 0x005a8090 | 58 | unlabelled |  |
+| 0x005a8230 | 58 | unlabelled |  |
+| 0x005a8430 | 29 | unlabelled |  |
+| 0x005a8510 | 71 | unlabelled |  |
+| 0x005a8820 | 20 | unlabelled |  |
+| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
+| 0x005a8a90 | 16 | folded | inside its ported callers (0x005a8a40): a small helper their ports do their own way |
+| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
+| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
+| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
+| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
+| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 
 ### zutil (31 not ported)
 
