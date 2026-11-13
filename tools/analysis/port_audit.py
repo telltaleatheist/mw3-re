@@ -124,8 +124,8 @@ def scan_src(src, tag):
 def scan_asm(asm, starts):
     """Direct calls and immediate references between functions, and each
     function's references into data (for the tables it reaches)."""
-    call = re.compile(r"^\s*([0-9a-f]+):\s+(?:call|jmp)\s+0x([0-9a-f]+)")
-    imm = re.compile(r'^\s*([0-9a-f]+):\s+(?:push|mov)\s.*\b0x([45][0-9a-f]{5})\b')
+    call = re.compile(r"^\s*([0-9a-f]+):\s+(?:[0-9a-f]{2} )*\s*(?:call|jmp)l?\s+0x([0-9a-f]+)")  # pm.asm keeps the bytes
+    imm = re.compile(r'^\s*([0-9a-f]+):\s+(?:[0-9a-f]{2} )*\s*(?:push|mov)l?\s.*\b0x([45][0-9a-f]{5})\b')
     callers, callees, refs = defaultdict(set), defaultdict(set), defaultdict(set)
     data_refs = defaultdict(set)
     dimm = re.compile(r'^\s*([0-9a-f]+):.*?\b0x([5-9a-f][0-9a-f]{5,6})\b')
@@ -361,6 +361,18 @@ def main():
     pairs, mw3p, mw3n = {}, {}, {}
     if o.game == 'pm':
         mw3p, mw3n = scan_src(Path(o.src), GAMES['mw3']['tag'])
+        # A bare PM address in a comment is most often an MW3 address that
+        # happens to match: a name counts only in PM's own code (src/pm/) or
+        # on a line that says Pirate's Moon / PM.
+        src_root = Path(o.src).parent
+        def pm_ref(ref):
+            fn, n = ref.rsplit(':', 1)
+            if '/pm/' in fn:
+                return True
+            line = (src_root / fn).read_text(errors='replace').splitlines()[int(n) - 1]
+            return bool(re.search(r"Pirate|\bPM\b|\bpm\b", line))
+        named = defaultdict(list, {a: [r for r in rs if pm_ref(r)] for a, rs in named.items()})
+        named = defaultdict(list, {a: rs for a, rs in named.items() if rs})
         for x in json.load(open(A / 'pm-diff' / 'pairs.json')):
             if 'pm' in x and 'mw3' in x:
                 pairs[int(x['pm'], 16)] = x

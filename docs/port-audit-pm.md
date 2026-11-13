@@ -11,39 +11,33 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2456 |
-| unlabelled | 2252 |
-| replaced (SDL or the platform layer) | 153 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 78 |
-| software renderer | 73 |
-| debug or dev tool: PORT (preserve) | 52 |
-| dev dialog (MFC), its window plumbing: replaced | 46 |
-| unused: PORT (preserve) | 44 |
-| dev dialog (MFC), its logic: PORT (preserve) | 29 |
+| unlabelled | 2286 |
+| folded | 2167 |
+| replaced (SDL or the platform layer) | 206 |
+| MISSING LOGIC | 111 |
+| software renderer | 105 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 100 |
+| debug or dev tool: PORT (preserve) | 80 |
+| unused: PORT (preserve) | 59 |
+| dev dialog (MFC), its window plumbing: replaced | 48 |
+| dev dialog (MFC), its logic: PORT (preserve) | 34 |
 | UNSURE | 20 |
-| MISSING LOGIC | 13 |
 
 ## MISSING LOGIC
 
+- **0x00404600, 0x004ab720, 0x004aea00, 0x004d7810, 0x004e3b50, 0x004ef160 ...** (107 functions, 7952 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 - **0x0041c630** (1 functions, 21 decomp lines; MISSING LOGIC): as MW3 0x0041b930: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
 - **0x0041c680** (1 functions, 22 decomp lines; MISSING LOGIC): as MW3 0x0041b980: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
 - **0x00440ac0** (1 functions, 33 decomp lines; MISSING LOGIC): as MW3 0x0043f2d0: the radar's map-mode position (HudRadar 0x0043f2d0): stores the mech's position and, with the mission map shown, moves the mech's marker line on the map (0x00491c80, 0x005a6880); not ported, and its hook radar_heading (hud.h:880) is never overridden: see BROKEN
-- **0x00510ab0** (1 functions, 23 decomp lines; MISSING LOGIC): as MW3 0x004fc8b0: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
 - **0x00572af0** (1 functions, 9 decomp lines; MISSING LOGIC): as MW3 0x00553460: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
-- **0x00573100** (1 functions, 22 decomp lines; MISSING LOGIC): as MW3 0x005534b0: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
-- **0x00573150** (1 functions, 11 decomp lines; MISSING LOGIC): as MW3 0x00553d40: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
-- **0x00573f30** (1 functions, 10 decomp lines; MISSING LOGIC): as MW3 0x00554130: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
-- **0x005746c0** (1 functions, 10 decomp lines; MISSING LOGIC): as MW3 0x00554540: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
-- **0x00574ee0** (1 functions, 16 decomp lines; MISSING LOGIC): as MW3 0x00554630: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
-- **0x005751d0** (1 functions, 10 decomp lines; MISSING LOGIC): as MW3 0x00553560: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
-- **0x00576390** (1 functions, 10 decomp lines; MISSING LOGIC): as MW3 0x00554f30: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
-- **0x00576f00** (1 functions, 12 decomp lines; MISSING LOGIC): as MW3 0x00555620: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
+- **0x00401000, 0x004b2190** (2 functions, 45 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): called only from 0x004b1f90, which are missing-mod
 - **0x004010c0** (1 functions, 132 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401100: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00401430** (1 functions, 44 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401400: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00401530** (1 functions, 70 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401500: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00401660** (1 functions, 36 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401620: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x004016d0** (1 functions, 107 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401680: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00401990** (1 functions, 58 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401940: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
+- **0x00401b00** (1 functions, 75 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401ab0, whose class PM's changes keep: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00401c50** (1 functions, 18 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401bf0: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00401c90** (1 functions, 110 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401c30: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00401e90** (1 functions, 48 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401e30: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
@@ -56,6 +50,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x00402440** (1 functions, 34 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004023d0: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00402500** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004024a0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them
 - **0x00402540** (1 functions, 20 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004024e0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them
+- **0x004025f0** (1 functions, 9 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): called only from 0x004c5cb0, which are missing-mod
 - **0x00402610** (1 functions, 272 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004025b0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them
 - **0x00403d30** (1 functions, 27 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00403cd0: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00403d70** (1 functions, 30 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00403d10: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
@@ -64,11 +59,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x00403e70** (1 functions, 16 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00403df0: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00403ea0** (1 functions, 30 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00403e20: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00403ef0** (1 functions, 19 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00403e70: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
+- **0x00410ec0, 0x004c7300** (2 functions, 98 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004c0310, whose class PM's changes keep: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
 - **0x00460b70** (1 functions, 31 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004bf4e0: the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file
+- **0x004b1b80** (1 functions, 31 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae270, whose class PM's changes keep: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b1c40** (1 functions, 8 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae340: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b1c50** (1 functions, 8 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae350: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b1c60** (1 functions, 16 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae380: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b1ca0** (1 functions, 101 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae3c0: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
+- **0x004b1ec0** (1 functions, 22 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): called only from 0x004b2280, which are missing-mod
 - **0x004b1f80** (1 functions, 8 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae6a0: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b1f90** (1 functions, 51 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae6b0: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b21d0** (1 functions, 21 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae8e0: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
@@ -77,22 +75,32 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x004b2260** (1 functions, 14 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae960: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b2280** (1 functions, 23 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae980: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004c5cb0** (1 functions, 83 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004bed90: the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file
+- **0x00504e70** (1 functions, 49 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f1cd0, whose class PM's changes keep: under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them
 - **0x00504f50** (1 functions, 16 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f1d90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00504f80** (1 functions, 15 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f1dc0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x00505c40** (1 functions, 17 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f2880, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00506670** (1 functions, 17 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f32a0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00506970** (1 functions, 9 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f3550: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x00506e50** (1 functions, 40 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f39d0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x00507150** (1 functions, 32 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f3d00, whose class PM's changes keep: under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them
+- **0x00507370** (1 functions, 29 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f3f70, whose class PM's changes keep: under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them
 - **0x0050b8b0** (1 functions, 19 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f7fa0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x0050c660** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f8b80: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x0050db40** (1 functions, 20 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f9e50: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x0050dc60** (1 functions, 22 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fd1e0, whose class PM's changes keep: zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
 - **0x0050ded0** (1 functions, 29 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fa1c0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x0050df50** (1 functions, 35 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fa230: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x0050dff0** (1 functions, 58 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fa2c0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x0050e110** (1 functions, 41 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fa3e0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x0050e1f0** (1 functions, 31 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fdc70, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00515380** (1 functions, 22 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fd8c0: zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
+- **0x00515790** (1 functions, 51 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fdcd0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00515910** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fde50: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00515960** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fde90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x005159b0** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fded0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00515a00** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fdf10: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x005168e0** (1 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fe8e0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x00520500** (1 functions, 100 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
 - **0x00520960** (1 functions, 11 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00507dd0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00526da0** (1 functions, 28 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x0050d610: an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
 - **0x00526e50** (1 functions, 43 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x0050d6a0: an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
@@ -101,9 +109,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x00539200** (1 functions, 143 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x0051f750: billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
 - **0x00540410** (1 functions, 12 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00526aa0: script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
 - **0x00540430** (1 functions, 12 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00526ac0: script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
+- **0x00548220** (1 functions, 243 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00542060, whose class PM's changes keep: the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
 - **0x00559910** (1 functions, 9 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00539cc0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x0055b630** (1 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x0053b960, whose class PM's changes keep: script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
 - **0x0055b810** (1 functions, 21 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x0053bb50: script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
 - **0x0055be00** (1 functions, 26 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x0053bd60: script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
+- **0x00563760** (1 functions, 157 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00548250, whose class PM's changes keep: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it
 - **0x005639e0** (1 functions, 62 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005484c0: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it
 - **0x00563b30** (1 functions, 23 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00548600: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it
 - **0x00563b80** (1 functions, 84 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00548650: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it
@@ -115,33 +126,52 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x005c6c90** (1 functions, 10 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a6760: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
 - **0x005c8920** (1 functions, 46 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a6a10: Line2D's reader from a dialog .zrd (its COLOR and its end), shared by the line classes' vtables; inferred unused by shipped data (the dialog reader matches the exe on every shipped dialog without it), not checked file by file
 - **0x005c9cc0** (1 functions, 20 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a7c50: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
+- **0x005c9d10** (1 functions, 12 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a7ca0, whose class PM's changes keep: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
 - **0x005c9d40** (1 functions, 14 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a7cd0: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
 
 ## PORT (preserve)
 
 ### debug or dev tool: PORT (preserve)
 
-- 1 functions, 33 decomp lines (0x0040fa20): as MW3 0x0040f150: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only)
+- 2 functions, 43 decomp lines (0x0040f780, 0x0040f7a0): as MW3 0x0040ff40, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only)
+- 2 functions, 42 decomp lines (0x0040f8d0, 0x0040fa20): as MW3 0x0040f150: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only)
+- 1 functions, 24 decomp lines (0x00410110): as MW3 0x0040f7f0, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only)
+- 1 functions, 10 decomp lines (0x00410190): called only from 0x00410110, which are debug
 - 1 functions, 10 decomp lines (0x004101c0): as MW3 0x0040f890: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only)
 - 1 functions, 10 decomp lines (0x004101e0): as MW3 0x0040f8b0: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only)
+- 1 functions, 108 decomp lines (0x00410470): as MW3 0x0040fb50, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only)
 - 1 functions, 16 decomp lines (0x0041d8f0): as MW3 0x0041ca90: a debug key command (0x6d, case 2 of the key switch 0x0040dba0) toggling the mech's +0x634 bit 1; the release never registers 0x6d (0x0040db60 registers 0x61, 0x6c, 0x70, 0x7e)
 - 1 functions, 45 decomp lines (0x0043dbf0): as MW3 0x0043cb10: the HUD's debug overlays (docs/hud.md section 11: the mech's gait, speeds and the like into five debug texts while the debug text shows, command 0x82); hooked in the port (hud_debug, unported)
 - 1 functions, 39 decomp lines (0x0043dcf0): as MW3 0x0043cc00: the HUD's debug overlays (docs/hud.md section 11: the mech's gait, speeds and the like into five debug texts while the debug text shows, command 0x82); hooked in the port (hud_debug, unported)
+- 2 functions, 39 decomp lines (0x004832a0, 0x00483d50): as MW3 0x004810d0, whose class PM's changes keep: the debug console's overlay toggle (0x00608f74; game-loop.md: from 0x00480b20, itself never called)
 - 1 functions, 32 decomp lines (0x004a6940): as MW3 0x004a3550: debug key commands of 0x0040dba0, never registered in the release: a position marker printed to the console (0x004a3220), the mechs listed into the developer lines (0x004a33f0, command 0x89; hud.md), a vehicle picked in a dialog (0x004a3550, its destructor 0x004a35e0)
 - 1 functions, 20 decomp lines (0x004a69d0): as MW3 0x004a35e0: debug key commands of 0x0040dba0, never registered in the release: a position marker printed to the console (0x004a3220), the mechs listed into the developer lines (0x004a33f0, command 0x89; hud.md), a vehicle picked in a dialog (0x004a3550, its destructor 0x004a35e0)
 - 1 functions, 9 decomp lines (0x004a7500): as MW3 0x004a4ca0: the stealth object (the developers' fly camera; back burner in CLAUDE.md): a slot of its
 - 1 functions, 9 decomp lines (0x004a7900): as MW3 0x004a50b0: the stealth object (the developers' fly camera; back burner in CLAUDE.md): a slot of its
 - 1 functions, 28 decomp lines (0x004a7930): as MW3 0x004a50e0: the debug command 0x7e (0x004abbc0, 121 lines: a console of keyboard text and the network session; registered, but no key reaches it: app_keys.h:14, hud.md) and the stealth object's key handler (0x004a50e0: the fly camera, back burner)
+- 1 functions, 11 decomp lines (0x004c7c80): as MW3 0x0058f2d0, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
+- 1 functions, 13 decomp lines (0x004c7c90): called only from 0x004c7cf0, which are debug
+- 1 functions, 20 decomp lines (0x004c7cf0): called only from 0x004c7c80, which are debug
 - 1 functions, 9 decomp lines (0x004f38c0): as MW3 0x004e2310: the valve reader's print method (a vtable slot that fprintf's a value); nothing in the game prints a reader
 - 1 functions, 9 decomp lines (0x004f7250): as MW3 0x004e53b0: the valve reader's print method (a vtable slot that fprintf's a value); nothing in the game prints a reader
 - 1 functions, 9 decomp lines (0x0050a5f0): as MW3 0x004f6c70: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
+- 1 functions, 125 decomp lines (0x00515fb0): as MW3 0x004fe6c0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
+- 1 functions, 189 decomp lines (0x00516260): as MW3 0x004fe2d0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
+- 1 functions, 48 decomp lines (0x00516720): as MW3 0x004fe210, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
+- 1 functions, 53 decomp lines (0x00516800): called only from 0x00516260, which are debug
+- 1 functions, 11 decomp lines (0x00531810): as MW3 0x00518050, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127)
+- 1 functions, 53 decomp lines (0x00531870): as MW3 0x005180a0, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127)
 - 1 functions, 26 decomp lines (0x00533380): as MW3 0x005199e0: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 1 functions, 12 decomp lines (0x005333c0): as MW3 0x00519a20: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 1 functions, 50 decomp lines (0x005333e0): as MW3 0x00519a40: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 1 functions, 63 decomp lines (0x005334d0): as MW3 0x00519b30: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 1 functions, 19 decomp lines (0x00533580): as MW3 0x00519be0: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 1 functions, 24 decomp lines (0x005335c0): as MW3 0x00519c20: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
+- 1 functions, 137 decomp lines (0x00555ae0): as MW3 0x005360c0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool
+- 1 functions, 20 decomp lines (0x00557b30): called only from 0x00515fb0, which are debug
+- 1 functions, 302 decomp lines (0x00557d50): as MW3 0x005380e0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool
 - 1 functions, 224 decomp lines (0x00596590): as MW3 0x00575b00: the developer's stdout redirect (freopen to a log; editor.md:214)
+- 1 functions, 34 decomp lines (0x005adf40): as MW3 0x0058c590, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 - 1 functions, 89 decomp lines (0x005aecb0): as MW3 0x0058d3c0: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 - 1 functions, 14 decomp lines (0x005afc50): as MW3 0x0058e440: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 - 1 functions, 26 decomp lines (0x005b0300): as MW3 0x0058ec20: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
@@ -151,6 +181,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 1 functions, 28 decomp lines (0x005b0410): as MW3 0x0058ed40: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 - 1 functions, 24 decomp lines (0x005b0470): as MW3 0x0058eda0: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 - 1 functions, 20 decomp lines (0x005b04d0): as MW3 0x0058ee10: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
+- 1 functions, 138 decomp lines (0x005b0500): as MW3 0x0058ee40, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 - 1 functions, 60 decomp lines (0x005b08b0): as MW3 0x0058f170: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 - 1 functions, 11 decomp lines (0x005b09c0): as MW3 0x0058f270: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 - 1 functions, 77 decomp lines (0x005b0a30): as MW3 0x0058f420: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
@@ -168,7 +199,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 1 functions, 26 decomp lines (0x005b8210): as MW3 0x005960a0: the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532)
 - 1 functions, 12 decomp lines (0x005b82e0): as MW3 0x00596170: the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532)
 - 1 functions, 14 decomp lines (0x005b8300): as MW3 0x00596190: the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532)
+- 1 functions, 9 decomp lines (0x005b8350): called only from 0x005b8300, which are debug
 - 1 functions, 19 decomp lines (0x005c02c0): as MW3 0x005a0050: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
+- 2 functions, 54 decomp lines (0x005c6df0, 0x005c6e80): as MW3 0x005a3cd0, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
+- 1 functions, 16 decomp lines (0x005c6f90): as MW3 0x005a3de0, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
+- 1 functions, 17 decomp lines (0x005c6fe0): as MW3 0x005a3e30, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
+- 1 functions, 68 decomp lines (0x005c7030): as MW3 0x005a3e80, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
 - 1 functions, 17 decomp lines (0x005cc5b0): as MW3 0x005a98d0: the developers' loose <name>.zan override for motion scripts (motion.md:36), like the reader's loose .zrd files
 - 1 functions, 29 decomp lines (0x005cc880): as MW3 0x005a9bc0: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0)
 - 1 functions, 168 decomp lines (0x005ccaf0): as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0)
@@ -176,7 +212,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 ### dev dialog (MFC), its logic: PORT (preserve)
 
-- 1 functions, 18 decomp lines (0x00404100): as MW3 0x00404090: the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents)
+- 1 functions, 83 decomp lines (0x00403830): as MW3 0x00403820, whose class PM's changes keep: the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp
+- 1 functions, 75 decomp lines (0x00403f30): as MW3 0x00403ec0, whose class PM's changes keep: the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents)
+- 2 functions, 27 decomp lines (0x00404100, 0x004a0530): as MW3 0x00404090: the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents)
 - 1 functions, 71 decomp lines (0x00409830): as MW3 0x0040bb00: the camera dialog (resource 0x6a: the camera's place and angles in degrees, editable; 0x0040bd00 its window): a dev tool's logic
 - 1 functions, 34 decomp lines (0x00433770): as MW3 0x00432c60: a mech list dialog (resource 0x9c, from a debug key command in 0x0040db60): its fill of every mech name (0x00484650)
 - 1 functions, 26 decomp lines (0x00433840): as MW3 0x00432d30: a mech list dialog (resource 0x9c, from a debug key command in 0x0040db60): its fill of every mech name (0x00484650)
@@ -189,6 +227,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 1 functions, 21 decomp lines (0x00485d60): as MW3 0x004834b0: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags)
 - 1 functions, 10 decomp lines (0x00485e60): as MW3 0x00483600: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags)
 - 1 functions, 32 decomp lines (0x00485ea0): as MW3 0x00483640: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags)
+- 1 functions, 131 decomp lines (0x004a07a0): as MW3 0x0049d350, whose class PM's changes keep: the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp
 - 1 functions, 26 decomp lines (0x004a0b00): as MW3 0x0049d710: the editor's 'add vehicle to node' dialog (editor.md: a vehicle picked from a dialog, 0x0049d350 / 0x0049d8b0): its list fill, its team and target bits from the player's mech (+0xc4, +0xc8), the yaw in radians
 - 1 functions, 19 decomp lines (0x004a0ba0): as MW3 0x0049d7b0: the editor's 'add vehicle to node' dialog (editor.md: a vehicle picked from a dialog, 0x0049d350 / 0x0049d8b0): its list fill, its team and target bits from the player's mech (+0xc4, +0xc8), the yaw in radians
 - 1 functions, 26 decomp lines (0x004a0c00): as MW3 0x0049d810: the editor's 'add vehicle to node' dialog (editor.md: a vehicle picked from a dialog, 0x0049d350 / 0x0049d8b0): its list fill, its team and target bits from the player's mech (+0xc4, +0xc8), the yaw in radians
@@ -204,17 +243,21 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 1 functions, 17 decomp lines (0x004eac90): as MW3 0x004d9d80: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic
 - 1 functions, 44 decomp lines (0x004eacd0): as MW3 0x004d9dc0: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic
 - 1 functions, 27 decomp lines (0x004eade0): as MW3 0x004d9ed0: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic
+- 1 functions, 32 decomp lines (0x004eb070): as MW3 0x004d9fc0, whose class PM's changes keep: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic
 - 1 functions, 19 decomp lines (0x004f07a0): as MW3 0x004df6a0: the editor's 'add vehicle to node' record (an aiv record built on OK, editor.md); in the release its path returns 0 and nothing is made; ours does it as meant: upgrades/editor/add_vehicle
 
 ### unused: PORT (preserve)
 
 - 1 functions, 17 decomp lines (0x00410820): as MW3 0x0040fef0: the timing marks ('Dummy Frame', 'Lets Play!'): act only with [0x005e14f0], 0 in the data (program.md, no effect)
+- 1 functions, 9 decomp lines (0x00410880): called only from 0x00410820, which are unused
 - 1 functions, 28 decomp lines (0x004964f0): as MW3 0x00493120: the movie base's run to the end on its own clock (0x00575d30): nothing calls it (fmv.md)
 - 1 functions, 76 decomp lines (0x004b5040): as MW3 0x004b1170: the static the AI's planner builds at 0x0060b240 (two reserved vectors): read by nothing (weapon_planner.h:7)
+- 1 functions, 9 decomp lines (0x004b51a0): called only from 0x004b5040, which are unused
 - 1 functions, 21 decomp lines (0x004c8010): as MW3 0x004c0ed0: the vehicle's +0xd8 record of each in/out query (its constructor and reset): written, never read (docs/symbols.csv: not kept; ai.md 11)
 - 1 functions, 12 decomp lines (0x004d6a00): as MW3 0x004cd7b0: the brain's own step at +0x240 (0x004cd770, vtable 0x005cc290): built by the brain's constructor, but nothing orders it (only the constructor takes +0x240), so its make_state, state and run (path following toward a point, 98 lines) never run
 - 1 functions, 10 decomp lines (0x004d6a50): as MW3 0x004cd800: the brain's own step at +0x240 (0x004cd770, vtable 0x005cc290): built by the brain's constructor, but nothing orders it (only the constructor takes +0x240), so its make_state, state and run (path following toward a point, 98 lines) never run
-- 1 functions, 41 decomp lines (0x004faa40): as MW3 0x004e95b0: IControls vt+0x84 of the AI controls (drop the target if it is the given entity's, stand the firing down): no caller reaches that slot (docs/ai.md, the AI controls' unreached slots)
+- 1 functions, 90 decomp lines (0x004d6a60): as MW3 0x004cd810, whose class PM's changes keep: the brain's own step at +0x240 (0x004cd770, vtable 0x005cc290): built by the brain's constructor, but nothing orders it (only the constructor takes +0x240), so its make_state, state and run (path following toward a point, 98 lines) never run
+- 2 functions, 50 decomp lines (0x004f9580, 0x004faa40): as MW3 0x004e95b0: IControls vt+0x84 of the AI controls (drop the target if it is the given entity's, stand the firing down): no caller reaches that slot (docs/ai.md, the AI controls' unreached slots)
 - 1 functions, 11 decomp lines (0x00506960): as MW3 0x004f3540: no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60)
 - 1 functions, 10 decomp lines (0x0050ca50): as MW3 0x004f8f20: no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60)
 - 1 functions, 9 decomp lines (0x0050ca90): as MW3 0x004f8f60: no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60)
@@ -237,6 +280,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 1 functions, 53 decomp lines (0x0053bd40): as MW3 0x00522280: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 1 functions, 16 decomp lines (0x0053be80): as MW3 0x005223c0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 1 functions, 50 decomp lines (0x0053bfa0): as MW3 0x005224b0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
+- 1 functions, 115 decomp lines (0x0053d000): as MW3 0x00523650, whose class PM's changes keep: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 1 functions, 32 decomp lines (0x0053d7c0): as MW3 0x00523df0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 1 functions, 31 decomp lines (0x0053d8c0): as MW3 0x00523ef0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 1 functions, 21 decomp lines (0x0053e8c0): as MW3 0x00524f80: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
@@ -244,13 +288,23 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 1 functions, 21 decomp lines (0x0053e960): as MW3 0x00525020: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 1 functions, 9 decomp lines (0x0053e9e0): as MW3 0x005250a0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 1 functions, 9 decomp lines (0x0053ea30): as MW3 0x005250f0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
+- 1 functions, 144 decomp lines (0x0053f900): as MW3 0x00525fa0, whose class PM's changes keep: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 - 1 functions, 101 decomp lines (0x00540a90): as MW3 0x0053d130: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 - 1 functions, 124 decomp lines (0x00540ca0): as MW3 0x0053d360: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 - 1 functions, 44 decomp lines (0x00541830): as MW3 0x0053de50: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 - 1 functions, 65 decomp lines (0x005418e0): as MW3 0x0053df00: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
+- 1 functions, 779 decomp lines (0x0054aea0): as MW3 0x00530d90, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
+- 1 functions, 945 decomp lines (0x0054be20): as MW3 0x00531d90, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
+- 1 functions, 1153 decomp lines (0x0054d1c0): as MW3 0x005331e0, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
+- 1 functions, 97 decomp lines (0x00559db0): as MW3 0x0053a1a0, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 - 1 functions, 72 decomp lines (0x0055a2f0): as MW3 0x0053a740: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
+- 1 functions, 168 decomp lines (0x0055ad60): as MW3 0x0053b050, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
+- 1 functions, 50 decomp lines (0x00563da0): as MW3 0x00548840, whose class PM's changes keep: the puffers' wind step with a dt argument: dead code, never called (puffers.md)
 - 1 functions, 16 decomp lines (0x00579360): as MW3 0x00557490: the defines list's constructor and destructor, no caller reaches them (zreader.md:103)
+- 1 functions, 39 decomp lines (0x00591ce0): as MW3 0x00571380, whose class PM's changes keep: the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38)
 - 1 functions, 45 decomp lines (0x00592cc0): as MW3 0x00571f70: the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38)
+- 1 functions, 197 decomp lines (0x00595360): as MW3 0x005746b0, whose class PM's changes keep: the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38)
+- 1 functions, 19 decomp lines (0x005acc40): called only from 0x00410880, which are unused
 - 1 functions, 9 decomp lines (0x005cc130): as MW3 0x005a92d0: _rmtmp at zSave's stop, unreached
 
 ## UNSURE
@@ -282,14 +336,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00401000 | 36 | unlabelled |  |
+| 0x00401000 | 36 | MISSING LOGIC (only data the shipped game lacks reaches it) | called only from 0x004b1f90, which are missing-mod |
 | 0x004010c0 | 132 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401100: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00401430 | 44 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401400: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00401530 | 70 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401500: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00401660 | 36 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401620: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x004016d0 | 107 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401680: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00401990 | 58 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401940: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401b00 | 75 | unlabelled |  |
+| 0x00401b00 | 75 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401ab0, whose class PM's changes keep: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00401c50 | 18 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401bf0: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00401c90 | 110 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401c30: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00401e90 | 48 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401e30: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
@@ -299,7 +353,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00402170 | 36 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004021c0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them |
 | 0x00402210 | 18 | unlabelled |  |
 | 0x00402230 | 11 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.h:32) |
-| 0x00402250 | 8 | folded | covered by the port where it names it (src/mech3/app_hud.cpp:365) |
+| 0x00402250 | 8 | unlabelled |  |
 | 0x00402280 | 12 | unlabelled |  |
 | 0x00402330 | 18 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004022c0: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00402350 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004022e0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them |
@@ -309,7 +363,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00402540 | 20 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004024e0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them |
 | 0x00402570 | 23 | folded | as MW3 0x00402510: covered: array and list helpers, destructors (unwind callers), the loading bar and the briefing's map (app_menus.cpp:964 overrides briefing_map_image; the hook's 'not ported yet' comment is stale), the vehicle path's entries drop (app_vehicle.h:145) |
 | 0x004025c0 | 17 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:1714) |
-| 0x004025f0 | 9 | folded | a thunk: one call to another function |
+| 0x004025f0 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | called only from 0x004c5cb0, which are missing-mod |
 | 0x00402610 | 272 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004025b0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them |
 | 0x00402bd0 | 32 | folded | covered by the port where it names it (src/mech3/game_editor_tree.cpp:77) |
 | 0x00402c50 | 9 | folded | frees the object (a destructor's release) |
@@ -318,7 +372,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00402f20 | 12 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:303) |
 | 0x00403170 | 9 | folded | a thunk: one call to another function |
 | 0x00403730 | 23 | folded | covered by the port where it names it (src/upgrades/editor/node_params.h:16) |
-| 0x00403830 | 83 | unlabelled |  |
+| 0x00403830 | 83 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00403820, whose class PM's changes keep: the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp |
 | 0x00403a70 | 20 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x00403a40: MFC dialog plumbing of dev dialogs (CDialog constructors and destructors, EnableWindow): resource 0x67 and the teleport and net dialogs' destructors |
 | 0x00403ac0 | 8 | folded | empty: does nothing |
 | 0x00403ad0 | 17 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:357) |
@@ -331,9 +385,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00403e70 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00403df0: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00403ea0 | 30 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00403e20: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00403ef0 | 19 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00403e70: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00403f30 | 75 | unlabelled |  |
+| 0x00403f30 | 75 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00403ec0, whose class PM's changes keep: the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents) |
 | 0x00404100 | 18 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00404090: the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents) |
-| 0x00404140 | 9 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:37) |
+| 0x00404140 | 9 | folded | covered by the port where it names it (src/mech3/entity_bind.h:2) |
 | 0x00404160 | 9 | folded | a thunk: one call to another function |
 | 0x00404170 | 9 | folded | a thunk: one call to another function |
 | 0x004041a0 | 53 | folded | as MW3 0x00404140: covered where the port does it: src/mech3/game_editor_net.cpp:29 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -341,7 +395,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00404310 | 19 | folded | as MW3 0x004042f0: covered: array and list helpers, destructors (unwind callers), the loading bar and the briefing's map (app_menus.cpp:964 overrides briefing_map_image; the hook's 'not ported yet' comment is stale), the vehicle path's entries drop (app_vehicle.h:145) |
 | 0x00404340 | 12 | unlabelled |  |
 | 0x00404360 | 32 | folded | as MW3 0x00404340: covered: array and list helpers, destructors (unwind callers), the loading bar and the briefing's map (app_menus.cpp:964 overrides briefing_map_image; the hook's 'not ported yet' comment is stale), the vehicle path's entries drop (app_vehicle.h:145) |
-| 0x00404600 | 13 | folded | as MW3 0x004bf530: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
+| 0x00404600 | 13 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x00404610 | 11 | folded | covered by the port where it names it (src/mech3/zrdrainet.cpp:195) |
 | 0x00404780 | 87 | unlabelled |  |
 | 0x00404990 | 15 | unlabelled |  |
@@ -379,7 +433,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00406cb0 | 8 | folded | empty: does nothing |
 | 0x00406ce0 | 8 | folded | returns a constant or a global |
 | 0x00406d00 | 8 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:315) |
-| 0x00406d10 | 31 | unlabelled |  |
+| 0x00406d10 | 31 | replaced (SDL or the platform layer) | as MW3 0x00409b50, whose class PM's changes keep: GDI: a font's metrics from its handle (GetObjectA), the 2D text's Windows path; the port's text goes through ztwod::Host |
 | 0x00406e00 | 14 | unlabelled |  |
 | 0x00406e60 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:573) |
 | 0x00406eb0 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:684) |
@@ -420,7 +474,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00408390 | 19 | folded | as MW3 0x00437580: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x004083e0 | 19 | unlabelled |  |
 | 0x00408430 | 21 | unlabelled |  |
-| 0x004084f0 | 9 | folded | covered by the port where it names it (src/mech3/briefing.cpp:248) |
+| 0x004084f0 | 9 | folded | covered by the port where it names it (src/mech3/player_view.h:36) |
 | 0x00408510 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:108) |
 | 0x00408530 | 9 | folded | as MW3 0x0040a9e0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00408540 | 9 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:112) |
@@ -428,7 +482,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00408580 | 74 | unlabelled |  |
 | 0x00408740 | 39 | folded | as MW3 0x0040abf0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x004087f0 | 38 | unlabelled |  |
-| 0x004088e0 | 9 | folded | a thunk: one call to another function |
+| 0x004088e0 | 9 | unlabelled | follows 0x004fd5e0:  |
 | 0x00408920 | 11 | unlabelled |  |
 | 0x00408940 | 9 | folded | as MW3 0x0040a850: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x00408950 | 12 | folded | as MW3 0x004104a0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
@@ -440,7 +494,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00409a10 | 21 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040bd00: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x00409a60 | 9 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x00401030: MFC dialog plumbing of dev dialogs (CDialog constructors and destructors, EnableWindow): resource 0x67 and the teleport and net dialogs' destructors |
 | 0x00409a70 | 9 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x00401040: MFC dialog plumbing of dev dialogs (CDialog constructors and destructors, EnableWindow): resource 0x67 and the teleport and net dialogs' destructors |
-| 0x00409a80 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:77) |
+| 0x00409a80 | 12 | unlabelled |  |
 | 0x00409aa0 | 18 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040bd70: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x00409b50 | 8 | folded | returns a constant or a global |
 | 0x00409bb0 | 10 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040bea0: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
@@ -450,7 +504,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0040ab60 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:824) |
 | 0x0040afe0 | 15 | unlabelled |  |
 | 0x0040b120 | 47 | unlabelled |  |
-| 0x0040b210 | 8 | folded | covered by the port where it names it (src/mech3/player_view.cpp:591) |
+| 0x0040b210 | 8 | unlabelled |  |
 | 0x0040b250 | 11 | folded | as MW3 0x0040d410: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x0040b270 | 35 | unlabelled |  |
 | 0x0040b320 | 9 | unlabelled |  |
@@ -465,23 +519,23 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0040b6e0 | 9 | folded | a thunk: one call to another function |
 | 0x0040b700 | 9 | folded | a thunk: one call to another function |
 | 0x0040b720 | 69 | unlabelled |  |
-| 0x0040b9f0 | 12 | folded | covered by the port where it names it (src/mech3/teleport.h:16) |
+| 0x0040b9f0 | 12 | unlabelled |  |
 | 0x0040bd70 | 34 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040def0: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x0040be40 | 40 | folded | as MW3 0x0040e120: covered where the port does it: src/mech3/game_editor_net.cpp:229 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0040bf30 | 20 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040e200: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
-| 0x0040bf90 | 43 | unlabelled |  |
-| 0x0040c300 | 13 | unlabelled |  |
+| 0x0040bf90 | 43 | dev dialog (MFC), its window plumbing: replaced | called only from 0x0040bf30, which are devdialog-shell |
+| 0x0040c300 | 13 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:956) |
 | 0x0040c340 | 12 | unlabelled |  |
 | 0x0040c600 | 23 | folded | covered by the port where it names it (src/mech3/pilot.h:259) |
 | 0x0040c660 | 8 | folded | returns a constant or a global |
 | 0x0040c670 | 8 | folded | returns a constant or a global |
 | 0x0040c6a0 | 11 | folded | covered by the port where it names it (src/mech3/pilot.h:322) |
 | 0x0040c6b0 | 12 | unlabelled |  |
-| 0x0040c6c0 | 8 | folded | covered by the port where it names it (src/mech3/mission.cpp:94) |
+| 0x0040c6c0 | 8 | unlabelled |  |
 | 0x0040c6d0 | 8 | folded | returns a constant or a global |
 | 0x0040c6e0 | 12 | folded | covered by the port where it names it (src/mech3/pilot.h:259) |
 | 0x0040c700 | 8 | folded | as MW3 0x00437860: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
-| 0x0040c720 | 9 | folded | a thunk: one call to another function |
+| 0x0040c720 | 9 | replaced (SDL or the platform layer) | follows 0x00596e50: as MW3 0x00576040, whose class PM's changes keep: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x0040c730 | 8 | unlabelled |  |
 | 0x0040c740 | 8 | unlabelled |  |
 | 0x0040c750 | 8 | unlabelled |  |
@@ -494,50 +548,50 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0040ca70 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:842) |
 | 0x0040ca80 | 23 | folded | as MW3 0x00436a40: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0040cac0 | 10 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:526) |
-| 0x0040ce90 | 32 | folded | covered by the port where it names it (src/mech3/app_hooks.h:1034) |
+| 0x0040ce90 | 32 | folded | covered by the port where it names it (src/mech3/mech_dead.cpp:123) |
 | 0x0040cf60 | 17 | unlabelled |  |
 | 0x0040cfa0 | 108 | unlabelled |  |
 | 0x0040d230 | 23 | unlabelled |  |
 | 0x0040d280 | 45 | unlabelled |  |
 | 0x0040d320 | 110 | unlabelled |  |
-| 0x0040d4d0 | 9 | folded | a thunk: one call to another function |
+| 0x0040d4d0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x0040d4e0 | 9 | folded | a thunk: one call to another function |
 | 0x0040d510 | 15 | folded | as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x0040d530 | 38 | unlabelled |  |
-| 0x0040d5e0 | 12 | folded | covered by the port where it names it (src/mech3/options.cpp:377) |
-| 0x0040d600 | 22 | folded | covered by the port where it names it (src/mech3/options.cpp:380) |
+| 0x0040d5e0 | 12 | unlabelled |  |
+| 0x0040d600 | 22 | unlabelled |  |
 | 0x0040d660 | 117 | unlabelled |  |
-| 0x0040d900 | 8 | folded | covered by the port where it names it (src/mech3/pilot_standalone.cpp:27) |
+| 0x0040d900 | 8 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:200) |
 | 0x0040d920 | 45 | unlabelled |  |
-| 0x0040da00 | 36 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2226) |
+| 0x0040da00 | 36 | folded | covered by the port where it names it (src/mech3/pilot_standalone.cpp:86) |
 | 0x0040dac0 | 9 | folded | a thunk: one call to another function |
 | 0x0040dae0 | 9 | folded | a thunk: one call to another function |
 | 0x0040db00 | 9 | folded | a thunk: one call to another function |
 | 0x0040db20 | 12 | unlabelled |  |
-| 0x0040db40 | 9 | folded | a thunk: one call to another function |
+| 0x0040db40 | 9 | unlabelled | follows 0x00434b10:  |
 | 0x0040db50 | 38 | unlabelled |  |
-| 0x0040dc00 | 24 | folded | covered by the port where it names it (src/mech3/pilot.h:384) |
+| 0x0040dc00 | 24 | unlabelled |  |
 | 0x0040dc70 | 81 | unlabelled |  |
-| 0x0040de60 | 36 | folded | covered by the port where it names it (src/mech3/pilot.h:385) |
+| 0x0040de60 | 36 | folded | covered by the port where it names it (src/mech3/pilot_standalone.cpp:86) |
 | 0x0040dee0 | 8 | folded | returns a constant or a global |
 | 0x0040e1b0 | 12 | unlabelled |  |
 | 0x0040e1d0 | 26 | unlabelled |  |
-| 0x0040e310 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:375) |
-| 0x0040e320 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:367) |
-| 0x0040e330 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:367) |
+| 0x0040e310 | 8 | unlabelled |  |
+| 0x0040e320 | 8 | unlabelled |  |
+| 0x0040e330 | 8 | unlabelled |  |
 | 0x0040e5e0 | 9 | folded | a thunk: one call to another function |
 | 0x0040e5f0 | 17 | folded | covered by the port where it names it (src/mech3/mission.cpp:93) |
-| 0x0040e660 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:374) |
+| 0x0040e660 | 8 | unlabelled |  |
 | 0x0040e670 | 9 | folded | a thunk: one call to another function |
 | 0x0040e680 | 9 | folded | a thunk: one call to another function |
 | 0x0040e690 | 9 | folded | a thunk: one call to another function |
-| 0x0040e6a0 | 9 | folded | covered by the port where it names it (src/mech3/game_editor.cpp:85) |
-| 0x0040e6b0 | 9 | folded | a thunk: one call to another function |
+| 0x0040e6a0 | 9 | folded | covered by the port where it names it (src/mech3/briefing.cpp:824) |
+| 0x0040e6b0 | 9 | unlabelled | follows 0x00434df0:  |
 | 0x0040e860 | 78 | unlabelled |  |
 | 0x0040e9c0 | 31 | unlabelled |  |
-| 0x0040ea50 | 9 | folded | a thunk: one call to another function |
+| 0x0040ea50 | 9 | unlabelled | follows 0x0040ea60:  |
 | 0x0040ea60 | 47 | unlabelled |  |
-| 0x0040eb80 | 24 | folded | covered by the port where it names it (src/mech3/entity_bind.cpp:29) |
+| 0x0040eb80 | 24 | folded | covered by the port where it names it (src/mech3/game_editor.cpp:46) |
 | 0x0040ebf0 | 10 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:307) |
 | 0x0040ec40 | 22 | unlabelled |  |
 | 0x0040ecb0 | 9 | folded | a thunk: one call to another function |
@@ -548,7 +602,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0040f130 | 22 | folded | covered by the port where it names it (src/mech3/entity_bind.cpp:51) |
 | 0x0040f1a0 | 22 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:552) |
 | 0x0040f1d0 | 14 | folded | covered by the port where it names it (src/mech3/entity_bind.cpp:40) |
-| 0x0040f1f0 | 14 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:985) |
+| 0x0040f1f0 | 14 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:558) |
 | 0x0040f210 | 24 | unlabelled |  |
 | 0x0040f330 | 9 | folded | a thunk: one call to another function |
 | 0x0040f350 | 21 | folded | covered by the port where it names it (src/mech3/entity_bind.cpp:24) |
@@ -566,31 +620,31 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0040f690 | 9 | folded | a thunk: one call to another function |
 | 0x0040f6b0 | 9 | folded | a thunk: one call to another function |
 | 0x0040f6d0 | 14 | folded | covered by the port where it names it (src/mech3/entity_bind.cpp:52) |
-| 0x0040f780 | 9 | folded | a thunk: one call to another function |
-| 0x0040f7a0 | 34 | unlabelled |  |
+| 0x0040f780 | 9 | debug or dev tool: PORT (preserve) | follows 0x0040f7a0: as MW3 0x0040ff40, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
+| 0x0040f7a0 | 34 | debug or dev tool: PORT (preserve) | as MW3 0x0040ff40, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x0040f840 | 9 | folded | a thunk: one call to another function |
 | 0x0040f860 | 20 | unlabelled |  |
-| 0x0040f8d0 | 9 | folded | a thunk: one call to another function |
+| 0x0040f8d0 | 9 | debug or dev tool: PORT (preserve) | follows 0x0040fa20: as MW3 0x0040f150: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x0040f8e0 | 9 | folded | a thunk: one call to another function |
-| 0x0040f9c0 | 9 | folded | a thunk: one call to another function |
+| 0x0040f9c0 | 9 | folded | follows 0x0040fa00: as MW3 0x0040f130: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x0040f9d0 | 9 | folded | a thunk: one call to another function |
 | 0x0040fa00 | 10 | folded | as MW3 0x0040f130: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x0040fa20 | 33 | debug or dev tool: PORT (preserve) | as MW3 0x0040f150: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
-| 0x0040fac0 | 12 | unlabelled |  |
+| 0x0040fac0 | 12 | folded | covered by the port where it names it (src/mech3/hud.h:62) |
 | 0x0040fae0 | 35 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:985) |
 | 0x0040fd00 | 75 | unlabelled |  |
 | 0x00410030 | 12 | folded | covered by the port where it names it (src/mech3/message_panel.h:18) |
 | 0x00410050 | 32 | unlabelled |  |
-| 0x00410110 | 24 | unlabelled |  |
-| 0x00410190 | 10 | unlabelled |  |
+| 0x00410110 | 24 | debug or dev tool: PORT (preserve) | as MW3 0x0040f7f0, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
+| 0x00410190 | 10 | debug or dev tool: PORT (preserve) | called only from 0x00410110, which are debug |
 | 0x004101b0 | 8 | folded | returns a constant or a global |
 | 0x004101c0 | 10 | debug or dev tool: PORT (preserve) | as MW3 0x0040f890: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x004101e0 | 10 | debug or dev tool: PORT (preserve) | as MW3 0x0040f8b0: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x004103a0 | 13 | folded | covered by the port where it names it (src/mech3/briefing.cpp:477) |
-| 0x00410470 | 108 | unlabelled |  |
+| 0x00410470 | 108 | debug or dev tool: PORT (preserve) | as MW3 0x0040fb50, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x004107a0 | 17 | folded | as MW3 0x0040fe70: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00410820 | 17 | unused: PORT (preserve) | as MW3 0x0040fef0: the timing marks ('Dummy Frame', 'Lets Play!'): act only with [0x005e14f0], 0 in the data (program.md, no effect) |
-| 0x00410880 | 9 | folded | a thunk: one call to another function |
+| 0x00410880 | 9 | unused: PORT (preserve) | called only from 0x00410820, which are unused |
 | 0x00410890 | 9 | folded | a thunk: one call to another function |
 | 0x004108d0 | 9 | folded | a thunk: one call to another function |
 | 0x004108e0 | 9 | folded | a thunk: one call to another function |
@@ -624,17 +678,17 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00410d60 | 9 | folded | a thunk: one call to another function |
 | 0x00410d70 | 9 | folded | a thunk: one call to another function |
 | 0x00410db0 | 9 | folded | a thunk: one call to another function |
-| 0x00410dc0 | 10 | folded | covered by the port where it names it (src/mech3/controls_cfg.cpp:236) |
+| 0x00410dc0 | 10 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:157) |
 | 0x00410df0 | 9 | folded | a thunk: one call to another function |
 | 0x00410e30 | 9 | folded | a thunk: one call to another function |
 | 0x00410e40 | 10 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:157) |
 | 0x00410e60 | 12 | unlabelled |  |
 | 0x00410e80 | 9 | folded | a thunk: one call to another function |
-| 0x00410ec0 | 9 | folded | a thunk: one call to another function |
+| 0x00410ec0 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | follows 0x004c7300: as MW3 0x004c0310, whose class PM's changes keep: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour) |
 | 0x00410ed0 | 9 | folded | a thunk: one call to another function |
 | 0x00410f00 | 10 | folded | as MW3 0x004106d0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00410f10 | 12 | unlabelled |  |
-| 0x00410f40 | 9 | folded | a thunk: one call to another function |
+| 0x00410f40 | 9 | unlabelled | follows 0x004c7560:  |
 | 0x00410f50 | 9 | folded | a thunk: one call to another function |
 | 0x00410f80 | 29 | unlabelled |  |
 | 0x00411080 | 60 | unlabelled |  |
@@ -657,7 +711,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00413830 | 221 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00413b70 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00413c40 | 11 | folded | as MW3 0x004133d0: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
-| 0x00413c70 | 9 | folded | a thunk: one call to another function |
+| 0x00413c70 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x00413c80 | 9 | folded | a thunk: one call to another function |
 | 0x00413ce0 | 40 | unlabelled |  |
 | 0x00414090 | 111 | folded | as MW3 0x004137c0: covered where the port does it: src/mech3/landmines.cpp:53 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -674,8 +728,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004158c0 | 8 | unlabelled |  |
 | 0x004158d0 | 8 | folded | returns a constant or a global |
 | 0x004158e0 | 8 | folded | returns a constant or a global |
-| 0x004158f0 | 9 | folded | a thunk: one call to another function |
-| 0x00415910 | 9 | folded | a thunk: one call to another function |
+| 0x004158f0 | 9 | unlabelled | follows 0x004311a0:  |
+| 0x00415910 | 9 | unlabelled | follows 0x004311c0:  |
 | 0x00415940 | 173 | unlabelled |  |
 | 0x00415fc0 | 159 | unlabelled |  |
 | 0x00416450 | 14 | folded | covered by the port where it names it (src/mech3/mech_repair.cpp:60) |
@@ -691,13 +745,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00417270 | 9 | folded | a thunk: one call to another function |
 | 0x00417e00 | 11 | folded | covered by the port where it names it (src/mech3/mech_move.cpp:716) |
 | 0x00417e50 | 11 | folded | covered by the port where it names it (src/mech3/mech.h:74) |
-| 0x00417e80 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:267) |
+| 0x00417e80 | 11 | unlabelled |  |
 | 0x00417ea0 | 41 | unlabelled |  |
 | 0x00417f50 | 216 | unlabelled |  |
 | 0x00419d50 | 12 | unlabelled |  |
 | 0x00419dc0 | 11 | folded | covered by the port where it names it (src/mech3/mech_part_update.cpp:725) |
 | 0x0041ad30 | 9 | folded | covered by the port where it names it (src/mech3/app_weapons.cpp:246) |
-| 0x0041ade0 | 11 | folded | covered by the port where it names it (src/mech3/mech.cpp:226) |
+| 0x0041ade0 | 11 | unlabelled |  |
 | 0x0041be50 | 110 | unlabelled |  |
 | 0x0041c3f0 | 50 | unlabelled |  |
 | 0x0041c4c0 | 24 | unlabelled |  |
@@ -713,7 +767,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0041dbb0 | 19 | unlabelled |  |
 | 0x0041dc00 | 16 | unlabelled |  |
 | 0x0041dc60 | 8 | unlabelled |  |
-| 0x0041dc70 | 9 | folded | a thunk: one call to another function |
+| 0x0041dc70 | 9 | unlabelled | follows 0x00467200:  |
 | 0x0041dc80 | 9 | folded | a thunk: one call to another function |
 | 0x0041dd40 | 22 | unlabelled |  |
 | 0x0041df80 | 14 | unlabelled |  |
@@ -729,29 +783,29 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0041e180 | 23 | UNSURE | as MW3 0x0041d380: the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle |
 | 0x0041e260 | 9 | folded | covered by the port where it names it (src/mech3/app_hud.cpp:506) |
 | 0x0041e270 | 10 | folded | ported, by docs/symbols.csv: ported inline: thrust x 8 + gravity (JumpState) |
-| 0x0041e280 | 10 | folded | covered by the port where it names it (src/mech3/zai_jump_pm.cpp:20) |
+| 0x0041e280 | 10 | unlabelled |  |
 | 0x0041e4c0 | 8 | folded | as MW3 0x0041d6e0: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x0041eb10 | 14 | unlabelled |  |
 | 0x0041ebb0 | 12 | folded | as MW3 0x0041dc40: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x0041ed00 | 52 | UNSURE | as MW3 0x0041dd90: the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle |
 | 0x0041edf0 | 21 | folded | covered by the port where it names it (src/mech3/mech_build.cpp:447) |
-| 0x0041ee80 | 12 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:191) |
+| 0x0041ee80 | 12 | unlabelled |  |
 | 0x0041f000 | 38 | unlabelled |  |
-| 0x0041f180 | 12 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:314) |
+| 0x0041f180 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:81) |
 | 0x0041f1c0 | 12 | unlabelled |  |
 | 0x0041f1f0 | 42 | unlabelled |  |
 | 0x0041f740 | 9 | folded | a thunk: one call to another function |
 | 0x0041f760 | 8 | folded | returns a constant or a global |
 | 0x0041f790 | 9 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:1323) |
 | 0x0041f7a0 | 62 | unlabelled |  |
-| 0x0041f8d0 | 12 | folded | covered by the port where it names it (src/mech3/mech.cpp:107) |
+| 0x0041f8d0 | 12 | folded | covered by the port where it names it (src/mech3/mech.h:413) |
 | 0x0041f900 | 12 | folded | covered by the port where it names it (src/mech3/mech_command.cpp:265) |
-| 0x0041f920 | 9 | folded | a thunk: one call to another function |
+| 0x0041f920 | 9 | unlabelled | follows 0x00465df0:  |
 | 0x0041f930 | 8 | folded | covered by the port where it names it (src/mech3/app_hud.cpp:253) |
 | 0x0041f940 | 27 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:578) |
-| 0x0041f980 | 21 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:242) |
+| 0x0041f980 | 21 | folded | covered by the port where it names it (src/mech3/mech_anim.h:27) |
 | 0x0041f9e0 | 21 | folded | as MW3 0x0041ed70: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
-| 0x0041fa40 | 23 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:233) |
+| 0x0041fa40 | 23 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:314) |
 | 0x0041fac0 | 10 | folded | as MW3 0x0041ee50: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x0041faf0 | 15 | unlabelled |  |
 | 0x0041fb50 | 9 | folded | as MW3 0x0041eee0: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
@@ -769,7 +823,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00420f10 | 15 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:378) |
 | 0x004210d0 | 23 | unlabelled |  |
 | 0x004211b0 | 21 | unlabelled |  |
-| 0x004212c0 | 11 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:191) |
+| 0x004212c0 | 11 | unlabelled |  |
 | 0x004213d0 | 18 | unlabelled |  |
 | 0x004214c0 | 52 | unlabelled |  |
 | 0x00421680 | 39 | unlabelled |  |
@@ -819,13 +873,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00427c60 | 11 | folded | as MW3 0x00425e20: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x00427e50 | 12 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:938) |
 | 0x00427e80 | 45 | unlabelled |  |
-| 0x00428000 | 19 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:1367) |
+| 0x00428000 | 19 | unlabelled |  |
 | 0x00428190 | 21 | folded | as MW3 0x00426440: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x004281c0 | 24 | unlabelled |  |
 | 0x00428200 | 40 | unlabelled |  |
 | 0x004282b0 | 9 | folded | covered by the port where it names it (src/mech3/mech_build.h:99) |
 | 0x004285d0 | 58 | unlabelled |  |
-| 0x00428750 | 11 | folded | covered by the port where it names it (src/mech3/mech_build.h:99) |
+| 0x00428750 | 11 | unlabelled |  |
 | 0x00428760 | 8 | folded | returns a constant or a global |
 | 0x00428770 | 8 | folded | returns a constant or a global |
 | 0x00428780 | 9 | folded | covered by the port where it names it (src/mech3/mech_control.h:102) |
@@ -842,8 +896,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00429560 | 170 | unlabelled |  |
 | 0x004299f0 | 281 | unlabelled |  |
 | 0x0042a110 | 13 | folded | ported, by docs/symbols.csv: ported: PlayerControls::set_record (IControls vt+0x88) |
-| 0x0042a140 | 11 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:13) |
-| 0x0042a1d0 | 8 | folded | covered by the port where it names it (src/mech3/menu_widgets.cpp:324) |
+| 0x0042a140 | 11 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:557) |
+| 0x0042a1d0 | 8 | folded | covered by the port where it names it (src/mech3/mech_control.h:184) |
 | 0x0042a1e0 | 8 | folded | returns a constant or a global |
 | 0x0042a1f0 | 8 | folded | returns a constant or a global |
 | 0x0042a200 | 8 | folded | returns a constant or a global |
@@ -851,7 +905,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0042a220 | 8 | folded | returns a constant or a global |
 | 0x0042a230 | 9 | folded | covered by the port where it names it (src/mech3/mech_control.cpp:666) |
 | 0x0042a240 | 9 | folded | covered by the port where it names it (src/mech3/mech_control.cpp:667) |
-| 0x0042a250 | 9 | folded | covered by the port where it names it (src/mech3/menu_widgets.cpp:333) |
+| 0x0042a250 | 9 | folded | covered by the port where it names it (src/mech3/mech_control.cpp:657) |
 | 0x0042a3e0 | 8 | folded | as MW3 0x004287b0: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x0042a5e0 | 66 | unlabelled |  |
 | 0x0042a7d0 | 12 | folded | covered by the port where it names it (src/mech3/credits.h:106) |
@@ -887,7 +941,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0042c8d0 | 88 | unlabelled |  |
 | 0x0042cb50 | 32 | folded | as MW3 0x0042f7a0: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x0042cbf0 | 12 | unlabelled |  |
-| 0x0042cc10 | 12 | folded | covered by the port where it names it (src/mech3/controls_menu.cpp:65) |
+| 0x0042cc10 | 12 | unlabelled |  |
 | 0x0042cc30 | 12 | unlabelled |  |
 | 0x0042cc50 | 12 | unlabelled |  |
 | 0x0042cc70 | 12 | unlabelled |  |
@@ -921,7 +975,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0042eb00 | 24 | folded | covered by the port where it names it (src/mech3/controls_menu.cpp:176) |
 | 0x0042eb70 | 31 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:500) |
 | 0x0042ebf0 | 10 | folded | as MW3 0x0042da50: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x0042ec10 | 9 | folded | a thunk: one call to another function |
+| 0x0042ec10 | 9 | unlabelled | follows 0x0048d0b0:  |
 | 0x0042f2e0 | 49 | folded | as MW3 0x0042df60: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x0042f370 | 12 | folded | covered by the port where it names it (src/mech3/controls_menu.h:208) |
 | 0x0042f390 | 38 | unlabelled |  |
@@ -934,7 +988,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0042fac0 | 9 | folded | a thunk: one call to another function |
 | 0x0042fad0 | 9 | folded | a thunk: one call to another function |
 | 0x0042fb00 | 12 | unlabelled |  |
-| 0x0042fb30 | 34 | folded | covered by the port where it names it (src/mech3/menu_widgets.cpp:120) |
+| 0x0042fb30 | 34 | unlabelled |  |
 | 0x0042fc10 | 58 | unlabelled |  |
 | 0x0042fd80 | 84 | unlabelled |  |
 | 0x00430030 | 32 | unlabelled |  |
@@ -980,7 +1034,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00433840 | 26 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00432d30: a mech list dialog (resource 0x9c, from a debug key command in 0x0040db60): its fill of every mech name (0x00484650) |
 | 0x004338d0 | 10 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040be50: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x004338f0 | 13 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x00432df0: the mech list dialog's MFC plumbing (constructor, destructor, DDX, OnOK, DoModal) |
-| 0x00433960 | 13 | folded | covered by the port where it names it (src/mech3/force_feedback.cpp:58) |
+| 0x00433960 | 13 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:2049) |
 | 0x00433980 | 15 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:2049) |
 | 0x00433a70 | 11 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:399) |
 | 0x00433ab0 | 15 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:590) |
@@ -998,15 +1052,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00434600 | 15 | folded | as MW3 0x00433b30: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00434760 | 12 | folded | covered by the port where it names it (src/mech3/pilot.cpp:280) |
 | 0x004347b0 | 18 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:813) |
-| 0x00434980 | 9 | folded | covered by the port where it names it (src/mech3/pilot.h:301) |
+| 0x00434980 | 9 | unlabelled |  |
 | 0x00434ab0 | 22 | unlabelled |  |
-| 0x00434b10 | 25 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:604) |
+| 0x00434b10 | 25 | unlabelled |  |
 | 0x00434b70 | 79 | unlabelled |  |
 | 0x00434d70 | 30 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:802) |
 | 0x00434df0 | 18 | unlabelled |  |
 | 0x00434e20 | 102 | unlabelled |  |
 | 0x004350c0 | 30 | unlabelled |  |
-| 0x00435140 | 26 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2219) |
+| 0x00435140 | 26 | unlabelled |  |
 | 0x004353c0 | 8 | unlabelled |  |
 | 0x004353d0 | 8 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2444) |
 | 0x004353e0 | 8 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2444) |
@@ -1020,19 +1074,19 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00435ce0 | 15 | unlabelled |  |
 | 0x00435d00 | 9 | folded | ported, by docs/symbols.csv: ported: set_lancemate_count (+0x9c) |
 | 0x00435d10 | 9 | folded | a thunk: one call to another function |
-| 0x00435d20 | 9 | folded | a thunk: one call to another function |
+| 0x00435d20 | 9 | unlabelled | follows 0x00434df0:  |
 | 0x00435d30 | 20 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:841) |
 | 0x00435db0 | 8 | folded | returns a constant or a global |
 | 0x00435e80 | 67 | unlabelled |  |
 | 0x00435fe0 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:562) |
-| 0x00435ff0 | 9 | folded | a thunk: one call to another function |
+| 0x00435ff0 | 9 | replaced (SDL or the platform layer) | follows 0x00596e50: as MW3 0x00576040, whose class PM's changes keep: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00436000 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:558) |
 | 0x00436010 | 8 | unlabelled |  |
 | 0x00436020 | 8 | folded | returns a constant or a global |
 | 0x00436030 | 12 | unlabelled |  |
 | 0x00436050 | 61 | unlabelled |  |
-| 0x004365f0 | 8 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2495) |
-| 0x004366f0 | 14 | folded | covered by the port where it names it (src/mech3/pilot.h:606) |
+| 0x004365f0 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:666) |
+| 0x004366f0 | 14 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:1837) |
 | 0x00437990 | 14 | folded | covered by the port where it names it (src/mech3/app_mech.h:179) |
 | 0x004379f0 | 9 | folded | a thunk: one call to another function |
 | 0x00437b90 | 26 | unlabelled |  |
@@ -1040,7 +1094,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00437c30 | 8 | folded | returns a constant or a global |
 | 0x00437c40 | 8 | folded | returns a constant or a global |
 | 0x00437c50 | 8 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2463) |
-| 0x00437c60 | 9 | folded | a thunk: one call to another function |
+| 0x00437c60 | 9 | replaced (SDL or the platform layer) | follows 0x00596e50: as MW3 0x00576040, whose class PM's changes keep: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00437c70 | 12 | folded | covered by the port where it names it (src/mech3/app_mech.h:179) |
 | 0x00437c90 | 12 | folded | covered by the port where it names it (src/mech3/app_mech.h:180) |
 | 0x00437cb0 | 9 | folded | a thunk: one call to another function |
@@ -1056,8 +1110,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004382a0 | 12 | unlabelled |  |
 | 0x00438340 | 8 | folded | returns a constant or a global |
 | 0x00438350 | 14 | folded | as MW3 0x00437550: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
-| 0x00438790 | 20 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:1354) |
-| 0x004387f0 | 9 | folded | a thunk: one call to another function |
+| 0x00438790 | 20 | unlabelled |  |
+| 0x004387f0 | 9 | unlabelled | follows 0x004731b0:  |
 | 0x00438800 | 11 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:233) |
 | 0x00438820 | 140 | unlabelled |  |
 | 0x00438ac0 | 75 | folded | as MW3 0x004375e0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
@@ -1072,9 +1126,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00439840 | 53 | unlabelled |  |
 | 0x00439910 | 12 | unlabelled |  |
 | 0x00439930 | 26 | unlabelled |  |
-| 0x004399a0 | 9 | folded | a thunk: one call to another function |
-| 0x004399c0 | 9 | folded | a thunk: one call to another function |
-| 0x004399e0 | 9 | folded | a thunk: one call to another function |
+| 0x004399a0 | 9 | unlabelled | follows 0x005b1bd0:  |
+| 0x004399c0 | 9 | unlabelled | follows 0x005b1bd0:  |
+| 0x004399e0 | 9 | unlabelled | follows 0x005b1db0:  |
 | 0x00439a20 | 11 | unlabelled |  |
 | 0x00439a30 | 131 | unlabelled |  |
 | 0x00439e60 | 14 | unlabelled |  |
@@ -1107,7 +1161,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0043bfd0 | 9 | folded | a thunk: one call to another function |
 | 0x0043bff0 | 9 | folded | a thunk: one call to another function |
 | 0x0043c010 | 9 | folded | a thunk: one call to another function |
-| 0x0043c030 | 9 | folded | a thunk: one call to another function |
+| 0x0043c030 | 9 | folded | follows 0x0043be90: as MW3 0x0043ae30: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x0043c210 | 99 | unlabelled |  |
 | 0x0043c5c0 | 23 | folded | as MW3 0x0043b530: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x0043c630 | 38 | folded | as MW3 0x0043b5a0: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
@@ -1159,7 +1213,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00444680 | 44 | unlabelled |  |
 | 0x004447a0 | 204 | unlabelled |  |
 | 0x00444f40 | 65 | unlabelled |  |
-| 0x00445110 | 10 | folded | covered by the port where it names it (src/mech3/hud.cpp:3069) |
+| 0x00445110 | 10 | unlabelled |  |
 | 0x00445560 | 12 | unlabelled |  |
 | 0x00445580 | 12 | unlabelled |  |
 | 0x004455b0 | 9 | folded | a thunk: one call to another function |
@@ -1167,13 +1221,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00446060 | 14 | folded | as MW3 0x00444670: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x00446080 | 8 | folded | returns a constant or a global |
 | 0x004467b0 | 12 | folded | as MW3 0x00448530: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
-| 0x00446870 | 12 | folded | covered by the port where it names it (src/mech3/hud.cpp:261) |
+| 0x00446870 | 12 | unlabelled |  |
 | 0x00447030 | 27 | unlabelled |  |
 | 0x00447200 | 19 | unlabelled |  |
 | 0x00447480 | 12 | unlabelled |  |
 | 0x00447840 | 29 | unlabelled |  |
 | 0x00447ae0 | 44 | unlabelled |  |
-| 0x00447c00 | 12 | folded | covered by the port where it names it (src/mech3/hud.cpp:1150) |
+| 0x00447c00 | 12 | unlabelled |  |
 | 0x00447c20 | 20 | unlabelled |  |
 | 0x00447c80 | 36 | unlabelled |  |
 | 0x00447da0 | 98 | unlabelled |  |
@@ -1197,8 +1251,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00449c50 | 23 | unlabelled |  |
 | 0x00449cb0 | 15 | folded | as MW3 0x004484b0: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x00449d00 | 19 | unlabelled |  |
-| 0x00449d50 | 9 | folded | a thunk: one call to another function |
-| 0x00449d60 | 9 | folded | a thunk: one call to another function |
+| 0x00449d50 | 9 | unlabelled | follows 0x00444540:  |
+| 0x00449d60 | 9 | unlabelled | follows 0x00441080:  |
 | 0x00449d70 | 9 | folded | a thunk: one call to another function |
 | 0x00449d90 | 9 | folded | a thunk: one call to another function |
 | 0x00449da0 | 9 | folded | a thunk: one call to another function |
@@ -1223,7 +1277,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0044c3d0 | 13 | folded | as MW3 0x0044b010: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044c410 | 12 | unlabelled |  |
 | 0x0044c5e0 | 10 | folded | as MW3 0x0044b210: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
-| 0x0044c600 | 12 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:2357) |
+| 0x0044c600 | 12 | folded | covered by the port where it names it (src/mech3/menu_states.h:20) |
 | 0x0044c890 | 13 | folded | as MW3 0x0044ec90: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044c8c0 | 10 | folded | as MW3 0x0044ecc0: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044c8d0 | 8 | folded | as MW3 0x0044ecd0: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
@@ -1237,7 +1291,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0044da80 | 20 | folded | as MW3 0x0044f1f0: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044daf0 | 13 | folded | as MW3 0x0044f260: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044db20 | 12 | folded | as MW3 0x0044f290: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
-| 0x0044db50 | 9 | folded | a thunk: one call to another function |
+| 0x0044db50 | 9 | unlabelled | follows 0x005bdb30:  |
 | 0x0044dbb0 | 15 | unlabelled |  |
 | 0x0044dce0 | 12 | unlabelled |  |
 | 0x0044dd00 | 12 | unlabelled |  |
@@ -1251,10 +1305,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0044e280 | 10 | folded | as MW3 0x0044fab0: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044e2a0 | 13 | folded | as MW3 0x0044fad0: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044e2d0 | 44 | folded | as MW3 0x0044fb00: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
-| 0x0044e3d0 | 12 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:1365) |
-| 0x0044e3f0 | 12 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:1347) |
+| 0x0044e3d0 | 12 | unlabelled |  |
+| 0x0044e3f0 | 12 | unlabelled |  |
 | 0x0044e410 | 28 | folded | as MW3 0x0044fc40: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
-| 0x0044e490 | 12 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:1348) |
+| 0x0044e490 | 12 | unlabelled |  |
 | 0x0044e4c0 | 32 | folded | as MW3 0x0044c320: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044e570 | 73 | folded | as MW3 0x0044c3d0: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x0044e740 | 28 | folded | as MW3 0x0044f5f0: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
@@ -1353,7 +1407,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0045a980 | 9 | folded | covered by the port where it names it (src/mech3/mech_fieldbase_dock.cpp:50) |
 | 0x0045a990 | 41 | unlabelled |  |
 | 0x0045ab90 | 21 | unlabelled |  |
-| 0x0045abf0 | 9 | folded | a thunk: one call to another function |
+| 0x0045abf0 | 9 | unlabelled | follows 0x0045ac20:  |
 | 0x0045ac00 | 9 | folded | a thunk: one call to another function |
 | 0x0045ac20 | 102 | unlabelled |  |
 | 0x0045ae80 | 8 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.h:34) |
@@ -1374,7 +1428,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0045bc10 | 9 | folded | a thunk: one call to another function |
 | 0x0045bc50 | 15 | unlabelled |  |
 | 0x0045bcb0 | 9 | unlabelled |  |
-| 0x0045c1d0 | 8 | unlabelled |  |
+| 0x0045c1d0 | 8 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.h:90) |
 | 0x0045c290 | 22 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.h:105) |
 | 0x0045c2e0 | 72 | unlabelled |  |
 | 0x0045c620 | 17 | folded | ported, by docs/symbols.csv: ported |
@@ -1427,14 +1481,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004611f0 | 114 | unlabelled |  |
 | 0x00461430 | 20 | folded | covered by the port where it names it (src/mech3/app_mech.h:372) |
 | 0x004614e0 | 19 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:817) |
-| 0x00461510 | 39 | folded | covered by the port where it names it (src/mech3/mech_parts.cpp:183) |
-| 0x004615b0 | 9 | folded | a thunk: one call to another function |
+| 0x00461510 | 39 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:835) |
+| 0x004615b0 | 9 | unlabelled | follows 0x00510540:  |
 | 0x004617a0 | 237 | unlabelled |  |
 | 0x00462090 | 275 | unlabelled |  |
 | 0x004628c0 | 54 | unlabelled |  |
 | 0x00462a00 | 57 | unlabelled |  |
 | 0x00462f30 | 11 | unlabelled |  |
-| 0x00462f50 | 32 | folded | covered by the port where it names it (src/mech3/mech_parts.h:204) |
+| 0x00462f50 | 32 | unlabelled |  |
 | 0x004632f0 | 19 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:961) |
 | 0x00463330 | 16 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:777) |
 | 0x00463380 | 123 | unlabelled |  |
@@ -1448,22 +1502,22 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00464780 | 201 | unlabelled |  |
 | 0x00464de0 | 12 | unlabelled |  |
 | 0x00465210 | 60 | unlabelled |  |
-| 0x004654d0 | 9 | folded | a thunk: one call to another function |
+| 0x004654d0 | 9 | unlabelled | follows 0x00464060:  |
 | 0x00465610 | 65 | unlabelled |  |
-| 0x004659c0 | 12 | folded | covered by the port where it names it (src/mech3/app_mech.h:295) |
+| 0x004659c0 | 12 | unlabelled |  |
 | 0x004659e0 | 32 | unlabelled |  |
 | 0x00465a60 | 56 | unlabelled |  |
-| 0x00465da0 | 11 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:889) |
+| 0x00465da0 | 11 | folded | covered by the port where it names it (src/mech3/mech.h:467) |
 | 0x00465dc0 | 18 | folded | covered by the port where it names it (src/mech3/mech_command.cpp:265) |
-| 0x00465df0 | 14 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:52) |
-| 0x00465e00 | 11 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:892) |
+| 0x00465df0 | 14 | unlabelled |  |
+| 0x00465e00 | 11 | unlabelled |  |
 | 0x00465ea0 | 39 | unlabelled |  |
 | 0x00465f90 | 12 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:584) |
-| 0x00466040 | 9 | folded | a thunk: one call to another function |
+| 0x00466040 | 9 | unlabelled | follows 0x00462090:  |
 | 0x00466060 | 17 | folded | as MW3 0x004647f0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00467200 | 18 | unlabelled |  |
 | 0x00467480 | 8 | folded | returns a constant or a global |
-| 0x00467c90 | 12 | folded | covered by the port where it names it (src/mech3/pocket_panel.cpp:307) |
+| 0x00467c90 | 12 | unlabelled |  |
 | 0x00467d10 | 62 | unlabelled |  |
 | 0x004685e0 | 27 | folded | ported, by docs/symbols.csv: ported; ZAPS_HUD kind 3 |
 | 0x00468660 | 57 | unlabelled |  |
@@ -1495,14 +1549,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0046a270 | 13 | folded | ported, by docs/symbols.csv: ported: the colours (pocket_colours) |
 | 0x0046a480 | 108 | unlabelled |  |
 | 0x0046a8b0 | 15 | folded | ported, by docs/symbols.csv: ported: the record (member pointer, flags +0xc taken / +0xd refused) |
-| 0x0046a8e0 | 36 | folded | covered by the port where it names it (src/mech3/lance_orders.cpp:135) |
+| 0x0046a8e0 | 36 | folded | covered by the port where it names it (src/mech3/lance_orders.cpp:115) |
 | 0x0046a990 | 16 | folded | ported, by docs/symbols.csv: ported: the record with the target at +0x10 |
 | 0x0046a9c0 | 36 | folded | ported, by docs/symbols.csv: ported: pocket_order's unit step (on the target) |
 | 0x0046ab20 | 40 | folded | ported, by docs/symbols.csv: ported: pocket_order (on a contact made on the target) |
 | 0x0046ac20 | 102 | unlabelled |  |
 | 0x0046af20 | 94 | unlabelled |  |
 | 0x0046b1b0 | 112 | unlabelled |  |
-| 0x0046b4b0 | 9 | folded | a thunk: one call to another function |
+| 0x0046b4b0 | 9 | unlabelled | follows 0x0046b4d0:  |
 | 0x0046b4d0 | 182 | unlabelled |  |
 | 0x0046b8b0 | 9 | folded | a thunk: one call to another function |
 | 0x0046bf70 | 10 | folded | ported, by docs/symbols.csv: ported: pocket_draw's |
@@ -1519,7 +1573,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0046c5f0 | 16 | unlabelled |  |
 | 0x0046c620 | 31 | unlabelled |  |
 | 0x0046c680 | 15 | unlabelled |  |
-| 0x0046c6c0 | 9 | folded | a thunk: one call to another function |
+| 0x0046c6c0 | 9 | folded | follows 0x0046c700: as MW3 0x0046ab70: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0046c6d0 | 9 | folded | a thunk: one call to another function |
 | 0x0046c700 | 10 | folded | as MW3 0x0046ab70: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0046c720 | 12 | unlabelled |  |
@@ -1555,18 +1609,18 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004727c0 | 16 | folded | as MW3 0x00470690: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00472800 | 9 | folded | a thunk: one call to another function |
 | 0x00472b30 | 9 | folded | a thunk: one call to another function |
-| 0x00472cb0 | 28 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:445) |
+| 0x00472cb0 | 28 | unlabelled |  |
 | 0x00472e60 | 22 | unlabelled |  |
 | 0x00472ea0 | 117 | folded | as MW3 0x0049ced0: covered where the port does it: src/mech3/mp_lobby.h:38 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004730b0 | 12 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:624) |
 | 0x00473120 | 14 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:13) |
-| 0x00473160 | 10 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:481) |
+| 0x00473160 | 10 | unlabelled |  |
 | 0x004731b0 | 35 | unlabelled |  |
 | 0x00473240 | 34 | folded | covered by the port where it names it (src/mech3/mission_launch.cpp:220) |
 | 0x004732b0 | 191 | unlabelled |  |
 | 0x004735f0 | 39 | unlabelled |  |
 | 0x00473690 | 101 | unlabelled |  |
-| 0x004738b0 | 20 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:153) |
+| 0x004738b0 | 20 | unlabelled |  |
 | 0x004741a0 | 140 | unlabelled |  |
 | 0x00474810 | 132 | unlabelled |  |
 | 0x00474ae0 | 26 | folded | as MW3 0x004729d0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
@@ -1574,7 +1628,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00475140 | 10 | folded | covered by the port where it names it (src/mech3/mech_config.h:35) |
 | 0x004751e0 | 9 | folded | a thunk: one call to another function |
 | 0x00475220 | 23 | unlabelled |  |
-| 0x00475270 | 15 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:1349) |
+| 0x00475270 | 15 | unlabelled |  |
 | 0x004752a0 | 10 | unlabelled |  |
 | 0x004754d0 | 47 | unlabelled |  |
 | 0x004755f0 | 19 | folded | covered by the port where it names it (src/mech3/app_hooks.h:957) |
@@ -1604,13 +1658,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00477f90 | 693 | unlabelled |  |
 | 0x004790c0 | 11 | unlabelled |  |
 | 0x004790f0 | 32 | unlabelled |  |
-| 0x00479330 | 28 | folded | covered by the port where it names it (src/mech3/mech_headlight.h:13) |
-| 0x004793c0 | 19 | folded | covered by the port where it names it (src/mech3/mech_headlight.cpp:20) |
+| 0x00479330 | 28 | folded | covered by the port where it names it (src/mech3/mech_headlight.h:4) |
+| 0x004793c0 | 19 | unlabelled |  |
 | 0x004796c0 | 12 | unlabelled |  |
 | 0x00479780 | 46 | unlabelled |  |
 | 0x004798d0 | 24 | folded | covered by the port where it names it (src/mech3/mech_headlight.cpp:76) |
-| 0x00479940 | 11 | folded | covered by the port where it names it (src/mech3/mech_headlight.h:31) |
-| 0x00479c20 | 8 | folded | covered by the port where it names it (src/mech3/app_hud.cpp:257) |
+| 0x00479940 | 11 | unlabelled |  |
+| 0x00479c20 | 8 | unlabelled |  |
 | 0x00479ca0 | 16 | folded | covered by the port where it names it (src/mech3/pilot.h:25) |
 | 0x00479cd0 | 9 | folded | a thunk: one call to another function |
 | 0x00479d50 | 19 | folded | covered by the port where it names it (src/mech3/pilot.cpp:464) |
@@ -1650,7 +1704,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0047c890 | 12 | unlabelled |  |
 | 0x0047c8b0 | 12 | folded | as MW3 0x0047a5a0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0047c8e0 | 23 | unlabelled |  |
-| 0x0047c920 | 23 | folded | covered by the port where it names it (src/mech3/debriefing.cpp:699) |
+| 0x0047c920 | 23 | unlabelled |  |
 | 0x0047ca00 | 12 | folded | as MW3 0x0047a720: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0047ca10 | 24 | unlabelled |  |
 | 0x0047ca60 | 16 | folded | as MW3 0x0047a780: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
@@ -1674,7 +1728,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0047ecb0 | 56 | unlabelled |  |
 | 0x0047eea0 | 91 | unlabelled |  |
 | 0x0047f210 | 9 | folded | a thunk: one call to another function |
-| 0x0047f220 | 16 | folded | covered by the port where it names it (src/mech3/app_states.h:238) |
+| 0x0047f220 | 16 | folded | covered by the port where it names it (src/mech3/app_states.h:60) |
 | 0x0047f260 | 79 | unlabelled |  |
 | 0x0047f400 | 9 | folded | a thunk: one call to another function |
 | 0x0047f420 | 145 | unlabelled |  |
@@ -1708,27 +1762,27 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00481850 | 12 | unlabelled |  |
 | 0x00481870 | 10 | folded | as MW3 0x0047f370: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481880 | 33 | folded | covered by the port where it names it (src/mech3/mech_data.h:115) |
-| 0x00481950 | 9 | folded | a thunk: one call to another function |
+| 0x00481950 | 9 | folded | follows 0x00485130: as MW3 0x004822e0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481960 | 9 | folded | a thunk: one call to another function |
-| 0x00481990 | 9 | folded | a thunk: one call to another function |
+| 0x00481990 | 9 | folded | follows 0x004819a0: as MW3 0x00482a60: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x004819a0 | 18 | folded | as MW3 0x00482a60: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x004819e0 | 12 | unlabelled |  |
 | 0x00481a00 | 9 | folded | a thunk: one call to another function |
-| 0x00481a30 | 9 | folded | a thunk: one call to another function |
+| 0x00481a30 | 9 | folded | follows 0x004892f0: as MW3 0x00486920: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x00481a40 | 9 | folded | a thunk: one call to another function |
 | 0x00481a70 | 11 | folded | as MW3 0x00482ad0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481ac0 | 9 | folded | a thunk: one call to another function |
-| 0x00481af0 | 9 | folded | a thunk: one call to another function |
+| 0x00481af0 | 9 | folded | follows 0x00481b00: as MW3 0x00482c10: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481b00 | 16 | folded | as MW3 0x00482c10: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481b40 | 9 | folded | a thunk: one call to another function |
-| 0x00481b70 | 9 | folded | a thunk: one call to another function |
+| 0x00481b70 | 9 | unlabelled | follows 0x00483630:  |
 | 0x00481b80 | 9 | folded | a thunk: one call to another function |
-| 0x00481bb0 | 9 | folded | a thunk: one call to another function |
+| 0x00481bb0 | 9 | folded | follows 0x00481bc0: as MW3 0x00482b40: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481bc0 | 22 | folded | as MW3 0x00482b40: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481c20 | 12 | unlabelled |  |
 | 0x00481c40 | 20 | folded | as MW3 0x00482bc0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481c90 | 9 | folded | a thunk: one call to another function |
-| 0x00481cc0 | 9 | folded | a thunk: one call to another function |
+| 0x00481cc0 | 9 | folded | follows 0x00481cd0: as MW3 0x00482af0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481cd0 | 17 | folded | as MW3 0x00482af0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00481d20 | 9 | folded | a thunk: one call to another function |
 | 0x00481d50 | 9 | folded | a thunk: one call to another function |
@@ -1737,27 +1791,27 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00481da0 | 9 | folded | a thunk: one call to another function |
 | 0x00481dc0 | 8 | folded | returns a constant or a global |
 | 0x00481dd0 | 8 | folded | returns a constant or a global |
-| 0x00481df0 | 9 | folded | a thunk: one call to another function |
+| 0x00481df0 | 9 | unlabelled | follows 0x00481e20:  |
 | 0x00481e00 | 9 | folded | a thunk: one call to another function |
 | 0x00481e20 | 187 | unlabelled |  |
-| 0x00482070 | 12 | folded | covered by the port where it names it (src/mech3/app_states.cpp:195) |
+| 0x00482070 | 12 | unlabelled |  |
 | 0x00482090 | 33 | unlabelled |  |
 | 0x00482140 | 38 | unlabelled |  |
 | 0x00482230 | 8 | folded | returns a constant or a global |
 | 0x00482240 | 31 | unlabelled |  |
-| 0x004822c0 | 9 | folded | a thunk: one call to another function |
+| 0x004822c0 | 9 | unlabelled | follows 0x0040b720:  |
 | 0x004824c0 | 9 | unlabelled |  |
 | 0x004824d0 | 48 | unlabelled |  |
 | 0x00482650 | 26 | folded | covered by the port where it names it (src/mech3/app.cpp:400) |
 | 0x004826b0 | 36 | unlabelled |  |
 | 0x004826e0 | 173 | unlabelled |  |
-| 0x00482a60 | 25 | unlabelled |  |
+| 0x00482a60 | 25 | replaced (SDL or the platform layer) | as MW3 0x00480340, whose class PM's changes keep: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
 | 0x00482ac0 | 19 | replaced (SDL or the platform layer) | as MW3 0x004803a0: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
 | 0x00482ca0 | 193 | unlabelled |  |
 | 0x00483020 | 48 | unlabelled |  |
-| 0x004832a0 | 9 | folded | a thunk: one call to another function |
+| 0x004832a0 | 9 | debug or dev tool: PORT (preserve) | follows 0x00483d50: as MW3 0x004810d0, whose class PM's changes keep: the debug console's overlay toggle (0x00608f74; game-loop.md: from 0x00480b20, itself never called) |
 | 0x004832b0 | 11 | unlabelled |  |
-| 0x00483330 | 9 | folded | a thunk: one call to another function |
+| 0x00483330 | 9 | unlabelled | follows 0x00483340:  |
 | 0x00483340 | 63 | unlabelled |  |
 | 0x00483470 | 43 | unlabelled |  |
 | 0x00483540 | 21 | unlabelled |  |
@@ -1766,7 +1820,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00483630 | 22 | unlabelled |  |
 | 0x00483700 | 74 | unlabelled |  |
 | 0x004838b0 | 184 | unlabelled |  |
-| 0x00483d50 | 30 | unlabelled |  |
+| 0x00483d50 | 30 | debug or dev tool: PORT (preserve) | as MW3 0x004810d0, whose class PM's changes keep: the debug console's overlay toggle (0x00608f74; game-loop.md: from 0x00480b20, itself never called) |
 | 0x00483de0 | 42 | unlabelled |  |
 | 0x00483f30 | 124 | unlabelled |  |
 | 0x00484530 | 123 | unlabelled |  |
@@ -1778,12 +1832,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004852f0 | 31 | folded | as MW3 0x004828d0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00485480 | 29 | unlabelled |  |
 | 0x004854e0 | 22 | unlabelled |  |
-| 0x00485530 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.cpp:367) |
+| 0x00485530 | 12 | unlabelled |  |
 | 0x00485550 | 26 | replaced (SDL or the platform layer) | as MW3 0x00482c50: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
 | 0x004855b0 | 8 | folded | returns a constant or a global |
 | 0x004855c0 | 8 | folded | returns a constant or a global |
 | 0x004855d0 | 20 | replaced (SDL or the platform layer) | as MW3 0x00482cc0: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
-| 0x00485610 | 9 | folded | a thunk: one call to another function |
+| 0x00485610 | 9 | replaced (SDL or the platform layer) | called only from 0x004855d0, which are sdl |
 | 0x00485620 | 164 | unlabelled |  |
 | 0x004859b0 | 9 | folded | as MW3 0x00484130: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x004859c0 | 12 | folded | as MW3 0x00484140: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
@@ -1805,7 +1859,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00485d10 | 9 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004833f0: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
 | 0x00485d20 | 12 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00483400: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
 | 0x00485d30 | 14 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00483410: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
-| 0x00485d50 | 9 | folded | a thunk: one call to another function |
+| 0x00485d50 | 9 | unlabelled | follows 0x004822c0: follows 0x0040b720:  |
 | 0x00485d60 | 21 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004834b0: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
 | 0x00485db0 | 9 | folded | a thunk: one call to another function |
 | 0x00485e10 | 9 | unlabelled |  |
@@ -1832,7 +1886,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00486360 | 9 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:402) |
 | 0x00486690 | 39 | folded | as MW3 0x00484540: covered where the port does it: src/mech3/mech_lib.cpp:89 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00486730 | 25 | unlabelled |  |
-| 0x004868d0 | 14 | folded | covered by the port where it names it (src/mech3/app_weapons.cpp:354) |
+| 0x004868d0 | 14 | unlabelled |  |
 | 0x00486f10 | 51 | unlabelled |  |
 | 0x00487480 | 56 | unlabelled |  |
 | 0x00487530 | 8 | folded | as MW3 0x00485360: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
@@ -1878,7 +1932,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00489a70 | 10 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:523) |
 | 0x00489ac0 | 24 | folded | covered by the port where it names it (src/mech3/pilot_menu.cpp:680) |
 | 0x00489b20 | 10 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:517) |
-| 0x00489b70 | 24 | folded | covered by the port where it names it (src/mech3/action_menu.h:100) |
+| 0x00489b70 | 24 | folded | covered by the port where it names it (src/mech3/pilot_menu.cpp:726) |
 | 0x00489d50 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:207) |
 | 0x0048a050 | 17 | folded | covered by the port where it names it (src/mech3/menu_widgets.cpp:475) |
 | 0x0048a330 | 8 | folded | empty: does nothing |
@@ -1894,7 +1948,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0048b370 | 28 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:279) |
 | 0x0048b3f0 | 32 | unlabelled |  |
 | 0x0048b510 | 10 | unlabelled |  |
-| 0x0048bce0 | 35 | folded | covered by the port where it names it (src/mech3/pilot_menu.cpp:436) |
+| 0x0048bce0 | 35 | unlabelled |  |
 | 0x0048bd50 | 57 | unlabelled |  |
 | 0x0048bdf0 | 9 | unlabelled |  |
 | 0x0048c450 | 60 | unlabelled |  |
@@ -1926,15 +1980,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0048e3e0 | 12 | unlabelled |  |
 | 0x0048e410 | 10 | unlabelled |  |
 | 0x0048e430 | 41 | unlabelled |  |
-| 0x0048e520 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.cpp:767) |
-| 0x0048e540 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:427) |
+| 0x0048e520 | 12 | unlabelled |  |
+| 0x0048e540 | 12 | unlabelled |  |
 | 0x0048e560 | 20 | folded | as MW3 0x00489900: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x0048e5b0 | 20 | unlabelled |  |
 | 0x0048e600 | 12 | unlabelled |  |
 | 0x0048e620 | 27 | folded | covered by the port where it names it (src/mech3/action_menu.h:78) |
 | 0x0048e6a0 | 10 | unlabelled |  |
 | 0x0048e6c0 | 78 | unlabelled |  |
-| 0x0048e840 | 20 | folded | covered by the port where it names it (src/mech3/mainmenu.h:20) |
+| 0x0048e840 | 20 | unlabelled |  |
 | 0x0048e890 | 12 | folded | covered by the port where it names it (src/mech3/action_menu.h:100) |
 | 0x0048e8b0 | 81 | unlabelled |  |
 | 0x0048eaf0 | 291 | unlabelled |  |
@@ -1947,7 +2001,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0048f970 | 174 | unlabelled |  |
 | 0x0048fd60 | 13 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:144) |
 | 0x0048fd90 | 19 | unlabelled |  |
-| 0x0048fe80 | 9 | folded | a thunk: one call to another function |
+| 0x0048fe80 | 9 | unlabelled | follows 0x0048fe90:  |
 | 0x0048fe90 | 10 | unlabelled |  |
 | 0x0048fed0 | 10 | folded | covered by the port where it names it (src/mech3/lab_filebox.cpp:44) |
 | 0x0048fef0 | 36 | unlabelled |  |
@@ -1974,7 +2028,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00491ea0 | 17 | unlabelled |  |
 | 0x00491ee0 | 9 | unlabelled |  |
 | 0x00491ef0 | 9 | folded | a thunk: one call to another function |
-| 0x00491f20 | 9 | folded | a thunk: one call to another function |
+| 0x00491f20 | 9 | unlabelled | follows 0x00491f50:  |
 | 0x00491f30 | 9 | folded | a thunk: one call to another function |
 | 0x00491f50 | 57 | unlabelled |  |
 | 0x00492080 | 36 | unlabelled |  |
@@ -1982,8 +2036,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004921a0 | 77 | unlabelled |  |
 | 0x00492490 | 90 | unlabelled |  |
 | 0x00492710 | 32 | unlabelled |  |
-| 0x004927f0 | 11 | folded | covered by the port where it names it (src/mech3/hud.cpp:343) |
-| 0x00492810 | 14 | folded | covered by the port where it names it (src/mech3/hud.cpp:344) |
+| 0x004927f0 | 11 | unlabelled |  |
+| 0x00492810 | 14 | unlabelled |  |
 | 0x00493280 | 20 | unlabelled |  |
 | 0x004932c0 | 162 | unlabelled |  |
 | 0x004936f0 | 57 | unlabelled |  |
@@ -1994,7 +2048,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00493c80 | 14 | unlabelled |  |
 | 0x004943e0 | 13 | unlabelled |  |
 | 0x00494450 | 12 | folded | as MW3 0x00491120: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
-| 0x00494490 | 9 | folded | a thunk: one call to another function |
+| 0x00494490 | 9 | unlabelled | follows 0x004944c0:  |
 | 0x004944a0 | 9 | folded | a thunk: one call to another function |
 | 0x004944c0 | 10 | unlabelled |  |
 | 0x00494500 | 222 | unlabelled |  |
@@ -2019,11 +2073,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00496590 | 12 | folded | as MW3 0x004931c0: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x004965b0 | 33 | unlabelled |  |
 | 0x00496620 | 17 | unlabelled |  |
-| 0x00496650 | 9 | folded | a thunk: one call to another function |
+| 0x00496650 | 9 | unlabelled | follows 0x00496220:  |
 | 0x00496660 | 162 | unlabelled |  |
-| 0x00496c00 | 9 | folded | a thunk: one call to another function |
+| 0x00496c00 | 9 | unlabelled | follows 0x00498020:  |
 | 0x00496c10 | 11 | folded | as MW3 0x004938d0: the multiplayer screens (mp_lobby, mp_connect; menus.md): controls' destructors and constructors, list helpers; the named ones ported in those files |
-| 0x00496c70 | 9 | folded | a thunk: one call to another function |
+| 0x00496c70 | 9 | unlabelled | follows 0x00498020:  |
 | 0x00496c80 | 11 | unlabelled |  |
 | 0x00496cb0 | 12 | unlabelled |  |
 | 0x00496cd0 | 12 | unlabelled |  |
@@ -2058,7 +2112,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00499670 | 12 | unlabelled |  |
 | 0x00499690 | 12 | unlabelled |  |
 | 0x004996b0 | 12 | unlabelled |  |
-| 0x004996d0 | 12 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:1409) |
+| 0x004996d0 | 12 | unlabelled |  |
 | 0x004996f0 | 12 | unlabelled |  |
 | 0x00499710 | 12 | unlabelled |  |
 | 0x00499730 | 12 | unlabelled |  |
@@ -2086,9 +2140,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0049cf00 | 20 | unlabelled |  |
 | 0x0049cf60 | 21 | unlabelled |  |
 | 0x0049cff0 | 85 | unlabelled |  |
-| 0x0049d130 | 9 | folded | a thunk: one call to another function |
+| 0x0049d130 | 9 | unlabelled | follows 0x0049cff0:  |
 | 0x0049d140 | 19 | folded | as MW3 0x00499a00: the multiplayer screens (mp_lobby, mp_connect; menus.md): controls' destructors and constructors, list helpers; the named ones ported in those files |
-| 0x0049d170 | 22 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:1146) |
+| 0x0049d170 | 22 | unlabelled |  |
 | 0x0049db50 | 15 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:1492) |
 | 0x0049db90 | 42 | unlabelled |  |
 | 0x0049e100 | 40 | folded | as MW3 0x0049a7a0: the multiplayer screens (mp_lobby, mp_connect; menus.md): controls' destructors and constructors, list helpers; the named ones ported in those files |
@@ -2111,12 +2165,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0049fed0 | 116 | unlabelled |  |
 | 0x004a0120 | 54 | unlabelled |  |
 | 0x004a0210 | 12 | folded | covered by the port where it names it (src/mech3/pilot_menu.cpp:589) |
-| 0x004a02b0 | 15 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:1149) |
+| 0x004a02b0 | 15 | unlabelled |  |
 | 0x004a02e0 | 17 | folded | covered by the port where it names it (src/mech3/pilot_menu.cpp:600) |
 | 0x004a03c0 | 12 | folded | covered by the port where it names it (src/mech3/pilot_menu.cpp:651) |
 | 0x004a03e0 | 45 | unlabelled |  |
 | 0x004a04f0 | 15 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0049d100: MFC plumbing of the editor's dialogs (DDX, UpdateData, OnDestroy, DoModal, a static list) |
-| 0x004a0530 | 9 | folded | a thunk: one call to another function |
+| 0x004a0530 | 9 | dev dialog (MFC), its logic: PORT (preserve) | follows 0x00404100: as MW3 0x00404090: the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents) |
 | 0x004a0540 | 16 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0049d150: MFC plumbing of the editor's dialogs (DDX, UpdateData, OnDestroy, DoModal, a static list) |
 | 0x004a0570 | 15 | folded | as MW3 0x0049d190: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x004a05a0 | 15 | folded | covered by the port where it names it (src/mech3/sound_extra.cpp:32) |
@@ -2126,7 +2180,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004a0660 | 38 | folded | as MW3 0x0049d290: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x004a0730 | 17 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0049d5d0: MFC plumbing of the editor's dialogs (DDX, UpdateData, OnDestroy, DoModal, a static list) |
 | 0x004a0750 | 9 | folded | a thunk: one call to another function |
-| 0x004a07a0 | 131 | unlabelled |  |
+| 0x004a07a0 | 131 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x0049d350, whose class PM's changes keep: the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp |
 | 0x004a0a20 | 12 | unlabelled |  |
 | 0x004a0a40 | 16 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0049d660: MFC plumbing of the editor's dialogs (DDX, UpdateData, OnDestroy, DoModal, a static list) |
 | 0x004a0ae0 | 8 | folded | covered by the port where it names it (src/mech3/app_states.h:113) |
@@ -2139,7 +2193,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004a0d00 | 24 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x0049d920: the editor's 'add vehicle to node' dialog (editor.md: a vehicle picked from a dialog, 0x0049d350 / 0x0049d8b0): its list fill, its team and target bits from the player's mech (+0xc4, +0xc8), the yaw in radians |
 | 0x004a0d50 | 25 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x0049d970: the editor's 'add vehicle to node' dialog (editor.md: a vehicle picked from a dialog, 0x0049d350 / 0x0049d8b0): its list fill, its team and target bits from the player's mech (+0xc4, +0xc8), the yaw in radians |
 | 0x004a0da0 | 11 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x0049d9e0: the editor's 'add vehicle to node' dialog (editor.md: a vehicle picked from a dialog, 0x0049d350 / 0x0049d8b0): its list fill, its team and target bits from the player's mech (+0xc4, +0xc8), the yaw in radians |
-| 0x004a0dd0 | 15 | folded | covered by the port where it names it (src/mech3/app_pocket.cpp:124) |
+| 0x004a0dd0 | 15 | unlabelled |  |
 | 0x004a0e10 | 385 | unlabelled |  |
 | 0x004a1670 | 12 | folded | covered by the port where it names it (src/mech3/player.cpp:350) |
 | 0x004a16b0 | 8 | folded | as MW3 0x0049fe70: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
@@ -2166,7 +2220,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004a4ab0 | 294 | unlabelled |  |
 | 0x004a5510 | 137 | unlabelled |  |
 | 0x004a5780 | 184 | unlabelled |  |
-| 0x004a5b20 | 32 | folded | covered by the port where it names it (src/mech3/veh_stealth.h:22) |
+| 0x004a5b20 | 32 | folded | covered by the port where it names it (src/mech3/veh_move.cpp:156) |
 | 0x004a5e90 | 13 | folded | covered by the port where it names it (src/mech3/veh_controls.h:178) |
 | 0x004a65a0 | 44 | unlabelled |  |
 | 0x004a66b0 | 80 | unlabelled |  |
@@ -2190,7 +2244,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004a74e0 | 12 | unlabelled |  |
 | 0x004a7500 | 9 | debug or dev tool: PORT (preserve) | as MW3 0x004a4ca0: the stealth object (the developers' fly camera; back burner in CLAUDE.md): a slot of its |
 | 0x004a7520 | 8 | folded | returns a constant or a global |
-| 0x004a7530 | 29 | folded | covered by the port where it names it (src/mech3/turret.cpp:364) |
+| 0x004a7530 | 29 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:238) |
 | 0x004a75e0 | 20 | folded | covered by the port where it names it (src/mech3/game_editor_net.h:27) |
 | 0x004a7630 | 72 | unlabelled |  |
 | 0x004a77f0 | 12 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:1084) |
@@ -2204,7 +2258,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004a82a0 | 20 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:422) |
 | 0x004a8370 | 13 | folded | covered by the port where it names it (src/mech3/veh_stealth.h:22) |
 | 0x004a83a0 | 8 | folded | returns a constant or a global |
-| 0x004a83c0 | 9 | folded | covered by the port where it names it (src/mech3/sensors.cpp:457) |
+| 0x004a83c0 | 9 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.cpp:263) |
 | 0x004a83e0 | 8 | folded | returns a constant or a global |
 | 0x004a8400 | 9 | folded | covered by the port where it names it (src/mech3/veh_controls.cpp:462) |
 | 0x004a8440 | 8 | folded | as MW3 0x004a5c50: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
@@ -2224,9 +2278,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004aa670 | 116 | unlabelled |  |
 | 0x004aabe0 | 119 | unlabelled |  |
 | 0x004aaea0 | 10 | unlabelled |  |
-| 0x004aaf40 | 9 | folded | a thunk: one call to another function |
+| 0x004aaf40 | 9 | unlabelled | follows 0x004a70c0:  |
 | 0x004aaf60 | 9 | folded | a thunk: one call to another function |
-| 0x004aaf80 | 9 | folded | a thunk: one call to another function |
+| 0x004aaf80 | 9 | unlabelled | follows 0x004a71f0:  |
 | 0x004aafa0 | 9 | folded | a thunk: one call to another function |
 | 0x004aafc0 | 8 | folded | ported, by docs/symbols.csv: ported: vt+0xa0 |
 | 0x004aafd0 | 16 | unlabelled |  |
@@ -2236,7 +2290,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004ab230 | 17 | folded | covered by the port where it names it (src/mech3/sensors.cpp:247) |
 | 0x004ab260 | 87 | folded | as MW3 0x004a7d00: covered where the port does it: src/mech3/sensors.cpp:142 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004ab480 | 42 | unlabelled |  |
-| 0x004ab720 | 12 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.h:8) |
+| 0x004ab720 | 12 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x004ab750 | 73 | unlabelled |  |
 | 0x004ab910 | 67 | folded | as MW3 0x004a83c0: covered where the port does it: src/mech3/sensors.cpp:457 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004aba80 | 85 | unlabelled |  |
@@ -2250,7 +2304,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004ac7b0 | 93 | unlabelled |  |
 | 0x004ac9d0 | 22 | unlabelled |  |
 | 0x004acb90 | 107 | unlabelled |  |
-| 0x004acdc0 | 18 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:513) |
+| 0x004acdc0 | 18 | folded | covered by the port where it names it (src/mech3/sensors.cpp:277) |
 | 0x004ace10 | 29 | folded | covered by the port where it names it (src/mech3/sensors.cpp:281) |
 | 0x004ace80 | 16 | unlabelled |  |
 | 0x004acec0 | 18 | unlabelled |  |
@@ -2261,7 +2315,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004ada00 | 16 | folded | ported, by docs/symbols.csv: ported: a null contact, or one whose vehicle is the one going |
 | 0x004ada30 | 16 | folded | ported, by docs/symbols.csv: ported: one entity's vehicle (vt+0x2c) told (vt+0xd4) |
 | 0x004adc90 | 19 | folded | as MW3 0x004aa740: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004adcd0 | 11 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:196) |
+| 0x004adcd0 | 11 | unlabelled |  |
 | 0x004add00 | 11 | folded | as MW3 0x004aa9a0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004add30 | 16 | folded | as MW3 0x004aa9d0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004add70 | 100 | unlabelled |  |
@@ -2271,7 +2325,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004ae670 | 120 | unlabelled |  |
 | 0x004ae850 | 12 | unlabelled |  |
 | 0x004ae870 | 102 | unlabelled |  |
-| 0x004aea00 | 11 | folded | as MW3 0x004ab1d0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
+| 0x004aea00 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x004aea20 | 15 | folded | as MW3 0x0054bde0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x004aea50 | 140 | folded | as MW3 0x004ab1f0: covered where the port does it: src/crt/msvc_sort.h:8 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004aecf0 | 69 | unlabelled |  |
@@ -2304,13 +2358,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b10b0 | 9 | unlabelled |  |
 | 0x004b1130 | 53 | folded | as MW3 0x004ad840: covered where the port does it: src/mech3/veh_basic_object.h:38 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004b1220 | 72 | unlabelled |  |
-| 0x004b1390 | 9 | folded | a thunk: one call to another function |
+| 0x004b1390 | 9 | folded | follows 0x004b1130: as MW3 0x004ad840: covered where the port does it: src/mech3/veh_basic_object.h:38 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004b13a0 | 9 | folded | a thunk: one call to another function |
 | 0x004b13c0 | 19 | folded | as MW3 0x004ade90: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b1400 | 12 | unlabelled |  |
 | 0x004b1420 | 10 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:241) |
-| 0x004b1440 | 9 | folded | covered by the port where it names it (src/mech3/weapon_planner.cpp:124) |
-| 0x004b1470 | 9 | folded | covered by the port where it names it (src/mech3/weapon_planner.cpp:103) |
+| 0x004b1440 | 9 | unlabelled |  |
+| 0x004b1470 | 9 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.cpp:138) |
 | 0x004b14d0 | 12 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:143) |
 | 0x004b14f0 | 18 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:143) |
 | 0x004b1530 | 15 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:154) |
@@ -2318,15 +2372,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b16f0 | 11 | folded | ported, by docs/symbols.csv: ported: IControls +0x04 zeroed |
 | 0x004b17c0 | 12 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.cpp:258) |
 | 0x004b17e0 | 148 | folded | as MW3 0x004aded0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004b1b80 | 31 | unlabelled |  |
+| 0x004b1b80 | 31 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae270, whose class PM's changes keep: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
 | 0x004b1c40 | 8 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae340: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
 | 0x004b1c50 | 8 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae350: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
 | 0x004b1c60 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae380: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
 | 0x004b1ca0 | 101 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae3c0: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
-| 0x004b1ec0 | 22 | unlabelled |  |
+| 0x004b1ec0 | 22 | MISSING LOGIC (only data the shipped game lacks reaches it) | called only from 0x004b2280, which are missing-mod |
 | 0x004b1f80 | 8 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae6a0: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
 | 0x004b1f90 | 51 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae6b0: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
-| 0x004b2190 | 9 | folded | a thunk: one call to another function |
+| 0x004b2190 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | called only from 0x004b1f90, which are missing-mod |
 | 0x004b21a0 | 9 | folded | a thunk: one call to another function |
 | 0x004b21c0 | 9 | folded | as MW3 0x004c02a0: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004b21d0 | 21 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae8e0: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
@@ -2338,7 +2392,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b2410 | 12 | unlabelled |  |
 | 0x004b24e0 | 12 | folded | covered by the port where it names it (src/mech3/zai_attackers_pm.cpp:52) |
 | 0x004b2510 | 9 | folded | covered by the port where it names it (src/mech3/zai_attackers_pm.cpp:13) |
-| 0x004b2530 | 26 | folded | covered by the port where it names it (src/mech3/weapon.cpp:944) |
+| 0x004b2530 | 26 | folded | covered by the port where it names it (src/mech3/zai_attackers_pm.cpp:13) |
 | 0x004b2580 | 19 | folded | covered by the port where it names it (src/mech3/mech_control.cpp:696) |
 | 0x004b2940 | 9 | folded | ported, by docs/symbols.csv: ported: HitRecord::within(1) (the manoeuvre's direct call) |
 | 0x004b2980 | 12 | unlabelled |  |
@@ -2354,7 +2408,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b2c90 | 25 | folded | covered by the port where it names it (src/mech3/app_sensors.cpp:142) |
 | 0x004b2ce0 | 22 | folded | as MW3 0x004aee70: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b2d70 | 15 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:2266) |
-| 0x004b2da0 | 9 | folded | a thunk: one call to another function |
+| 0x004b2da0 | 9 | unlabelled | follows 0x004fd2c0:  |
 | 0x004b2dc0 | 22 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x004aef00: the vehicle-pick dialog's MFC plumbing |
 | 0x004b2e20 | 12 | unlabelled |  |
 | 0x004b2e40 | 9 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x004aef80: the vehicle-pick dialog's MFC plumbing |
@@ -2363,15 +2417,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b2ec0 | 30 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004af000: a vehicle-pick dev dialog (resource 0x8f, from the debug key's 0x004a3550): its list of zEntity's vehicles |
 | 0x004b2f60 | 9 | unlabelled |  |
 | 0x004b2f70 | 47 | unlabelled |  |
-| 0x004b3020 | 33 | folded | covered by the port where it names it (src/mech3/app_mech.h:144) |
+| 0x004b3020 | 33 | folded | covered by the port where it names it (src/mech3/weapon.cpp:1327) |
 | 0x004b3080 | 19 | replaced (SDL or the platform layer) | as MW3 0x004af1a0: Win32: the exe's version info for the window title and menus (GetFileVersionInfoA; protection.md) and the OK/Cancel MessageBoxExA helper (the game's own box replaces it, W16) |
-| 0x004b3110 | 8 | folded | covered by the port where it names it (src/mech3/mp_connect.h:32) |
+| 0x004b3110 | 8 | unlabelled |  |
 | 0x004b3120 | 14 | unlabelled |  |
-| 0x004b3180 | 9 | folded | a thunk: one call to another function |
+| 0x004b3180 | 9 | unlabelled | follows 0x004b2f70:  |
 | 0x004b3190 | 9 | folded | a thunk: one call to another function |
-| 0x004b31b0 | 9 | folded | a thunk: one call to another function |
+| 0x004b31b0 | 9 | unlabelled | follows 0x004b3120:  |
 | 0x004b31c0 | 9 | folded | a thunk: one call to another function |
-| 0x004b31d0 | 9 | folded | a thunk: one call to another function |
+| 0x004b31d0 | 9 | unlabelled | follows 0x004b3110:  |
 | 0x004b31e0 | 130 | unlabelled |  |
 | 0x004b34d0 | 200 | unlabelled |  |
 | 0x004b3c80 | 20 | folded | as MW3 0x004afe10: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
@@ -2385,7 +2439,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b4f10 | 50 | unlabelled |  |
 | 0x004b4fe0 | 35 | unlabelled |  |
 | 0x004b5040 | 76 | unused: PORT (preserve) | as MW3 0x004b1170: the static the AI's planner builds at 0x0060b240 (two reserved vectors): read by nothing (weapon_planner.h:7) |
-| 0x004b51a0 | 9 | folded | a thunk: one call to another function |
+| 0x004b51a0 | 9 | unused: PORT (preserve) | called only from 0x004b5040, which are unused |
 | 0x004b51b0 | 9 | folded | a thunk: one call to another function |
 | 0x004b5210 | 13 | folded | ported, by docs/symbols.csv: ported inline; Shot's initialisers |
 | 0x004b5300 | 14 | folded | ported, by docs/symbols.csv: ported; group_out |
@@ -2394,7 +2448,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b56d0 | 145 | unlabelled |  |
 | 0x004b59f0 | 12 | folded | as MW3 0x004b1ba0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b5bc0 | 13 | folded | covered by the port where it names it (src/mech3/weapon.h:124) |
-| 0x004b5bf0 | 37 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.h:294) |
+| 0x004b5bf0 | 37 | unlabelled |  |
 | 0x004b5e10 | 52 | unlabelled |  |
 | 0x004b5ea0 | 48 | unlabelled |  |
 | 0x004b5f80 | 110 | unlabelled |  |
@@ -2412,9 +2466,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b73f0 | 94 | unlabelled |  |
 | 0x004b7600 | 42 | unlabelled |  |
 | 0x004b76d0 | 54 | unlabelled |  |
-| 0x004b7a90 | 17 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.h:168) |
+| 0x004b7a90 | 17 | unlabelled |  |
 | 0x004b7ac0 | 16 | unlabelled |  |
-| 0x004b7b10 | 9 | folded | a thunk: one call to another function |
+| 0x004b7b10 | 9 | unlabelled | follows 0x004b7ac0:  |
 | 0x004b7da0 | 44 | unlabelled |  |
 | 0x004b7e70 | 8 | folded | covered by the port where it names it (src/mech3/weapon.h:218) |
 | 0x004b7e80 | 12 | folded | covered by the port where it names it (src/mech3/weapon.h:216) |
@@ -2427,11 +2481,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b8ae0 | 9 | folded | a thunk: one call to another function |
 | 0x004b8c20 | 11 | unlabelled |  |
 | 0x004b8ce0 | 8 | unlabelled |  |
-| 0x004b8d20 | 11 | folded | covered by the port where it names it (src/mech3/game_editor_vehicles.cpp:940) |
-| 0x004b8d30 | 11 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.h:166) |
+| 0x004b8d20 | 11 | folded | covered by the port where it names it (src/mech3/mech_salvage.h:37) |
+| 0x004b8d30 | 11 | folded | covered by the port where it names it (src/mech3/weapon.h:119) |
 | 0x004b8df0 | 9 | folded | a thunk: one call to another function |
-| 0x004b8ed0 | 27 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:111) |
-| 0x004b8f10 | 25 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:111) |
+| 0x004b8ed0 | 27 | unlabelled |  |
+| 0x004b8f10 | 25 | unlabelled |  |
 | 0x004b8f50 | 16 | folded | as MW3 0x004b4ed0: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x004b9210 | 54 | folded | as MW3 0x004b4f00: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x004b92f0 | 11 | folded | as MW3 0x0054bb00: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
@@ -2443,13 +2497,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b93f0 | 15 | folded | covered by the port where it names it (src/mech3/lab_view.cpp:53) |
 | 0x004b9420 | 9 | folded | as MW3 0x004b5050: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x004b9430 | 9 | folded | a thunk: one call to another function |
-| 0x004b9450 | 9 | folded | a thunk: one call to another function |
+| 0x004b9450 | 9 | unlabelled | follows 0x00506200:  |
 | 0x004b9470 | 45 | folded | as MW3 0x004b5060: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x004b95e0 | 10 | folded | as MW3 0x004b51b0: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x004b9600 | 10 | folded | as MW3 0x004b51d0: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
-| 0x004b9670 | 9 | folded | a thunk: one call to another function |
+| 0x004b9670 | 9 | folded | follows 0x004b96b0: as MW3 0x004b5260: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b9680 | 9 | folded | a thunk: one call to another function |
-| 0x004b96a0 | 9 | folded | covered by the port where it names it (src/mech3/game_editor_vehicles.cpp:328) |
+| 0x004b96a0 | 9 | unlabelled |  |
 | 0x004b96b0 | 11 | folded | as MW3 0x004b5260: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b96d0 | 9 | folded | a thunk: one call to another function |
 | 0x004b96e0 | 14 | folded | as MW3 0x004b5290: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
@@ -2469,11 +2523,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b9d50 | 8 | folded | as MW3 0x00409850: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x004b9d60 | 8 | unlabelled |  |
 | 0x004b9d70 | 8 | unlabelled |  |
-| 0x004b9d80 | 29 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:873) |
+| 0x004b9d80 | 29 | unlabelled |  |
 | 0x004b9e40 | 26 | folded | ported, by docs/symbols.csv: ported; line_cone [0x0060b2c8] (10, 30, 10, 200) |
 | 0x004b9ee0 | 9 | folded | ported, by docs/symbols.csv: ported; the start-up's call |
 | 0x004b9fe0 | 18 | folded | ported, by docs/symbols.csv: ported; volley_kind (0x004b1860 through the volley_pick hook) |
-| 0x004ba030 | 24 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:322) |
+| 0x004ba030 | 24 | unlabelled |  |
 | 0x004ba0a0 | 9 | folded | as MW3 0x004b5ac0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004ba0b0 | 9 | folded | as MW3 0x004b5ad0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004ba0c0 | 9 | folded | as MW3 0x004b5ae0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
@@ -2483,7 +2537,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004ba340 | 100 | unlabelled |  |
 | 0x004ba5c0 | 9 | folded | as MW3 0x004b6370: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004ba5d0 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_pm.cpp:263) |
-| 0x004ba5f0 | 15 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:498) |
+| 0x004ba5f0 | 15 | folded | covered by the port where it names it (src/mech3/zai_brain.h:25) |
 | 0x004ba630 | 10 | folded | ported, by docs/symbols.csv: ported; LookAround::start |
 | 0x004ba890 | 10 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1000) |
 | 0x004ba970 | 12 | folded | covered by the port where it names it (src/mech3/zai_firing.cpp:303) |
@@ -2496,19 +2550,19 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004bb6a0 | 10 | folded | as MW3 0x004b78d0: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004bb6b0 | 21 | unlabelled |  |
 | 0x004bbdc0 | 30 | unlabelled |  |
-| 0x004bbe30 | 34 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:335) |
-| 0x004bbf20 | 25 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:224) |
+| 0x004bbe30 | 34 | unlabelled |  |
+| 0x004bbf20 | 25 | unlabelled |  |
 | 0x004bbfa0 | 116 | unlabelled |  |
-| 0x004bc230 | 17 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:262) |
-| 0x004bc260 | 12 | folded | covered by the port where it names it (src/mech3/game_editor_vehicles.cpp:70) |
+| 0x004bc230 | 17 | unlabelled |  |
+| 0x004bc260 | 12 | unlabelled |  |
 | 0x004bc2a0 | 12 | unlabelled |  |
 | 0x004bc8c0 | 10 | unlabelled |  |
 | 0x004bc8e0 | 8 | folded | returns a constant or a global |
-| 0x004bc8f0 | 11 | folded | covered by the port where it names it (src/mech3/game_editor_vehicles.cpp:165) |
+| 0x004bc8f0 | 11 | unlabelled |  |
 | 0x004bc910 | 9 | folded | a thunk: one call to another function |
 | 0x004bc920 | 8 | folded | returns a constant or a global |
 | 0x004bc930 | 76 | unlabelled |  |
-| 0x004bca70 | 21 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:515) |
+| 0x004bca70 | 21 | unlabelled |  |
 | 0x004bcad0 | 96 | unlabelled |  |
 | 0x004bd170 | 16 | unlabelled |  |
 | 0x004bd1b0 | 9 | folded | a thunk: one call to another function |
@@ -2535,7 +2589,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004be110 | 37 | folded | as MW3 0x004b7bf0: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004be1a0 | 9 | unlabelled |  |
 | 0x004be2b0 | 59 | unlabelled |  |
-| 0x004be440 | 9 | folded | a thunk: one call to another function |
+| 0x004be440 | 9 | unlabelled | follows 0x004be2b0:  |
 | 0x004be450 | 9 | folded | a thunk: one call to another function |
 | 0x004be470 | 22 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004be4e0 | 53 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
@@ -2546,7 +2600,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004bebb0 | 17 | unlabelled |  |
 | 0x004bec10 | 32 | unlabelled |  |
 | 0x004bec90 | 8 | folded | returns a constant or a global |
-| 0x004bef80 | 44 | unlabelled |  |
+| 0x004bef80 | 44 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x004b8a20, whose class PM's changes keep: the vehicle editor's MFC plumbing (its pages' CDialog constructors, its destructor, message map); its layout is the exe's dialog resources (0xa5..0xb7). The port's editor covers the job: game_editor_vehicles (vehicle_editor_open / the page handlers) |
 | 0x004bf0b0 | 14 | folded | as MW3 0x004b8b70: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004bf0e0 | 10 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x004b8ba0: the vehicle editor's MFC plumbing (its pages' CDialog constructors, its destructor, message map); its layout is the exe's dialog resources (0xa5..0xb7). The port's editor covers the job: game_editor_vehicles (vehicle_editor_open / the page handlers) |
 | 0x004bf100 | 28 | unlabelled |  |
@@ -2618,11 +2672,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004c2ec0 | 8 | unlabelled |  |
 | 0x004c2ee0 | 137 | unlabelled |  |
 | 0x004c31c0 | 26 | unlabelled |  |
-| 0x004c3280 | 9 | folded | a thunk: one call to another function |
+| 0x004c3280 | 9 | unlabelled | follows 0x004c2ee0:  |
 | 0x004c3290 | 25 | unlabelled |  |
 | 0x004c32f0 | 15 | unlabelled |  |
 | 0x004c3320 | 23 | unlabelled |  |
-| 0x004c3380 | 25 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:207) |
+| 0x004c3380 | 25 | unlabelled |  |
 | 0x004c33e0 | 23 | unlabelled |  |
 | 0x004c3440 | 31 | unlabelled |  |
 | 0x004c34f0 | 23 | unlabelled |  |
@@ -2662,14 +2716,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004c5b30 | 59 | folded | as MW3 0x004bec10: covered where the port does it: src/mech3/zainetedit.cpp:450 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004c5c80 | 12 | folded | as MW3 0x004bed60: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004c5cb0 | 83 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004bed90: the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file |
-| 0x004c5e50 | 14 | folded | covered by the port where it names it (src/mech3/zainet_region.cpp:91) |
+| 0x004c5e50 | 14 | unlabelled |  |
 | 0x004c5e80 | 16 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:81) |
 | 0x004c5ef0 | 8 | unlabelled |  |
 | 0x004c5f00 | 81 | unlabelled |  |
 | 0x004c60a0 | 117 | unlabelled |  |
 | 0x004c63e0 | 8 | folded | covered by the port where it names it (src/mech3/zainetedit.h:51) |
 | 0x004c63f0 | 16 | folded | as MW3 0x0049ce90: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
-| 0x004c6430 | 9 | folded | a thunk: one call to another function |
+| 0x004c6430 | 9 | unlabelled | follows 0x004c3e00:  |
 | 0x004c6440 | 21 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:577) |
 | 0x004c64a0 | 12 | unlabelled |  |
 | 0x004c64c0 | 20 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:555) |
@@ -2695,16 +2749,16 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004c6f20 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:234) |
 | 0x004c6f40 | 12 | unlabelled |  |
 | 0x004c6f60 | 10 | folded | as MW3 0x004c0060: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
-| 0x004c7240 | 10 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:75) |
+| 0x004c7240 | 10 | folded | covered by the port where it names it (src/mech3/zai_steps.h:63) |
 | 0x004c7260 | 12 | unlabelled |  |
 | 0x004c7280 | 10 | folded | as MW3 0x004c02d0: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004c7290 | 9 | folded | a thunk: one call to another function |
 | 0x004c72a0 | 22 | unlabelled |  |
-| 0x004c7300 | 89 | unlabelled |  |
+| 0x004c7300 | 89 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004c0310, whose class PM's changes keep: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour) |
 | 0x004c7520 | 14 | unlabelled |  |
 | 0x004c7560 | 89 | unlabelled |  |
 | 0x004c77a0 | 10 | folded | as MW3 0x004c07a0: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
-| 0x004c77b0 | 14 | folded | covered by the port where it names it (src/mech3/zainet.h:11) |
+| 0x004c77b0 | 14 | unlabelled |  |
 | 0x004c77e0 | 12 | unlabelled |  |
 | 0x004c78c0 | 12 | folded | covered by the port where it names it (src/mech3/zai_attack.cpp:70) |
 | 0x004c78f0 | 12 | folded | covered by the port where it names it (src/mech3/zai_attack.h:40) |
@@ -2718,9 +2772,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004c7b10 | 10 | unlabelled |  |
 | 0x004c7b20 | 35 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:752) |
 | 0x004c7c00 | 27 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:752) |
-| 0x004c7c80 | 11 | unlabelled |  |
-| 0x004c7c90 | 13 | unlabelled |  |
-| 0x004c7cf0 | 20 | unlabelled |  |
+| 0x004c7c80 | 11 | debug or dev tool: PORT (preserve) | as MW3 0x0058f2d0, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x004c7c90 | 13 | debug or dev tool: PORT (preserve) | called only from 0x004c7cf0, which are debug |
+| 0x004c7cf0 | 20 | debug or dev tool: PORT (preserve) | called only from 0x004c7c80, which are debug |
 | 0x004c7d60 | 30 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:752) |
 | 0x004c7dc0 | 15 | unlabelled |  |
 | 0x004c7df0 | 12 | unlabelled |  |
@@ -2728,27 +2782,27 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004c7e10 | 11 | unlabelled |  |
 | 0x004c7e30 | 12 | unlabelled |  |
 | 0x004c7e50 | 22 | unlabelled |  |
-| 0x004c7e90 | 34 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:170) |
+| 0x004c7e90 | 34 | unlabelled |  |
 | 0x004c7f30 | 29 | unlabelled |  |
 | 0x004c8010 | 21 | unused: PORT (preserve) | as MW3 0x004c0ed0: the vehicle's +0xd8 record of each in/out query (its constructor and reset): written, never read (docs/symbols.csv: not kept; ai.md 11) |
 | 0x004c80a0 | 11 | folded | ported, by docs/symbols.csv: ported: zainet_inout lerp (x and z, a's height) |
 | 0x004c80f0 | 9 | folded | ported, by docs/symbols.csv: ported: zainet_inout dist_xz |
-| 0x004c8130 | 9 | folded | a thunk: one call to another function |
-| 0x004c8140 | 33 | folded | covered by the port where it names it (src/mech3/zai_path.cpp:64) |
-| 0x004c8230 | 21 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:313) |
-| 0x004c82b0 | 22 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:179) |
+| 0x004c8130 | 9 | unlabelled | follows 0x004c8140:  |
+| 0x004c8140 | 33 | unlabelled |  |
+| 0x004c8230 | 21 | unlabelled |  |
+| 0x004c82b0 | 22 | unlabelled |  |
 | 0x004c8340 | 17 | unlabelled |  |
 | 0x004c8370 | 30 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:490) |
 | 0x004c8450 | 32 | unlabelled |  |
 | 0x004c8540 | 10 | unlabelled |  |
 | 0x004c8570 | 13 | unlabelled |  |
 | 0x004c85b0 | 46 | unlabelled |  |
-| 0x004c86e0 | 13 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:506) |
+| 0x004c86e0 | 13 | unlabelled |  |
 | 0x004c8720 | 56 | unlabelled |  |
-| 0x004c8940 | 14 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:402) |
+| 0x004c8940 | 14 | unlabelled |  |
 | 0x004c8990 | 59 | unlabelled |  |
 | 0x004c8b90 | 14 | unlabelled |  |
-| 0x004c8be0 | 15 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:62) |
+| 0x004c8be0 | 15 | unlabelled |  |
 | 0x004c9220 | 10 | unlabelled |  |
 | 0x004c9260 | 22 | unlabelled |  |
 | 0x004c9570 | 10 | unlabelled |  |
@@ -2759,12 +2813,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004c9a70 | 17 | unlabelled |  |
 | 0x004ca4e0 | 45 | unlabelled |  |
 | 0x004caa60 | 15 | unlabelled |  |
-| 0x004caac0 | 16 | folded | covered by the port where it names it (src/mech3/zai_attack.h:355) |
+| 0x004caac0 | 16 | unlabelled |  |
 | 0x004cab20 | 62 | unlabelled |  |
 | 0x004caca0 | 37 | folded | as MW3 0x004c2e90: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cad50 | 21 | unlabelled |  |
 | 0x004cade0 | 10 | unlabelled |  |
-| 0x004cae10 | 9 | folded | a thunk: one call to another function |
+| 0x004cae10 | 9 | unlabelled | follows 0x004cab20:  |
 | 0x004cae40 | 12 | folded | as MW3 0x004c2670: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cae70 | 19 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:382) |
 | 0x004cb0e0 | 113 | unlabelled |  |
@@ -2776,10 +2830,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004cb780 | 9 | folded | a thunk: one call to another function |
 | 0x004cb7b0 | 38 | folded | ported, by docs/symbols.csv: ported: zainet_inout inout_set_state (0x004c2a30) |
 | 0x004cb840 | 15 | unlabelled |  |
-| 0x004cc970 | 17 | folded | covered by the port where it names it (src/mech3/zainet_inout.h:124) |
-| 0x004ccac0 | 12 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:252) |
+| 0x004cc970 | 17 | unlabelled |  |
+| 0x004ccac0 | 12 | unlabelled |  |
 | 0x004cce60 | 10 | folded | as MW3 0x004c3250: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
-| 0x004cce70 | 9 | folded | a thunk: one call to another function |
+| 0x004cce70 | 9 | folded | follows 0x004ce0e0: as MW3 0x004c3c90: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cce80 | 9 | folded | a thunk: one call to another function |
 | 0x004ccea0 | 12 | folded | as MW3 0x004c3290: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cd2f0 | 161 | unlabelled |  |
@@ -2799,18 +2853,18 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004ce5b0 | 40 | folded | as MW3 0x004c3fb0: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004ce6f0 | 21 | folded | as MW3 0x004c40e0: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004ce780 | 9 | folded | as MW3 0x004c4170: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
-| 0x004ce7a0 | 9 | folded | a thunk: one call to another function |
+| 0x004ce7a0 | 9 | unlabelled | follows 0x004ce7c0:  |
 | 0x004ce7c0 | 30 | unlabelled |  |
 | 0x004ce8a0 | 23 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2550) |
-| 0x004ced50 | 16 | folded | covered by the port where it names it (src/mech3/zainet_inout_view.cpp:42) |
+| 0x004ced50 | 16 | unlabelled |  |
 | 0x004cefc0 | 52 | unlabelled |  |
 | 0x004cf270 | 10 | folded | as MW3 0x004c4980: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
-| 0x004cf280 | 9 | folded | a thunk: one call to another function |
+| 0x004cf280 | 9 | folded | follows 0x004ce780: as MW3 0x004c4170: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cf290 | 9 | folded | a thunk: one call to another function |
-| 0x004cf2b0 | 9 | folded | a thunk: one call to another function |
+| 0x004cf2b0 | 9 | unlabelled | follows 0x004ce7a0: follows 0x004ce7c0:  |
 | 0x004cf2c0 | 8 | unlabelled |  |
-| 0x004cf2d0 | 9 | folded | a thunk: one call to another function |
-| 0x004cf2f0 | 9 | folded | a thunk: one call to another function |
+| 0x004cf2d0 | 9 | unlabelled | follows 0x004cf2f0: follows 0x004ce7c0:  |
+| 0x004cf2f0 | 9 | unlabelled | follows 0x004ce7c0:  |
 | 0x004cf310 | 9 | folded | a thunk: one call to another function |
 | 0x004cf330 | 9 | folded | as MW3 0x004c4a40: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cf730 | 88 | unlabelled |  |
@@ -2849,7 +2903,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d1170 | 34 | folded | as MW3 0x004c5db0: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004d12f0 | 9 | folded | a thunk: one call to another function |
 | 0x004d1300 | 47 | unlabelled |  |
-| 0x004d13b0 | 12 | folded | covered by the port where it names it (src/mech3/zai_attack.h:276) |
+| 0x004d13b0 | 12 | unlabelled |  |
 | 0x004d13d0 | 154 | unlabelled |  |
 | 0x004d1670 | 57 | unlabelled |  |
 | 0x004d1790 | 167 | unlabelled |  |
@@ -2869,18 +2923,18 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d25d0 | 9 | unlabelled |  |
 | 0x004d2620 | 9 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:27) |
 | 0x004d2690 | 14 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:75) |
-| 0x004d26b0 | 9 | folded | a thunk: one call to another function |
+| 0x004d26b0 | 9 | unlabelled | follows 0x004c5ef0:  |
 | 0x004d2710 | 8 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:78) |
 | 0x004d2720 | 9 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:81) |
 | 0x004d2740 | 9 | folded | a thunk: one call to another function |
 | 0x004d2750 | 20 | folded | covered by the port where it names it (src/mech3/zainet.cpp:130) |
 | 0x004d2780 | 55 | unlabelled |  |
-| 0x004d2960 | 19 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:480) |
+| 0x004d2960 | 19 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:110) |
 | 0x004d29a0 | 18 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:117) |
 | 0x004d29e0 | 120 | folded | as MW3 0x004c75c0: covered where the port does it: src/mech3/zainet_node.cpp:40 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d2ba0 | 13 | folded | covered by the port where it names it (src/mech3/zainet_node.h:13) |
 | 0x004d2bd0 | 11 | folded | as MW3 0x004c7790: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
-| 0x004d2bf0 | 9 | folded | a thunk: one call to another function |
+| 0x004d2bf0 | 9 | unlabelled | follows 0x004d2130:  |
 | 0x004d2c00 | 10 | folded | as MW3 0x004c77c0: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004d2c20 | 12 | unlabelled |  |
 | 0x004d2c50 | 8 | folded | returns a constant or a global |
@@ -2898,7 +2952,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d3050 | 9 | folded | covered by the port where it names it (src/mech3/zai_brain.h:709) |
 | 0x004d3060 | 12 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.h:371) |
 | 0x004d3170 | 26 | folded | ported, by docs/symbols.csv: ported: zai_path (vtable 0x005cb178) |
-| 0x004d31d0 | 12 | unlabelled |  |
+| 0x004d31d0 | 12 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:752) |
 | 0x004d31f0 | 54 | folded | as MW3 0x004c7d80: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004d3580 | 54 | unlabelled |  |
 | 0x004d3820 | 45 | unlabelled |  |
@@ -2912,9 +2966,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d3b30 | 12 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:86) |
 | 0x004d3b50 | 10 | folded | as MW3 0x004c8740: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d3b60 | 10 | folded | as MW3 0x004c8750: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
-| 0x004d3b80 | 20 | folded | covered by the port where it names it (src/mech3/zai_valve.cpp:72) |
+| 0x004d3b80 | 20 | unlabelled |  |
 | 0x004d3bd0 | 10 | folded | as MW3 0x004c8790: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
-| 0x004d3bf0 | 12 | folded | covered by the port where it names it (src/mech3/zai_anim_owner.h:12) |
+| 0x004d3bf0 | 12 | unlabelled |  |
 | 0x004d3c10 | 10 | folded | as MW3 0x004c87d0: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d3c20 | 8 | folded | returns a constant or a global |
 | 0x004d3c30 | 33 | unlabelled |  |
@@ -2928,11 +2982,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d3df0 | 8 | folded | returns a constant or a global |
 | 0x004d3e00 | 12 | unlabelled |  |
 | 0x004d3e20 | 10 | folded | as MW3 0x004c8990: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
-| 0x004d3e30 | 9 | folded | a thunk: one call to another function |
+| 0x004d3e30 | 9 | unlabelled | follows 0x004d3e40:  |
 | 0x004d3e40 | 94 | unlabelled |  |
 | 0x004d3fc0 | 18 | folded | covered by the port where it names it (src/mech3/zai_steps.h:212) |
 | 0x004d4000 | 12 | UNSURE | as MW3 0x004c9140: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots |
-| 0x004d4010 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:59) |
+| 0x004d4010 | 22 | unlabelled |  |
 | 0x004d4080 | 55 | UNSURE | as MW3 0x004c9180: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots |
 | 0x004d4170 | 20 | UNSURE | as MW3 0x004c9260: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots |
 | 0x004d41c0 | 36 | UNSURE | as MW3 0x004c92b0: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots |
@@ -2982,9 +3036,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d4e80 | 53 | folded | ported, by docs/symbols.csv: ported: zai_attack ManoeuvreState (its first part) |
 | 0x004d4f80 | 12 | unlabelled |  |
 | 0x004d5020 | 8 | folded | returns a constant or a global |
-| 0x004d54e0 | 20 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:231) |
+| 0x004d54e0 | 20 | unlabelled |  |
 | 0x004d55b0 | 12 | unlabelled |  |
-| 0x004d55e0 | 24 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:232) |
+| 0x004d55e0 | 24 | unlabelled |  |
 | 0x004d5640 | 65 | folded | as MW3 0x004cb950: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d5770 | 13 | folded | as MW3 0x004cbd90: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d57a0 | 73 | unlabelled |  |
@@ -3039,11 +3093,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d6a00 | 12 | unused: PORT (preserve) | as MW3 0x004cd7b0: the brain's own step at +0x240 (0x004cd770, vtable 0x005cc290): built by the brain's constructor, but nothing orders it (only the constructor takes +0x240), so its make_state, state and run (path following toward a point, 98 lines) never run |
 | 0x004d6a30 | 12 | unlabelled |  |
 | 0x004d6a50 | 10 | unused: PORT (preserve) | as MW3 0x004cd800: the brain's own step at +0x240 (0x004cd770, vtable 0x005cc290): built by the brain's constructor, but nothing orders it (only the constructor takes +0x240), so its make_state, state and run (path following toward a point, 98 lines) never run |
-| 0x004d6a60 | 90 | unlabelled |  |
+| 0x004d6a60 | 90 | unused: PORT (preserve) | as MW3 0x004cd810, whose class PM's changes keep: the brain's own step at +0x240 (0x004cd770, vtable 0x005cc290): built by the brain's constructor, but nothing orders it (only the constructor takes +0x240), so its make_state, state and run (path following toward a point, 98 lines) never run |
 | 0x004d6ca0 | 46 | folded | as MW3 0x004cda50: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d6d50 | 12 | unlabelled |  |
 | 0x004d6d70 | 19 | folded | as MW3 0x004cdb20: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
-| 0x004d6dc0 | 22 | folded | covered by the port where it names it (src/mech3/mech3_interp.cpp:14) |
+| 0x004d6dc0 | 22 | unlabelled |  |
 | 0x004d6e60 | 9 | folded | a thunk: one call to another function |
 | 0x004d6e70 | 11 | folded | as MW3 0x004cdbd0: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d6e90 | 12 | unlabelled |  |
@@ -3053,42 +3107,42 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d6f50 | 11 | folded | as MW3 0x004cdc70: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d6f60 | 22 | unlabelled |  |
 | 0x004d6fc0 | 11 | folded | as MW3 0x004cdca0: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
-| 0x004d6fe0 | 12 | folded | covered by the port where it names it (src/mech3/zai_target.h:118) |
+| 0x004d6fe0 | 12 | unlabelled |  |
 | 0x004d7000 | 10 | folded | as MW3 0x004cdce0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
-| 0x004d74f0 | 9 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:667) |
+| 0x004d74f0 | 9 | folded | covered by the port where it names it (src/mech3/zai_attack.cpp:1197) |
 | 0x004d7560 | 76 | folded | as MW3 0x004ce2a0: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004d7750 | 36 | folded | covered by the port where it names it (src/mech3/zai_node.cpp:147) |
-| 0x004d7810 | 11 | folded | as MW3 0x00409e90: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
+| 0x004d7810 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x004d7960 | 63 | unlabelled |  |
 | 0x004d7a90 | 12 | unlabelled |  |
 | 0x004d7b80 | 12 | unlabelled |  |
 | 0x004d7ba0 | 10 | unlabelled |  |
 | 0x004d7bb0 | 23 | unlabelled |  |
-| 0x004d8520 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:116) |
+| 0x004d8520 | 22 | unlabelled |  |
 | 0x004d8660 | 12 | unlabelled |  |
 | 0x004d8680 | 10 | folded | as MW3 0x004cad20: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004d8690 | 62 | unlabelled |  |
 | 0x004d87c0 | 12 | unlabelled |  |
 | 0x004d87f0 | 42 | unlabelled |  |
 | 0x004d88a0 | 17 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.cpp:441) |
-| 0x004d8950 | 17 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.cpp:442) |
-| 0x004d8c40 | 22 | folded | covered by the port where it names it (src/mech3/mech_control.cpp:566) |
-| 0x004d8d00 | 12 | folded | covered by the port where it names it (src/mech3/mech_control.h:179) |
+| 0x004d8950 | 17 | unlabelled |  |
+| 0x004d8c40 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:114) |
+| 0x004d8d00 | 12 | unlabelled |  |
 | 0x004d8d20 | 10 | folded | covered by the port where it names it (src/mech3/mech_control.h:182) |
 | 0x004d8d60 | 28 | folded | covered by the port where it names it (src/mech3/zai_attack.cpp:713) |
-| 0x004d91e0 | 22 | folded | covered by the port where it names it (src/mech3/mech_control.cpp:426) |
+| 0x004d91e0 | 22 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.h:314) |
 | 0x004d9240 | 12 | unlabelled |  |
 | 0x004d9260 | 13 | folded | as MW3 0x004c8a30: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d9290 | 10 | folded | as MW3 0x004c8a60: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004d9b60 | 12 | unlabelled |  |
 | 0x004dab80 | 12 | unlabelled |  |
-| 0x004daba0 | 21 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:132) |
+| 0x004daba0 | 21 | unlabelled |  |
 | 0x004dad70 | 22 | folded | as MW3 0x004cb250: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004dadc0 | 11 | folded | as MW3 0x004cb2a0: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004dae20 | 22 | unlabelled |  |
 | 0x004dae80 | 15 | unlabelled |  |
-| 0x004daec0 | 14 | folded | covered by the port where it names it (src/mech3/zai_jump_pm.cpp:13) |
-| 0x004daf00 | 19 | folded | covered by the port where it names it (src/mech3/zai_jump_pm.cpp:9) |
+| 0x004daec0 | 14 | unlabelled |  |
+| 0x004daf00 | 19 | unlabelled |  |
 | 0x004db0a0 | 8 | unlabelled |  |
 | 0x004db0b0 | 12 | unlabelled |  |
 | 0x004db0d0 | 10 | unlabelled |  |
@@ -3097,16 +3151,16 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004dbeb0 | 21 | unlabelled |  |
 | 0x004dbf80 | 14 | folded | as MW3 0x004ce5b0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004dbfa0 | 14 | folded | as MW3 0x004ce5d0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
-| 0x004dbfc0 | 21 | folded | covered by the port where it names it (src/mech3/zai_steer_pm.cpp:21) |
-| 0x004dc020 | 20 | folded | covered by the port where it names it (src/mech3/zai_steer_pm.cpp:25) |
+| 0x004dbfc0 | 21 | unlabelled |  |
+| 0x004dc020 | 20 | unlabelled |  |
 | 0x004dc070 | 20 | unlabelled |  |
 | 0x004dc0c0 | 14 | folded | as MW3 0x004ce5f0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004dc0e0 | 14 | folded | as MW3 0x004ce610: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004dc1f0 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain.h:493) |
-| 0x004dc270 | 11 | folded | covered by the port where it names it (src/mech3/zai_steer_pm.h:71) |
-| 0x004dc3b0 | 32 | folded | covered by the port where it names it (src/mech3/zai_steer_pm.cpp:193) |
+| 0x004dc270 | 11 | unlabelled |  |
+| 0x004dc3b0 | 32 | unlabelled |  |
 | 0x004dc760 | 14 | folded | as MW3 0x004ce9f0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
-| 0x004dcb90 | 17 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:241) |
+| 0x004dcb90 | 17 | folded | covered by the port where it names it (src/mech3/zai_attack.cpp:411) |
 | 0x004dccc0 | 12 | unlabelled |  |
 | 0x004dcce0 | 10 | folded | as MW3 0x004cee40: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004dd1e0 | 89 | unlabelled |  |
@@ -3117,53 +3171,53 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004dd950 | 17 | unlabelled |  |
 | 0x004dd9a0 | 11 | folded | ported, by docs/symbols.csv: ported: zai_steps (vtable 0x005cc7a8) |
 | 0x004dd9d0 | 12 | unlabelled |  |
-| 0x004dda00 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:61) |
+| 0x004dda00 | 22 | unlabelled |  |
 | 0x004dda60 | 10 | folded | ported, by docs/symbols.csv: ported; BackupState (the node state's ctor, vtable 0x005cc860) |
 | 0x004dda80 | 12 | unlabelled |  |
 | 0x004ddaa0 | 10 | folded | as MW3 0x004cfac0: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004dde40 | 13 | unlabelled |  |
-| 0x004dde90 | 9 | folded | a thunk: one call to another function |
+| 0x004dde90 | 9 | folded | follows 0x004ddec0: as MW3 0x004cfed0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004ddea0 | 9 | folded | a thunk: one call to another function |
 | 0x004ddec0 | 10 | folded | as MW3 0x004cfed0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004ddef0 | 10 | folded | as MW3 0x004cff00: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004ddf00 | 31 | folded | ported, by docs/symbols.csv: ported: zai_steps (vtable 0x005cc898) |
 | 0x004ddf90 | 12 | unlabelled |  |
 | 0x004ddfb0 | 10 | folded | as MW3 0x004cffc0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004de010 | 22 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.h:184) |
+| 0x004de010 | 22 | unlabelled |  |
 | 0x004de070 | 11 | folded | ported, by docs/symbols.csv: ported; DeployState (+0x28 the node) |
 | 0x004de0a0 | 8 | unlabelled |  |
 | 0x004de0b0 | 12 | unlabelled |  |
 | 0x004de0d0 | 10 | folded | as MW3 0x004d0090: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004de920 | 24 | unlabelled |  |
-| 0x004de980 | 17 | folded | covered by the port where it names it (src/mech3/zrdrainet.h:13) |
-| 0x004de9c0 | 12 | folded | covered by the port where it names it (src/mech3/zrdraiv.cpp:39) |
+| 0x004de980 | 17 | unlabelled |  |
+| 0x004de9c0 | 12 | unlabelled |  |
 | 0x004de9d0 | 15 | unlabelled |  |
 | 0x004dea90 | 8 | folded | as MW3 0x004d1e60: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004deb80 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:42) |
+| 0x004deb80 | 22 | unlabelled |  |
 | 0x004ded40 | 12 | folded | covered by the port where it names it (src/mech3/zainet_region.h:18) |
-| 0x004ded60 | 21 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.cpp:88) |
-| 0x004df320 | 22 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.h:292) |
+| 0x004ded60 | 21 | unlabelled |  |
+| 0x004df320 | 22 | unlabelled |  |
 | 0x004df380 | 46 | unlabelled |  |
-| 0x004df460 | 8 | folded | covered by the port where it names it (src/mech3/zai_wire_orders_pm.cpp:126) |
+| 0x004df460 | 8 | unlabelled |  |
 | 0x004df470 | 12 | unlabelled |  |
 | 0x004df490 | 10 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:81) |
 | 0x004df4a0 | 49 | unlabelled |  |
 | 0x004df580 | 12 | unlabelled |  |
-| 0x004df5b0 | 25 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:764) |
+| 0x004df5b0 | 25 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:772) |
 | 0x004df620 | 48 | unlabelled |  |
-| 0x004df6f0 | 34 | folded | covered by the port where it names it (src/mech3/game_editor_vehicles.cpp:590) |
-| 0x004df7e0 | 17 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:773) |
-| 0x004dfca0 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:115) |
+| 0x004df6f0 | 34 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:772) |
+| 0x004df7e0 | 17 | unlabelled |  |
+| 0x004dfca0 | 22 | unlabelled |  |
 | 0x004dfdc0 | 12 | unlabelled |  |
 | 0x004dfde0 | 24 | unlabelled |  |
 | 0x004dfe40 | 14 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.cpp:610) |
 | 0x004dfe90 | 12 | unlabelled |  |
 | 0x004e02a0 | 10 | folded | as MW3 0x004cbe10: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
-| 0x004e0550 | 12 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:100) |
-| 0x004e0ff0 | 22 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.h:161) |
+| 0x004e0550 | 12 | unlabelled |  |
+| 0x004e0ff0 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:165) |
 | 0x004e1150 | 12 | unlabelled |  |
 | 0x004e1170 | 10 | folded | as MW3 0x004d13a0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004e15e0 | 22 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.h:269) |
+| 0x004e15e0 | 22 | unlabelled |  |
 | 0x004e1640 | 46 | unlabelled |  |
 | 0x004e1720 | 12 | unlabelled |  |
 | 0x004e1740 | 10 | unlabelled |  |
@@ -3172,17 +3226,17 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e19d0 | 17 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:730) |
 | 0x004e1cf0 | 12 | unlabelled |  |
 | 0x004e1d10 | 21 | unlabelled |  |
-| 0x004e1dc0 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:60) |
-| 0x004e1e20 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:60) |
+| 0x004e1dc0 | 22 | unlabelled |  |
+| 0x004e1e20 | 11 | unlabelled |  |
 | 0x004e1e50 | 12 | unlabelled |  |
 | 0x004e1e70 | 10 | unlabelled |  |
 | 0x004e1e80 | 9 | folded | a thunk: one call to another function |
 | 0x004e1e90 | 8 | unlabelled |  |
-| 0x004e1ea0 | 11 | folded | covered by the port where it names it (src/mech3/zai_steps.h:79) |
+| 0x004e1ea0 | 11 | unlabelled |  |
 | 0x004e1ed0 | 12 | unlabelled |  |
 | 0x004e1ef0 | 10 | unlabelled |  |
-| 0x004e1f00 | 22 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:62) |
-| 0x004e1f60 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:62) |
+| 0x004e1f00 | 22 | unlabelled |  |
+| 0x004e1f60 | 11 | folded | covered by the port where it names it (src/mech3/zai_attack.h:171) |
 | 0x004e1f90 | 12 | unlabelled |  |
 | 0x004e1fb0 | 10 | unlabelled |  |
 | 0x004e1fc0 | 11 | folded | covered by the port where it names it (src/mech3/zai_attack_pm.cpp:17) |
@@ -3205,7 +3259,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e34b0 | 11 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:480) |
 | 0x004e34e0 | 12 | unlabelled |  |
 | 0x004e3500 | 23 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:510) |
-| 0x004e3560 | 40 | folded | covered by the port where it names it (src/mech3/zrdrvalve.h:208) |
+| 0x004e3560 | 40 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:719) |
 | 0x004e3700 | 20 | folded | as MW3 0x004d32c0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e3760 | 8 | folded | covered by the port where it names it (src/mech3/entity_classes.cpp:44) |
 | 0x004e3770 | 11 | folded | covered by the port where it names it (src/mech3/entity_classes.cpp:44) |
@@ -3215,7 +3269,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e3aa0 | 9 | folded | a thunk: one call to another function |
 | 0x004e3ac0 | 20 | folded | as MW3 0x004d35f0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e3b10 | 16 | folded | as MW3 0x004d3640: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004e3b50 | 13 | unlabelled |  |
+| 0x004e3b50 | 13 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x004e3b70 | 119 | folded | as MW3 0x004d3680: covered where the port does it: src/mech3/zai_target.cpp:322 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004e3d80 | 25 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:383) |
 | 0x004e3de0 | 55 | folded | as MW3 0x004d38f0: covered where the port does it: src/mech3/zai_target.cpp:322 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -3225,7 +3279,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e4240 | 9 | folded | a thunk: one call to another function |
 | 0x004e4250 | 9 | folded | a thunk: one call to another function |
 | 0x004e4280 | 34 | folded | as MW3 0x004d3db0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004e4430 | 27 | folded | covered by the port where it names it (src/mech3/zrdrvalve.cpp:408) |
+| 0x004e4430 | 27 | folded | covered by the port where it names it (src/mech3/zai_valve.h:42) |
 | 0x004e44a0 | 12 | folded | as MW3 0x004d4040: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e44c0 | 12 | unlabelled |  |
 | 0x004e45c0 | 15 | unlabelled |  |
@@ -3236,7 +3290,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e49d0 | 10 | folded | as MW3 0x004d45b0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e49e0 | 20 | folded | covered by the port where it names it (src/mech3/zainet_node.h:10) |
 | 0x004e4a50 | 43 | folded | as MW3 0x004d4630: covered where the port does it: src/mech3/zainet_node.cpp:106 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x004e4ad0 | 9 | folded | a thunk: one call to another function |
+| 0x004e4ad0 | 9 | unlabelled | follows 0x004e4ae0:  |
 | 0x004e4ae0 | 10 | unlabelled |  |
 | 0x004e4b00 | 16 | folded | covered by the port where it names it (src/mech3/zai_valve.cpp:85) |
 | 0x004e4b40 | 9 | folded | a thunk: one call to another function |
@@ -3277,7 +3331,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e5a10 | 9 | folded | a thunk: one call to another function |
 | 0x004e5a60 | 68 | folded | as MW3 0x004d56e0: covered where the port does it: src/mech3/mech.h:102 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004e5c00 | 12 | unlabelled |  |
-| 0x004e5c20 | 38 | folded | covered by the port where it names it (src/mech3/app_pocket.cpp:74) |
+| 0x004e5c20 | 38 | unlabelled |  |
 | 0x004e5d00 | 56 | unlabelled |  |
 | 0x004e5f70 | 16 | folded | covered by the port where it names it (src/mech3/sensors.cpp:653) |
 | 0x004e63e0 | 71 | unlabelled |  |
@@ -3288,18 +3342,18 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e6ed0 | 50 | folded | ported, by docs/symbols.csv: ported: Ctrl+E |
 | 0x004e7170 | 35 | unlabelled |  |
 | 0x004e75d0 | 12 | UNSURE | as MW3 0x004d7160: an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it |
-| 0x004e7670 | 8 | folded | covered by the port where it names it (src/mech3/zai_brain.h:745) |
+| 0x004e7670 | 8 | unlabelled |  |
 | 0x004e76d0 | 9 | folded | covered by the port where it names it (src/mech3/zai_target.h:110) |
 | 0x004e77d0 | 19 | folded | as MW3 0x004d7330: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004e7800 | 9 | folded | covered by the port where it names it (src/mech3/zai_brain.h:744) |
-| 0x004e7820 | 9 | folded | covered by the port where it names it (src/mech3/zai_brain.h:732) |
+| 0x004e7800 | 9 | unlabelled |  |
+| 0x004e7820 | 9 | unlabelled |  |
 | 0x004e7840 | 9 | unlabelled |  |
 | 0x004e7860 | 9 | unlabelled |  |
 | 0x004e7880 | 112 | folded | as MW3 0x004d7360: covered where the port does it: src/crt/msvc_sort.h:7 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004e7f40 | 78 | folded | as MW3 0x004d7a40: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e80c0 | 275 | folded | as MW3 0x004d7bc0: covered where the port does it: src/mech3/sensors.cpp:586 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004e8460 | 84 | unlabelled |  |
-| 0x004e86a0 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1095) |
+| 0x004e86a0 | 12 | unlabelled |  |
 | 0x004e86c0 | 24 | folded | covered by the port where it names it (src/mech3/app_pocket.cpp:73) |
 | 0x004e8730 | 9 | folded | a thunk: one call to another function |
 | 0x004e8750 | 9 | folded | a thunk: one call to another function |
@@ -3307,7 +3361,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e8810 | 12 | folded | as MW3 0x004d8330: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e88b0 | 28 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:517) |
 | 0x004e8910 | 48 | folded | as MW3 0x004d8420: covered where the port does it: src/mech3/zrdrvalve.h:36 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x004e8990 | 9 | folded | a thunk: one call to another function |
+| 0x004e8990 | 9 | folded | follows 0x004e8760: as MW3 0x004d8280: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e89a0 | 9 | folded | a thunk: one call to another function |
 | 0x004e8a20 | 19 | folded | covered by the port where it names it (src/mech3/zai_list.h:5) |
 | 0x004e8a50 | 12 | unlabelled |  |
@@ -3315,7 +3369,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e8b30 | 33 | folded | covered by the port where it names it (src/mech3/mech_control.cpp:550) |
 | 0x004e8c00 | 31 | unlabelled |  |
 | 0x004e8cc0 | 23 | folded | as MW3 0x004d8820: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
-| 0x004e8e00 | 9 | folded | a thunk: one call to another function |
+| 0x004e8e00 | 9 | unlabelled | follows 0x004285d0:  |
 | 0x004e8ee0 | 23 | folded | as MW3 0x004d8c40: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004e9130 | 17 | folded | as MW3 0x004d8d30: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004e9150 | 20 | folded | as MW3 0x004d8d50: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
@@ -3344,11 +3398,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e9fc0 | 9 | folded | a thunk: one call to another function |
 | 0x004e9fd0 | 24 | folded | as MW3 0x004d9cd0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004ea030 | 17 | folded | as MW3 0x004d9d40: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
-| 0x004ea070 | 9 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1224) |
+| 0x004ea070 | 9 | unlabelled |  |
 | 0x004ea080 | 9 | folded | covered by the port where it names it (src/mech3/app_sensors.cpp:162) |
 | 0x004ea090 | 10 | unlabelled |  |
-| 0x004ea0b0 | 16 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1225) |
-| 0x004ea0e0 | 9 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1218) |
+| 0x004ea0b0 | 16 | unlabelled |  |
+| 0x004ea0e0 | 9 | unlabelled |  |
 | 0x004ea0f0 | 43 | unlabelled |  |
 | 0x004ea180 | 43 | unlabelled |  |
 | 0x004ea3a0 | 87 | unlabelled |  |
@@ -3363,11 +3417,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004eacd0 | 44 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004d9dc0: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic |
 | 0x004eade0 | 27 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004d9ed0: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic |
 | 0x004eae40 | 17 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x004d9f30: the same AI parameters dialog's MFC plumbing (UpdateData, a flag cleared on close) |
-| 0x004eaf90 | 23 | unlabelled |  |
+| 0x004eaf90 | 23 | folded | covered by the port where it names it (src/mech3/app_pocket.cpp:73) |
 | 0x004eaff0 | 9 | folded | a thunk: one call to another function |
 | 0x004eb020 | 9 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x004d9f70: the same AI parameters dialog's MFC plumbing (UpdateData, a flag cleared on close) |
 | 0x004eb030 | 9 | folded | a thunk: one call to another function |
-| 0x004eb070 | 32 | unlabelled |  |
+| 0x004eb070 | 32 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004d9fc0, whose class PM's changes keep: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic |
 | 0x004eb290 | 8 | unlabelled |  |
 | 0x004eb2a0 | 11 | folded | as MW3 0x004da200: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004eb2c0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
@@ -3380,15 +3434,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004eb7a0 | 8 | folded | returns a constant or a global |
 | 0x004eb7b0 | 14 | folded | as MW3 0x004da740: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004eb7f0 | 10 | folded | as MW3 0x004da790: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
-| 0x004eb810 | 12 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:404) |
+| 0x004eb810 | 12 | unlabelled |  |
 | 0x004eb830 | 10 | folded | as MW3 0x004da7d0: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004eb860 | 10 | folded | as MW3 0x004da800: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
-| 0x004eb880 | 12 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:394) |
+| 0x004eb880 | 12 | unlabelled |  |
 | 0x004eb950 | 9 | folded | a thunk: one call to another function |
 | 0x004eb960 | 195 | unlabelled |  |
 | 0x004ebcf0 | 24 | folded | as MW3 0x004dac70: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004ebd40 | 24 | folded | as MW3 0x004dacb0: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
-| 0x004ebec0 | 9 | folded | a thunk: one call to another function |
+| 0x004ebec0 | 9 | unlabelled | follows 0x004d1790:  |
 | 0x004ebed0 | 24 | folded | as MW3 0x004dae40: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004ebf70 | 118 | folded | ported, by docs/symbols.csv: ported: zrdrainet |
 | 0x004ec1d0 | 19 | folded | as MW3 0x004db140: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
@@ -3420,7 +3474,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004eec10 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004eecc0 | 24 | folded | as MW3 0x004ddc20: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004eed30 | 171 | folded | as MW3 0x004ddc90: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
-| 0x004ef160 | 12 | unlabelled |  |
+| 0x004ef160 | 12 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x004ef180 | 21 | unlabelled |  |
 | 0x004ef1d0 | 12 | unlabelled |  |
 | 0x004ef200 | 9 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:499) |
@@ -3448,7 +3502,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004f0830 | 486 | unlabelled |  |
 | 0x004f18d0 | 8 | folded | returns a constant or a global |
 | 0x004f18e0 | 16 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:103) |
-| 0x004f1a40 | 9 | folded | a thunk: one call to another function |
+| 0x004f1a40 | 9 | unlabelled | follows 0x004f00e0:  |
 | 0x004f1a60 | 8 | folded | returns a constant or a global |
 | 0x004f1a80 | 9 | folded | a thunk: one call to another function |
 | 0x004f1aa0 | 11 | folded | covered by the port where it names it (src/mech3/zrdraiv.h:96) |
@@ -3458,7 +3512,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004f1b40 | 14 | folded | covered by the port where it names it (src/mech3/zrdraiv.cpp:529) |
 | 0x004f1b80 | 9 | folded | a thunk: one call to another function |
 | 0x004f1ba0 | 9 | folded | a thunk: one call to another function |
-| 0x004f1bd0 | 17 | unlabelled |  |
+| 0x004f1bd0 | 17 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:1247) |
 | 0x004f2030 | 16 | folded | as MW3 0x004e0c20: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f2060 | 100 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004f21f0 | 59 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
@@ -3519,7 +3573,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004f5650 | 12 | unlabelled |  |
 | 0x004f5670 | 14 | folded | as MW3 0x004e3b40: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f56a0 | 42 | unlabelled |  |
-| 0x004f57e0 | 16 | folded | covered by the port where it names it (src/gamez/zclass/camera.cpp:462) |
+| 0x004f57e0 | 16 | unlabelled |  |
 | 0x004f5800 | 22 | folded | as MW3 0x004e3d20: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5860 | 10 | folded | as MW3 0x004e3d70: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5890 | 26 | folded | as MW3 0x004e3da0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
@@ -3607,12 +3661,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004f9450 | 9 | folded | a thunk: one call to another function |
 | 0x004f9460 | 9 | folded | a thunk: one call to another function |
 | 0x004f9510 | 9 | folded | a thunk: one call to another function |
-| 0x004f9530 | 9 | folded | a thunk: one call to another function |
-| 0x004f9540 | 9 | folded | a thunk: one call to another function |
-| 0x004f9550 | 9 | folded | a thunk: one call to another function |
-| 0x004f9560 | 9 | folded | a thunk: one call to another function |
+| 0x004f9530 | 9 | unlabelled | follows 0x004fbe10:  |
+| 0x004f9540 | 9 | unlabelled | follows 0x004fa770:  |
+| 0x004f9550 | 9 | unlabelled | follows 0x004fa190:  |
+| 0x004f9560 | 9 | unlabelled | follows 0x004fa110:  |
 | 0x004f9570 | 9 | folded | a thunk: one call to another function |
-| 0x004f9580 | 9 | folded | a thunk: one call to another function |
+| 0x004f9580 | 9 | unused: PORT (preserve) | follows 0x004faa40: as MW3 0x004e95b0: IControls vt+0x84 of the AI controls (drop the target if it is the given entity's, stand the firing down): no caller reaches that slot (docs/ai.md, the AI controls' unreached slots) |
 | 0x004f9590 | 9 | folded | a thunk: one call to another function |
 | 0x004f95a0 | 9 | folded | a thunk: one call to another function |
 | 0x004f95b0 | 9 | folded | a thunk: one call to another function |
@@ -3642,30 +3696,30 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004f9d30 | 9 | folded | a thunk: one call to another function |
 | 0x004f9d40 | 9 | folded | a thunk: one call to another function |
 | 0x004f9d80 | 14 | unlabelled |  |
-| 0x004f9da0 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.h:243) |
+| 0x004f9da0 | 12 | unlabelled |  |
 | 0x004f9df0 | 10 | folded | as MW3 0x004e8030: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9e10 | 12 | unlabelled |  |
 | 0x004f9e30 | 10 | folded | as MW3 0x004e8070: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9e50 | 11 | folded | as MW3 0x004e8090: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9ec0 | 15 | unlabelled |  |
-| 0x004f9f60 | 8 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:565) |
+| 0x004f9f60 | 8 | unlabelled |  |
 | 0x004f9f70 | 10 | folded | as MW3 0x004e8180: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004fa060 | 16 | folded | as MW3 0x004e8270: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004fa090 | 32 | unlabelled |  |
 | 0x004fa100 | 9 | folded | a thunk: one call to another function |
 | 0x004fa110 | 11 | unlabelled |  |
-| 0x004fa130 | 11 | unlabelled |  |
-| 0x004fa150 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:14) |
+| 0x004fa130 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.h:32) |
+| 0x004fa150 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:295) |
 | 0x004fa170 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:301) |
 | 0x004fa190 | 11 | unlabelled |  |
-| 0x004fa1b0 | 9 | folded | a thunk: one call to another function |
-| 0x004fa1d0 | 9 | folded | a thunk: one call to another function |
+| 0x004fa1b0 | 9 | unlabelled | follows 0x004ea8d0:  |
+| 0x004fa1d0 | 9 | unlabelled | follows 0x004eab10:  |
 | 0x004fa1e0 | 9 | folded | a thunk: one call to another function |
 | 0x004fa200 | 8 | folded | as MW3 0x004e8dc0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004fa770 | 40 | unlabelled |  |
 | 0x004faa20 | 9 | folded | a thunk: one call to another function |
 | 0x004faa40 | 41 | unused: PORT (preserve) | as MW3 0x004e95b0: IControls vt+0x84 of the AI controls (drop the target if it is the given entity's, stand the firing down): no caller reaches that slot (docs/ai.md, the AI controls' unreached slots) |
-| 0x004fafe0 | 9 | folded | a thunk: one call to another function |
+| 0x004fafe0 | 9 | unlabelled | follows 0x004faff0:  |
 | 0x004faff0 | 97 | unlabelled |  |
 | 0x004fb3d0 | 9 | folded | a thunk: one call to another function |
 | 0x004fb3f0 | 19 | folded | as MW3 0x004e9fd0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
@@ -3679,7 +3733,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004fb6e0 | 12 | unlabelled |  |
 | 0x004fb730 | 19 | unlabelled |  |
 | 0x004fb790 | 19 | unlabelled |  |
-| 0x004fb7f0 | 19 | folded | covered by the port where it names it (src/gamez/zclass/object3d.cpp:64) |
+| 0x004fb7f0 | 19 | unlabelled |  |
 | 0x004fb9b0 | 25 | unlabelled |  |
 | 0x004fba80 | 25 | unlabelled |  |
 | 0x004fbaf0 | 9 | folded | as MW3 0x004ea4a0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
@@ -3689,9 +3743,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004fbe10 | 10 | unlabelled |  |
 | 0x004fbe40 | 9 | folded | as MW3 0x004ea740: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004fbe50 | 9 | folded | as MW3 0x004ea750: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
-| 0x004fbe60 | 9 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:188) |
+| 0x004fbe60 | 9 | unlabelled |  |
 | 0x004fbe70 | 9 | unlabelled |  |
-| 0x004fbf30 | 23 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:15) |
+| 0x004fbf30 | 23 | folded | covered by the port where it names it (src/mech3/zai_brain.h:591) |
 | 0x004fbfd0 | 74 | unlabelled |  |
 | 0x004fc130 | 17 | unlabelled |  |
 | 0x004fc150 | 31 | folded | as MW3 0x004ea870: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
@@ -3735,7 +3789,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004fd1a0 | 14 | unlabelled |  |
 | 0x004fd1f0 | 13 | unlabelled |  |
 | 0x004fd230 | 18 | unlabelled |  |
-| 0x004fd280 | 14 | folded | covered by the port where it names it (src/gamez/zclass/sound.cpp:38) |
+| 0x004fd280 | 14 | unlabelled |  |
 | 0x004fd2c0 | 18 | unlabelled |  |
 | 0x004fd310 | 14 | unlabelled |  |
 | 0x004fd350 | 18 | unlabelled |  |
@@ -3760,7 +3814,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004fefa0 | 147 | unlabelled |  |
 | 0x004ff2f0 | 26 | unlabelled |  |
 | 0x004ff620 | 25 | unlabelled |  |
-| 0x004ff730 | 9 | folded | covered by the port where it names it (src/gamez/zclass/cls_zbd.cpp:309) |
+| 0x004ff730 | 9 | folded | covered by the port where it names it (src/mech3/mech_command.cpp:313) |
 | 0x004ff740 | 8 | folded | returns a constant or a global |
 | 0x004ff770 | 9 | folded | covered by the port where it names it (src/pm/gamez/zmodel/gmod_draw.cpp:320) |
 | 0x004ff7d0 | 9 | folded | ported, by docs/symbols.csv: ported as zcls::segment_options().first_hit ([0x0060b968]) |
@@ -3803,20 +3857,20 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00503ea0 | 26 | folded | covered by the port where it names it (src/gamez/zclass/cls_di.cpp:1290) |
 | 0x00504100 | 58 | unlabelled |  |
 | 0x005043d0 | 30 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_clutter.cpp:355) |
-| 0x005044d0 | 31 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:262) |
+| 0x005044d0 | 31 | folded | covered by the port where it names it (src/gamez/zgame/zgame_table.h:93) |
 | 0x00504d60 | 31 | unlabelled |  |
-| 0x00504e70 | 49 | unlabelled |  |
+| 0x00504e70 | 49 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f1cd0, whose class PM's changes keep: under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them |
 | 0x00504f50 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f1d90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00504f80 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f1dc0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00505230 | 18 | unlabelled |  |
 | 0x00505300 | 85 | unlabelled |  |
 | 0x005054e0 | 18 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.cpp:370) |
 | 0x00505550 | 49 | unlabelled |  |
-| 0x005056b0 | 9 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:624) |
+| 0x005056b0 | 9 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.h:45) |
 | 0x005056d0 | 9 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:135) |
 | 0x00505820 | 95 | unlabelled |  |
 | 0x00505ab0 | 71 | unlabelled |  |
-| 0x00505c40 | 17 | unlabelled |  |
+| 0x00505c40 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f2880, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00505c80 | 58 | unlabelled |  |
 | 0x00505ea0 | 80 | unlabelled |  |
 | 0x00506000 | 82 | unlabelled |  |
@@ -3839,14 +3893,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00506c10 | 40 | unlabelled |  |
 | 0x00506cd0 | 44 | unlabelled |  |
 | 0x00506d90 | 44 | unlabelled |  |
-| 0x00506e50 | 40 | unlabelled |  |
+| 0x00506e50 | 40 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f39d0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00506ef0 | 33 | unlabelled |  |
 | 0x00506f80 | 32 | unlabelled |  |
 | 0x00507010 | 56 | unlabelled |  |
-| 0x00507150 | 32 | unlabelled |  |
+| 0x00507150 | 32 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f3d00, whose class PM's changes keep: under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them |
 | 0x005071e0 | 49 | unlabelled |  |
 | 0x005072e0 | 32 | unlabelled |  |
-| 0x00507370 | 29 | unlabelled |  |
+| 0x00507370 | 29 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f3f70, whose class PM's changes keep: under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them |
 | 0x005073f0 | 34 | unlabelled |  |
 | 0x00507480 | 29 | unlabelled |  |
 | 0x00507500 | 29 | unlabelled |  |
@@ -3869,7 +3923,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0050a5f0 | 9 | debug or dev tool: PORT (preserve) | as MW3 0x004f6c70: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
 | 0x0050a600 | 49 | unlabelled |  |
 | 0x0050a6c0 | 28 | unlabelled |  |
-| 0x0050a750 | 102 | unlabelled |  |
+| 0x0050a750 | 102 | software renderer | as MW3 0x004f6dc0, whose class PM's changes keep: the camera's software scene walk (0x004f6dc0 without a device; hud.md: the software path) |
 | 0x0050a9e0 | 136 | unlabelled |  |
 | 0x0050ad10 | 33 | unlabelled |  |
 | 0x0050b010 | 15 | folded | as MW3 0x004f7630: covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
@@ -3901,19 +3955,19 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0050d380 | 65 | unlabelled |  |
 | 0x0050d4c0 | 10 | folded | covered by the port where it names it (src/gamez/zclass/cls_util.cpp:221) |
 | 0x0050d4e0 | 66 | unlabelled |  |
-| 0x0050d650 | 10 | unlabelled |  |
+| 0x0050d650 | 10 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.h:6) |
 | 0x0050d670 | 10 | folded | covered by the port where it names it (src/gamez/zclass/cls_util.cpp:224) |
 | 0x0050d690 | 52 | unlabelled |  |
 | 0x0050d7c0 | 24 | unlabelled |  |
 | 0x0050db40 | 20 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f9e50: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x0050db90 | 37 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:565) |
 | 0x0050dbbb | 30 | folded | follows 0x0050db90: covered by the port where it names it (src/gamez/zclass/cls_node.cpp:565) |
-| 0x0050dc60 | 22 | unlabelled |  |
+| 0x0050dc60 | 22 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fd1e0, whose class PM's changes keep: zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game |
 | 0x0050ded0 | 29 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fa1c0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x0050df50 | 35 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fa230: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x0050dff0 | 58 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fa2c0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x0050e110 | 41 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fa3e0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x0050e1f0 | 31 | unlabelled |  |
+| 0x0050e1f0 | 31 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fdc70, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x0050e270 | 22 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:565) |
 | 0x0050e5f0 | 38 | unlabelled |  |
 | 0x0050e6a0 | 22 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:566) |
@@ -3943,15 +3997,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005106b0 | 12 | folded | covered by the port where it names it (src/gamez/zclass/cls_mechlib.cpp:127) |
 | 0x00510710 | 17 | unused: PORT (preserve) | as MW3 0x004fc4d0: mechlib's material writer at close (0x004fc990 -> 0x004fcca0 -> 0x004fc4d0): dead (mechlib.md) |
 | 0x00510830 | 34 | folded | covered by the port where it names it (src/gamez/zclass/cls_mechlib.h:38) |
-| 0x00510ab0 | 23 | MISSING LOGIC | as MW3 0x004fc8b0: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
+| 0x00510ab0 | 23 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x00510b00 | 23 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_mechlib.h:20) |
 | 0x00510b50 | 16 | unlabelled |  |
 | 0x00510c40 | 13 | unused: PORT (preserve) | as MW3 0x004fc990: mechlib's material writer at close (0x004fc990 -> 0x004fcca0 -> 0x004fc4d0): dead (mechlib.md) |
 | 0x00510f40 | 33 | unused: PORT (preserve) | as MW3 0x004fcca0: mechlib's material writer at close (0x004fc990 -> 0x004fcca0 -> 0x004fc4d0): dead (mechlib.md) |
 | 0x00511180 | 35 | unlabelled |  |
 | 0x00511640 | 27 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_mechlib.cpp:15) |
-| 0x005116a0 | 9 | unlabelled |  |
-| 0x005116e0 | 9 | folded | a thunk: one call to another function |
+| 0x005116a0 | 9 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_clutter.h:117) |
+| 0x005116e0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x005116f0 | 9 | folded | a thunk: one call to another function |
 | 0x00511710 | 50 | unlabelled |  |
 | 0x005117f0 | 9 | folded | a thunk: one call to another function |
@@ -3962,12 +4016,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00511a60 | 24 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00512c00 | 25 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_clutter.cpp:432) |
 | 0x00512d90 | 61 | unlabelled |  |
-| 0x00512eb0 | 9 | folded | a thunk: one call to another function |
+| 0x00512eb0 | 9 | unlabelled | follows 0x005a4b90:  |
 | 0x00512ec0 | 9 | folded | a thunk: one call to another function |
 | 0x00512ee0 | 55 | unlabelled |  |
 | 0x00513030 | 123 | unlabelled |  |
-| 0x005139d0 | 27 | unlabelled |  |
-| 0x00513a30 | 9 | folded | a thunk: one call to another function |
+| 0x005139d0 | 27 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_clutter.h:71) |
+| 0x00513a30 | 9 | unlabelled | follows 0x00512d90:  |
 | 0x00513a40 | 50 | unlabelled |  |
 | 0x00513b40 | 15 | unlabelled |  |
 | 0x00513b80 | 55 | unlabelled |  |
@@ -3975,7 +4029,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00513ed0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00514000 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00514120 | 16 | unlabelled |  |
-| 0x00514170 | 19 | unlabelled |  |
+| 0x00514170 | 19 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x005141c0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x005146f0 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00514780 | 197 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
@@ -3994,22 +4048,22 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00515380 | 22 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fd8c0: zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game |
 | 0x005153d0 | 28 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:566) |
 | 0x00515730 | 22 | unlabelled |  |
-| 0x00515790 | 51 | unlabelled |  |
+| 0x00515790 | 51 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fdcd0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00515910 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fde50: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00515960 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fde90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x005159b0 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fded0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00515a00 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fdf10: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x00515ba0 | 9 | folded | a thunk: one call to another function |
-| 0x00515bb0 | 9 | folded | a thunk: one call to another function |
+| 0x00515ba0 | 9 | unlabelled | follows 0x004fc930:  |
+| 0x00515bb0 | 9 | unlabelled | follows 0x004fd6f0:  |
 | 0x00515bd0 | 9 | unlabelled |  |
 | 0x00515c00 | 98 | unlabelled |  |
 | 0x00515e20 | 11 | folded | covered by the port where it names it (src/pm/gamez/zeffect/zeff_anim_init.cpp:353) |
 | 0x00515e40 | 25 | unlabelled |  |
-| 0x00515fb0 | 125 | unlabelled |  |
-| 0x00516260 | 189 | unlabelled |  |
-| 0x00516720 | 48 | unlabelled |  |
-| 0x00516800 | 53 | unlabelled |  |
-| 0x005168e0 | 113 | unlabelled |  |
+| 0x00515fb0 | 125 | debug or dev tool: PORT (preserve) | as MW3 0x004fe6c0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
+| 0x00516260 | 189 | debug or dev tool: PORT (preserve) | as MW3 0x004fe2d0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
+| 0x00516720 | 48 | debug or dev tool: PORT (preserve) | as MW3 0x004fe210, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
+| 0x00516800 | 53 | debug or dev tool: PORT (preserve) | called only from 0x00516260, which are debug |
+| 0x005168e0 | 113 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fe8e0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00517960 | 30 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_zbd.cpp:104) |
 | 0x00517b30 | 47 | unlabelled |  |
 
@@ -4019,47 +4073,47 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 |---|---|---|---|
 | 0x00540450 | 16 | unlabelled |  |
 | 0x005404f0 | 15 | unlabelled |  |
-| 0x00540740 | 9 | folded | a thunk: one call to another function |
+| 0x00540740 | 9 | unlabelled | follows 0x005893f0:  |
 | 0x00540750 | 14 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:326) |
 | 0x00540790 | 14 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.h:133) |
 | 0x00540870 | 10 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:329) |
 | 0x00540a90 | 101 | unused: PORT (preserve) | as MW3 0x0053d130: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x00540ca0 | 124 | unused: PORT (preserve) | as MW3 0x0053d360: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
-| 0x00540ea0 | 54 | unlabelled |  |
-| 0x00541020 | 134 | unlabelled |  |
+| 0x00540ea0 | 54 | software renderer | as MW3 0x0053d560, whose class PM's changes keep: the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x00541020 | 134 | software renderer | as MW3 0x0053d750, whose class PM's changes keep: the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x005415b0 | 52 | unlabelled |  |
 | 0x00541830 | 44 | unused: PORT (preserve) | as MW3 0x0053de50: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x005418e0 | 65 | unused: PORT (preserve) | as MW3 0x0053df00: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x00541a30 | 9 | unlabelled |  |
-| 0x00541a40 | 622 | unlabelled |  |
+| 0x00541a40 | 622 | software renderer | as MW3 0x0053e050, whose class PM's changes keep: the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
 | 0x00543010 | 61 | unlabelled |  |
 | 0x005432b0 | 217 | unlabelled |  |
 | 0x00546d50 | 85 | unlabelled |  |
 | 0x005470a0 | 85 | unlabelled |  |
 | 0x005473f0 | 85 | unlabelled |  |
 | 0x00547740 | 85 | unlabelled |  |
-| 0x00548220 | 243 | unlabelled |  |
+| 0x00548220 | 243 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00542060, whose class PM's changes keep: the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on |
 | 0x005488d0 | 63 | folded | as MW3 0x004c3520: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x00548990 | 64 | unlabelled |  |
 | 0x00548e00 | 11 | unlabelled |  |
-| 0x00548f50 | 69 | unlabelled |  |
-| 0x005490e0 | 72 | unlabelled |  |
-| 0x00549290 | 72 | unlabelled |  |
-| 0x00549f30 | 105 | unlabelled |  |
-| 0x0054a3b0 | 9 | folded | a thunk: one call to another function |
-| 0x0054a3d0 | 9 | folded | a thunk: one call to another function |
-| 0x0054a3f0 | 9 | folded | a thunk: one call to another function |
+| 0x00548f50 | 69 | software renderer | called only from 0x00541a40, which are software |
+| 0x005490e0 | 72 | software renderer | called only from 0x00541a40, which are software |
+| 0x00549290 | 72 | software renderer | called only from 0x00541a40, which are software |
+| 0x00549f30 | 105 | software renderer | called only from 0x00541a40, which are software |
+| 0x0054a3b0 | 9 | software renderer | called only from 0x00541a40, which are software |
+| 0x0054a3d0 | 9 | software renderer | called only from 0x00541a40, which are software |
+| 0x0054a3f0 | 9 | software renderer | called only from 0x00541a40, which are software |
 | 0x0054ae80 | 9 | folded | a thunk: one call to another function |
-| 0x0054aea0 | 779 | unlabelled |  |
-| 0x0054be20 | 945 | unlabelled |  |
-| 0x0054d1c0 | 1153 | unlabelled |  |
+| 0x0054aea0 | 779 | unused: PORT (preserve) | as MW3 0x00530d90, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0054be20 | 945 | unused: PORT (preserve) | as MW3 0x00531d90, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0054d1c0 | 1153 | unused: PORT (preserve) | as MW3 0x005331e0, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0054fe70 | 12 | software renderer | as MW3 0x00535ed0: the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x0054fe90 | 10 | software renderer | as MW3 0x00535ef0: the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
-| 0x005502d0 | 1161 | unlabelled |  |
+| 0x005502d0 | 1161 | software renderer | called only from 0x0054a3b0, 0x0054a3d0, 0x0054a3f0, which are software |
 | 0x00555930 | 8 | folded | returns a constant or a global |
 | 0x00555940 | 8 | folded | returns a constant or a global |
 | 0x00555a10 | 25 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:968) |
-| 0x00555ae0 | 137 | unlabelled |  |
+| 0x00555ae0 | 137 | debug or dev tool: PORT (preserve) | as MW3 0x005360c0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool |
 | 0x00556420 | 28 | unlabelled |  |
 | 0x005564c0 | 8 | folded | empty: does nothing |
 | 0x00556550 | 159 | unlabelled |  |
@@ -4073,10 +4127,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005576e0 | 109 | unlabelled |  |
 | 0x00557af0 | 10 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:484) |
 | 0x00557b00 | 11 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:485) |
-| 0x00557b20 | 11 | unlabelled |  |
-| 0x00557b30 | 20 | unlabelled |  |
+| 0x00557b20 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:331) |
+| 0x00557b30 | 20 | debug or dev tool: PORT (preserve) | called only from 0x00515fb0, which are debug |
 | 0x00557be0 | 51 | unlabelled |  |
-| 0x00557d50 | 302 | unlabelled |  |
+| 0x00557d50 | 302 | debug or dev tool: PORT (preserve) | as MW3 0x005380e0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool |
 | 0x00558440 | 187 | unlabelled |  |
 | 0x005590e0 | 8 | folded | returns a constant or a global |
 | 0x00559910 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00539cc0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
@@ -4085,11 +4139,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005599b0 | 9 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:509) |
 | 0x005599c0 | 8 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:535) |
 | 0x00559af0 | 80 | unlabelled |  |
-| 0x00559db0 | 97 | unlabelled |  |
+| 0x00559db0 | 97 | unused: PORT (preserve) | as MW3 0x0053a1a0, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0055a2f0 | 72 | unused: PORT (preserve) | as MW3 0x0053a740: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0055ac70 | 67 | unlabelled |  |
-| 0x0055ad60 | 168 | unlabelled |  |
-| 0x0055b630 | 113 | unlabelled |  |
+| 0x0055ad60 | 168 | unused: PORT (preserve) | as MW3 0x0053b050, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0055b630 | 113 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x0053b960, whose class PM's changes keep: script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
 | 0x0055b810 | 21 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x0053bb50: script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
 | 0x0055b850 | 39 | unlabelled |  |
 | 0x0055b8f0 | 27 | unlabelled |  |
@@ -4101,22 +4155,22 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0055da40 | 190 | unlabelled |  |
 | 0x0055e720 | 85 | unlabelled |  |
 | 0x0055e940 | 151 | unlabelled |  |
-| 0x0055ece0 | 631 | unlabelled |  |
-| 0x00561540 | 434 | unlabelled |  |
+| 0x0055ece0 | 631 | software renderer | as MW3 0x00544060, whose class PM's changes keep: the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x00561540 | 434 | software renderer | as MW3 0x005465c0, whose class PM's changes keep: the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
 | 0x005625e0 | 23 | folded | covered by the port where it names it (src/pm/gamez/zmodel/gmod_draw.cpp:719) |
 | 0x00563740 | 11 | unlabelled |  |
-| 0x00563760 | 157 | unlabelled |  |
+| 0x00563760 | 157 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00548250, whose class PM's changes keep: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
 | 0x005639e0 | 62 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005484c0: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
 | 0x00563b30 | 23 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00548600: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
 | 0x00563b80 | 84 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00548650: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
 | 0x00563d20 | 23 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005487d0: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
-| 0x00563da0 | 50 | unlabelled |  |
+| 0x00563da0 | 50 | unused: PORT (preserve) | as MW3 0x00548840, whose class PM's changes keep: the puffers' wind step with a dt argument: dead code, never called (puffers.md) |
 | 0x00563f10 | 214 | unlabelled |  |
 | 0x00564460 | 17 | folded | as MW3 0x00548d90: covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
 | 0x00564510 | 17 | folded | as MW3 0x00548e60: covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
 | 0x00564710 | 118 | unlabelled |  |
 | 0x00564a10 | 34 | unlabelled |  |
-| 0x00564ac0 | 31 | unlabelled |  |
+| 0x00564ac0 | 31 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.cpp:184) |
 | 0x00564c00 | 56 | unlabelled |  |
 | 0x00565320 | 346 | unlabelled |  |
 | 0x00565f00 | 9 | unlabelled |  |
@@ -4151,105 +4205,105 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005668d0 | 16 | unlabelled |  |
 | 0x00566910 | 40 | unlabelled |  |
 | 0x00566990 | 35 | unlabelled |  |
-| 0x00566a00 | 11 | unlabelled |  |
-| 0x00566a20 | 19 | folded | as MW3 0x004dd6a0: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
+| 0x00566a00 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00566a20 | 19 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x00566a60 | 180 | unlabelled |  |
 | 0x00567290 | 145 | unlabelled |  |
 | 0x00569290 | 368 | unlabelled |  |
 | 0x00569b00 | 420 | unlabelled |  |
-| 0x0056b230 | 15 | unlabelled |  |
-| 0x0056b2d0 | 121 | unlabelled |  |
-| 0x0056b540 | 21 | unlabelled |  |
-| 0x0056b580 | 155 | unlabelled |  |
-| 0x0056b980 | 801 | unlabelled |  |
-| 0x0056d040 | 106 | unlabelled |  |
-| 0x0056d260 | 1317 | unlabelled |  |
-| 0x005705a0 | 214 | unlabelled |  |
-| 0x00570b70 | 722 | unlabelled |  |
+| 0x0056b230 | 15 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x0056b2d0 | 121 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x0056b540 | 21 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x0056b580 | 155 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x0056b980 | 801 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x0056d040 | 106 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x0056d260 | 1317 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005705a0 | 214 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00570b70 | 722 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x00572ae0 | 8 | folded | returns a constant or a global |
 | 0x00572af0 | 9 | MISSING LOGIC | as MW3 0x00553460: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x00572b40 | 49 | unlabelled |  |
-| 0x00572c20 | 69 | unlabelled |  |
-| 0x00572df0 | 174 | unlabelled |  |
-| 0x005730e0 | 11 | unlabelled |  |
-| 0x00573100 | 22 | MISSING LOGIC | as MW3 0x005534b0: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x00573150 | 11 | MISSING LOGIC | as MW3 0x00553d40: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x00573170 | 10 | unlabelled |  |
-| 0x005731a0 | 12 | unlabelled |  |
-| 0x005731c0 | 12 | unlabelled |  |
-| 0x005731e0 | 12 | unlabelled |  |
-| 0x00573210 | 8 | unlabelled |  |
-| 0x00573230 | 8 | unlabelled |  |
-| 0x00573250 | 35 | unlabelled |  |
-| 0x005732c0 | 40 | unlabelled |  |
-| 0x00573340 | 90 | unlabelled |  |
+| 0x00572b40 | 49 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00572c20 | 69 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00572df0 | 174 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005730e0 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573100 | 22 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573150 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573170 | 10 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005731a0 | 12 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005731c0 | 12 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005731e0 | 12 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573210 | 8 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573230 | 8 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573250 | 35 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005732c0 | 40 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573340 | 90 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x00573550 | 12 | unlabelled |  |
-| 0x00573580 | 13 | unlabelled |  |
-| 0x005735a0 | 58 | unlabelled |  |
-| 0x00573700 | 18 | unlabelled |  |
-| 0x00573760 | 24 | unlabelled |  |
-| 0x005737d0 | 95 | unlabelled |  |
-| 0x00573aa0 | 39 | unlabelled |  |
-| 0x00573b70 | 27 | unlabelled |  |
-| 0x00573bc0 | 11 | unlabelled |  |
-| 0x00573bf0 | 110 | unlabelled |  |
-| 0x00573f30 | 10 | MISSING LOGIC | as MW3 0x00554130: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x00573f50 | 351 | unlabelled |  |
-| 0x00574560 | 38 | unlabelled |  |
-| 0x00574620 | 34 | unlabelled |  |
-| 0x005746c0 | 10 | MISSING LOGIC | as MW3 0x00554540: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x005746e0 | 63 | unlabelled |  |
-| 0x00574870 | 46 | unlabelled |  |
-| 0x00574900 | 9 | unlabelled |  |
-| 0x00574910 | 25 | unlabelled |  |
-| 0x00574950 | 57 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00573580 | 13 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005735a0 | 58 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573700 | 18 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573760 | 24 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005737d0 | 95 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573aa0 | 39 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573b70 | 27 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573bc0 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573bf0 | 110 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573f30 | 10 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00573f50 | 351 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574560 | 38 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574620 | 34 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005746c0 | 10 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005746e0 | 63 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574870 | 46 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574900 | 9 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574910 | 25 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574950 | 57 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x00574a40 | 24 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00574ab0 | 25 | unlabelled |  |
-| 0x00574b00 | 25 | unlabelled |  |
-| 0x00574b40 | 56 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00574ab0 | 25 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574b00 | 25 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574b40 | 56 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x00574c30 | 24 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00574ca0 | 25 | unlabelled |  |
-| 0x00574cf0 | 110 | unlabelled |  |
-| 0x00574e90 | 20 | folded | covered by the port where it names it (src/gamez/zsound/zsnd.h:369) |
-| 0x00574ee0 | 16 | MISSING LOGIC | as MW3 0x00554630: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x00574f10 | 29 | unlabelled |  |
-| 0x00574f60 | 16 | unlabelled |  |
-| 0x00574f90 | 9 | unlabelled |  |
-| 0x00574fa0 | 29 | unlabelled |  |
-| 0x00574ff0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005750b0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00575170 | 16 | unlabelled |  |
-| 0x005751c0 | 8 | unlabelled |  |
-| 0x005751d0 | 10 | MISSING LOGIC | as MW3 0x00553560: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x005751f0 | 81 | unlabelled |  |
-| 0x00575390 | 10 | unlabelled |  |
-| 0x005753b0 | 75 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00575510 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00575a40 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00575b60 | 19 | unlabelled |  |
-| 0x00575bc0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00575cf0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576220 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576340 | 16 | unlabelled |  |
-| 0x00576390 | 10 | MISSING LOGIC | as MW3 0x00554f30: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x005763b0 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576440 | 200 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576750 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576800 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576890 | 195 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576ba0 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576c50 | 14 | unlabelled |  |
-| 0x00576c80 | 14 | unlabelled |  |
-| 0x00576cb0 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576d10 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576dd0 | 30 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576e20 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00576ee0 | 11 | unlabelled |  |
-| 0x00576f00 | 12 | MISSING LOGIC | as MW3 0x00555620: the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
-| 0x00576f20 | 11 | unlabelled |  |
-| 0x00576f50 | 11 | unlabelled |  |
-| 0x00576f70 | 43 | unlabelled |  |
-| 0x005771a0 | 123 | unlabelled |  |
+| 0x00574ca0 | 25 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574cf0 | 110 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574e90 | 20 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574ee0 | 16 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574f10 | 29 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574f60 | 16 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574f90 | 9 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574fa0 | 29 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00574ff0 | 44 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005750b0 | 44 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00575170 | 16 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005751c0 | 8 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005751d0 | 10 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005751f0 | 81 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00575390 | 10 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005753b0 | 75 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00575510 | 318 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00575a40 | 58 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00575b60 | 19 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00575bc0 | 58 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00575cf0 | 318 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576220 | 58 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576340 | 16 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576390 | 10 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005763b0 | 31 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576440 | 200 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576750 | 47 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576800 | 31 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576890 | 195 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576ba0 | 47 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576c50 | 14 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576c80 | 14 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576cb0 | 31 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576d10 | 51 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576dd0 | 30 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576e20 | 51 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576ee0 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576f00 | 12 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576f20 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576f50 | 11 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x00576f70 | 43 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005771a0 | 123 | software renderer | as MW3 0x005557f0, whose class PM's changes keep: the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
 | 0x00577690 | 17 | folded | as MW3 0x00555cd0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x005776c0 | 13 | folded | as MW3 0x00555d00: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x005776e0 | 30 | folded | as MW3 0x00555d20: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
@@ -4260,15 +4314,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00577870 | 12 | folded | as MW3 0x00555ea0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577890 | 28 | unlabelled |  |
 | 0x005778e0 | 12 | folded | as MW3 0x00555f10: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
-| 0x00577900 | 27 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:108) |
-| 0x00577950 | 33 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:91) |
+| 0x00577900 | 27 | folded | covered by the port where it names it (src/gamez/zreader/zreader.cpp:595) |
+| 0x00577950 | 33 | unlabelled |  |
 | 0x005779d0 | 25 | folded | as MW3 0x00556000: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577a00 | 35 | folded | as MW3 0x00555f70: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577a80 | 15 | folded | as MW3 0x00555fe0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577aa0 | 29 | folded | as MW3 0x00556070: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577b00 | 23 | folded | as MW3 0x005560d0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577b50 | 25 | folded | as MW3 0x00556120: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
-| 0x00577b90 | 9 | folded | a thunk: one call to another function |
+| 0x00577b90 | 9 | folded | follows 0x00577b00: as MW3 0x005560d0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577bb0 | 11 | folded | as MW3 0x00556160: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577bc0 | 13 | unlabelled |  |
 | 0x00577bf0 | 34 | unlabelled |  |
@@ -4291,7 +4345,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00578630 | 76 | unlabelled |  |
 | 0x00578950 | 9 | folded | a thunk: one call to another function |
 | 0x005790d0 | 12 | unlabelled |  |
-| 0x005790f0 | 12 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_init.cpp:311) |
+| 0x005790f0 | 12 | unlabelled |  |
 | 0x00579110 | 12 | unlabelled |  |
 | 0x00579130 | 12 | unlabelled |  |
 | 0x00579150 | 12 | unlabelled |  |
@@ -4302,8 +4356,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 |---|---|---|---|
 | 0x005a91a0 | 24 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.h:10) |
 | 0x005a9220 | 41 | unlabelled |  |
-| 0x005a9480 | 29 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:1211) |
-| 0x005a94f0 | 20 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:1378) |
+| 0x005a9480 | 29 | unlabelled |  |
+| 0x005a94f0 | 20 | unlabelled |  |
 | 0x005a9520 | 16 | unlabelled |  |
 | 0x005a9560 | 21 | folded | covered by the port where it names it (src/mech3/mp_connect.cpp:351) |
 | 0x005a95c0 | 19 | unlabelled |  |
@@ -4318,7 +4372,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005aa3b0 | 43 | replaced (SDL or the platform layer) | as MW3 0x00589600: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005aa410 | 43 | unlabelled |  |
 | 0x005aa470 | 12 | unlabelled |  |
-| 0x005aa4e0 | 14 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:248) |
+| 0x005aa4e0 | 14 | unlabelled |  |
 | 0x005aa5d0 | 15 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.cpp:336) |
 | 0x005aa600 | 8 | folded | returns a constant or a global |
 | 0x005aa660 | 18 | unlabelled |  |
@@ -4333,10 +4387,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005aaa60 | 12 | replaced (SDL or the platform layer) | as MW3 0x00589ce0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005aaa80 | 55 | replaced (SDL or the platform layer) | as MW3 0x00589d00: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005aab60 | 16 | replaced (SDL or the platform layer) | as MW3 0x00589df0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005aaba0 | 25 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:1987) |
-| 0x005aac00 | 9 | folded | a thunk: one call to another function |
+| 0x005aaba0 | 25 | unlabelled |  |
+| 0x005aac00 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x005aac10 | 9 | folded | a thunk: one call to another function |
-| 0x005aac40 | 9 | folded | a thunk: one call to another function |
+| 0x005aac40 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x005aac50 | 9 | folded | a thunk: one call to another function |
 | 0x005aac70 | 14 | replaced (SDL or the platform layer) | as MW3 0x00586de0: DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
 | 0x005aac90 | 8 | folded | returns a constant or a global |
@@ -4355,12 +4409,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005ab510 | 22 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:79) |
 | 0x005ab560 | 15 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.cpp:157) |
 | 0x005ab580 | 11 | replaced (SDL or the platform layer) | as MW3 0x00587760: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005ab5a0 | 71 | unlabelled |  |
+| 0x005ab5a0 | 71 | replaced (SDL or the platform layer) | as MW3 0x00587780, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005ab760 | 14 | folded | as MW3 0x00475c20: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x005ab790 | 14 | replaced (SDL or the platform layer) | as MW3 0x00589e80: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005ab7b0 | 12 | unlabelled |  |
 | 0x005ab7d0 | 14 | unlabelled |  |
-| 0x005ab800 | 8 | unlabelled |  |
+| 0x005ab800 | 8 | replaced (SDL or the platform layer) | called only from 0x005abe90, which are sdl |
 | 0x005ab810 | 23 | replaced (SDL or the platform layer) | as MW3 0x00589f00: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005ab860 | 15 | replaced (SDL or the platform layer) | as MW3 0x00589f50: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005ab880 | 46 | replaced (SDL or the platform layer) | as MW3 0x00589f70: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
@@ -4382,7 +4436,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005abde0 | 12 | unlabelled |  |
 | 0x005abe00 | 18 | replaced (SDL or the platform layer) | as MW3 0x0058a530: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005abe50 | 26 | replaced (SDL or the platform layer) | as MW3 0x0058a5b0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005abe90 | 35 | unlabelled |  |
+| 0x005abe90 | 35 | replaced (SDL or the platform layer) | as MW3 0x0058a5f0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005abfa0 | 35 | replaced (SDL or the platform layer) | as MW3 0x0058a6f0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005ac060 | 15 | replaced (SDL or the platform layer) | as MW3 0x0058a7b0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005ac080 | 8 | folded | returns a constant or a global |
@@ -4396,7 +4450,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005aca50 | 12 | unlabelled |  |
 | 0x005acb00 | 44 | folded | ported, by docs/symbols.csv: ported (the dock's net_element): the first element of that name (vt+0x24) |
 | 0x005acba0 | 21 | unlabelled |  |
-| 0x005acc40 | 19 | unlabelled |  |
+| 0x005acc40 | 19 | unused: PORT (preserve) | called only from 0x00410880, which are unused |
 | 0x005acc70 | 25 | folded | as MW3 0x0058b220: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x005acd30 | 29 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.cpp:15) |
 | 0x005acd90 | 16 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:13) |
@@ -4406,7 +4460,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005ad3d0 | 194 | unlabelled |  |
 | 0x005ad8e0 | 209 | unlabelled |  |
 | 0x005adf20 | 12 | unlabelled |  |
-| 0x005adf40 | 34 | unlabelled |  |
+| 0x005adf40 | 34 | debug or dev tool: PORT (preserve) | as MW3 0x0058c590, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005adfc0 | 9 | unlabelled |  |
 | 0x005adfd0 | 10 | unlabelled |  |
 | 0x005adfe0 | 77 | unlabelled |  |
@@ -4442,10 +4496,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005b0410 | 28 | debug or dev tool: PORT (preserve) | as MW3 0x0058ed40: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b0470 | 24 | debug or dev tool: PORT (preserve) | as MW3 0x0058eda0: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b04d0 | 20 | debug or dev tool: PORT (preserve) | as MW3 0x0058ee10: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
-| 0x005b0500 | 138 | unlabelled |  |
+| 0x005b0500 | 138 | debug or dev tool: PORT (preserve) | as MW3 0x0058ee40, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b08b0 | 60 | debug or dev tool: PORT (preserve) | as MW3 0x0058f170: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b09c0 | 11 | debug or dev tool: PORT (preserve) | as MW3 0x0058f270: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
-| 0x005b09f0 | 16 | unlabelled |  |
+| 0x005b09f0 | 16 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x005b0a30 | 77 | debug or dev tool: PORT (preserve) | as MW3 0x0058f420: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b0b90 | 37 | debug or dev tool: PORT (preserve) | as MW3 0x0058f580: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b0c60 | 78 | debug or dev tool: PORT (preserve) | as MW3 0x0058f2e0: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
@@ -4481,14 +4535,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005bfa80 | 12 | unlabelled |  |
 | 0x005bfab0 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod_control.cpp:21) |
 | 0x005bfd50 | 15 | unlabelled |  |
-| 0x005bfdc0 | 9 | folded | covered by the port where it names it (src/mech3/zai_attackers_pm.h:35) |
+| 0x005bfdc0 | 9 | unlabelled |  |
 | 0x005c02c0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005a0050: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
 | 0x005c0320 | 11 | unlabelled |  |
 | 0x005c0340 | 12 | unlabelled |  |
 | 0x005c0360 | 55 | unlabelled |  |
 | 0x005c0450 | 29 | unlabelled |  |
 | 0x005c04d0 | 16 | unlabelled |  |
-| 0x005c0500 | 11 | folded | covered by the port where it names it (src/mech3/hud.h:360) |
+| 0x005c0500 | 11 | unlabelled |  |
 | 0x005c08f0 | 158 | unlabelled |  |
 | 0x005c0b70 | 25 | unlabelled |  |
 | 0x005c0bc0 | 16 | unlabelled |  |
@@ -4528,14 +4582,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005c4e90 | 18 | unlabelled |  |
 | 0x005c4ed0 | 231 | unlabelled |  |
 | 0x005c5460 | 49 | unlabelled |  |
-| 0x005c5590 | 127 | folded | as MW3 0x0054bb70: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
-| 0x005c57d0 | 17 | unlabelled |  |
-| 0x005c5870 | 10 | folded | covered by the port where it names it (src/mech3/action_menu.h:30) |
+| 0x005c5590 | 127 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005c57d0 | 17 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005c5870 | 10 | unlabelled |  |
 | 0x005c5890 | 11 | unlabelled |  |
 | 0x005c58b0 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a5400: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005c58f0 | 23 | unlabelled |  |
 | 0x005c5970 | 118 | unlabelled |  |
-| 0x005c5b40 | 12 | folded | covered by the port where it names it (src/mech3/pilot_menu.h:130) |
+| 0x005c5b40 | 12 | unlabelled |  |
 | 0x005c5c10 | 36 | unlabelled |  |
 | 0x005c6050 | 12 | unlabelled |  |
 | 0x005c6080 | 205 | unlabelled |  |
@@ -4550,13 +4604,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005c6c40 | 9 | folded | a thunk: one call to another function |
 | 0x005c6c50 | 9 | folded | a thunk: one call to another function |
 | 0x005c6c90 | 10 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a6760: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
-| 0x005c6df0 | 9 | folded | a thunk: one call to another function |
+| 0x005c6df0 | 9 | debug or dev tool: PORT (preserve) | follows 0x005c6e80: as MW3 0x005a3cd0, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
 | 0x005c6e00 | 9 | folded | a thunk: one call to another function |
 | 0x005c6e20 | 20 | unlabelled |  |
-| 0x005c6e80 | 45 | unlabelled |  |
-| 0x005c6f90 | 16 | unlabelled |  |
-| 0x005c6fe0 | 17 | unlabelled |  |
-| 0x005c7030 | 68 | unlabelled |  |
+| 0x005c6e80 | 45 | debug or dev tool: PORT (preserve) | as MW3 0x005a3cd0, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005c6f90 | 16 | debug or dev tool: PORT (preserve) | as MW3 0x005a3de0, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005c6fe0 | 17 | debug or dev tool: PORT (preserve) | as MW3 0x005a3e30, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005c7030 | 68 | debug or dev tool: PORT (preserve) | as MW3 0x005a3e80, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
 | 0x005c7180 | 9 | folded | a thunk: one call to another function |
 | 0x005c71b0 | 9 | folded | a thunk: one call to another function |
 | 0x005c71c0 | 9 | folded | a thunk: one call to another function |
@@ -4601,7 +4655,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005c9b40 | 26 | unlabelled |  |
 | 0x005c9bb0 | 48 | unlabelled |  |
 | 0x005c9cc0 | 20 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a7c50: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
-| 0x005c9d10 | 12 | unlabelled |  |
+| 0x005c9d10 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a7ca0, whose class PM's changes keep: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
 | 0x005c9d40 | 14 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a7cd0: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
 | 0x005c9e30 | 212 | unlabelled |  |
 | 0x005ca3c0 | 17 | unlabelled |  |
@@ -4609,25 +4663,25 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005ca590 | 35 | unlabelled |  |
 | 0x005ca600 | 83 | unlabelled |  |
 | 0x005ca7f0 | 95 | unlabelled |  |
-| 0x005caa10 | 8 | folded | empty: does nothing |
-| 0x005caa30 | 9 | folded | a thunk: one call to another function |
-| 0x005caa40 | 9 | folded | a thunk: one call to another function |
+| 0x005caa10 | 8 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005caa30 | 9 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
+| 0x005caa40 | 9 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x005caa70 | 44 | folded | as MW3 0x005a7e10: zEntity's base constructor (frames, and with a parent the registration 0x005a8390 + 0x005a7f50); the port's AiTarget initialisers stand in (app_engine.cpp:312). targets.zrd's CZAiTargets are not on the port's entity list (ai.md:1537), so their vt+0x34 (0x005a8000, the step by velocity +0x30 and spin +0x58) does not run; checked harmless: both start as the zero vector [0x0063d870] (BSS), targets.zrd has no velocity or spin key (ai.md:153) and no script command sets an entity's (interp.md: only CameraSetRotate and GlobalWindStaticVelocity) |
 | 0x005cab90 | 12 | unlabelled |  |
 | 0x005cabb0 | 11 | folded | as MW3 0x005a7f50: covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005cabd0 | 11 | folded | as MW3 0x005a7f70: covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
 | 0x005cabf0 | 24 | unlabelled |  |
-| 0x005cad20 | 9 | folded | a thunk: one call to another function |
+| 0x005cad20 | 9 | unlabelled | follows 0x004fd3f0:  |
 | 0x005cad40 | 10 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:518) |
 
 ### zvideo (110 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00598050 | 78 | unlabelled |  |
+| 0x00598050 | 78 | replaced (SDL or the platform layer) | as MW3 0x00576f90, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x005981d0 | 13 | replaced (SDL or the platform layer) | as MW3 0x00579210: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x005981f0 | 15 | unlabelled |  |
-| 0x00598230 | 20 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp_parse.cpp:511) |
+| 0x00598230 | 20 | unlabelled |  |
 | 0x005982a0 | 11 | replaced (SDL or the platform layer) | as MW3 0x00579260: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x005982d0 | 11 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_stream.cpp:92) |
 | 0x00598300 | 11 | replaced (SDL or the platform layer) | as MW3 0x005792a0: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
@@ -4643,34 +4697,34 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00598b70 | 15 | replaced (SDL or the platform layer) | as MW3 0x00579ab0: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00598c00 | 14 | replaced (SDL or the platform layer) | as MW3 0x00579b40: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00598c90 | 65 | unlabelled |  |
-| 0x00598d70 | 14 | unlabelled |  |
+| 0x00598d70 | 14 | replaced (SDL or the platform layer) | called only from 0x0059ae30, which are sdl |
 | 0x00598fb0 | 11 | replaced (SDL or the platform layer) | as MW3 0x00577340: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x005992e0 | 27 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_dd.h:28) |
 | 0x00599340 | 20 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_dd.h:29) |
-| 0x00599390 | 27 | unlabelled |  |
-| 0x005993f0 | 20 | unlabelled |  |
-| 0x005995a0 | 47 | unlabelled |  |
-| 0x00599710 | 83 | unlabelled |  |
-| 0x00599950 | 24 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_script.cpp:183) |
+| 0x00599390 | 27 | replaced (SDL or the platform layer) | as MW3 0x005776d0, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005993f0 | 20 | replaced (SDL or the platform layer) | as MW3 0x00577730, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005995a0 | 47 | replaced (SDL or the platform layer) | as MW3 0x005778d0, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00599710 | 83 | replaced (SDL or the platform layer) | as MW3 0x00577a10, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00599950 | 24 | replaced (SDL or the platform layer) | as MW3 0x00577c40, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x005999c0 | 11 | folded | as MW3 0x00577cb0: covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
-| 0x00599a50 | 25 | unlabelled |  |
+| 0x00599a50 | 25 | replaced (SDL or the platform layer) | as MW3 0x00577d40, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00599ac0 | 11 | replaced (SDL or the platform layer) | as MW3 0x00577db0: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
-| 0x00599b00 | 177 | unlabelled |  |
-| 0x0059a070 | 38 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_script.cpp:424) |
+| 0x00599b00 | 177 | replaced (SDL or the platform layer) | as MW3 0x00577df0, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0059a070 | 38 | replaced (SDL or the platform layer) | as MW3 0x00578510, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059a150 | 31 | replaced (SDL or the platform layer) | as MW3 0x005785f0: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
-| 0x0059a1e0 | 32 | unlabelled |  |
-| 0x0059a260 | 20 | unlabelled |  |
-| 0x0059a2b0 | 90 | unlabelled |  |
-| 0x0059a470 | 34 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_script.cpp:217) |
-| 0x0059a530 | 16 | unlabelled |  |
-| 0x0059a800 | 28 | unlabelled |  |
+| 0x0059a1e0 | 32 | replaced (SDL or the platform layer) | as MW3 0x00578670, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0059a260 | 20 | replaced (SDL or the platform layer) | as MW3 0x005786f0, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0059a2b0 | 90 | replaced (SDL or the platform layer) | as MW3 0x00578740, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0059a470 | 34 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:1021) |
+| 0x0059a530 | 16 | replaced (SDL or the platform layer) | as MW3 0x00578960, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0059a800 | 28 | replaced (SDL or the platform layer) | as MW3 0x00578c00, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059ab90 | 10 | replaced (SDL or the platform layer) | as MW3 0x00578f60: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059ac20 | 8 | folded | returns a constant or a global |
 | 0x0059ac30 | 8 | folded | returns a constant or a global |
 | 0x0059ac60 | 11 | folded | as MW3 0x00579040: covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
-| 0x0059ae30 | 38 | unlabelled |  |
+| 0x0059ae30 | 38 | replaced (SDL or the platform layer) | as MW3 0x00579bd0, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059aef0 | 12 | unlabelled |  |
-| 0x0059af10 | 79 | unlabelled |  |
+| 0x0059af10 | 79 | replaced (SDL or the platform layer) | as MW3 0x00579c60, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059b140 | 8 | folded | returns a constant or a global |
 | 0x0059b150 | 11 | replaced (SDL or the platform layer) | as MW3 0x00579eb0: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059b190 | 14 | folded | as MW3 0x00579ef0: covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
@@ -4680,10 +4734,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0059b670 | 12 | folded | as MW3 0x0057a3c0: covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
 | 0x0059b740 | 23 | unlabelled |  |
 | 0x0059b870 | 12 | folded | covered by the port where it names it (src/pm/gamez/zmodel/gmod_draw.h:132) |
-| 0x0059b8a0 | 347 | unlabelled |  |
+| 0x0059b8a0 | 347 | replaced (SDL or the platform layer) | as MW3 0x0057a900, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059c230 | 18 | replaced (SDL or the platform layer) | as MW3 0x0057b100: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
-| 0x0059c920 | 106 | unlabelled |  |
-| 0x0059cb10 | 148 | unlabelled |  |
+| 0x0059c920 | 106 | replaced (SDL or the platform layer) | called only from 0x0059c230, 0x0059ce80, which are sdl |
+| 0x0059cb10 | 148 | replaced (SDL or the platform layer) | as MW3 0x0057b7b0, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059ce80 | 15 | replaced (SDL or the platform layer) | as MW3 0x0057ba80: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059cf60 | 9 | replaced (SDL or the platform layer) | as MW3 0x0057bb60: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0059d0f0 | 16 | unlabelled |  |
@@ -4694,15 +4748,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005a0040 | 14 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:307) |
 | 0x005a0065 | 134 | folded | follows 0x005a0040: covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:307) |
 | 0x005a03b0 | 333 | unlabelled |  |
-| 0x005a1050 | 84 | unlabelled |  |
+| 0x005a1050 | 84 | replaced (SDL or the platform layer) | as MW3 0x00580350, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x005a1220 | 19 | unlabelled |  |
 | 0x005a12a0 | 29 | unlabelled |  |
-| 0x005a1350 | 181 | unlabelled |  |
-| 0x005a1740 | 525 | unlabelled |  |
-| 0x005a2600 | 30 | unlabelled |  |
-| 0x005a2680 | 42 | unlabelled |  |
-| 0x005a2700 | 31 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:361) |
-| 0x005a2770 | 20 | unlabelled |  |
+| 0x005a1350 | 181 | replaced (SDL or the platform layer) | as MW3 0x0057a3d0, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005a1740 | 525 | replaced (SDL or the platform layer) | as MW3 0x00580550, whose class PM's changes keep: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005a2600 | 30 | replaced (SDL or the platform layer) | called only from 0x0059b8a0, which are sdl |
+| 0x005a2680 | 42 | replaced (SDL or the platform layer) | called only from 0x005a2770, which are sdl |
+| 0x005a2700 | 31 | replaced (SDL or the platform layer) | called only from 0x005a2680, which are sdl |
+| 0x005a2770 | 20 | replaced (SDL or the platform layer) | called only from 0x005a2600, which are sdl |
 | 0x005a2a00 | 52 | unlabelled |  |
 | 0x005a2ae0 | 375 | unlabelled |  |
 | 0x005a34b0 | 8 | folded | returns a constant or a global |
@@ -4721,14 +4775,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005a49d0 | 33 | unlabelled |  |
 | 0x005a4a40 | 33 | unlabelled |  |
 | 0x005a4aa0 | 28 | unlabelled |  |
-| 0x005a4b10 | 9 | folded | a thunk: one call to another function |
+| 0x005a4b10 | 9 | unlabelled | follows 0x005a4b90:  |
 | 0x005a4b20 | 9 | folded | a thunk: one call to another function |
 | 0x005a4b40 | 25 | unlabelled |  |
 | 0x005a4b90 | 18 | unlabelled |  |
-| 0x005a4bc0 | 9 | folded | a thunk: one call to another function |
+| 0x005a4bc0 | 9 | unlabelled | follows 0x005a49d0:  |
 | 0x005a4c30 | 12 | unlabelled |  |
 | 0x005a4cb0 | 33 | unlabelled |  |
-| 0x005a4dc0 | 9 | folded | a thunk: one call to another function |
+| 0x005a4dc0 | 9 | unlabelled | follows 0x005a4cb0:  |
 | 0x005a4de0 | 19 | unlabelled |  |
 | 0x005a5150 | 11 | folded | as MW3 0x00583730: covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
 | 0x005a5260 | 12 | unlabelled |  |
@@ -4743,7 +4797,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00533de0 | 42 | unlabelled |  |
 | 0x00533e60 | 191 | unlabelled |  |
 | 0x00534380 | 13 | unlabelled |  |
-| 0x00534780 | 9 | folded | a thunk: one call to another function |
+| 0x00534780 | 9 | folded | follows 0x00534830: as MW3 0x0051b020: the input module's static object's constructor (zeroes its lists); the port's members start empty |
 | 0x00534790 | 9 | folded | a thunk: one call to another function |
 | 0x005347b0 | 36 | unused: PORT (preserve) | as MW3 0x0051af90: the input module's static object's list walk, whose caller 0x0051af70 nothing reaches (input.md:567) |
 | 0x00534830 | 14 | folded | as MW3 0x0051b020: the input module's static object's constructor (zeroes its lists); the port's members start empty |
@@ -4791,15 +4845,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00537430 | 20 | replaced (SDL or the platform layer) | as MW3 0x0051daa0: DirectInput joystick properties (range and dead zone per axis); the port sets the dead zones through the platform (zin_joy.cpp:60) |
 | 0x00537480 | 22 | replaced (SDL or the platform layer) | as MW3 0x0051dae0: DirectInput joystick properties (range and dead zone per axis); the port sets the dead zones through the platform (zin_joy.cpp:60) |
 | 0x005374d0 | 22 | folded | covered by the port where it names it (src/gamez/zinput/zin_joy.cpp:47) |
-| 0x00537520 | 21 | unlabelled |  |
+| 0x00537520 | 21 | folded | covered by the port where it names it (src/gamez/zinput/zin_joy.cpp:46) |
 | 0x00537760 | 8 | folded | returns a constant or a global |
 | 0x00537780 | 97 | unlabelled |  |
-| 0x00537aa0 | 10 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:231) |
+| 0x00537aa0 | 10 | folded | covered by the port where it names it (src/mech3/zai_repair.cpp:201) |
 | 0x00537ae0 | 10 | folded | ported, by docs/symbols.csv: ported inline (zai_node flat_distance) |
 | 0x00537bc0 | 27 | unused: PORT (preserve) | as MW3 0x0051e160: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x00537c20 | 18 | folded | as MW3 0x0051e1c0: the 2D normalise, inline in its ported caller (0x00524247) |
 | 0x00537dd0 | 16 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:707) |
-| 0x00537e60 | 22 | folded | covered by the port where it names it (src/mech3/zai_walk_pm.cpp:12) |
+| 0x00537e60 | 22 | unlabelled |  |
 | 0x00538230 | 67 | unlabelled |  |
 | 0x00539200 | 143 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x0051f750: billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27) |
 | 0x0053a730 | 150 | unused: PORT (preserve) | as MW3 0x00520c60: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
@@ -4814,7 +4868,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0053bf40 | 11 | folded | covered by the port where it names it (src/mech3/player_view.cpp:107) |
 | 0x0053bfa0 | 50 | unused: PORT (preserve) | as MW3 0x005224b0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x0053c780 | 47 | unlabelled |  |
-| 0x0053d000 | 115 | unlabelled |  |
+| 0x0053d000 | 115 | unused: PORT (preserve) | as MW3 0x00523650, whose class PM's changes keep: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x0053d7c0 | 32 | unused: PORT (preserve) | as MW3 0x00523df0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x0053d8c0 | 31 | unused: PORT (preserve) | as MW3 0x00523ef0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x0053db5d | 34 | folded | a piece of the ported function before it (Ghidra split it there) (0x0053d9f0) |
@@ -4831,7 +4885,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0053ef90 | 16 | unlabelled |  |
 | 0x0053f020 | 16 | unlabelled |  |
 | 0x0053f310 | 35 | unlabelled |  |
-| 0x0053f900 | 144 | unlabelled |  |
+| 0x0053f900 | 144 | unused: PORT (preserve) | as MW3 0x00525fa0, whose class PM's changes keep: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x0053fe30 | 87 | unlabelled |  |
 | 0x00540090 | 16 | unlabelled |  |
 | 0x005400c0 | 10 | unlabelled |  |
@@ -4849,26 +4903,26 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x00590820 | 11 | unlabelled |  |
-| 0x005908b0 | 9 | folded | a thunk: one call to another function |
+| 0x005908b0 | 9 | unlabelled | follows 0x005a4b90:  |
 | 0x005908c0 | 9 | folded | a thunk: one call to another function |
 | 0x005908e0 | 9 | unlabelled |  |
 | 0x005908f0 | 18 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:139) |
-| 0x00590920 | 18 | unlabelled |  |
-| 0x00590b90 | 35 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:200) |
+| 0x00590920 | 18 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:145) |
+| 0x00590b90 | 35 | unlabelled |  |
 | 0x00590c10 | 58 | unlabelled |  |
-| 0x00590d20 | 33 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_init.cpp:258) |
+| 0x00590d20 | 33 | unlabelled |  |
 | 0x00590f60 | 9 | folded | a thunk: one call to another function |
 | 0x00590f70 | 9 | folded | a thunk: one call to another function |
-| 0x00591120 | 10 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:287) |
+| 0x00591120 | 10 | unlabelled |  |
 | 0x00591140 | 9 | unlabelled |  |
 | 0x00591160 | 44 | folded | as MW3 0x0056ffc0: covered where named: the sound set's build (zsnd_init.cpp:260, 265), the archive load (zsnd_parm.cpp:63), 3D placement (zsnd_3d.cpp:138), the group chain step (zsnd_grp.cpp:170) |
-| 0x00591220 | 15 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:253) |
-| 0x00591250 | 22 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:160) |
+| 0x00591220 | 15 | unlabelled |  |
+| 0x00591250 | 22 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:3) |
 | 0x005915e0 | 25 | unlabelled |  |
-| 0x00591ce0 | 39 | unlabelled |  |
+| 0x00591ce0 | 39 | unused: PORT (preserve) | as MW3 0x00571380, whose class PM's changes keep: the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38) |
 | 0x00591dd0 | 87 | unlabelled |  |
 | 0x00591f30 | 9 | folded | a thunk: one call to another function |
-| 0x00592040 | 12 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_init.cpp:274) |
+| 0x00592040 | 12 | unlabelled |  |
 | 0x00592490 | 16 | folded | as MW3 0x005716d0: zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
 | 0x005924c0 | 9 | folded | a thunk: one call to another function |
 | 0x00592540 | 16 | unlabelled |  |
@@ -4882,20 +4936,20 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00592da0 | 114 | folded | as MW3 0x00572050: covered where named: the sound set's build (zsnd_init.cpp:260, 265), the archive load (zsnd_parm.cpp:63), 3D placement (zsnd_3d.cpp:138), the group chain step (zsnd_grp.cpp:170) |
 | 0x005930f0 | 16 | folded | as MW3 0x005723a0: zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
 | 0x00593120 | 9 | folded | a thunk: one call to another function |
-| 0x005935b0 | 19 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_cd.cpp:180) |
+| 0x005935b0 | 19 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_cd.cpp:24) |
 | 0x00593940 | 22 | unlabelled |  |
 | 0x005939a0 | 36 | unlabelled |  |
 | 0x00593a90 | 34 | unlabelled |  |
 | 0x00593b60 | 26 | unlabelled |  |
 | 0x00593be0 | 14 | replaced (SDL or the platform layer) | as MW3 0x00572ec0: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
-| 0x00593c00 | 37 | unlabelled |  |
+| 0x00593c00 | 37 | replaced (SDL or the platform layer) | as MW3 0x00572ee0, whose class PM's changes keep: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
 | 0x00593cb0 | 35 | unlabelled |  |
 | 0x00593d60 | 8 | folded | covered by the port where it names it (src/mech3/app_hooks.h:517) |
 | 0x00593d80 | 40 | replaced (SDL or the platform layer) | as MW3 0x00573060: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
-| 0x00593e60 | 18 | unlabelled |  |
-| 0x00593e90 | 28 | unlabelled |  |
-| 0x00593f10 | 26 | unlabelled |  |
-| 0x00594150 | 33 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_init.cpp:245) |
+| 0x00593e60 | 18 | replaced (SDL or the platform layer) | as MW3 0x00573140, whose class PM's changes keep: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
+| 0x00593e90 | 28 | replaced (SDL or the platform layer) | as MW3 0x00573170, whose class PM's changes keep: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
+| 0x00593f10 | 26 | replaced (SDL or the platform layer) | as MW3 0x005731f0, whose class PM's changes keep: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
+| 0x00594150 | 33 | unlabelled |  |
 | 0x005941c0 | 303 | unlabelled |  |
 | 0x00594600 | 198 | unlabelled |  |
 | 0x005949c0 | 27 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:141) |
@@ -4907,38 +4961,38 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00594e10 | 27 | unlabelled |  |
 | 0x00594e60 | 22 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:46) |
 | 0x00594eb0 | 15 | unlabelled |  |
-| 0x00594f10 | 9 | folded | a thunk: one call to another function |
+| 0x00594f10 | 9 | unlabelled | follows 0x00594eb0:  |
 | 0x00594f20 | 58 | unlabelled |  |
 | 0x00595060 | 15 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:263) |
 | 0x005950a0 | 11 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:257) |
-| 0x005950e0 | 9 | folded | a thunk: one call to another function |
+| 0x005950e0 | 9 | unlabelled | follows 0x00595100:  |
 | 0x00595100 | 65 | unlabelled |  |
-| 0x00595240 | 27 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:376) |
-| 0x005952a0 | 9 | folded | a thunk: one call to another function |
+| 0x00595240 | 27 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:247) |
+| 0x005952a0 | 9 | unlabelled | follows 0x00595100:  |
 | 0x00595310 | 12 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_cd.cpp:32) |
-| 0x00595360 | 197 | unlabelled |  |
+| 0x00595360 | 197 | unused: PORT (preserve) | as MW3 0x005746b0, whose class PM's changes keep: the Aureal A3D path: its init (CoCreateInstance), 3D placement and error names; only 0x570625 writes the selector [0x72c2cc], and only to 0 (DirectSound) when A3D fails, so A3D never runs (sound.md:38) |
 | 0x00595940 | 16 | folded | as MW3 0x00574c90: zSound's static containers and their cleanup (vector and list heads made at start-up, the sets' pointer list freed); the port's members construct and free themselves |
 | 0x00595970 | 9 | folded | a thunk: one call to another function |
 | 0x005959e0 | 23 | folded | covered by the port where it names it (src/gamez/zsound/zsnd.h:355) |
 | 0x00595a30 | 12 | replaced (SDL or the platform layer) | as MW3 0x00574d90: DirectSound buffers: made from a WAV (0x00574ff0) and released (0x00574d90, 0x00574f10); SDL audio holds the port's |
 | 0x00595ba0 | 21 | replaced (SDL or the platform layer) | as MW3 0x00574f10: DirectSound buffers: made from a WAV (0x00574ff0) and released (0x00574d90, 0x00574f10); SDL audio holds the port's |
-| 0x00595c60 | 15 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:661) |
+| 0x00595c60 | 15 | unlabelled |  |
 | 0x00595ca0 | 101 | replaced (SDL or the platform layer) | as MW3 0x00574ff0: DirectSound buffers: made from a WAV (0x00574ff0) and released (0x00574d90, 0x00574f10); SDL audio holds the port's |
 | 0x00596510 | 9 | unlabelled |  |
-| 0x00596520 | 41 | unlabelled |  |
+| 0x00596520 | 41 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x00596590 | 224 | debug or dev tool: PORT (preserve) | as MW3 0x00575b00: the developer's stdout redirect (freopen to a log; editor.md:214) |
 | 0x00596780 | 9 | replaced (SDL or the platform layer) | as MW3 0x00575d00: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00596790 | 8 | replaced (SDL or the platform layer) | as MW3 0x00575d10: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x005967c0 | 69 | unlabelled |  |
-| 0x005968d0 | 56 | unlabelled |  |
+| 0x005968d0 | 56 | replaced (SDL or the platform layer) | as MW3 0x00575d40, whose class PM's changes keep: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x005969a0 | 100 | unlabelled |  |
 | 0x00596c00 | 43 | replaced (SDL or the platform layer) | as MW3 0x00575e30: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00596d30 | 16 | replaced (SDL or the platform layer) | as MW3 0x00575f30: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00596d70 | 12 | replaced (SDL or the platform layer) | as MW3 0x00575f70: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
-| 0x00596de0 | 9 | folded | a thunk: one call to another function |
+| 0x00596de0 | 9 | replaced (SDL or the platform layer) | follows 0x00596e00: as MW3 0x00575ff0: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00596e00 | 15 | replaced (SDL or the platform layer) | as MW3 0x00575ff0: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
-| 0x00596e50 | 20 | unlabelled |  |
-| 0x00596ea0 | 11 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:245) |
+| 0x00596e50 | 20 | replaced (SDL or the platform layer) | as MW3 0x00576040, whose class PM's changes keep: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
+| 0x00596ea0 | 11 | folded | covered by the port where it names it (src/mech3/app_hooks.h:573) |
 | 0x00596ec0 | 9 | folded | a thunk: one call to another function |
 | 0x00596ed0 | 18 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_create.cpp:129) |
 | 0x00596f10 | 12 | folded | as MW3 0x00576100: zUtil's search path lists: each user keeps its own path string (zsnd_init.cpp:223, mech_fieldbase.h:295, zinterp.cpp:240) and the file finder is the platform's (zimg_library.h:75, zsnd_parm.cpp:17, FIX (A)); the default list's free has nothing to free (mission-frame.md:184) |
@@ -4954,12 +5008,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x00587780 | 88 | software renderer | as MW3 0x005662d0: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
-| 0x005879c0 | 54 | unlabelled |  |
+| 0x005879c0 | 54 | software renderer | as MW3 0x00566510, whose class PM's changes keep: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x00587ae0 | 135 | software renderer | as MW3 0x00566620: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
-| 0x00587d50 | 184 | unlabelled |  |
+| 0x00587d50 | 184 | software renderer | as MW3 0x00566890, whose class PM's changes keep: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x00588170 | 114 | software renderer | as MW3 0x00566c90: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x005883f0 | 67 | software renderer | as MW3 0x00566f10: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
-| 0x00588590 | 142 | unlabelled |  |
+| 0x00588590 | 142 | software renderer | as MW3 0x005670a0, whose class PM's changes keep: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x005889d0 | 25 | software renderer | as MW3 0x005674e0: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x00588a30 | 21 | software renderer | as MW3 0x00567530: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x00588a70 | 9 | folded | ported, by docs/symbols.csv: ported: zrndr::flares_clear (the frame's start, 0x004817cd) |
@@ -4968,7 +5022,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00588c50 | 155 | unlabelled |  |
 | 0x00589110 | 40 | unlabelled |  |
 | 0x00589290 | 34 | unlabelled |  |
-| 0x00589310 | 47 | unlabelled |  |
+| 0x00589310 | 47 | software renderer | as MW3 0x00567dc0, whose class PM's changes keep: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x005893f0 | 60 | unlabelled |  |
 | 0x005895f0 | 8 | folded | empty: does nothing |
 | 0x00589600 | 51 | unlabelled |  |
@@ -5017,20 +5071,20 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0058f2f0 | 35 | software renderer | as MW3 0x0056df10: the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x0058f390 | 83 | unlabelled |  |
 | 0x0058f560 | 15 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:23) |
-| 0x0058f590 | 64 | unlabelled |  |
+| 0x0058f590 | 64 | replaced (SDL or the platform layer) | as MW3 0x0056e180, whose class PM's changes keep: DirectSound: a sound's buffer duplicated or reused for another play (0x0056e180, 0x0056e4d0) and the buffer's volume and frequency calls (0x0056ef90); SDL's audio layer replaces them (zsnd_play) |
 | 0x0058f6d0 | 49 | unlabelled |  |
 | 0x0058f870 | 8 | folded | returns a constant or a global |
 | 0x0058f880 | 19 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:82) |
-| 0x0058f8e0 | 68 | unlabelled |  |
+| 0x0058f8e0 | 68 | replaced (SDL or the platform layer) | as MW3 0x0056e4d0, whose class PM's changes keep: DirectSound: a sound's buffer duplicated or reused for another play (0x0056e180, 0x0056e4d0) and the buffer's volume and frequency calls (0x0056ef90); SDL's audio layer replaces them (zsnd_play) |
 | 0x0058fa20 | 70 | unlabelled |  |
-| 0x0058fc20 | 12 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:90) |
+| 0x0058fc20 | 12 | unlabelled |  |
 | 0x0058fc70 | 32 | unlabelled |  |
 | 0x0058fd60 | 60 | unlabelled |  |
 | 0x0058fe70 | 61 | unlabelled |  |
 | 0x0058ff90 | 168 | unlabelled |  |
 | 0x00590290 | 36 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:112) |
-| 0x00590310 | 27 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:327) |
-| 0x00590390 | 28 | unlabelled |  |
+| 0x00590310 | 27 | unlabelled |  |
+| 0x00590390 | 28 | replaced (SDL or the platform layer) | as MW3 0x0056ef90, whose class PM's changes keep: DirectSound: a sound's buffer duplicated or reused for another play (0x0056e180, 0x0056e4d0) and the buffer's volume and frequency calls (0x0056ef90); SDL's audio layer replaces them (zsnd_play) |
 | 0x00590410 | 29 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:127) |
 | 0x00590610 | 37 | unlabelled |  |
 | 0x00590670 | 20 | folded | as MW3 0x0056f230: covered: a sound's play with the master volume (zsnd_play.cpp:134), the playing list's node |
@@ -5047,7 +5101,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00530c00 | 26 | replaced (SDL or the platform layer) | as MW3 0x00517310: zimg_winfonts: the GDI fonts by name from fonts.zrd's WINDOWS_FONTS (list, find, addref, release, teardown); the SDL text host draws its own fonts (sdl_twod_host.h:36) |
 | 0x00530c60 | 47 | replaced (SDL or the platform layer) | as MW3 0x00517370: zimg_winfonts: the GDI fonts by name from fonts.zrd's WINDOWS_FONTS (list, find, addref, release, teardown); the SDL text host draws its own fonts (sdl_twod_host.h:36) |
 | 0x00530d10 | 48 | replaced (SDL or the platform layer) | as MW3 0x00517410: zimg_winfonts: the GDI fonts by name from fonts.zrd's WINDOWS_FONTS (list, find, addref, release, teardown); the SDL text host draws its own fonts (sdl_twod_host.h:36) |
-| 0x00530d90 | 61 | unlabelled |  |
+| 0x00530d90 | 61 | replaced (SDL or the platform layer) | as MW3 0x005174b0, whose class PM's changes keep: zimg_winfonts: the GDI fonts by name from fonts.zrd's WINDOWS_FONTS (list, find, addref, release, teardown); the SDL text host draws its own fonts (sdl_twod_host.h:36) |
 | 0x00530e70 | 28 | replaced (SDL or the platform layer) | as MW3 0x005175e0: zimg_winfonts: the GDI fonts by name from fonts.zrd's WINDOWS_FONTS (list, find, addref, release, teardown); the SDL text host draws its own fonts (sdl_twod_host.h:36) |
 | 0x00530ee0 | 16 | replaced (SDL or the platform layer) | as MW3 0x00517650: zimg_winfonts: the GDI fonts by name from fonts.zrd's WINDOWS_FONTS (list, find, addref, release, teardown); the SDL text host draws its own fonts (sdl_twod_host.h:36) |
 | 0x00530f10 | 18 | replaced (SDL or the platform layer) | as MW3 0x00517680: zimg_winfonts: the GDI fonts by name from fonts.zrd's WINDOWS_FONTS (list, find, addref, release, teardown); the SDL text host draws its own fonts (sdl_twod_host.h:36) |
@@ -5069,15 +5123,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005314e0 | 61 | unlabelled |  |
 | 0x005315c0 | 66 | unlabelled |  |
 | 0x00531760 | 16 | folded | as MW3 0x00517be0: the texture cache by name and its teardown: g_cache (zimg_texture.cpp:296-321), a std::list freed with the program |
-| 0x005317a0 | 9 | folded | a thunk: one call to another function |
+| 0x005317a0 | 9 | unlabelled | follows 0x005a4b90:  |
 | 0x005317b0 | 9 | folded | a thunk: one call to another function |
-| 0x005317e0 | 9 | folded | a thunk: one call to another function |
+| 0x005317e0 | 9 | unlabelled | follows 0x005a4b90:  |
 | 0x005317f0 | 9 | folded | a thunk: one call to another function |
-| 0x00531810 | 11 | unlabelled |  |
+| 0x00531810 | 11 | debug or dev tool: PORT (preserve) | as MW3 0x00518050, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127) |
 | 0x00531840 | 11 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_zbd.cpp:29) |
 | 0x00531860 | 8 | folded | returns a constant or a global |
-| 0x00531870 | 53 | unlabelled |  |
-| 0x00531c50 | 59 | unlabelled |  |
+| 0x00531870 | 53 | debug or dev tool: PORT (preserve) | as MW3 0x005180a0, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127) |
+| 0x00531c50 | 59 | replaced (SDL or the platform layer) | as MW3 0x005184e0, whose class PM's changes keep: the texture table's start-up: zeroes the table and makes the Direct3D default texture record; the port's GPU textures make their own (zimg_texture.cpp:109, fixes.md puffer row) |
 | 0x00531d60 | 11 | folded | covered by the port where it names it (src/frontend/sdl/sdl_twod_host.cpp:174) |
 | 0x00531e70 | 12 | folded | covered by the port where it names it (src/gamez/zimage/zimg_library.cpp:376) |
 | 0x00531eb0 | 11 | folded | as MW3 0x005187a0: one-line setters/lookups the port does inline: zImage's library flag (no effect, app_engine.cpp:307), the texture group (mech_lib.cpp:34, app_mission.cpp:1910), the archive file test (zimg_library.cpp:20), the extension cut (zimg_texture.cpp:94) |
@@ -5094,9 +5148,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00532b60 | 125 | unlabelled |  |
 | 0x00532d00 | 52 | software renderer | as MW3 0x00519370: the software renderer's texture tables: the nth mip of a chain for 0x00563940 (module-starts.md:158) and the 32 light and fog levels of every paletted texture (software-path.md:30) |
 | 0x00532e80 | 36 | software renderer | as MW3 0x00519510: the software renderer's texture tables: the nth mip of a chain for 0x00563940 (module-starts.md:158) and the 32 light and fog levels of every paletted texture (software-path.md:30) |
-| 0x00532f20 | 76 | unlabelled |  |
+| 0x00532f20 | 76 | software renderer | as MW3 0x005195b0, whose class PM's changes keep: the software renderer's texture tables: the nth mip of a chain for 0x00563940 (module-starts.md:158) and the 32 light and fog levels of every paletted texture (software-path.md:30) |
 | 0x005330c0 | 29 | unlabelled |  |
-| 0x00533150 | 26 | unlabelled |  |
+| 0x00533150 | 26 | software renderer | called only from 0x00580be0, 0x00587d50, which are software |
 | 0x005331b0 | 64 | replaced (SDL or the platform layer) | as MW3 0x00519820: the square-only device resize (D3D caps 0x20; render-drawtable.md:124): no modern device needs it |
 | 0x00533320 | 19 | unlabelled |  |
 | 0x00533380 | 26 | debug or dev tool: PORT (preserve) | as MW3 0x005199e0: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it |
@@ -5117,9 +5171,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x005791b0 | 53 | unlabelled |  |
-| 0x00579300 | 9 | folded | a thunk: one call to another function |
-| 0x00579310 | 9 | folded | a thunk: one call to another function |
-| 0x00579330 | 9 | folded | a thunk: one call to another function |
+| 0x00579300 | 9 | unlabelled | follows 0x00578000:  |
+| 0x00579310 | 9 | unlabelled | follows 0x00577e50:  |
+| 0x00579330 | 9 | unlabelled | follows 0x00577f00:  |
 | 0x00579340 | 9 | folded | a thunk: one call to another function |
 | 0x00579360 | 16 | unused: PORT (preserve) | as MW3 0x00557490: the defines list's constructor and destructor, no caller reaches them (zreader.md:103) |
 | 0x00579390 | 9 | folded | a thunk: one call to another function |
@@ -5141,24 +5195,24 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0057a770 | 9 | unlabelled |  |
 | 0x0057c510 | 17 | unlabelled |  |
 | 0x0057c950 | 47 | unlabelled |  |
-| 0x0057ca30 | 266 | unlabelled |  |
+| 0x0057ca30 | 266 | software renderer | as MW3 0x0055aa20, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
 | 0x0057d210 | 21 | unlabelled |  |
 | 0x0057d270 | 112 | software renderer | as MW3 0x0055b250: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
-| 0x0057dc00 | 294 | unlabelled |  |
-| 0x0057e2f0 | 241 | unlabelled |  |
-| 0x0057e900 | 289 | unlabelled |  |
+| 0x0057dc00 | 294 | software renderer | as MW3 0x0055bbf0, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
+| 0x0057e2f0 | 241 | software renderer | as MW3 0x0055c2f0, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
+| 0x0057e900 | 289 | software renderer | as MW3 0x0055c900, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
 | 0x0057eff0 | 239 | unlabelled |  |
-| 0x0057f5e0 | 375 | unlabelled |  |
-| 0x005800e0 | 371 | unlabelled |  |
-| 0x00580be0 | 538 | unlabelled |  |
-| 0x00581c10 | 334 | unlabelled |  |
-| 0x005824f0 | 476 | unlabelled |  |
-| 0x00583370 | 463 | unlabelled |  |
+| 0x0057f5e0 | 375 | software renderer | as MW3 0x0055d660, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
+| 0x005800e0 | 371 | software renderer | called only from 0x005883f0, 0x00588590, which are software |
+| 0x00580be0 | 538 | software renderer | as MW3 0x0055efa0, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
+| 0x00581c10 | 334 | software renderer | as MW3 0x00560010, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
+| 0x005824f0 | 476 | software renderer | as MW3 0x005608f0, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
+| 0x00583370 | 463 | software renderer | as MW3 0x00561910, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
 | 0x005841e0 | 10 | folded | covered by the port where it names it (src/gamez/zrender/zrndr_blit.h:47) |
 | 0x005844c0 | 10 | folded | covered by the port where it names it (src/gamez/zrender/zrndr_prim2d.cpp:37) |
 | 0x00584544 | 9 | folded | a piece of the ported function before it (Ghidra split it there) (0x005844f0) |
 | 0x00584570 | 18 | software renderer | as MW3 0x00562d20: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
-| 0x005845e0 | 111 | unlabelled |  |
+| 0x005845e0 | 111 | software renderer | as MW3 0x00562d90, whose class PM's changes keep: the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
 | 0x00585250 | 59 | unlabelled |  |
 | 0x00585750 | 28 | unlabelled |  |
 | 0x00585880 | 9 | folded | covered by the port where it names it (src/gamez/zrender/zrndr_prim2d.cpp:145) |
@@ -5204,7 +5258,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005b82c0 | 12 | unlabelled |  |
 | 0x005b82e0 | 12 | debug or dev tool: PORT (preserve) | as MW3 0x00596170: the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
 | 0x005b8300 | 14 | debug or dev tool: PORT (preserve) | as MW3 0x00596190: the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
-| 0x005b8350 | 9 | folded | a thunk: one call to another function |
+| 0x005b8350 | 9 | debug or dev tool: PORT (preserve) | called only from 0x005b8300, which are debug |
 | 0x005b8360 | 9 | folded | a thunk: one call to another function |
 | 0x005b8450 | 10 | unlabelled |  |
 | 0x005b8570 | 34 | unlabelled |  |
@@ -5217,7 +5271,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005b9250 | 39 | replaced (SDL or the platform layer) | as MW3 0x00597ef0: the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 | 0x005b9290 | 18 | replaced (SDL or the platform layer) | as MW3 0x00597f30: the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 | 0x005b92c0 | 13 | replaced (SDL or the platform layer) | as MW3 0x00597f60: the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005b9330 | 53 | unlabelled |  |
+| 0x005b9330 | 53 | replaced (SDL or the platform layer) | as MW3 0x00597fc0, whose class PM's changes keep: the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 | 0x005b9480 | 24 | replaced (SDL or the platform layer) | as MW3 0x00598100: the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 | 0x005b94d0 | 11 | replaced (SDL or the platform layer) | as MW3 0x00598150: the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 | 0x005b94e0 | 12 | replaced (SDL or the platform layer) | as MW3 0x00598160: the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
@@ -5288,7 +5342,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00526980 | 12 | folded | as MW3 0x0050d1f0: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x00526a40 | 113 | unlabelled |  |
 | 0x00526da0 | 28 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x0050d610: an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x00526df0 | 19 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:326) |
+| 0x00526df0 | 19 | unlabelled |  |
 | 0x00526e50 | 43 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x0050d6a0: an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
 | 0x00526f60 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x0050d7a0: an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
 | 0x00526fe0 | 21 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:50) |
@@ -5308,23 +5362,23 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005cafc0 | 12 | unlabelled |  |
 | 0x005cafe0 | 10 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:285) |
 | 0x005cb140 | 11 | folded | as MW3 0x005a84c0: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
-| 0x005cb160 | 10 | folded | covered by the port where it names it (src/mech3/zai_node.cpp:174) |
+| 0x005cb160 | 10 | folded | covered by the port where it names it (src/mech3/mech_place.cpp:110) |
 | 0x005cb1c0 | 8 | folded | returns a constant or a global |
 | 0x005cb1d0 | 10 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:530) |
 | 0x005cb200 | 10 | folded | covered by the port where it names it (src/mech3/mech_place.cpp:108) |
 | 0x005cb220 | 10 | folded | as MW3 0x005a85a0: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005cb310 | 8 | folded | covered by the port where it names it (src/mech3/mech.h:126) |
 | 0x005cb320 | 8 | unlabelled |  |
-| 0x005cb330 | 14 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:365) |
+| 0x005cb330 | 14 | folded | covered by the port where it names it (src/mech3/mech_place.cpp:116) |
 | 0x005cb360 | 15 | folded | covered by the port where it names it (src/mech3/mech.h:95) |
 | 0x005cb3a0 | 11 | folded | covered by the port where it names it (src/mech3/veh_controls.h:82) |
 | 0x005cb3c0 | 11 | folded | as MW3 0x005a8730: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
-| 0x005cb3e0 | 49 | unlabelled |  |
+| 0x005cb3e0 | 49 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x005cb4b0 | 11 | unlabelled |  |
 | 0x005cb4e0 | 15 | folded | covered by the port where it names it (src/mech3/app_mech.h:341) |
 | 0x005cb510 | 15 | folded | covered by the port where it names it (src/mech3/app_mech.h:342) |
 | 0x005cb690 | 34 | folded | as MW3 0x005a89c0: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
-| 0x005cb6f0 | 117 | unlabelled |  |
+| 0x005cb6f0 | 117 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x005cb930 | 9 | folded | a thunk: one call to another function |
 | 0x005cbaa0 | 39 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:75) |
 | 0x005cbb40 | 8 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:108) |
@@ -5338,7 +5392,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005cc0f0 | 14 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:212) |
 | 0x005cc130 | 9 | unused: PORT (preserve) | as MW3 0x005a92d0: _rmtmp at zSave's stop, unreached |
 | 0x005cc140 | 135 | unlabelled |  |
-| 0x005cc3a0 | 9 | folded | as MW3 0x0049ccb0: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
+| 0x005cc3a0 | 9 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
 | 0x005cc3e0 | 52 | folded | as MW3 0x005a96d0: zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
 | 0x005cc4c0 | 17 | folded | as MW3 0x005a97e0: zSave's list insert, load and stable sort, covered where named (zsave.cpp:86, 108, 132) and std::list's sort helpers |
 | 0x005cc5b0 | 17 | debug or dev tool: PORT (preserve) | as MW3 0x005a98d0: the developers' loose <name>.zan override for motion scripts (motion.md:36), like the reader's loose .zrd files |
@@ -5373,7 +5427,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0051ab70 | 280 | unlabelled |  |
 | 0x0051b1f0 | 8 | folded | returns a constant or a global |
 | 0x0051b270 | 9 | folded | as MW3 0x00502da0: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x0051b280 | 13 | folded | covered by the port where it names it (src/gamez/zinput/zin_init.cpp:83) |
+| 0x0051b280 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:258) |
 | 0x0051b2a0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:259) |
 | 0x0051b2c0 | 20 | unlabelled |  |
 | 0x0051b340 | 17 | unlabelled |  |
@@ -5389,7 +5443,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0051f830 | 43 | unlabelled |  |
 | 0x0051fce0 | 145 | unlabelled |  |
 | 0x00520080 | 53 | unlabelled |  |
-| 0x00520500 | 100 | unlabelled |  |
+| 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005207b0 | 8 | folded | returns a constant or a global |
 
 ### zfmv (41 not ported)
@@ -5432,49 +5486,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005be3f0 | 112 | unlabelled |  |
 | 0x005be700 | 68 | unlabelled |  |
 | 0x005be8e0 | 19 | unlabelled |  |
-| 0x005be940 | 9 | folded | a thunk: one call to another function |
+| 0x005be940 | 9 | unlabelled | follows 0x005be950:  |
 | 0x005be950 | 68 | unlabelled |  |
 | 0x005beb50 | 52 | unlabelled |  |
-| 0x005beca0 | 12 | folded | covered by the port where it names it (src/mech3/pilot.h:253) |
+| 0x005beca0 | 12 | unlabelled |  |
 | 0x005becd0 | 38 | unlabelled |  |
-
-### zweapon (33 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005a52e0 | 521 | unlabelled |  |
-| 0x005a62a0 | 74 | unlabelled |  |
-| 0x005a6410 | 9 | folded | a thunk: one call to another function |
-| 0x005a6420 | 63 | unlabelled |  |
-| 0x005a6550 | 9 | folded | a thunk: one call to another function |
-| 0x005a6650 | 42 | unlabelled |  |
-| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
-| 0x005a6a00 | 37 | unlabelled |  |
-| 0x005a6c20 | 20 | unlabelled |  |
-| 0x005a6c60 | 286 | unlabelled |  |
-| 0x005a7570 | 36 | unlabelled |  |
-| 0x005a75c0 | 129 | unlabelled |  |
-| 0x005a79a0 | 162 | unlabelled |  |
-| 0x005a8090 | 58 | unlabelled |  |
-| 0x005a8230 | 58 | unlabelled |  |
-| 0x005a8430 | 29 | unlabelled |  |
-| 0x005a8510 | 71 | unlabelled |  |
-| 0x005a8820 | 20 | unlabelled |  |
-| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
-| 0x005a8a90 | 16 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:132) |
-| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8d20 | 16 | unlabelled |  |
-| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
-| 0x005a8dd0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e10 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:132) |
-| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
-| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 
 ### zgame (33 not ported)
 
@@ -5498,7 +5514,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
 | 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
 | 0x005b2340 | 12 | unlabelled |  |
-| 0x005b2360 | 27 | unlabelled |  |
+| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
 | 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
 | 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 | 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
@@ -5513,6 +5529,44 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 | 0x005b2830 | 231 | unlabelled |  |
 | 0x005b2c60 | 16 | unlabelled |  |
+
+### zweapon (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005a52e0 | 521 | unlabelled |  |
+| 0x005a62a0 | 74 | unlabelled |  |
+| 0x005a6410 | 9 | unlabelled | follows 0x005a6420:  |
+| 0x005a6420 | 63 | unlabelled |  |
+| 0x005a6550 | 9 | unlabelled | follows 0x005a6420:  |
+| 0x005a6650 | 42 | unlabelled |  |
+| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
+| 0x005a6a00 | 37 | unlabelled |  |
+| 0x005a6c20 | 20 | unlabelled |  |
+| 0x005a6c60 | 286 | unlabelled |  |
+| 0x005a7570 | 36 | unlabelled |  |
+| 0x005a75c0 | 129 | unlabelled |  |
+| 0x005a79a0 | 162 | unlabelled |  |
+| 0x005a8090 | 58 | unlabelled |  |
+| 0x005a8230 | 58 | unlabelled |  |
+| 0x005a8430 | 29 | unlabelled |  |
+| 0x005a8510 | 71 | unlabelled |  |
+| 0x005a8820 | 20 | unlabelled |  |
+| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
+| 0x005a8a90 | 16 | unlabelled |  |
+| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
+| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
+| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
+| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
+| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 
 ### zutil (31 not ported)
 
@@ -5543,8 +5597,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00597ef0 | 9 | unlabelled |  |
 | 0x00597f00 | 8 | folded | returns a constant or a global |
 | 0x00597f10 | 8 | folded | returns a constant or a global |
-| 0x00597f20 | 9 | unlabelled |  |
-| 0x00597f30 | 9 | unlabelled |  |
+| 0x00597f20 | 9 | replaced (SDL or the platform layer) | called only from 0x00598600, which are sdl |
+| 0x00597f30 | 9 | replaced (SDL or the platform layer) | called only from 0x00598600, which are sdl |
 | 0x00597f40 | 12 | unlabelled |  |
 | 0x00597f80 | 12 | replaced (SDL or the platform layer) | as MW3 0x00576ed0: DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 | 0x00597f90 | 24 | replaced (SDL or the platform layer) | as MW3 0x00576ee0: DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
