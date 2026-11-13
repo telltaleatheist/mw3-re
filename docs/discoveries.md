@@ -1250,7 +1250,9 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
 - **Aimed at the sky, the zoom window reads 800 m** whatever you carry: it
   shows the view distance when nothing is under the reticle, which is 800 m in
   every mission. That happens to be the LRMs' and the Large Pulse Laser's range.
-  Every weapon's real range is in `docs/weapon-ranges.md`.
+  Every weapon's real range is in `docs/weapon-ranges.md`. Pirate's Moon reads the
+  farther of 800 m and your selected group's range there (1000 m with an ER Large
+  Laser), and the rebuild does the same with bug fixes on.
 - **Buildings you target never show in the TARGET window.** Only their
   name and range appear. The mission files can turn the picture on for a
   building (a `display` flag), but none of the shipped missions do.

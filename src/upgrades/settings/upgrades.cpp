@@ -58,7 +58,7 @@ const std::vector<const char*>& small_fixes_list() {
       "Tripod turrets aim when facing straight up or down.",
       "A vehicle's gun stops at its true aiming limit.",
       "A vehicle file with pitch and no roll keeps its pitch.",
-      "The reticle locks past 800 m when the weapons reach.",
+      "The reticle locks and reads past 800 m when weapons reach.",
       "The mech lab offers the plain PPC the data defines.",
       "TAG's strike lands where the target is, not was.",
       "A held beam stays on a moving mech after release.",
