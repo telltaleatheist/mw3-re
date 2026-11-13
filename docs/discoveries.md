@@ -4828,3 +4828,17 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   and the row under it lights green; that lit row is all you get to aim
   with. The rebuild shows the system's cursor while the editor is up.
   (From the code and a run: 0x0040e4b0. docs/editor.md, The pointer)
+- **Some names show as raw `MSG_...` codes in the original.** The game looks
+  its texts up by name in Mech3Msg.dll, and a few names in the data are
+  spelled differently from the file's, so the code name itself appears. In
+  MechWarrior 3 1.0, two targets in Operation 3 Mission 6 (the Clan fortress
+  and spaceport) show as `MSG_TGT_CLAN_FORTRESS` and `MSG_TGT_CLAN_SPACEPORT`;
+  1.2 fixed them. In Pirate's Moon: the four "exotic" loadouts of a dozen
+  mechs show as `MSG_CONFIG_EXOTIC_A` to `_D`, the standalone missions' long
+  descriptions as `MSG_C1SA1_VERBOSE` and the like, one line of the campaign
+  results as `MSG_WIN_CAMP_MISS`, a nav point in one Instant Action map as
+  `MSG_WPT_START`, and three weapons (the ER Micro Laser and the heavy and
+  light machine guns) as `MSG_WPN_ERLASER_MCR`, `MSG_WPN_M_GUN_H` and
+  `MSG_WPN_M_GUN_LT` where the game reads the weapon's description; the HUD's
+  weapon list names them right, from a table of its own. (From the data and
+  Mech3Msg.dll: tools/analysis/msg_name_scan.py. docs/fixes.md)
