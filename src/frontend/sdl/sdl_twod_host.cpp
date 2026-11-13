@@ -413,7 +413,11 @@ int32_t SdlTwodHost::sound_find(const char* name) {
 int32_t SdlTwodHost::sound_play(int32_t sound, float volume) {
   if (!engine_) return 0;
   auto* o = static_cast<zsnd::Object*>(engine_->object_of(static_cast<Handle>(sound)));
-  return o ? static_cast<int32_t>(engine_->handle_of(zsnd::play(o, volume))) : 0;
+  zsnd::VoiceBase* v = o ? zsnd::play(o, volume) : nullptr;
+  static const bool log = std::getenv("MW3_SOUND_LOG") != nullptr;  // ours: the menus' sounds too
+  if (log && o)
+    std::printf("mw3: menu sound %s %s\n", o->kind == 0 ? static_cast<zsnd::Sound*>(o)->name : "group", v ? "plays" : "refused");
+  return v ? static_cast<int32_t>(engine_->handle_of(v)) : 0;
 }
 void SdlTwodHost::sound_stop(int32_t handle) {
   if (engine_) engine_->voice_stop(static_cast<Handle>(handle));

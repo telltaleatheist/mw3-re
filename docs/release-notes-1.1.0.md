@@ -1,13 +1,5 @@
 # MechWarrior 3 Rebuild 1.1.0
 
-<!-- DRAFT (dev 2, 2026-11-12, from dev 1's of 11-10) for the lead's review and Owen's go: not tagged, not published.
-     The combined package: the launcher and MechWarrior 3 v1.1.0 from main, Pirate's Moon pm-v1.1.0 from pm.
-     Written from CHANGES.md, the merges since v1.0.5 (main) and pm-v1.0.1 (pm), and docs/playtest-1.1.0.md.
-     Checked against origin/main cbed078b and origin/pm 7e44bed9. Not yet on pm at 7e44bed9 (dev 3's crossing):
-     W11's log line, W15 (a mod for the other game handed over), W16 (the game's own boxes), W17, W18, W19.
-     The Pirate's Moon section claims them only through "the MechWarrior 3 fixes above"; check after the crossing.
-     The checksums are filled in when the packages are built. -->
-
 **One download now holds both games, MechWarrior 3 and Pirate's Moon, with a launcher to pick between them.** Mods are played by campaign from a new MODS screen, community mods are imported straight from their installers without running them, and multiplayer works with mods. Install it over any 1.0.x: your pilots, saves, settings and mods are kept.
 
 ## Downloads
@@ -103,6 +95,10 @@ From Owen's playtests of the 1.1.0 builds:
 - **A new resolution reshapes the menus at once.** Picking one in GRAPHICS & AUDIO (4:3 to 16:9 or back), or WIDE MENUS, no longer waits for the next start.
 - The launcher's notes screen fits its text, and it says when the system's file picker is opening.
 - A mission started from MISSIONS can be left from its debriefing.
+- **After installing a game, the launcher waits on its games screen** instead of starting the game, so you can set up the other game first.
+- **A mod for the other game goes to that game.** A Pirate's Moon mod imported in MechWarrior 3 (or the other way round) is recognised by its files and handed to the right game, which adds it at its next start. A box says so.
+- **A mod that renames a mech's main loadout no longer drops that mech** from a campaign's start (seen with a Pirate's Moon mod: only the Puma was left). The nearest loadout is given, and the log says what the mod's maker could change.
+- **Each world's sun takes its script's settings**, as in the original (the script's light commands did nothing in the rebuild). Nothing you can see changes in the missions checked.
 
 And:
 
