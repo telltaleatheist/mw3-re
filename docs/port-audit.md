@@ -11,13 +11,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2975 |
-| replaced (SDL or the platform layer) | 197 |
+| folded | 2999 |
+| replaced (SDL or the platform layer) | 221 |
 | software renderer | 111 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 101 |
-| debug or dev tool: PORT (preserve) | 78 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 110 |
+| debug or dev tool: PORT (preserve) | 81 |
 | unused: PORT (preserve) | 74 |
-| unlabelled | 60 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
 | MISSING LOGIC | 50 |
 | dev dialog (MFC), its logic: PORT (preserve) | 42 |
@@ -35,7 +34,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x004f1cd0, 0x004f3d00, 0x004f3f70** (3 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them
 - **0x004f1d90, 0x004f1dc0, 0x004f2860, 0x004f2880, 0x004f32a0, 0x004f3550 ...** (27 functions, 819 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x004fd1e0, 0x004fd8c0** (2 functions, 54 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
+- **0x00503c10, 0x00503d50, 0x0050414d, 0x00505df0, 0x00507970** (5 functions, 210 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109)
 - **0x005076c0, 0x005a5400, 0x005a6650, 0x005a6760** (4 functions, 135 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
+- **0x0050d610, 0x0050d6a0, 0x0050d7a0, 0x0050d880** (4 functions, 124 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
 - **0x0051f390, 0x0051f750** (2 functions, 276 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
 - **0x00526aa0, 0x00526ac0, 0x0053b960, 0x0053bb50, 0x0053bd60** (5 functions, 191 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
 - **0x00542060** (1 functions, 255 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
@@ -65,6 +66,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 3 functions, 56 decomp lines (0x005960a0, 0x00596170, 0x00596190): the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532)
 - 6 functions, 173 decomp lines (0x005a0050, 0x005a3c40, 0x005a3cd0, 0x005a3de0 ...): the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
 - 1 functions, 17 decomp lines (0x005a98d0): the developers' loose <name>.zan override for motion scripts (motion.md:36), like the reader's loose .zrd files
+- 3 functions, 219 decomp lines (0x005a9bc0, 0x005a9e10, 0x005aa210): the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0)
 
 ### dev dialog (MFC), its logic: PORT (preserve)
 
@@ -3779,20 +3781,20 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00599800 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00599bc0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00599d50 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00599d70 | 11 | unlabelled |  |
+| 0x00599d70 | 11 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x0059a100 | 29 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(1) |
 | 0x0059a190 | 29 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(2) |
 | 0x0059a310 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0059a330 | 31 | unlabelled |  |
-| 0x0059a3b0 | 11 | unlabelled |  |
-| 0x0059a3d0 | 30 | unlabelled |  |
+| 0x0059a330 | 31 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0059a3b0 | 11 | replaced (SDL or the platform layer) | cutscenes through MCI MPEGVideo (0x0059b080 open, 0x0059b200 stop, 0x0059b280 the error text) and the end that grabs and clears the screen (0x0059a3d0, fmv.md:181); the port's zFMV plays Indeo itself |
+| 0x0059a3d0 | 30 | replaced (SDL or the platform layer) | cutscenes through MCI MPEGVideo (0x0059b080 open, 0x0059b200 stop, 0x0059b280 the error text) and the end that grabs and clears the screen (0x0059a3d0, fmv.md:181); the port's zFMV plays Indeo itself |
 | 0x0059a4a5 | 32 | folded | a piece of the ported function before it (Ghidra split it there) (0x0059a4a0) |
 | 0x0059b040 | 15 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_stream.h:9) |
 | 0x0059b070 | 11 | folded | frees the object (a destructor's release) |
-| 0x0059b080 | 78 | unlabelled |  |
-| 0x0059b200 | 19 | unlabelled |  |
-| 0x0059b250 | 15 | unlabelled |  |
-| 0x0059b280 | 43 | unlabelled |  |
+| 0x0059b080 | 78 | replaced (SDL or the platform layer) | cutscenes through MCI MPEGVideo (0x0059b080 open, 0x0059b200 stop, 0x0059b280 the error text) and the end that grabs and clears the screen (0x0059a3d0, fmv.md:181); the port's zFMV plays Indeo itself |
+| 0x0059b200 | 19 | replaced (SDL or the platform layer) | cutscenes through MCI MPEGVideo (0x0059b080 open, 0x0059b200 stop, 0x0059b280 the error text) and the end that grabs and clears the screen (0x0059a3d0, fmv.md:181); the port's zFMV plays Indeo itself |
+| 0x0059b250 | 15 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0059b280 | 43 | replaced (SDL or the platform layer) | cutscenes through MCI MPEGVideo (0x0059b080 open, 0x0059b200 stop, 0x0059b280 the error text) and the end that grabs and clears the screen (0x0059a3d0, fmv.md:181); the port's zFMV plays Indeo itself |
 | 0x0059b4d0 | 40 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:631) |
 | 0x0059b610 | 21 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
 | 0x0059b640 | 40 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:631) |
@@ -3801,7 +3803,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0059bdb0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0059d8b0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0059e150 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0059e9c0 | 17 | unlabelled |  |
+| 0x0059e9c0 | 17 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x0059ea20 | 9 | folded | a thunk: one call to another function |
 | 0x0059ed90 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 
@@ -3809,7 +3811,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00500670 | 16 | unlabelled |  |
+| 0x00500670 | 16 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x005006b0 | 9 | folded | a thunk: one call to another function |
 | 0x005006f0 | 22 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00500cd0 | 43 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
@@ -3820,25 +3822,25 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005015b0 | 196 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x005018d0 | 48 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00501980 | 52 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00501a40 | 28 | unlabelled |  |
-| 0x00501a80 | 24 | unlabelled |  |
+| 0x00501a40 | 28 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00501a80 | 24 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x00502d30 | 8 | folded | returns a constant or a global |
-| 0x00502da0 | 11 | unlabelled |  |
+| 0x00502da0 | 11 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x00502db0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:236) |
 | 0x00502dd0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:237) |
-| 0x00503c10 | 44 | unlabelled |  |
-| 0x00503d50 | 128 | unlabelled |  |
-| 0x0050414d | 11 | unlabelled | follows 0x00503d50:  |
+| 0x00503c10 | 44 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
+| 0x00503d50 | 128 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
+| 0x0050414d | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | follows 0x00503d50: anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
 | 0x00504d42 | 203 | folded | a piece of the ported function before it (Ghidra split it there) (0x00504520) |
-| 0x00505520 | 73 | unlabelled |  |
+| 0x00505520 | 73 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x005056b0 | 25 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:602) |
-| 0x00505710 | 116 | unlabelled |  |
-| 0x00505df0 | 9 | unlabelled |  |
-| 0x00507220 | 53 | unlabelled |  |
+| 0x00505710 | 116 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00505df0 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
+| 0x00507220 | 53 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x005073e0 | 18 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:1175) |
 | 0x005076c0 | 88 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x00507960 | 8 | folded | returns a constant or a global |
-| 0x00507970 | 18 | unlabelled |  |
+| 0x00507970 | 18 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
 
 ### zgame (26 not ported)
 
@@ -3876,30 +3878,30 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x00576bc0 | 34 | folded | covered by the port where it names it (src/gamez/zutil/zutl_zar.cpp:176) |
-| 0x00576c50 | 9 | unlabelled |  |
-| 0x00576c60 | 9 | unlabelled |  |
+| 0x00576c50 | 9 | folded | zUtil and zVideo entries the port does its own way, covered where named: the CRC table's start (app_engine.cpp:314), the search paths' free (app_engine.cpp:323), the mode switch (video_set_mode, app_engine.cpp:724), the frame and lab clears (app_engine.h:196, 562) |
+| 0x00576c60 | 9 | folded | zUtil and zVideo entries the port does its own way, covered where named: the CRC table's start (app_engine.cpp:314), the search paths' free (app_engine.cpp:323), the mode switch (video_set_mode, app_engine.cpp:724), the frame and lab clears (app_engine.h:196, 562) |
 | 0x00576c70 | 8 | folded | returns a constant or a global |
-| 0x00576c80 | 10 | unlabelled |  |
+| 0x00576c80 | 10 | folded | zUtil and zVideo entries the port does its own way, covered where named: the CRC table's start (app_engine.cpp:314), the search paths' free (app_engine.cpp:323), the mode switch (video_set_mode, app_engine.cpp:724), the frame and lab clears (app_engine.h:196, 562) |
 | 0x00576ca0 | 8 | folded | returns a constant or a global |
 | 0x00576cb0 | 8 | folded | returns a constant or a global |
 | 0x00576cc0 | 8 | folded | returns a constant or a global |
 | 0x00576cd0 | 8 | folded | returns a constant or a global |
-| 0x00576cf0 | 11 | unlabelled |  |
+| 0x00576cf0 | 11 | folded | zUtil and zVideo entries the port does its own way, covered where named: the CRC table's start (app_engine.cpp:314), the search paths' free (app_engine.cpp:323), the mode switch (video_set_mode, app_engine.cpp:724), the frame and lab clears (app_engine.h:196, 562) |
 | 0x00576d70 | 8 | folded | returns a constant or a global |
 | 0x00576d80 | 8 | folded | returns a constant or a global |
 | 0x00576d90 | 8 | folded | returns a constant or a global |
 | 0x00576da0 | 8 | folded | returns a constant or a global |
 | 0x00576db0 | 8 | folded | returns a constant or a global |
 | 0x00576dc0 | 8 | folded | returns a constant or a global |
-| 0x00576dd0 | 11 | unlabelled |  |
-| 0x00576de0 | 17 | unlabelled |  |
-| 0x00576e70 | 11 | unlabelled |  |
-| 0x00576e80 | 11 | unlabelled |  |
-| 0x00576e90 | 11 | unlabelled |  |
-| 0x00576ea0 | 12 | unlabelled |  |
-| 0x00576ed0 | 12 | unlabelled |  |
-| 0x00576ee0 | 24 | unlabelled |  |
-| 0x00576f70 | 19 | unlabelled |  |
+| 0x00576dd0 | 11 | folded | zUtil and zVideo entries the port does its own way, covered where named: the CRC table's start (app_engine.cpp:314), the search paths' free (app_engine.cpp:323), the mode switch (video_set_mode, app_engine.cpp:724), the frame and lab clears (app_engine.h:196, 562) |
+| 0x00576de0 | 17 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
+| 0x00576e70 | 11 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
+| 0x00576e80 | 11 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
+| 0x00576e90 | 11 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
+| 0x00576ea0 | 12 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
+| 0x00576ed0 | 12 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
+| 0x00576ee0 | 24 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
+| 0x00576f70 | 19 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 
 ### zeffect (20 not ported)
 
@@ -3912,19 +3914,19 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00508ee0 | 9 | folded | a thunk: one call to another function |
 | 0x00508f20 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_callback: +0x6c |
 | 0x00508f30 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_record: +0x70 |
-| 0x0050b4e0 | 32 | unlabelled |  |
+| 0x0050b4e0 | 32 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x0050b600 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:239) |
 | 0x0050b620 | 8 | folded | empty: does nothing |
 | 0x0050b650 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_init.cpp:746) |
-| 0x0050d1e0 | 13 | unlabelled |  |
-| 0x0050d1f0 | 13 | unlabelled |  |
+| 0x0050d1e0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0050d1f0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x0050d260 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_save.cpp:281) |
-| 0x0050d610 | 26 | unlabelled |  |
-| 0x0050d6a0 | 45 | unlabelled |  |
-| 0x0050d7a0 | 16 | unlabelled |  |
+| 0x0050d610 | 26 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
+| 0x0050d6a0 | 45 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
+| 0x0050d7a0 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
 | 0x0050d820 | 22 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:50) |
-| 0x0050d880 | 37 | unlabelled |  |
-| 0x0050da50 | 16 | unlabelled |  |
+| 0x0050d880 | 37 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
+| 0x0050da50 | 16 | replaced (SDL or the platform layer) | mech3.err (0x0050da50): the port's error reports go to stderr (app_engine.cpp:562) |
 
 ### zweapon (19 not ported)
 
@@ -3938,17 +3940,17 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00586d80 | 9 | folded | a thunk: one call to another function |
 | 0x00586db0 | 9 | folded | follows 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x00586dc0 | 9 | folded | a thunk: one call to another function |
-| 0x00586de0 | 15 | unlabelled |  |
+| 0x00586de0 | 15 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
 | 0x00586e00 | 8 | folded | returns a constant or a global |
 | 0x00586ed0 | 21 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:64) |
-| 0x00586f30 | 18 | unlabelled |  |
-| 0x005870c0 | 32 | unlabelled |  |
-| 0x00587140 | 80 | unlabelled |  |
+| 0x00586f30 | 18 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+| 0x005870c0 | 32 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+| 0x00587140 | 80 | folded | the game list's search, ours in the ENet transport (net_enet.cpp:441) |
 | 0x005872a0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:59) |
-| 0x00587300 | 29 | unlabelled |  |
+| 0x00587300 | 29 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
 | 0x00587370 | 31 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:96) |
-| 0x005873f0 | 33 | unlabelled |  |
-| 0x00587450 | 19 | unlabelled |  |
+| 0x005873f0 | 33 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+| 0x00587450 | 19 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
 
 ### zgeometry (15 not ported)
 
@@ -3961,23 +3963,23 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00515aa0 | 28 | folded | covered by the port where it names it (src/gamez/zgeometry/zgeo_convexify.cpp:133) |
 | 0x00515f00 | 9 | folded | a thunk: one call to another function |
 | 0x00516290 | 19 | folded | covered by the port where it names it (src/gamez/zgeometry/zgeo_convexify.h:13) |
-| 0x00516f00 | 12 | unlabelled |  |
-| 0x00516f20 | 9 | unlabelled |  |
-| 0x00516f30 | 10 | unlabelled |  |
-| 0x00516f50 | 13 | unlabelled |  |
-| 0x00516f80 | 29 | unlabelled |  |
-| 0x00516ff0 | 92 | unlabelled |  |
-| 0x00517230 | 15 | unlabelled |  |
-| 0x00517250 | 21 | unlabelled |  |
+| 0x00516f00 | 12 | folded | zImage's start, stop and per-mission entries, covered where named: shutdown (memory only, app_engine.cpp:324), the texture group begin (app_mission.cpp:1912), the textures' free (app_mission.cpp:1874), the texture directory as the 2D host's mounts (sdl_twod_host.cpp:205, FIX (A)) |
+| 0x00516f20 | 9 | folded | zImage's start, stop and per-mission entries, covered where named: shutdown (memory only, app_engine.cpp:324), the texture group begin (app_mission.cpp:1912), the textures' free (app_mission.cpp:1874), the texture directory as the 2D host's mounts (sdl_twod_host.cpp:205, FIX (A)) |
+| 0x00516f30 | 10 | folded | zImage's start, stop and per-mission entries, covered where named: shutdown (memory only, app_engine.cpp:324), the texture group begin (app_mission.cpp:1912), the textures' free (app_mission.cpp:1874), the texture directory as the 2D host's mounts (sdl_twod_host.cpp:205, FIX (A)) |
+| 0x00516f50 | 13 | folded | zImage's start, stop and per-mission entries, covered where named: shutdown (memory only, app_engine.cpp:324), the texture group begin (app_mission.cpp:1912), the textures' free (app_mission.cpp:1874), the texture directory as the 2D host's mounts (sdl_twod_host.cpp:205, FIX (A)) |
+| 0x00516f80 | 29 | replaced (SDL or the platform layer) | zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
+| 0x00516ff0 | 92 | replaced (SDL or the platform layer) | zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
+| 0x00517230 | 15 | replaced (SDL or the platform layer) | zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
+| 0x00517250 | 21 | replaced (SDL or the platform layer) | zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
 ### zsiscript (4 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x005a9990 | 23 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:413) |
-| 0x005a9bc0 | 34 | unlabelled |  |
-| 0x005a9e10 | 167 | unlabelled |  |
-| 0x005aa210 | 18 | unlabelled |  |
+| 0x005a9bc0 | 34 | debug or dev tool: PORT (preserve) | the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
+| 0x005a9e10 | 167 | debug or dev tool: PORT (preserve) | the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
+| 0x005aa210 | 18 | debug or dev tool: PORT (preserve) | the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 
 ### zerror (1 not ported)
 
