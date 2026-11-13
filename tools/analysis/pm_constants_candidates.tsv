@@ -301,3 +301,34 @@
 0x005c9280	0x005a7280	104	src/gamez/ztwod/twod_msgbox.cpp (shared: MW3 0x005a7280)	MW3 []	PM [5]	int
 0x005c9bb0	0x005a7b50	48	src/gamez/ztwod/twod_object.cpp (shared: MW3 0x005a7b50)	MW3 [484]	PM [168]	int
 0x005cd090	0x005aa3b0	27	src/gamez/zsiscript/si_script.cpp (shared: MW3 0x005aa3b0)	MW3 [467]	PM [4, 12, 455]	int
+# integers the shift filter caught in gameplay modules with no size, switch or message context (back from pm_constants_shifted.tsv):
+0x00415fc0	0x004154e0	159	src/mech3/mech_repair.cpp (shared: MW3 0x004154e0)	64 -> 68	int, shifted
+0x00416710	0x00415ca0	83	src/mech3/mech_build.cpp (shared: MW3 0x00415ca0)	768 -> 796	int, shifted
+0x0041cad0	0x0041be80	465	src/mech3/app_hud.cpp (shared: MW3 0x0041be80)	72 -> 152 ; 106 -> 167	int, shifted
+0x00430c10	0x004308a0	97	src/mech3/mech_data.cpp (shared: MW3 0x004308a0)	226 -> 244	int, shifted
+0x00431e20	0x00431a70	182	src/mech3/mech_data.cpp (shared: MW3 0x00431a70)	795 -> 822 ; 800 -> 827	int, shifted
+0x0043c900	0x0043b860	86	src/mech3/hud.cpp (shared: MW3 0x0043b860)	2624 -> 2640 ; 4384 -> 4408	int, shifted
+0x00447ae0	0x00445f80	44	src/mech3/hud.cpp (shared: MW3 0x00445f80)	110 -> 162 ; 4384 -> 4408	int, shifted
+0x00449890	0x00448070	29	src/mech3/hud.cpp (shared: MW3 0x00448070)	2624 -> 2640	int, shifted
+0x00463380	0x00461d80	123	src/mech3/mech_parts.cpp (shared: MW3 0x00461d80)	1188 -> 1287	int, shifted
+0x0046d690	0x0046ba40	797	src/mech3/mech_reader.cpp (shared: MW3 0x0046ba40)	362 -> 399 ; 392 -> 429 ; 400 -> 437	int, shifted
+0x00477c80	0x00476320	86	src/mech3/mech_skis.cpp (shared: MW3 0x00476320)	70 -> 77	int, shifted
+0x00477f90	0x004765b0	693	src/mech3/mech_skis.cpp (shared: MW3 0x004765b0)	493 -> 537 ; 2247 -> 2471	int, shifted
+0x0047f870	0x0047d3b0	206	src/mech3/salvage_screen.cpp (shared: MW3 0x0047d3b0)	1696 -> 1704	int, shifted
+0x00492130	0x0048f400	14	src/mech3/mission.cpp (shared: MW3 0x0048f400)	113 -> 121 ; 114 -> 122	int, shifted
+0x004a0e10	0x0049dc80	385	src/mech3/player.cpp (shared: MW3 0x0049dc80)	335 -> 339 ; 340 -> 344	int, shifted
+0x004a1730	0x0049e540	33	src/mech3/player.cpp (shared: MW3 0x0049e540)	390 -> 402	int, shifted
+0x004a2220	0x0049ef40	318	src/mech3/veh_controls.cpp (shared: MW3 0x0049ef40)	727 -> 738 ; 742 -> 753 ; 974 -> 985	int, shifted
+0x004a2bd0	0x0049ff10	27	src/mech3/player.cpp (shared: MW3 0x0049ff10)	3288 -> 3360	int, shifted
+0x004a2c40	0x0049f8a0	55	src/mech3/player.cpp (shared: MW3 0x0049f8a0)	1059 -> 1070	int, shifted
+0x004a2dc0	0x0049fa20	102	src/mech3/player.cpp (shared: MW3 0x0049fa20)	1113 -> 1124 ; 1120 -> 1131 ; 1128 -> 1139 ; 1141 -> 1152	int, shifted
+0x004a5780	0x004a23f0	184	src/mech3/veh_move.cpp (shared: MW3 0x004a23f0)	1284 -> 1412	int, shifted
+0x004a95f0	0x004a6270	413	src/mech3/turret.cpp (shared: MW3 0x004a6270)	545 -> 549 ; 550 -> 554	int, shifted
+0x004aabe0	0x004a76b0	119	src/mech3/turret.cpp (shared: MW3 0x004a76b0)	1159 -> 1210	int, shifted
+0x004afec0	0x004ac530	55	src/mech3/veh_basic_object.cpp (shared: MW3 0x004ac530)	2672 -> 2708	int, shifted
+0x004b1220	0x004ad930	72	src/mech3/veh_basic_object.cpp (shared: MW3 0x004ad930)	856 -> 869	int, shifted
+0x004b87c0	0x004b4660	104	src/mech3/weapon.cpp (shared: MW3 0x004b4660)	3476 -> 3718 ; 3479 -> 3721 ; 3482 -> 3724	int, shifted
+0x005a2ae0	0x005814b0	375	src/gamez/zweapon/zwep_beam.cpp (shared: MW3 0x005814b0)	373 -> 406	int, shifted
+0x005a37a0	0x005820c0	59	src/gamez/zweapon/zwep_shot.cpp (shared: MW3 0x005820c0)	373 -> 406	int, shifted
+0x005a52e0	0x00583880	521	src/gamez/zweapon/zwep_init.cpp (shared: MW3 0x00583880)	92 -> 100 ; 205 -> 219 ; 218 -> 232 ; 226 -> 240 ; 808 -> 822	int, shifted
+# gameplay values over 100,000 (checked: sizes, colours or float bit patterns, no ms timer): 0x0041cad0 536887755; 0x00430e60 142912/143740; 0x004311e0 -83868910; 0x0043e590 1592856; 0x0044a280 111720/113056; 0x0045d7a0 -1869574000; 0x00474810 -134199480; 0x004b56d0 2139095039; 0x004d3820 1321528399/1808407283 and 5 more

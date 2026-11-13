@@ -387,7 +387,6 @@
 0x005c5890	folded	inside its ported callers (0x004879a0): a small helper their ports do their own way
 0x005c9590	folded	inside its ported callers (0x0048cec0): a small helper their ports do their own way
 0x005cb320	folded	inside its ported callers (0x004e37d0): a small helper their ports do their own way
-0x005404f0	folded	read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers
 0x00557be0	folded	read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers
 0x00566380	folded	read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers
 0x005667e0	folded	read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers
@@ -455,7 +454,6 @@
 0x00407120	unsure	read with group A: a callee of shared ports PM changed (0x004060d0); whether the port does PM's version, this call included, is settled there
 0x00408360	unsure	read with group A: a callee of shared ports PM changed (0x0043c900); whether the port does PM's version, this call included, is settled there
 0x00408580	unsure	read with group A: a callee of shared ports PM changed (0x004311e0, 0x004b0790); whether the port does PM's version, this call included, is settled there
-0x00408d00	unsure	read with group A: a callee of shared ports PM changed (0x00408b20); whether the port does PM's version, this call included, is settled there
 0x0040a870	unsure	read with group A: a callee of shared ports PM changed (0x004826e0, 0x00483700); whether the port does PM's version, this call included, is settled there
 0x0040a920	unsure	read with group A: a callee of shared ports PM changed (0x0043af70, 0x004824d0); whether the port does PM's version, this call included, is settled there
 0x00414ba0	unsure	read with group A: a callee of shared ports PM changed (0x00415190, 0x0046f510, 0x00494500); whether the port does PM's version, this call included, is settled there
@@ -660,3 +658,6 @@
 0x0040b120	missing	a PM value the shared port keeps as MW3's (pm only): the object detail's level 2 sets the camera's LOD scale to 0.2 in PM (0x3e4ccccd), 0.4 in MW3 (options.cpp:260, cam_scale)
 0x004311e0	missing	PM values the shared port keeps as MW3's (pm only): the god camera (mode 3) at 120 m and pitched -81 degrees (-1.413716) in PM, 150 m and -90 degrees in MW3 (player_view.cpp:446-447)
 0x004b0790	missing	a PM value the shared port keeps as MW3's (pm only): the vehicle's above camera pitched -81 degrees (-1.413716) in PM, -90 in MW3; its 150 m the same in both (veh_basic_object.cpp:500)
+0x00408b20	missing	PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog
+0x005404f0	unsure	PM's renderer water mode ([0x00a4e038]: 2 under water, kept until set to 0; 1 not), set by PM's set_underwater 0x00408d00 and two more; the shared set_underwater (player_view.cpp:820) never sets it; what reads the mode is to check
+0x00408d00	unsure	PM's renderer water mode ([0x00a4e038]: 2 under water, kept until set to 0; 1 not), set by PM's set_underwater 0x00408d00 and two more; the shared set_underwater (player_view.cpp:820) never sets it; what reads the mode is to check

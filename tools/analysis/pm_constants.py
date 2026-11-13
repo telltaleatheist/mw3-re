@@ -173,3 +173,60 @@ if len(sys.argv) > 2:
             ni += 1
             si.write(f"{r['addr']}\t{r['mw3']}\t{r['lines']}\t{r['ported_in'][:60]}\tMW3 {om[:10]}\tPM {op_[:10]}\n")
     print(ni, 'functions whose integer values differ as sets')
+
+# The integer sets' shift filter, kept only where the value is a size or an
+# id (lead, 2026-11-13): pushed before operator new / malloc / calloc, a
+# switch's case base (cmp, ja, then the jump table), or pushed before the
+# message lookup. Every pair the filter caught goes to pm_constants_shifted.tsv
+# with its reason; in gameplay modules the unexplained ones are candidates.
+if len(sys.argv) > 2:
+    NEW_PM, NEW_MW = 0x5ce8c6, 0x5abd26
+    ALLOC_IAT = ('0x5de664', '0x5de60c', '0x5bb664', '0x5bb60c')
+    MSG_MW = 0x576040
+    MSG_PM = int(am['functions'].get(hex(MSG_MW), '0x0'), 16)
+    def ctx_ints(ops, srt, a, end, exe, new_thunk, msg):
+        vals = {}
+        idx = list(range(bisect.bisect_left(srt, a), bisect.bisect_left(srt, end)))
+        for n_, j in enumerate(idx):
+            ins = ops[srt[j]]
+            mnem = ins.split()[0] if ins else ''
+            if mnem not in ('cmp', 'mov', 'push'): continue
+            m = re.search(r'(?:,\s*|push\s+)(0x[0-9a-f]+|\d+)$', ins)
+            if not m: continue
+            v = int(m.group(1), 0)
+            if v >= 0x80000000: v -= 1 << 32
+            if 0x400000 <= (v & 0xffffffff) < 0xb00000 or v in (0, 1, -1, 2): continue
+            if abs(v) >= 0x10000 and is_float(struct.pack('<I', v & 0xffffffff)): continue
+            nxt = [ops[srt[k]] for k in idx[n_ + 1:n_ + 5]]
+            why = ''
+            if mnem == 'push' and any(re.search(r'call\s+0x%x\b' % new_thunk, x) or any(i_ in x for i_ in ALLOC_IAT) for x in nxt[:3]): why = 'size'
+            elif mnem == 'cmp' and len(nxt) > 1 and nxt[0].startswith('ja') and 'jmp' in nxt[1] and '*4' in nxt[1].replace(' ', ''): why = 'switch'
+            elif mnem == 'push' and msg and any(re.search(r'call\s+0x%x\b' % msg, x) for x in nxt[:3]): why = 'message id'
+            vals.setdefault(v, why or vals.get(v, ''))
+        return vals
+    GAMEPLAY = ('weapon', 'mech_', 'zai_', 'hud', 'player', 'mission', 'salvage', 'pilot', 'veh_', 'turret', 'zweapon', 'landmine')
+    sh = open(sys.argv[2].replace('.tsv', '_shifted.tsv'), 'w')
+    cand = open(sys.argv[2].replace('.tsv', '_ints_back.tsv'), 'w'); nb = 0; big = []
+    for r in rows:
+        if (r['status'] != 'changed' and r['addr'] not in extra) or not r['mw3']: continue
+        a, m = int(r['addr'], 16), int(r['mw3'], 16)
+        i = bisect.bisect_right(starts, a); pe_ = starts[i] if i < len(starts) else a + 0x1000
+        k = bisect.bisect_right(mw_starts, m); me_ = mw_starts[k] if k < len(mw_starts) else m + 0x1000
+        pv = ctx_ints(pmops, pm_sorted, a, pe_, pmx, NEW_PM, MSG_PM)
+        mv = ctx_ints(mwops, mw_sorted, m, me_, mw3x, NEW_MW, MSG_MW)
+        gp = any(g in r['ported_in'] for g in GAMEPLAY)
+        om, op_ = sorted(set(mv) - set(pv)), sorted(set(pv) - set(mv))
+        for v in om + op_:
+            if abs(v) >= 100000 and gp: big.append((r['addr'], v))
+        used = set(); back = []
+        for v in [x for x in om if abs(x) < 100000]:
+            s = [p for p in op_ if p not in used and 0 < p - v <= 256 and v >= 64 and abs(p) < 100000]
+            if not s: continue
+            p = s[0]; used.add(p)
+            why = mv[v] or pv[p]
+            sh.write(f"{r['addr']}\t{r['mw3']}\t{r['ported_in'][:50]}\t{v} -> {p}\t{why or 'unexplained'}\n")
+            if not why and gp: back.append(f'{v} -> {p}')
+        if back:
+            nb += 1
+            cand.write(f"{r['addr']}\t{r['mw3']}\t{r['lines']}\t{r['ported_in'][:60]}\t{' ; '.join(back)}\tint, shifted\n")
+    print(nb, 'gameplay functions with shifted values the filter cannot explain;', len(big), 'gameplay values over 100000:', big[:12])
