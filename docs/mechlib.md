@@ -192,10 +192,26 @@ the shadow fill (`gmod_cull.cpp:269`), the ground, point and segment tests
 tested are the same either way, and the GPU path draws the same picture
 without it. What changes is the polygon order and count. The ground and
 segment tests stop at the first polygon that covers every probe and cache its
-index (+0x58), so where two upward faces of a mech lie over the same probe,
-the first one found, and the hits recorded before it, can differ. Whether that
-shows in play (mech-on-mech probes, shots on mechs) is not measured; see
-`docs/port-audit.md`. Not ported.
+index (+0x58), so where two faces of a mech lie under the same probe or along
+the same shot, the first one found, and the hits recorded before it, can
+differ. A strip also splits a quad along its other diagonal (a quad 0-1-2-3
+drawn as a fan splits on 0-2; the strip often on 1-3), which moves a
+non-planar quad's surface by millimetres, in the picture too.
+
+Measured (`tests/differential/explore/strip_hits.py`, 53-bit): the original
+stripper run in the emulator on all 770 models changes 302 (10,589 polygons
+become 9,046). The port's model_ground and model_segments (the exe's, bit for
+bit, strips included: `test_di.py`) on each model before and after, over a
+12 by 12 grid of single and seven-probe ground sets at two tops and five
+shots per point, each side keeping its own cache: of 434,880 queries 90,172
+differ in some bit (mostly rounding), 9,860 by more than 1 mm in a hit, and
+5,011 on 126 models in the answer a caller takes (the highest ground hit,
+the nearest crossing). The largest are a different face: on
+`mech_thor_1.flt` a probe from above stops at a face 1.5 m lower, and a
+level shot meets a face a metre further in. So the port, which keeps the
+reader's polygons, answers as the original's software mode, not as its
+hardware mode. To port (queued after the port audit): load-time, checked
+model by model against the exe.
 
 ## Closing
 

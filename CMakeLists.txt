@@ -474,6 +474,7 @@ add_library(mw3probe SHARED
   tests/probe_drawtable.cpp
   tests/probe_matrix.cpp
   tests/probe_screen.cpp
+  tests/probe_strips.cpp
   tests/probe_ripple.cpp
   tests/probe_cycle.cpp
   tests/probe_cockpit_sound.cpp
