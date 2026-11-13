@@ -406,7 +406,6 @@
 0x005c57d0	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x00514120	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x004a7420	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-0x004ab480	unsure	group A: paired by its call site with MW3 0x004a7f30 (the shared port's call there); a changed pair, settled by group A's rules
 0x004b6e80	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x00506390	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x0050a550	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
@@ -431,7 +430,6 @@
 0x0040a870	unsure	read with group A: a callee of shared ports PM changed (0x004826e0, 0x00483700); whether the port does PM's version, this call included, is settled there
 0x0040a920	unsure	read with group A: a callee of shared ports PM changed (0x0043af70, 0x004824d0); whether the port does PM's version, this call included, is settled there
 0x00414ba0	unsure	read with group A: a callee of shared ports PM changed (0x00415190, 0x0046f510, 0x00494500); whether the port does PM's version, this call included, is settled there
-0x0047b740	unsure	read with group A: a callee of shared ports PM changed (0x004916c0, 0x00492490, 0x00494e70); whether the port does PM's version, this call included, is settled there
 0x004854e0	unsure	read with group A: a callee of shared ports PM changed (0x004826e0); whether the port does PM's version, this call included, is settled there
 0x00488470	unsure	read with group A: a callee of shared ports PM changed (0x00404d70, 0x0042a5e0, 0x0042bb80); whether the port does PM's version, this call included, is settled there
 0x0048bdf0	unsure	read with group A: a callee of shared ports PM changed (0x004916c0); whether the port does PM's version, this call included, is settled there
@@ -439,25 +437,14 @@
 0x0048fd90	unsure	read with group A: a callee of shared ports PM changed (0x0048f240, 0x0048f2a0); whether the port does PM's version, this call included, is settled there
 0x00491ea0	unsure	read with group A: a callee of shared ports PM changed (0x0048f240); whether the port does PM's version, this call included, is settled there
 0x004936f0	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
-0x0049d130	unsure	read with group A: a callee of shared ports PM changed (0x0049cf60); whether the port does PM's version, this call included, is settled there
 0x0049db90	unsure	read with group A: a callee of shared ports PM changed (0x0049fed0); whether the port does PM's version, this call included, is settled there
 0x004a0120	unsure	read with group A: a callee of shared ports PM changed (0x00489380); whether the port does PM's version, this call included, is settled there
-0x004a0dd0	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
-0x004a6ec0	unsure	read with group A: a callee of shared ports PM changed (0x0046d690); whether the port does PM's version, this call included, is settled there
 0x004a70c0	unsure	read with group A: a callee of shared ports PM changed (0x004b1030); whether the port does PM's version, this call included, is settled there
 0x004a71f0	unsure	read with group A: a callee of shared ports PM changed (0x004b10b0); whether the port does PM's version, this call included, is settled there
 0x004a7390	unsure	read with group A: a callee of shared ports PM changed (0x004a2220, 0x004a95f0); whether the port does PM's version, this call included, is settled there
-0x004abc60	unsure	read with group A: a callee of shared ports PM changed (0x004ac1e0); whether the port does PM's version, this call included, is settled there
-0x004ac9d0	unsure	read with group A: a callee of shared ports PM changed (0x004ac7b0); whether the port does PM's version, this call included, is settled there
-0x004ace80	unsure	read with group A: a callee of shared ports PM changed (0x004acb90, 0x004acff0); whether the port does PM's version, this call included, is settled there
-0x004acec0	unsure	read with group A: a callee of shared ports PM changed (0x004acb90, 0x004acff0); whether the port does PM's version, this call included, is settled there
-0x004acf00	unsure	read with group A: a callee of shared ports PM changed (0x004acb90); whether the port does PM's version, this call included, is settled there
-0x004ad840	unsure	read with group A: a callee of shared ports PM changed (0x004ad5c0); whether the port does PM's version, this call included, is settled there
 0x004add70	unsure	read with group A: a callee of shared ports PM changed (0x004ac1e0); whether the port does PM's version, this call included, is settled there
 0x004adfd0	unsure	read with group A: a callee of shared ports PM changed (0x004aba80, 0x004abe80); whether the port does PM's version, this call included, is settled there
-0x004aecf0	unsure	read with group A: a callee of shared ports PM changed (0x004ad5c0); whether the port does PM's version, this call included, is settled there
 0x004af9f0	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x00488c40); whether the port does PM's version, this call included, is settled there
-0x004b31b0	unsure	read with group A: a callee of shared ports PM changed (0x004826e0); whether the port does PM's version, this call included, is settled there
 0x004b4560	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0, 0x004b43a0, 0x004b4480); whether the port does PM's version, this call included, is settled there
 0x004b5f80	unsure	read with group A: a callee of shared ports PM changed (0x004b4a90); whether the port does PM's version, this call included, is settled there
 0x004b67e0	unsure	read with group A: a callee of shared ports PM changed (0x004b64f0, 0x004b6820); whether the port does PM's version, this call included, is settled there
@@ -614,7 +601,6 @@
 0x00481e20	folded	group A, read: PM's InitInstance, covered by app.cpp's PM notes (the MechWarrior 3 EP1 settings key :191, DefaultCmdMap :192, the standalone missions :195, detail.zrd :196); the message DLL by name, which the port reads as a file
 0x00482140	folded	group A, read: imports only (the C runtime's), the logic as the shared port
 0x00485620	folded	group A, read: PM's command line: -noclutter is not offered (app_mission.cpp:2244, the low detail stands in), -verbose is the port's own, the CD check and mech3.err dropped as MW3's FIX (A); PM's added 0x00527230 to read
-0x00482240	unsure	group A, read: PM's app defaults (0x0047fb80's): no default mech name where MW3 sets 'bushwacker' (app.cpp:72 keeps it), the flags on PM's layout (+0x1a8.. ones, three 1.0 floats); the default mech reaches only a start straight into a mission
 0x00483700	folded	group A, read: the Core state's start as the shared port (app_states.cpp:271-296): MW3 plays mech_powerup too (its string passed in a register, so the decomp shows none); PM's 0x0040a870 for MW3's option reads
 0x0048d110	folded	group A, read: the frame's video calls are PM's Direct3D 2D path (0x00597d20.., 0x005c0450.., replaced by the SDL layer, as the 0x005c0320 row) where MW3's are DirectDraw's (0x00576d60, 0x00576e70, 0x00576ea0); the rest as the shared port
 0x004848a0	folded	group A, read: the frame's video calls are PM's Direct3D 2D path (0x00597d20.., 0x005c0450.., replaced by the SDL layer, as the 0x005c0320 row) where MW3's are DirectDraw's (0x00576d60, 0x00576e70, 0x00576ea0); the rest as the shared port
@@ -2558,3 +2544,19 @@
 0x004773a0	folded	read with its caller (the mech data load 0x00430c10): the definition's skins put on the model by its first entry (MW3 0x00475780, the port's skins_apply, mech_data.cpp:371)
 0x0047be40	missing	pm only, field bases: the MCB waynet's nearest point (0x0047c960, MW3 0x0047a680, the port's McbWaynet::nearest, mech_waynet.cpp:312): PM walks the waynet's points itself (0x0047be40 with 0x0047bdc0 / 0x0047bde0) and takes the nearest whose hidden byte (+0x11) is clear, selecting nothing when none is; MW3's (0x00479b50, the port's Waynet::nearest, mech_waynet.cpp:195) asks the net's nearest step and falls back to the current point. PM hides the dock points that aren't static MFBs as it counts them (the port's dock_count, mech_waynet.cpp:417), so on PM the port can pick a hidden point where PM would not
 0x0047c800	folded	read: a waynet point's label set (the old one freed, the new one copied, none cleared); the port's WaynetPoint keeps its label as a string
+0x0047b740	folded	read: the pilot's training game (its +0x78 when asked, else the current game when its type is 4), PM's getter for the win's next lesson; its callers are ported as PM's (mission.cpp:572 Missions::complete, the training lessons)
+0x00482240	debug	read: PM's app defaults (MW3 0x0047fb80): no default mech name where MW3 sets 'bushwacker' (app.cpp:72 keeps it), the flags at PM's layout (+0x1a8.., three 1.0 floats); the default mech is reached only by a start straight into a mission (the developers' route), so it shows nowhere in play
+0x004b31b0	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x0049d130	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x004a0dd0	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x004a6ec0	folded	checked by test (block trace, 2026-11-13): test_pm_firepoints calls it (an aim cone's constructor, two vectors and the cone set) with the aim cone 0x004a6ee0, floats compared within 1e-5; test_pm_archives / config run it in the loadout reads
+0x004ab480	folded	read: the same loop as MW3's 0x004a7cd0 walk (the first match taken and kept at +8), PM's breaking where MW3's tests in the condition
+0x004abc60	missing	pm only, minor, sensors: PM's sensor frame set-up (0x004abc60, MW3's 0x004a8710, inside the update 0x004ac1e0 / MW3 0x004a8cd0) adds the player and handles the stealth but not the view target; PM's per-entity add (0x004ac6c0, MW3 0x004a91b0) skips only the player and the stealth, so a viewed vehicle that isn't the player comes in list order and only when its vehicle answers vt+0xd8. MW3 adds the view second, whatever its answer, and the port does as MW3 (sensors.cpp:482-485, and the loop's skip of the view at :487); the order sets which pairs run first (the player's, the lancemates', the rest)
+0x004abe80	folded	read: MW3's 0x004a8990 unpaired by the diff (a vehicle added to the sensor frame: its records grown, the entity's made), called where MW3's set-up calls it (0x004abc60)
+0x004acec0	missing	pm only, sensors, the same rule as 0x004ad2b0: the range test of the player's and the lancemates' passes (0x004acb90 / 0x004acff0, MW3 0x004a9680 / 0x004a9a60): sensed when everything is shown, or within range, or when the sensing record has bit 8 (a C3 master) and the other bit 0x10 (a C3 slave), at any range; the port's in_range (sensors.cpp:85) has the first two only
+0x004ace80	folded	read: a contact made (0x004aca30, labelled there) and pushed on the sensing record's list; the wrapper's own steps are MW3's
+0x004acf00	missing	pm only, sensors, the same rule as 0x004ad2b0 for the other direction (the other vehicle sensing the player or the lancemate): within range, everything shown, or C3 master and slave at any range; then MW3's side tests for the contact's kind
+0x004ad5c0	missing	pm only, sensors, with 0x004ad2b0's C3 rules: PM's C3 merge (0x004ad5c0, MW3 0x004a9fd0) puts into a master's list only what its C3 slaves saw (the other record's bit 0x10); MW3's merges every C3 unit's, masters too (bits 0x18), and the port does as MW3 (c3_merge, sensors.cpp:373)
+0x004ad840	folded	read: the C3 merge's contact copy for the union (a contact taken over into the master's list, its box and distance from the master's vehicle), the steps MW3's merge has inline (c3_contact, sensors.cpp); with 0x004ad5c0
+0x004aecf0	folded	read: the C3 merge's contact copy for the union (a contact taken over into the master's list, its box and distance from the master's vehicle), the steps MW3's merge has inline (c3_contact, sensors.cpp); with 0x004ad5c0
+0x004ac9d0	folded	read: the pair pass's side test (whether a contact of that kind counts: shown-all, the vehicle's vt+0xc0, the records' side bits), MW3's inline in 0x004a92c0 (the port's pair)
