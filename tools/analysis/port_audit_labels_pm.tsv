@@ -406,7 +406,6 @@
 0x005c57d0	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x00514120	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x004a7420	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-0x004b6e80	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x00506390	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x0050a550	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x0050b1c0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
@@ -442,12 +441,7 @@
 0x004a70c0	unsure	read with group A: a callee of shared ports PM changed (0x004b1030); whether the port does PM's version, this call included, is settled there
 0x004a71f0	unsure	read with group A: a callee of shared ports PM changed (0x004b10b0); whether the port does PM's version, this call included, is settled there
 0x004a7390	unsure	read with group A: a callee of shared ports PM changed (0x004a2220, 0x004a95f0); whether the port does PM's version, this call included, is settled there
-0x004add70	unsure	read with group A: a callee of shared ports PM changed (0x004ac1e0); whether the port does PM's version, this call included, is settled there
-0x004adfd0	unsure	read with group A: a callee of shared ports PM changed (0x004aba80, 0x004abe80); whether the port does PM's version, this call included, is settled there
 0x004af9f0	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x00488c40); whether the port does PM's version, this call included, is settled there
-0x004b4560	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0, 0x004b43a0, 0x004b4480); whether the port does PM's version, this call included, is settled there
-0x004b5f80	unsure	read with group A: a callee of shared ports PM changed (0x004b4a90); whether the port does PM's version, this call included, is settled there
-0x004b67e0	unsure	read with group A: a callee of shared ports PM changed (0x004b64f0, 0x004b6820); whether the port does PM's version, this call included, is settled there
 0x004f4d60	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
 0x004f6f00	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
 0x004f8e30	unsure	read with group A: a callee of shared ports PM changed (0x004f8f60); whether the port does PM's version, this call included, is settled there
@@ -2560,3 +2554,9 @@
 0x004ad840	folded	read: the C3 merge's contact copy for the union (a contact taken over into the master's list, its box and distance from the master's vehicle), the steps MW3's merge has inline (c3_contact, sensors.cpp); with 0x004ad5c0
 0x004aecf0	folded	read: the C3 merge's contact copy for the union (a contact taken over into the master's list, its box and distance from the master's vehicle), the steps MW3's merge has inline (c3_contact, sensors.cpp); with 0x004ad5c0
 0x004ac9d0	folded	read: the pair pass's side test (whether a contact of that kind counts: shown-all, the vehicle's vt+0xc0, the records' side bits), MW3's inline in 0x004a92c0 (the port's pair)
+0x004add70	folded	read: a vector's insert of n copies (the template instantiated for 4-byte contacts), container code; the port's std::vector
+0x004adfd0	folded	read: a vector's insert of n copies for the sensors' 0x44-byte records (MW3 0x004aaa10, the same template), its element copy 17 words; container code
+0x004b4560	missing	pm only, weapons: selecting a weapon group (0x004b4560, PM's in MW3's 0x004b0730 place, the port's WeaponManager::select_group, weapon.cpp:650): when the group's current weapon is not ready (0x004b7bd0, MW3's 0x004b3a20), PM moves the group on to its next ready weapon (0x004b5e10, MW3's 0x004b1f40) before the HUD's refresh; MW3 and the port keep the current one. Reached from the group keys, the mech build, the weapon planner and two weapon manager steps
+0x004b67e0	folded	read: a vector's size (0 for none), container code
+0x004b6e80	missing	pm only, weapons, the player's: PM's per-weapon enable (0x004b6e80, in MW3's 0x004b2f90 place, the port's Weapon::set_enabled, weapon.cpp:1310) adds a firing cone: for the player's own mech it runs the weapon's line to the aim point (0x004b7800 on the manager's +0x0c, the pm port's weapon_line, zai_firing_pm.cpp:922) and switches the weapon off when the cone clamps it (the line's cosine differs from the kept one). The water and side tests are MW3's. The port's set_enabled has only those two, so on PM the player's weapons that cannot bear on the aim point still fire
+0x004b5f80	missing	pm only, weapons, group fire (mode 2): PM's group trigger (0x004b5f80, in MW3's 0x004b2100 place, the port's WeaponGroup::trigger, weapon.cpp:455) fires the best-rated beam first, then each other weapon telling zWeapon whether its definition already fired in this volley (0x005a3680, MW3's 0x00581f90, the port's set_fire_animation): the first of a kind plays its FIRE animation, the repeats its second one (fire.animation2, zwep_shot.cpp:341). The port's trigger fires in order and never sets the choice, so every weapon of a kind plays the first animation; the beams' ground effect is cleared as MW3's

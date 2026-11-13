@@ -29,11 +29,11 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 2559 |
+| folded | 2562 |
 | unlabelled | 1721 |
 | replaced (SDL or the platform layer) | 223 |
-| UNSURE | 137 |
-| MISSING LOGIC | 135 |
+| MISSING LOGIC | 138 |
+| UNSURE | 131 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 107 |
 | software renderer | 106 |
 | debug or dev tool: PORT (preserve) | 84 |
@@ -68,7 +68,10 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x004acf00** (1 functions, 43 decomp lines; MISSING LOGIC): pm only, sensors, the same rule as 0x004ad2b0 for the other direction (the other vehicle sensing the player or the lancemate): within range, everything shown, or C3 master and slave at any range; then MW3's side tests for the contact's kind
 - **0x004ad5c0** (1 functions, 108 decomp lines; MISSING LOGIC): pm only, sensors, with 0x004ad2b0's C3 rules: PM's C3 merge (0x004ad5c0, MW3 0x004a9fd0) puts into a master's list only what its C3 slaves saw (the other record's bit 0x10); MW3's merges every C3 unit's, masters too (bits 0x18), and the port does as MW3 (c3_merge, sensors.cpp:373)
 - **0x004b0790** (1 functions, 76 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the vehicle's above camera pitched -81 degrees (-1.413716) in PM, -90 in MW3; its 150 m the same in both (veh_basic_object.cpp:500)
+- **0x004b4560** (1 functions, 39 decomp lines; MISSING LOGIC): pm only, weapons: selecting a weapon group (0x004b4560, PM's in MW3's 0x004b0730 place, the port's WeaponManager::select_group, weapon.cpp:650): when the group's current weapon is not ready (0x004b7bd0, MW3's 0x004b3a20), PM moves the group on to its next ready weapon (0x004b5e10, MW3's 0x004b1f40) before the HUD's refresh; MW3 and the port keep the current one. Reached from the group keys, the mech build, the weapon planner and two weapon manager steps
 - **0x004b5330, 0x004b8ce0** (2 functions, 124 decomp lines; MISSING LOGIC): pm only, AI: the volley planner's weapon test (weapon_planner.cpp:92 shot_of and add_weapon, through in_range's type_ready()): MW3's 0x004b4ba0 needs the weapon's owner, its definition and the reload time passed ([0x0060991c] >= def+0xc4, 0x004b4c70); PM's 0x004b8ce0 needs only the owner. So PM's burst record 0x004b5230 counts a reloading weapon's damage and PM's add-weapon 0x004b5330 takes it as a candidate and into its group's sums; the port keeps MW3's ready test on PM. Reached through PM's volley 0x004b56d0 (MW3 0x004b1860)
+- **0x004b5f80** (1 functions, 110 decomp lines; MISSING LOGIC): pm only, weapons, group fire (mode 2): PM's group trigger (0x004b5f80, in MW3's 0x004b2100 place, the port's WeaponGroup::trigger, weapon.cpp:455) fires the best-rated beam first, then each other weapon telling zWeapon whether its definition already fired in this volley (0x005a3680, MW3's 0x00581f90, the port's set_fire_animation): the first of a kind plays its FIRE animation, the repeats its second one (fire.animation2, zwep_shot.cpp:341). The port's trigger fires in order and never sets the choice, so every weapon of a kind plays the first animation; the beams' ground effect is cleared as MW3's
+- **0x004b6e80** (1 functions, 44 decomp lines; MISSING LOGIC): pm only, weapons, the player's: PM's per-weapon enable (0x004b6e80, in MW3's 0x004b2f90 place, the port's Weapon::set_enabled, weapon.cpp:1310) adds a firing cone: for the player's own mech it runs the weapon's line to the aim point (0x004b7800 on the manager's +0x0c, the pm port's weapon_line, zai_firing_pm.cpp:922) and switches the weapon off when the cone clamps it (the line's cosine differs from the kept one). The water and side tests are MW3's. The port's set_enabled has only those two, so on PM the player's weapons that cannot bear on the aim point still fire
 - **0x004bb6a0** (1 functions, 10 decomp lines; MISSING LOGIC): pm only, AI, traced: a shot that hits an ally (IControls vt+0x98, PM 0x004fbc00 as MW3's 0x004ea500) goes to PM's firing, 0x004bb6a0: the ally kept as the obstacle (+0x28), then PM's stand-down 0x004ba8c0, which keeps the plan when the firing has a name (+0x34 set, +0x30 = +0x10, +0x4c = 0) and otherwise rests, drops the plan, clears the aim and, with the vehicle's +0xd4 set, calls 0x004b4a20(0), phase 5. The port's ally hit (mech_control.cpp:636, zai_brain.h:632) goes to MW3's Firing (obstacle, stand_down: zai_firing.cpp:109), which PM's AI does not use (PM_AI=1 runs PM's firing record, zai_firing_pm.cpp, whose stand-down hook is the plan's end, not this); so under PM's AI an ally hit neither marks the obstacle nor stands the firing down
 - **0x004fd0d0, 0x004fd160, 0x004fd1f0** (3 functions, 39 decomp lines; MISSING LOGIC): PM's per-node light override in the model draw 0x00507f30 (pm only: the fix goes in PM's draw on the pm branch): node +0x2c bit 7 with an ambient value in bits 9..16 (0x004fd0d0 -> 0x0050e6f0), bit 8 with a diffuse value in bits 17..24 (0x004fd160 / 0x004fd1f0 -> 0x0050e7c0); the shared draw (camera.cpp:79) has none. Counted with the port's PM mechlib reader (probe_pm_mechlib_overrides, all 76 trees, 1,847 nodes): 24 nodes carry it, the cockpit 'grill' of every mech_*_hud.flt (+0x2c 0xb281 in the file: an ambient override of 0x59, no diffuse). No MW3 world or mechlib node and no PM world node sets these bits
 - **0x00507f30** (1 functions, 269 decomp lines; MISSING LOGIC): group A, read: PM's model draw (pm only): the per-node light override (node +0x2c, the cockpit grills; see 0x004fd0d0) and PM's fog mode test; the shared draw (camera.cpp:79) has neither
@@ -414,13 +417,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x004a70c0, 0x004aaf40 (2 functions, 20 decomp lines): read with group A: a callee of shared ports PM changed (0x004b1030); whether the port does PM's version, this call included, is settled there
 - 0x004a71f0, 0x004aaf80 (2 functions, 63 decomp lines): read with group A: a callee of shared ports PM changed (0x004b10b0); whether the port does PM's version, this call included, is settled there
 - 0x004a7390 (1 functions, 23 decomp lines): read with group A: a callee of shared ports PM changed (0x004a2220, 0x004a95f0); whether the port does PM's version, this call included, is settled there
-- 0x004a7420, 0x004b6e80, 0x00506390, 0x0050a550, 0x0050b1c0, 0x0050c3b0, 0x00515e40, 0x00533320, 0x00534380, 0x005a39c0 (10 functions, 312 decomp lines): group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-- 0x004add70 (1 functions, 100 decomp lines): read with group A: a callee of shared ports PM changed (0x004ac1e0); whether the port does PM's version, this call included, is settled there
-- 0x004adfd0 (1 functions, 138 decomp lines): read with group A: a callee of shared ports PM changed (0x004aba80, 0x004abe80); whether the port does PM's version, this call included, is settled there
+- 0x004a7420, 0x00506390, 0x0050a550, 0x0050b1c0, 0x0050c3b0, 0x00515e40, 0x00533320, 0x00534380, 0x005a39c0 (9 functions, 268 decomp lines): group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 - 0x004af9f0 (1 functions, 15 decomp lines): read with group A: a callee of shared ports PM changed (0x004838b0, 0x00488c40); whether the port does PM's version, this call included, is settled there
-- 0x004b4560 (1 functions, 39 decomp lines): read with group A: a callee of shared ports PM changed (0x0041cad0, 0x004b43a0, 0x004b4480); whether the port does PM's version, this call included, is settled there
-- 0x004b5f80 (1 functions, 110 decomp lines): read with group A: a callee of shared ports PM changed (0x004b4a90); whether the port does PM's version, this call included, is settled there
-- 0x004b67e0 (1 functions, 14 decomp lines): read with group A: a callee of shared ports PM changed (0x004b64f0, 0x004b6820); whether the port does PM's version, this call included, is settled there
 - 0x004d4000 (1 functions, 12 decomp lines): as MW3 0x004c9140: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d4080 (1 functions, 55 decomp lines): as MW3 0x004c9180: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d4170 (1 functions, 20 decomp lines): as MW3 0x004c9260: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots
@@ -2490,8 +2488,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004adcd0 | 11 | unlabelled |  |
 | 0x004add00 | 11 | folded | as MW3 0x004aa9a0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004add30 | 16 | folded | as MW3 0x004aa9d0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004add70 | 100 | UNSURE | read with group A: a callee of shared ports PM changed (0x004ac1e0); whether the port does PM's version, this call included, is settled there |
-| 0x004adfd0 | 138 | UNSURE | read with group A: a callee of shared ports PM changed (0x004aba80, 0x004abe80); whether the port does PM's version, this call included, is settled there |
+| 0x004add70 | 100 | folded | read: a vector's insert of n copies (the template instantiated for 4-byte contacts), container code; the port's std::vector |
+| 0x004adfd0 | 138 | folded | read: a vector's insert of n copies for the sensors' 0x44-byte records (MW3 0x004aaa10, the same template), its element copy 17 words; container code |
 | 0x004ae370 | 120 | unlabelled |  |
 | 0x004ae570 | 58 | folded | as MW3 0x004ab0f0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004ae670 | 120 | unlabelled |  |
@@ -2604,7 +2602,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004b3d60 | 48 | unlabelled |  |
 | 0x004b43a0 | 52 | unlabelled |  |
 | 0x004b4480 | 52 | unlabelled |  |
-| 0x004b4560 | 39 | UNSURE | read with group A: a callee of shared ports PM changed (0x0041cad0, 0x004b43a0, 0x004b4480); whether the port does PM's version, this call included, is settled there |
+| 0x004b4560 | 39 | MISSING LOGIC | pm only, weapons: selecting a weapon group (0x004b4560, PM's in MW3's 0x004b0730 place, the port's WeaponManager::select_group, weapon.cpp:650): when the group's current weapon is not ready (0x004b7bd0, MW3's 0x004b3a20), PM moves the group on to its next ready weapon (0x004b5e10, MW3's 0x004b1f40) before the HUD's refresh; MW3 and the port keep the current one. Reached from the group keys, the mech build, the weapon planner and two weapon manager steps |
 | 0x004b4690 | 13 | folded | covered by the port where it names it (src/mech3/mech_command.cpp:230) |
 | 0x004b4a80 | 10 | folded | covered by the port where it names it (src/mech3/app_weapons.cpp:554) |
 | 0x004b4a90 | 122 | unlabelled |  |
@@ -2623,15 +2621,15 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004b5bf0 | 37 | folded | inside its ported callers (0x004bb700): a small helper their ports do their own way |
 | 0x004b5e10 | 52 | unlabelled |  |
 | 0x004b5ea0 | 48 | unlabelled |  |
-| 0x004b5f80 | 110 | UNSURE | read with group A: a callee of shared ports PM changed (0x004b4a90); whether the port does PM's version, this call included, is settled there |
+| 0x004b5f80 | 110 | MISSING LOGIC | pm only, weapons, group fire (mode 2): PM's group trigger (0x004b5f80, in MW3's 0x004b2100 place, the port's WeaponGroup::trigger, weapon.cpp:455) fires the best-rated beam first, then each other weapon telling zWeapon whether its definition already fired in this volley (0x005a3680, MW3's 0x00581f90, the port's set_fire_animation): the first of a kind plays its FIRE animation, the repeats its second one (fire.animation2, zwep_shot.cpp:341). The port's trigger fires in order and never sets the choice, so every weapon of a kind plays the first animation; the beams' ground effect is cleared as MW3's |
 | 0x004b64f0 | 142 | unlabelled |  |
 | 0x004b67a0 | 14 | folded | covered by the port where it names it (src/mech3/weapon.h:181) |
 | 0x004b67b0 | 16 | unlabelled |  |
-| 0x004b67e0 | 14 | UNSURE | read with group A: a callee of shared ports PM changed (0x004b64f0, 0x004b6820); whether the port does PM's version, this call included, is settled there |
+| 0x004b67e0 | 14 | folded | read: a vector's size (0 for none), container code |
 | 0x004b6800 | 12 | folded | covered by the port where it names it (src/mech3/weapon.h:176) |
 | 0x004b6820 | 140 | unlabelled |  |
 | 0x004b6ad0 | 65 | unlabelled |  |
-| 0x004b6e80 | 44 | UNSURE | group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A |
+| 0x004b6e80 | 44 | MISSING LOGIC | pm only, weapons, the player's: PM's per-weapon enable (0x004b6e80, in MW3's 0x004b2f90 place, the port's Weapon::set_enabled, weapon.cpp:1310) adds a firing cone: for the player's own mech it runs the weapon's line to the aim point (0x004b7800 on the manager's +0x0c, the pm port's weapon_line, zai_firing_pm.cpp:922) and switches the weapon off when the cone clamps it (the line's cosine differs from the kept one). The water and side tests are MW3's. The port's set_enabled has only those two, so on PM the player's weapons that cannot bear on the aim point still fire |
 | 0x004b6f60 | 8 | folded | returns a constant or a global |
 | 0x004b6f70 | 69 | unlabelled |  |
 | 0x004b72d0 | 14 | unlabelled |  |
@@ -5810,16 +5808,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00530b20 | 13 | replaced (SDL or the platform layer) | as MW3 0x00517230: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 | 0x00530b40 | 20 | replaced (SDL or the platform layer) | as MW3 0x00517250: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
-### zsiscript (5 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005cc670 | 22 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:412) |
-| 0x005cc880 | 29 | debug or dev tool: PORT (preserve) | as MW3 0x005a9bc0: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
-| 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
-| 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
-| 0x005cd090 | 27 | unlabelled |  |
-
 ### zerror (5 not ported)
 
 | Address | Lines | Class | Why |
@@ -5829,4 +5817,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00527490 | 22 | unlabelled |  |
 | 0x00527500 | 38 | unlabelled |  |
 | 0x005275d0 | 30 | unlabelled |  |
+
+### zsiscript (5 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005cc670 | 22 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:412) |
+| 0x005cc880 | 29 | debug or dev tool: PORT (preserve) | as MW3 0x005a9bc0: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
+| 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
+| 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
+| 0x005cd090 | 27 | unlabelled |  |
 
