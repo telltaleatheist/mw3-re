@@ -397,7 +397,7 @@ def main():
         src_root = Path(o.src).parent
         def pm_ref(ref):
             fn, n = ref.rsplit(':', 1)
-            if '/pm/' in fn:
+            if '/pm/' in fn or re.search(r'_pm\.\w+$', fn):  # src/pm/, or the pm port's *_pm files
                 return True
             line = (src_root / fn).read_text(errors='replace').splitlines()[int(n) - 1]
             return bool(re.search(r"Pirate|\bPM\b|\bpm\b", line))
