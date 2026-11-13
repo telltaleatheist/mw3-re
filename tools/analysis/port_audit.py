@@ -294,6 +294,30 @@ def main():
                 else ['follows', prev['addr']]
         if a % 16 == 0:
             prev = r
+    # A function the port names only in ordinary comments of its own code is
+    # covered there (the comment says where); one named in an unported() hook,
+    # or with "not ported", "deferred", "TODO", "not yet", is read instead.
+    flag = re.compile(r'unported|not ported|deferred|todo|not yet|missing|stub', re.I)
+    cache = {}
+    for r in rows:
+        if r['status'] != 'named' or r['shape']:
+            continue
+        refs_all = sorted(set(named.get(int(r['addr'], 16), [])))
+        texts = []
+        for ref in refs_all:
+            fn, n = ref.rsplit(':', 1)
+            if fn not in cache:
+                cache[fn] = (ROOT / fn).read_text(errors='replace').splitlines()
+            texts.append(cache[fn][int(n) - 1])
+        if texts and not any(flag.search(t) for t in texts) and not all(fn.startswith('tests/') for fn in refs_all):
+            r['shape'] = ['folded', 'covered by the port where it names it', refs_all[0]]
+    # A function the C runtime's code calls (its exception unwinds) and that
+    # resets a vtable is a destructor.
+    for r in rows:
+        if r['status'] != 'ported' and not r['shape'] and any(int(c, 16) >= crt for c in r['callers']):
+            b = body_of(g['decomp'], int(r['addr'], 16))
+            if any(re.match(r'^\*?\(?(undefined\d? \*\*?\*?\))?\(?in_ECX( \+ 0x[0-9a-f]+)?\)? = &PTR_', t) for t in b[:4]):
+                r['shape'] = ['folded', 'a destructor (the exception unwinds call it; it resets the vtable)']
     thunk_unported = 0
     for _ in range(4):
         for r in rows:
