@@ -2055,6 +2055,29 @@ TEST(fix_cleanup_leaves_a_firing_beam) {
   rh = kept_hooks;
 }
 
+// FIX (bug), 0x584b40: a laser turret freed while its beam fires (the mission's end, its turret not stopped) frees
+// the beam still on its def's list; with the cleanup's kill skipping BEAM defs, the next mission on the same world
+// walked it. The free takes it off first, as Pirate's Moon's 0x005a6650 does.
+TEST(fix_beam_freed_while_firing_leaves_the_list) {
+  zwep::WeaponDef def{};
+  def.flags = zwep::kBeam;
+  zwep::Beam* a = new zwep::Beam{};
+  zwep::Beam* b = new zwep::Beam{};
+  zwep::Beam* c = new zwep::Beam{};
+  for (zwep::Beam* x : {a, b, c}) x->def = &def;
+  def.beams = a, a->next = b, b->prev = a, b->next = c, c->prev = b;  // as beam_start links them, newest first
+  zwep::beam_free(b);
+  EXPECT(def.beams == a && a->next == c && c->prev == a);
+  zwep::beam_free(a);  // the head
+  EXPECT(def.beams == c && c->prev == nullptr);
+  zwep::beam_free(c);
+  EXPECT(def.beams == nullptr);
+  zwep::Beam* d = new zwep::Beam{};  // stopped first (off the list): untouched
+  d->def = &def;
+  zwep::beam_free(d);
+  EXPECT(def.beams == nullptr);
+}
+
 // The damage reads the shot line the weapons write (0x009a0ec4): a second copy the game never filled sent every
 // torso hit to the centre front and pushed no mech (docs/damage.md, Front or rear).
 TEST(damage_reads_the_weapons_shot_line) {
