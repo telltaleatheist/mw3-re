@@ -39,10 +39,10 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3047 |
-| unlabelled | 1275 |
-| replaced (SDL or the platform layer) | 234 |
-| MISSING LOGIC | 154 |
+| folded | 3078 |
+| unlabelled | 1211 |
+| replaced (SDL or the platform layer) | 235 |
+| MISSING LOGIC | 186 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 112 |
 | software renderer | 106 |
 | debug or dev tool: PORT (preserve) | 86 |
@@ -87,8 +87,12 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x004b5f80** (1 functions, 110 decomp lines; MISSING LOGIC): pm only, weapons, group fire (mode 2): PM's group trigger (0x004b5f80, in MW3's 0x004b2100 place, the port's WeaponGroup::trigger, weapon.cpp:455) fires the best-rated beam first, then each other weapon telling zWeapon whether its definition already fired in this volley (0x005a3680, MW3's 0x00581f90, the port's set_fire_animation): the first of a kind plays its FIRE animation, the repeats its second one (fire.animation2, zwep_shot.cpp:341). The port's trigger fires in order and never sets the choice, so every weapon of a kind plays the first animation; the beams' ground effect is cleared as MW3's
 - **0x004b6e80** (1 functions, 44 decomp lines; MISSING LOGIC): pm only, weapons, the player's: PM's per-weapon enable (0x004b6e80, in MW3's 0x004b2f90 place, the port's Weapon::set_enabled, weapon.cpp:1310) adds a firing cone: for the player's own mech it runs the weapon's line to the aim point (0x004b7800 on the manager's +0x0c, the pm port's weapon_line, zai_firing_pm.cpp:922) and switches the weapon off when the cone clamps it (the line's cosine differs from the kept one). The water and side tests are MW3's. The port's set_enabled has only those two, so on PM the player's weapons that cannot bear on the aim point still fire
 - **0x004bb6a0** (1 functions, 10 decomp lines; MISSING LOGIC): pm only, AI, traced: a shot that hits an ally (IControls vt+0x98, PM 0x004fbc00 as MW3's 0x004ea500) goes to PM's firing, 0x004bb6a0: the ally kept as the obstacle (+0x28), then PM's stand-down 0x004ba8c0, which keeps the plan when the firing has a name (+0x34 set, +0x30 = +0x10, +0x4c = 0) and otherwise rests, drops the plan, clears the aim and, with the vehicle's +0xd4 set, calls 0x004b4a20(0), phase 5. The port's ally hit (mech_control.cpp:636, zai_brain.h:632) goes to MW3's Firing (obstacle, stand_down: zai_firing.cpp:109), which PM's AI does not use (PM_AI=1 runs PM's firing record, zai_firing_pm.cpp, whose stand-down hook is the plan's end, not this); so under PM's AI an ally hit neither marks the obstacle nor stands the firing down
+- **0x004bd280, 0x004ea3a0, 0x004ea5c0, 0x004ea8a0, 0x004ea8d0, 0x004eab10 ...** (16 functions, 368 decomp lines; MISSING LOGIC): pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically)
 - **0x004e2820** (1 functions, 73 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's target description build (MW3's 0x004d25c0, zai_target.cpp desc_build) makes a target with an mpoption (targets.zrd's, +0x38 >= 0) only in a multiplayer game (the pilot's game of type 3, 0x0047b710) whose option allows it (0x00437920: the game's +0x98 is 4, or 1/2 and its vt+0x48 the same); otherwise none is made. The port reads mpoption (zrdraiv.cpp:585) and builds the target always. Shipped mpoption targets are only in the multiplayer readers (readermp1/2's targets.zrd, two on each of c1..c4), so single play is the same
 - **0x004f9090** (1 functions, 22 decomp lines; MISSING LOGIC): pm only: PM's turret turn (0x004f90f0, MW3 0x004e72f0, veh_controls.cpp turret_turn) reads the turret node's world matrix through this, which first brings it up to date (0x004fefa0 when the node's data bit 0x20 is set); MW3 reads data +0x60 as it stands, and so does the port's node_world_matrix hook. Effect: PM's turret aims from this update's matrix, MW3's from the last; to check at fix time
+- **0x004f90f0** (1 functions, 53 decomp lines; MISSING LOGIC): pm only, carries 0x004f9090's row: PM's turret turn (MW3's 0x004e72f0, veh_controls.cpp turret_turn) reads the turret node's matrix through 0x004f9090, which brings it up to date first; MW3 and the port read data +0x60 as it stands (see 0x004f9090)
+- **0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb6e0 ...** (14 functions, 279 decomp lines; MISSING LOGIC): pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table
+- **0x004fbe70** (1 functions, 9 decomp lines; MISSING LOGIC): pm only, with PM's lance orders and the brain's command interface (0x004fbe10's row): a brain field set (through the virtual base, the word 0x1b8 before it) from an AI controls slot (0x004f9460) and an adjustor (0x004de9d0); MW3's slot in that place (0x004e7730) only returns the brain. The pm port's AI controls have MW3's slots. What the field is: to settle at fix time with the interface
 - **0x004fd0d0, 0x004fd160, 0x004fd1f0** (3 functions, 39 decomp lines; MISSING LOGIC): PM's per-node light override in the model draw 0x00507f30 (pm only: the fix goes in PM's draw on the pm branch): node +0x2c bit 7 with an ambient value in bits 9..16 (0x004fd0d0 -> 0x0050e6f0), bit 8 with a diffuse value in bits 17..24 (0x004fd160 / 0x004fd1f0 -> 0x0050e7c0); the shared draw (camera.cpp:79) has none. Counted with the port's PM mechlib reader (probe_pm_mechlib_overrides, all 76 trees, 1,847 nodes): 24 nodes carry it, the cockpit 'grill' of every mech_*_hud.flt (+0x2c 0xb281 in the file: an ambient override of 0x59, no diffuse). No MW3 world or mechlib node and no PM world node sets these bits
 - **0x00507f30** (1 functions, 269 decomp lines; MISSING LOGIC): group A, read: PM's model draw (pm only): the per-node light override (node +0x2c, the cockpit grills; see 0x004fd0d0) and PM's fog mode test; the shared draw (camera.cpp:79) has neither
 - **0x00509dd0** (1 functions, 187 decomp lines; MISSING LOGIC): group A, read: PM's world draw (pm only): its fog calls are PM's (0x00504450, 0x0050a1e0, and 0x005404f0, the sticky fog mode) where MW3's are 0x00526a60 / 0x00526b80; so the per-frame fog on and off (camera.cpp:1087) cannot clear PM's under-water mode 2: part of the under-water fog row (0x005404f0)
@@ -2649,7 +2653,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004bd1b0 | 9 | folded | a thunk: one call to another function |
 | 0x004bd220 | 11 | unlabelled |  |
 | 0x004bd240 | 15 | unlabelled |  |
-| 0x004bd280 | 14 | unlabelled |  |
+| 0x004bd280 | 14 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
 | 0x004bd2b0 | 11 | folded | inside its ported callers (0x004bcd40): a small helper their ports do their own way |
 | 0x004bd2e0 | 12 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_pick's pick 0x004bc2e0 runs it; the plan made (contact, score, flags, part) and the firing's fields compared |
 | 0x004bd310 | 180 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
@@ -3477,12 +3481,12 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004ea0e0 | 9 | folded | inside its ported callers (0x004fb260): a small helper their ports do their own way |
 | 0x004ea0f0 | 43 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_brain calls it directly, test_pm_ai_walk's walk step 0x004d9d00 too; the calls in order and the brain's fields compared |
 | 0x004ea180 | 43 | unlabelled |  |
-| 0x004ea3a0 | 87 | unlabelled |  |
-| 0x004ea5c0 | 16 | unlabelled |  |
-| 0x004ea690 | 10 | unlabelled |  |
-| 0x004ea8a0 | 18 | unlabelled |  |
-| 0x004ea8d0 | 99 | unlabelled |  |
-| 0x004eab10 | 8 | unlabelled |  |
+| 0x004ea3a0 | 87 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004ea5c0 | 16 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004ea690 | 10 | folded | read: the orders cleared (0x004ea5f0) and a net's order given (0x004f9ec0 -> 0x004f9e70, no behaviour), reached through 0x004fa130: the pm port's pm_give_order on the formation net (zai_wire_states_pm.cpp:67; 0x004ea740 the same with a behaviour) |
+| 0x004ea8a0 | 18 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004ea8d0 | 99 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004eab10 | 8 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
 | 0x004eab40 | 23 | folded | covered by the port where it names it (src/mech3/zai_attack_pm.cpp:17) |
 | 0x004eac00 | 34 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1059) |
 | 0x004eac90 | 17 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004d9d80: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic |
@@ -3596,27 +3600,27 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004f2de0 | 56 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004f2e60 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004f2f20 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x004f2fd0 | 24 | unlabelled |  |
+| 0x004f2fd0 | 24 | folded | read: PM's ValveDef kept as a record (its constructor 0x004f3630 with PM's keys zeroed, its destructor 0x004f3130 freeing them, MW3's 0x004e1d70; a cache node's copy 0x004f2fd0; a small header cleared 0x004f38b0; the valves reader's record made and kept 0x004f7d90, its destructor 0x004f7500), the port's ValveDef with PM's keys (zrdrvalve.h:113-127) and its own containers |
 | 0x004f3070 | 9 | folded | a thunk: one call to another function |
 | 0x004f3090 | 9 | folded | a thunk: one call to another function |
 | 0x004f30c0 | 21 | folded | as MW3 0x004e1d00: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f3110 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004f3390, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x004f3130 | 111 | unlabelled |  |
+| 0x004f3130 | 111 | folded | read: PM's ValveDef kept as a record (its constructor 0x004f3630 with PM's keys zeroed, its destructor 0x004f3130 freeing them, MW3's 0x004e1d70; a cache node's copy 0x004f2fd0; a small header cleared 0x004f38b0; the valves reader's record made and kept 0x004f7d90, its destructor 0x004f7500), the port's ValveDef with PM's keys (zrdrvalve.h:113-127) and its own containers |
 | 0x004f3370 | 12 | folded | as MW3 0x0042f430: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x004f3390 | 88 | folded | read: the valve file's release (zrdrvalve.cpp:573), the same frees; PM frees each through 0x004f3370 (free and clear) where MW3 inlines them |
 | 0x004f3570 | 24 | folded | as MW3 0x004e20d0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
-| 0x004f35c0 | 22 | unlabelled |  |
-| 0x004f3630 | 117 | unlabelled |  |
+| 0x004f35c0 | 22 | folded | folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 7f6e9e10, docs/port-audit-pm.md method): the text differs only in register allocation, calling convention or layout |
+| 0x004f3630 | 117 | folded | read: PM's ValveDef kept as a record (its constructor 0x004f3630 with PM's keys zeroed, its destructor 0x004f3130 freeing them, MW3's 0x004e1d70; a cache node's copy 0x004f2fd0; a small header cleared 0x004f38b0; the valves reader's record made and kept 0x004f7d90, its destructor 0x004f7500), the port's ValveDef with PM's keys (zrdrvalve.h:113-127) and its own containers |
 | 0x004f3880 | 15 | folded | as MW3 0x004e22e0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
-| 0x004f38b0 | 11 | unlabelled |  |
+| 0x004f38b0 | 11 | folded | read: PM's ValveDef kept as a record (its constructor 0x004f3630 with PM's keys zeroed, its destructor 0x004f3130 freeing them, MW3's 0x004e1d70; a cache node's copy 0x004f2fd0; a small header cleared 0x004f38b0; the valves reader's record made and kept 0x004f7d90, its destructor 0x004f7500), the port's ValveDef with PM's keys (zrdrvalve.h:113-127) and its own containers |
 | 0x004f38c0 | 9 | debug or dev tool: PORT (preserve) | as MW3 0x004e2310: the valve reader's print method (a vtable slot that fprintf's a value); nothing in the game prints a reader |
 | 0x004f4d20 | 15 | folded | covered by the port where it names it (src/mech3/zrdrvalve.cpp:563) |
 | 0x004f4d60 | 15 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_valves' valve builder 0x004f5f50 runs it on every shipped valves.zrd and crafted records; every call out, every valve's value and the words written on the brains and targets compared |
-| 0x004f4d90 | 14 | unlabelled |  |
+| 0x004f4d90 | 14 | folded | read: MW3's 0x004e3040 (SoundAction::fire: when the valve reads the action's value, its sound played at 1.0), the same body, a slot of PM's sound action vtable; the port's SoundAction::fire (zrdrvalve.cpp:227) |
 | 0x004f4dc0 | 10 | folded | as MW3 0x004e3150: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f4de0 | 15 | folded | as MW3 0x004e30b0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
-| 0x004f4e20 | 15 | unlabelled |  |
-| 0x004f4e50 | 14 | unlabelled |  |
+| 0x004f4e20 | 15 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_valves runs it through the valve builder 0x004f5f50 on every shipped valves.zrd and crafted records; every call out, every valve's value and the words written on the brains and targets compared |
+| 0x004f4e50 | 14 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_valves runs it through a valve's set 0x004e40d0 with values on every built valve; every call out, every valve's value and the words written compared |
 | 0x004f4e80 | 10 | folded | as MW3 0x004e3070: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f4ea0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004f5a40, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004f4ed0 | 15 | folded | as MW3 0x004e3180: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
@@ -3644,7 +3648,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004f55f0 | 22 | folded | as MW3 0x004e3a90: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5650 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004f5670, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004f5670 | 14 | folded | as MW3 0x004e3b40: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
-| 0x004f56a0 | 42 | unlabelled |  |
+| 0x004f56a0 | 42 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_valves runs it through a valve's set 0x004e40d0 with values on every built valve; every call out, every valve's value and the words written compared |
 | 0x004f57e0 | 16 | folded | inside its ported callers (0x004f5f50): a small helper their ports do their own way |
 | 0x004f5800 | 22 | folded | as MW3 0x004e3d20: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5860 | 10 | folded | as MW3 0x004e3d70: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
@@ -3655,7 +3659,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004f5a40 | 9 | folded | as MW3 0x004e31f0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5ac0 | 26 | folded | as MW3 0x004e4020: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5b20 | 21 | folded | covered by the port where it names it (src/mech3/zrdrvalve.cpp:401) |
-| 0x004f5b80 | 104 | unlabelled |  |
+| 0x004f5b80 | 104 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_valves runs it through the valve builder 0x004f5f50 on every shipped valves.zrd and crafted records; every call out, every valve's value and the words written on the brains and targets compared |
 | 0x004f5d30 | 12 | folded | as MW3 0x004e42e0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5d50 | 8 | folded | as MW3 0x004e4300: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5d60 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004f5d80, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
@@ -3667,10 +3671,10 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004f5ea0 | 17 | folded | as MW3 0x004e4430: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5ed0 | 18 | folded | as MW3 0x004e4460: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f5f00 | 8 | folded | inside its ported callers (0x004c9600): a small helper their ports do their own way |
-| 0x004f5f10 | 9 | unlabelled |  |
+| 0x004f5f10 | 9 | folded | read: a setter (+0x04), a table slot |
 | 0x004f5f20 | 12 | folded | covered by the port where it names it (src/mech3/zai_valve.h:20) |
 | 0x004f5f40 | 9 | folded | as MW3 0x004e42c0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
-| 0x004f5f50 | 317 | unlabelled |  |
+| 0x004f5f50 | 317 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_valves runs it through the valve builder 0x004f5f50 on every shipped valves.zrd and crafted records; every call out, every valve's value and the words written on the brains and targets compared |
 | 0x004f6c10 | 42 | folded | as MW3 0x004e4f90: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f6cc0 | 42 | folded | as MW3 0x004e4d20: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f6d70 | 42 | folded | as MW3 0x004e4df0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
@@ -3688,24 +3692,24 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004f7490 | 10 | folded | as MW3 0x004e55d0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f74b0 | 17 | folded | as MW3 0x004e55f0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f74e0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004f7290, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x004f7500 | 10 | unlabelled |  |
+| 0x004f7500 | 10 | folded | read: PM's ValveDef kept as a record (its constructor 0x004f3630 with PM's keys zeroed, its destructor 0x004f3130 freeing them, MW3's 0x004e1d70; a cache node's copy 0x004f2fd0; a small header cleared 0x004f38b0; the valves reader's record made and kept 0x004f7d90, its destructor 0x004f7500), the port's ValveDef with PM's keys (zrdrvalve.h:113-127) and its own containers |
 | 0x004f7510 | 59 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004f7630 | 319 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004f7b60 | 32 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004f7bf0 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x004f7d90 | 30 | unlabelled |  |
+| 0x004f7d90 | 30 | folded | read: PM's ValveDef kept as a record (its constructor 0x004f3630 with PM's keys zeroed, its destructor 0x004f3130 freeing them, MW3's 0x004e1d70; a cache node's copy 0x004f2fd0; a small header cleared 0x004f38b0; the valves reader's record made and kept 0x004f7d90, its destructor 0x004f7500), the port's ValveDef with PM's keys (zrdrvalve.h:113-127) and its own containers |
 | 0x004f7e30 | 21 | folded | as MW3 0x004e6110: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f7e70 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004f7500, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004f7e90 | 42 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x004f7f30 | 11 | unlabelled |  |
-| 0x004f7f50 | 12 | unlabelled |  |
+| 0x004f7f30 | 11 | replaced (SDL or the platform layer) | read: the shell's QueryCancelAutoplay message registered ([0x0062ff20]), for refusing the CD's autoplay while the game runs (with 0x005969a0's registry tweak); Win32 the port leaves alone |
+| 0x004f7f50 | 12 | folded | read: PM's disc check's dialog (the 'insert the disc' box, template 0xbc: its constructor, its retry flag +0x60, its window long), used only by the disc check 0x004854e0 / 0x00485480: removed with it as FIX (trap) (app.cpp:168, docs/protection.md) |
 | 0x004f7f80 | 8 | folded | returns a constant or a global |
-| 0x004f7fb0 | 9 | unlabelled |  |
-| 0x004f7fd0 | 8 | unlabelled |  |
+| 0x004f7fb0 | 9 | folded | read: PM's disc check's dialog (the 'insert the disc' box, template 0xbc: its constructor, its retry flag +0x60, its window long), used only by the disc check 0x004854e0 / 0x00485480: removed with it as FIX (trap) (app.cpp:168, docs/protection.md) |
+| 0x004f7fd0 | 8 | folded | read: PM's disc check's dialog (the 'insert the disc' box, template 0xbc: its constructor, its retry flag +0x60, its window long), used only by the disc check 0x004854e0 / 0x00485480: removed with it as FIX (trap) (app.cpp:168, docs/protection.md) |
 | 0x004f8020 | 12 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:2042) |
 | 0x004f8040 | 10 | folded | as MW3 0x004e6240: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004f8050 | 12 | folded | ported, by docs/symbols.csv: ported; 0x0c, 0x004e66a0(0) |
-| 0x004f8070 | 40 | unlabelled |  |
+| 0x004f8070 | 40 | folded | folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 7f6e9e10, docs/port-audit-pm.md method): the text differs only in register allocation, calling convention or layout |
 | 0x004f81a0 | 10 | folded | ported, by docs/symbols.csv: ported; node +0x2c bits 5 and 6 |
 | 0x004f81d0 | 14 | folded | covered by the port where it names it (src/mech3/mech_shade.cpp:100) |
 | 0x004f8210 | 19 | folded | ported, by docs/symbols.csv: ported; from the centroid's world position |
@@ -3719,24 +3723,24 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004f87b0 | 9 | folded | a thunk: one call to another function |
 | 0x004f87e0 | 14 | folded | covered by the port where it names it (src/mech3/sound_extra.cpp:32) |
 | 0x004f8820 | 26 | folded | covered by the port where it names it (src/mech3/sound_extra.cpp:32) |
-| 0x004f8970 | 31 | unlabelled |  |
+| 0x004f8970 | 31 | folded | read: an exit callback registered by the app's cleanup (0x00483020): an entry taken off the list [0x0062ff5c] and freed with its string; the port's objects free themselves |
 | 0x004f8b50 | 75 | folded | as MW3 0x004e6dc0: covered where the port does it: src/mech3/app_mech.h:142 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004f8c70 | 51 | folded | ported, by docs/symbols.csv: ported: lance_orders contact_on |
 | 0x004f8d80 | 20 | folded | as MW3 0x004e6ff0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004f8da0 | 20 | folded | MW3's 0x004e7010 unpaired (a contact's vehicle as a mech: vt+0x2c then vt+0x58, PM's vehicle class has it at vt+0x60), for the network state's target player (+0x34; app_mech.cpp:1089, net_mech_of's owner); not run under a test (trace) |
 | 0x004f8e30 | 50 | folded | read: MW3's 0x004e7090 (the AI vehicle controls' constructor, veh_controls.cpp) with PM's layout, and one thing more: it copies the five-word turn set [0x0062fb98] (0x004dc070) into its +0xcb4, which nothing reads (no access to +0xcb4..+0xcc4 found): no effect found (corrected 2026-11-13: earlier 'only a copy loop's form') |
-| 0x004f8f60 | 31 | unlabelled |  |
+| 0x004f8f60 | 31 | folded | read: MW3's 0x004e71c0 (the AI vehicle controls' constructor, zai_brain.cpp) with PM's layout and the brain made through 0x004b16f0; the pm port builds MW3's controls with PM's state beside the brain (zai_wire_pm.h PmBrain) |
 | 0x004f9020 | 20 | folded | as MW3 0x004e7290: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004f9090 | 22 | MISSING LOGIC | pm only: PM's turret turn (0x004f90f0, MW3 0x004e72f0, veh_controls.cpp turret_turn) reads the turret node's world matrix through this, which first brings it up to date (0x004fefa0 when the node's data bit 0x20 is set); MW3 reads data +0x60 as it stands, and so does the port's node_world_matrix hook. Effect: PM's turret aims from this update's matrix, MW3's from the last; to check at fix time |
-| 0x004f90f0 | 53 | unlabelled |  |
-| 0x004f9290 | 38 | unlabelled |  |
+| 0x004f90f0 | 53 | MISSING LOGIC | pm only, carries 0x004f9090's row: PM's turret turn (MW3's 0x004e72f0, veh_controls.cpp turret_turn) reads the turret node's matrix through 0x004f9090, which brings it up to date first; MW3 and the port read data +0x60 as it stands (see 0x004f9090) |
+| 0x004f9290 | 38 | folded | read after the feature compare's flags: MW3's 0x004e7490 (the turret's can-aim, veh_controls.cpp turret_can_aim) with the aim block at PM's +0xcec for MW3's +0xcb0 (the layout) |
 | 0x004f9450 | 9 | folded | a thunk: one call to another function |
 | 0x004f9460 | 9 | folded | a thunk: one call to another function |
 | 0x004f9510 | 9 | folded | a thunk: one call to another function |
-| 0x004f9530 | 9 | unlabelled | follows 0x004fbe10:  |
-| 0x004f9540 | 9 | unlabelled | follows 0x004fa770:  |
-| 0x004f9550 | 9 | unlabelled | follows 0x004fa190:  |
-| 0x004f9560 | 9 | unlabelled | follows 0x004fa110:  |
+| 0x004f9530 | 9 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004f9540 | 9 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004f9550 | 9 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004f9560 | 9 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
 | 0x004f9570 | 9 | folded | a thunk: one call to another function |
 | 0x004f9580 | 9 | unused: PORT (preserve) | follows 0x004faa40: as MW3 0x004e95b0: IControls vt+0x84 of the AI controls (drop the target if it is the given entity's, stand the firing down): no caller reaches that slot (docs/ai.md, the AI controls' unreached slots) |
 | 0x004f9590 | 9 | folded | a thunk: one call to another function |
@@ -3751,77 +3755,77 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004f97c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004f97e0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004f97e0 | 56 | folded | as MW3 0x004e79d0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f98d0 | 17 | folded | as MW3 0x004e7b00: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
-| 0x004f9900 | 17 | unlabelled |  |
+| 0x004f9900 | 17 | folded | read: the mission listeners' walks and slot calls ([0x0062ffc4]): PM's listener vtables put MW3's events one or two slots on (+0x08 the mission load, walked by 0x004f9900 at 'CZUnload::LoadMission()', MW3's 0x004e7b40; +0x0c after the setup 0x004f9930; +0x10 PM's mission started 0x004f9960; +0x14 the world gone, walked by 0x004f9990, MW3's +0x0c 0x004e7b80 (the boundary's 0x004ce320 = MW3 0x004c3dd0, the anim owners' 0x004e4be0 = 0x004d4740); +0x18 the mission's end, MW3's +0x10); the port makes each at the same moment (app_mission.cpp:1768-1800 fn_4e7b40, ai_lists_free, fn_4e7bc0; :2234 fn_4f9930; app_states.cpp:817) |
 | 0x004f9960 | 17 | folded | read: the mission listeners' slot +0x10 called on each (0x004f9a20), the port's mission_started (app_states.cpp:817 names 0x004f9960) |
-| 0x004f9990 | 17 | unlabelled |  |
+| 0x004f9990 | 17 | folded | read: the mission listeners' walks and slot calls ([0x0062ffc4]): PM's listener vtables put MW3's events one or two slots on (+0x08 the mission load, walked by 0x004f9900 at 'CZUnload::LoadMission()', MW3's 0x004e7b40; +0x0c after the setup 0x004f9930; +0x10 PM's mission started 0x004f9960; +0x14 the world gone, walked by 0x004f9990, MW3's +0x0c 0x004e7b80 (the boundary's 0x004ce320 = MW3 0x004c3dd0, the anim owners' 0x004e4be0 = 0x004d4740); +0x18 the mission's end, MW3's +0x10); the port makes each at the same moment (app_mission.cpp:1768-1800 fn_4e7b40, ai_lists_free, fn_4e7bc0; :2234 fn_4f9930; app_states.cpp:817) |
 | 0x004f99c0 | 17 | folded | read: the same as its MW3 twin, its copies taken in another form (one-sided statements only a loop's form and a vtable pointer's place) |
 | 0x004f99f0 | 11 | folded | as MW3 0x004e7c10: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9a00 | 11 | folded | as MW3 0x004e7c20: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9a10 | 11 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2234) |
-| 0x004f9a20 | 11 | unlabelled |  |
-| 0x004f9a30 | 11 | unlabelled |  |
-| 0x004f9a40 | 11 | unlabelled |  |
+| 0x004f9a20 | 11 | folded | read: a thunk, one virtual call (the listener's slot +0x10), MW3's 0x004e7c00 |
+| 0x004f9a30 | 11 | folded | read: the mission listeners' walks and slot calls ([0x0062ffc4]): PM's listener vtables put MW3's events one or two slots on (+0x08 the mission load, walked by 0x004f9900 at 'CZUnload::LoadMission()', MW3's 0x004e7b40; +0x0c after the setup 0x004f9930; +0x10 PM's mission started 0x004f9960; +0x14 the world gone, walked by 0x004f9990, MW3's +0x0c 0x004e7b80 (the boundary's 0x004ce320 = MW3 0x004c3dd0, the anim owners' 0x004e4be0 = 0x004d4740); +0x18 the mission's end, MW3's +0x10); the port makes each at the same moment (app_mission.cpp:1768-1800 fn_4e7b40, ai_lists_free, fn_4e7bc0; :2234 fn_4f9930; app_states.cpp:817) |
+| 0x004f9a40 | 11 | folded | read: the mission listeners' walks and slot calls ([0x0062ffc4]): PM's listener vtables put MW3's events one or two slots on (+0x08 the mission load, walked by 0x004f9900 at 'CZUnload::LoadMission()', MW3's 0x004e7b40; +0x0c after the setup 0x004f9930; +0x10 PM's mission started 0x004f9960; +0x14 the world gone, walked by 0x004f9990, MW3's +0x0c 0x004e7b80 (the boundary's 0x004ce320 = MW3 0x004c3dd0, the anim owners' 0x004e4be0 = 0x004d4740); +0x18 the mission's end, MW3's +0x10); the port makes each at the same moment (app_mission.cpp:1768-1800 fn_4e7b40, ai_lists_free, fn_4e7bc0; :2234 fn_4f9930; app_states.cpp:817) |
 | 0x004f9b90 | 24 | folded | as MW3 0x004e7d80: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9bd0 | 12 | folded | as MW3 0x004e7dc0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9c00 | 16 | folded | as MW3 0x004e7df0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9c30 | 55 | folded | group A, read: the same logic; the field +0xd8 is +0xf8 on PM's layout, and the two free paths are joined |
 | 0x004f9d30 | 9 | folded | a thunk: one call to another function |
 | 0x004f9d40 | 9 | folded | a thunk: one call to another function |
-| 0x004f9d80 | 14 | unlabelled |  |
+| 0x004f9d80 | 14 | folded | read: the order object's constructor and re-init (ready 1, the rest 0, vtable 0x005f05b4; 0x004f9ec0 frees its net and state parts and sets new ones, 0x004f9e70) and a guarded wrapper of 0x004f9e30 (MW3's 0x004e8070) from push_back; the pm port's OrderPm and OrdersPm (zai_brain_pm.h:126-140) |
 | 0x004f9da0 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.h:243) |
 | 0x004f9df0 | 10 | folded | as MW3 0x004e8030: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9e10 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004f9dc0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004f9e30 | 10 | folded | as MW3 0x004e8070: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004f9e50 | 11 | folded | as MW3 0x004e8090: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
-| 0x004f9ec0 | 15 | unlabelled |  |
+| 0x004f9ec0 | 15 | folded | read: the order object's constructor and re-init (ready 1, the rest 0, vtable 0x005f05b4; 0x004f9ec0 frees its net and state parts and sets new ones, 0x004f9e70) and a guarded wrapper of 0x004f9e30 (MW3's 0x004e8070) from push_back; the pm port's OrderPm and OrdersPm (zai_brain_pm.h:126-140) |
 | 0x004f9f60 | 8 | folded | by the slot pairing: PM vtable 0x5f05b8 slot 0x8 is MW3 vtable 0x5cd8d8's 0x004e8170 (MW3 ported src/mech3/zai_brain.cpp:177), the feature compare equal (7f6e9e10) |
 | 0x004f9f70 | 10 | folded | as MW3 0x004e8180: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004fa060 | 16 | folded | as MW3 0x004e8270: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004fa090 | 32 | folded | read: the brain's orders object's constructor (brain +0x128, from 0x004dd1e0, MW3 0x004e82a0 at +0x160): MW3's with PM's again byte +0x30 and pending list +0x34 added and the argument moved to +0x40; the port's OrdersPm (zai_brain_pm.h) carries the deque, again and pending |
 | 0x004fa100 | 9 | folded | a thunk: one call to another function |
-| 0x004fa110 | 11 | unlabelled |  |
+| 0x004fa110 | 11 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
 | 0x004fa130 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_states_pm.cpp:67) |
 | 0x004fa150 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:14) |
 | 0x004fa170 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:301) |
-| 0x004fa190 | 11 | unlabelled |  |
-| 0x004fa1b0 | 9 | unlabelled | follows 0x004ea8d0:  |
-| 0x004fa1d0 | 9 | unlabelled | follows 0x004eab10:  |
+| 0x004fa190 | 11 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004fa1b0 | 9 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
+| 0x004fa1d0 | 9 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
 | 0x004fa1e0 | 9 | folded | a thunk: one call to another function |
 | 0x004fa200 | 8 | folded | as MW3 0x004e8dc0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
-| 0x004fa770 | 40 | unlabelled |  |
+| 0x004fa770 | 40 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
 | 0x004faa20 | 9 | folded | a thunk: one call to another function |
 | 0x004faa40 | 41 | unused: PORT (preserve) | as MW3 0x004e95b0: IControls vt+0x84 of the AI controls (drop the target if it is the given entity's, stand the firing down): no caller reaches that slot (docs/ai.md, the AI controls' unreached slots) |
 | 0x004fafe0 | 9 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
-| 0x004faff0 | 97 | unlabelled |  |
+| 0x004faff0 | 97 | folded | read: the orders deque's push_back (MW3's 0x004e9d90 with PM's 0x84-byte orders in blocks of 31; the pm port names it, zai_brain_pm.h:126 'the exe's deque ... 0x004faff0 push_back') |
 | 0x004fb3d0 | 9 | folded | a thunk: one call to another function |
 | 0x004fb3f0 | 19 | folded | as MW3 0x004e9fd0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
-| 0x004fb420 | 19 | unlabelled |  |
+| 0x004fb420 | 19 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
 | 0x004fb4a0 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1232) |
-| 0x004fb4f0 | 19 | unlabelled |  |
-| 0x004fb570 | 19 | unlabelled |  |
-| 0x004fb5d0 | 19 | unlabelled |  |
-| 0x004fb630 | 19 | unlabelled |  |
+| 0x004fb4f0 | 19 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fb570 | 19 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fb5d0 | 19 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fb630 | 19 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
 | 0x004fb690 | 12 | folded | covered by the port where it names it (src/mech3/zai_repair.cpp:232) |
-| 0x004fb6e0 | 12 | unlabelled |  |
-| 0x004fb730 | 19 | unlabelled |  |
-| 0x004fb790 | 19 | unlabelled |  |
-| 0x004fb7f0 | 19 | unlabelled |  |
-| 0x004fb9b0 | 25 | unlabelled |  |
-| 0x004fba80 | 25 | unlabelled |  |
+| 0x004fb6e0 | 12 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fb730 | 19 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fb790 | 19 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fb7f0 | 19 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fb9b0 | 25 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fba80 | 25 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
 | 0x004fbaf0 | 9 | folded | as MW3 0x004ea4a0: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
-| 0x004fbb00 | 25 | unlabelled |  |
-| 0x004fbb70 | 20 | unlabelled |  |
-| 0x004fbbc0 | 20 | unlabelled |  |
-| 0x004fbe10 | 10 | unlabelled |  |
+| 0x004fbb00 | 25 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fbb70 | 20 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fbbc0 | 20 | MISSING LOGIC | pm only, gameplay (the lance commands): PM's lance orders, which the pm port does not carry (it runs MW3's Brain::lance_order, zai_brain.cpp:1220, MW3's 0x004ea000..0x004ea230). PM's wrappers (0x004fb420, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb730, 0x004fb790, 0x004fb7f0; 0x004fb6e0 without the check) refuse an order when the lancemate has no vehicle or the contact is the lancemate's own vehicle (0x004f8d70), then play the radio line as MW3's (0x004fb3f0 = 0x004e9fd0). PM's order slots differ: attack an ally (0x004fb9b0) or an enemy (0x004fbb00) by the team masks (+0xc8 / +0xc4 against the target's +0xc0) and keep the target at the attackers' +0x8c; form on the contact (0x004fba80: only when the current order may be left, 0x004fa320, its net through vt+0xe4, the formation given by 0x004fa150); stop (0x004fbbc0, the same test, the order dropped); and 0x004fbb70 (the formation net 0x00627c18 given, the kept target cleared). Which command each is: to settle at fix time against the pocket commander's table |
+| 0x004fbe10 | 10 | MISSING LOGIC | pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically) |
 | 0x004fbe40 | 9 | folded | as MW3 0x004ea740: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004fbe50 | 9 | folded | as MW3 0x004ea750: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
 | 0x004fbe60 | 9 | folded | read: sets the brain's byte +0x158, the orders' again flag (OrdersPm::again in zai_brain_pm.h: run the last order once more), from 0x004d3c30 and 0x004d6070 |
-| 0x004fbe70 | 9 | unlabelled |  |
+| 0x004fbe70 | 9 | MISSING LOGIC | pm only, with PM's lance orders and the brain's command interface (0x004fbe10's row): a brain field set (through the virtual base, the word 0x1b8 before it) from an AI controls slot (0x004f9460) and an adjustor (0x004de9d0); MW3's slot in that place (0x004e7730) only returns the brain. The pm port's AI controls have MW3's slots. What the field is: to settle at fix time with the interface |
 | 0x004fbf30 | 23 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:15) |
 | 0x004fbfd0 | 74 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_brain runs it (from 0x004fafe0); the calls in order and the brain's fields compared at 53 bits |
 | 0x004fc130 | 17 | folded | inside its ported callers (0x004faff0): a small helper their ports do their own way |
 | 0x004fc150 | 31 | folded | as MW3 0x004ea870: the AI's support code, ported or folded: the mission listeners' slot calls (the program's overrides, app_mission.cpp:1696..1730), the radio's lines and table, the orders' deque, constructors and destructors, the lance orders' wrappers (zai_brain.cpp:1208..1230), the AI switch |
-| 0x004fc1c0 | 11 | unlabelled |  |
+| 0x004fc1c0 | 11 | folded | read: the order object's constructor and re-init (ready 1, the rest 0, vtable 0x005f05b4; 0x004f9ec0 frees its net and state parts and sets new ones, 0x004f9e70) and a guarded wrapper of 0x004f9e30 (MW3's 0x004e8070) from push_back; the pm port's OrderPm and OrdersPm (zai_brain_pm.h:126-140) |
 | 0x004fc1e0 | 22 | replaced (SDL or the platform layer) | as MW3 0x004ea9b0: the start's video device picker: an MFC CDialog with a list box (0x004eaab0 and its constructor, destructor, data exchange and init); the SDL GPU device replaces it |
 | 0x004fc240 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004fc260, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004fc260 | 20 | replaced (SDL or the platform layer) | as MW3 0x004eaa30: the start's video device picker: an MFC CDialog with a list box (0x004eaab0 and its constructor, destructor, data exchange and init); the SDL GPU device replaces it |
@@ -5469,52 +5473,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005cc600 | 25 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:135) |
 | 0x005cc650 | 11 | folded | covered by the port where it names it (src/gamez/zsave/zsave.h:8) |
 
-### zfmv (41 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005ba110 | 450 | unlabelled |  |
-| 0x005ba7f0 | 16 | unlabelled |  |
-| 0x005ba830 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac80, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005ba850 | 19 | folded | by the slot pairing: PM vtable 0x5f1c5c slot 0x8 is MW3 vtable 0x5cf7d8's 0x00599d10 (MW3 ported src/gamez/zfmv/fmv_script.cpp:467), the feature compare equal (7f6e9e10) |
-| 0x005ba8a0 | 11 | unlabelled |  |
-| 0x005ba960 | 47 | unlabelled |  |
-| 0x005baa70 | 14 | folded | ported, by docs/symbols.csv: ported: timeGetTime() x 0.001f |
-| 0x005baab0 | 14 | folded | ported, by docs/symbols.csv: ported |
-| 0x005baaf0 | 9 | folded | ported, by docs/symbols.csv: ported: 0x00598d30(flag) |
-| 0x005bab80 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac20, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bac80 | 9 | unlabelled |  |
-| 0x005bacb0 | 33 | unlabelled |  |
-| 0x005badd0 | 42 | unlabelled |  |
-| 0x005baec0 | 12 | folded | by the slot pairing: PM vtable 0x5f1cd4 slot 0xc is MW3 vtable 0x5cf868's 0x00599be0 (MW3 ported src/gamez/zfmv/fmv_script.cpp:272), the feature compare equal (7f6e9e10) |
-| 0x005bb070 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(1) |
-| 0x005bb100 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(2) |
-| 0x005bb190 | 12 | folded | inside its ported callers (0x005ba110): a small helper their ports do their own way |
-| 0x005bb1b0 | 8 | unlabelled |  |
-| 0x005bb1d0 | 13 | unlabelled |  |
-| 0x005bb3d0 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
-| 0x005bb510 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
-| 0x005bb540 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
-| 0x005bb680 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
-| 0x005bb7c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bb8c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bba70 | 33 | unlabelled |  |
-| 0x005bbcd0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bbcf0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bbcf0 | 86 | unlabelled |  |
-| 0x005bca10 | 105 | unlabelled |  |
-| 0x005bccc0 | 316 | unlabelled |  |
-| 0x005bd7b0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bd7d0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bdb30 | 179 | unlabelled |  |
-| 0x005be050 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005be070, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005be0c0 | 19 | unlabelled |  |
-| 0x005be3f0 | 112 | unlabelled |  |
-| 0x005be700 | 68 | unlabelled |  |
-| 0x005be8e0 | 19 | unlabelled |  |
-| 0x005be940 | 9 | folded | by the slot pairing: PM vtable 0x5e0c34 slot 0x90 is MW3 vtable 0x5be308's 0x0059ea20 (MW3 folded: a thunk: one call to another function), the feature compare equal (7f6e9e10) |
-| 0x005be950 | 68 | unlabelled |  |
-| 0x005beb50 | 52 | unlabelled |  |
-| 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005becd0 | 38 | unlabelled |  |
-
 ### zdeclient (41 not ported)
 
 | Address | Lines | Class | Why |
@@ -5561,43 +5519,51 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005207b0 | 8 | folded | returns a constant or a global |
 
-### zweapon (33 not ported)
+### zfmv (41 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x005a52e0 | 521 | unlabelled |  |
-| 0x005a62a0 | 74 | unlabelled |  |
-| 0x005a6410 | 9 | unlabelled | follows 0x005a6420:  |
-| 0x005a6420 | 63 | unlabelled |  |
-| 0x005a6550 | 9 | unlabelled | follows 0x005a6420:  |
-| 0x005a6650 | 42 | unlabelled |  |
-| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
-| 0x005a6a00 | 37 | folded | group A, read: the same logic as MW3's 0x00584df0 on PM's 8-byte-longer effect block (flyout model +0x110, model animation +0x100): a pooled copy when animated, then under the shot's node; PM passes the add-child's arguments where MW3 leaves them in registers |
-| 0x005a6c20 | 20 | unlabelled |  |
-| 0x005a6c60 | 286 | MISSING LOGIC | pm only, group A, read: PM's shot spawn plays every FIRE animation (choice 0 all, k the k-th; attached when flag bit 1 and an attach node), then sets the choice back to 0; the port plays one, chosen 0 or 1 (zwep_shot.cpp:340-352). Goes with the reader 0x005a6700 (MW3 0x00585010) |
-| 0x005a7570 | 36 | MISSING LOGIC | pm only, minor: PM retires a dead shot a frame late: its retire (MW3 0x00586600) first stamps the shot (+0x638) with zClass's frame count [0x008c4b60, MW3 0x0072f338] + 1 and returns 0, and its def's shot walk (0x005a7570, new in PM) keeps it linked until a later call finds the stamp matching; so the node stays in the world at its last place, its flyout animations run one more frame and the pool slot comes back a frame later. The port retires at once, as MW3 (zwep_shot.cpp:455-466, 491-501) |
-| 0x005a75c0 | 129 | unlabelled |  |
-| 0x005a79a0 | 162 | unlabelled |  |
-| 0x005a8090 | 58 | unlabelled |  |
-| 0x005a8230 | 58 | unlabelled |  |
-| 0x005a8430 | 29 | unlabelled |  |
-| 0x005a8510 | 71 | unlabelled |  |
-| 0x005a8820 | 20 | unlabelled |  |
-| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
-| 0x005a8a90 | 16 | folded | read: a static list head made (zWeapon's list at [0x008cdcd4], empty, its count 0): container start-up; the port's list is its own |
-| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
-| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
-| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
-| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005ba110 | 450 | unlabelled |  |
+| 0x005ba7f0 | 16 | unlabelled |  |
+| 0x005ba830 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac80, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005ba850 | 19 | folded | by the slot pairing: PM vtable 0x5f1c5c slot 0x8 is MW3 vtable 0x5cf7d8's 0x00599d10 (MW3 ported src/gamez/zfmv/fmv_script.cpp:467), the feature compare equal (7f6e9e10) |
+| 0x005ba8a0 | 11 | unlabelled |  |
+| 0x005ba960 | 47 | unlabelled |  |
+| 0x005baa70 | 14 | folded | ported, by docs/symbols.csv: ported: timeGetTime() x 0.001f |
+| 0x005baab0 | 14 | folded | ported, by docs/symbols.csv: ported |
+| 0x005baaf0 | 9 | folded | ported, by docs/symbols.csv: ported: 0x00598d30(flag) |
+| 0x005bab80 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac20, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bac80 | 9 | unlabelled |  |
+| 0x005bacb0 | 33 | unlabelled |  |
+| 0x005badd0 | 42 | unlabelled |  |
+| 0x005baec0 | 12 | folded | by the slot pairing: PM vtable 0x5f1cd4 slot 0xc is MW3 vtable 0x5cf868's 0x00599be0 (MW3 ported src/gamez/zfmv/fmv_script.cpp:272), the feature compare equal (7f6e9e10) |
+| 0x005bb070 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(1) |
+| 0x005bb100 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(2) |
+| 0x005bb190 | 12 | folded | inside its ported callers (0x005ba110): a small helper their ports do their own way |
+| 0x005bb1b0 | 8 | unlabelled |  |
+| 0x005bb1d0 | 13 | unlabelled |  |
+| 0x005bb3d0 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
+| 0x005bb510 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
+| 0x005bb540 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
+| 0x005bb680 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
+| 0x005bb7c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bb8c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bba70 | 33 | unlabelled |  |
+| 0x005bbcd0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bbcf0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bbcf0 | 86 | unlabelled |  |
+| 0x005bca10 | 105 | unlabelled |  |
+| 0x005bccc0 | 316 | unlabelled |  |
+| 0x005bd7b0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bd7d0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bdb30 | 179 | unlabelled |  |
+| 0x005be050 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005be070, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005be0c0 | 19 | unlabelled |  |
+| 0x005be3f0 | 112 | unlabelled |  |
+| 0x005be700 | 68 | unlabelled |  |
+| 0x005be8e0 | 19 | unlabelled |  |
+| 0x005be940 | 9 | folded | by the slot pairing: PM vtable 0x5e0c34 slot 0x90 is MW3 vtable 0x5be308's 0x0059ea20 (MW3 folded: a thunk: one call to another function), the feature compare equal (7f6e9e10) |
+| 0x005be950 | 68 | unlabelled |  |
+| 0x005beb50 | 52 | unlabelled |  |
+| 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005becd0 | 38 | unlabelled |  |
 
 ### zgame (33 not ported)
 
@@ -5636,6 +5602,44 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 | 0x005b2830 | 231 | unlabelled |  |
 | 0x005b2c60 | 16 | debug or dev tool: PORT (preserve) | the script command PrintChildren (PM only): the current node's children's names to the console ('  %s'); no shipped PM script uses it, the port's interpreter does not know it |
+
+### zweapon (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005a52e0 | 521 | unlabelled |  |
+| 0x005a62a0 | 74 | unlabelled |  |
+| 0x005a6410 | 9 | unlabelled | follows 0x005a6420:  |
+| 0x005a6420 | 63 | unlabelled |  |
+| 0x005a6550 | 9 | unlabelled | follows 0x005a6420:  |
+| 0x005a6650 | 42 | unlabelled |  |
+| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
+| 0x005a6a00 | 37 | folded | group A, read: the same logic as MW3's 0x00584df0 on PM's 8-byte-longer effect block (flyout model +0x110, model animation +0x100): a pooled copy when animated, then under the shot's node; PM passes the add-child's arguments where MW3 leaves them in registers |
+| 0x005a6c20 | 20 | unlabelled |  |
+| 0x005a6c60 | 286 | MISSING LOGIC | pm only, group A, read: PM's shot spawn plays every FIRE animation (choice 0 all, k the k-th; attached when flag bit 1 and an attach node), then sets the choice back to 0; the port plays one, chosen 0 or 1 (zwep_shot.cpp:340-352). Goes with the reader 0x005a6700 (MW3 0x00585010) |
+| 0x005a7570 | 36 | MISSING LOGIC | pm only, minor: PM retires a dead shot a frame late: its retire (MW3 0x00586600) first stamps the shot (+0x638) with zClass's frame count [0x008c4b60, MW3 0x0072f338] + 1 and returns 0, and its def's shot walk (0x005a7570, new in PM) keeps it linked until a later call finds the stamp matching; so the node stays in the world at its last place, its flyout animations run one more frame and the pool slot comes back a frame later. The port retires at once, as MW3 (zwep_shot.cpp:455-466, 491-501) |
+| 0x005a75c0 | 129 | unlabelled |  |
+| 0x005a79a0 | 162 | unlabelled |  |
+| 0x005a8090 | 58 | unlabelled |  |
+| 0x005a8230 | 58 | unlabelled |  |
+| 0x005a8430 | 29 | unlabelled |  |
+| 0x005a8510 | 71 | unlabelled |  |
+| 0x005a8820 | 20 | unlabelled |  |
+| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
+| 0x005a8a90 | 16 | folded | read: a static list head made (zWeapon's list at [0x008cdcd4], empty, its count 0): container start-up; the port's list is its own |
+| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
+| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
+| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
+| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
+| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 
 ### zutil (31 not ported)
 
