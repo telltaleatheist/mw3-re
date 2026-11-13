@@ -436,33 +436,20 @@
 0x004a70c0	unsure	read with group A: a callee of shared ports PM changed (0x004b1030); whether the port does PM's version, this call included, is settled there
 0x004a71f0	unsure	read with group A: a callee of shared ports PM changed (0x004b10b0); whether the port does PM's version, this call included, is settled there
 0x004a7390	unsure	read with group A: a callee of shared ports PM changed (0x004a2220, 0x004a95f0); whether the port does PM's version, this call included, is settled there
-0x004f4d60	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
-0x004f6f00	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
-0x004f8e30	unsure	read with group A: a callee of shared ports PM changed (0x004f8f60); whether the port does PM's version, this call included, is settled there
-0x004f9090	unsure	read with group A: a callee of shared ports PM changed (0x004f90f0); whether the port does PM's version, this call included, is settled there
-0x004f9960	unsure	read with group A: a callee of shared ports PM changed (0x00483de0); whether the port does PM's version, this call included, is settled there
-0x004f99c0	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
-0x004fa090	unsure	read with group A: a callee of shared ports PM changed (0x004dd1e0); whether the port does PM's version, this call included, is settled there
-0x004fbe60	unsure	read with group A: a callee of shared ports PM changed (0x004d3c30, 0x004d6070); whether the port does PM's version, this call included, is settled there
-0x004fbfd0	unsure	read with group A: a callee of shared ports PM changed (0x004faff0); whether the port does PM's version, this call included, is settled there
 0x005000d0	unsure	read with group A: a callee of shared ports PM changed (0x004ffd20, 0x00501ab0); whether the port does PM's version, this call included, is settled there
 0x005017e0	unsure	read with group A: a callee of shared ports PM changed (0x00501030); whether the port does PM's version, this call included, is settled there
 0x0050b8f0	unsure	read with group A: a callee of shared ports PM changed (0x0050b920); whether the port does PM's version, this call included, is settled there
 0x00515c00	unsure	read with group A: a callee of shared ports PM changed (0x0050d4e0); whether the port does PM's version, this call included, is settled there
 0x00521050	unsure	read with group A: a callee of shared ports PM changed (0x00430e60, 0x004a95f0, 0x00524380); whether the port does PM's version, this call included, is settled there
-0x00521c70	unsure	read with group A: a callee of shared ports PM changed (0x00524492); whether the port does PM's version, this call included, is settled there
 0x00524be0	unsure	read with group A: a callee of shared ports PM changed (0x004e2820); whether the port does PM's version, this call included, is settled there
 0x005325a0	unsure	read with group A: a callee of shared ports PM changed (0x005326d0); whether the port does PM's version, this call included, is settled there
 0x0053c780	unsure	read with group A: a callee of shared ports PM changed (0x004fdd60); whether the port does PM's version, this call included, is settled there
 0x0053ef90	unsure	read with group A: a callee of shared ports PM changed (0x004225e0, 0x00422cd0, 0x00464060); whether the port does PM's version, this call included, is settled there
 0x0053fe30	unsure	read with group A: a callee of shared ports PM changed (0x00482ca0); whether the port does PM's version, this call included, is settled there
-0x00540090	unsure	read with group A: a callee of shared ports PM changed (0x0043af70, 0x00482ca0); whether the port does PM's version, this call included, is settled there
-0x005400c0	unsure	read with group A: a callee of shared ports PM changed (0x00483020); whether the port does PM's version, this call included, is settled there
 0x005906a0	unsure	read with group A: a callee of shared ports PM changed (0x0058ff90); whether the port does PM's version, this call included, is settled there
 0x00594600	unsure	read with group A: a callee of shared ports PM changed (0x005941c0); whether the port does PM's version, this call included, is settled there
 0x00596520	unsure	read with group A: a callee of shared ports PM changed (0x0043bb70, 0x004fd6f0, 0x00505c80); whether the port does PM's version, this call included, is settled there
 0x005969a0	unsure	read with group A: a callee of shared ports PM changed (0x00482090); whether the port does PM's version, this call included, is settled there
-0x0059aef0	unsure	read with group A: a callee of shared ports PM changed (0x00482090, 0x00483020); whether the port does PM's version, this call included, is settled there
 0x005a03b0	unsure	read with group A: a callee of shared ports PM changed (0x005a0065); whether the port does PM's version, this call included, is settled there
 0x005a1220	unsure	read with group A: a callee of shared ports PM changed (0x00548990); whether the port does PM's version, this call included, is settled there
 0x005a4de0	unsure	read with group A: a callee of shared ports PM changed (0x00524710); whether the port does PM's version, this call included, is settled there
@@ -2560,3 +2547,16 @@
 0x00541a30	missing	pm only, low object detail: PM's object-detail setter (0x0040b120, MW3 0x0040d310, the port's set_object_lod, options.cpp:249) also sets [0x006112e4] = 1 below detail 2, 0 at 2 (0x00541a30), and PM's model preparation (0x00541a40, MW3 0x0053e050) reads it: at detail 2 it does not advance the materials' texture cycles (animated textures stay on their frame) and returns before its case-2 path's drawing. The port has neither; with the other low-detail rows (0x00492830's, the camera scale 0.2, the mech data's)
 0x00534380	folded	read: a keyboard wait (loop until a key comes, 0x00533e60) that its only caller, the controls menu's key capture (0x0042cd30), calls with 0, which skips it; the port's capture is its own (controls_menu.cpp)
 0x0057a770	missing	pm only, renderer, effect to check: PM drops the pending screen tint after each frame's finish (0x0057a770, MW3's tint_clear 0x005587b0, which MW3 never calls; PM's core frame 0x004838b0 calls it after 0x0057a5d0 when [0x0062cf29] is clear). MW3 and the port keep a tint pending until another is set (zrndr_tint.cpp:137), so a tint set once shows on every later frame in the port and on one in PM; which tints are set once (not every frame) is to check
+0x00540090	folded	read: the model code's GfxFlags pointer bound to the registry's value of that name (GfxFlags_HW / GfxFlags_SW, 0x005b9070) or to a local default, from the app's settings read (0x00482ca0) and the graphics screen; the port keeps GfxFlags in its options (options.cpp) and the model code reads them through its hooks
+0x005400c0	folded	read: teardown frees at the app's end (a model table freed and its count cleared; the video's buffer freed), from the app's cleanup (0x00483020 / 0x00482090); the port's objects free themselves
+0x0059aef0	folded	read: teardown frees at the app's end (a model table freed and its count cleared; the video's buffer freed), from the app's cleanup (0x00483020 / 0x00482090); the port's objects free themselves
+0x00521c70	folded	read: the animations' event handler table filled (a pointer per event type), PM's dispatch for the post-load pass; the port dispatches by the event's type (zeff_anim_events.cpp)
+0x004f4d60	folded	checked by test (block trace, 2026-11-13): test_pm_ai_valves' valve builder 0x004f5f50 runs it on every shipped valves.zrd and crafted records; every call out, every valve's value and the words written on the brains and targets compared
+0x004f6f00	folded	checked by test (block trace, 2026-11-13): test_pm_ai_valves' valve builder 0x004f5f50 runs it on every shipped valves.zrd and crafted records; every call out, every valve's value and the words written on the brains and targets compared
+0x004fbfd0	folded	checked by test (block trace, 2026-11-13): test_pm_ai_brain runs it (from 0x004fafe0); the calls in order and the brain's fields compared at 53 bits
+0x004f9960	folded	read: the mission listeners' slot +0x10 called on each (0x004f9a20), the port's mission_started (app_states.cpp:817 names 0x004f9960)
+0x004f8e30	folded	read: the same as its MW3 twin, its copies taken in another form (one-sided statements only a loop's form and a vtable pointer's place)
+0x004f99c0	folded	read: the same as its MW3 twin, its copies taken in another form (one-sided statements only a loop's form and a vtable pointer's place)
+0x004f9090	missing	pm only: PM's turret turn (0x004f90f0, MW3 0x004e72f0, veh_controls.cpp turret_turn) reads the turret node's world matrix through this, which first brings it up to date (0x004fefa0 when the node's data bit 0x20 is set); MW3 reads data +0x60 as it stands, and so does the port's node_world_matrix hook. Effect: PM's turret aims from this update's matrix, MW3's from the last; to check at fix time
+0x004fa090	folded	read: the brain's orders object's constructor (brain +0x128, from 0x004dd1e0, MW3 0x004e82a0 at +0x160): MW3's with PM's again byte +0x30 and pending list +0x34 added and the argument moved to +0x40; the port's OrdersPm (zai_brain_pm.h) carries the deque, again and pending
+0x004fbe60	folded	read: sets the brain's byte +0x158, the orders' again flag (OrdersPm::again in zai_brain_pm.h: run the last order once more), from 0x004d3c30 and 0x004d6070
