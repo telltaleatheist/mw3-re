@@ -475,3 +475,29 @@
 0x005bfdc0	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x005c57d0	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x00514120	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
+0x00415940	folded	called only from shared ports whose logic is MW3's (0x00415ce0 = MW3 0x004152d0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x00443530	folded	called only from shared ports whose logic is MW3's (0x004414e0 = MW3 0x0043fcb0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x0044abb0	folded	called only from shared ports whose logic is MW3's (0x0044a530 = MW3 0x0044f4c0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x00469a30	folded	called only from shared ports whose logic is MW3's (0x00469dc0 = MW3 0x00468250): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x0047be40	folded	called only from shared ports whose logic is MW3's (0x0047c960 = MW3 0x0047a680): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x004a7420	folded	called only from shared ports whose logic is MW3's (0x004a9010 = MW3 0x004a5c60): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x004ab480	folded	called only from shared ports whose logic is MW3's (0x004aca30 = MW3 0x004a9530): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x004b6e80	folded	called only from shared ports whose logic is MW3's (0x004b6c90 = MW3 0x004b2da0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x004c51e0	folded	called only from shared ports whose logic is MW3's (0x004c5590 = MW3 0x004be670): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x004cb840	folded	called only from shared ports whose logic is MW3's (0x004ce020 = MW3 0x004c3bd0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x004ecaa0	folded	called only from shared ports whose logic is MW3's (0x004eb840 = MW3 0x004da7e0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x00506390	folded	called only from shared ports whose logic is MW3's (0x0051b500 = MW3 0x00502fd0, 0x00525530 = MW3 0x0050be30): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x0050a550	folded	called only from shared ports whose logic is MW3's (0x0050a5d0 = MW3 0x004f6c50): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x0050b1c0	folded	called only from shared ports whose logic is MW3's (0x0050b9b0 = MW3 0x004f8050, 0x0050b9e0 = MW3 0x004f8080, 0x0050ba90 = MW3 0x004f8140): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x0050c3b0	folded	called only from shared ports whose logic is MW3's (0x0050c340 = MW3 0x004f8ab0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x00515e40	folded	called only from shared ports whose logic is MW3's (0x0050caf0 = MW3 0x004f8fb0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x00532b60	folded	called only from shared ports whose logic is MW3's (0x00532880 = MW3 0x00518f70): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x00533320	folded	called only from shared ports whose logic is MW3's (0x004af590 = MW3 0x004abb60): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x00534380	folded	called only from shared ports whose logic is MW3's (0x0042cd30 = MW3 0x0042be10): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x0057c950	folded	called only from shared ports whose logic is MW3's (0x005c5cf0 = MW3 0x005a57d0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x005a39c0	folded	called only from shared ports whose logic is MW3's (0x005201b0 = MW3 0x00507340): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x005a12a0	sdl	called only from 0x005c0450, 0x005c0b70, which are sdl
+0x005c0bf0	sdl	called only from 0x005c04d0, which are sdl
+0x005c9e30	sdl	called only from 0x005c08f0, which are sdl
+0x005ca3c0	sdl	called only from 0x0059c230, 0x005c9e30, which are sdl
+0x005ca600	sdl	called only from 0x005c9e30, which are sdl
