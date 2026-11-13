@@ -235,7 +235,6 @@
 0x005cb3e0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x00510ab0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x0040b210	folded	inside its ported callers (0x0043a060): a small helper their ports do their own way
-0x0040b320	folded	inside its ported callers (0x0040b720): a small helper their ports do their own way
 0x0040b6b0	folded	inside its ported callers (0x00484fa0, 0x004aefe0): a small helper their ports do their own way
 0x0040b9f0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x0040ca30	folded	inside its ported callers (0x0048eaf0): a small helper their ports do their own way
@@ -335,7 +334,6 @@
 0x00521f80	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x00526df0	folded	inside its ported callers (0x0051b500, 0x005a27b0, 0x005a3df0, 0x005a6c60): a small helper their ports do their own way
 0x00537e60	folded	inside its ported callers (0x004d92c0, 0x004d9a90, 0x004da1c0, 0x004dcd20): a small helper their ports do their own way
-0x00541a30	folded	inside its ported callers (0x0040b120): a small helper their ports do their own way
 0x00563740	folded	inside its ported callers (0x00507f30): a small helper their ports do their own way
 0x00565f00	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
 0x00565fd0	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
@@ -358,7 +356,6 @@
 0x0058fc20	folded	inside its ported callers (0x0058fb60): a small helper their ports do their own way
 0x00590310	folded	inside its ported callers (0x00590530): a small helper their ports do their own way
 0x00590610	folded	inside its ported callers (0x0058ff90): a small helper their ports do their own way
-0x005908e0	folded	inside its ported callers (0x00482ca0): a small helper their ports do their own way
 0x00590b90	folded	inside its ported callers (0x00590ae0): a small helper their ports do their own way
 0x00590d20	folded	inside its ported callers (0x005920e0): a small helper their ports do their own way
 0x00591120	folded	inside its ported callers (0x00590f80): a small helper their ports do their own way
@@ -371,16 +368,12 @@
 0x005a4dc0	folded	inside its ported callers (0x004e37d0, 0x00513310, 0x00524492): a small helper their ports do their own way
 0x005a52c0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x005a52d0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
-0x005a8a90	folded	inside its ported callers (0x005a8a40): a small helper their ports do their own way
 0x005a94f0	folded	inside its ported callers (0x0049a3c0, 0x0049df10): a small helper their ports do their own way
 0x005aa6a0	folded	inside its ported callers (0x005a9980): a small helper their ports do their own way
 0x005aa700	folded	inside its ported callers (0x005a9980): a small helper their ports do their own way
 0x005aaba0	folded	inside its ported callers (0x0049b730): a small helper their ports do their own way
 0x005b0da0	folded	inside its ported callers (0x005adfe0): a small helper their ports do their own way
 0x005b21b0	folded	inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way
-0x005b6ec0	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
-0x005b6ed0	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
-0x005b6ee0	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
 0x005b7430	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
 0x005bb190	folded	inside its ported callers (0x005ba110): a small helper their ports do their own way
 0x005c0500	folded	inside its ported callers (0x005c1360): a small helper their ports do their own way
@@ -661,3 +654,26 @@
 0x00408b20	missing	PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog
 0x005404f0	missing	PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
 0x00408d00	missing	PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
+0x0040b320	unsure	the setter sweep: it writes [0x0061880c], which the port never names, so folding it into its caller is not shown; [0x0061880c] read by 0x40b330
+0x004112a0	unsure	the setter sweep: it writes [0x00627d70], [0x00627d74], [0x00627d78], [0x00627d7c], which the port never names, so folding it into its caller is not shown; [0x00627d70] read by nothing found; [0x00627d74] read by 0x411300, 0x4113f0, 0x411650, 0x411800, 0x411820; [0x00627d78] read by 0x411300, 0x4113f0, 0x411800; [0x00627d7c] read by 0x4113f0
+0x00413c40	unsure	the setter sweep: it writes [0x00628b48], which the port never names, so folding it into its caller is not shown; [0x00628b48] read by 0x413df0
+0x00430620	unsure	the setter sweep: it writes [0x006293e0], [0x006293e4], [0x006293e8], which the port never names, so folding it into its caller is not shown; [0x006293e0] read by nothing found; [0x006293e4] read by 0x430790, 0x430800, 0x430930, 0x431080, 0x431120; [0x006293e8] read by 0x430790, 0x431120, 0x431ce0, 0x431d70
+0x004d0cc0	unsure	the setter sweep: it writes [0x0062fa88], which the port never names, so folding it into its caller is not shown; [0x0062fa88] read by 0x4d0ee0
+0x004d2e40	unsure	the setter sweep: it writes [0x0062fb04], which the port never names, so folding it into its caller is not shown; [0x0062fb04] read by nothing found
+0x004d2f80	unsure	the setter sweep: it writes [0x0062fadc], which the port never names, so folding it into its caller is not shown; [0x0062fadc] read by 0x4d60d0, 0x4d64e0
+0x0051b270	unsure	the setter sweep: it writes [0x008d3f3c], which the port never names, so folding it into its caller is not shown; [0x008d3f3c] read by 0x51fce0
+0x00526970	unsure	the setter sweep: it writes [0x0060f684], which the port never names, so folding it into its caller is not shown; [0x0060f684] read by 0x526310, 0x526450, 0x5266b0, 0x526860, 0x526990
+0x00526980	unsure	the setter sweep: it writes [0x0060f688], which the port never names, so folding it into its caller is not shown; [0x0060f688] read by 0x526310, 0x526450, 0x5266b0, 0x526860, 0x526990
+0x00532860	unsure	the setter sweep: it writes [0x0066a23c], which the port never names, so folding it into its caller is not shown; [0x0066a23c] read by 0x531920, 0x532450, 0x532870
+0x00540750	unsure	the setter sweep: it writes [0x008c4b78], [0x00a4e090], which the port never names, so folding it into its caller is not shown; [0x008c4b78] read by nothing found; [0x00a4e090] read by 0x541a40, 0x543b10, 0x547dd0, 0x562840, 0x563f10
+0x00541a30	unsure	the setter sweep: it writes [0x006112e4], which the port never names, so folding it into its caller is not shown; [0x006112e4] read by 0x541a40
+0x00566740	unsure	the setter sweep: it writes [0x008c14e4], which the port never names, so folding it into its caller is not shown; [0x008c14e4] read by 0x563da0, 0x564710
+0x00566750	unsure	the setter sweep: it writes [0x008c14ec], which the port never names, so folding it into its caller is not shown; [0x008c14ec] read by 0x563da0, 0x564710
+0x00566760	unsure	the setter sweep: it writes [0x008c14e8], which the port never names, so folding it into its caller is not shown; [0x008c14e8] read by 0x563da0, 0x564710
+0x005776c0	unsure	the setter sweep: it writes [0x008c153c], which the port never names, so folding it into its caller is not shown; [0x008c153c] read by nothing found
+0x005908e0	unsure	the setter sweep: it writes [0x00613214], which the port never names, so folding it into its caller is not shown; [0x00613214] read by 0x590d70
+0x005a8a90	unsure	the setter sweep: it writes [0x008cdcd0], [0x008cdcd4], [0x008cdcd8], which the port never names, so folding it into its caller is not shown; [0x008cdcd0] read by nothing found; [0x008cdcd4] read by 0x5a8b30, 0x5a8ba0, 0x5a8c20, 0x5a8cd0; [0x008cdcd8] read by 0x5a8b30, 0x5a8ba0, 0x5a8c20
+0x005b6ec0	unsure	the setter sweep: it writes [0x008c4c44], which the port never names, so folding it into its caller is not shown; [0x008c4c44] read by nothing found
+0x005b6ed0	unsure	the setter sweep: it writes [0x008c4c4c], which the port never names, so folding it into its caller is not shown; [0x008c4c4c] read by nothing found
+0x005b6ee0	unsure	the setter sweep: it writes [0x008c4c48], which the port never names, so folding it into its caller is not shown; [0x008c4c48] read by nothing found
+0x005c8e50	unsure	the setter sweep: it writes [0x008d3aa8], [0x008d3aa9], which the port never names, so folding it into its caller is not shown; [0x008d3aa8] read by nothing found; [0x008d3aa9] read by 0x5c0320, 0x5c0340
