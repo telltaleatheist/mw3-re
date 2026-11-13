@@ -271,7 +271,7 @@ def write_doc(o, g, rows):
                 'the diff calls identical takes the MW3 label ("as MW3 ..."). A changed pair under a shared port was read:',
                 'those whose control flow differs from the twin\'s one by one, by file; those whose text differs but not their',
                 'control flow either by reading or by **the feature compare** (tools/analysis/pm_feature_compare.py, at commit',
-                '74b81af8): the calls and data references (MW3\'s mapped to PM), the immediates and the float constants by their',
+                '5d13d2bf): the calls and data references (MW3\'s mapped to PM), the immediates and the float constants by their',
                 'raw values, as multisets over the function, field offsets reported apart (PM\'s layouts shift them). A sample',
                 'of 40, read whole, found no change the compare does not flag; the functions it flags are read one by one, the rest',
                 'are labelled "folded, by the feature compare". **Checked by test** means a passing PM differential test ran the',
