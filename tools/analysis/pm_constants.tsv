@@ -7,7 +7,7 @@
 # The float values as sets (all instructions, pm_constants_sets.tsv): sign flips and 0/1/2 dropped, 58 functions left; checked so far:
 0x0040b120	0x0040d310	47	src/mech3/options.cpp	0.4 -> 0.2	MISSING: the object detail's level 2 camera LOD scale (options.cpp:260 keeps 0.4)
 0x004311e0	0x00430e70	228	src/mech3/player_view.cpp	150 -> 120, -1.570796 -> -1.413716	MISSING: the god camera's distance and pitch (player_view.cpp:446-447 keep MW3's)
-0x004b0790	0x004ace00	76	src/mech3/veh_basic_object.cpp	-1.570796 -> -1.413716 (and 150 -> 120?)	MISSING: the vehicle's above camera (veh_basic_object.cpp:500 keeps MW3's)
+0x004b0790	0x004ace00	76	src/mech3/veh_basic_object.cpp	-1.570796 -> -1.413716 (150 m in both)	MISSING: the vehicle's above camera pitch (veh_basic_object.cpp keeps MW3's -90 degrees)
 0x004232a0	0x004222e0	40	src/mech3/mech_build.cpp	0.01 -> 0.05	picked up: yaw_kick 0.05 (mech_build.cpp:325)
 0x004790f0	0x00477620	32	src/mech3/mech_skis.cpp	0.85 -> 0.84	picked up: kSteep 0.84 (mech_skis.cpp:58)
 0x00462090	0x00460d50	275	src/mech3/mech_parts.cpp	PM 0.0062 0.1 0.143 0.2	picked up: mech_parts.cpp:450-453, 1093
