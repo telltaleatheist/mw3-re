@@ -146,7 +146,7 @@ int strip_port(int slot, uint32_t limit, uint32_t small, uint8_t* out, int cap, 
   zmod::Model m{};
   std::memcpy(m.header, b.model.header, 0x5c);
   const uint32_t n0 = static_cast<uint32_t>(b.polys.size());
-  m.polygons = static_cast<zmod::Polygon*>(std::malloc(sizeof(zmod::Polygon) * (n0 ? n0 : 1)));
+  m.polygons = n0 ? new zmod::Polygon[n0] : nullptr;  // new[]'d as the reader's (cls_mechlib.cpp)
   for (uint32_t i = 0; i < n0; ++i) {
     zmod::Polygon q = b.polys[i];
     auto dup = [](const void* src, size_t bytes) -> void* {
@@ -190,7 +190,7 @@ int strip_port(int slot, uint32_t limit, uint32_t small, uint8_t* out, int cap, 
     zmod::Polygon& q = m.polygons[i];
     std::free(q.vertex_indices), std::free(q.normal_indices), std::free(q.uvs), std::free(q.colors), std::free(q.scratch);
   }
-  std::free(m.polygons);
+  delete[] m.polygons;
   return w;
 }
 }

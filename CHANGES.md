@@ -172,6 +172,7 @@ it is clear what the designers meant.
 
 ## Crashes and broken data that no longer break the game
 
+- When the game turns a mech's triangles into strips as it loads it (in 3D-card mode), it no longer reads past its own list of the mech's faces. In the original that read was harmless in practice (the shipped mechs never join there); the rebuild skips it, and the mechs come out the same.
 - A rare crash when a crater cut the ground in an awkward place is gone: the cut is skipped on that piece of ground.
 - **More than 64 lights at once no longer corrupt the shadows' memory.** Every explosion and weapon impact brings its own light. With more than 64 lights on at once, the original wrote the brightness of the 65th and later ones, wherever they reached a model, past the end of its table and over the shadows' data. Heavily modded weapons with lots of firing could get there. Those lights now keep their values apart and light the model as the others do.
 - **Ctrl+I in the mech lab loads a loadout again.** In the rebuild so far it read
