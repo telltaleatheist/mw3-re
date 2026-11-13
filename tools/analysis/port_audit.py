@@ -269,6 +269,17 @@ def write_doc(o, g, rows):
             lines = sum(x['lines'] for x in rs)
             out.append(f'- **{", ".join(x["addr"] for x in rs[:6])}{" ..." if len(rs) > 6 else ""}** ({len(rs)} functions, {lines} decomp lines; '
                        f'{LABEL_WORDS[kind]}): {why}')
+    broken = ROOT / 'tools' / 'analysis' / 'port_audit_broken.tsv'
+    if broken.exists():
+        out += ['', '## BROKEN (null hook)', '',
+                'Hooks the ported code calls that the program leaves unset (a null field, a census stand-in, or a',
+                'base virtual that only logs), which shipped play reaches. "Shown by": the chain runs (the census',
+                'of a campaign, Instant Action or training run) or the static check (the data and the callers).', '',
+                '| Hook | Original | Reached by | The original does | In the port | Seen in play | Shown by |',
+                '|---|---|---|---|---|---|---|']
+        for line in broken.read_text().splitlines():
+            if line.strip() and not line.startswith('#'):
+                out.append('| ' + ' | '.join(line.split('\t')) + ' |')
     out += ['', '## PORT (preserve)', '']
     for kind in ('debug', 'devdialog-logic', 'unused'):
         groups = {}
@@ -393,6 +404,10 @@ def main():
     for line in open(ROOT / 'tests' / 'hook_allow.txt', errors='replace'):
         if line.strip() and not line.startswith('#') and '\t' in line:
             allowed.add(line.split('\t')[0].split('.')[-1])
+    # and the census stand-ins (src/mech3/hook_census.inc): null in the
+    # program too, only counted.
+    for m in re.finditer(r'^SKIP\([\w:]+,\s*(\w+),', (ROOT / 'src' / 'mech3' / 'hook_census.inc').read_text(), re.M):
+        allowed.add(m.group(1))
     field = re.compile(r'\(\*(\w+)\)\s*\(')
     cache = {}
     for r in rows:
