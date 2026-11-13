@@ -605,3 +605,16 @@
 0x005b14e0	unsure	read with group A: a callee of shared ports PM changed (0x005c9280); whether the port does PM's version, this call included, is settled there
 0x005b2050	unsure	read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there
 0x005cb4b0	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
+0x0040cf60	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x0040cfa0	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x0040d230	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x0040d660	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x004281c0	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x00438820	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x00468da0	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x00472e60	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x0040f9c0	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x0045abf0	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x004654d0	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x00469bc0	folded	read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical
+0x0043cf50	missing	PM's HUD ZAPS static (MW3 0x0043be70's version, the hit's static on a HUD channel): unported, and its hook is the census stand-in DamageCalls.zaps_hud, as in MW3 (docs/port-audit.md, BROKEN row 3)
