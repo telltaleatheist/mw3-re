@@ -208,10 +208,17 @@ From the port of the damage code, checked in an emulator against the original
 - **Only your lance's kills fill the salvage.** In the campaign a mech
   killed by you or a lancemate goes to the mission's salvage; one finished
   off by anyone else (or with no attacker, such as a heat death) does not.
-- **Blown-off arms and legs fly out sideways**, away from the mech's own
+- **Blown-off arms and legs fly out sideways only four times in ten.**
+  When an arm or leg is destroyed, the game picks one of two effects: six
+  times in ten it blows up where it hangs and vanishes in about a quarter of
+  a second; four times in ten it detaches and flies away from the mech's own
   side, at 20 m/s plus three quarters of the mech's speed, with a little
-  lift; an empty stump model is left in their place. In Instant Action the
-  wreckage fades out.
+  lift, arcing down and bouncing. Either way an empty stump model is left in
+  its place. In Instant Action the wreckage fades out.
+- **A side torso never comes off.** When a side torso's structure runs out,
+  it stays on the mech and takes its arm with it. The debriefing's damage
+  bars show armour, not structure, so a side torso can read empty there
+  while its arm is still on.
 - **A Blackhawk or Owens that loses a leg loses the arm on that side too.**
   No other mech does.
 - **An AI mech remembers who hit it last forever.** Only the player's own
