@@ -11,15 +11,16 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2938 |
-| unlabelled | 598 |
+| folded | 2918 |
+| unlabelled | 305 |
+| replaced (SDL or the platform layer) | 125 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 91 |
+| software renderer | 73 |
+| UNSURE | 59 |
+| debug or dev tool: PORT (preserve) | 57 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 45 |
-| dev dialog (MFC), its logic: PORT (preserve) | 39 |
-| replaced (SDL or the platform layer) | 29 |
-| debug or dev tool: PORT (preserve) | 23 |
-| UNSURE | 22 |
-| unused: PORT (preserve) | 15 |
+| dev dialog (MFC), its logic: PORT (preserve) | 42 |
+| unused: PORT (preserve) | 39 |
 | MISSING LOGIC | 2 |
 
 ## MISSING LOGIC
@@ -27,9 +28,16 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x0041b930, 0x0041b980** (2 functions, 46 decomp lines; MISSING LOGIC): the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
 - **0x00401050, 0x00401100, 0x00401400, 0x00401500, 0x00401620, 0x00401680 ...** (21 functions, 1001 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00402190, 0x004021c0, 0x004022e0, 0x00402300, 0x004024a0, 0x004024e0 ...** (8 functions, 482 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them
+- **0x00410400, 0x004c0310** (2 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
 - **0x004ae270, 0x004ae340, 0x004ae350, 0x004ae380, 0x004ae3c0, 0x004ae6a0 ...** (13 functions, 325 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004bed90, 0x004bf4e0** (2 functions, 129 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file
-- **0x004c0310** (1 functions, 104 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
+- **0x004f1cd0, 0x004f3d00, 0x004f3f70** (3 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them
+- **0x004f1d90, 0x004f1dc0, 0x004f2860, 0x004f2880, 0x004f32a0, 0x004f3550 ...** (27 functions, 819 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x004fd1e0, 0x004fd8c0** (2 functions, 54 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
+- **0x00526aa0, 0x00526ac0, 0x0053b960, 0x0053bb50, 0x0053bd60** (5 functions, 191 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
+- **0x00542060** (1 functions, 255 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
+- **0x00548250, 0x005484c0, 0x005485b0, 0x00548600, 0x00548650, 0x005487d0** (6 functions, 361 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it
+- **0x00579230** (1 functions, 11 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the script command VideoSetWireFrame: the engine entry is null in the port (hook_allow: counted) and no shipped script uses it
 
 ## PORT (preserve)
 
@@ -43,10 +51,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 2 functions, 18 decomp lines (0x004a4ca0, 0x004a50b0): the stealth object (the developers' fly camera; back burner in CLAUDE.md): a slot of its
 - 2 functions, 149 decomp lines (0x004a50e0, 0x004abbc0): the debug command 0x7e (0x004abbc0, 121 lines: a console of keyboard text and the network session; registered, but no key reaches it: app_keys.h:14, hud.md) and the stealth object's key handler (0x004a50e0: the fly camera, back burner)
 - 2 functions, 18 decomp lines (0x004e2310, 0x004e53b0): the valve reader's print method (a vtable slot that fprintf's a value); nothing in the game prints a reader
+- 5 functions, 346 decomp lines (0x004f6c70, 0x004fce40, 0x004fe210, 0x004fe2d0 ...): the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
+- 2 functions, 406 decomp lines (0x005360c0, 0x005380e0): the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool
+- 27 functions, 837 decomp lines (0x0058c590, 0x0058d3c0, 0x0058e440, 0x0058e460 ...): the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
 
 ### dev dialog (MFC), its logic: PORT (preserve)
 
+- 2 functions, 229 decomp lines (0x00403820, 0x0049d350): the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp
 - 3 functions, 103 decomp lines (0x00403ec0, 0x00404090, 0x0049d140): the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents)
+- 1 functions, 68 decomp lines (0x0040bb00): the camera dialog (resource 0x6a: the camera's place and angles in degrees, editable; 0x0040bd00 its window): a dev tool's logic
 - 2 functions, 61 decomp lines (0x00432c60, 0x00432d30): a mech list dialog (resource 0x9c, from a debug key command in 0x0040db60): its fill of every mech name (0x00484650)
 - 16 functions, 250 decomp lines (0x00483170, 0x00483200, 0x00483230, 0x004832e0 ...): the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags)
 - 7 functions, 160 decomp lines (0x0049d710, 0x0049d7b0, 0x0049d810, 0x0049d8d0 ...): the editor's 'add vehicle to node' dialog (editor.md: a vehicle picked from a dialog, 0x0049d350 / 0x0049d8b0): its list fill, its team and target bits from the player's mech (+0xc4, +0xc8), the yaw in radians
@@ -61,9 +74,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 1 functions, 17 decomp lines (0x0040fef0): the timing marks ('Dummy Frame', 'Lets Play!'): act only with [0x005e14f0], 0 in the data (program.md, no effect)
 - 1 functions, 27 decomp lines (0x00493120): the movie base's run to the end on its own clock (0x00575d30): nothing calls it (fmv.md)
 - 5 functions, 216 decomp lines (0x004a3fb0, 0x004a3fe0, 0x004a43c0, 0x004a4660 ...): the turn limits' clamp (vt+0x04) for the Fixed, Narrow and Wide kinds (vtables 0x005c8310/20/30): the turret never asks clamp (turret.h:31) and the AI's track keeps its answer only for a dot product it drops (vehicles.md, zai_firing.cpp:554)
+- 2 functions, 97 decomp lines (0x004b1170, 0x004b12e0): the static the AI's planner builds at 0x0060b240 (two reserved vectors): read by nothing (weapon_planner.h:7)
 - 2 functions, 45 decomp lines (0x004c0ed0, 0x004c0f70): the vehicle's +0xd8 record of each in/out query (its constructor and reset): written, never read (docs/symbols.csv: not kept; ai.md 11)
 - 4 functions, 138 decomp lines (0x004cd790, 0x004cd7b0, 0x004cd800, 0x004cd810): the brain's own step at +0x240 (0x004cd770, vtable 0x005cc290): built by the brain's constructor, but nothing orders it (only the constructor takes +0x240), so its make_state, state and run (path following toward a point, 98 lines) never run
 - 2 functions, 57 decomp lines (0x004e77a0, 0x004e95b0): IControls vt+0x84 of the AI controls (drop the target if it is the given entity's, stand the firing down): no caller reaches that slot (docs/ai.md, the AI controls' unreached slots)
+- 3 functions, 34 decomp lines (0x004f3540, 0x004f8f20, 0x004f8f60): no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60)
+- 3 functions, 78 decomp lines (0x004fc4d0, 0x004fc990, 0x004fcca0): mechlib's material writer at close (0x004fc990 -> 0x004fcca0 -> 0x004fc4d0): dead (mechlib.md)
+- 15 functions, 3789 decomp lines (0x00530d90, 0x00531d90, 0x005331e0, 0x00534745 ...): large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
+- 1 functions, 52 decomp lines (0x00548840): the puffers' wind step with a dt argument: dead code, never called (puffers.md)
 
 ## UNSURE
 
@@ -72,6 +90,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 0x004c9d20, 0x004c9d70, 0x004c9db0, 0x004c9de0 (4 functions, 74 decomp lines): Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d7160 (1 functions, 12 decomp lines): an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it
 - 0x004dee50 (1 functions, 58 decomp lines): the aiv reader's vtable slot 0x005cd42c (58 lines): a name checked against zEntity's list (0x005a8210) and the reader's records (std::map find 0x004e1a30), no caller found; probably the editor's 'is this name free'; to settle by its slot and callers
+- 0x004fc8b0 (1 functions, 23 decomp lines): the mechlib models' edge pass's entry (0x004fc8b0 over every model, then 0x00552540): see the edge pass under zmodel; it runs in the hardware mode
+- 0x00550010, 0x00550120, 0x00550160, 0x005503c0, 0x00551190, 0x00553460, 0x00553470, 0x005534b0, 0x00553510, 0x00553560, 0x00553580, 0x005535b0, 0x005535f0, 0x00553660, 0x00553700, 0x00553760, 0x005537d0, 0x00553990, 0x00553b80, 0x00553d40, 0x00553d60, 0x00554130, 0x00554150, 0x00554420, 0x00554460, 0x005544d0, 0x00554540, 0x005545d0, 0x00554630, 0x00554660, 0x005546c0, 0x00554ea0, 0x00554f30, 0x005555a0, 0x005555e0, 0x00555620 (36 functions, 2329 decomp lines): the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech)
 
 ## By module
 
@@ -118,10 +138,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00402f20 | 14 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:295) |
 | 0x00403140 | 9 | folded | a thunk: one call to another function |
 | 0x00403710 | 23 | folded | covered by the port where it names it (src/upgrades/editor/node_params.h:16) |
-| 0x00403820 | 81 | folded | covered by the port where it names it (src/upgrades/editor/add_vehicle.h:10) |
+| 0x00403820 | 81 | dev dialog (MFC), its logic: PORT (preserve) | the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp |
 | 0x00403a40 | 21 | dev dialog (MFC), its window plumbing: replaced | MFC dialog plumbing of dev dialogs (CDialog constructors and destructors, EnableWindow): resource 0x67 and the teleport and net dialogs' destructors |
 | 0x00403a90 | 18 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:349) |
-| 0x00403c00 | 57 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:107) |
+| 0x00403c00 | 57 | folded | covered where the port does it: src/mech3/zainetedit.cpp:107 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00403cd0 | 25 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00403d10 | 28 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00403d60 | 20 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
@@ -135,7 +155,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004040d0 | 14 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.h:354) |
 | 0x00404100 | 9 | folded | a thunk: one call to another function |
 | 0x00404110 | 9 | folded | a thunk: one call to another function |
-| 0x00404140 | 53 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:29) |
+| 0x00404140 | 53 | folded | covered where the port does it: src/mech3/game_editor_net.cpp:29 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00404200 | 27 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:596) |
 | 0x004042f0 | 20 | folded | covered: array and list helpers, destructors (unwind callers), the loading bar and the briefing's map (app_menus.cpp:964 overrides briefing_map_image; the hook's 'not ported yet' comment is stale), the vehicle path's entries drop (app_vehicle.h:145) |
 | 0x00404320 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -250,7 +270,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0040bac0 | 9 | folded | covered by the port where it names it (src/mech3/player_view.h:36) |
 | 0x0040bae0 | 8 | folded | returns a constant or a global |
 | 0x0040baf0 | 8 | folded | empty: does nothing |
-| 0x0040bb00 | 68 | folded | covered by the port where it names it (src/mech3/player_view.h:13) |
+| 0x0040bb00 | 68 | dev dialog (MFC), its logic: PORT (preserve) | the camera dialog (resource 0x6a: the camera's place and angles in degrees, editable; 0x0040bd00 its window): a dev tool's logic |
 | 0x0040bd00 | 23 | dev dialog (MFC), its window plumbing: replaced | MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x0040bd50 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0040bd70 | 20 | dev dialog (MFC), its window plumbing: replaced | MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
@@ -269,7 +289,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0040d7d0 | 11 | folded | a thunk: one call to another function |
 | 0x0040d7f0 | 11 | folded | a thunk: one call to another function |
 | 0x0040def0 | 40 | dev dialog (MFC), its window plumbing: replaced | MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
-| 0x0040e120 | 42 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:229) |
+| 0x0040e120 | 42 | folded | covered where the port does it: src/mech3/game_editor_net.cpp:229 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0040e200 | 21 | dev dialog (MFC), its window plumbing: replaced | MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x0040e260 | 9 | folded | a thunk: one call to another function |
 | 0x0040e3b0 | 22 | folded | covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
@@ -344,7 +364,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00410370 | 9 | folded | a thunk: one call to another function |
 | 0x004103b0 | 9 | folded | a thunk: one call to another function |
 | 0x004103c0 | 9 | folded | a thunk: one call to another function |
-| 0x00410400 | 9 | folded | a thunk: one call to another function |
+| 0x00410400 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | follows 0x004c0310: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour) |
 | 0x00410410 | 9 | folded | a thunk: one call to another function |
 | 0x00410450 | 9 | folded | a thunk: one call to another function |
 | 0x00410460 | 9 | folded | a thunk: one call to another function |
@@ -383,7 +403,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004133d0 | 11 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x00413400 | 9 | folded | follows 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x00413410 | 9 | folded | a thunk: one call to another function |
-| 0x004137c0 | 144 | folded | covered by the port where it names it (src/mech3/landmines.cpp:53) |
+| 0x004137c0 | 144 | folded | covered where the port does it: src/mech3/landmines.cpp:53 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00413a70 | 14 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x00413ab0 | 9 | folded | a thunk: one call to another function |
 | 0x00413ac0 | 9 | folded | a thunk: one call to another function |
@@ -391,7 +411,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00413c30 | 30 | folded | covered by the port where it names it (src/mech3/mech_parts.cpp:265) |
 | 0x00413db0 | 34 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:799) |
 | 0x00414370 | 11 | folded | ported, by docs/symbols.csv: ported (app_mech DamageCalls::roster_x1c): the roster entry's mech definition's skin set (+0x1c) |
-| 0x00414f40 | 171 | folded | covered by the port where it names it (src/mech3/mech.h:307) |
+| 0x00414f40 | 171 | folded | covered where the port does it: src/mech3/mech.h:307 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00415ae0 | 12 | folded | covered by the port where it names it (src/mech3/mech_build.cpp:439) |
 | 0x00415c70 | 21 | folded | covered by the port where it names it (src/mech3/mech_build.cpp:442) |
 | 0x004162b0 | 9 | folded | a thunk: one call to another function |
@@ -478,9 +498,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004243c0 | 19 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:521) |
 | 0x00424420 | 19 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:553) |
 | 0x00424f30 | 11 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:829) |
-| 0x004251d0 | 71 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:698) |
+| 0x004251d0 | 71 | folded | covered where the port does it: src/mech3/mech_config.cpp:698 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004255a0 | 13 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:552) |
-| 0x00425b70 | 46 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:990) |
+| 0x00425b70 | 46 | folded | covered where the port does it: src/mech3/mp_lobby.cpp:990 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00425e00 | 13 | folded | the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x00425e20 | 13 | folded | the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x00426070 | 8 | folded | returns a constant or a global |
@@ -521,22 +541,22 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00428c70 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00428c90 | 54 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x00428da0 | 40 | folded | covered by the port where it names it (src/mech3/credits.h:90) |
-| 0x00428e60 | 66 | folded | covered by the port where it names it (src/mech3/credits.h:106) |
+| 0x00428e60 | 66 | folded | covered where the port does it: src/mech3/credits.h:106 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00428ff0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00429010 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004295a0 | 20 | folded | covered by the port where it names it (src/mech3/credits.h:34) |
 | 0x004295e0 | 12 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:501) |
 | 0x00429690 | 20 | folded | covered by the port where it names it (src/mech3/credits.h:34) |
 | 0x004296d0 | 11 | folded | covered by the port where it names it (src/mech3/credits.h:61) |
-| 0x00429700 | 135 | folded | covered by the port where it names it (src/mech3/credits.h:41) |
+| 0x00429700 | 135 | folded | covered where the port does it: src/mech3/credits.h:41 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00429a60 | 9 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
-| 0x00429a70 | 137 | folded | covered by the port where it names it (src/mech3/credits.h:41) |
+| 0x00429a70 | 137 | folded | covered where the port does it: src/mech3/credits.h:41 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00429ce0 | 18 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x00429d20 | 27 | folded | covered by the port where it names it (src/mech3/credits.h:61) |
 | 0x00429d90 | 13 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x00429dc0 | 13 | folded | covered by the port where it names it (src/mech3/credits.h:73) |
-| 0x00429df0 | 43 | folded | covered by the port where it names it (src/mech3/credits.h:25) |
-| 0x00429eb0 | 118 | folded | covered by the port where it names it (src/mech3/credits.h:11) |
+| 0x00429df0 | 43 | folded | covered where the port does it: src/mech3/credits.h:25 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x00429eb0 | 118 | folded | covered where the port does it: src/mech3/credits.h:11 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0042a130 | 8 | folded | returns a constant or a global |
 | 0x0042a140 | 14 | folded | sets members (a setter or a small constructor) |
 | 0x0042a430 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -618,7 +638,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00430e60 | 11 | folded | a thunk: one call to another function |
 | 0x004317d0 | 19 | folded | covered by the port where it names it (src/mech3/mech_data.cpp:243) |
 | 0x004319f0 | 26 | folded | covered by the port where it names it (src/mech3/mech_data.cpp:332) |
-| 0x004326d0 | 74 | folded | covered by the port where it names it (src/mech3/mech_data.cpp:219) |
+| 0x004326d0 | 74 | folded | covered where the port does it: src/mech3/mech_data.cpp:219 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00432940 | 11 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:538) |
 | 0x00432a50 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00432a80 | 40 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:156) |
@@ -640,7 +660,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004338a0 | 16 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x004338d0 | 16 | folded | covered by the port where it names it (src/mech3/app_force.cpp:25) |
 | 0x00433900 | 16 | folded | covered by the port where it names it (src/mech3/app_force.cpp:29) |
-| 0x00433930 | 16 | folded | covered by the port where it names it (src/mech3/force_feedback.cpp:172) |
+| 0x00433930 | 16 | folded | ported in force_feedback.cpp:172 (water: wading) and app_sensors.cpp:141 (a vehicle sees its target), whose hook fields are allowed null only in tests |
 | 0x00433960 | 17 | folded | covered by the port where it names it (src/mech3/force_feedback.cpp:58) |
 | 0x00433990 | 13 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x00433a70 | 16 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
@@ -650,15 +670,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00433cf0 | 28 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:718) |
 | 0x00433ee0 | 11 | folded | sets members (a setter or a small constructor) |
 | 0x00434010 | 16 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:586) |
-| 0x00434040 | 106 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:610) |
+| 0x00434040 | 106 | folded | covered where the port does it: src/mech3/pilot_games.cpp:610 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00434270 | 35 | folded | covered by the port where it names it (src/mech3/pilot_games.cpp:707) |
 | 0x00434720 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00435230 | 11 | folded | ported, by docs/symbols.csv: ported: set_lancemate_count (+0x9c) |
 | 0x004354e0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00436500 | 65 | folded | covered by the port where it names it (src/mech3/pilot.h:371) |
+| 0x00436500 | 65 | folded | covered where the port does it: src/mech3/pilot.h:371 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00436740 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00436950 | 62 | folded | covered by the port where it names it (src/mech3/pilot.h:289) |
-| 0x004369c0 | 62 | folded | covered by the port where it names it (src/mech3/pilot.h:289) |
+| 0x00436950 | 62 | folded | covered where the port does it: src/mech3/pilot.h:289 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x004369c0 | 62 | folded | covered where the port does it: src/mech3/pilot.h:289 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00436a30 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:795) |
 | 0x00436a40 | 25 | folded | covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00436a80 | 12 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:488) |
@@ -691,7 +711,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00438090 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:248) |
 | 0x004380e0 | 9 | folded | a thunk: one call to another function |
 | 0x00438470 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00438490 | 98 | folded | covered by the port where it names it (src/mech3/options_menu.h:66) |
+| 0x00438490 | 98 | folded | covered where the port does it: src/mech3/options_menu.h:66 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00438720 | 54 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x00438830 | 54 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x00438940 | 54 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
@@ -704,7 +724,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00438cc0 | 40 | folded | covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00439490 | 12 | folded | covered by the port where it names it (src/mech3/options_menu.cpp:269) |
 | 0x00439cc0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00439ce0 | 54 | folded | covered by the port where it names it (src/mech3/options_menu.h:198) |
+| 0x00439ce0 | 54 | folded | covered where the port does it: src/mech3/options_menu.h:198 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00439e50 | 54 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x00439f60 | 54 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x0043a070 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -848,9 +868,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004513f0 | 23 | folded | the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x00451530 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00451550 | 28 | folded | covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
-| 0x004516a0 | 100 | folded | covered by the port where it names it (src/mech3/lab_items.cpp:64) |
+| 0x004516a0 | 100 | folded | covered where the port does it: src/mech3/lab_items.cpp:64 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00451cc0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00452de0 | 55 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:842) |
+| 0x00452de0 | 55 | folded | covered where the port does it: src/mech3/lab_screen.cpp:842 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00453500 | 24 | folded | covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x004537f0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00453810 | 8 | folded | returns a constant or a global |
@@ -913,14 +933,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0045b9b0 | 8 | folded | ported, by docs/symbols.csv: ported: DockStep::done |
 | 0x0045bae0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0045c8f0 | 16 | folded | ported, by docs/symbols.csv: ported; (ECX args) nav by name via [0x00609980] 0x00479be0 |
-| 0x0045e410 | 59 | folded | covered by the port where it names it (src/mech3/mech_objective.h:188) |
+| 0x0045e410 | 59 | folded | covered where the port does it: src/mech3/mech_objective.h:188 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0045e650 | 25 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x0045e700 | 18 | folded | covered by the port where it names it (src/mech3/mech_objective.cpp:234) |
 | 0x0045e730 | 18 | folded | covered by the port where it names it (src/mech3/mech_objective.cpp:235) |
 | 0x0045e760 | 18 | folded | covered by the port where it names it (src/mech3/mech_objective.cpp:234) |
 | 0x0045e800 | 19 | folded | covered by the port where it names it (src/mech3/mech_objective.cpp:257) |
 | 0x0045e850 | 15 | folded | covered by the port where it names it (src/mech3/mech_objective.cpp:258) |
-| 0x0045eb70 | 41 | folded | covered by the port where it names it (src/mech3/mech_objective.h:150) |
+| 0x0045eb70 | 41 | folded | covered where the port does it: src/mech3/mech_objective.h:150 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0045ec40 | 13 | folded | ported, by docs/symbols.csv: ported; the store when the node's +0x24 bit 2 matches |
 | 0x0045ec60 | 41 | folded | ported, by docs/symbols.csv: ported; into [0x00609990], then freed |
 | 0x0045f150 | 9 | folded | ported, by docs/symbols.csv: ported; vt+0x04 = 0x0045e540(0) |
@@ -928,7 +948,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0045f200 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0045f2a0 | 8 | folded | ported, by docs/symbols.csv: ported; vt+0x04 of the base: done |
 | 0x0045f320 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0045f520 | 58 | folded | covered by the port where it names it (src/mech3/mech_objective.cpp:202) |
+| 0x0045f520 | 58 | folded | covered where the port does it: src/mech3/mech_objective.cpp:202 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0045f8c0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0045fa00 | 23 | folded | covered by the port where it names it (src/mech3/mech_wake.cpp:21) |
 | 0x0045fd20 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -937,7 +957,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00460038 | 8 | folded | follows 0x00460000: covered by the port where it names it (src/mech3/app_mech.h:329) |
 | 0x004600b0 | 20 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:789) |
 | 0x004600e0 | 40 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:807) |
-| 0x00461670 | 54 | folded | covered by the port where it names it (src/mech3/app_weapons.cpp:229) |
+| 0x00461670 | 54 | folded | covered where the port does it: src/mech3/app_weapons.cpp:229 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00461cf0 | 19 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:914) |
 | 0x00461d30 | 17 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:749) |
 | 0x00462000 | 21 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:758) |
@@ -986,7 +1006,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00467fa0 | 50 | folded | ported, by docs/symbols.csv: ported: a lancemate's line |
 | 0x00468090 | 10 | folded | covered by the port where it names it (src/mech3/pocket_panel.cpp:55) |
 | 0x004680c0 | 15 | folded | ported, by docs/symbols.csv: ported: an order's line |
-| 0x00468100 | 65 | folded | covered by the port where it names it (src/mech3/app_pocket.cpp:90) |
+| 0x00468100 | 65 | folded | covered where the port does it: src/mech3/app_pocket.cpp:90 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004686e0 | 14 | folded | ported, by docs/symbols.csv: ported: the colours (pocket_colours) |
 | 0x00468bd0 | 15 | folded | ported, by docs/symbols.csv: ported: the record (member pointer, flags +0xc taken / +0xd refused) |
 | 0x00468c00 | 45 | folded | ported, by docs/symbols.csv: ported: pocket_order's unit step (contact on the player) |
@@ -1021,7 +1041,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0046d380 | 15 | folded | covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0046dd90 | 32 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1017) |
 | 0x0046e030 | 24 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1086) |
-| 0x0046e3c0 | 56 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1184) |
+| 0x0046e3c0 | 56 | folded | covered where the port does it: src/mech3/mech_net.cpp:1184 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0046ed60 | 9 | folded | a thunk: one call to another function |
 | 0x0046ef50 | 8 | folded | returns a constant or a global |
 | 0x00470008 | 33 | folded | a piece of the ported function before it (Ghidra split it there) (0x0046fff0) |
@@ -1043,8 +1063,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00473780 | 39 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:149) |
 | 0x00473860 | 21 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:148) |
 | 0x004738b0 | 19 | folded | ported, by docs/symbols.csv: ported: item_label |
-| 0x00473900 | 55 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:100) |
-| 0x00473960 | 55 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:101) |
+| 0x00473900 | 55 | folded | covered where the port does it: src/mech3/mech_salvage.cpp:100 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x00473960 | 55 | folded | covered where the port does it: src/mech3/mech_salvage.cpp:101 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004739c0 | 9 | folded | a thunk: one call to another function |
 | 0x004739d0 | 19 | folded | ported, by docs/symbols.csv: ported: item_name; 0x00432f00 maker rating XL |
 | 0x00473a20 | 8 | folded | returns a constant or a global |
@@ -1108,7 +1128,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0047dac0 | 20 | folded | covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x0047db10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0047db30 | 12 | folded | covered by the port where it names it (src/mech3/salvage_screen.h:39) |
-| 0x0047db60 | 53 | folded | covered by the port where it names it (src/mech3/salvage_screen.h:33) |
+| 0x0047db60 | 53 | folded | covered where the port does it: src/mech3/salvage_screen.h:33 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0047dcd0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0047e9f0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0047ea10 | 28 | folded | covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
@@ -1213,7 +1233,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004841d0 | 9 | replaced (SDL or the platform layer) | Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
 | 0x00484200 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00484220 | 21 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
-| 0x00484540 | 42 | folded | covered by the port where it names it (src/mech3/mech_lib.cpp:89) |
+| 0x00484540 | 42 | folded | covered where the port does it: src/mech3/mech_lib.cpp:89 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00485360 | 10 | folded | covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00485370 | 9 | folded | a thunk: one call to another function |
 | 0x00485390 | 10 | folded | covered by the port where it names it (src/mech3/hook_census.inc:8) |
@@ -1266,9 +1286,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00489e40 | 15 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:137) |
 | 0x00489e70 | 20 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x00489ec0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00489ee0 | 89 | folded | covered by the port where it names it (src/mech3/action_menu.h:100) |
+| 0x00489ee0 | 89 | folded | covered where the port does it: src/mech3/action_menu.h:100 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0048aef0 | 13 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:518) |
-| 0x0048b000 | 66 | folded | covered by the port where it names it (src/mech3/pilot_menu.cpp:655) |
+| 0x0048b000 | 66 | folded | covered where the port does it: src/mech3/pilot_menu.cpp:655 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0048b120 | 12 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:520) |
 | 0x0048b170 | 24 | folded | covered by the port where it names it (src/mech3/pilot_menu.cpp:655) |
 | 0x0048b360 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -1283,7 +1303,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0048df50 | 9 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:402) |
 | 0x0048df60 | 16 | folded | covered by the port where it names it (src/mech3/menu_widgets.cpp:796) |
 | 0x0048e180 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0048e1a0 | 56 | folded | covered by the port where it names it (src/mech3/quit_box.h:19) |
+| 0x0048e1a0 | 56 | folded | covered where the port does it: src/mech3/quit_box.h:19 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0048e360 | 9 | folded | a thunk: one call to another function |
 | 0x0048e370 | 9 | folded | a thunk: one call to another function |
 | 0x0048e420 | 13 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
@@ -1296,7 +1316,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0048e5b0 | 29 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x0048e630 | 29 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:279) |
 | 0x0048e840 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0048e860 | 56 | folded | covered by the port where it names it (src/mech3/mainmenu.h:20) |
+| 0x0048e860 | 56 | folded | covered where the port does it: src/mech3/mainmenu.h:20 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0048e9c0 | 15 | folded | covered by the port where it names it (src/mech3/mainmenu.cpp:47) |
 | 0x0048ea00 | 15 | folded | covered by the port where it names it (src/mech3/mainmenu.cpp:47) |
 | 0x0048ea40 | 15 | folded | covered by the port where it names it (src/mech3/mainmenu.cpp:47) |
@@ -1310,9 +1330,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0048f1b0 | 28 | folded | covered by the port where it names it (src/mech3/app_states.h:302) |
 | 0x0048f220 | 9 | folded | a thunk: one call to another function |
 | 0x0048f230 | 9 | folded | a thunk: one call to another function |
-| 0x0048f260 | 9 | folded | a thunk: one call to another function |
+| 0x0048f260 | 9 | folded | follows 0x0048f290: covered where the port does it: src/mech3/mech_salvage.h:10 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0048f270 | 9 | folded | a thunk: one call to another function |
-| 0x0048f290 | 57 | folded | covered by the port where it names it (src/mech3/mech_salvage.h:10) |
+| 0x0048f290 | 57 | folded | covered where the port does it: src/mech3/mech_salvage.h:10 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0048f370 | 35 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x0048fab0 | 13 | folded | covered by the port where it names it (src/mech3/hud.cpp:326) |
 | 0x0048fad0 | 15 | folded | covered by the port where it names it (src/mech3/hud.cpp:327) |
@@ -1412,7 +1432,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0049ccb0 | 11 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x0049ccc0 | 93 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x0049ce90 | 17 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
-| 0x0049ced0 | 137 | folded | covered by the port where it names it (src/mech3/mp_lobby.h:38) |
+| 0x0049ced0 | 137 | folded | covered where the port does it: src/mech3/mp_lobby.h:38 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0049d100 | 16 | dev dialog (MFC), its window plumbing: replaced | MFC plumbing of the editor's dialogs (DDX, UpdateData, OnDestroy, DoModal, a static list) |
 | 0x0049d140 | 9 | dev dialog (MFC), its logic: PORT (preserve) | follows 0x00404090: the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents) |
 | 0x0049d150 | 17 | dev dialog (MFC), its window plumbing: replaced | MFC plumbing of the editor's dialogs (DDX, UpdateData, OnDestroy, DoModal, a static list) |
@@ -1423,7 +1443,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0049d210 | 19 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x0049d250 | 19 | folded | covered by the port where it names it (src/mech3/game_editor_vehicles.cpp:275) |
 | 0x0049d290 | 39 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
-| 0x0049d350 | 148 | folded | covered by the port where it names it (src/upgrades/editor/add_vehicle.cpp:242) |
+| 0x0049d350 | 148 | dev dialog (MFC), its logic: PORT (preserve) | the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp |
 | 0x0049d5d0 | 18 | dev dialog (MFC), its window plumbing: replaced | MFC plumbing of the editor's dialogs (DDX, UpdateData, OnDestroy, DoModal, a static list) |
 | 0x0049d5f0 | 9 | folded | a thunk: one call to another function |
 | 0x0049d640 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -1512,16 +1532,16 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004a7c70 | 13 | folded | covered by the port where it names it (src/mech3/sensors.cpp:142) |
 | 0x004a7c90 | 19 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004a7cd0 | 20 | folded | covered by the port where it names it (src/mech3/sensors.cpp:247) |
-| 0x004a7d00 | 92 | folded | covered by the port where it names it (src/mech3/sensors.cpp:142) |
+| 0x004a7d00 | 92 | folded | covered where the port does it: src/mech3/sensors.cpp:142 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004a7f30 | 36 | folded | covered by the port where it names it (src/mech3/sensors.cpp:245) |
-| 0x004a81f0 | 85 | folded | covered by the port where it names it (src/mech3/sensors.cpp:226) |
-| 0x004a83c0 | 71 | folded | covered by the port where it names it (src/mech3/sensors.cpp:457) |
+| 0x004a81f0 | 85 | folded | covered where the port does it: src/mech3/sensors.cpp:226 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x004a83c0 | 71 | folded | covered where the port does it: src/mech3/sensors.cpp:457 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004a86e0 | 14 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004a8710 | 112 | folded | covered by the port where it names it (src/mech3/sensors.cpp:179) |
+| 0x004a8710 | 112 | folded | covered where the port does it: src/mech3/sensors.cpp:179 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004a8960 | 19 | folded | covered by the port where it names it (src/mech3/sensors.cpp:485) |
 | 0x004a8c30 | 29 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004a8c80 | 9 | folded | a thunk: one call to another function |
-| 0x004a91b0 | 66 | folded | covered by the port where it names it (src/mech3/sensors.cpp:179) |
+| 0x004a91b0 | 66 | folded | covered where the port does it: src/mech3/sensors.cpp:179 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004a98c0 | 16 | folded | covered by the port where it names it (src/mech3/sensors.cpp:277) |
 | 0x004a9910 | 37 | folded | covered by the port where it names it (src/mech3/sensors.cpp:281) |
 | 0x004aa470 | 17 | folded | ported, by docs/symbols.csv: ported: a null contact, or one whose vehicle is the one going |
@@ -1537,11 +1557,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004ab0f0 | 49 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004ab1b0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004ab1d0 | 13 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004ab1f0 | 129 | folded | covered by the port where it names it (src/crt/msvc_sort.h:8) |
+| 0x004ab1f0 | 129 | folded | covered where the port does it: src/crt/msvc_sort.h:8 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004ab470 | 15 | folded | covered by the port where it names it (src/mech3/sensors.cpp:401) |
 | 0x004ab4a0 | 13 | folded | covered by the port where it names it (src/mech3/sensors.cpp:403) |
 | 0x004ab4c0 | 24 | folded | covered by the port where it names it (src/mech3/sensors.cpp:403) |
-| 0x004ab500 | 63 | folded | covered by the port where it names it (src/crt/msvc_sort.h:7) |
+| 0x004ab500 | 63 | folded | covered where the port does it: src/crt/msvc_sort.h:7 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004ab620 | 38 | folded | covered by the port where it names it (src/crt/msvc_sort.h:7) |
 | 0x004abaf0 | 25 | folded | covered by the port where it names it (src/mech3/mech_build.cpp:313) |
 | 0x004abbc0 | 121 | debug or dev tool: PORT (preserve) | the debug command 0x7e (0x004abbc0, 121 lines: a console of keyboard text and the network session; registered, but no key reaches it: app_keys.h:14, hud.md) and the stealth object's key handler (0x004a50e0: the fly camera, back burner) |
@@ -1553,8 +1573,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004ac860 | 23 | folded | AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004ac890 | 11 | folded | frees the object (a destructor's release) |
 | 0x004ad720 | 11 | folded | covered by the port where it names it (src/mech3/veh_controls.h:224) |
-| 0x004ad840 | 54 | folded | covered by the port where it names it (src/mech3/veh_basic_object.h:38) |
-| 0x004adaa0 | 9 | folded | a thunk: one call to another function |
+| 0x004ad840 | 54 | folded | covered where the port does it: src/mech3/veh_basic_object.h:38 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x004adaa0 | 9 | folded | follows 0x004ad840: covered where the port does it: src/mech3/veh_basic_object.h:38 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004adab0 | 9 | folded | a thunk: one call to another function |
 | 0x004adad0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004adaf0 | 12 | folded | sets members (a setter or a small constructor) |
@@ -1598,7 +1618,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004aedc0 | 10 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aedd0 | 24 | folded | covered by the port where it names it (src/mech3/app_sensors.cpp:127) |
 | 0x004aee00 | 29 | folded | covered by the port where it names it (src/mech3/app_sensors.cpp:124) |
-| 0x004aee40 | 25 | folded | covered by the port where it names it (src/mech3/app_sensors.cpp:141) |
+| 0x004aee40 | 25 | folded | ported in force_feedback.cpp:172 (water: wading) and app_sensors.cpp:141 (a vehicle sees its target), whose hook fields are allowed null only in tests |
 | 0x004aee70 | 27 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aef00 | 23 | dev dialog (MFC), its window plumbing: replaced | the vehicle-pick dialog's MFC plumbing |
 | 0x004aef60 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -1619,8 +1639,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b004f | 29 | folded | a piece of the ported function before it (Ghidra split it there) (0x004b0020) |
 | 0x004b0091 | 18 | folded | a piece of the ported function before it (Ghidra split it there) (0x004b0020) |
 | 0x004b0c20 | 12 | folded | sets members (a setter or a small constructor) |
-| 0x004b1170 | 88 | folded | covered by the port where it names it (src/mech3/weapon_planner.h:5) |
-| 0x004b12e0 | 9 | folded | a thunk: one call to another function |
+| 0x004b1170 | 88 | unused: PORT (preserve) | the static the AI's planner builds at 0x0060b240 (two reserved vectors): read by nothing (weapon_planner.h:7) |
+| 0x004b12e0 | 9 | unused: PORT (preserve) | follows 0x004b1170: the static the AI's planner builds at 0x0060b240 (two reserved vectors): read by nothing (weapon_planner.h:7) |
 | 0x004b12f0 | 9 | folded | a thunk: one call to another function |
 | 0x004b1350 | 15 | folded | ported, by docs/symbols.csv: ported inline; Shot's initialisers |
 | 0x004b1440 | 13 | folded | ported, by docs/symbols.csv: ported; group_out |
@@ -1698,7 +1718,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004b7bf0 | 39 | folded | the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004b7d80 | 54 | folded | the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004b7f00 | 22 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x004b7f80 | 9 | folded | a thunk: one call to another function |
+| 0x004b7f80 | 9 | folded | follows 0x004b7d80: the vehicle editor's logic and the AI parameters it edits, ported in game_editor_vehicles / zai_params / zrdraiv (their comments name these): the vehicle list, the valve and region lists, the params' comparisons, the vlist's appends and defaults; the firing plan's std algorithms |
 | 0x004b7f90 | 9 | folded | a thunk: one call to another function |
 | 0x004b7fb0 | 52 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004b83c0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -1782,13 +1802,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004bd640 | 18 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:427) |
 | 0x004bd740 | 25 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:423) |
 | 0x004bdd70 | 13 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:365) |
-| 0x004be230 | 63 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:254) |
+| 0x004be230 | 63 | folded | covered where the port does it: src/mech3/zainetedit.cpp:254 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004be300 | 124 | folded | ported, by docs/symbols.csv: ported: zainetedit Compiler (ai.md section 9) |
-| 0x004be5a0 | 60 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:463) |
+| 0x004be5a0 | 60 | folded | covered where the port does it: src/mech3/zainetedit.cpp:463 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004be630 | 18 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
-| 0x004beb00 | 41 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:450) |
-| 0x004beb90 | 42 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:451) |
-| 0x004bec10 | 69 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:450) |
+| 0x004beb00 | 41 | folded | covered where the port does it: src/mech3/zainetedit.cpp:450 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x004beb90 | 42 | folded | covered where the port does it: src/mech3/zainetedit.cpp:451 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x004bec10 | 69 | folded | covered where the port does it: src/mech3/zainetedit.cpp:450 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004bed60 | 14 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004bed90 | 97 | MISSING LOGIC (only data the shipped game lacks reaches it) | the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file |
 | 0x004bef80 | 17 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:81) |
@@ -1805,7 +1825,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004bf640 | 9 | folded | a thunk: one call to another function |
 | 0x004bf650 | 13 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:559) |
 | 0x004bf6f0 | 15 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:479) |
-| 0x004bf750 | 43 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:493) |
+| 0x004bf750 | 43 | folded | covered where the port does it: src/mech3/game_editor_net.cpp:493 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004bf820 | 21 | replaced (SDL or the platform layer) | the AI net editor's file box (CFileDialogNet 0x004bf750: constructor, destructor, message map, class); replaced (FIX (A), ai.md) |
 | 0x004bf870 | 8 | replaced (SDL or the platform layer) | the AI net editor's file box (CFileDialogNet 0x004bf750: constructor, destructor, message map, class); replaced (FIX (A), ai.md) |
 | 0x004bf880 | 8 | folded | returns a constant or a global |
@@ -1815,7 +1835,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004bf900 | 8 | folded | returns a constant or a global |
 | 0x004bfb90 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004bfbb0 | 114 | folded | ported, by docs/symbols.csv: ported inline in VehicleNet: an id from znet's [300, 400), no starting list |
-| 0x004bfe40 | 55 | folded | covered by the port where it names it (src/mech3/mech_waynet.cpp:147) |
+| 0x004bfe40 | 55 | folded | covered where the port does it: src/mech3/mech_waynet.cpp:147 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004bffc0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004bffe0 | 12 | folded | sets members (a setter or a small constructor) |
 | 0x004c0000 | 11 | folded | sets members (a setter or a small constructor) |
@@ -1983,7 +2003,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004c7300 | 15 | folded | covered by the port where it names it (src/mech3/zainet.cpp:130) |
 | 0x004c7530 | 20 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:106) |
 | 0x004c7570 | 29 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:113) |
-| 0x004c75c0 | 117 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:40) |
+| 0x004c75c0 | 117 | folded | covered where the port does it: src/mech3/zainet_node.cpp:40 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004c7760 | 15 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004c7790 | 13 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004c77b0 | 9 | folded | a thunk: one call to another function |
@@ -2242,11 +2262,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d1e60 | 10 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d1f40 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:324) |
 | 0x004d1f60 | 17 | folded | covered by the port where it names it (src/mech3/zai_target.h:122) |
-| 0x004d1f80 | 94 | folded | covered by the port where it names it (src/mech3/zrdraiv.cpp:555) |
+| 0x004d1f80 | 94 | folded | covered where the port does it: src/mech3/zrdraiv.cpp:555 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d2460 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:581) |
 | 0x004d2480 | 19 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:309) |
 | 0x004d24b0 | 20 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:423) |
-| 0x004d26f0 | 68 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:481) |
+| 0x004d26f0 | 68 | folded | covered where the port does it: src/mech3/zai_target.cpp:481 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d2840 | 29 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d28e0 | 29 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d2a80 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -2255,7 +2275,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d3080 | 12 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:416) |
 | 0x004d30b0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004d30d0 | 24 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:446) |
-| 0x004d3130 | 41 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:635) |
+| 0x004d3130 | 41 | folded | covered where the port does it: src/mech3/zai_target.cpp:635 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d32c0 | 20 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d3320 | 8 | folded | covered by the port where it names it (src/mech3/entity_classes.cpp:44) |
 | 0x004d3330 | 11 | folded | covered by the port where it names it (src/mech3/entity_classes.cpp:44) |
@@ -2265,11 +2285,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d35d0 | 9 | folded | a thunk: one call to another function |
 | 0x004d35f0 | 20 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d3640 | 16 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004d3680 | 125 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:322) |
+| 0x004d3680 | 125 | folded | covered where the port does it: src/mech3/zai_target.cpp:322 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d3890 | 26 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:322) |
-| 0x004d38f0 | 55 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:322) |
+| 0x004d38f0 | 55 | folded | covered where the port does it: src/mech3/zai_target.cpp:322 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d39f0 | 40 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:322) |
-| 0x004d3a80 | 41 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:322) |
+| 0x004d3a80 | 41 | folded | covered where the port does it: src/mech3/zai_target.cpp:322 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d3d20 | 11 | folded | a thunk: one call to another function |
 | 0x004d3d70 | 9 | folded | a thunk: one call to another function |
 | 0x004d3d80 | 9 | folded | a thunk: one call to another function |
@@ -2279,10 +2299,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d4060 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004d4310 | 9 | folded | a thunk: one call to another function |
 | 0x004d4490 | 12 | folded | covered by the port where it names it (src/mech3/zai_steps.cpp:62) |
-| 0x004d44b0 | 61 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:40) |
+| 0x004d44b0 | 61 | folded | covered where the port does it: src/mech3/zainet_node.cpp:40 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d45b0 | 12 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d45c0 | 21 | folded | covered by the port where it names it (src/mech3/zainet_node.h:10) |
-| 0x004d4630 | 48 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:106) |
+| 0x004d4630 | 48 | folded | covered where the port does it: src/mech3/zainet_node.cpp:106 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d46b0 | 21 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d46f0 | 12 | folded | ported, by docs/symbols.csv: ported inline: the claim's temporary record zeroed |
 | 0x004d47e0 | 23 | folded | ported, by docs/symbols.csv: ported (anim_owner_release): every record of the owner let go; the valve's test-and-store does nothing |
@@ -2300,7 +2320,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d5170 | 21 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:27) |
 | 0x004d52b0 | 26 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d5300 | 26 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004d5350 | 65 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:699) |
+| 0x004d5350 | 65 | folded | covered where the port does it: src/mech3/app_mission.cpp:699 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d5510 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004d5530 | 13 | dev dialog (MFC), its window plumbing: replaced | the AI and editor dialogs' MFC base (vtable 0x005cce00: CDialog constructor, modeless Create, close with the cursor hidden, DoModal, OnInitDialog with the cursor shown) |
 | 0x004d5560 | 12 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
@@ -2312,7 +2332,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d5610 | 17 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:479) |
 | 0x004d5640 | 29 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d5690 | 9 | folded | a thunk: one call to another function |
-| 0x004d56e0 | 69 | folded | covered by the port where it names it (src/mech3/mech.h:102) |
+| 0x004d56e0 | 69 | folded | covered where the port does it: src/mech3/mech.h:102 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d5880 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004d58a0 | 39 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x004d5bc0 | 19 | folded | covered by the port where it names it (src/mech3/sensors.cpp:646) |
@@ -2327,10 +2347,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d7250 | 10 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d7290 | 8 | folded | returns a constant or a global |
 | 0x004d7330 | 20 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004d7360 | 114 | folded | covered by the port where it names it (src/crt/msvc_sort.h:7) |
+| 0x004d7360 | 114 | folded | covered where the port does it: src/crt/msvc_sort.h:7 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d7a40 | 82 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004d7bc0 | 323 | folded | covered by the port where it names it (src/mech3/sensors.cpp:586) |
-| 0x004d7f80 | 94 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:2170) |
+| 0x004d7bc0 | 323 | folded | covered where the port does it: src/mech3/sensors.cpp:586 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x004d7f80 | 94 | folded | covered where the port does it: src/mech3/app_mech.cpp:2170 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d81c0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004d81e0 | 25 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:447) |
 | 0x004d8250 | 9 | folded | a thunk: one call to another function |
@@ -2338,7 +2358,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004d8280 | 48 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d8330 | 12 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d83c0 | 29 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:453) |
-| 0x004d8420 | 53 | folded | covered by the port where it names it (src/mech3/zrdrvalve.h:36) |
+| 0x004d8420 | 53 | folded | covered where the port does it: src/mech3/zrdrvalve.h:36 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004d84b0 | 9 | folded | follows 0x004d8280: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004d84c0 | 9 | folded | a thunk: one call to another function |
 | 0x004d8540 | 20 | folded | covered by the port where it names it (src/mech3/zai_list.h:5) |
@@ -2461,8 +2481,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004df6f0 | 12 | folded | covered by the port where it names it (src/mech3/game_editor_vehicles.cpp:589) |
 | 0x004df710 | 11 | folded | covered by the port where it names it (src/mech3/game_editor_vehicles.cpp:553) |
 | 0x004e001a | 168 | folded | a piece of the ported function before it (Ghidra split it there) (0x004df730) |
-| 0x004e0020 | 190 | folded | covered by the port where it names it (src/mech3/zrdraiv.cpp:265) |
-| 0x004e0082 | 155 | folded | follows 0x004e0020: covered by the port where it names it (src/mech3/zrdraiv.cpp:265) |
+| 0x004e0020 | 190 | folded | covered where the port does it: src/mech3/zrdraiv.cpp:265 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
+| 0x004e0082 | 155 | folded | follows 0x004e0020: covered where the port does it: src/mech3/zrdraiv.cpp:265 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004e0540 | 26 | folded | covered by the port where it names it (src/upgrades/editor/add_vehicle.h:11) |
 | 0x004e06e0 | 9 | folded | a thunk: one call to another function |
 | 0x004e0700 | 8 | folded | returns a constant or a global |
@@ -2588,7 +2608,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004e6a30 | 9 | folded | a thunk: one call to another function |
 | 0x004e6a60 | 15 | folded | covered by the port where it names it (src/mech3/sound_extra.cpp:32) |
 | 0x004e6aa0 | 27 | folded | covered by the port where it names it (src/mech3/sound_extra.cpp:32) |
-| 0x004e6dc0 | 75 | folded | covered by the port where it names it (src/mech3/app_mech.h:142) |
+| 0x004e6dc0 | 75 | folded | covered where the port does it: src/mech3/app_mech.h:142 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004e6ee0 | 51 | folded | ported, by docs/symbols.csv: ported: lance_orders contact_on |
 | 0x004e6ff0 | 22 | folded | covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e7010 | 22 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:1036) |
@@ -2675,80 +2695,80 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 |---|---|---|---|
 | 0x005269a0 | 16 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:123) |
 | 0x005269d0 | 8 | folded | returns a constant or a global |
-| 0x005269e0 | 13 | unlabelled |  |
+| 0x005269e0 | 13 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x00526a00 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:325) |
-| 0x00526aa0 | 12 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:322) |
-| 0x00526ac0 | 12 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:321) |
+| 0x00526aa0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
+| 0x00526ac0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
 | 0x00526df0 | 14 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:326) |
-| 0x005273f0 | 100 | unlabelled |  |
-| 0x005277d0 | 126 | unlabelled |  |
-| 0x00527d20 | 126 | unlabelled |  |
-| 0x005283c0 | 148 | unlabelled |  |
-| 0x00529790 | 261 | unlabelled |  |
-| 0x0052a250 | 362 | unlabelled |  |
-| 0x0052c8d0 | 362 | unlabelled |  |
+| 0x005273f0 | 100 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x005277d0 | 126 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x00527d20 | 126 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x005283c0 | 148 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x00529790 | 261 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x0052a250 | 362 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x0052c8d0 | 362 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x00530043 | 521 | folded | a piece of the ported function before it (Ghidra split it there) (0x0052fab0) |
-| 0x00530d90 | 832 | unlabelled |  |
-| 0x00531d90 | 963 | unlabelled |  |
-| 0x005331e0 | 1175 | unlabelled |  |
-| 0x00534745 | 8 | unlabelled | follows 0x005331e0:  |
-| 0x00535c10 | 95 | unlabelled |  |
-| 0x00535ed0 | 12 | unlabelled |  |
-| 0x00535ef0 | 10 | unlabelled |  |
+| 0x00530d90 | 832 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x00531d90 | 963 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x005331e0 | 1175 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x00534745 | 8 | unused: PORT (preserve) | follows 0x005331e0: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x00535c10 | 95 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x00535ed0 | 12 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x00535ef0 | 10 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x00535f00 | 8 | folded | returns a constant or a global |
 | 0x00535f10 | 8 | folded | returns a constant or a global |
 | 0x00535ff0 | 27 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:839) |
-| 0x005360c0 | 152 | unlabelled |  |
-| 0x00536830 | 80 | unlabelled |  |
+| 0x005360c0 | 152 | debug or dev tool: PORT (preserve) | the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool |
+| 0x00536830 | 80 | folded | covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
 | 0x00536a60 | 8 | folded | empty: does nothing |
-| 0x005372c0 | 54 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:1868) |
-| 0x005374b0 | 15 | unlabelled |  |
-| 0x005374d0 | 21 | unlabelled |  |
-| 0x00537520 | 31 | unlabelled |  |
+| 0x005372c0 | 54 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x005374b0 | 15 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x005374d0 | 21 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x00537520 | 31 | replaced (SDL or the platform layer) | the used textures' system surfaces released after the launch (DirectDraw; the port's record is one Render3D handle: app_engine.cpp no effect) |
 | 0x00538050 | 10 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:484) |
 | 0x00538060 | 11 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:485) |
 | 0x00538080 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:331) |
-| 0x00538090 | 13 | unlabelled |  |
-| 0x005380e0 | 254 | unlabelled |  |
+| 0x00538090 | 13 | folded | covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
+| 0x005380e0 | 254 | debug or dev tool: PORT (preserve) | the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool |
 | 0x00539140 | 8 | folded | returns a constant or a global |
 | 0x00539c72 | 144 | folded | a piece of the ported function before it (Ghidra split it there) (0x005396c0) |
-| 0x00539cc0 | 12 | folded | sets members (a setter or a small constructor) |
-| 0x00539cf0 | 14 | unlabelled |  |
+| 0x00539cc0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x00539cf0 | 14 | folded | covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
 | 0x00539d50 | 11 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:470) |
 | 0x00539d60 | 11 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:467) |
 | 0x00539d70 | 10 | folded | a getter of a member |
-| 0x0053a1a0 | 117 | unlabelled |  |
-| 0x0053a740 | 96 | unlabelled |  |
-| 0x0053b050 | 179 | unlabelled |  |
-| 0x0053b960 | 115 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:318) |
-| 0x0053bb50 | 24 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:317) |
-| 0x0053bb90 | 23 | unlabelled |  |
-| 0x0053bbd0 | 23 | unlabelled |  |
-| 0x0053bd60 | 28 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:315) |
+| 0x0053a1a0 | 117 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053a740 | 96 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053b050 | 179 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053b960 | 115 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
+| 0x0053bb50 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
+| 0x0053bb90 | 23 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053bbd0 | 23 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053bd60 | 28 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
 | 0x0053ce20 | 17 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.h:131) |
 | 0x0053cf00 | 10 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:329) |
-| 0x0053d130 | 107 | unlabelled |  |
-| 0x0053d360 | 119 | unlabelled |  |
-| 0x0053d560 | 56 | unlabelled |  |
-| 0x0053d6f0 | 21 | unlabelled |  |
-| 0x0053d750 | 165 | unlabelled |  |
-| 0x0053de50 | 45 | unlabelled |  |
-| 0x0053df00 | 66 | unlabelled |  |
-| 0x0053e050 | 754 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_init.h:21) |
+| 0x0053d130 | 107 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053d360 | 119 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053d560 | 56 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x0053d6f0 | 21 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x0053d750 | 165 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
+| 0x0053de50 | 45 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053df00 | 66 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
+| 0x0053e050 | 754 | software renderer | the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
 | 0x00540082 | 1125 | folded | a piece of the ported function before it (Ghidra split it there) (0x0053f2e0) |
-| 0x00542060 | 255 | unlabelled |  |
-| 0x00544060 | 647 | unlabelled |  |
+| 0x00542060 | 255 | MISSING LOGIC (only data the shipped game lacks reaches it) | the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on |
+| 0x00544060 | 647 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x00545245 | 408 | folded | a piece of the ported function before it (Ghidra split it there) (0x00544ed0) |
-| 0x005465c0 | 462 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_light.h:11) |
-| 0x00548250 | 144 | unlabelled |  |
-| 0x005484c0 | 63 | unlabelled |  |
-| 0x005485b0 | 28 | unlabelled |  |
-| 0x00548600 | 24 | unlabelled |  |
-| 0x00548650 | 80 | unlabelled |  |
-| 0x005487d0 | 22 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:347) |
-| 0x00548840 | 52 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.h:11) |
-| 0x00548d90 | 17 | unlabelled |  |
-| 0x00548e60 | 17 | unlabelled |  |
+| 0x005465c0 | 462 | software renderer | the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
+| 0x00548250 | 144 | MISSING LOGIC (only data the shipped game lacks reaches it) | the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
+| 0x005484c0 | 63 | MISSING LOGIC (only data the shipped game lacks reaches it) | the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
+| 0x005485b0 | 28 | MISSING LOGIC (only data the shipped game lacks reaches it) | the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
+| 0x00548600 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
+| 0x00548650 | 80 | MISSING LOGIC (only data the shipped game lacks reaches it) | the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
+| 0x005487d0 | 22 | MISSING LOGIC (only data the shipped game lacks reaches it) | the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
+| 0x00548840 | 52 | unused: PORT (preserve) | the puffers' wind step with a dt argument: dead code, never called (puffers.md) |
+| 0x00548d90 | 17 | folded | covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
+| 0x00548e60 | 17 | folded | covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
 | 0x0054a078 | 10 | folded | a piece of the ported function before it (Ghidra split it there) (0x005496c0) |
 | 0x0054a479 | 290 | folded | a piece of the ported function before it (Ghidra split it there) (0x0054a090) |
 | 0x0054ab90 | 14 | folded | sets members (a setter or a small constructor) |
@@ -2765,61 +2785,61 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0054ad30 | 18 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.cpp:112) |
 | 0x0054ad90 | 11 | folded | sets members (a setter or a small constructor) |
 | 0x0054ada0 | 12 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.cpp:125) |
-| 0x0054afc0 | 85 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.cpp:136) |
-| 0x0054b1d0 | 109 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.cpp:147) |
-| 0x0054b460 | 87 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.cpp:153) |
-| 0x0054b650 | 9 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:348) |
-| 0x0054b660 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:349) |
-| 0x0054b670 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:350) |
-| 0x0054b680 | 22 | unlabelled |  |
-| 0x0054b6f0 | 22 | unlabelled |  |
-| 0x0054b750 | 138 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.h:11) |
-| 0x0054b990 | 107 | unlabelled |  |
-| 0x0054bb00 | 13 | unlabelled |  |
-| 0x0054bb30 | 28 | unlabelled |  |
-| 0x0054bb70 | 147 | unlabelled |  |
-| 0x0054bde0 | 15 | unlabelled |  |
-| 0x0054be10 | 24 | unlabelled |  |
+| 0x0054afc0 | 85 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054b1d0 | 109 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054b460 | 87 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054b650 | 9 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054b660 | 11 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054b670 | 11 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054b680 | 22 | folded | covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
+| 0x0054b6f0 | 22 | folded | covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
+| 0x0054b750 | 138 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054b990 | 107 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054bb00 | 13 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054bb30 | 28 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054bb70 | 147 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054bde0 | 15 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x0054be10 | 24 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00550005 | 8 | folded | a piece of the ported function before it (Ghidra split it there) (0x0054ff40) |
-| 0x00550010 | 51 | unlabelled |  |
-| 0x00550120 | 22 | unlabelled |  |
-| 0x00550160 | 95 | unlabelled |  |
-| 0x005503c0 | 503 | unlabelled |  |
-| 0x00551190 | 634 | unlabelled |  |
+| 0x00550010 | 51 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00550120 | 22 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00550160 | 95 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005503c0 | 503 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00551190 | 634 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
 | 0x00552540 | 390 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00553450 | 8 | folded | returns a constant or a global |
-| 0x00553460 | 11 | unlabelled |  |
-| 0x00553470 | 13 | unlabelled |  |
-| 0x005534b0 | 23 | unlabelled |  |
-| 0x00553510 | 20 | unlabelled |  |
-| 0x00553560 | 12 | unlabelled |  |
-| 0x00553580 | 12 | unlabelled |  |
-| 0x005535b0 | 17 | unlabelled |  |
-| 0x005535f0 | 31 | unlabelled |  |
-| 0x00553660 | 26 | unlabelled |  |
-| 0x00553700 | 27 | unlabelled |  |
-| 0x00553760 | 30 | unlabelled |  |
-| 0x005537d0 | 75 | unlabelled |  |
-| 0x00553990 | 87 | unlabelled |  |
-| 0x00553b80 | 82 | unlabelled |  |
-| 0x00553d40 | 13 | unlabelled |  |
-| 0x00553d60 | 153 | unlabelled |  |
-| 0x00554130 | 12 | unlabelled |  |
-| 0x00554150 | 129 | unlabelled |  |
-| 0x00554420 | 19 | unlabelled |  |
-| 0x00554460 | 28 | unlabelled |  |
-| 0x005544d0 | 28 | unlabelled |  |
-| 0x00554540 | 12 | unlabelled |  |
+| 0x00553460 | 11 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553470 | 13 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005534b0 | 23 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553510 | 20 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553560 | 12 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553580 | 12 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005535b0 | 17 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005535f0 | 31 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553660 | 26 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553700 | 27 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553760 | 30 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005537d0 | 75 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553990 | 87 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553b80 | 82 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553d40 | 13 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00553d60 | 153 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00554130 | 12 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00554150 | 129 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00554420 | 19 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00554460 | 28 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005544d0 | 28 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00554540 | 12 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
 | 0x00554560 | 22 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005545d0 | 21 | unlabelled |  |
-| 0x00554630 | 17 | unlabelled |  |
-| 0x00554660 | 33 | unlabelled |  |
-| 0x005546c0 | 16 | unlabelled |  |
+| 0x005545d0 | 21 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00554630 | 17 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00554660 | 33 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005546c0 | 16 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
 | 0x005546f0 | 60 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00554810 | 316 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00554d40 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00554ea0 | 27 | unlabelled |  |
-| 0x00554f30 | 12 | unlabelled |  |
+| 0x00554ea0 | 27 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00554f30 | 12 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
 | 0x00554f50 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00554fe0 | 41 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00555090 | 199 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
@@ -2827,32 +2847,32 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00555460 | 38 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x005554e0 | 52 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00555500 | 45 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005555a0 | 11 | unlabelled |  |
-| 0x005555e0 | 11 | unlabelled |  |
-| 0x00555620 | 16 | unlabelled |  |
-| 0x005557f0 | 147 | unlabelled |  |
-| 0x00555cd0 | 19 | unlabelled |  |
-| 0x00555d00 | 13 | unlabelled |  |
-| 0x00555d20 | 29 | unlabelled |  |
-| 0x00555d90 | 19 | unlabelled |  |
-| 0x00555de0 | 34 | unlabelled |  |
-| 0x00555e50 | 16 | unlabelled |  |
-| 0x00555e70 | 18 | unlabelled |  |
-| 0x00555ea0 | 15 | unlabelled |  |
+| 0x005555a0 | 11 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005555e0 | 11 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x00555620 | 16 | UNSURE | the models' edge pass (0x00552540 over every mechlib model through 0x004fc8b0, with 0x005503c0 / 0x00551190 and their map and list helpers, ~1,700 decomp lines): a map of the polygons' shared edges, then polygons merged or rebuilt where a test passes. mechlib.md and cls_mechlib.h say it runs in one video mode; the flag (0x00553460(1) at 0x00579e79) is set when [0x0072f348] is on, the 3D card's mode, so it runs in the normal hardware game. The port draws the models without it. To settle: what it changes in a mech's polygons and whether it shows (draws compared on one mech) |
+| 0x005557f0 | 147 | software renderer | the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
+| 0x00555cd0 | 19 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555d00 | 13 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555d20 | 29 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555d90 | 19 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555de0 | 34 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555e50 | 16 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555e70 | 18 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555ea0 | 15 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00555ec0 | 28 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:100) |
-| 0x00555f10 | 13 | unlabelled |  |
+| 0x00555f10 | 13 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00555f30 | 26 | folded | covered by the port where it names it (src/gamez/zreader/zreader.cpp:594) |
-| 0x00555f70 | 36 | unlabelled |  |
-| 0x00555fe0 | 16 | unlabelled |  |
-| 0x00556000 | 27 | unlabelled |  |
-| 0x00556030 | 26 | unlabelled |  |
-| 0x00556070 | 30 | unlabelled |  |
-| 0x005560d0 | 25 | unlabelled |  |
-| 0x00556120 | 27 | unlabelled |  |
-| 0x00556150 | 9 | unlabelled | follows 0x005560d0:  |
-| 0x00556160 | 13 | unlabelled |  |
-| 0x005561a0 | 14 | unlabelled |  |
-| 0x005561e0 | 13 | unlabelled |  |
+| 0x00555f70 | 36 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555fe0 | 16 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00556000 | 27 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00556030 | 26 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00556070 | 30 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x005560d0 | 25 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00556120 | 27 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00556150 | 9 | folded | follows 0x005560d0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00556160 | 13 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x005561a0 | 14 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x005561e0 | 13 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00556240 | 38 | folded | covered by the port where it names it (src/gamez/zreader/zreader.cpp:918) |
 | 0x00557090 | 10 | folded | covered by the port where it names it (src/mech3/veh_basic_object.h:137) |
 
@@ -2860,82 +2880,82 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00587480 | 51 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:96) |
-| 0x00587580 | 84 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:108) |
-| 0x00587680 | 56 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:59) |
+| 0x00587480 | 51 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00587580 | 84 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00587680 | 56 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005876f0 | 23 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:79) |
 | 0x00587740 | 16 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.cpp:157) |
-| 0x00587760 | 13 | unlabelled |  |
-| 0x00587780 | 84 | unlabelled |  |
-| 0x00587950 | 17 | unlabelled |  |
+| 0x00587760 | 13 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00587780 | 84 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00587950 | 17 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x00587980 | 9 | folded | a thunk: one call to another function |
-| 0x00587ca0 | 18 | unlabelled |  |
+| 0x00587ca0 | 18 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x00587ce0 | 9 | folded | a thunk: one call to another function |
 | 0x00587d80 | 9 | folded | a thunk: one call to another function |
 | 0x00587d90 | 9 | folded | a thunk: one call to another function |
 | 0x00587db0 | 25 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
 | 0x00587e30 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x00587ed0 | 42 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x00587fb0 | 80 | unlabelled |  |
-| 0x00588070 | 46 | unlabelled |  |
-| 0x00588130 | 21 | unlabelled |  |
+| 0x00587ed0 | 42 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
+| 0x00587fb0 | 80 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00588070 | 46 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00588130 | 21 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x00588180 | 24 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.h:10) |
 | 0x00588600 | 22 | folded | covered by the port where it names it (src/mech3/mp_connect.cpp:350) |
 | 0x00589540 | 21 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.h:10) |
-| 0x005895b0 | 15 | unlabelled |  |
-| 0x005895c0 | 19 | unlabelled |  |
-| 0x00589600 | 47 | folded | covered by the port where it names it (src/mech3/mp_connect.cpp:350) |
+| 0x005895b0 | 15 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005895c0 | 19 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589600 | 47 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x00589870 | 16 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.cpp:336) |
 | 0x005898a0 | 8 | folded | returns a constant or a global |
 | 0x00589960 | 14 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.h:40) |
-| 0x005899b0 | 43 | unlabelled |  |
-| 0x00589a50 | 80 | unlabelled |  |
-| 0x00589c00 | 11 | unlabelled |  |
-| 0x00589c20 | 16 | unlabelled |  |
-| 0x00589c50 | 19 | unlabelled |  |
-| 0x00589ca0 | 15 | unlabelled |  |
-| 0x00589ce0 | 13 | unlabelled |  |
-| 0x00589d00 | 57 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:542) |
-| 0x00589df0 | 16 | unlabelled |  |
+| 0x005899b0 | 43 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589a50 | 80 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589c00 | 11 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589c20 | 16 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589c50 | 19 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589ca0 | 15 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589ce0 | 13 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589d00 | 57 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589df0 | 16 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x00589e30 | 25 | folded | covered by the port where it names it (src/mech3/mp_lobby.cpp:542) |
-| 0x00589e80 | 16 | unlabelled |  |
+| 0x00589e80 | 16 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x00589ea0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00589ec0 | 16 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x00589ef0 | 10 | folded | a getter of a member |
-| 0x00589f00 | 23 | unlabelled |  |
-| 0x00589f50 | 16 | unlabelled |  |
-| 0x00589f70 | 47 | unlabelled |  |
-| 0x0058a020 | 33 | unlabelled |  |
-| 0x0058a090 | 19 | unlabelled |  |
-| 0x0058a0d0 | 12 | unlabelled |  |
-| 0x0058a0e0 | 13 | unlabelled |  |
-| 0x0058a110 | 63 | folded | covered by the port where it names it (src/mech3/mp_connect.cpp:279) |
-| 0x0058a240 | 15 | unlabelled |  |
-| 0x0058a270 | 20 | unlabelled |  |
+| 0x00589f00 | 23 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589f50 | 16 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00589f70 | 47 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a020 | 33 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a090 | 19 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a0d0 | 12 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a0e0 | 13 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a110 | 63 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a240 | 15 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a270 | 20 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x0058a2b0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0058a2d0 | 25 | unlabelled |  |
-| 0x0058a340 | 29 | unlabelled |  |
-| 0x0058a3d0 | 13 | unlabelled |  |
-| 0x0058a400 | 25 | unlabelled |  |
-| 0x0058a450 | 12 | unlabelled |  |
+| 0x0058a2d0 | 25 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a340 | 29 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a3d0 | 13 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a400 | 25 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a450 | 12 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x0058a470 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0058a4a0 | 25 | unlabelled |  |
+| 0x0058a4a0 | 25 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x0058a510 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0058a530 | 29 | unlabelled |  |
-| 0x0058a5b0 | 26 | unlabelled |  |
-| 0x0058a5f0 | 31 | unlabelled |  |
-| 0x0058a6f0 | 36 | unlabelled |  |
-| 0x0058a7b0 | 15 | unlabelled |  |
+| 0x0058a530 | 29 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a5b0 | 26 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a5f0 | 31 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a6f0 | 36 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a7b0 | 15 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x0058a7d0 | 8 | folded | returns a constant or a global |
-| 0x0058a7f0 | 20 | unlabelled |  |
-| 0x0058a830 | 20 | unlabelled |  |
+| 0x0058a7f0 | 20 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x0058a830 | 20 | replaced (SDL or the platform layer) | DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x0058a870 | 8 | folded | empty: does nothing |
 | 0x0058a880 | 15 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.cpp:272) |
-| 0x0058a8c0 | 335 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.cpp:142) |
-| 0x0058ae90 | 20 | unlabelled |  |
+| 0x0058a8c0 | 335 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
+| 0x0058ae90 | 20 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x0058afe0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0058b0a0 | 53 | folded | ported, by docs/symbols.csv: ported (the dock's net_element): the first element of that name (vt+0x24) |
-| 0x0058b220 | 26 | unlabelled |  |
+| 0x0058b220 | 26 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x0058b310 | 30 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.cpp:15) |
 | 0x0058b380 | 8 | folded | returns a constant or a global |
 | 0x0058b390 | 14 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.h:8) |
@@ -2943,21 +2963,21 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0058b510 | 14 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:528) |
 | 0x0058b530 | 9 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:507) |
 | 0x0058c570 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0058c590 | 35 | unlabelled |  |
+| 0x0058c590 | 35 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x0058c620 | 11 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x0058c630 | 12 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x0058ca30 | 24 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:53) |
-| 0x0058ce10 | 74 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:68) |
+| 0x0058ce10 | 74 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x0058d350 | 26 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:112) |
-| 0x0058d3c0 | 97 | unlabelled |  |
+| 0x0058d3c0 | 97 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x0058d9a0 | 23 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:31) |
-| 0x0058de40 | 93 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:68) |
+| 0x0058de40 | 93 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x0058e3b0 | 29 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:58) |
 | 0x0058e420 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0058e440 | 14 | unlabelled |  |
-| 0x0058e460 | 22 | unlabelled |  |
+| 0x0058e440 | 14 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058e460 | 22 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x0058e770 | 18 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:141) |
-| 0x0058e7b0 | 44 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:151) |
+| 0x0058e7b0 | 44 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x0058e850 | 36 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:159) |
 | 0x0058e8e0 | 19 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:180) |
 | 0x0058e920 | 35 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:261) |
@@ -2967,132 +2987,132 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0058ea40 | 12 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:173) |
 | 0x0058ea60 | 9 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:167) |
 | 0x0058ea70 | 9 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.cpp:175) |
-| 0x0058ec20 | 27 | unlabelled |  |
-| 0x0058ec90 | 20 | unlabelled |  |
-| 0x0058ecd0 | 13 | unlabelled |  |
-| 0x0058ed00 | 20 | unlabelled |  |
-| 0x0058ed40 | 31 | unlabelled |  |
-| 0x0058eda0 | 21 | unlabelled |  |
-| 0x0058ee10 | 19 | unlabelled |  |
-| 0x0058ee40 | 135 | unlabelled |  |
-| 0x0058f170 | 55 | unlabelled |  |
-| 0x0058f270 | 11 | unlabelled |  |
+| 0x0058ec20 | 27 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058ec90 | 20 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058ecd0 | 13 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058ed00 | 20 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058ed40 | 31 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058eda0 | 21 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058ee10 | 19 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058ee40 | 135 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f170 | 55 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f270 | 11 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x0058f2a0 | 19 | folded | covered by the port where it names it (src/mech3/mech_fieldbase_dock.cpp:292) |
-| 0x0058f2d0 | 14 | unlabelled |  |
-| 0x0058f2e0 | 79 | unlabelled |  |
-| 0x0058f420 | 76 | unlabelled |  |
-| 0x0058f580 | 28 | unlabelled |  |
+| 0x0058f2d0 | 14 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f2e0 | 79 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f420 | 76 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f580 | 28 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x0058f610 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0058f630 | 34 | unlabelled |  |
-| 0x0058f6a0 | 12 | unlabelled |  |
-| 0x0058f740 | 11 | unlabelled |  |
+| 0x0058f630 | 34 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f6a0 | 12 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f740 | 11 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x0058f760 | 11 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:50) |
-| 0x0058f770 | 11 | unlabelled |  |
-| 0x0058f780 | 11 | unlabelled |  |
-| 0x0058f790 | 11 | unlabelled |  |
-| 0x0058f7a0 | 11 | unlabelled |  |
-| 0x0058f7b0 | 11 | unlabelled |  |
+| 0x0058f770 | 11 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f780 | 11 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f790 | 11 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f7a0 | 11 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
+| 0x0058f7b0 | 11 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x0058f7c0 | 11 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:50) |
-| 0x0058f8b0 | 8 | unlabelled |  |
+| 0x0058f8b0 | 8 | debug or dev tool: PORT (preserve) | the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x0058f8c0 | 8 | folded | returns a constant or a global |
 | 0x0058f8d0 | 58 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x0058fa20 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0058fa40 | 19 | unlabelled |  |
+| 0x0058fa40 | 19 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x0058faa0 | 13 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:59) |
-| 0x0058fac0 | 72 | unlabelled |  |
+| 0x0058fac0 | 72 | folded | covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x0058fcd0 | 39 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.h:59) |
 
 ### zclass (87 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x004eb030 | 11 | unlabelled |  |
+| 0x004eb030 | 11 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
 | 0x004eb040 | 8 | folded | returns a constant or a global |
 | 0x004eb420 | 17 | folded | covered by the port where it names it (src/gamez/zclass/cls_zbd.cpp:294) |
 | 0x004eb6a0 | 17 | folded | covered by the port where it names it (src/gamez/zgeometry/zgeo_model.cpp:431) |
 | 0x004eb710 | 17 | folded | ported, by docs/symbols.csv: ported inline; node +0x24 bit 4 (the program's node_intersects) |
-| 0x004eb8a0 | 17 | unlabelled |  |
+| 0x004eb8a0 | 17 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
 | 0x004eb8e0 | 17 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:200) |
-| 0x004ebd50 | 38 | unlabelled |  |
-| 0x004ed950 | 11 | unlabelled |  |
+| 0x004ebd50 | 38 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
+| 0x004ed950 | 11 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
 | 0x004ed980 | 11 | folded | ported, by docs/symbols.csv: ported inline in gmod_draw: node +0xc0 = [0x5e9e2c] (update_frame) after the static bake |
 | 0x004ed9c0 | 11 | folded | ported, by docs/symbols.csv: ported as zcls::segment_options().first_hit ([0x0060b968]) |
 | 0x004ed9d0 | 11 | folded | covered by the port where it names it (src/gamez/zclass/cls_di.h:85) |
 | 0x004ed9e0 | 15 | folded | covered by the port where it names it (src/gamez/zclass/cls_di.h:86) |
 | 0x004eda00 | 13 | folded | ported, by docs/symbols.csv: ported as zcls::segment_options().exclude ([0x0060b974]) |
-| 0x004f0020 | 249 | unlabelled |  |
+| 0x004f0020 | 249 | folded | covered: a piece of the ported ray query (0x004f0020 runs in its caller's stack frame), a world's ground value (0x004f2480, from the ported sound 0x004f3170) |
 | 0x004f0f00 | 35 | folded | covered by the port where it names it (src/gamez/zclass/cls_di.cpp:1267) |
 | 0x004f1810 | 32 | folded | covered by the port where it names it (src/gamez/zclass/cls_world.cpp:219) |
-| 0x004f1cd0 | 48 | unlabelled |  |
-| 0x004f1d90 | 18 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:295) |
-| 0x004f1dc0 | 17 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:294) |
+| 0x004f1cd0 | 48 | MISSING LOGIC (only data the shipped game lacks reaches it) | under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them |
+| 0x004f1d90 | 18 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004f1dc0 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x004f22f0 | 21 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.cpp:365) |
-| 0x004f2480 | 12 | unlabelled |  |
+| 0x004f2480 | 12 | folded | covered: a piece of the ported ray query (0x004f0020 runs in its caller's stack frame), a world's ground value (0x004f2480, from the ported sound 0x004f3170) |
 | 0x004f2490 | 12 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:127) |
-| 0x004f2860 | 14 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:284) |
-| 0x004f2880 | 19 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:285) |
-| 0x004f32a0 | 19 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:225) |
+| 0x004f2860 | 14 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004f2880 | 19 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004f32a0 | 19 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x004f33e0 | 24 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:519) |
-| 0x004f3540 | 13 | unlabelled |  |
-| 0x004f3550 | 11 | unlabelled |  |
-| 0x004f3630 | 25 | unlabelled |  |
-| 0x004f39d0 | 42 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:223) |
-| 0x004f3b00 | 34 | unlabelled |  |
-| 0x004f3d00 | 34 | unlabelled |  |
-| 0x004f3f70 | 31 | unlabelled |  |
+| 0x004f3540 | 13 | unused: PORT (preserve) | no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60) |
+| 0x004f3550 | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004f3630 | 25 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
+| 0x004f39d0 | 42 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004f3b00 | 34 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004f3d00 | 34 | MISSING LOGIC (only data the shipped game lacks reaches it) | under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them |
+| 0x004f3f70 | 31 | MISSING LOGIC (only data the shipped game lacks reaches it) | under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them |
 | 0x004f4d4d | 95 | folded | a piece of the ported function before it (Ghidra split it there) (0x004f4ab0) |
 | 0x004f5a00 | 31 | folded | covered by the port where it names it (src/gamez/zclass/camera.cpp:488) |
-| 0x004f6c70 | 11 | unlabelled |  |
-| 0x004f6dc0 | 102 | folded | covered by the port where it names it (src/mech3/app_hud.cpp:212) |
-| 0x004f7630 | 16 | unlabelled |  |
-| 0x004f7650 | 16 | unlabelled |  |
-| 0x004f7fa0 | 20 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:193) |
-| 0x004f81e0 | 20 | unlabelled |  |
-| 0x004f8b80 | 23 | unlabelled |  |
+| 0x004f6c70 | 11 | debug or dev tool: PORT (preserve) | the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
+| 0x004f6dc0 | 102 | software renderer | the camera's software scene walk (0x004f6dc0 without a device; hud.md: the software path) |
+| 0x004f7630 | 16 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
+| 0x004f7650 | 16 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
+| 0x004f7fa0 | 20 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004f81e0 | 20 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
+| 0x004f8b80 | 23 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x004f8c30 | 9 | folded | a thunk: one call to another function |
-| 0x004f8f20 | 10 | unlabelled |  |
-| 0x004f8f40 | 9 | unlabelled |  |
-| 0x004f8f60 | 11 | unlabelled |  |
-| 0x004f8f70 | 14 | unlabelled |  |
-| 0x004f96b0 | 10 | unlabelled |  |
-| 0x004f96d0 | 10 | unlabelled |  |
+| 0x004f8f20 | 10 | unused: PORT (preserve) | no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60) |
+| 0x004f8f40 | 9 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
+| 0x004f8f60 | 11 | unused: PORT (preserve) | no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60) |
+| 0x004f8f70 | 14 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
+| 0x004f96b0 | 10 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
+| 0x004f96d0 | 10 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
 | 0x004f9820 | 10 | folded | covered by the port where it names it (src/gamez/zclass/cls_util.cpp:207) |
 | 0x004f99b0 | 10 | folded | covered by the port where it names it (src/gamez/zclass/cls_util.cpp:206) |
 | 0x004f99d0 | 10 | folded | covered by the port where it names it (src/gamez/zclass/cls_util.cpp:210) |
-| 0x004f9e50 | 21 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:213) |
+| 0x004f9e50 | 21 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x004f9f60 | 24 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:519) |
-| 0x004fa1c0 | 31 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:243) |
-| 0x004fa230 | 37 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:247) |
-| 0x004fa2c0 | 60 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:242) |
-| 0x004fa3e0 | 40 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:244) |
-| 0x004fa4c0 | 31 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:237) |
+| 0x004fa1c0 | 31 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fa230 | 37 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fa2c0 | 60 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fa3e0 | 40 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fa4c0 | 31 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x004fa540 | 24 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:519) |
 | 0x004fa900 | 24 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:520) |
 | 0x004fc470 | 14 | folded | covered by the port where it names it (src/gamez/zclass/cls_mechlib.cpp:123) |
-| 0x004fc4d0 | 18 | unlabelled |  |
+| 0x004fc4d0 | 18 | unused: PORT (preserve) | mechlib's material writer at close (0x004fc990 -> 0x004fcca0 -> 0x004fc4d0): dead (mechlib.md) |
 | 0x004fc5d0 | 35 | folded | covered by the port where it names it (src/gamez/zclass/cls_mechlib.h:38) |
-| 0x004fc8b0 | 23 | unlabelled |  |
-| 0x004fc990 | 21 | unlabelled |  |
-| 0x004fcca0 | 39 | unlabelled |  |
-| 0x004fce40 | 15 | unlabelled |  |
+| 0x004fc8b0 | 23 | UNSURE | the mechlib models' edge pass's entry (0x004fc8b0 over every model, then 0x00552540): see the edge pass under zmodel; it runs in the hardware mode |
+| 0x004fc990 | 21 | unused: PORT (preserve) | mechlib's material writer at close (0x004fc990 -> 0x004fcca0 -> 0x004fc4d0): dead (mechlib.md) |
+| 0x004fcca0 | 39 | unused: PORT (preserve) | mechlib's material writer at close (0x004fc990 -> 0x004fcca0 -> 0x004fc4d0): dead (mechlib.md) |
+| 0x004fce40 | 15 | debug or dev tool: PORT (preserve) | the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
 | 0x004fd1c0 | 13 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:233) |
-| 0x004fd1e0 | 30 | unlabelled |  |
+| 0x004fd1e0 | 30 | MISSING LOGIC (only data the shipped game lacks reaches it) | zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game |
 | 0x004fd230 | 30 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:521) |
 | 0x004fd440 | 24 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:521) |
-| 0x004fd8c0 | 24 | unlabelled |  |
+| 0x004fd8c0 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game |
 | 0x004fd900 | 30 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:520) |
-| 0x004fdc70 | 22 | folded | covered by the port where it names it (src/gamez/zclass/cls_data.h:57) |
-| 0x004fdcd0 | 53 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:266) |
-| 0x004fde50 | 26 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:267) |
-| 0x004fde90 | 26 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:270) |
-| 0x004fded0 | 26 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:268) |
-| 0x004fdf10 | 26 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:269) |
+| 0x004fdc70 | 22 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fdcd0 | 53 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fde50 | 26 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fde90 | 26 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fded0 | 26 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x004fdf10 | 26 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x004fe0b0 | 9 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:555) |
 | 0x004fe0f0 | 9 | folded | covered by the port where it names it (src/gamez/zclass/list.cpp:349) |
-| 0x004fe210 | 49 | unlabelled |  |
-| 0x004fe2d0 | 167 | unlabelled |  |
-| 0x004fe6c0 | 104 | unlabelled |  |
-| 0x004fe8e0 | 115 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:219) |
+| 0x004fe210 | 49 | debug or dev tool: PORT (preserve) | the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
+| 0x004fe2d0 | 167 | debug or dev tool: PORT (preserve) | the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
+| 0x004fe6c0 | 104 | debug or dev tool: PORT (preserve) | the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
+| 0x004fe8e0 | 115 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 
 ### zinput (86 not ported)
 
@@ -3194,12 +3214,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0056f4d0 | 16 | unlabelled |  |
 | 0x0056f4f0 | 9 | folded | a thunk: one call to another function |
 | 0x0056f570 | 19 | unlabelled |  |
-| 0x0056f760 | 98 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_init.cpp:260) |
+| 0x0056f760 | 98 | unlabelled |  |
 | 0x0056f990 | 18 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:150) |
-| 0x0056f9d0 | 89 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_init.cpp:265) |
+| 0x0056f9d0 | 89 | unlabelled |  |
 | 0x0056fbd0 | 11 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_init.cpp:265) |
-| 0x0056ffc0 | 52 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:63) |
-| 0x00570068 | 43 | folded | follows 0x0056ffc0: covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:63) |
+| 0x0056ffc0 | 52 | unlabelled |  |
+| 0x00570068 | 43 | unlabelled | follows 0x0056ffc0:  |
 | 0x005700a0 | 26 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_parm.cpp:150) |
 | 0x005706f0 | 211 | unlabelled |  |
 | 0x00571380 | 39 | unlabelled |  |
@@ -3211,7 +3231,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005718f0 | 32 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_3d.cpp:95) |
 | 0x00571940 | 77 | folded | ported, by docs/symbols.csv: ported: 2500/s, ends only on an exact landing |
 | 0x00571f70 | 48 | unlabelled |  |
-| 0x00572050 | 113 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_3d.cpp:138) |
+| 0x00572050 | 113 | unlabelled |  |
 | 0x005723a0 | 17 | unlabelled |  |
 | 0x005723d0 | 9 | folded | a thunk: one call to another function |
 | 0x005728b0 | 19 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_cd.cpp:24) |
@@ -3226,7 +3246,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00573cc0 | 50 | folded | ported, by docs/symbols.csv: ported: group state machine |
 | 0x00573da0 | 30 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:141) |
 | 0x00573e00 | 87 | folded | ported, by docs/symbols.csv: ported: weighted rand pick, dynamic weights |
-| 0x00573f90 | 96 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:170) |
+| 0x00573f90 | 96 | unlabelled |  |
 | 0x00574120 | 23 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:162) |
 | 0x00574159 | 8 | folded | follows 0x00574120: covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:162) |
 | 0x00574170 | 24 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:216) |
@@ -3240,7 +3260,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00574590 | 27 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:247) |
 | 0x005745f0 | 11 | folded | a thunk: one call to another function |
 | 0x00574660 | 13 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_cd.cpp:32) |
-| 0x005746b0 | 198 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_create.cpp:28) |
+| 0x005746b0 | 198 | unlabelled |  |
 | 0x00574c90 | 17 | unlabelled |  |
 | 0x00574cc0 | 9 | folded | a thunk: one call to another function |
 | 0x00574d40 | 24 | folded | covered by the port where it names it (src/gamez/zsound/zsnd.h:336) |
@@ -3251,7 +3271,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00575b00 | 225 | unlabelled |  |
 | 0x00575d00 | 11 | unlabelled |  |
 | 0x00575d10 | 8 | unlabelled |  |
-| 0x00575d40 | 63 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_script.cpp:297) |
+| 0x00575d40 | 63 | unlabelled |  |
 | 0x00575e30 | 39 | unlabelled |  |
 | 0x00575f30 | 17 | unlabelled |  |
 | 0x00575f70 | 12 | unlabelled |  |
@@ -3265,7 +3285,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00576140 | 40 | unlabelled |  |
 | 0x00576250 | 12 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:323) |
 | 0x00576270 | 15 | unlabelled |  |
-| 0x005762b0 | 48 | folded | covered by the port where it names it (src/gamez/zimage/zimg_library.h:75) |
+| 0x005762b0 | 48 | unlabelled |  |
 | 0x005763b0 | 17 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:240) |
 
 ### ztwod (75 not ported)
@@ -3307,7 +3327,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005a5400 | 16 | unlabelled |  |
 | 0x005a5620 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a5b10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a5e10 | 109 | folded | covered by the port where it names it (src/gamez/ztwod/twod_weather.cpp:290) |
+| 0x005a5e10 | 109 | unlabelled |  |
 | 0x005a60e0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x005a6100 | 12 | unlabelled |  |
 | 0x005a6600 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:77) |
@@ -3339,7 +3359,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005a7c50 | 20 | unlabelled |  |
 | 0x005a7ca0 | 15 | unlabelled |  |
 | 0x005a7cd0 | 12 | unlabelled |  |
-| 0x005a7dd0 | 9 | folded | a thunk: one call to another function |
+| 0x005a7dd0 | 9 | unlabelled | follows 0x005a8750:  |
 | 0x005a7de0 | 9 | folded | a thunk: one call to another function |
 | 0x005a7e10 | 47 | unlabelled |  |
 | 0x005a7f30 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -3352,145 +3372,145 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x005662d0 | 91 | unlabelled |  |
-| 0x00566510 | 33 | unlabelled |  |
-| 0x00566620 | 133 | unlabelled |  |
-| 0x00566890 | 162 | unlabelled |  |
-| 0x00566c90 | 114 | unlabelled |  |
-| 0x00566f10 | 61 | unlabelled |  |
-| 0x005670a0 | 120 | unlabelled |  |
-| 0x005674e0 | 19 | unlabelled |  |
-| 0x00567530 | 21 | unlabelled |  |
+| 0x005662d0 | 91 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x00566510 | 33 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x00566620 | 133 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x00566890 | 162 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x00566c90 | 114 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x00566f10 | 61 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x005670a0 | 120 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x005674e0 | 19 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x00567530 | 21 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x00567570 | 9 | folded | ported, by docs/symbols.csv: ported: zrndr::flares_clear (the frame's start, 0x004817cd) |
-| 0x00567580 | 36 | unlabelled |  |
-| 0x005675e0 | 26 | unlabelled |  |
-| 0x00567dc0 | 41 | unlabelled |  |
+| 0x00567580 | 36 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x005675e0 | 26 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x00567dc0 | 41 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x005680b0 | 8 | folded | empty: does nothing |
-| 0x00568230 | 24 | unlabelled |  |
-| 0x005682a0 | 24 | unlabelled |  |
-| 0x005684f0 | 24 | unlabelled |  |
-| 0x00568560 | 16 | unlabelled |  |
-| 0x005685c0 | 249 | unlabelled |  |
-| 0x005689d0 | 256 | unlabelled |  |
-| 0x0056b500 | 184 | unlabelled |  |
-| 0x0056b800 | 175 | unlabelled |  |
-| 0x0056bb00 | 189 | unlabelled |  |
-| 0x0056be40 | 180 | unlabelled |  |
-| 0x0056c1d0 | 37 | unlabelled |  |
-| 0x0056c320 | 51 | unlabelled |  |
-| 0x0056c420 | 51 | unlabelled |  |
-| 0x0056c520 | 181 | unlabelled |  |
-| 0x0056c830 | 181 | unlabelled |  |
-| 0x0056cbc0 | 39 | unlabelled |  |
-| 0x0056cc40 | 39 | unlabelled |  |
-| 0x0056ccc0 | 39 | unlabelled |  |
-| 0x0056cd40 | 39 | unlabelled |  |
-| 0x0056cdc0 | 39 | unlabelled |  |
-| 0x0056ce40 | 39 | unlabelled |  |
-| 0x0056cec0 | 39 | unlabelled |  |
-| 0x0056cf80 | 88 | unlabelled |  |
-| 0x0056d120 | 88 | unlabelled |  |
-| 0x0056d2c0 | 39 | unlabelled |  |
-| 0x0056d340 | 40 | unlabelled |  |
-| 0x0056d3c0 | 39 | unlabelled |  |
-| 0x0056d440 | 39 | unlabelled |  |
-| 0x0056d4c0 | 39 | unlabelled |  |
-| 0x0056d540 | 39 | unlabelled |  |
-| 0x0056d5c0 | 39 | unlabelled |  |
-| 0x0056d640 | 39 | unlabelled |  |
-| 0x0056d6c0 | 92 | unlabelled |  |
-| 0x0056d8b0 | 92 | unlabelled |  |
-| 0x0056dab0 | 37 | unlabelled |  |
-| 0x0056db50 | 37 | unlabelled |  |
-| 0x0056dbf0 | 37 | unlabelled |  |
-| 0x0056dc90 | 37 | unlabelled |  |
-| 0x0056dd30 | 37 | unlabelled |  |
-| 0x0056ddd0 | 37 | unlabelled |  |
-| 0x0056de70 | 37 | unlabelled |  |
-| 0x0056df10 | 37 | unlabelled |  |
+| 0x00568230 | 24 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x005682a0 | 24 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x005684f0 | 24 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x00568560 | 16 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x005685c0 | 249 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x005689d0 | 256 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056b500 | 184 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056b800 | 175 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056bb00 | 189 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056be40 | 180 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056c1d0 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056c320 | 51 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056c420 | 51 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056c520 | 181 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056c830 | 181 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056cbc0 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056cc40 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056ccc0 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056cd40 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056cdc0 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056ce40 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056cec0 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056cf80 | 88 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d120 | 88 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d2c0 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d340 | 40 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d3c0 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d440 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d4c0 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d540 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d5c0 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d640 | 39 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d6c0 | 92 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056d8b0 | 92 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056dab0 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056db50 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056dbf0 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056dc90 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056dd30 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056ddd0 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056de70 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
+| 0x0056df10 | 37 | software renderer | the software renderer: its sprite and model-light draws (0x00566620..), the scene list of light points and lens flares the software frames draw their own way (0x00566f10, 0x005674e0..0x00567dc0; render.md: the Direct3D flares are ported), the software fog spans and tables, the span filler table (module-starts.md: read only by software code) and the rasteriser's span routines |
 | 0x0056e160 | 15 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:23) |
-| 0x0056e180 | 65 | unlabelled |  |
+| 0x0056e180 | 65 | replaced (SDL or the platform layer) | DirectSound: a sound's buffer duplicated or reused for another play (0x0056e180, 0x0056e4d0) and the buffer's volume and frequency calls (0x0056ef90); SDL's audio layer replaces them (zsnd_play) |
 | 0x0056e2d0 | 53 | folded | ported, by docs/symbols.csv: ported: own voice, a duplicate, or a new one (max 7) |
 | 0x0056e470 | 8 | folded | returns a constant or a global |
 | 0x0056e480 | 18 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:82) |
-| 0x0056e4d0 | 67 | unlabelled |  |
+| 0x0056e4d0 | 67 | replaced (SDL or the platform layer) | DirectSound: a sound's buffer duplicated or reused for another play (0x0056e180, 0x0056e4d0) and the buffer's volume and frequency calls (0x0056ef90); SDL's audio layer replaces them (zsnd_play) |
 | 0x0056e610 | 68 | folded | ported, by docs/symbols.csv: ported (ECX sound, EDX dB volume, position, velocity, start) |
 | 0x0056e750 | 32 | folded | ported, by docs/symbols.csv: ported: voice queue, newest first |
 | 0x0056ee20 | 38 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:103) |
-| 0x0056eea0 | 46 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:134) |
-| 0x0056ef90 | 28 | unlabelled |  |
+| 0x0056eea0 | 46 | folded | covered: a sound's play with the master volume (zsnd_play.cpp:134), the playing list's node |
+| 0x0056ef90 | 28 | replaced (SDL or the platform layer) | DirectSound: a sound's buffer duplicated or reused for another play (0x0056e180, 0x0056e4d0) and the buffer's volume and frequency calls (0x0056ef90); SDL's audio layer replaces them (zsnd_play) |
 | 0x0056f010 | 31 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:118) |
-| 0x0056f230 | 19 | unlabelled |  |
+| 0x0056f230 | 19 | folded | covered: a sound's play with the master volume (zsnd_play.cpp:134), the playing list's node |
 
 ### zvideo (65 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00576f90 | 79 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.cpp:62) |
-| 0x005770f0 | 11 | unlabelled |  |
-| 0x00577340 | 11 | unlabelled |  |
+| 0x00576f90 | 79 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005770f0 | 11 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00577340 | 11 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00577630 | 29 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_dd.h:28) |
 | 0x00577690 | 21 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_dd.h:29) |
-| 0x005776d0 | 29 | unlabelled |  |
-| 0x00577730 | 21 | unlabelled |  |
-| 0x005778d0 | 44 | unlabelled |  |
-| 0x00577a10 | 80 | unlabelled |  |
-| 0x00577c40 | 21 | unlabelled |  |
-| 0x00577cb0 | 11 | unlabelled |  |
-| 0x00577d40 | 25 | unlabelled |  |
-| 0x00577db0 | 13 | unlabelled |  |
-| 0x00577df0 | 227 | unlabelled |  |
-| 0x00578510 | 36 | unlabelled |  |
-| 0x005785f0 | 31 | unlabelled |  |
-| 0x00578670 | 32 | unlabelled |  |
-| 0x005786f0 | 18 | unlabelled |  |
-| 0x00578740 | 72 | unlabelled |  |
+| 0x005776d0 | 29 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00577730 | 21 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005778d0 | 44 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00577a10 | 80 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00577c40 | 21 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00577cb0 | 11 | folded | covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
+| 0x00577d40 | 25 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00577db0 | 13 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00577df0 | 227 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00578510 | 36 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005785f0 | 31 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00578670 | 32 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005786f0 | 18 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00578740 | 72 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x005788b0 | 34 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:980) |
-| 0x00578960 | 16 | unlabelled |  |
-| 0x00578c00 | 36 | unlabelled |  |
-| 0x00578f60 | 12 | unlabelled |  |
+| 0x00578960 | 16 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00578c00 | 36 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00578f60 | 12 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00579000 | 8 | folded | returns a constant or a global |
 | 0x00579010 | 8 | folded | returns a constant or a global |
-| 0x00579040 | 11 | unlabelled |  |
-| 0x00579210 | 14 | unlabelled |  |
-| 0x00579230 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:341) |
-| 0x00579260 | 14 | unlabelled |  |
+| 0x00579040 | 11 | folded | covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
+| 0x00579210 | 14 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579230 | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | the script command VideoSetWireFrame: the engine entry is null in the port (hook_allow: counted) and no shipped script uses it |
+| 0x00579260 | 14 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00579280 | 14 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_stream.cpp:92) |
-| 0x005792a0 | 14 | unlabelled |  |
+| 0x005792a0 | 14 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00579430 | 30 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:933) |
-| 0x00579500 | 85 | unlabelled |  |
-| 0x00579660 | 105 | unlabelled |  |
-| 0x00579840 | 24 | unlabelled |  |
-| 0x00579880 | 12 | unlabelled |  |
-| 0x005799f0 | 11 | unlabelled |  |
-| 0x00579a10 | 15 | unlabelled |  |
-| 0x00579a40 | 15 | unlabelled |  |
+| 0x00579500 | 85 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579660 | 105 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579840 | 24 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579880 | 12 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x005799f0 | 11 | folded | covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
+| 0x00579a10 | 15 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579a40 | 15 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00579a70 | 10 | folded | returns a constant or a global |
-| 0x00579ab0 | 17 | unlabelled |  |
-| 0x00579b40 | 16 | unlabelled |  |
-| 0x00579bd0 | 30 | unlabelled |  |
-| 0x00579c60 | 79 | unlabelled |  |
+| 0x00579ab0 | 17 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579b40 | 16 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579bd0 | 30 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579c60 | 79 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00579ea0 | 8 | folded | returns a constant or a global |
-| 0x00579eb0 | 11 | unlabelled |  |
-| 0x00579ef0 | 14 | unlabelled |  |
-| 0x00579f20 | 16 | unlabelled |  |
-| 0x0057a1a0 | 80 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:724) |
-| 0x0057a390 | 15 | unlabelled |  |
-| 0x0057a3c0 | 13 | unlabelled |  |
-| 0x0057a3d0 | 164 | unlabelled |  |
-| 0x0057a900 | 288 | folded | covered by the port where it names it (src/frontend/sdl/sdl_render3d.cpp:181) |
-| 0x0057b100 | 18 | unlabelled |  |
-| 0x0057b6c0 | 64 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:898) |
-| 0x0057b7b0 | 107 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:898) |
-| 0x0057ba80 | 16 | unlabelled |  |
-| 0x0057bb60 | 9 | unlabelled |  |
+| 0x00579eb0 | 11 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00579ef0 | 14 | folded | covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
+| 0x00579f20 | 16 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057a1a0 | 80 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057a390 | 15 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057a3c0 | 13 | folded | covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
+| 0x0057a3d0 | 164 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057a900 | 288 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057b100 | 18 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057b6c0 | 64 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057b7b0 | 107 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057ba80 | 16 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x0057bb60 | 9 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x0057e9e0 | 15 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:298) |
-| 0x0057ea00 | 18 | unlabelled |  |
-| 0x00580350 | 80 | unlabelled |  |
-| 0x00580550 | 610 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:98) |
+| 0x0057ea00 | 18 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00580350 | 80 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
+| 0x00580550 | 610 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00581e30 | 8 | folded | returns a constant or a global |
 | 0x00581e40 | 8 | folded | returns a constant or a global |
-| 0x00583730 | 11 | unlabelled |  |
+| 0x00583730 | 11 | folded | covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
 
 ### zimage (62 not ported)
 
@@ -3511,7 +3531,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00517730 | 16 | folded | covered by the port where it names it (src/gamez/zimage/zimg_texture.cpp:290) |
 | 0x00517760 | 16 | folded | covered by the port where it names it (src/frontend/sdl/sdl_twod_host.cpp:173) |
 | 0x00517790 | 13 | folded | covered by the port where it names it (src/gamez/zimage/zimg_texture.cpp:319) |
-| 0x005177a0 | 47 | folded | covered by the port where it names it (src/gamez/zimage/zimg_texture.cpp:303) |
+| 0x005177a0 | 47 | unlabelled |  |
 | 0x00517840 | 20 | folded | covered by the port where it names it (src/gamez/zimage/zimg_texture.cpp:317) |
 | 0x005178a0 | 61 | unlabelled |  |
 | 0x00517be0 | 16 | unlabelled |  |
@@ -3538,12 +3558,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00518f60 | 8 | folded | returns a constant or a global |
 | 0x005190e0 | 15 | unlabelled |  |
 | 0x00519120 | 25 | unlabelled |  |
-| 0x00519150 | 121 | folded | covered by the port where it names it (src/gamez/zimage/zimg_texture.cpp:94) |
+| 0x00519150 | 121 | unlabelled |  |
 | 0x00519370 | 51 | unlabelled |  |
 | 0x00519510 | 38 | unlabelled |  |
 | 0x005195b0 | 75 | unlabelled |  |
 | 0x005197d0 | 11 | unlabelled | follows 0x00519510:  |
-| 0x00519820 | 65 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:951) |
+| 0x00519820 | 65 | unlabelled |  |
 | 0x00519990 | 20 | unlabelled |  |
 | 0x005199e0 | 27 | unlabelled |  |
 | 0x00519a20 | 14 | unlabelled |  |
@@ -3566,7 +3586,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00594dc0 | 9 | folded | a thunk: one call to another function |
 | 0x00594e50 | 9 | folded | a thunk: one call to another function |
 | 0x00594e90 | 9 | folded | a thunk: one call to another function |
-| 0x00594ec0 | 98 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:288) |
+| 0x00594ec0 | 98 | unlabelled |  |
 | 0x00594f90 | 33 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:303) |
 | 0x00595449 | 22 | folded | a piece of the ported function before it (Ghidra split it there) (0x00595440) |
 | 0x00595b10 | 27 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:405) |
@@ -3594,7 +3614,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00596f70 | 316 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x005974a0 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00597530 | 48 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005975e0 | 49 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:323) |
+| 0x005975e0 | 49 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00597680 | 92 | unlabelled |  |
 | 0x00597e60 | 25 | unlabelled |  |
 | 0x00597eb0 | 12 | unlabelled |  |
@@ -3602,7 +3622,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00597ef0 | 40 | unlabelled |  |
 | 0x00597f30 | 19 | unlabelled |  |
 | 0x00597f60 | 14 | unlabelled |  |
-| 0x00597fc0 | 55 | folded | covered by the port where it names it (src/gamez/zutil/zutl_reg.cpp:48) |
+| 0x00597fc0 | 55 | unlabelled |  |
 | 0x00598100 | 25 | unlabelled |  |
 | 0x00598150 | 11 | unlabelled |  |
 | 0x00598160 | 12 | unlabelled |  |
@@ -3618,7 +3638,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00598530 | 8 | folded | returns a constant or a global |
 | 0x00598580 | 35 | unlabelled |  |
 | 0x005985d0 | 56 | unlabelled |  |
-| 0x005986c0 | 48 | folded | covered by the port where it names it (src/gamez/zutil/zutl_reg.h:43) |
+| 0x005986c0 | 48 | unlabelled |  |
 | 0x005987d0 | 59 | unlabelled |  |
 | 0x005988c0 | 110 | unlabelled |  |
 | 0x00598ae0 | 12 | unlabelled |  |
@@ -3641,7 +3661,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00558070 | 14 | unlabelled |  |
 | 0x00558080 | 15 | unlabelled |  |
 | 0x005580d0 | 23 | unlabelled |  |
-| 0x00558120 | 16 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:336) |
+| 0x00558120 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00558140 | 13 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:125) |
 | 0x00558170 | 17 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:126) |
 | 0x00558250 | 16 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:326) |
@@ -3706,23 +3726,23 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005a86e0 | 16 | folded | covered by the port where it names it (src/mech3/mech.h:95) |
 | 0x005a8710 | 11 | folded | covered by the port where it names it (src/mech3/veh_controls.h:82) |
 | 0x005a8730 | 11 | unlabelled |  |
-| 0x005a8750 | 47 | folded | covered by the port where it names it (src/gamez/zentity/zent_manager.h:18) |
+| 0x005a8750 | 47 | unlabelled |  |
 | 0x005a8820 | 13 | unlabelled |  |
 | 0x005a89c0 | 35 | unlabelled |  |
 | 0x005a8be0 | 40 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:75) |
 | 0x005a8c58 | 29 | folded | follows 0x005a8be0: covered by the port where it names it (src/gamez/zsave/zsave.cpp:75) |
 | 0x005a8c90 | 12 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:108) |
-| 0x005a8cb0 | 77 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:86) |
-| 0x005a8d58 | 37 | folded | follows 0x005a8cb0: covered by the port where it names it (src/gamez/zsave/zsave.cpp:86) |
+| 0x005a8cb0 | 77 | unlabelled |  |
+| 0x005a8d58 | 37 | unlabelled | follows 0x005a8cb0:  |
 | 0x005a8da0 | 35 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:102) |
-| 0x005a8e40 | 145 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:132) |
+| 0x005a8e40 | 145 | unlabelled |  |
 | 0x005a9140 | 23 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:95) |
 | 0x005a91b0 | 13 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:112) |
 | 0x005a91d0 | 13 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:175) |
 | 0x005a9210 | 22 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:191) |
 | 0x005a9290 | 14 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:212) |
 | 0x005a92d0 | 9 | unlabelled |  |
-| 0x005a92e0 | 158 | folded | covered by the port where it names it (src/gamez/zsave/zsave.cpp:108) |
+| 0x005a92e0 | 158 | unlabelled |  |
 | 0x005a96a0 | 17 | unlabelled |  |
 | 0x005a96d0 | 51 | unlabelled |  |
 | 0x005a97e0 | 17 | unlabelled |  |
@@ -3793,7 +3813,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00504d42 | 203 | folded | a piece of the ported function before it (Ghidra split it there) (0x00504520) |
 | 0x00505520 | 73 | unlabelled |  |
 | 0x005056b0 | 25 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:602) |
-| 0x00505710 | 116 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:627) |
+| 0x00505710 | 116 | unlabelled |  |
 | 0x00505df0 | 9 | unlabelled |  |
 | 0x00507220 | 53 | unlabelled |  |
 | 0x005073e0 | 18 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:1175) |
@@ -3866,7 +3886,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00507dd0 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:357) |
+| 0x00507dd0 | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00508aa0 | 11 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.h:76) |
 | 0x00508c10 | 9 | folded | a thunk: one call to another function |
 | 0x00508da0 | 9 | folded | a thunk: one call to another function |
@@ -3881,7 +3901,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0050d1f0 | 13 | unlabelled |  |
 | 0x0050d260 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_save.cpp:281) |
 | 0x0050d610 | 26 | unlabelled |  |
-| 0x0050d6a0 | 45 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:51) |
+| 0x0050d6a0 | 45 | unlabelled |  |
 | 0x0050d7a0 | 16 | unlabelled |  |
 | 0x0050d820 | 22 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:50) |
 | 0x0050d880 | 37 | unlabelled |  |
@@ -3904,7 +3924,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00586ed0 | 21 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:64) |
 | 0x00586f30 | 18 | unlabelled |  |
 | 0x005870c0 | 32 | unlabelled |  |
-| 0x00587140 | 80 | folded | covered by the port where it names it (src/frontend/sdl/net_enet.cpp:441) |
+| 0x00587140 | 80 | unlabelled |  |
 | 0x005872a0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:59) |
 | 0x00587300 | 29 | unlabelled |  |
 | 0x00587370 | 31 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:96) |

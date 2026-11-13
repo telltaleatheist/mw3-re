@@ -383,10 +383,17 @@ def main():
                 else ['follows', prev['addr']]
         if a % 16 == 0:
             prev = r
-    # A function the port names only in ordinary comments of its own code is
-    # covered there (the comment says where); one named in an unported() hook,
+    # A function of 40 decomp lines or fewer that the port names only in
+    # ordinary comments of its own code is covered there (longer ones are read) (the comment says where); one named in an unported() hook,
     # or with "not ported", "deferred", "TODO", "not yet", is read instead.
-    flag = re.compile(r'unported|not ported|deferred|todo|not yet|missing|stub', re.I)
+    flag = re.compile(r'unported|not ported|deferred|todo|not yet|missing|stub|note\(', re.I)
+    # Hook fields the program may leave null (tests/hook_allow.txt): their
+    # declarations name the original's function but do not port it.
+    allowed = set()
+    for line in open(ROOT / 'tests' / 'hook_allow.txt', errors='replace'):
+        if line.strip() and not line.startswith('#') and '\t' in line:
+            allowed.add(line.split('\t')[0].split('.')[-1])
+    field = re.compile(r'\(\*(\w+)\)\s*\(')
     cache = {}
     for r in rows:
         if r['status'] != 'named' or r['shape']:
@@ -398,7 +405,8 @@ def main():
             if fn not in cache:
                 cache[fn] = (ROOT / fn).read_text(errors='replace').splitlines()
             texts.append(cache[fn][int(n) - 1])
-        if texts and not any(flag.search(t) for t in texts) and not all(fn.startswith('tests/') for fn in refs_all):
+        null_hook = any((m := field.search(t)) and m.group(1) in allowed for t in texts)
+        if r['lines'] <= 40 and texts and not null_hook and not any(flag.search(t) for t in texts) and not all(fn.startswith('tests/') for fn in refs_all):
             r['shape'] = ['folded', 'covered by the port where it names it', refs_all[0]]
     # A function the C runtime's code calls (its exception unwinds) and that
     # resets a vtable is a destructor.
