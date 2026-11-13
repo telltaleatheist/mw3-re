@@ -23,7 +23,9 @@ original.
 
 ### Coming in the next release
 
-**1.1.0** (being tested; the full notes are in
+Nothing yet.
+
+**1.1.0 (2026-11-12)** (the full notes are in
 [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)):
 
 - **One download holds both games**, MechWarrior 3 and Pirate's Moon, with a
