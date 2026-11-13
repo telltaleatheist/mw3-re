@@ -1,6 +1,9 @@
 #include "check.h"
 #include "mech3/mp_lobby.h"
 #include "mech3/pilot.h"
+#include "gamez/zutil/zutl_path.h"
+
+#include <string>
 
 // PM fills multiplayer's store at the lobby's lock, not in the game (0x0049eb20): pm-tests.md.
 TEST(pm_lobby_store_ready) {
@@ -54,4 +57,36 @@ TEST(pm_lobby_reads_the_hosts_upgrades) {
     }
   // The original's data (its 7 words and the worlds, no block of ours): none.
   EXPECT(!mech3::LobbyScreen::upgrades_of({1, 0, 0, 0, 0, 0, 0, 1, 0x301}, &bits));
+}
+
+// The salvage's room from the current game (Pirate's Moon's 0x00480840 / 0x00480260 through the game's vt+0x5c and
+// vt+0x60; the moves themselves: pm_moved.py test_salvage --moves-only): a multiplayer round's 3 bases and its bonus
+// tons, any other game's 3 and 0, a campaign's units and units x 300. Before, outside a campaign, 0 and 0: every pick
+// refused.
+TEST(pm_salvage_room_comes_from_the_game) {
+  struct E : mech3::Engine {} e;
+  mech3::Pilot*& cur = mech3::current_pilot();
+  mech3::Pilot* was = cur;
+  // Its files in the test's own folder (a campaign game writes the pilot), the player's never touched.
+  const std::string was_wd = zutl::mounts().write;
+  zutl::set_write_dir(std::string(MW3_TEST_TMP) + "/pm_salvage_room");
+  // Never destroyed: a pilot's destructor frees its games and may write its file.
+  auto* p = new mech3::Pilot("salvage");
+  cur = p;
+  mech3::Game* first = p->current;
+  p->current = nullptr;
+  EXPECT(e.salvage_bases() == 0 && e.salvage_tons() == 0.0f);  // no game (ours: the exe always has one)
+  p->current = first;
+  auto* m = new mech3::MultiplayerGame(p);
+  m->bonus_tons = 450.5f;
+  p->multi = m, p->current = m;
+  EXPECT(e.salvage_bases() == 3 && e.salvage_tons() == 450.5f);
+  p->current = new mech3::TrainingGame(p);
+  EXPECT(e.salvage_bases() == 3 && e.salvage_tons() == 0.0f);
+  auto* c = new mech3::CampaignGame(p, 1, 2);
+  c->a8 = 4;
+  p->current = c;
+  EXPECT(e.salvage_bases() == 4 && e.salvage_tons() == 1200.0f);
+  cur = was;
+  zutl::set_write_dir(was_wd);
 }

@@ -795,6 +795,11 @@ class Engine : public zgame::AppHooks {
   virtual class Store* game_store();
   virtual class Store* campaign_salvage();
   virtual int32_t campaign_units();
+  // Pirate's Moon: the salvage's room from the current game (0x00480840, 0x00480260): its bases (vt+0x5c; a
+  // campaign's units, 3 for the others: 0x004353e0, 0x0040c6d0) and its tons (vt+0x60: a campaign's units x 300,
+  // 0x00435ce0; a multiplayer game's bonus tons, 0x00436020; 0 for the others, 0x004a9370).
+  virtual int32_t salvage_bases();
+  virtual float salvage_tons();
   virtual Handle store_handle(class Store* s);
   virtual void mech_lab_open(Handle store, int32_t a) { unported("0x00448830", {store, a}); }  // ECX the pilot
   // The Lab State's (mech_lab.cpp, docs/mechlab.md section 1). The pilot's

@@ -27,7 +27,7 @@ import original  # noqa: E402
 MAP = original.AddressMap()
 # Modules whose addresses are MW3's and rewritten. `original` itself isn't.
 MODULES = {'calltrace', 'twod_world', 'test_twod', 'test_twod_msgbox', 'test_lab_list', 'test_lab_screen', 'test_menus',
-           'lab_weapons', 'test_pilot'}
+           'lab_weapons', 'test_pilot', 'test_salvage'}
 BY_NAME = set()
 missing = {}
 

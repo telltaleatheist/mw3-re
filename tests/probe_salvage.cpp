@@ -250,6 +250,16 @@ extern "C" int probe_moves_run(const char* setup, char* out, int size) {
   int32_t kind = 1, units = 0;
   std::string where;
   ss >> where >> kind >> units;
+  // MW3's room is the campaign's (its units, 300 t each); PM's from the game (bases, tons) when given.
+  bool pm = false;  // PM's rules (its exe asks the game's type and room)
+  int32_t bases = kind == 1 ? units : 0;
+  float tons = 300.0f * static_cast<float>(bases);
+  {
+    int32_t b;
+    double t;
+    if (ss.peek() != '\n' && ss >> b >> t) bases = b, tons = static_cast<float>(t), pm = true;
+    ss.clear();
+  }
   std::string line, moved;
   std::getline(ss, line);
   auto nth = [](Store& st, int32_t i) -> ConfigItem* {
@@ -265,8 +275,8 @@ extern "C" int probe_moves_run(const char* setup, char* out, int size) {
     if (where == "move") {
       int32_t i;
       ls >> i;
-      const bool r = op == "p" ? salvage_to_mission(&mission, &player, nth(player, i))
-                               : salvage_to_player(&player, &mission, nth(mission, i), kind == 1 ? units : 0);
+      const bool r = op == "p" ? salvage_to_mission(&mission, &player, nth(player, i), pm && kind == 3)
+                               : salvage_to_player(&player, &mission, nth(mission, i), bases, tons);
       moved += (moved.empty() ? "" : " ") + std::to_string(r ? 1 : 0);
       continue;
     }
