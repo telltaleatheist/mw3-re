@@ -299,9 +299,12 @@ class Moves(Realloc):
         cpu.import_code(IAT_FTOL, FTOL)
         # 0x004b4900 (tested in test_weapons_run.py) as the probe has it, without
         # zWeapon's definitions: 100 over 150 rounds, 20 over 20, else 1.
-        # The count: EDX in MW3's, the second argument (cdecl) in PM's 0x4b8a60.
-        cpu.stub_function(0x4b4900, lambda c: (lambda n: 100 if n > 150 else 20 if n > 20 else 1)(
-            i32(c.arg(1) if PM else c.edx)))
+        # The count: EDX in MW3's; the second argument (cdecl) in PM's 0x4b8a60, which here has a definition of 100
+        # rounds a ton for every weapon (the probe registers the same), so a count of 0 comes to under one load.
+        if PM:
+            cpu.stub_function(0x4b4900, lambda c: min(100, i32(c.arg(1))))
+        else:
+            cpu.stub_function(0x4b4900, lambda c: 100 if i32(c.edx) > 150 else 20 if i32(c.edx) > 20 else 1)
         game, gvt = self.alloc(0xd0), self.alloc(0x80)
         cpu.u32(game, gvt)
         cpu.u32(gvt + 0x2c, self.fn('b8%02x000000c3' % cfg['kind']))
@@ -779,8 +782,8 @@ def store_ops(r, n, removes=False):
             ops.append(('mech', r.choice([0, 3, 5, 9, 13, 18])))
         elif k == 'weapon':
             ops.append(('weapon', r.choice([0, 3, 6, 7, 9, 12, 19, 25, 35]), r.choice([1, 2, 3])))
-        elif k == 'ammo':
-            ops.append(('ammo', r.choice([0, 3, 9, 19, 35]), r.choice([1, 20, 60, 200, 2000])))
+        elif k == 'ammo':  # PM: also an empty bin's worth (0), which PM's move back refuses
+            ops.append(('ammo', r.choice([0, 3, 9, 19, 35]), r.choice([1, 20, 60, 200, 2000] + ([0] if PM else []))))
         elif k == 'equip':
             ops.append(('equip', r.choice([0, 1, 2, 3, 9, 10, 11]), r.choice([1, 2]), r.choice([1, 2, 10, 40, 300])))
         else:

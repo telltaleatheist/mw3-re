@@ -18,6 +18,7 @@ import ctypes
 import hashlib
 import os
 import struct
+import sys
 import weakref
 from pathlib import Path
 
@@ -27,6 +28,32 @@ from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, U
                                 UC_X86_REG_SS, UC_X86_REG_DS, UC_X86_REG_ES, UC_X86_REG_FPCW)
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def mw3_probe_built():
+    """Whether this build makes MW3's probe library. The `pm` branch builds only PM's (pmprobe): a libmw3probe in its
+    build folder is left from another branch's build and would test old code, so loading one is refused."""
+    ninja = ROOT / 'build' / 'build.ninja'
+    return not ninja.exists() or 'libmw3probe' in ninja.read_text(errors='ignore')
+
+
+def _refuse_stale_mw3probe():
+    import ctypes as _ct
+    real = _ct.CDLL
+
+    class CDLL(real):
+        def __init__(self, name, *a, **k):
+            if 'libmw3probe' in str(name) and not mw3_probe_built():
+                sys.stderr.write(f'{name}: this build has no mw3probe target (the pm branch builds pmprobe), so the '
+                                 'library is left from another build: not loaded. Run MW3\'s tests on main, or this '
+                                 'one with MW3_EXE=pm if it has a PM mode.\n')
+                sys.stderr.flush()
+                raise SystemExit(2)
+            super().__init__(name, *a, **k)
+    _ct.CDLL = CDLL
+
+
+_refuse_stale_mw3probe()
 # The exes the tests know: name -> (path, SHA-256, what it is).
 EXES = {
     'mw3': (ROOT / 'game' / 'mw3-1.2' / 'Mech3.exe',

@@ -244,6 +244,17 @@ extern "C" int probe_realloc_run(const char* setup, char* out, int size) {
 
 // The salvage screen's moves: two stores filled as probe_realloc_run's,
 // then each "move p|m i" moves the side's i-th item (mod its count) across.
+// tests/probe_salvage_defs.cpp: PM's moves' weapon definitions (100 rounds a ton), put back as found.
+void* probe_salvage_pm_defs(bool on);
+void probe_salvage_defs_back(void* kept);
+namespace {
+struct PmDefs {
+  void* kept;
+  explicit PmDefs(bool on) : kept(probe_salvage_pm_defs(on)) {}
+  ~PmDefs() { probe_salvage_defs_back(kept); }
+};
+}  // namespace
+
 extern "C" int probe_moves_run(const char* setup, char* out, int size) {
   std::istringstream ss(setup);
   Store player(0), mission(0);
@@ -260,6 +271,7 @@ extern "C" int probe_moves_run(const char* setup, char* out, int size) {
     if (ss.peek() != '\n' && ss >> b >> t) bases = b, tons = static_cast<float>(t), pm = true;
     ss.clear();
   }
+  const PmDefs defs(pm);
   std::string line, moved;
   std::getline(ss, line);
   auto nth = [](Store& st, int32_t i) -> ConfigItem* {

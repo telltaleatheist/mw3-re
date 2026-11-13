@@ -11,6 +11,7 @@ string in the tree used as a key, the original find (0x5569e0), get_float
 lists call, runs as the same x86 code (original.FTOL).
 """
 import ctypes
+import os
 import struct
 import sys
 from pathlib import Path
@@ -19,13 +20,35 @@ sys.path.insert(0, str(Path(__file__).parent))
 from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
-LIB = next((ROOT / 'build').glob('libmw3probe.*'))
-probe = ctypes.CDLL(str(LIB))
-probe.probe_zrdr_load.argtypes = [ctypes.c_char_p, ctypes.c_long]
-probe.probe_zrdr_find.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int,
-                                  ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float),
-                                  ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int32)]
-probe.probe_zrdr_lists.argtypes = [ctypes.c_char_p, ctypes.c_uint32] + [ctypes.c_void_p] * 7
+class _NoProbe:
+    """MW3's probe where it isn't built (MW3_EXE=pm on the pm branch): the modules that import this one set its
+    functions' types at import, which works; calling one stops the run."""
+    class _Fn:
+        def __init__(self, name):
+            self.name = name
+
+        def __call__(self, *a, **k):
+            raise SystemExit(f'{self.name}: MW3\'s probe (mw3probe) is not part of this build; this test runs on MW3')
+
+    def __getattr__(self, name):
+        if name.startswith('__'):
+            raise AttributeError(name)
+        fn = _NoProbe._Fn(name)
+        object.__setattr__(self, name, fn)
+        return fn
+
+
+if os.environ.get('MW3_EXE') == 'pm':
+    # Its reader probe is MW3's (mw3probe); modules run on PM's exe import this one for READER and the emulator.
+    probe = _NoProbe()
+else:
+    LIB = next((ROOT / 'build').glob('libmw3probe.*'))
+    probe = ctypes.CDLL(str(LIB))
+    probe.probe_zrdr_load.argtypes = [ctypes.c_char_p, ctypes.c_long]
+    probe.probe_zrdr_find.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int,
+                                      ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_float),
+                                      ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int32)]
+    probe.probe_zrdr_lists.argtypes = [ctypes.c_char_p, ctypes.c_uint32] + [ctypes.c_void_p] * 7
 READER = ROOT / 'game' / 'mw3-1.2' / 'zbd' / 'reader.zbd'
 
 READ_NODE, FIND, GET_FLOAT, GET_INT = 0x557180, 0x5569e0, 0x556a60, 0x556ae0

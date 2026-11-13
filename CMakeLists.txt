@@ -552,6 +552,7 @@ add_library(mw3probe SHARED
   tests/probe_lab.cpp
   tests/probe_weapon_labs.cpp
   tests/probe_salvage.cpp
+  tests/probe_salvage_defs.cpp
   tests/probe_update.cpp
   tests/probe_di.cpp
   tests/probe_inout.cpp
@@ -832,7 +833,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_attack.cpp tests/probe_pm_ai_aim.cpp tests/probe_pm_ai_brain.cpp
                  tests/probe_pm_lance_orders.cpp)
   target_sources(pmprobe PRIVATE tests/probe_twod.cpp tests/probe_lab_list.cpp tests/probe_menus.cpp tests/probe_lab.cpp tests/probe_weapon_labs.cpp)
-  target_sources(pmprobe PRIVATE tests/probe_salvage.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_salvage.cpp tests/probe_salvage_defs.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mechanim.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mech_build.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_pocket_panel.cpp)
