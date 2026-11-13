@@ -770,42 +770,4 @@
 0x00435410	folded	group A, read: the campaign game's destructor on PM's layout (its string list and members freed through PM's helpers 0x00435d10, 0x00434ab0, 0x004731b0); pilot_games.cpp:583
 0x004354e0	folded	group A, read: imports only (the C runtime's), the logic as the shared port
 0x00437ce0	folded	group A, read: imports only (the C runtime's), the logic as the shared port
-0x004fc650	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00520f10	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00529410	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x005576e0	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x005ad3d0	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00589290	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00595100	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x005a2a00	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x005a6a00	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x0042fc10	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00403b10	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00451730	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00411080	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x0045f980	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x004628c0	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00477470	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x0047c0e0	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00495190	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00409ec0	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x00436050	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x004381d0	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x0046a480	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x004a8a40	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x004aa670	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x004e52f0	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x004f9c30	folded	group A, checked by the call map: after the address map its calls are MW3's, its strings only the source path (GameZMech3 -> branchep1); the feature difference is in counts or imports
-0x005c7380	folded	group A, checked by the call map: the same calls as MW3's but for 1 small MW3 helper PM inlines (0x005a4720, each 15 decomp lines or fewer); strings only the source path
-0x00407f10	folded	group A, checked by the call map: the same calls as MW3's but for 2 small MW3 helpers PM inlines (0x0040a0f0 0x0040a820, each 15 decomp lines or fewer); strings only the source path
-0x004074b0	folded	group A, checked by the call map: the same calls as MW3's but for 2 small MW3 helpers PM inlines (0x00409ab0 0x00409e10, each 15 decomp lines or fewer); strings only the source path
-0x00430550	folded	group A, checked by the call map: the same calls as MW3's but for 1 small MW3 helper PM inlines (0x0051da90, each 15 decomp lines or fewer); strings only the source path
-0x0041faf0	folded	group A, checked by the call map: the same calls as MW3's but for 3 small MW3 helpers PM inlines (0x0040e820 0x00421270 0x004212a0, each 15 decomp lines or fewer); strings only the source path
-0x0041ffa0	folded	group A, checked by the call map: the same calls as MW3's but for 1 small MW3 helper PM inlines (0x00421240, each 15 decomp lines or fewer); strings only the source path
-0x004210d0	folded	group A, checked by the call map: the same calls as MW3's but for 2 small MW3 helpers PM inlines (0x00409f50 0x00421280, each 15 decomp lines or fewer); strings only the source path
-0x004211b0	folded	group A, checked by the call map: the same calls as MW3's but for 5 small MW3 helpers PM inlines (0x0040e820 0x00421270 0x00421280 0x00421290 0x004212a0, each 15 decomp lines or fewer); strings only the source path
-0x00421fc0	folded	group A, checked by the call map: the same calls as MW3's but for 1 small MW3 helper PM inlines (0x004212b0, each 15 decomp lines or fewer); strings only the source path
-0x00422260	folded	group A, checked by the call map: the same calls as MW3's but for 1 small MW3 helper PM inlines (0x00409f50, each 15 decomp lines or fewer); strings only the source path
-0x0041dbb0	folded	group A, checked by the call map: the same calls as MW3's but for 1 small MW3 helper PM inlines (0x0041bd80, each 15 decomp lines or fewer); strings only the source path
-0x0043b2d0	folded	group A, checked by the call map: the same calls as MW3's but for 1 small MW3 helper PM inlines (0x0040d410, each 15 decomp lines or fewer); strings only the source path
-0x004b0c70	folded	group A, checked by the call map: the same calls as MW3's but for 1 small MW3 helper PM inlines (0x00586af0, each 15 decomp lines or fewer); strings only the source path
+0x0042fc10	folded	group A, checked by the call map and the call counts (the runtime thunks mapped through the imports): every callee called as often as in MW3; only the imports differ
