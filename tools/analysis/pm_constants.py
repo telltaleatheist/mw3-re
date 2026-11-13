@@ -67,7 +67,7 @@ for r in rows:
         ma = inv_i.get(pa)
         if ma is None or ma not in mwops: continue
         pi, mi = pmops[pa], mwops[ma]
-        pr, mr = memref(pi, True), memref(mi, False)
+        pr, mr = memref(pi, True), memref(mi, True)
         if pr and mr:
             w = pr[1]
             pv, mv = pmx.raw(pr[0], w), mw3x.raw(mr[0], w)
@@ -78,7 +78,7 @@ for r in rows:
                 elif is_float(pv) and is_float(mv):
                     diffs.append(f"{struct.unpack('<f', mv)[0]:.6g} -> {struct.unpack('<f', pv)[0]:.6g} ([{mr[0]:#x}] / [{pr[0]:#x}])")
             continue
-        pv, mv = imm(pi, True), imm(mi, False)
+        pv, mv = imm(pi, True), imm(mi, True)
         if pv is not None and mv is not None and pv != mv:
             fb = lambda v: struct.pack('<I', v & 0xffffffff)
             if (0x3a000000 <= pv < 0x4f000000 or 0xba000000 <= pv < 0xcf000000) and (0x3a000000 <= mv < 0x4f000000 or 0xba000000 <= mv < 0xcf000000):
@@ -90,3 +90,44 @@ for r in rows:
         nv += 1
         out.write(f"{r['addr']}\t{r['mw3']}\t{r['lines']}\t{r['ported_in'][:60]}\t{' ; '.join(diffs[:10])}\n")
 print(nf, 'functions;', nv, 'with a value that differs')
+
+# The instruction map covers about 40% of these functions' instructions. A
+# second check over all of them: the float values each function reads (its
+# memory operands and float immediates), as a set per game; a value in one
+# and not the other is listed (pm_constants_sets.tsv).
+if len(sys.argv) > 2:
+    mw_sorted = sorted(mwops)
+    starts_mw = sorted(int(r['mw3'], 16) for r in rows if r['mw3'])
+    def values(ops, srt, a, end, intel, exe):
+        out = set()
+        j = bisect.bisect_left(srt, a)
+        while j < len(srt) and srt[j] < end:
+            ins = ops[srt[j]]; j += 1
+            if re.match(r'fld1\b', ins): out.add(1.0); continue
+            if re.match(r'fldz\b', ins): out.add(0.0); continue
+            r_ = memref(ins, intel)
+            if r_:
+                b = exe.raw(r_[0], r_[1])
+                if b:
+                    if r_[1] == 8:
+                        v = struct.unpack('<d', b)[0]
+                        if abs(v) < 1e9 and v == v: out.add(round(v, 6))
+                    elif is_float(b): out.add(round(struct.unpack('<f', b)[0], 6))
+                continue
+            v = imm(ins, intel)
+            if v is not None and (0x3a000000 <= v < 0x4f000000 or 0xba000000 <= v < 0xcf000000):
+                out.add(round(struct.unpack('<f', struct.pack('<I', v))[0], 6))
+        return out
+    so = open(sys.argv[2].replace('.tsv', '_sets.tsv'), 'w'); ns = 0
+    mw_starts = sorted(int(a, 16) for a in json.load(open(A / 'func2file.json')))
+    for r in rows:
+        if (r['status'] != 'changed' and r['addr'] not in extra) or not r['mw3']: continue
+        a, m = int(r['addr'], 16), int(r['mw3'], 16)
+        i = bisect.bisect_right(starts, a); pe_ = starts[i] if i < len(starts) else a + 0x1000
+        k = bisect.bisect_right(mw_starts, m); me_ = mw_starts[k] if k < len(mw_starts) else m + 0x1000
+        pv, mv = values(pmops, pm_sorted, a, pe_, True, pmx), values(mwops, mw_sorted, m, me_, True, mw3x)
+        only_m, only_p = sorted(mv - pv), sorted(pv - mv)
+        if only_m or only_p:
+            ns += 1
+            so.write(f"{r['addr']}\t{r['mw3']}\t{r['lines']}\t{r['ported_in'][:60]}\tMW3 only {only_m[:8]}\tPM only {only_p[:8]}\n")
+    print(ns, 'functions whose float values differ as sets')
