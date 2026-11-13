@@ -29,23 +29,25 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 2612 |
+| folded | 2627 |
 | unlabelled | 1716 |
 | replaced (SDL or the platform layer) | 231 |
-| MISSING LOGIC | 150 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 111 |
+| MISSING LOGIC | 153 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 112 |
 | software renderer | 106 |
 | debug or dev tool: PORT (preserve) | 85 |
-| UNSURE | 61 |
 | unused: PORT (preserve) | 61 |
 | dev dialog (MFC), its window plumbing: replaced | 48 |
+| UNSURE | 42 |
 | dev dialog (MFC), its logic: PORT (preserve) | 35 |
 
 ## MISSING LOGIC
 
+- **0x00405f20** (1 functions, 71 decomp lines; MISSING LOGIC): pm only, visible: PM's briefing frame (MW3's 0x00406440, unpaired by the diff; briefing.cpp BriefingScreen::update) is MW3's but for the skip: on Space or S, PM first runs every step left in the script, from the one playing to the end, once each with 60 seconds (vt+0 with 60.0), then stops the voice and clears the script as MW3 does; MW3 and the port only stop (BriefingScript::stop). So skipping PM's briefing leaves the map as the whole script would have drawn it (its objects shown, lines and markers placed); the port leaves it where the skip came
 - **0x00408b20** (1 functions, 50 decomp lines; MISSING LOGIC): PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog
 - **0x00408d00, 0x005404f0** (2 functions, 40 decomp lines; MISSING LOGIC): PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
 - **0x0040b120** (1 functions, 47 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the object detail's level 2 sets the camera's LOD scale to 0.2 in PM (0x3e4ccccd), 0.4 in MW3 (options.cpp:260, cam_scale)
+- **0x00414ba0** (1 functions, 25 decomp lines; MISSING LOGIC): pm only, minor, effect to check: PM's mech_set_skin (MW3's 0x00414390, mech_build.cpp mech_set_skin; unpaired by the diff), from the mech build 0x00415190, the network (0x0046f510, 0x004701d0), the mission launch 0x00494500 and the player 0x004a0e10 / 0x004a17d0: when the torso's headlight (torso part +0x7c) is there, its node's only child is detached before the skin is applied (0x00479c30, kept at +0x38) and put back after (0x00479c60); the port applies the skin with the child in place. Whether the skin apply (0x004773e0) touches that child is not read; 0x0041b900 (a vt slot) also detaches it
 - **0x00415940, 0x005a35f0** (2 functions, 206 decomp lines; MISSING LOGIC): pm only, minor (a mech deleted mid-mission: a network player leaving): PM's mech destructor (0x00415940, MW3's 0x00414f40, mech_build.cpp:225) first clears the owner (+0x6c, +0x70, +0x74) of every live shot that mech fired (0x005a35f0 over zWeapon's pools); MW3 and the port do not (all three free the node's handler table: MW3 0x00583400, PM 0x005a4de0, the port app_mech.cpp:848), so a shot outliving its mech keeps the gone owner. To check: whether the port's shot reads that owner afterwards (its hit credit, its tether)
 - **0x0041c630** (1 functions, 21 decomp lines; MISSING LOGIC): as MW3 0x0041b930: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
 - **0x0041c680** (1 functions, 22 decomp lines; MISSING LOGIC): as MW3 0x0041b980: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
@@ -80,6 +82,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x004fd0d0, 0x004fd160, 0x004fd1f0** (3 functions, 39 decomp lines; MISSING LOGIC): PM's per-node light override in the model draw 0x00507f30 (pm only: the fix goes in PM's draw on the pm branch): node +0x2c bit 7 with an ambient value in bits 9..16 (0x004fd0d0 -> 0x0050e6f0), bit 8 with a diffuse value in bits 17..24 (0x004fd160 / 0x004fd1f0 -> 0x0050e7c0); the shared draw (camera.cpp:79) has none. Counted with the port's PM mechlib reader (probe_pm_mechlib_overrides, all 76 trees, 1,847 nodes): 24 nodes carry it, the cockpit 'grill' of every mech_*_hud.flt (+0x2c 0xb281 in the file: an ambient override of 0x59, no diffuse). No MW3 world or mechlib node and no PM world node sets these bits
 - **0x00507f30** (1 functions, 269 decomp lines; MISSING LOGIC): group A, read: PM's model draw (pm only): the per-node light override (node +0x2c, the cockpit grills; see 0x004fd0d0) and PM's fog mode test; the shared draw (camera.cpp:79) has neither
 - **0x00509dd0** (1 functions, 187 decomp lines; MISSING LOGIC): group A, read: PM's world draw (pm only): its fog calls are PM's (0x00504450, 0x0050a1e0, and 0x005404f0, the sticky fog mode) where MW3's are 0x00526a60 / 0x00526b80; so the per-frame fog on and off (camera.cpp:1087) cannot clear PM's under-water mode 2: part of the under-water fog row (0x005404f0)
+- **0x0050a550** (1 functions, 32 decomp lines; MISSING LOGIC): pm only, render: PM's scene render (0x0050a5d0, MW3's 0x004f6c50 render_scene) draws a world's direct child only when its +0x24 bit 0x80 is set or its cell bounds (+0x4c..+0x52) overlap the walk's visible cells ([0x00639020..0x0063902c]); MW3's 0x004f6c00 and the port's render_world_children (camera.cpp:1149, shared, with PM's other cell differences in the game table) draw every one. Effect: world-level objects past the view's cells, which PM leaves out, are drawn in the port (the far plane and fog still apply)
 - **0x00510ab0, 0x0056b230, 0x0056b2d0, 0x0056b540, 0x0056b580, 0x0056b980 ...** (90 functions, 7486 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 - **0x00517b30** (1 functions, 47 decomp lines; MISSING LOGIC): pm only, BROKEN row: PM's node re-read in PM's node format (MW3 0x004ff7a0), the shared port's MW3 format only; see 0x00517ac0
 - **0x00541a30** (1 functions, 9 decomp lines; MISSING LOGIC): pm only, low object detail: PM's object-detail setter (0x0040b120, MW3 0x0040d310, the port's set_object_lod, options.cpp:249) also sets [0x006112e4] = 1 below detail 2, 0 at 2 (0x00541a30), and PM's model preparation (0x00541a40, MW3 0x0053e050) reads it: at detail 2 it does not advance the materials' texture cycles (animated textures stay on their frame) and returns before its case-2 path's drawing. The port has neither; with the other low-detail rows (0x00492830's, the camera scale 0.2, the mech data's)
@@ -164,6 +167,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00515960** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fde90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x005159b0** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fded0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00515a00** (1 functions, 24 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fdf10: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x00515c00** (1 functions, 98 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): read: PM's LoD fade values (+0x34, +0x38, +0x3c from the ranges +8, +0x10..+0x18, the switches +0x1c..+0x24 and the floors +0x28..+0x30, +0x50 one for all), computed by the LoD copy 0x0050d4e0 (MW3's 0x004f9840, cls_util.cpp copy_lod); the port leaves them zero, which is what every shipped tree computes (docs/pm-map.md, the node copies' Left): only a mod's LoD with those fields set would differ
 - **0x005168e0** (1 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fe8e0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x0051b340** (1 functions, 17 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only, traced: PM's damage handler on an animation (0x0051b2c0, MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832) first runs 0x0051b340 on every hit: when the def has its second sequence (+0xd4, with events) it stamps the time ([0x008d3f68]), clears +0xb0 and runs that sequence from its start (0x0051fc00, 0x00520800: MW3's 0x00506f40, 0x005079b0); the port reads the sequence (AnimDef::pm_seq2, pm/gamez/zeffect/zeff_anim_init.cpp:126) but never runs it, and no shipped PM animation has one, so only a mod's would show it
 - **0x00520500** (1 functions, 100 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
@@ -397,16 +401,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## UNSURE
 
-- 0x00404c90, 0x005cb4b0 (2 functions, 22 decomp lines): read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
-- 0x00405b60 (1 functions, 32 decomp lines): read with group A: a callee of shared ports PM changed (0x00499890); whether the port does PM's version, this call included, is settled there
-- 0x00405f20 (1 functions, 71 decomp lines): read with group A: a callee of shared ports PM changed (0x00404d70); whether the port does PM's version, this call included, is settled there
-- 0x00407120 (1 functions, 17 decomp lines): read with group A: a callee of shared ports PM changed (0x004060d0); whether the port does PM's version, this call included, is settled there
-- 0x00408360 (1 functions, 11 decomp lines): read with group A: a callee of shared ports PM changed (0x0043c900); whether the port does PM's version, this call included, is settled there
-- 0x00408580 (1 functions, 74 decomp lines): read with group A: a callee of shared ports PM changed (0x004311e0, 0x004b0790); whether the port does PM's version, this call included, is settled there
-- 0x0040a870 (1 functions, 41 decomp lines): read with group A: a callee of shared ports PM changed (0x004826e0, 0x00483700); whether the port does PM's version, this call included, is settled there
-- 0x0040a920 (1 functions, 14 decomp lines): read with group A: a callee of shared ports PM changed (0x0043af70, 0x004824d0); whether the port does PM's version, this call included, is settled there
-- 0x0040b320 (1 functions, 9 decomp lines): the setter sweep: it writes [0x0061880c], which the port never names, so folding it into its caller is not shown; [0x0061880c] read by 0x40b330
-- 0x00414ba0 (1 functions, 25 decomp lines): read with group A: a callee of shared ports PM changed (0x00415190, 0x0046f510, 0x00494500); whether the port does PM's version, this call included, is settled there
 - 0x0041e010 (1 functions, 9 decomp lines): as MW3 0x0041d220: the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle
 - 0x0041e070 (1 functions, 13 decomp lines): as MW3 0x0041d280: the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle
 - 0x0041e0b0 (1 functions, 19 decomp lines): as MW3 0x0041d2c0: the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle
@@ -428,11 +422,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x004e75d0 (1 functions, 12 decomp lines): as MW3 0x004d7160: an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it
 - 0x004eff90 (1 functions, 58 decomp lines): as MW3 0x004dee50: the aiv reader's vtable slot 0x005cd42c (58 lines): a name checked against zEntity's list (0x005a8210) and the reader's records (std::map find 0x004e1a30), no caller found; probably the editor's 'is this name free'; to settle by its slot and callers
 - 0x004fcfb0, 0x004fd280, 0x004fd4a0, 0x005067c0, 0x00506a60 (5 functions, 87 decomp lines): node getters and setters with the null-node report called by ported code outside the script dispatcher (0x00528120, 0x004e5d00, 0x00461120.., 0x004fd7a0, 0x004447a0): not script commands; to read with their callers
-- 0x005000d0 (1 functions, 21 decomp lines): read with group A: a callee of shared ports PM changed (0x004ffd20, 0x00501ab0); whether the port does PM's version, this call included, is settled there
-- 0x005017e0 (1 functions, 27 decomp lines): read with group A: a callee of shared ports PM changed (0x00501030); whether the port does PM's version, this call included, is settled there
-- 0x00506390, 0x0050a550, 0x0050b1c0, 0x0050c3b0, 0x00515e40 (5 functions, 190 decomp lines): group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-- 0x0050b8f0 (1 functions, 20 decomp lines): read with group A: a callee of shared ports PM changed (0x0050b920); whether the port does PM's version, this call included, is settled there
-- 0x00515c00 (1 functions, 98 decomp lines): read with group A: a callee of shared ports PM changed (0x0050d4e0); whether the port does PM's version, this call included, is settled there
 - 0x00521050 (1 functions, 22 decomp lines): read with group A: a callee of shared ports PM changed (0x00430e60, 0x004a95f0, 0x00524380); whether the port does PM's version, this call included, is settled there
 - 0x00524be0 (1 functions, 21 decomp lines): read with group A: a callee of shared ports PM changed (0x004e2820); whether the port does PM's version, this call included, is settled there
 - 0x0053c780 (1 functions, 47 decomp lines): read with group A: a callee of shared ports PM changed (0x004fdd60); whether the port does PM's version, this call included, is settled there
@@ -449,6 +438,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x005b1050 (1 functions, 57 decomp lines): read with group A: a callee of shared ports PM changed (0x00482140); whether the port does PM's version, this call included, is settled there
 - 0x005b14e0 (1 functions, 25 decomp lines): read with group A: a callee of shared ports PM changed (0x005c9280); whether the port does PM's version, this call included, is settled there
 - 0x005b2050 (1 functions, 74 decomp lines): read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there
+- 0x005cb4b0 (1 functions, 11 decomp lines): read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
 
 ## By module
 
@@ -524,7 +514,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00404bf0 | 17 | unlabelled |  |
 | 0x00404c20 | 19 | unlabelled |  |
 | 0x00404c70 | 11 | unlabelled |  |
-| 0x00404c90 | 11 | UNSURE | read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there |
+| 0x00404c90 | 11 | folded | read: the loading screen's status line (the briefing screen's text box at +0x11554, vt+0x7c, when the screen is up: 'Loading Environment', 'CZUnload::LoadMission()', the texture memory), from the mission load 0x00492830 / 0x00493ca0 and 0x00410820; the port's progress_text (mission.cpp, app_mission.cpp:1834 to the briefing line) |
 | 0x00404cc0 | 29 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:975) |
 | 0x00404d70 | 298 | unlabelled |  |
 | 0x004055c0 | 12 | unlabelled |  |
@@ -543,12 +533,12 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00405970 | 31 | unlabelled |  |
 | 0x00405a20 | 55 | unlabelled |  |
 | 0x00405b30 | 12 | unlabelled |  |
-| 0x00405b60 | 32 | UNSURE | read with group A: a callee of shared ports PM changed (0x00499890); whether the port does PM's version, this call included, is settled there |
+| 0x00405b60 | 32 | folded | read: a destructor the linker shares between classes (a vector of 0x4d4-byte widgets at +0x4c4 destroyed and freed, then the base's 0x005c1170), from the lobby, the text box and the script; the port's destructors |
 | 0x00405bf0 | 10 | unlabelled |  |
 | 0x00405c30 | 20 | unlabelled |  |
 | 0x00405c80 | 12 | unlabelled |  |
 | 0x00405ca0 | 98 | unlabelled |  |
-| 0x00405f20 | 71 | UNSURE | read with group A: a callee of shared ports PM changed (0x00404d70); whether the port does PM's version, this call included, is settled there |
+| 0x00405f20 | 71 | MISSING LOGIC | pm only, visible: PM's briefing frame (MW3's 0x00406440, unpaired by the diff; briefing.cpp BriefingScreen::update) is MW3's but for the skip: on Space or S, PM first runs every step left in the script, from the one playing to the end, once each with 60 seconds (vt+0 with 60.0), then stops the voice and clears the script as MW3 does; MW3 and the port only stop (BriefingScript::stop). So skipping PM's briefing leaves the map as the whole script would have drawn it (its objects shown, lines and markers placed); the port leaves it where the skip came |
 | 0x004060d0 | 562 | unlabelled |  |
 | 0x00406cb0 | 8 | folded | empty: does nothing |
 | 0x00406ce0 | 8 | folded | returns a constant or a global |
@@ -561,7 +551,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00406ed0 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:683) |
 | 0x00406f40 | 30 | unlabelled |  |
 | 0x00407010 | 51 | unlabelled |  |
-| 0x00407120 | 17 | UNSURE | read with group A: a callee of shared ports PM changed (0x004060d0); whether the port does PM's version, this call included, is settled there |
+| 0x00407120 | 17 | folded | read: MW3's 0x00408050 (MapCircle::set_radius: the radius and its square, the label at x + r, y + r; briefing.cpp), unpaired by the diff, MW3's 0x00409d80 inlined |
 | 0x00407160 | 21 | unlabelled |  |
 | 0x004071b0 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:59) |
 | 0x00407200 | 19 | unlabelled |  |
@@ -590,7 +580,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00408080 | 29 | unlabelled |  |
 | 0x004080e0 | 15 | unlabelled |  |
 | 0x00408120 | 111 | unlabelled |  |
-| 0x00408360 | 11 | UNSURE | read with group A: a callee of shared ports PM changed (0x0043c900); whether the port does PM's version, this call included, is settled there |
+| 0x00408360 | 11 | folded | read: a range of 0x4d4-byte elements destroyed, each by its vt+0 (the STL's destroy), from the HUD 0x0043c900 and 0x00405ca0; the port's containers do it |
 | 0x00408390 | 19 | folded | as MW3 0x00437580: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x004083e0 | 19 | unlabelled |  |
 | 0x00408430 | 21 | unlabelled |  |
@@ -599,7 +589,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00408530 | 9 | folded | as MW3 0x0040a9e0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00408540 | 9 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:112) |
 | 0x00408550 | 22 | folded | covered by the port where it names it (src/mech3/player_view.h:99) |
-| 0x00408580 | 74 | UNSURE | read with group A: a callee of shared ports PM changed (0x004311e0, 0x004b0790); whether the port does PM's version, this call included, is settled there |
+| 0x00408580 | 74 | folded | read: a std::vector<int>'s insert (the STL's), from the camera 0x004311e0 and the vehicle 0x004b0790; the port's vectors |
 | 0x00408740 | 39 | folded | as MW3 0x0040abf0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x004087f0 | 38 | unlabelled |  |
 | 0x004088e0 | 9 | unlabelled | follows 0x004fd5e0:  |
@@ -619,15 +609,15 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00409b50 | 8 | folded | returns a constant or a global |
 | 0x00409bb0 | 10 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040bea0: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x00409ec0 | 162 | folded | group A, read: the same logic; PM inlines the compare (0x00409c60 called once with the value read) where MW3 calls 0x0040bf50 per name; the machine fields read are the same ones in the same order (MW3 0x005f4ca8/ac/b8/b4/b0, PM 0x00618768/6c/78/74/70: VIDEO_KB one dword off in both) |
-| 0x0040a870 | 41 | UNSURE | read with group A: a callee of shared ports PM changed (0x004826e0, 0x00483700); whether the port does PM's version, this call included, is settled there |
-| 0x0040a920 | 14 | UNSURE | read with group A: a callee of shared ports PM changed (0x0043af70, 0x004824d0); whether the port does PM's version, this call included, is settled there |
+| 0x0040a870 | 41 | folded | read: MW3's 0x0040cb30 (options' apply-all: the same 13 getter-setter pairs in the same order, then the two floats), unpaired by the diff; the port's options_apply_all (options.cpp:556) |
+| 0x0040a920 | 14 | folded | read: HWCardDev's setter (the device number stored, hardware chosen when 0 or above, 0x0040b340), from the settings read 0x0040a100 and the options screens; the port's set_hw_card_dev (options.cpp:53) |
 | 0x0040ab60 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:824) |
 | 0x0040afe0 | 15 | folded | MW3's set_shadow_parts 0x0040d1f0 (options.cpp:219), unpaired by the diff: the same body (the hardware or software slot, then the shadows on or off); not run under a test (trace) |
 | 0x0040b120 | 47 | MISSING LOGIC | a PM value the shared port keeps as MW3's (pm only): the object detail's level 2 sets the camera's LOD scale to 0.2 in PM (0x3e4ccccd), 0.4 in MW3 (options.cpp:260, cam_scale) |
 | 0x0040b210 | 8 | folded | inside its ported callers (0x0043a060): a small helper their ports do their own way |
 | 0x0040b250 | 11 | folded | as MW3 0x0040d410: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x0040b270 | 35 | unlabelled |  |
-| 0x0040b320 | 9 | UNSURE | the setter sweep: it writes [0x0061880c], which the port never names, so folding it into its caller is not shown; [0x0061880c] read by 0x40b330 |
+| 0x0040b320 | 9 | folded | read: MW3's 0x0040d4a0 (the pixel-double flag, mode 3's 320x240 drawn doubled), which the diff paired with 0x0040a7a0 by mistake; written by the screen-mode setter 0x0040b720 (MW3's 0x0040d810) and read through 0x0040b330; the port's set_pixel_double (options.cpp:290, called at 457) |
 | 0x0040b330 | 8 | folded | returns a constant or a global |
 | 0x0040b670 | 8 | folded | covered by the port where it names it (src/mech3/app_hooks.h:96) |
 | 0x0040b680 | 8 | folded | covered by the port where it names it (src/mech3/app_hooks.h:97) |
@@ -841,7 +831,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004148c0 | 28 | unlabelled |  |
 | 0x00414950 | 24 | unlabelled |  |
 | 0x00414b80 | 11 | folded | ported, by docs/symbols.csv: ported (app_mech DamageCalls::roster_x1c): the roster entry's mech definition's skin set (+0x1c) |
-| 0x00414ba0 | 25 | UNSURE | read with group A: a callee of shared ports PM changed (0x00415190, 0x0046f510, 0x00494500); whether the port does PM's version, this call included, is settled there |
+| 0x00414ba0 | 25 | MISSING LOGIC | pm only, minor, effect to check: PM's mech_set_skin (MW3's 0x00414390, mech_build.cpp mech_set_skin; unpaired by the diff), from the mech build 0x00415190, the network (0x0046f510, 0x004701d0), the mission launch 0x00494500 and the player 0x004a0e10 / 0x004a17d0: when the torso's headlight (torso part +0x7c) is there, its node's only child is detached before the skin is applied (0x00479c30, kept at +0x38) and put back after (0x00479c60); the port applies the skin with the child in place. Whether the skin apply (0x004773e0) touches that child is not read; 0x0041b900 (a vt slot) also detaches it |
 | 0x00415160 | 17 | unlabelled |  |
 | 0x00415190 | 112 | unlabelled |  |
 | 0x004158b0 | 8 | unlabelled |  |
@@ -3946,7 +3936,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004ffb90 | 52 | unlabelled |  |
 | 0x004ffc80 | 35 | folded | covered by the port where it names it (src/gamez/zclass/cls_di.cpp:825) |
 | 0x004ffd20 | 161 | unlabelled |  |
-| 0x005000d0 | 21 | UNSURE | read with group A: a callee of shared ports PM changed (0x004ffd20, 0x00501ab0); whether the port does PM's version, this call included, is settled there |
+| 0x005000d0 | 21 | folded | read: a hit record pushed with PM's owner (+0x28: the node's +0x40, or with flag 0x200000 the first up its single-child chain to have one) and the count raised, from the ground and segment tests 0x004ffd20 / 0x00501ab0 (MW3's 0x004eddb0 / 0x004ef570 push without an owner); the port's hit pushes set it through zmod::hit_owner (gmod_hit.cpp:24; cls_di.cpp:646, 1038) |
 | 0x00500140 | 59 | unlabelled |  |
 | 0x00500270 | 54 | unlabelled |  |
 | 0x005003a0 | 187 | unlabelled |  |
@@ -3955,7 +3945,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00500900 | 40 | folded | covered by the port where it names it (src/gamez/zclass/cls_di.cpp:958) |
 | 0x005009e0 | 184 | unlabelled |  |
 | 0x00501030 | 213 | unlabelled |  |
-| 0x005017e0 | 27 | UNSURE | read with group A: a callee of shared ports PM changed (0x00501030); whether the port does PM's version, this call included, is settled there |
+| 0x005017e0 | 27 | folded | read: a cell's clutter records tested by the segment query (each record 0x5c bytes through 0x00501840, or the record tree through 0x00501920 when +0x50 is set; stopping at the first hit when first-hit is on), from the cell walk 0x00501030 (MW3's 0x004eed90); the port's clutter_walk in the same queries (cls_di.cpp:96, used at 510, 827, 962; docs/pm-map.md) |
 | 0x00501840 | 48 | unlabelled |  |
 | 0x00501920 | 39 | folded | covered by the port where it names it (src/gamez/zclass/cls_di.cpp:1290) |
 | 0x00501a30 | 26 | folded | covered by the port where it names it (src/gamez/zclass/cls_di.cpp:1290) |
@@ -3996,7 +3986,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00506000 | 82 | unlabelled |  |
 | 0x00506160 | 28 | folded | covered by the port where it names it (src/pm/gamez/zeffect/zeff_anim_events.cpp:43) |
 | 0x00506200 | 67 | unlabelled |  |
-| 0x00506390 | 28 | UNSURE | group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A |
+| 0x00506390 | 28 | folded | read: MW3's 0x004f2d50 (world_add_light: the light on the world's lists, the world on the light's; cls_world.cpp) with PM's offsets (world +0xbc/+0xc0/+0xc4, light +0x8c/+0x90), unpaired by the diff; from the light-state anim event (0x0051b850, the port's zeff_anim_events.cpp ev_light_state) and the anim save 0x00525d14 |
 | 0x00506430 | 72 | unlabelled |  |
 | 0x00506670 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f32a0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x005066b0 | 34 | unlabelled |  |
@@ -4039,7 +4029,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00509830 | 286 | folded | group A, read: the shared port's logic; the sphere's frustum test MW3 calls directly (0x00541760) PM calls through [0x00611354], whose only writers are its five variants (0x00546a00, 0x00546d50, 0x005470a0, 0x005473f0, 0x00547740): the same plane tests in another order, each culling plane moved to the front; the same codes and clip mask bits. Only the code returned for a sphere outside several planes can differ, and the callers test 0 and 0x20 alone, so at most a flag-0x80 node outside a side plane and the 0x20 plane is drawn though off screen |
 | 0x00509dd0 | 187 | MISSING LOGIC | group A, read: PM's world draw (pm only): its fog calls are PM's (0x00504450, 0x0050a1e0, and 0x005404f0, the sticky fog mode) where MW3's are 0x00526a60 / 0x00526b80; so the per-frame fog on and off (camera.cpp:1087) cannot clear PM's under-water mode 2: part of the under-water fog row (0x005404f0) |
 | 0x0050a1e0 | 24 | folded | covered by the port where it names it (src/gamez/zgame/zgame_table.h:86) |
-| 0x0050a550 | 32 | UNSURE | group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A |
+| 0x0050a550 | 32 | MISSING LOGIC | pm only, render: PM's scene render (0x0050a5d0, MW3's 0x004f6c50 render_scene) draws a world's direct child only when its +0x24 bit 0x80 is set or its cell bounds (+0x4c..+0x52) overlap the walk's visible cells ([0x00639020..0x0063902c]); MW3's 0x004f6c00 and the port's render_world_children (camera.cpp:1149, shared, with PM's other cell differences in the game table) draw every one. Effect: world-level objects past the view's cells, which PM leaves out, are drawn in the port (the far plane and fog still apply) |
 | 0x0050a5f0 | 9 | debug or dev tool: PORT (preserve) | as MW3 0x004f6c70: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
 | 0x0050a600 | 49 | unlabelled |  |
 | 0x0050a6c0 | 28 | folded | group A, read: the shared port's logic; the sphere's frustum test MW3 calls directly (0x00541760) PM calls through [0x00611354], whose only writers are its five variants (0x00546a00, 0x00546d50, 0x005470a0, 0x005473f0, 0x00547740): the same plane tests in another order, each culling plane moved to the front; the same codes and clip mask bits. Only the code returned for a sphere outside several planes can differ, and the callers test 0 and 0x20 alone, so at most a flag-0x80 node outside a side plane and the 0x20 plane is drawn though off screen |
@@ -4049,14 +4039,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0050b010 | 15 | folded | as MW3 0x004f7630: covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
 | 0x0050b030 | 15 | folded | as MW3 0x004f7650: covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
 | 0x0050b140 | 36 | unlabelled |  |
-| 0x0050b1c0 | 26 | UNSURE | group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A |
+| 0x0050b1c0 | 26 | folded | read: MW3's 0x004f77d0 (the list nodes' free pool: one taken off it, or a new one), its new one from calloc(1, 0x10) where MW3 grows a block table; from the list adds 0x0050b9b0 / 0x0050b9e0 / 0x0050ba90 (MW3's 0x004f8050...; list.cpp); the port's lists allocate their own |
 | 0x0050b8b0 | 19 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f7fa0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x0050b8f0 | 20 | UNSURE | read with group A: a callee of shared ports PM changed (0x0050b920); whether the port does PM's version, this call included, is settled there |
+| 0x0050b8f0 | 20 | folded | read: a scan of list 6 for its last node with no children (+0x54 == 0) whose answer is dropped (0x0050b931), run at each find by name (0x0050b920, MW3's 0x004f7fe0) while [0x0060db84] is 1 (never written): no effect |
 | 0x0050b920 | 47 | unlabelled |  |
 | 0x0050bb20 | 20 | folded | as MW3 0x004f81e0: covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
 | 0x0050bce0 | 52 | unlabelled |  |
 | 0x0050bdf0 | 280 | unlabelled |  |
-| 0x0050c3b0 | 79 | UNSURE | group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A |
+| 0x0050c3b0 | 79 | folded | read: teardown frees at the list system's end (each list's nodes and the free pools released, their counts cleared; from 0x0050c340, MW3's 0x004f8ab0, and 0x0050caf0, MW3's 0x004f8fb0); the port's objects free themselves |
 | 0x0050c5d0 | 15 | unlabelled |  |
 | 0x0050c660 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f8b80: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x0050c6c0 | 9 | folded | a thunk: one call to another function |
@@ -4176,9 +4166,9 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00515ba0 | 9 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x00515bb0 | 9 | folded | inside its ported callers (0x004fd5e0, 0x0050d4e0, 0x005b2d10): a small helper their ports do their own way |
 | 0x00515bd0 | 9 | folded | MW3's 0x004fe0b0 (0x004ebc30, then 0), unpaired by the diff: the same wrapper, in the class switches of the node remove 0x004fd7a0 and the list delete 0x0050bdf0 (their MW3 twins call 0x004fe0b0 at the same case); not run under a test (trace) |
-| 0x00515c00 | 98 | UNSURE | read with group A: a callee of shared ports PM changed (0x0050d4e0); whether the port does PM's version, this call included, is settled there |
+| 0x00515c00 | 98 | MISSING LOGIC (only data the shipped game lacks reaches it) | read: PM's LoD fade values (+0x34, +0x38, +0x3c from the ranges +8, +0x10..+0x18, the switches +0x1c..+0x24 and the floors +0x28..+0x30, +0x50 one for all), computed by the LoD copy 0x0050d4e0 (MW3's 0x004f9840, cls_util.cpp copy_lod); the port leaves them zero, which is what every shipped tree computes (docs/pm-map.md, the node copies' Left): only a mod's LoD with those fields set would differ |
 | 0x00515e20 | 11 | folded | covered by the port where it names it (src/pm/gamez/zeffect/zeff_anim_init.cpp:353) |
-| 0x00515e40 | 25 | UNSURE | group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A |
+| 0x00515e40 | 25 | folded | read: teardown frees at the list system's end (each list's nodes and the free pools released, their counts cleared; from 0x0050c340, MW3's 0x004f8ab0, and 0x0050caf0, MW3's 0x004f8fb0); the port's objects free themselves |
 | 0x00515fb0 | 125 | debug or dev tool: PORT (preserve) | as MW3 0x004fe6c0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
 | 0x00516260 | 189 | debug or dev tool: PORT (preserve) | as MW3 0x004fe2d0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
 | 0x00516720 | 48 | debug or dev tool: PORT (preserve) | as MW3 0x004fe210, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
