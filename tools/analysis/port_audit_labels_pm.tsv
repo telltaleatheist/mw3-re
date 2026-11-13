@@ -412,8 +412,6 @@
 0x0050c3b0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x00515e40	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x00533320	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-0x00534380	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-0x0057c950	unsure	group A: paired by its call site with MW3 0x0055a950 (the shared port's call there); a changed pair, settled by group A's rules
 0x005a39c0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x005a12a0	sdl	called only from 0x005c0450, 0x005c0b70, which are sdl
 0x005c0bf0	sdl	called only from 0x005c04d0, which are sdl
@@ -451,33 +449,19 @@
 0x005017e0	unsure	read with group A: a callee of shared ports PM changed (0x00501030); whether the port does PM's version, this call included, is settled there
 0x0050b8f0	unsure	read with group A: a callee of shared ports PM changed (0x0050b920); whether the port does PM's version, this call included, is settled there
 0x00515c00	unsure	read with group A: a callee of shared ports PM changed (0x0050d4e0); whether the port does PM's version, this call included, is settled there
-0x00519e90	unsure	read with group A: a callee of shared ports PM changed (0x00518c60); whether the port does PM's version, this call included, is settled there
 0x00521050	unsure	read with group A: a callee of shared ports PM changed (0x00430e60, 0x004a95f0, 0x00524380); whether the port does PM's version, this call included, is settled there
-0x00521870	unsure	read with group A: a callee of shared ports PM changed (0x004aa080, 0x004b0560, 0x004b0c70); whether the port does PM's version, this call included, is settled there
-0x00521a20	unsure	read with group A: a callee of shared ports PM changed (0x00460e50, 0x005a6c60); whether the port does PM's version, this call included, is settled there
 0x00521c70	unsure	read with group A: a callee of shared ports PM changed (0x00524492); whether the port does PM's version, this call included, is settled there
 0x00524be0	unsure	read with group A: a callee of shared ports PM changed (0x004e2820); whether the port does PM's version, this call included, is settled there
-0x00527230	unsure	read with group A: a callee of shared ports PM changed (0x00485620); whether the port does PM's version, this call included, is settled there
 0x005325a0	unsure	read with group A: a callee of shared ports PM changed (0x005326d0); whether the port does PM's version, this call included, is settled there
 0x0053c780	unsure	read with group A: a callee of shared ports PM changed (0x004fdd60); whether the port does PM's version, this call included, is settled there
 0x0053ef90	unsure	read with group A: a callee of shared ports PM changed (0x004225e0, 0x00422cd0, 0x00464060); whether the port does PM's version, this call included, is settled there
 0x0053fe30	unsure	read with group A: a callee of shared ports PM changed (0x00482ca0); whether the port does PM's version, this call included, is settled there
 0x00540090	unsure	read with group A: a callee of shared ports PM changed (0x0043af70, 0x00482ca0); whether the port does PM's version, this call included, is settled there
 0x005400c0	unsure	read with group A: a callee of shared ports PM changed (0x00483020); whether the port does PM's version, this call included, is settled there
-0x00579310	unsure	read with group A: a callee of shared ports PM changed (0x004826e0); whether the port does PM's version, this call included, is settled there
-0x0057a770	unsure	read with group A: a callee of shared ports PM changed (0x004838b0); whether the port does PM's version, this call included, is settled there
 0x005906a0	unsure	read with group A: a callee of shared ports PM changed (0x0058ff90); whether the port does PM's version, this call included, is settled there
 0x00594600	unsure	read with group A: a callee of shared ports PM changed (0x005941c0); whether the port does PM's version, this call included, is settled there
 0x00596520	unsure	read with group A: a callee of shared ports PM changed (0x0043bb70, 0x004fd6f0, 0x00505c80); whether the port does PM's version, this call included, is settled there
 0x005969a0	unsure	read with group A: a callee of shared ports PM changed (0x00482090); whether the port does PM's version, this call included, is settled there
-0x00596de0	unsure	read with group A: a callee of shared ports PM changed (0x0042d090, 0x00442fd0, 0x0044c930); whether the port does PM's version, this call included, is settled there
-0x00597ca0	unsure	read with group A: a callee of shared ports PM changed (0x004aefe0); whether the port does PM's version, this call included, is settled there
-0x00597d20	unsure	read with group A: a callee of shared ports PM changed (0x004447a0, 0x0044a010, 0x004838b0); whether the port does PM's version, this call included, is settled there
-0x00597d30	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x0048d110, 0x004aefe0); whether the port does PM's version, this call included, is settled there
-0x00597dc0	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x004848a0, 0x004afb30); whether the port does PM's version, this call included, is settled there
-0x00597e30	unsure	read with group A: a callee of shared ports PM changed (0x004848a0); whether the port does PM's version, this call included, is settled there
-0x00597ef0	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x004848a0, 0x004aefe0); whether the port does PM's version, this call included, is settled there
-0x00597f40	unsure	read with group A: a callee of shared ports PM changed (0x004aefe0); whether the port does PM's version, this call included, is settled there
 0x0059aef0	unsure	read with group A: a callee of shared ports PM changed (0x00482090, 0x00483020); whether the port does PM's version, this call included, is settled there
 0x005a03b0	unsure	read with group A: a callee of shared ports PM changed (0x005a0065); whether the port does PM's version, this call included, is settled there
 0x005a1220	unsure	read with group A: a callee of shared ports PM changed (0x00548990); whether the port does PM's version, this call included, is settled there
@@ -562,23 +546,6 @@
 0x005404f0	missing	PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
 0x00408d00	missing	PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
 0x0040b320	unsure	the setter sweep: it writes [0x0061880c], which the port never names, so folding it into its caller is not shown; [0x0061880c] read by 0x40b330
-0x004112a0	unsure	the setter sweep: it writes [0x00627d70], [0x00627d74], [0x00627d78], [0x00627d7c], which the port never names, so folding it into its caller is not shown; [0x00627d70] read by nothing found; [0x00627d74] read by 0x411300, 0x4113f0, 0x411650, 0x411800, 0x411820; [0x00627d78] read by 0x411300, 0x4113f0, 0x411800; [0x00627d7c] read by 0x4113f0
-0x00413c40	unsure	the setter sweep: it writes [0x00628b48], which the port never names, so folding it into its caller is not shown; [0x00628b48] read by 0x413df0
-0x0051b270	unsure	the setter sweep: it writes [0x008d3f3c], which the port never names, so folding it into its caller is not shown; [0x008d3f3c] read by 0x51fce0
-0x00526970	unsure	the setter sweep: it writes [0x0060f684], which the port never names, so folding it into its caller is not shown; [0x0060f684] read by 0x526310, 0x526450, 0x5266b0, 0x526860, 0x526990
-0x00526980	unsure	the setter sweep: it writes [0x0060f688], which the port never names, so folding it into its caller is not shown; [0x0060f688] read by 0x526310, 0x526450, 0x5266b0, 0x526860, 0x526990
-0x00532860	unsure	the setter sweep: it writes [0x0066a23c], which the port never names, so folding it into its caller is not shown; [0x0066a23c] read by 0x531920, 0x532450, 0x532870
-0x00540750	unsure	the setter sweep: it writes [0x008c4b78], [0x00a4e090], which the port never names, so folding it into its caller is not shown; [0x008c4b78] read by nothing found; [0x00a4e090] read by 0x541a40, 0x543b10, 0x547dd0, 0x562840, 0x563f10
-0x00541a30	unsure	the setter sweep: it writes [0x006112e4], which the port never names, so folding it into its caller is not shown; [0x006112e4] read by 0x541a40
-0x00566740	unsure	the setter sweep: it writes [0x008c14e4], which the port never names, so folding it into its caller is not shown; [0x008c14e4] read by 0x563da0, 0x564710
-0x00566750	unsure	the setter sweep: it writes [0x008c14ec], which the port never names, so folding it into its caller is not shown; [0x008c14ec] read by 0x563da0, 0x564710
-0x00566760	unsure	the setter sweep: it writes [0x008c14e8], which the port never names, so folding it into its caller is not shown; [0x008c14e8] read by 0x563da0, 0x564710
-0x005776c0	unsure	the setter sweep: it writes [0x008c153c], which the port never names, so folding it into its caller is not shown; [0x008c153c] read by nothing found
-0x005908e0	unsure	the setter sweep: it writes [0x00613214], which the port never names, so folding it into its caller is not shown; [0x00613214] read by 0x590d70
-0x005b6ec0	unsure	the setter sweep: it writes [0x008c4c44], which the port never names, so folding it into its caller is not shown; [0x008c4c44] read by nothing found
-0x005b6ed0	unsure	the setter sweep: it writes [0x008c4c4c], which the port never names, so folding it into its caller is not shown; [0x008c4c4c] read by nothing found
-0x005b6ee0	unsure	the setter sweep: it writes [0x008c4c48], which the port never names, so folding it into its caller is not shown; [0x008c4c48] read by nothing found
-0x005c8e50	unsure	the setter sweep: it writes [0x008d3aa8], [0x008d3aa9], which the port never names, so folding it into its caller is not shown; [0x008d3aa8] read by nothing found; [0x008d3aa9] read by 0x5c0320, 0x5c0340
 0x00482ca0	missing	PM's sound range at low detail (pm only): at start-up PM sets [0x00613488] to 0.5 when the object detail is 2 (0x0040b1e0), else 1 (0x00482ca0 -> 0x00591830), and a sound's default RANGE (50 400) is scaled by it (0x005912a0, MW3's 0x005700f0 unscaled): at low detail every sound without its own RANGE is heard to 25 / 200 m. The port's start-up and the sound set's defaults are MW3's
 0x00591830	missing	PM's sound range at low detail (pm only): at start-up PM sets [0x00613488] to 0.5 when the object detail is 2 (0x0040b1e0), else 1 (0x00482ca0 -> 0x00591830), and a sound's default RANGE (50 400) is scaled by it (0x005912a0, MW3's 0x005700f0 unscaled): at low detail every sound without its own RANGE is heard to 25 / 200 m. The port's start-up and the sound set's defaults are MW3's
 0x005912a0	missing	PM's sound range at low detail (pm only): at start-up PM sets [0x00613488] to 0.5 when the object detail is 2 (0x0040b1e0), else 1 (0x00482ca0 -> 0x00591830), and a sound's default RANGE (50 400) is scaled by it (0x005912a0, MW3's 0x005700f0 unscaled): at low detail every sound without its own RANGE is heard to 25 / 200 m. The port's start-up and the sound set's defaults are MW3's
@@ -2560,3 +2527,36 @@
 0x004af9f0	folded	read: MW3's music play 0x004ac290 unpaired by the diff (the request kept, the track played when CD music is on, else stopped), the port's music::play (music.cpp:17)
 0x0049db90	folded	read: the lobby's new team (MW3 0x0049a300), ported as PM's (mp_lobby.cpp:1314: its data five words, PM's 0x14 bytes for MW3's 8)
 0x004a0120	folded	read: the multiplayer state's constructor (MW3 0x0049c900, the state pilot_menu.cpp:573 names): its three screens allocated at PM's sizes (0x1443c, 0x167b8, 0x123d8 for MW3's 0x13b04, 0x1505c, 0x11f3c), one more field cleared, its vtable PM's twin; the port's screens are its own classes
+0x004112a0	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00413c40	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00540750	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00566740	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00566750	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00566760	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x005776c0	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x005c8e50	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x0051b270	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00521870	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00521a20	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00526970	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00526980	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00532860	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x0057c950	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00596de0	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port
+0x00597ca0	sdl	read: zVideo's display entries through the renderer table (0x00b09ec4.., the mode set with its fallback, the surface locks and unlocks of the two buffers, a flip counted per frame), MW3's 0x00576c50..0x00576f90 family unpaired by the diff (labelled there: the port does its display its own way, the platform layer); func2file places them by zutl_zar.cpp, but they are video code
+0x00597d20	sdl	read: zVideo's display entries through the renderer table (0x00b09ec4.., the mode set with its fallback, the surface locks and unlocks of the two buffers, a flip counted per frame), MW3's 0x00576c50..0x00576f90 family unpaired by the diff (labelled there: the port does its display its own way, the platform layer); func2file places them by zutl_zar.cpp, but they are video code
+0x00597d30	sdl	read: zVideo's display entries through the renderer table (0x00b09ec4.., the mode set with its fallback, the surface locks and unlocks of the two buffers, a flip counted per frame), MW3's 0x00576c50..0x00576f90 family unpaired by the diff (labelled there: the port does its display its own way, the platform layer); func2file places them by zutl_zar.cpp, but they are video code
+0x00597dc0	sdl	read: zVideo's display entries through the renderer table (0x00b09ec4.., the mode set with its fallback, the surface locks and unlocks of the two buffers, a flip counted per frame), MW3's 0x00576c50..0x00576f90 family unpaired by the diff (labelled there: the port does its display its own way, the platform layer); func2file places them by zutl_zar.cpp, but they are video code
+0x00597e30	sdl	read: zVideo's display entries through the renderer table (0x00b09ec4.., the mode set with its fallback, the surface locks and unlocks of the two buffers, a flip counted per frame), MW3's 0x00576c50..0x00576f90 family unpaired by the diff (labelled there: the port does its display its own way, the platform layer); func2file places them by zutl_zar.cpp, but they are video code
+0x00597ef0	sdl	read: zVideo's display entries through the renderer table (0x00b09ec4.., the mode set with its fallback, the surface locks and unlocks of the two buffers, a flip counted per frame), MW3's 0x00576c50..0x00576f90 family unpaired by the diff (labelled there: the port does its display its own way, the platform layer); func2file places them by zutl_zar.cpp, but they are video code
+0x00597f40	sdl	read: zVideo's display entries through the renderer table (0x00b09ec4.., the mode set with its fallback, the surface locks and unlocks of the two buffers, a flip counted per frame), MW3's 0x00576c50..0x00576f90 family unpaired by the diff (labelled there: the port does its display its own way, the platform layer); func2file places them by zutl_zar.cpp, but they are video code
+0x005b6ec0	folded	read: a setter of a global that nothing in PM reads (pm.asm: one or two writes, no read), so writing it or not changes nothing
+0x005b6ed0	folded	read: a setter of a global that nothing in PM reads (pm.asm: one or two writes, no read), so writing it or not changes nothing
+0x005b6ee0	folded	read: a setter of a global that nothing in PM reads (pm.asm: one or two writes, no read), so writing it or not changes nothing
+0x005908e0	folded	read: a setter of a global that nothing in PM reads (pm.asm: one or two writes, no read), so writing it or not changes nothing
+0x00527230	folded	read: a setter of a global that nothing in PM reads (pm.asm: one or two writes, no read), so writing it or not changes nothing
+0x00519e90	folded	read: a 13-word record copy (nothing for a null slot), container code
+0x00579310	folded	checked by test (block trace, 2026-11-13): the reader's archive opened as the current one (0x00577e50); test_pm_zreader runs it on every shipped archive and compares the tree node by node
+0x00541a30	missing	pm only, low object detail: PM's object-detail setter (0x0040b120, MW3 0x0040d310, the port's set_object_lod, options.cpp:249) also sets [0x006112e4] = 1 below detail 2, 0 at 2 (0x00541a30), and PM's model preparation (0x00541a40, MW3 0x0053e050) reads it: at detail 2 it does not advance the materials' texture cycles (animated textures stay on their frame) and returns before its case-2 path's drawing. The port has neither; with the other low-detail rows (0x00492830's, the camera scale 0.2, the mech data's)
+0x00534380	folded	read: a keyboard wait (loop until a key comes, 0x00533e60) that its only caller, the controls menu's key capture (0x0042cd30), calls with 0, which skips it; the port's capture is its own (controls_menu.cpp)
+0x0057a770	missing	pm only, renderer, effect to check: PM drops the pending screen tint after each frame's finish (0x0057a770, MW3's tint_clear 0x005587b0, which MW3 never calls; PM's core frame 0x004838b0 calls it after 0x0057a5d0 when [0x0062cf29] is clear). MW3 and the port keep a tint pending until another is set (zrndr_tint.cpp:137), so a tint set once shows on every later frame in the port and on one in PM; which tints are set once (not every frame) is to check
