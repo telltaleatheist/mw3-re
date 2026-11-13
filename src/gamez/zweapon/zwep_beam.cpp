@@ -122,8 +122,16 @@ Beam* beam_make(WeaponDef* def, Handle owner, const uint32_t* zone, const Vec3f3
   return b;
 }
 
-// Mech3.exe 1.2 @ 0x00584b40
+// Mech3.exe 1.2 @ 0x00584b40. FIX (bug): a beam still firing comes off its
+// def's list first, as Pirate's Moon's 0x005a6650 does (docs/fixes.md: a laser
+// turret freed mid-shot left the list on freed memory for the next mission).
 int32_t beam_free(Beam* b) {
+  if (b->def && (b->prev || b->next || b->def->beams == b)) {
+    if (b->next) b->next->prev = b->prev;
+    if (b->prev) b->prev->next = b->next;
+    if (b == b->def->beams) b->def->beams = b->next;
+    b->prev = b->next = nullptr;
+  }
   for (int32_t i = 0; i < b->segment_count; ++i) {
     Handle n = b->segments[i].node;
     while (rh().parent_count && rh().parent_count(n) > 0) rh().remove_child(rh().first_parent(n), n);

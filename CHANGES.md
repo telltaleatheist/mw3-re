@@ -261,6 +261,10 @@ unusual happens.
   memory (the original treated beams as missiles there).
 - Ending a mission with a laser still firing no longer crashes the game when you
   press Replay or leave (our port had missed the fix above in one place).
+- A laser turret still firing when a mission ends no longer leaves its beam
+  behind for the next mission on the same map (it could crash on CONTINUE);
+  the beam is taken off the weapon's list before it is freed, as Pirate's
+  Moon does.
 - Very large polygons, long script lines and oversized weapon sound or
   damage lists no longer write past their buffers.
 - A null texture, a missing weapon group and a few malformed script commands
