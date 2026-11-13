@@ -14,10 +14,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | folded | 2401 |
 | unlabelled | 1866 |
 | replaced (SDL or the platform layer) | 222 |
-| UNSURE | 194 |
+| UNSURE | 192 |
+| MISSING LOGIC | 105 |
 | software renderer | 105 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 104 |
-| MISSING LOGIC | 103 |
 | debug or dev tool: PORT (preserve) | 80 |
 | unused: PORT (preserve) | 59 |
 | dev dialog (MFC), its window plumbing: replaced | 48 |
@@ -26,6 +26,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 ## MISSING LOGIC
 
 - **0x00408b20** (1 functions, 50 decomp lines; MISSING LOGIC): PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog
+- **0x00408d00, 0x005404f0** (2 functions, 40 decomp lines; MISSING LOGIC): PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
 - **0x0040b120** (1 functions, 47 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the object detail's level 2 sets the camera's LOD scale to 0.2 in PM (0x3e4ccccd), 0.4 in MW3 (options.cpp:260, cam_scale)
 - **0x0041c630** (1 functions, 21 decomp lines; MISSING LOGIC): as MW3 0x0041b930: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
 - **0x0041c680** (1 functions, 22 decomp lines; MISSING LOGIC): as MW3 0x0041b980: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
@@ -335,7 +336,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x00407120 (1 functions, 17 decomp lines): read with group A: a callee of shared ports PM changed (0x004060d0); whether the port does PM's version, this call included, is settled there
 - 0x00408360 (1 functions, 11 decomp lines): read with group A: a callee of shared ports PM changed (0x0043c900); whether the port does PM's version, this call included, is settled there
 - 0x00408580 (1 functions, 74 decomp lines): read with group A: a callee of shared ports PM changed (0x004311e0, 0x004b0790); whether the port does PM's version, this call included, is settled there
-- 0x00408d00, 0x005404f0 (2 functions, 40 decomp lines): PM's renderer water mode ([0x00a4e038]: 2 under water, kept until set to 0; 1 not), set by PM's set_underwater 0x00408d00 and two more; the shared set_underwater (player_view.cpp:820) never sets it; what reads the mode is to check
 - 0x0040a870 (1 functions, 41 decomp lines): read with group A: a callee of shared ports PM changed (0x004826e0, 0x00483700); whether the port does PM's version, this call included, is settled there
 - 0x0040a920 (1 functions, 14 decomp lines): read with group A: a callee of shared ports PM changed (0x0043af70, 0x004824d0); whether the port does PM's version, this call included, is settled there
 - 0x00414ba0 (1 functions, 25 decomp lines): read with group A: a callee of shared ports PM changed (0x00415190, 0x0046f510, 0x00494500); whether the port does PM's version, this call included, is settled there
@@ -641,7 +641,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00408950 | 12 | folded | as MW3 0x004104a0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00408980 | 24 | unlabelled |  |
 | 0x00408b20 | 50 | MISSING LOGIC | PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog |
-| 0x00408d00 | 25 | UNSURE | PM's renderer water mode ([0x00a4e038]: 2 under water, kept until set to 0; 1 not), set by PM's set_underwater 0x00408d00 and two more; the shared set_underwater (player_view.cpp:820) never sets it; what reads the mode is to check |
+| 0x00408d00 | 25 | MISSING LOGIC | PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged |
 | 0x00408f40 | 145 | unlabelled |  |
 | 0x00409830 | 71 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x0040bb00: the camera dialog (resource 0x6a: the camera's place and angles in degrees, editable; 0x0040bd00 its window): a dev tool's logic |
 | 0x00409a10 | 21 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040bd00: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
@@ -4225,7 +4225,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x00540450 | 16 | unlabelled |  |
-| 0x005404f0 | 15 | UNSURE | PM's renderer water mode ([0x00a4e038]: 2 under water, kept until set to 0; 1 not), set by PM's set_underwater 0x00408d00 and two more; the shared set_underwater (player_view.cpp:820) never sets it; what reads the mode is to check |
+| 0x005404f0 | 15 | MISSING LOGIC | PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged |
 | 0x00540740 | 9 | unlabelled | follows 0x005893f0:  |
 | 0x00540750 | 14 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:326) |
 | 0x00540790 | 14 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.h:133) |
@@ -5645,44 +5645,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005beca0 | 12 | unlabelled |  |
 | 0x005becd0 | 38 | unlabelled |  |
 
-### zgame (33 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005b1550 | 140 | unlabelled |  |
-| 0x005b18b5 | 11 | unlabelled | follows 0x005b1550:  |
-| 0x005b18d3 | 58 | replaced (SDL or the platform layer) | as MW3 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b1964 | 11 | unlabelled | follows 0x005b1550:  |
-| 0x005b19c0 | 17 | unlabelled |  |
-| 0x005b19e0 | 102 | unlabelled |  |
-| 0x005b1bd0 | 99 | unlabelled |  |
-| 0x005b1db0 | 101 | unlabelled |  |
-| 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2050 | 74 | UNSURE | read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there |
-| 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
-| 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2260 | 11 | unlabelled |  |
-| 0x005b2280 | 26 | replaced (SDL or the platform layer) | as MW3 0x00590880: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b22e0 | 8 | replaced (SDL or the platform layer) | as MW3 0x005908e0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2340 | 12 | unlabelled |  |
-| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b24f0 | 10 | replaced (SDL or the platform layer) | as MW3 0x00590b40: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2510 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590b60: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2530 | 22 | replaced (SDL or the platform layer) | as MW3 0x00590b80: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2580 | 13 | replaced (SDL or the platform layer) | as MW3 0x00590bd0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2620 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
-| 0x005b2650 | 12 | unlabelled |  |
-| 0x005b2670 | 20 | folded | as MW3 0x00590cc0: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b26c0 | 12 | unlabelled |  |
-| 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2830 | 231 | unlabelled |  |
-| 0x005b2c60 | 16 | unlabelled |  |
-
 ### zweapon (33 not ported)
 
 | Address | Lines | Class | Why |
@@ -5720,6 +5682,44 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+
+### zgame (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005b1550 | 140 | unlabelled |  |
+| 0x005b18b5 | 11 | unlabelled | follows 0x005b1550:  |
+| 0x005b18d3 | 58 | replaced (SDL or the platform layer) | as MW3 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b1964 | 11 | unlabelled | follows 0x005b1550:  |
+| 0x005b19c0 | 17 | unlabelled |  |
+| 0x005b19e0 | 102 | unlabelled |  |
+| 0x005b1bd0 | 99 | unlabelled |  |
+| 0x005b1db0 | 101 | unlabelled |  |
+| 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2050 | 74 | UNSURE | read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there |
+| 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
+| 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2260 | 11 | unlabelled |  |
+| 0x005b2280 | 26 | replaced (SDL or the platform layer) | as MW3 0x00590880: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b22e0 | 8 | replaced (SDL or the platform layer) | as MW3 0x005908e0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2340 | 12 | unlabelled |  |
+| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b24f0 | 10 | replaced (SDL or the platform layer) | as MW3 0x00590b40: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2510 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590b60: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2530 | 22 | replaced (SDL or the platform layer) | as MW3 0x00590b80: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2580 | 13 | replaced (SDL or the platform layer) | as MW3 0x00590bd0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2620 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
+| 0x005b2650 | 12 | unlabelled |  |
+| 0x005b2670 | 20 | folded | as MW3 0x00590cc0: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b26c0 | 12 | unlabelled |  |
+| 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2830 | 231 | unlabelled |  |
+| 0x005b2c60 | 16 | unlabelled |  |
 
 ### zutil (31 not ported)
 
