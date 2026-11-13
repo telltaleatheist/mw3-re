@@ -214,10 +214,17 @@ From the port of the damage code, checked in an emulator against the original
 - **Only your lance's kills fill the salvage.** In the campaign a mech
   killed by you or a lancemate goes to the mission's salvage; one finished
   off by anyone else (or with no attacker, such as a heat death) does not.
-- **Blown-off arms and legs fly out sideways**, away from the mech's own
+- **Blown-off arms and legs fly out sideways only four times in ten.**
+  When an arm or leg is destroyed, the game picks one of two effects: six
+  times in ten it blows up where it hangs and vanishes in about a quarter of
+  a second; four times in ten it detaches and flies away from the mech's own
   side, at 20 m/s plus three quarters of the mech's speed, with a little
-  lift; an empty stump model is left in their place. In Instant Action the
-  wreckage fades out.
+  lift, arcing down and bouncing. Either way an empty stump model is left in
+  its place. In Instant Action the wreckage fades out.
+- **A side torso never comes off.** When a side torso's structure runs out,
+  it stays on the mech and takes its arm with it. The debriefing's damage
+  bars show armour, not structure, so a side torso can read empty there
+  while its arm is still on.
 - **A Blackhawk or Owens that loses a leg loses the arm on that side too.**
   No other mech does.
 - **An AI mech remembers who hit it last forever.** Only the player's own
@@ -4828,3 +4835,17 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   and the row under it lights green; that lit row is all you get to aim
   with. The rebuild shows the system's cursor while the editor is up.
   (From the code and a run: 0x0040e4b0. docs/editor.md, The pointer)
+- **Some names show as raw `MSG_...` codes in the original.** The game looks
+  its texts up by name in Mech3Msg.dll, and a few names in the data are
+  spelled differently from the file's, so the code name itself appears. In
+  MechWarrior 3 1.0, two targets in Operation 3 Mission 6 (the Clan fortress
+  and spaceport) show as `MSG_TGT_CLAN_FORTRESS` and `MSG_TGT_CLAN_SPACEPORT`;
+  1.2 fixed them. In Pirate's Moon: the four "exotic" loadouts of a dozen
+  mechs show as `MSG_CONFIG_EXOTIC_A` to `_D`, the standalone missions' long
+  descriptions as `MSG_C1SA1_VERBOSE` and the like, one line of the campaign
+  results as `MSG_WIN_CAMP_MISS`, a nav point in one Instant Action map as
+  `MSG_WPT_START`, and three weapons (the ER Micro Laser and the heavy and
+  light machine guns) as `MSG_WPN_ERLASER_MCR`, `MSG_WPN_M_GUN_H` and
+  `MSG_WPN_M_GUN_LT` where the game reads the weapon's description; the HUD's
+  weapon list names them right, from a table of its own. (From the data and
+  Mech3Msg.dll: tools/analysis/msg_name_scan.py. docs/fixes.md)

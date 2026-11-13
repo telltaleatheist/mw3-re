@@ -168,7 +168,7 @@ Node* mw3_mechlib_load(MechLib& lib, const char* name) {
     return nullptr;
   }
   mechlib_resolve(lib, root);
-  // 0x004fc8b0 (an edge pass per model) is not ported: only one video mode sets the flag.
+  // 0x004fc8b0 (the hardware mode's triangle stripper) is not ported (docs/mechlib.md).
   if (root) lib.trees.push_back(root);
   return root;
 }

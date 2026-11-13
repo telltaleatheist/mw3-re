@@ -243,11 +243,15 @@ Moon.app".
 ### The notes
 
 - [ ] One GitHub release per package version, named for it ("MechWarrior 3
-      Rebuild 1.1.0"), its notes split by game: **MechWarrior 3**, **Pirate's
-      Moon**, **The launcher**, each from its own CHANGES.md (main's, pm's). The
-      launcher's UPDATE screen shows them as written (headings, `- ` items).
-- [ ] Which download is which, at the top: the combined package first, then
-      each game alone.
+      Rebuild 1.1.0"). Its page is short (Owen, 2026-11-12: "just put the
+      installers there at the very top and only the text that's necessary"):
+      the three combined installers as links first, then only what a player
+      needs before installing (your own game, upgrading keeps your files, the
+      Mac's first open, the Linux AppImage), a few lines of what's new, and a
+      link to the full notes (`docs/release-notes-<version>.md` at the tag).
+      Each game alone, the zips and `SHA256SUMS` stay under Assets. The page's
+      text is kept as `docs/release-page-<version>.md`. The launcher's UPDATE
+      screen shows it as written (headings, `- ` items, links as their names).
 - [ ] Not a draft and not a prerelease once published (the updater skips both).
 
 ## 4. Privacy

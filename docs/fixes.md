@@ -793,6 +793,30 @@ Kept:
   always on): its row is in the table, "The Small Pulse Laser's muzzle flash".
   The other three stay as they are.
 
+- **A beam freed while still on its weapon's list** (UNSURE, pending a check; found 2026-11-13 in
+  the PM audit, docs/port-audit-pm.md at 0x005a6650). PM's beam free unlinks a beam still on its
+  weapon's active list first ("Releasing beam still on weapons list"); MW3's 0x00584b40 and the
+  port's `zwep::beam_free` free it as it is. `Turret::~Turret` (turret.cpp:334, MW3's 0x004a5ff0)
+  frees its beam without stopping it, so a turret destroyed mid-beam could leave the list pointing at
+  freed memory. To check, in MW3 and PM: a turret destroyed while its beam fires; whether the active
+  list keeps the freed beam and what reads it the next frame. A crash there would be a FIX (bug).
+
+- **Message names the game's own text file lacks** (data, not code; found 2026-11-13 by
+  `tools/analysis/msg_name_scan.py`, docs/port-audit-pm.md at 0x00447840). Both exes show an unknown
+  name as itself (0x00575fb0, PM's 0x00596db0), and so does the port (zutl::localize). MW3 1.2: none.
+  MW3 1.0: c3m6's targets `MSG_TGT_CLAN_FORTRESS` and `MSG_TGT_CLAN_SPACEPORT` (1.2's data and DLL
+  fixed them as `MSG_CLAN_FORTRESS` / `MSG_CLAN_SPACEPORT`; 1.0's DLL has neither, so nothing to show
+  there). Pirate's Moon, 20:
+  - weapons.zrd's `MSG_WPN_ERLASER_MCR`, `MSG_WPN_M_GUN_H`, `MSG_WPN_M_GUN_LT`: the DLL has
+    `MSG_WPN_ERLASER_MICRO` ('ER Laser Micro'), `MSG_WPN_MGUN_HVY` ('MGUN Heavy'), `MSG_WPN_MGUN_LT`
+    ('MGUN Lt.'), the texts PM's own HUD weapon line shows (its name table 0x00486a50). Candidate FIX
+    (bug) behind the bug-fixes switch: these three DESCs read as the DLL's names. (Separately, the
+    pm port's HUD line should name weapons by PM's table, as PM does: a port difference, not a fix.)
+  - `MSG_CONFIG_EXOTIC_A`..`_D` (loadout names in a dozen mech dfns), the eleven standalone
+    missions' `MSG_C*SA*_VERBOSE` (sainfo.zrd), `MSG_WIN_CAMP_MISS` (dlgWin.zrd; MW3's DLL has it,
+    PM's does not), `MSG_WPT_START` (c3 IA4's waynet): no text for them in PM's DLL, so they stay as
+    the original shows them.
+
 - **Weapon-destroyed voices missing from the data** (pm-tests item 22; data, not code): the autocannons', LB-X's and machine guns' NAMESOUND `wep_autocannon_name` is not in sounds.zrd (`wep_cannon_name` and `wep_mgun_name` are), `mech_part_destroy` (the "destroyed" word, 0x004b3020) is not there either, and TAG's names `wep_las_name`; the LB-X family is 0, no critical voice (0x004853c0). Both games. Options: leave it (the original's silence), or point the names at the sounds that exist (a data patch the importer could make), and give LB-X the autocannon family.
 
 - A mobile field base's centroid is on the ground (dev, 2026-10-31, W34,
