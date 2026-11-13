@@ -68,14 +68,14 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3767 |
-| unlabelled | 398 |
-| MISSING LOGIC | 258 |
+| folded | 3784 |
+| unlabelled | 377 |
+| MISSING LOGIC | 260 |
 | replaced (SDL or the platform layer) | 242 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 114 |
 | software renderer | 108 |
 | debug or dev tool: PORT (preserve) | 89 |
-| dev dialog (MFC), its logic: PORT (preserve) | 83 |
+| dev dialog (MFC), its logic: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 71 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
 
@@ -127,6 +127,8 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00483340, 0x00483470, 0x00483540, 0x004835c0** (4 functions, 149 decomp lines; MISSING LOGIC): pm only, visible: the mission's fade in from black. PM's weather layer (the global at 0x0062cd38, MW3's WeatherLayer 0x005a4590 at static init, twod_weather.h) is built by 0x00483340 with a second screen tint at +0x208 (vtable 0x005e6528) and a fade: done +0x1f0, rate +0x1f8, value +0x200; destructors 0x00483540 / 0x004835c0. The Core state's start (0x00483700) sets value 1.0 and rate -1.0; each frame, after the HUD, the value steps by dt x rate x 0.3 ([0x00608100]) to 0 (0x00483470 the step; inline in 0x00484530 / 0x00483f30 / 0x004838b0) and the tint's alpha follows (its vt+0x7c), so the view comes up from black over about 3.3 s. The port has no such fade
 - **0x004838b0** (1 functions, 184 decomp lines; MISSING LOGIC): group A, read: PM's mission music (pm only): on a disc of more than five tracks PM plays from a random track on to the end of the disc (mode 3, [0x00607f28] = 3), where MW3 and the port play that one track (mode 6, app_states.cpp:390-392); with 2..5 tracks both pick by mission (PM through the pilot's vt+0x48, the port's vt+0x4c: to check it is the same call on PM's layout); a forced -cdN plays in whatever mode PM last set. The developer lines it writes (Dummy Frame, Let's Play) are 0x00410820's, developer only
 - **0x00484530** (1 functions, 123 decomp lines; MISSING LOGIC): pm only, visible: PM's Direct3D frame (MW3's 0x00481790, CoreState::draw_hardware, app_states.cpp:621): as MW3 (the clear, the shadows, the scene, the cockpit parts, the debug console overlay [0x0062cfb4] as MW3's [0x00608f74], the HUD, the zoom window's view) plus, after the HUD, the mission's fade from black stepped and drawn (the weather layer's second tint, see 0x00483470), which the port lacks
+- **0x004850a0** (1 functions, 38 decomp lines; MISSING LOGIC): pm only, minor, visible: PM's Intro state update (vtable 0x005e6380 slot +0x10; MW3's 0x00482170, app_states.cpp:209) plays INTRO only (its fmv.zrd INTRO already ends on mech3splash for 5 s) and then runs the reader.zbd and self checks (protection.md 6: state 12 when both pass, else Exit; the rebuild drops the trap by design). MW3 then plays SPLASH; the port does so for PM too (mech3splash 1 s more, and with -nofmv the splash where PM shows nothing)
+- **0x004883a0** (1 functions, 38 decomp lines; MISSING LOGIC): pm only, visible, minor: PM's main-menu title MECH3TEXT (vtable 0x005e6e28, its constructor 0x00488360..: speed +0xbc = 50.0) slides by time: each update moves round(50 x dt + the carried fraction) pixels (carry +0xc0, 0.5 at 0x005de818), 50 px a second; MW3's 0x0042fb30 moves 2 px a frame, the port 2 per 1/30 s with per_second (60 px a second, menu_widgets.cpp:121). The same change as the menu background's (0x00488470)
 - **0x00488470, 0x004885b0** (2 functions, 147 decomp lines; MISSING LOGIC): pm only, visible: PM's menu background (vtable 0x005e6ea8, built in the screens: briefing, credits, controls, options; MW3's ScrollImage 0x00438cc0 / 0x0040a210, menu_widgets.cpp) scrolls by time: each update moves round(22.0 * dt + the carried fraction) pixels on each axis (steps +0xbc/+0xc0 = 22.0f, fractions +0xc4/+0xc8, 0.5 at 0x005de818), about 22 px a second; MW3 moves 1 px a frame, which the port keeps (FIX (B) frames owed at 33 ms: about 30 px a second). The view rect is (0, 0, w, h - 1) in PM; the object 8 bytes larger (moving at +0x140)
 - **0x0048eaf0, 0x0048f660, 0x0048f970** (3 functions, 607 decomp lines; MISSING LOGIC): pm only, pilot-file compatibility and play (fix list: both), Instant Action's kept line-up: PM keeps the allies' and enemies' mechs in the pilot's game record by item value (the mech number; the field base's -1 or 10; ACCEPT 0x0048eaf0 through 0x00439620) and each enemy's loadout by its place among the mech's loadouts (0x004279e0), not its row in the cycle; it restores them by value (0x0048a2e0; reset 0x0048f970 for the allies, 0x0048f660 for the enemies, the loadout reset to 0 when past the mech's count). The port keeps and restores row indices (action_menu.cpp keep_lineup, show_custom, reset) in the same record fields, which it writes to the pilot file (pilot_games.cpp ActionGame::save). So a pilot saved by the original PM brings back other enemies and allies in the port, and the other way round (rows with none first are one off). Also, with no kept enemies (a new pilot's -1), PM's first enemy is mech 0 with its loadouts listed (hidden ones left out, message 0xd75 for a hidden first); MW3 and the port pick the player's mech. 0x0048f970 and 0x0048eaf0 are put here for this; their other differences are read with the unlabelled pass
 - **0x004943e0** (1 functions, 13 decomp lines; MISSING LOGIC): pm only, multiplayer: a network respawn's objectives reload. PM frees them (0x0045d530) and reads them again through the game's vt+0x3c (0x00435140 for the multiplayer game: objectives.zrd's mp<N>, vt+0x58 0x00436580, for every map), then clears the ended and aborting bytes; the port's objectives_again (mission.cpp:532) is MW3's 0x00491050, maps past 2 from mpinfo.zrd, which PM does not ship (no archive holds it), so on PM a respawn on map 3 or later reads no objectives
@@ -406,6 +408,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 1 functions, 34 decomp lines (0x00433770): as MW3 0x00432c60: a mech list dialog (resource 0x9c, from a debug key command in 0x0040db60): its fill of every mech name (0x00484650)
 - 1 functions, 26 decomp lines (0x00433840): as MW3 0x00432d30: a mech list dialog (resource 0x9c, from a debug key command in 0x0040db60): its fill of every mech name (0x00484650)
 - 1 functions, 45 decomp lines (0x00485b20): as MW3 0x00483170: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags)
+- 2 functions, 21 decomp lines (0x00485ba0, 0x00485c60): PM's debug menu (MFC message-map entries, as MW3's 0x00483200 labelled devdialog-logic): a flag toggled (0x00485ba0, as MW3's 0x00483200) and a check-mark updater of [0x0062cc46] (0x00485c60)
 - 1 functions, 14 decomp lines (0x00485bd0): as MW3 0x00483230: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags)
 - 1 functions, 12 decomp lines (0x00485c20): as MW3 0x004832e0: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags)
 - 1 functions, 9 decomp lines (0x00485d10): as MW3 0x004833f0: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags)
@@ -1773,7 +1776,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0046d310 | 47 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0046b7a0 with only offsets and sizes of PM's larger structures changed (0x1a8->0x1ac); calls, field counts and every other immediate and float constant as MW3's |
 | 0x0046d3e0 | 72 | folded | ported, checked by test: the mech definition's constructor (MW3's 0x0046b890); tests/differential/test_pm_mechdef.py builds each of the 25 shipped definitions and the crafted ones with 0x0046d3e0 then the reader and compares the whole definition (0 differ, 2026-11-13) |
 | 0x0046d5e0 | 29 | folded | as MW3 0x0046cca0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
-| 0x0046d690 | 797 | unlabelled |  |
+| 0x0046d690 | 797 | folded | checked by test: PM's mech definition reader is ported on pm (mech_reader.cpp, its Pirate's Moon notes: no version, hidden, double sinks, per-firepoint aim limits, the headlight config) and test_pm_mechdef runs 0x0046d690 whole against it on all 25 shipped dfn files and 2 crafted ones, comparing the head's fields, every loadout and its items, every firepoint and every report (0 differ, 2026-11-13 sweep) |
 | 0x0046ecf0 | 46 | folded | as MW3 0x0046cc00: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0046eda0 | 16 | folded | as MW3 0x0046cd40: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0046edd0 | 9 | folded | a thunk: one call to another function |
@@ -2011,7 +2014,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004848a0 | 173 | folded | group A, read: the frame's video calls are PM's Direct3D 2D path (0x00597d20.., 0x005c0450.., replaced by the SDL layer, as the 0x005c0320 row) where MW3's are DirectDraw's (0x00576d60, 0x00576e70, 0x00576ea0); the rest as the shared port |
 | 0x00484ed0 | 34 | folded | MW3's 0x00481fc0 (the Core state's leave), read: the same calls in order (the mouse acceleration reset, the CD and sounds stopped, the reader's archives closed through PM's wrapper 0x00579330), the frame object's slot +0x0c in PM's vtable for MW3's +0x08 |
 | 0x00484fa0 | 51 | folded | by the slot pairing: PM vtable 0x5e6380 slot 0xc is MW3 vtable 0x5c40c8's 0x00482070 (MW3 ported src/mech3/app_states.cpp:195), the feature compare equal (7f6e9e10) |
-| 0x004850a0 | 38 | unlabelled |  |
+| 0x004850a0 | 38 | MISSING LOGIC | pm only, minor, visible: PM's Intro state update (vtable 0x005e6380 slot +0x10; MW3's 0x00482170, app_states.cpp:209) plays INTRO only (its fmv.zrd INTRO already ends on mech3splash for 5 s) and then runs the reader.zbd and self checks (protection.md 6: state 12 when both pass, else Exit; the rebuild drops the trap by design). MW3 then plays SPLASH; the port does so for PM too (mech3splash 1 s more, and with -nofmv the splash where PM shows nothing) |
 | 0x00485130 | 17 | folded | as MW3 0x004822e0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x004852f0 | 31 | folded | as MW3 0x004828d0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00485480 | 29 | folded | inside its ported callers (0x004826e0): a small helper their ports do their own way |
@@ -2034,11 +2037,11 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00485ab0 | 8 | folded | returns a constant or a global |
 | 0x00485af0 | 9 | replaced (SDL or the platform layer) | as MW3 0x00483130: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
 | 0x00485b20 | 45 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00483170: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
-| 0x00485ba0 | 12 | unlabelled |  |
+| 0x00485ba0 | 12 | dev dialog (MFC), its logic: PORT (preserve) | PM's debug menu (MFC message-map entries, as MW3's 0x00483200 labelled devdialog-logic): a flag toggled (0x00485ba0, as MW3's 0x00483200) and a check-mark updater of [0x0062cc46] (0x00485c60) |
 | 0x00485bd0 | 14 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00483230: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
 | 0x00485c00 | 9 | folded | a thunk: one call to another function |
 | 0x00485c20 | 12 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004832e0: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
-| 0x00485c60 | 9 | unlabelled |  |
+| 0x00485c60 | 9 | dev dialog (MFC), its logic: PORT (preserve) | PM's debug menu (MFC message-map entries, as MW3's 0x00483200 labelled devdialog-logic): a flag toggled (0x00485ba0, as MW3's 0x00483200) and a check-mark updater of [0x0062cc46] (0x00485c60) |
 | 0x00485c90 | 10 | replaced (SDL or the platform layer) | as MW3 0x00483370: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE |
 | 0x00485d10 | 9 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004833f0: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
 | 0x00485d20 | 12 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x00483400: the frame window's debug menu (editor.md: the debug menu; MFC message map entries 0x005c41..0x005c45): its commands and their check marks or enables (display driver, video modes, a mech picked from a list, the training game, input flags) |
@@ -2071,7 +2074,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00486690 | 39 | folded | as MW3 0x00484540: covered where the port does it: src/mech3/mech_lib.cpp:89 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00486730 | 25 | folded | read: MW3's 0x004845f0 (mech_names.h, a mech's number by its name, the table walked to its end) over PM's 25-mech table (its end 0x00608813 for 0x005e64eb), the port's kMechs on pm |
 | 0x004868d0 | 14 | folded | inside its ported callers (0x00479510): a small helper their ports do their own way |
-| 0x00486f10 | 51 | unlabelled |  |
+| 0x00486f10 | 51 | folded | MW3's 0x00484d70 (part_display_name, mech_names.h:14), read: the same messages for parts 1..8 (0x194, 0x197, 0x198, 0x199, 0x19a, 0x193, 0x196, 0x195; MW3 passes them in ECX), the same English for 9..15, else "none" |
 | 0x00487480 | 56 | folded | read: MW3's 0x004852b0 (mech_names.h, a name's tech: "sphere" and the other by the table at 0x00609580), the same compares on PM's copy of the table |
 | 0x00487530 | 8 | folded | as MW3 0x00485360: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00487540 | 9 | folded | a thunk: one call to another function |
@@ -2082,34 +2085,34 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004876a0 | 12 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:587) |
 | 0x004876e0 | 9 | folded | a thunk: one call to another function |
 | 0x004876f0 | 13 | folded | covered by the port where it names it (src/mech3/app.cpp:168) |
-| 0x004879a0 | 31 | unlabelled |  |
+| 0x004879a0 | 31 | folded | MW3's 0x00438d70 (the slide button's constructor, menu_widgets.cpp SlideButton), read: the same base and members, the button's id stored (+0x150) and a byte copy of it (+0x1dc) on PM's layout |
 | 0x00487a40 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00487a60, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x00487c00 | 18 | unlabelled |  |
-| 0x00487c30 | 18 | unlabelled |  |
-| 0x00487ce0 | 31 | unlabelled |  |
-| 0x00487e60 | 147 | unlabelled |  |
+| 0x00487c00 | 18 | folded | MW3's 0x0042a250 (SlideButton::after_bind, menu_widgets.cpp:334), read: the reach square around the image's centre by RADIUS, the ripple placed at the centre, init_ripple; the centre getters 0x00487c00 / 0x00487c30 (x + width / 2, y + height / 2, MW3's vt+0x68 / +0x6c) called directly in PM |
+| 0x00487c30 | 18 | folded | MW3's 0x0042a250 (SlideButton::after_bind, menu_widgets.cpp:334), read: the reach square around the image's centre by RADIUS, the ripple placed at the centre, init_ripple; the centre getters 0x00487c00 / 0x00487c30 (x + width / 2, y + height / 2, MW3's vt+0x68 / +0x6c) called directly in PM |
+| 0x00487ce0 | 31 | folded | MW3's 0x0042a250 (SlideButton::after_bind, menu_widgets.cpp:334), read: the reach square around the image's centre by RADIUS, the ripple placed at the centre, init_ripple; the centre getters 0x00487c00 / 0x00487c30 (x + width / 2, y + height / 2, MW3's vt+0x68 / +0x6c) called directly in PM |
+| 0x00487e60 | 147 | folded | MW3's 0x00485590 (SlideButton::get_rect: none while baked, the stashed image's rect else) with zTwoD's Control::get_rect (0x0059c310: the image and its labels by their alignment, order-aware ratio 0.853) inlined, read |
 | 0x00488370 | 12 | unlabelled |  |
-| 0x004883a0 | 38 | unlabelled |  |
-| 0x00488450 | 10 | unlabelled |  |
+| 0x004883a0 | 38 | MISSING LOGIC | pm only, visible, minor: PM's main-menu title MECH3TEXT (vtable 0x005e6e28, its constructor 0x00488360..: speed +0xbc = 50.0) slides by time: each update moves round(50 x dt + the carried fraction) pixels (carry +0xc0, 0.5 at 0x005de818), 50 px a second; MW3's 0x0042fb30 moves 2 px a frame, the port 2 per 1/30 s with per_second (60 px a second, menu_widgets.cpp:121). The same change as the menu background's (0x00488470) |
+| 0x00488450 | 10 | folded | a static initializer (from 0x00488440): the menus' screen size [0x0062d878] = 639, [0x0062d87c] = 479, the rect PM's background view uses (0x00488560; the size noted on 0x00488470's row) |
 | 0x00488470 | 34 | MISSING LOGIC | pm only, visible: PM's menu background (vtable 0x005e6ea8, built in the screens: briefing, credits, controls, options; MW3's ScrollImage 0x00438cc0 / 0x0040a210, menu_widgets.cpp) scrolls by time: each update moves round(22.0 * dt + the carried fraction) pixels on each axis (steps +0xbc/+0xc0 = 22.0f, fractions +0xc4/+0xc8, 0.5 at 0x005de818), about 22 px a second; MW3 moves 1 px a frame, which the port keeps (FIX (B) frames owed at 33 ms: about 30 px a second). The view rect is (0, 0, w, h - 1) in PM; the object 8 bytes larger (moving at +0x140) |
 | 0x00488530 | 10 | folded | MW3's inline background borrow in the option screens' constructors (the port's MenuScreen::borrow_background, its else branch), out of line in PM: the main menu's image (+0x3c) and its moving flag (+0x140) copied; not moving, the view set to the whole screen and drawn from there (0x00488560). PM's background class itself is labelled at 0x00488470 |
 | 0x00488560 | 14 | folded | MW3's inline background borrow in the option screens' constructors (the port's MenuScreen::borrow_background, its else branch), out of line in PM: the main menu's image (+0x3c) and its moving flag (+0x140) copied; not moving, the view set to the whole screen and drawn from there (0x00488560). PM's background class itself is labelled at 0x00488470 |
 | 0x004885b0 | 113 | MISSING LOGIC | pm only, visible: PM's menu background (vtable 0x005e6ea8, built in the screens: briefing, credits, controls, options; MW3's ScrollImage 0x00438cc0 / 0x0040a210, menu_widgets.cpp) scrolls by time: each update moves round(22.0 * dt + the carried fraction) pixels on each axis (steps +0xbc/+0xc0 = 22.0f, fractions +0xc4/+0xc8, 0.5 at 0x005de818), about 22 px a second; MW3 moves 1 px a frame, which the port keeps (FIX (B) frames owed at 33 ms: about 30 px a second). The view rect is (0, 0, w, h - 1) in PM; the object 8 bytes larger (moving at +0x140) |
 | 0x00488880 | 32 | folded | read: PM's menu background draw, MW3's 0x0040a490 (ScrollImage::draw) with its piece count read from data (0x00609588 = 4, never written) and PM's offsets |
-| 0x00488900 | 30 | unlabelled |  |
+| 0x00488900 | 30 | folded | PM's main menu dispatch by button (0..6 push the states the main state owns: [0x0062d890] .. [0x0062d8a8]; 7 quits through 0x00485440), MW3's six push handlers 0x0048e980..0x0048eac0 and QUIT 0x0048eb00 in one switch (mainmenu.cpp menu_global, PM's Standalone slot there) |
 | 0x004889d0 | 67 | unlabelled |  |
-| 0x00488bd0 | 20 | unlabelled |  |
+| 0x00488bd0 | 20 | folded | destructor bodies (unwind and deleting callers): a text and the slide button's base (0x00488bd0), a slide button and the base 0x005c9150 (0x0048cd30); the port's objects destroy their members |
 | 0x00488c20 | 12 | folded | covered by the port where it names it (src/mech3/mainmenu.h:37) |
 | 0x00488c40 | 163 | unlabelled |  |
 | 0x004891d0 | 25 | unlabelled |  |
-| 0x00489260 | 15 | unlabelled |  |
+| 0x00489260 | 15 | folded | MW3's 0x0048e780 (MainMenuButton::set_baked, mainmenu.cpp:87), read: the AUXBITMAP line (+0x1ec) shown when not baked, hidden when baked, then SlideButton::set_baked (PM's 0x00487b90, MW3's 0x0042a160) |
 | 0x004892d0 | 12 | folded | covered by the port where it names it (src/mech3/mainmenu.h:20) |
 | 0x004892f0 | 11 | folded | as MW3 0x00486920: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x00489340 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00489360, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00489360 | 10 | folded | as MW3 0x00486970: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x00489370 | 9 | folded | covered by the port where it names it (src/mech3/app_states.h:193) |
 | 0x00489380 | 128 | unlabelled |  |
-| 0x00489610 | 42 | unlabelled |  |
+| 0x00489610 | 42 | folded | MW3's 0x00486c50 (MainState::leave, app_states.cpp:1114), read: the base leave and the screen cleared, then the main menu's states deleted and cleared ([0x0062d88c] .. [0x0062d8a8], MW3's [0x00609858] ..) |
 | 0x004896e0 | 56 | unlabelled |  |
 | 0x00489860 | 11 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:521) |
 | 0x00489960 | 56 | folded | as MW3 0x0048b000: covered where the port does it: src/mech3/pilot_menu.cpp:655 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -2123,8 +2126,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0048a460 | 13 | unlabelled |  |
 | 0x0048ac00 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:324) |
 | 0x0048ade0 | 28 | folded | folded, by the feature compare (calls, data references with strings by their text, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py, docs/port-audit-pm.md method) against MW3's 0x0048e460, folded in the MW3 audit (a destructor or a small helper of its covered callers) |
-| 0x0048b250 | 10 | unlabelled |  |
-| 0x0048b270 | 10 | unlabelled |  |
+| 0x0048b250 | 10 | folded | the message box's button handlers (one per button, zTwoD's 0x005a7650 .. 0x005a7730, twod_msgbox.cpp:8): the base, then the box's vt+0x90 / +0x94; the order-aware compare equal (ratio 1.000) |
+| 0x0048b270 | 10 | folded | the message box's button handlers (one per button, zTwoD's 0x005a7650 .. 0x005a7730, twod_msgbox.cpp:8): the base, then the box's vt+0x90 / +0x94; the order-aware compare equal (ratio 1.000) |
 | 0x0048b290 | 9 | folded | by the slot pairing: PM vtable 0x5e4300 slot 0x88 is MW3 vtable 0x5c1c30's 0x00456800 (MW3 ported src/mech3/lab_items.cpp:131), the feature compare equal (7f6e9e10) |
 | 0x0048b2b0 | 12 | folded | covered by the port where it names it (src/mech3/mainmenu.h:20) |
 | 0x0048b2d0 | 12 | folded | covered by the port where it names it (src/mech3/mainmenu.h:20) |
@@ -2143,13 +2146,13 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0048cb50 | 13 | folded | covered by the port where it names it (src/mech3/menu_widgets.cpp:798) |
 | 0x0048cbd0 | 39 | unlabelled |  |
 | 0x0048cd10 | 12 | folded | covered by the port where it names it (src/mech3/quit_box.h:19) |
-| 0x0048cd30 | 20 | unlabelled |  |
-| 0x0048cd80 | 13 | unlabelled |  |
+| 0x0048cd30 | 20 | folded | destructor bodies (unwind and deleting callers): a text and the slide button's base (0x00488bd0), a slide button and the base 0x005c9150 (0x0048cd30); the port's objects destroy their members |
+| 0x0048cd80 | 13 | folded | a screen's draw slot (PM vtable 0x005e73c0 +0xb4): with an owner (+4), zTwoD's dialog draw (0x005bfde0, MW3's 0x005a2bb0, as MW3's thunk 0x0042efe0 calls) inside PM's 2D path's lock and unlock (0x005c0450 / 0x005c0b70, the SDL layer's) |
 | 0x0048ce40 | 9 | folded | a thunk: one call to another function |
 | 0x0048ce50 | 9 | folded | a thunk: one call to another function |
 | 0x0048cef0 | 21 | folded | covered by the port where it names it (src/mech3/app_states.h:13) |
 | 0x0048cf40 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0048cf60, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x0048d0b0 | 22 | unlabelled |  |
+| 0x0048d0b0 | 22 | folded | MW3's 0x0048ecc0 (ShellState::resume, app_states.cpp:917), read: with arg 1 the screen redrawn once (its +0x18 flag, the video lock, draw, unlock and flip), PM's slots one on (+0x1c, +0x08) and its 2D path's lock/flip calls (0x005c0450 .. 0x005c0bc0) for MW3's zVideo ones |
 | 0x0048d110 | 30 | folded | group A, read: the frame's video calls are PM's Direct3D 2D path (0x00597d20.., 0x005c0450.., replaced by the SDL layer, as the 0x005c0320 row) where MW3's are DirectDraw's (0x00576d60, 0x00576e70, 0x00576ea0); the rest as the shared port |
 | 0x0048d220 | 9 | folded | a thunk: one call to another function |
 | 0x0048d230 | 27 | folded | covered by the port where it names it (src/mech3/app_states.h:303) |
