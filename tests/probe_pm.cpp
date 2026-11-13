@@ -3829,3 +3829,30 @@ extern "C" int32_t probe_pm_gfx_flags(int32_t flags, int32_t before) {
   mech3::set_gfx_flags(flags);
   return pm::zmod::draw_state().light_map_option;
 }
+
+// The port audit (docs/port-audit-pm.md): after probe_pm_mechlib, each loaded
+// tree's nodes whose +0x2c holds PM's light-override bits (0x1ffff80: bits 7
+// and 8 and their values in bits 9..24), as (root position, node name, +0x2c)
+// lines; the count of nodes walked first. Returns the bytes written.
+extern "C" int probe_pm_mechlib_overrides(char* out, int cap) {
+  std::string s;
+  int walked = 0;
+  std::function<void(const ::zcls::Node*, size_t)> walk = [&](const ::zcls::Node* n, size_t root) {
+    if (!n) return;
+    ++walked;
+    const uint32_t v = n->get<uint32_t>(0x2c);
+    if (v & 0x1ffff80u) {
+      char line[160];
+      std::snprintf(line, sizeof line, "%zu\t%.32s\t0x%08x\n", root, n->name(), v);
+      s += line;
+    }
+    for (int32_t i = 0; i < n->child_count(); ++i) walk(n->children[i], root);
+  };
+  for (size_t r = 0; r < g_pm_loaded.size(); ++r) walk(g_pm_loaded[r], r);
+  const std::string head = std::to_string(walked) + "\n";
+  s = head + s;
+  if (static_cast<int>(s.size()) >= cap) return -1;
+  std::memcpy(out, s.data(), s.size());
+  out[s.size()] = 0;
+  return static_cast<int>(s.size());
+}
