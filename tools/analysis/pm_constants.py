@@ -202,6 +202,7 @@ if len(sys.argv) > 2:
             if mnem == 'push' and any(re.search(r'call\s+0x%x\b' % new_thunk, x) or any(i_ in x for i_ in ALLOC_IAT) for x in nxt[:3]): why = 'size'
             elif mnem == 'cmp' and len(nxt) > 1 and nxt[0].startswith('ja') and 'jmp' in nxt[1] and '*4' in nxt[1].replace(' ', ''): why = 'switch'
             elif mnem == 'push' and msg and any(re.search(r'call\s+0x%x\b' % msg, x) for x in nxt[:3]): why = 'message id'
+            elif mnem == 'push' and any(re.search(r'call\s+0x%x\b' % rep, x) for rep in (0x49bfd0, 0x406cb0) for x in nxt[:4]): why = 'report line'
             vals.setdefault(v, why or vals.get(v, ''))
         return vals
     GAMEPLAY = ('weapon', 'mech_', 'zai_', 'hud', 'player', 'mission', 'salvage', 'pilot', 'veh_', 'turret', 'zweapon', 'landmine')
