@@ -46,9 +46,10 @@ class SalvageScreen : public MenuScreen {
 
 // 0x0047e110 (the lists' stores): from the player's store to the mission's,
 // one, an ammo item's lab rounds, or a share of an equipment's count.
-bool salvage_to_mission(Store* to, Store* from, ConfigItem* item);
-// 0x0047e270: from the mission's to the player's, within `bases` field
-// bases (300 t and 2 mechs each, beside what `to` holds).
-bool salvage_to_player(Store* to, Store* from, ConfigItem* item, int32_t bases);
+bool salvage_to_mission(Store* to, Store* from, ConfigItem* item, bool multiplayer);  // PM: a type-3 game
+// 0x0047e270 / PM's 0x00480840: from the mission's to the player's, within
+// `bases` field bases (2 mechs each) and `tons` (MW3: 300 a base), beside what
+// `to` holds.
+bool salvage_to_player(Store* to, Store* from, ConfigItem* item, int32_t bases, float tons);
 
 }  // namespace mech3

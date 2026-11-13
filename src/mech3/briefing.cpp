@@ -701,6 +701,21 @@ int32_t Engine::campaign_units() {
   CampaignGame* c = current_pilot() ? current_pilot()->campaign() : nullptr;
   return c ? c->a8 : 0;
 }
+// Pirate's Moon 1.0 @ 0x004353e0, 0x0040c6d0 (the games' vt+0x5c)
+int32_t Engine::salvage_bases() {
+  Pilot* p = current_pilot();
+  if (!p || !p->current) return 0;  // the exe has a game here
+  CampaignGame* c = p->campaign();
+  return c ? c->a8 : 3;
+}
+// Pirate's Moon 1.0 @ 0x00435ce0, 0x00436020, 0x004a9370 (the games' vt+0x60; 0x00473160's 300 t a unit)
+float Engine::salvage_tons() {
+  Pilot* p = current_pilot();
+  if (!p || !p->current) return 0.0f;
+  if (CampaignGame* c = p->campaign()) return static_cast<float>(c->a8) * 300.0f;
+  if (p->current == p->multi && p->multi) return p->multi->bonus_tons;
+  return 0.0f;
+}
 
 namespace {
 constexpr float kTonsPerUnit = 300.0f;  // 0x00470cc0

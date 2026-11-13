@@ -16,7 +16,6 @@ namespace mech3 {
 int32_t lab_rounds(int32_t weapon, int32_t n);  // weapon.h (whose Handle is mech.h's)
 
 namespace {
-constexpr float kTonsPerBase = 300.0f;  // 0x00470cc0
 constexpr int32_t kMechsPerBase = 2;    // 0x00470cd0
 // The cards' layout from ICON_PILOT ([0x005e5b08..0x005e5b18]).
 constexpr int32_t kBayDx = 120, kBayDy = 80, kLanceDx = 60, kBayTop = -50, kLanceDy = -70;
@@ -104,10 +103,12 @@ void SalvageScreen::on_button(int32_t id, int32_t a, int32_t row) {
   if (id == kAccept) {
     e.pop_state(6);  // Pirate's Moon 0x004809f0 (MW3's 0): the lobby's back from salvage; the briefing ignores it
   } else if (id == kPlayer) {
-    if (row > 0) moved = salvage_to_mission(e.store_of(mission.store), e.store_of(player.store), item_at(player));
+    if (row > 0)
+      moved = salvage_to_mission(e.store_of(mission.store), e.store_of(player.store), item_at(player),
+                                 e.game_kind() == 3);
   } else if (id == kMission && row > 0) {
     moved = salvage_to_player(e.store_of(player.store), e.store_of(mission.store), item_at(mission),
-                              e.campaign_units());
+                              e.salvage_bases(), e.salvage_tons());
   }
   if (moved) refill();
 }
@@ -125,9 +126,9 @@ void SalvageScreen::refill() {
     }
     if (ztwod::Text* t = label(c, 0)) t->hide();
   }
-  const int32_t bases = e.campaign_units();  // 0 without a campaign
+  const int32_t bases = e.salvage_bases();  // Pirate's Moon 0x00480260: the game's vt+0x5c and vt+0x60
   const int32_t room = kMechsPerBase * bases;
-  const float capacity = kTonsPerBase * static_cast<float>(bases);
+  const float capacity = e.salvage_tons();
   Store* store = e.store_of(player.store);
   const float used = store ? store_tons(*store) : 0.0f;  // 0x0045b900
   int32_t bay = 0;
@@ -165,13 +166,17 @@ void SalvageScreen::refill() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0047e110. True once tried, moved or not.
-bool salvage_to_mission(Store* to, Store* from, ConfigItem* item) {
+// Mech3.exe 1.2 @ 0x0047e110, Pirate's Moon 1.0 @ 0x004806c0. True once tried, moved or not. PM keeps a multiplayer
+// player's last mech (its store's mechs, 0x00474aa0, must be over one) and refuses ammo of under a lab load.
+bool salvage_to_mission(Store* to, Store* from, ConfigItem* item, bool multiplayer) {
   if (!to || !from || !item) return false;
   int32_t n = 1;
   const int k = item->kind();
-  if (k == 2) {
+  if (k == 0) {
+    if (multiplayer && store_mechs(*from) < 2) return false;  // the game's vt+0x28 == 3
+  } else if (k == 2) {
     n = lab_rounds(static_cast<AmmoItem*>(item)->weapon, item->count);  // 0x004b4900
+    if (n < 1) return false;
   } else if (k == 3 && shared(item)) {
     const float half = static_cast<float>(item->count) * 0.5f;  // [0x005c3ae0..0x005c3af4]
     n = half < 10.0f ? 1 : half < 20.0f ? 2 : half < 50.0f ? 10 : half < 200.0f ? 20 : half < 500.0f ? 40 : 100;
@@ -180,11 +185,12 @@ bool salvage_to_mission(Store* to, Store* from, ConfigItem* item) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x0047e270. A mech takes a free bay (none free: the
-// negative room, refused); shares up to two a ton of the room left.
-bool salvage_to_player(Store* to, Store* from, ConfigItem* item, int32_t bases) {
+// Mech3.exe 1.2 @ 0x0047e270, Pirate's Moon 1.0 @ 0x00480840. A mech takes a free bay (none free: the negative room,
+// refused); shares up to two a ton of the room left. PM takes the room from the game (two mechs a base, 0x005207b0)
+// and the tons from it too, where MW3 took both from the campaign's units: a multiplayer round's are 3 bases and the
+// places' bonus tons, so its picks are no longer all refused.
+bool salvage_to_player(Store* to, Store* from, ConfigItem* item, int32_t bases, float capacity) {
   if (!to || !from || !item) return false;
-  const float capacity = kTonsPerBase * static_cast<float>(bases);
   const int32_t room = kMechsPerBase * bases;
   const float used = store_tons(*to);
   const float left = capacity - used;

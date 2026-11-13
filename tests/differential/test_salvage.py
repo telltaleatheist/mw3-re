@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import load_probe  # noqa: E402
-from original import FTOL, IAT_FTOL  # noqa: E402
+from original import FTOL, IAT_FTOL, ROOT  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_ESP  # noqa: E402
 from twod_world import IAT  # noqa: E402
 from test_pilot import FS, KIND_SIZE, KIND_VT, SALVAGE, Emulated, i32  # noqa: E402
@@ -53,6 +53,7 @@ RESULTS, MECH_TECH = 0x47ae10, 0x41df10
 TO_MISSION, TO_PLAYER = 0x47e110, 0x47e270
 ADD_MECH, ADD_WEAPON, ADD_AMMO, ADD_EQUIP = 0x471c10, 0x471840, 0x471940, 0x471a20
 CURRENT, LIST = 0x60861c, 0x73655c
+PM = os.environ.get('MW3_EXE') == 'pm'
 RAND_IAT = 0x5bb668
 
 
@@ -232,9 +233,10 @@ class Realloc(Salvage):
             cpu.write(blk + 0x1c, struct.pack('<fi', lab[0], lab[2]))
             cpu.write(blk + 0x28, struct.pack('<fi', lab[1], lab[3]))
             cpu.write(blk + 0x34, struct.pack('<f', lab[4]))
-            cpu.u32(obj + 0x1f0, blk)
+            cpu.u32(obj + (0x200 if PM else 0x1f0), blk)  # the weapon's lab block: PM's sits 0x10 on
             self.weapons[name] = obj
-        cpu.stub_function(FIND_WEAPON, lambda c: self.weapons.get(self.cstr(c.ecx).encode(), 0))
+        # The name: ECX in MW3's 0x581ed0, the first argument (cdecl) in PM's 0x5a3550.
+        cpu.stub_function(FIND_WEAPON, lambda c: self.weapons.get(self.cstr(c.arg(0) if PM else c.ecx).encode(), 0))
         cpu.stub_import(IAT['_strdup'], lambda c: self.string(self.cstr(c.arg(0))) if c.arg(0) else 0, 0)
 
     def items_of(self, st):
@@ -297,10 +299,18 @@ class Moves(Realloc):
         cpu.import_code(IAT_FTOL, FTOL)
         # 0x004b4900 (tested in test_weapons_run.py) as the probe has it, without
         # zWeapon's definitions: 100 over 150 rounds, 20 over 20, else 1.
-        cpu.stub_function(0x4b4900, lambda c: 100 if i32(c.edx) > 150 else 20 if i32(c.edx) > 20 else 1)
-        game, gvt = self.alloc(0xd0), self.alloc(0x40)
+        # The count: EDX in MW3's, the second argument (cdecl) in PM's 0x4b8a60.
+        cpu.stub_function(0x4b4900, lambda c: (lambda n: 100 if n > 150 else 20 if n > 20 else 1)(
+            i32(c.arg(1) if PM else c.edx)))
+        game, gvt = self.alloc(0xd0), self.alloc(0x80)
         cpu.u32(game, gvt)
         cpu.u32(gvt + 0x2c, self.fn('b8%02x000000c3' % cfg['kind']))
+        if PM:  # PM's type at vt+0x28 (0x4806c0 keeps a multiplayer player's last mech), 0x480840's vt+0x5c and +0x60
+            cpu.u32(gvt + 0x28, self.fn('b8%02x000000c3' % cfg['kind']))
+            tons = self.alloc(4)
+            cpu.write(tons, struct.pack('<f', cfg['tons']))
+            cpu.u32(gvt + 0x5c, self.fn('b8' + struct.pack('<I', cfg['bases']).hex() + 'c3'))
+            cpu.u32(gvt + 0x60, self.fn('d905' + struct.pack('<I', tons).hex() + 'c3'))
         for off in (0x8, 0x3c):
             self.call(0x470ce0, ecx=game + off, stack=(0,))
         cpu.u32(game + 0xa8, cfg['units'] & 0xffffffff)
@@ -313,7 +323,7 @@ class Moves(Realloc):
         lists = {}
         for name, st in (('p', player), ('m', mission)):
             lists[name] = self.alloc(0x220)
-            cpu.u32(lists[name] + 0x214, st)
+            cpu.u32(lists[name] + (0x218 if PM else 0x214), st)  # PM's list keeps its store 4 bytes on
         results = []
         for side, i in cfg['moves']:
             its = self.items_of(player if side == 'p' else mission)
@@ -337,13 +347,16 @@ def shares(r):
 
 def make_moves(seed):
     r = random.Random(f'moves:{seed}')
-    return {'kind': r.choice([1, 1, 1, 2]), 'units': r.choice([0, 1, 1, 2, 3, 3, 8]),
+    return {'kind': r.choice([1, 1, 1, 2, 3, 3] if PM else [1, 1, 1, 2]), 'units': r.choice([0, 1, 1, 2, 3, 3, 8]),
             'player': store_ops(r, r.randrange(0, 16)) + shares(r), 'mission': store_ops(r, r.randrange(0, 16)) + shares(r),
-            'moves': [(r.choice('pm'), r.randrange(16)) for _ in range(r.randrange(1, 24))]}
+            'moves': [(r.choice('pm'), r.randrange(16)) for _ in range(r.randrange(1, 24))],
+            # PM's 0x480840 asks the game (vt+0x5c bases, vt+0x60 tons): a campaign's units and units x 300, a
+            # multiplayer round's 3 and its bonus tons, 3 and 0 for the others; any pair here.
+            'bases': r.choice([0, 1, 2, 3, 3, 8]), 'tons': r.choice([0.0, 37.5, 300.0, 600.0, 900.0, 1250.25, 2400.0])}
 
 
 def moves_setup(cfg):
-    out = [f"kind {cfg['kind']} {cfg['units']}"]
+    out = [f"kind {cfg['kind']} {cfg['units']}" + (f" {cfg['bases']} {cfg['tons']!r}" if PM else '')]
     for where in ('player', 'mission'):
         for op in cfg[where]:
             out.append(where + ' ' + ' '.join(str(x) for x in op))
@@ -883,7 +896,8 @@ def run_case(seed, verbose):
 
 
 def set_labs():
-    labs = weapon_labs(READER.read_bytes())
+    # Under PM's exe, PM's own weapons (its archive, read in its layout by twod_world.entries).
+    labs = weapon_labs((ROOT / 'game' / 'pm' / 'zbd' / 'reader.zbd' if PM else READER).read_bytes())
     table = (ctypes.c_float * (WEAPONS * 5))()
     present = (ctypes.c_uint8 * WEAPONS)()
     for i, lab in enumerate(labs):
@@ -916,6 +930,11 @@ def main():
     runs = int(args[0]) if args else 200
     first = int(args[1]) if len(args) > 1 else 0
     verbose = '--verbose' in sys.argv
+    if '--moves-only' in sys.argv:  # PM's 0x480840: MW3_EXE=pm pm_moved.py test_salvage --moves-only
+        labs = set_labs()
+        mpassed = sum(run_moves(seed, labs, verbose) for seed in range(first, first + runs))
+        print(f'moves: {mpassed}/{runs} runs identical')
+        return 0 if mpassed == runs else 1
     passed = mechs = 0
     for seed in range(first, first + runs):
         ok, cfg = run_case(seed, verbose)
