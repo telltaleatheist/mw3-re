@@ -1291,3 +1291,9 @@
 0x004c7950	folded	fd0 read: the same logic or PM's own AI port (zai_brain_pm.cpp names PM's addresses: the brain's helpers and the target classification with PM's lancemate bits; the brain's queries and team test on PM's layout, vtable slots moved)
 0x004c7980	folded	fd0 read: the same logic or PM's own AI port (zai_brain_pm.cpp names PM's addresses: the brain's helpers and the target classification with PM's lancemate bits; the brain's queries and team test on PM's layout, vtable slots moved)
 0x004e6330	folded	fd0 read: the same logic or PM's own AI port (zai_brain_pm.cpp names PM's addresses: the brain's helpers and the target classification with PM's lancemate bits; the brain's queries and team test on PM's layout, vtable slots moved)
+0x004fa210	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
+0x004fa5a0	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
+0x004d7060	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
+0x004d71e0	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
+0x004e03c0	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
+0x004ba820	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
