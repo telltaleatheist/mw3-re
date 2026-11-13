@@ -134,7 +134,7 @@ TEST(small_fixes_list_matches_its_gates) {
       {"Tripod turrets aim when facing straight up or down.", {{"mech3/turret.cpp", 1}}},
       {"A vehicle's gun stops at its true aiming limit.", {{"mech3/veh_controls.cpp", 1}}},
       {"A vehicle file with pitch and no roll keeps its pitch.", {{"mech3/veh_controls.cpp", 1}}},
-      {"The reticle locks past 800 m when the weapons reach.", {{"mech3/hud.cpp", 1}}},
+      {"The reticle locks and reads past 800 m when weapons reach.", {{"mech3/hud.cpp", 2}}},
       {"The mech lab offers the plain PPC the data defines.", {{"mech3/mech_names.cpp", 2}}},
       {"TAG's strike lands where the target is, not was.", {{"mech3/weapon.cpp", 1}}},
       {"A held beam stays on a moving mech after release.", {{"mech3/weapon.cpp", 1}}},

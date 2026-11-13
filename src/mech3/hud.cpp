@@ -1624,8 +1624,10 @@ void HudReticle::aim() {
   // FIX (bug): the pick ended at the far clip (800 m), short of an ER large
   // laser's 1000 m: in range, the reticle stayed green (W33; fixes.md).
   float e[3] = {b[0], b[1], b[2]};
+  float reach = far_z;  // what a miss reads in the zoom window
   if (zfix::options().small_fixes) {  // play: when a lock is had (the Small fixes list)
     const float range = k.group_range(k.mech_weapons(m));
+    if (range > reach) reach = range;  // as Pirate's Moon's 0x00445cf0 (weapon-ranges.md)
     const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
     const float len = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
     if (len > 0.0f && range > len)
@@ -1660,6 +1662,11 @@ void HudReticle::aim() {
     p = &h.point.x;
     const float d[3] = {a[0] - p[0], a[1] - p[1], a[2] - p[2]};
     set_hit(&h, std::sqrt((d[0] * d[0] + d[1] * d[1]) + d[2] * d[2]));
+  } else if (zfix::options().small_fixes) {
+    // FIX (bug), W33: at the sky the zoom window read 800 m whatever the
+    // group's range; the extended end and the farther of the two, as PM.
+    p = e;
+    set_miss(e, reach);
   } else {
     p = b;
     set_miss(b, far_z);
