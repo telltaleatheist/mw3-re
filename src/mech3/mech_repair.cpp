@@ -37,12 +37,14 @@ void RepairHooks::hud_reset(void* hud) {
   if (hud) static_cast<Hud*>(hud)->reset();
 }
 
-// Mech3.exe 1.2 @ 0x004154e0 (the dock's repair state, dt unused). The
+// Mech3.exe 1.2 @ 0x004154e0, Pirate's Moon 1.0 @ 0x00415fc0 (the dock's repair state, dt unused). The
 // internals, ammo, armour, coolant and jump fuel back; parts already
 // destroyed stay so (their set_internal / set_armor keep 0), heat is not
 // touched. Ammo comes from the store by need; any armour of the mech's
 // kind restores all of it, costing a half ton per half ton missing,
 // rounded, as far as the store has it (unlimited items cost nothing).
+// Pirate's Moon outside a campaign (Instant Action, Pirate Missions, multiplayer): every bin refilled by all it
+// lacks, free, and the armour left as it is; MW3 took both from the game's store there too.
 bool Mech::repair(float dt) {
   (void)dt;
   RepairHooks& h = *g_hooks;
@@ -51,12 +53,18 @@ bool Mech::repair(float dt) {
   for (int s = 0; s < 3; ++s) torso->set_internal(1.0f, s);
 
   Store* store = h.store();
+  const bool campaign = h.campaign();  // 0x00415fef
   auto* m = static_cast<WeaponManager*>(ammo);
   for (uint32_t i = 0; i < m->count; ++i) {
     Weapon* w = m->weapons[i];
     const int32_t index = w ? w->index : -1;
     if (index == -1 || !weapon_uses_ammo(index) || !w->bin) continue;
     int32_t need = w->bin->capacity() - w->bin->left();
+    if (!campaign) {
+      w->bin->add(need);
+      m = static_cast<WeaponManager*>(ammo);
+      continue;
+    }
     AmmoItem want;  // 0x0041ebd0
     want.weapon = w->def->type->id;
     want.count = 1;
@@ -79,11 +87,11 @@ bool Mech::repair(float dt) {
   want.equipment = config->ferro ? 2 : 1;
   want.tech = config->armor_tech;
   want.count = 1;
-  ConfigItem* found = store ? repair_store_find(store, want) : nullptr;
+  ConfigItem* found = campaign && store ? repair_store_find(store, want) : nullptr;
   // Ours (playtest W35): what the repair did with the armour, in the log.
   std::printf("mw3: repair: %s armour (%s, tech %d): %s\n", h.viewed(*this) ? "the player's" : "a mech's",
               config->ferro ? "ferro-fibrous" : "standard", static_cast<int>(config->armor_tech),
-              !store ? "no store (not a campaign): not restored"
+              !campaign ? "not a campaign: not restored" : !store ? "no store: not restored"
                      : found ? "restored from the store" : "none of that kind in the store: not restored");
   if (found) {
     // The armour left in points (each part's share times 100), summed as

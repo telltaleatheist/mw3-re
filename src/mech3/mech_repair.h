@@ -15,6 +15,9 @@ struct ConfigItem;
 class RepairHooks : public zgame::Unported {
  public:
   virtual Store* store();          // 0x00479430 on [0x0060861c]: the current game's (none: nothing taken)
+  // Pirate's Moon: whether the current game is a campaign (its type, vt+0x28, is 1); outside one the repair
+  // refills the ammo free and leaves the armour (0x00415fef).
+  virtual bool campaign();
   virtual bool viewed(Mech& m);    // [0x005f4c8c]+0x64 is the mech
   // The HUD (0x00430aa0 on +0x684), its weapon lines refreshed (0x00446520
   // on +0x6520) and its reset (0x0043be10).
