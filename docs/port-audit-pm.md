@@ -68,9 +68,9 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3835 |
-| unlabelled | 313 |
-| MISSING LOGIC | 271 |
+| folded | 3841 |
+| unlabelled | 306 |
+| MISSING LOGIC | 272 |
 | replaced (SDL or the platform layer) | 242 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 114 |
 | software renderer | 108 |
@@ -83,6 +83,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 - **0x00404780** (1 functions, 87 decomp lines; MISSING LOGIC): pm only, minor, visible: the briefing's buttons (MW3's 0x00404c30, BriefingScreen::on_button, briefing.cpp:398; the address map did not place it). Before MECHLAB (2) and SALVAGE (4) PM runs every step not yet done with 60 s (each step's vt+0, 60.0) and only then stops the script, so coming back the briefing shows its end (every marker and text in place); MW3 and the port stop where it was. ABORT (0) also sets the leaving flag +0x113ad when +0x113b4 is set (0x00404bf0) before going on; REPLAY (3) and LAUNCH (1) as MW3's; 7 shows the reallocation (0x00404650, in the pm port)
 - **0x00405f20** (1 functions, 71 decomp lines; MISSING LOGIC): pm only, visible: PM's briefing frame (MW3's 0x00406440, unpaired by the diff; briefing.cpp BriefingScreen::update) is MW3's but for the skip: on Space or S, PM first runs every step left in the script, from the one playing to the end, once each with 60 seconds (vt+0 with 60.0), then stops the voice and clears the script as MW3 does; MW3 and the port only stop (BriefingScript::stop). So skipping PM's briefing leaves the map as the whole script would have drawn it (its objects shown, lines and markers placed); the port leaves it where the skip came
+- **0x00407fb0** (1 functions, 52 decomp lines; MISSING LOGIC): pm only, minor: the Load State's resume (MW3's 0x004092e0, app_states.cpp: back from the lab with 4, the reallocation refreshed and shown, as the port). For Instant Action (the game's kind 2) PM then copies the line-up's mechs back into the action game's setup: slot 0's mech at +0x40, the others' at +0x48.., the rest of the five -1, so the Instant Action screen offers the mechs chosen in the lab next time; the port keeps the setup as the screen left it
 - **0x00408b20** (1 functions, 50 decomp lines; MISSING LOGIC): PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog
 - **0x00408d00, 0x005404f0** (2 functions, 40 decomp lines; MISSING LOGIC): PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
 - **0x0040b120** (1 functions, 47 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the object detail's level 2 sets the camera's LOD scale to 0.2 in PM (0x3e4ccccd), 0.4 in MW3 (options.cpp:260, cam_scale)
@@ -674,14 +675,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00407c20 | 39 | folded | covered by the port where it names it (src/mech3/briefing.cpp:915) |
 | 0x00407f10 | 39 | folded | group A, read: the same as MW3's 0x004091e0 plus PM's vt+0x64 call first (the game's start: Standalone's 0x0040e3f0, the base's reader open 0x004350c0, new in PM); the pm port makes it in load_state_enter (app_menus.cpp:838, 'vt+0x64 at 0x00407f38') with the reader opened by Missions (mission.cpp:407); the movie flag is the same one (MW3 0x00608c88 +0x1c1, PM 0x0062ca98 +0x1bd) |
 | 0x00407fa0 | 9 | folded | a thunk: one call to another function |
-| 0x00407fb0 | 52 | unlabelled |  |
+| 0x00407fb0 | 52 | MISSING LOGIC | pm only, minor: the Load State's resume (MW3's 0x004092e0, app_states.cpp: back from the lab with 4, the reallocation refreshed and shown, as the port). For Instant Action (the game's kind 2) PM then copies the line-up's mechs back into the action game's setup: slot 0's mech at +0x40, the others' at +0x48.., the rest of the five -1, so the Instant Action screen offers the mechs chosen in the lab next time; the port keeps the setup as the screen left it |
 | 0x00408080 | 29 | unlabelled |  |
-| 0x004080e0 | 15 | unlabelled |  |
+| 0x004080e0 | 15 | folded | the Load State's leave (MW3's 0x004093e0, app_states.cpp), read: the base leave, the briefing's abort steps (0x00404c20), the briefing screen deleted and cleared |
 | 0x00408120 | 111 | unlabelled |  |
 | 0x00408360 | 11 | folded | read: a range of 0x4d4-byte elements destroyed, each by its vt+0 (the STL's destroy), from the HUD 0x0043c900 and 0x00405ca0; the port's containers do it |
 | 0x00408390 | 19 | folded | as MW3 0x00437580: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
-| 0x004083e0 | 19 | unlabelled |  |
-| 0x00408430 | 21 | unlabelled |  |
+| 0x004083e0 | 19 | folded | list container helpers (each element deleted, by operator delete or its virtual destructor, then the node's pointer cleared; the port's std containers) |
+| 0x00408430 | 21 | folded | list container helpers (each element deleted, by operator delete or its virtual destructor, then the node's pointer cleared; the port's std containers) |
 | 0x004084f0 | 9 | folded | covered by the port where it names it (src/mech3/player_view.h:36) |
 | 0x00408510 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:108) |
 | 0x00408530 | 9 | folded | as MW3 0x0040a9e0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
@@ -689,12 +690,12 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00408550 | 22 | folded | covered by the port where it names it (src/mech3/player_view.h:99) |
 | 0x00408580 | 74 | folded | read: a std::vector<int>'s insert (the STL's), from the camera 0x004311e0 and the vehicle 0x004b0790; the port's vectors |
 | 0x00408740 | 39 | folded | as MW3 0x0040abf0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
-| 0x004087f0 | 38 | unlabelled |  |
-| 0x004088e0 | 9 | folded | follows 0x004fd5e0: ported: src/gamez/zclass/class.cpp / cls_node.cpp (MW3's 0x004eb9b0 / 0x004ebb40 / 0x004eba90: add and remove a child by the parent's class, and the link itself) as PM's: the same class switch over PM's per-class functions, the link's PM step (mark_moved, marked 0x004fd6f0 there) |
-| 0x00408920 | 11 | unlabelled |  |
+| 0x004087f0 | 38 | folded | MW3's 0x0040aca0 (PlayerView's constructor, player_view.h:253), read: the same fields and the horizon node found; PM's view class (vtable 0x005dee80) has more virtual slots, the entity base's (0x004b9470, MW3's 0x004b5060) small wrappers on the view's node: its node set (0x004088e0, zClass 0x004fd5e0), active read and set (0x00408900 / 0x00408920, bit 2 of +0x24 and 0x004fca50), the look kept at +0x7c and passed to the camera mode +0x58 (0x00408980), a sub-object's destructor (0x00408950); the port's view calls zClass on its node directly |
+| 0x004088e0 | 9 | folded | MW3's 0x0040aca0 (PlayerView's constructor, player_view.h:253), read: the same fields and the horizon node found; PM's view class (vtable 0x005dee80) has more virtual slots, the entity base's (0x004b9470, MW3's 0x004b5060) small wrappers on the view's node: its node set (0x004088e0, zClass 0x004fd5e0), active read and set (0x00408900 / 0x00408920, bit 2 of +0x24 and 0x004fca50), the look kept at +0x7c and passed to the camera mode +0x58 (0x00408980), a sub-object's destructor (0x00408950); the port's view calls zClass on its node directly |
+| 0x00408920 | 11 | folded | MW3's 0x0040aca0 (PlayerView's constructor, player_view.h:253), read: the same fields and the horizon node found; PM's view class (vtable 0x005dee80) has more virtual slots, the entity base's (0x004b9470, MW3's 0x004b5060) small wrappers on the view's node: its node set (0x004088e0, zClass 0x004fd5e0), active read and set (0x00408900 / 0x00408920, bit 2 of +0x24 and 0x004fca50), the look kept at +0x7c and passed to the camera mode +0x58 (0x00408980), a sub-object's destructor (0x00408950); the port's view calls zClass on its node directly |
 | 0x00408940 | 9 | folded | as MW3 0x0040a850: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
-| 0x00408950 | 12 | folded | as MW3 0x004104a0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
-| 0x00408980 | 24 | unlabelled |  |
+| 0x00408950 | 12 | folded | MW3's 0x0040aca0 (PlayerView's constructor, player_view.h:253), read: the same fields and the horizon node found; PM's view class (vtable 0x005dee80) has more virtual slots, the entity base's (0x004b9470, MW3's 0x004b5060) small wrappers on the view's node: its node set (0x004088e0, zClass 0x004fd5e0), active read and set (0x00408900 / 0x00408920, bit 2 of +0x24 and 0x004fca50), the look kept at +0x7c and passed to the camera mode +0x58 (0x00408980), a sub-object's destructor (0x00408950); the port's view calls zClass on its node directly |
+| 0x00408980 | 24 | folded | MW3's 0x0040aca0 (PlayerView's constructor, player_view.h:253), read: the same fields and the horizon node found; PM's view class (vtable 0x005dee80) has more virtual slots, the entity base's (0x004b9470, MW3's 0x004b5060) small wrappers on the view's node: its node set (0x004088e0, zClass 0x004fd5e0), active read and set (0x00408900 / 0x00408920, bit 2 of +0x24 and 0x004fca50), the look kept at +0x7c and passed to the camera mode +0x58 (0x00408980), a sub-object's destructor (0x00408950); the port's view calls zClass on its node directly |
 | 0x00408b20 | 50 | MISSING LOGIC | PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog |
 | 0x00408d00 | 25 | MISSING LOGIC | PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged |
 | 0x00408f40 | 145 | unlabelled |  |
@@ -5573,52 +5574,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005cc600 | 25 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:135) |
 | 0x005cc650 | 11 | folded | covered by the port where it names it (src/gamez/zsave/zsave.h:8) |
 
-### zdeclient (41 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00517ce0 | 53 | unlabelled |  |
-| 0x00517e90 | 179 | unlabelled |  |
-| 0x00518350 | 290 | unlabelled |  |
-| 0x005189f0 | 12 | folded | a thunk: one call to another function |
-| 0x00518a10 | 9 | folded | a thunk: one call to another function |
-| 0x00518ab0 | 15 | unlabelled |  |
-| 0x00518ad0 | 9 | folded | a thunk: one call to another function |
-| 0x00518c60 | 102 | unlabelled |  |
-| 0x005190d0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519190 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005192c0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005193e0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519910 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005199a0 | 197 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519cb0 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519d60 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519e20 | 28 | folded | as MW3 0x00501a40: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x00519e60 | 24 | folded | as MW3 0x00501a80: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x00519e90 | 17 | folded | read: a 13-word record copy (nothing for a null slot), container code |
-| 0x00519eb0 | 182 | unlabelled |  |
-| 0x0051a6d0 | 179 | unlabelled |  |
-| 0x0051ab70 | 280 | unlabelled |  |
-| 0x0051b1f0 | 8 | folded | returns a constant or a global |
-| 0x0051b270 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
-| 0x0051b280 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:258) |
-| 0x0051b2a0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:259) |
-| 0x0051b2c0 | 20 | unlabelled |  |
-| 0x0051b340 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | pm only, traced: PM's damage handler on an animation (0x0051b2c0, MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832) first runs 0x0051b340 on every hit: when the def has its second sequence (+0xd4, with events) it stamps the time ([0x008d3f68]), clears +0xb0 and runs that sequence from its start (0x0051fc00, 0x00520800: MW3's 0x00506f40, 0x005079b0); the port reads the sequence (AnimDef::pm_seq2, pm/gamez/zeffect/zeff_anim_init.cpp:126) but never runs it, and no shipped PM animation has one, so only a mod's would show it |
-| 0x0051c2f0 | 21 | unlabelled |  |
-| 0x0051c4d0 | 126 | unlabelled |  |
-| 0x0051deb0 | 23 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:625) |
-| 0x0051df10 | 138 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
-| 0x0051e720 | 14 | unlabelled |  |
-| 0x0051e750 | 48 | unlabelled |  |
-| 0x0051e890 | 42 | unlabelled |  |
-| 0x0051f750 | 40 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506bc0 with only offsets and sizes of PM's larger structures changed (0x13c->0x10c); calls, field counts and every other immediate and float constant as MW3's |
-| 0x0051f830 | 43 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506ca0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
-| 0x0051fce0 | 145 | unlabelled |  |
-| 0x00520080 | 53 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
-| 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
-| 0x005207b0 | 8 | folded | returns a constant or a global |
-
 ### zfmv (41 not ported)
 
 | Address | Lines | Class | Why |
@@ -5664,6 +5619,52 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005beb50 | 52 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059ec40 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
 | 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x005becd0 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059edc0 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
+
+### zdeclient (41 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00517ce0 | 53 | unlabelled |  |
+| 0x00517e90 | 179 | unlabelled |  |
+| 0x00518350 | 290 | unlabelled |  |
+| 0x005189f0 | 12 | folded | a thunk: one call to another function |
+| 0x00518a10 | 9 | folded | a thunk: one call to another function |
+| 0x00518ab0 | 15 | unlabelled |  |
+| 0x00518ad0 | 9 | folded | a thunk: one call to another function |
+| 0x00518c60 | 102 | unlabelled |  |
+| 0x005190d0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519190 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005192c0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005193e0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519910 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005199a0 | 197 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519cb0 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519d60 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519e20 | 28 | folded | as MW3 0x00501a40: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00519e60 | 24 | folded | as MW3 0x00501a80: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00519e90 | 17 | folded | read: a 13-word record copy (nothing for a null slot), container code |
+| 0x00519eb0 | 182 | unlabelled |  |
+| 0x0051a6d0 | 179 | unlabelled |  |
+| 0x0051ab70 | 280 | unlabelled |  |
+| 0x0051b1f0 | 8 | folded | returns a constant or a global |
+| 0x0051b270 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
+| 0x0051b280 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:258) |
+| 0x0051b2a0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:259) |
+| 0x0051b2c0 | 20 | unlabelled |  |
+| 0x0051b340 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | pm only, traced: PM's damage handler on an animation (0x0051b2c0, MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832) first runs 0x0051b340 on every hit: when the def has its second sequence (+0xd4, with events) it stamps the time ([0x008d3f68]), clears +0xb0 and runs that sequence from its start (0x0051fc00, 0x00520800: MW3's 0x00506f40, 0x005079b0); the port reads the sequence (AnimDef::pm_seq2, pm/gamez/zeffect/zeff_anim_init.cpp:126) but never runs it, and no shipped PM animation has one, so only a mod's would show it |
+| 0x0051c2f0 | 21 | unlabelled |  |
+| 0x0051c4d0 | 126 | unlabelled |  |
+| 0x0051deb0 | 23 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:625) |
+| 0x0051df10 | 138 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
+| 0x0051e720 | 14 | unlabelled |  |
+| 0x0051e750 | 48 | unlabelled |  |
+| 0x0051e890 | 42 | unlabelled |  |
+| 0x0051f750 | 40 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506bc0 with only offsets and sizes of PM's larger structures changed (0x13c->0x10c); calls, field counts and every other immediate and float constant as MW3's |
+| 0x0051f830 | 43 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506ca0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
+| 0x0051fce0 | 145 | unlabelled |  |
+| 0x00520080 | 53 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
+| 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
+| 0x005207b0 | 8 | folded | returns a constant or a global |
 
 ### zweapon (33 not ported)
 
