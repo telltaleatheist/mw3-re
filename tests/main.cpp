@@ -48,6 +48,7 @@ pid_t fork_child() {
   std::fflush(nullptr);
   const pid_t child = fork();
   if (child == 0) {
+    failures = 0;  // the child counts its own checks: the parent's earlier failures would fail every later child
     const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd >= 0) {
       dup2(fd, 1), dup2(fd, 2);
