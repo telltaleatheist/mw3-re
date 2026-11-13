@@ -42,16 +42,24 @@ were then checked (tools/analysis/pm_layout_shift_uses.py): of the 72, 16 used o
 offset or a size before operator new; read, 15 were element sizes for the vector constructor and destructor
 iterators or a malloc wrapper, error-report line numbers, a stack frame's size or a record's stride, and
 one was a real value (0x0057a170, the static's noise table: 40000 bytes for 25600), taken off the rule.
+The compare up to 7f6e9e10 counted data references but did not flag them, and an unmapped string counted as
+"unmapped" whatever its text, so a function naming another string passed (0x00430a70: "mech_targeting" for
+MW3's "mech_%s"). It now keys each string of 4+ characters by its text (a source path by its file name),
+flags data references, and keeps apart what is no data: code addresses (exception handlers pushed),
+negatives (an SEH frame's -1) and values outside the image (flags). The 1,627 labels resting on the compare
+were rechecked with it: 20 flag a reference; 12 had been read already, of the other 8 seven are register
+reuse, a return written twice, a COMDAT-folded callback or the DirectInput data format (in MW3's .text), and
+one was real (0x00430a70, labelled missing). The layout-shift rule refuses a reference or string difference too.
 **Checked by test** means a passing PM differential test ran the
 function's body (a block trace of the emulator, per entry the test calls) and compares what that body
 produces; the label names the compared value. Reaching a function, or running a caller, is not enough.
 
 | Class | Functions |
 |---|---|
-| folded | 3286 |
-| unlabelled | 978 |
+| folded | 3298 |
+| unlabelled | 963 |
 | replaced (SDL or the platform layer) | 233 |
-| MISSING LOGIC | 194 |
+| MISSING LOGIC | 197 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 112 |
 | software renderer | 106 |
 | debug or dev tool: PORT (preserve) | 86 |
@@ -69,6 +77,8 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00415940, 0x005a35f0** (2 functions, 206 decomp lines; MISSING LOGIC): pm only, minor (a mech deleted mid-mission: a network player leaving): PM's mech destructor (0x00415940, MW3's 0x00414f40, mech_build.cpp:225) first clears the owner (+0x6c, +0x70, +0x74) of every live shot that mech fired (0x005a35f0 over zWeapon's pools); MW3 and the port do not (all three free the node's handler table: MW3 0x00583400, PM 0x005a4de0, the port app_mech.cpp:848), so a shot outliving its mech keeps the gone owner. To check: whether the port's shot reads that owner afterwards (its hit credit, its tether)
 - **0x0041c630** (1 functions, 21 decomp lines; MISSING LOGIC): as MW3 0x0041b930: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
 - **0x0041c680** (1 functions, 22 decomp lines; MISSING LOGIC): as MW3 0x0041b980: the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
+- **0x00428940, 0x004289d0** (2 functions, 31 decomp lines; MISSING LOGIC): PM's controls primary vt+0x1c (new; MW3 has no such slot): zero every input but the throttle and its target (+0x10, +0x44); the player's 0x004289d0 also the look (+0x158..+0x164). Its one caller is the resume's new case 8 (0x00483de0, after the input reset 0x005349d0), which is the pause menu's resume (0x00496220 pops 8, MW3's 6). So back from the pause PM drops held turn, twist, pitch and jet inputs and keeps the throttle; MW3 keeps them. The port's CoreState::resume carries PM's 4 and 9 only (its 0x00483de0 comment covers those)
+- **0x00430a70** (1 functions, 60 decomp lines; MISSING LOGIC): read (the feature compare's string check flagged it): MW3's 0x004306d0 (mech_data.cpp load_sounds) with sound slot 24 (+0x88) found as "mech_targeting" (PM's reader.zbd: 0064.wav) where MW3 builds "mech_<name>"; slot 24 is the target sound played on a newly targeted mech (app_hud.cpp program_hud_target_set, 0x18). The pm port keeps MW3's name, so PM's targeting sound never plays; the other 24 names as MW3's
 - **0x00430c10** (1 functions, 97 decomp lines; MISSING LOGIC): read after the feature compare (7f6e9e10) flagged it: pm only, low object detail (the option at 2; PM's mech build sets [0x006293a8] = (0x0040b1e0 == 2), the flag the pm port keeps as lod_table().low): PM's mech data then loads only the mechlib model's variant 1 (0x00430c10, MW3 0x004308a0: both variants, the second's slot cleared) and resamples each gait to 15 keys (0x00431730, MW3's 60) and each action to 10 (0x00431a00, MW3's 20); the port's mech_data_load, load_gait and load_action_motion (mech_data.cpp:354, kGaitFrames 60, kActionFrames 20) are MW3's at every detail. With the other low-detail pieces (0x00492830's)
 - **0x004311e0** (1 functions, 228 decomp lines; MISSING LOGIC): PM values the shared port keeps as MW3's (pm only): the god camera (mode 3) at 120 m and pitched -81 degrees (-1.413716) in PM, 150 m and -90 degrees in MW3 (player_view.cpp:446-447)
 - **0x00432e40** (1 functions, 20 decomp lines; MISSING LOGIC): pm only, with PM's mech destructor (0x00415940's row): before the mech's node trees are freed, PM stops every animation using any node of them (this walk, each node through 0x0051f750 = MW3's 0x00506bc0 with 1, 1: zeff::anim_stop_using), on the mech's own tree and its +0x6b8 / +0x6bc trees, and in 0x004335c0 (MW3's 0x00413db0); MW3's destructor and the port's mech teardown stop none (the field base does, mech_fieldbase.cpp:333). Effect: an animation on a deleted mech's nodes (a network player leaving, a mech removed) runs on in MW3 and the port
@@ -943,7 +953,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00420530 | 25 | folded | covered by the port where it names it (src/mech3/mech_anim.h:27) |
 | 0x00420930 | 27 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
 | 0x00420a50 | 17 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
-| 0x00420aa0 | 87 | unlabelled |  |
+| 0x00420aa0 | 87 | folded | read: MW3's 0x0041fd30 (mech_anim.cpp: the foot-down search over the loop) with its frame set (MW3's 0x004212c0) written inline and the tolerance test 0x00420f10 = MW3's 0x0041fef0; the same search |
 | 0x00420e40 | 42 | folded | checked by test (block trace, 2026-11-13): test_pm_mechanim runs it (the animation objects and samplers compared); the compare passes it |
 | 0x00420f10 | 15 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:378) |
 | 0x004210d0 | 23 | folded | group A, read: PM does the dropped helpers' work in place: MW3's small getters and setters (of +4, +8, +0xc, +0x10) appear inline in PM's body with the same fields; the rest as MW3's (mech_anim's gait, the briefing's shown test) |
@@ -956,7 +966,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00421a60 | 31 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
 | 0x00421bd0 | 18 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
 | 0x00421ce0 | 16 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
-| 0x00421e00 | 40 | unlabelled |  |
+| 0x00421e00 | 40 | folded | read after the feature compare's flags: MW3's twin (0x00420d00, mech_anim.cpp; 0x00422ef0 and 0x00423010, mech_collide.cpp: the walls' segment query on the mech's points and its hits taken) with PM's layout: the segment hits are PM's 0x2c-byte records with their owner (the stack frame 0x856c for 0x7968, the record arithmetic), which the port's SegmentHit carries (cls_di.h:40) |
 | 0x00421ef0 | 22 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:639) |
 | 0x00421f60 | 21 | folded | covered by the port where it names it (src/mech3/mech_data.cpp:548) |
 | 0x00421fc0 | 20 | folded | group A, read: PM does the dropped helpers' work in place: MW3's small getters and setters (of +4, +8, +0xc, +0x10) appear inline in PM's body with the same fields; the rest as MW3's (mech_anim's gait, the briefing's shown test) |
@@ -966,27 +976,27 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00422410 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00422430, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00422430 | 10 | folded | as MW3 0x004215c0: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x004225e0 | 74 | unlabelled |  |
-| 0x00422940 | 46 | unlabelled |  |
-| 0x00422cd0 | 111 | unlabelled |  |
+| 0x00422940 | 46 | folded | read: MW3's 0x00421ad0 (player_view.cpp, the view-mode switch); the asm passes the same 1/0 to the animations' cockpit flag (0x0051b270 = MW3's 0x00502da0, ECX there, pushed here) in each case; the controls flag test inverted with its branches swapped, cases 3 and 5 written twice, the pilot's vt+0x50 at +0x58 and the mech's +0x37c/+0x578 at +0x38c/+0x59c (layout) |
+| 0x00422cd0 | 111 | folded | read: MW3's 0x00421e40 (player_view.cpp, the camera step); x - f*-0.2 written f*0.2 + x, the matrix calls' register arguments made explicit, the zero-distance test inverted with the final transform written into both branches (the one extra call), the controls at +0x3ac/+0xac for +0x39c/+0xa4 (layout) |
 | 0x00423270 | 9 | folded | a thunk: one call to another function |
 | 0x00423280 | 9 | folded | a thunk: one call to another function |
 | 0x004232a0 | 40 | folded | folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 7f6e9e10, docs/port-audit-pm.md method): the text differs only in register allocation, calling convention or layout |
 | 0x00424030 | 80 | folded | the collider's hit records given back to the free list [0x006293bc] after each query (the chains at +0x110..+0x124): memory housekeeping the port's containers do themselves (mech_collide.cpp:401's port) |
-| 0x004243f0 | 50 | unlabelled |  |
-| 0x00424520 | 89 | unlabelled |  |
+| 0x004243f0 | 50 | folded | read after the feature compare's flags: MW3's twin (0x00420d00, mech_anim.cpp; 0x00422ef0 and 0x00423010, mech_collide.cpp: the walls' segment query on the mech's points and its hits taken) with PM's layout: the segment hits are PM's 0x2c-byte records with their owner (the stack frame 0x856c for 0x7968, the record arithmetic), which the port's SegmentHit carries (cls_di.h:40) |
+| 0x00424520 | 89 | folded | read after the feature compare's flags: MW3's twin (0x00420d00, mech_anim.cpp; 0x00422ef0 and 0x00423010, mech_collide.cpp: the walls' segment query on the mech's points and its hits taken) with PM's layout: the segment hits are PM's 0x2c-byte records with their owner (the stack frame 0x856c for 0x7968, the record arithmetic), which the port's SegmentHit carries (cls_di.h:40) |
 | 0x00424710 | 9 | folded | a thunk: one call to another function |
 | 0x00424720 | 9 | folded | a thunk: one call to another function |
 | 0x00425660 | 8 | folded | returns a constant or a global |
 | 0x00425c60 | 20 | folded | checked by test (block trace, 2026-11-13): test_pm_config calls it directly on every loadout and random changes, its answer compared (and under validate 0x00427360, which loadouts survive) |
 | 0x00425d80 | 18 | folded | inside its ported callers (0x00426000): a small helper their ports do their own way |
 | 0x00425de0 | 18 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:590) |
-| 0x00425e40 | 53 | unlabelled |  |
-| 0x004262a0 | 22 | unlabelled |  |
+| 0x00425e40 | 53 | folded | ported: src/mech3/mech_config.cpp Config::save (MW3's 0x00424480) writes PM's magic 0xffffffff (0x00604664) and version 16 (0x00425660) first, then the name (0x00597210) and MW3's fields; the checksum 0x00427420 = MW3's 0x004255a0 |
+| 0x004262a0 | 22 | folded | read: MW3's 0x00424760 (armor points); PM loads 1.12, 1.2 and 16.0001 as floats where MW3 has 1.12 as a double; floor(k * tons) agrees for every quarter ton 0..500, both techs, at 53 and 24 bits (computed), so the port's MW3 form (mech_names.cpp armor_points) plays the same |
 | 0x004262f0 | 204 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x004247a0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x00426600 | 33 | folded | checked by test (block trace, 2026-11-13): test_pm_puton runs it (the put rule per row, the events, armour, loadout items and store compared) |
 | 0x00426680 | 11 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:371) |
 | 0x004266a0 | 11 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:2001) |
-| 0x004267f0 | 130 | unlabelled |  |
+| 0x004267f0 | 130 | folded | ported: src/mech3/mech_config.cpp ConfigList::load_saved (MW3's 0x00424b70) with PM's version 16 (kConfigVersion); the entry's name passed explicitly (0 past the count, unreachable), the vector growth helpers by other addresses |
 | 0x00426b80 | 11 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:879) |
 | 0x00426bd0 | 52 | folded | folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 7f6e9e10, docs/port-audit-pm.md method): the text differs only in register allocation, calling convention or layout |
 | 0x00427020 | 63 | folded | as MW3 0x004251d0: covered where the port does it: src/mech3/mech_config.cpp:698 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -1001,9 +1011,9 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00428000 | 19 | folded | inside its ported callers (0x0044a010): a small helper their ports do their own way |
 | 0x00428190 | 21 | folded | as MW3 0x00426440: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x004281c0 | 24 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
-| 0x00428200 | 40 | unlabelled |  |
+| 0x00428200 | 40 | folded | ported: src/mech3/mech_control.cpp (MW3's 0x004265a0 / 0x00427320, PlayerControls::construct) with PM's IControls base 0x004b2950 (zai_attackers_pm.cpp: the attackers list 0x004b2580) in place of MW3's inline base; the rest the same stores |
 | 0x004282b0 | 9 | folded | covered by the port where it names it (src/mech3/mech_build.h:99) |
-| 0x004285d0 | 58 | unlabelled |  |
+| 0x004285d0 | 58 | folded | ported: src/mech3/mech_control.cpp MechControls::update (MW3's 0x00426960); MW3's direct zero 0x00426c80 is PM's vt+0x18 (0x00428910, the player's 0x004289a0 also the look), which the port's virtual zero() follows; the owner and its +0xde/+0x538 at -0x40/+0xe2/+0x54c (layout) |
 | 0x00428750 | 11 | folded | read: a this-adjusting thunk (multiple inheritance: the object 0x60 back, its vt+0x18), the compiler's; the port's classes |
 | 0x00428760 | 8 | folded | returns a constant or a global |
 | 0x00428770 | 8 | folded | returns a constant or a global |
@@ -1012,11 +1022,11 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004287b0 | 9 | folded | a thunk: one call to another function |
 | 0x004287d0 | 11 | folded | covered by the port where it names it (src/mech3/mech_control.cpp:508) |
 | 0x00428880 | 14 | folded | as MW3 0x00426bf0: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
-| 0x00428940 | 18 | unlabelled |  |
-| 0x004289d0 | 13 | unlabelled |  |
+| 0x00428940 | 18 | MISSING LOGIC | PM's controls primary vt+0x1c (new; MW3 has no such slot): zero every input but the throttle and its target (+0x10, +0x44); the player's 0x004289d0 also the look (+0x158..+0x164). Its one caller is the resume's new case 8 (0x00483de0, after the input reset 0x005349d0), which is the pause menu's resume (0x00496220 pops 8, MW3's 6). So back from the pause PM drops held turn, twist, pitch and jet inputs and keeps the throttle; MW3 keeps them. The port's CoreState::resume carries PM's 4 and 9 only (its 0x00483de0 comment covers those) |
+| 0x004289d0 | 13 | MISSING LOGIC | PM's controls primary vt+0x1c (new; MW3 has no such slot): zero every input but the throttle and its target (+0x10, +0x44); the player's 0x004289d0 also the look (+0x158..+0x164). Its one caller is the resume's new case 8 (0x00483de0, after the input reset 0x005349d0), which is the pause menu's resume (0x00496220 pops 8, MW3's 6). So back from the pause PM drops held turn, twist, pitch and jet inputs and keeps the throttle; MW3 keeps them. The port's CoreState::resume carries PM's 4 and 9 only (its 0x00483de0 comment covers those) |
 | 0x00428a00 | 111 | folded | checked by test (block trace, 2026-11-13): test_pm_mech_build runs it down the mech's constructor chain (every block allocated compared byte by byte, the call traces) |
 | 0x00428f10 | 33 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00427280 with only offsets and sizes of PM's larger structures changed (0x160->0x18c); calls, field counts and every other immediate and float constant as MW3's |
-| 0x00428fd0 | 38 | unlabelled |  |
+| 0x00428fd0 | 38 | folded | ported: src/mech3/mech_control.cpp (MW3's 0x004265a0 / 0x00427320, PlayerControls::construct) with PM's IControls base 0x004b2950 (zai_attackers_pm.cpp: the attackers list 0x004b2580) in place of MW3's inline base; the rest the same stores |
 | 0x004290d0 | 31 | folded | covered by the port where it names it (src/mech3/mech_pocket.cpp:59) |
 | 0x00429560 | 170 | unlabelled |  |
 | 0x0042a110 | 13 | folded | ported, by docs/symbols.csv: ported: PlayerControls::set_record (IControls vt+0x88) |
@@ -1123,7 +1133,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00430650 | 9 | folded | a thunk: one call to another function |
 | 0x004306e0 | 16 | unlabelled |  |
 | 0x00430710 | 9 | folded | a thunk: one call to another function |
-| 0x00430a70 | 60 | unlabelled |  |
+| 0x00430a70 | 60 | MISSING LOGIC | read (the feature compare's string check flagged it): MW3's 0x004306d0 (mech_data.cpp load_sounds) with sound slot 24 (+0x88) found as "mech_targeting" (PM's reader.zbd: 0064.wav) where MW3 builds "mech_<name>"; slot 24 is the target sound played on a newly targeted mech (app_hud.cpp program_hud_target_set, 0x18). The pm port keeps MW3's name, so PM's targeting sound never plays; the other 24 names as MW3's |
 | 0x00430c10 | 97 | MISSING LOGIC | read after the feature compare (7f6e9e10) flagged it: pm only, low object detail (the option at 2; PM's mech build sets [0x006293a8] = (0x0040b1e0 == 2), the flag the pm port keeps as lod_table().low): PM's mech data then loads only the mechlib model's variant 1 (0x00430c10, MW3 0x004308a0: both variants, the second's slot cleared) and resamples each gait to 15 keys (0x00431730, MW3's 60) and each action to 10 (0x00431a00, MW3's 20); the port's mech_data_load, load_gait and load_action_motion (mech_data.cpp:354, kGaitFrames 60, kActionFrames 20) are MW3's at every detail. With the other low-detail pieces (0x00492830's) |
 | 0x00430e60 | 69 | unlabelled |  |
 | 0x00431020 | 22 | folded | checked by test (block trace, 2026-11-13): test_pm_mech_build runs it down the mech's constructor chain (every block allocated compared byte by byte, the call traces) |

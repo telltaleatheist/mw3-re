@@ -18,8 +18,9 @@ can move, as multisets over the function's instructions:
   are: an added read or write, or an access moved to another field, shows there
   where a layout's shift does not.
 
---flag marks a function when a call, an immediate above 1, a float constant or
-a field count differs. A re-read the compiler did not keep in a register
+--flag marks a function when a call, a data reference, a string (unmapped
+strings compared by their text), an immediate above 1, a float constant or a
+field count differs. A re-read the compiler did not keep in a register
 also changes the count, so a flag is a reason to read, not a finding. Each function is Ghidra's body (pm-decomp/functions.jsonl,
 pm-diff/mw3/functions.jsonl: its ranges). Reads analysis-output/{pm.asm,
 mech3.asm,pm-decomp,pm-diff} and the two exes under game/ (git-ignored).
@@ -102,6 +103,8 @@ def image(path):
     return read
 
 
+TEXT_END = {'mw3': 0x5bb000, 'pm': 0x5de000}  # .rdata's start: below it, code
+IN_IMAGE = {'mw3': lambda v: 0x400000 <= v < 0x9f5000, 'pm': lambda v: 0x400000 <= v < 0xb14000}  # to .rsrc's end
 EXE = {'pm': image(ROOT / 'game/pm/Mech3.exe'), 'mw3': image(ROOT / 'game/mw3-1.2/Mech3.exe')}
 OFF = re.compile(r'\[(\w+)(?: \+ \w+\*\d)? ([+-]) (0x[0-9a-f]+)\]')
 IMM = re.compile(r'(?<![+\-\[] )(?<!\[)\b(0x[0-9a-f]+)\b(?!\])')
@@ -132,9 +135,18 @@ def features(game, addr):
             kind = 'call ' if mn == 'call' else 'ref '
             if v >= 0x400000:
                 if game == 'mw3':
-                    c[kind + FM.get(hex(v), 'unmapped')] += 1
+                    k = kind + FM.get(hex(v), 'unmapped')
                 else:
-                    c[kind + (hex(v) if hex(v) in PMF else 'unmapped')] += 1
+                    k = kind + (hex(v) if hex(v) in PMF else 'unmapped')
+                if kind == 'ref ':
+                    k = string_key(game, v) or k  # strings by their text, mapped or not
+                    if k == 'ref unmapped' and v >= 0x80000000:
+                        k = 'neg'  # -1 and other negatives, not addresses (an SEH frame's -1)
+                    elif k == 'ref unmapped' and v < TEXT_END[game]:
+                        k = 'code unmapped'  # an exception handler pushed, a thunk: not data
+                    elif k == 'ref unmapped' and not IN_IMAGE[game](v):
+                        k = 'big imm'  # a large flag or count, no address (0x2000000)
+                c[k] += 1
             else:
                 c['imm ' + m.group(1)] += 1
         if mn.startswith('f'):
@@ -151,12 +163,27 @@ def features(game, addr):
     return c
 
 
+def string_key(game, v):
+    """'str <text>' when v holds a NUL-terminated printable string of 4+ characters (3 printable
+    bytes and a NUL are as often a pointer); a source path by its file name (PM's tree is branchep1)."""
+    b = EXE[game](v, 80)
+    if not b or b'\0' not in b:
+        return None
+    t = b.split(b'\0')[0]
+    if len(t) < 4 or any(x < 0x20 or x > 0x7e for x in t if x not in (9, 10, 13)):
+        return None
+    t = t.decode('latin1')
+    if re.match(r'[A-Za-z]:\\', t):
+        t = t.rsplit('\\', 1)[-1]
+    return 'str ' + t
+
+
 def compare(pm):
     mw = TWIN[pm]
     fp, fw = features('pm', pm), features('mw3', mw)
     diff = [(k, fw[k], fp[k]) for k in sorted(set(fp) | set(fw)) if fw[k] != fp[k]]
     flagged = [k for k, _, _ in diff
-               if k.startswith('call') or k.startswith('const') or k.startswith('field')
+               if k.startswith('call') or k.startswith('const') or k.startswith('field') or k.startswith('ref') or k.startswith('str')
                or (k.startswith('imm') and int(k.split()[1], 16) > 1)]
     return mw, diff, flagged
 

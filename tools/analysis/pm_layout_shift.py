@@ -36,7 +36,7 @@ def shift_only(pm):
             kind, val = k.split()[1], float(k.split()[2])
             const.setdefault((kind, abs(val)), [0, 0])
             const[(kind, abs(val))][0 if val < 0 else 1] += (p - w)
-        elif k.startswith('call') or k.startswith('field'):
+        elif k.startswith(('call', 'field', 'ref', 'str')):
             return False
     # each float constant's change is its sign only: as many negatives gone as positives come, or the reverse
     for (_, _), (neg, pos) in const.items():
