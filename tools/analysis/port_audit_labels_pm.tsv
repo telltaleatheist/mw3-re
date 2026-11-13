@@ -412,9 +412,6 @@
 0x004a7420	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x004ab480	unsure	group A: paired by its call site with MW3 0x004a7f30 (the shared port's call there); a changed pair, settled by group A's rules
 0x004b6e80	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-0x004c51e0	unsure	group A: paired by its call site with MW3 0x004be300 (the shared port's call there); a changed pair, settled by group A's rules
-0x004cb840	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-0x004ecaa0	unsure	group A: paired by its call site with MW3 0x004db8d0 (the shared port's call there); a changed pair, settled by group A's rules
 0x00506390	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x0050a550	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x0050b1c0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
@@ -507,16 +504,6 @@
 0x004bd6f0	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
 0x004bd760	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
 0x004c2330	unsure	read with group A: a callee of shared ports PM changed (0x004c1cb0); whether the port does PM's version, this call included, is settled there
-0x004c6f10	unsure	read with group A: a callee of shared ports PM changed (0x004c7910); whether the port does PM's version, this call included, is settled there
-0x004de9c0	unsure	read with group A: a callee of shared ports PM changed (0x004dd5e0); whether the port does PM's version, this call included, is settled there
-0x004de9d0	unsure	read with group A: a callee of shared ports PM changed (0x004dd5e0, 0x004faff0); whether the port does PM's version, this call included, is settled there
-0x004e3b50	unsure	read with group A: a callee of shared ports PM changed (0x004cd2f0); whether the port does PM's version, this call included, is settled there
-0x004e63e0	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there
-0x004e65d0	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there
-0x004e6840	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there
-0x004e9230	unsure	read with group A: a callee of shared ports PM changed (0x004f0830); whether the port does PM's version, this call included, is settled there
-0x004ef160	unsure	read with group A: a callee of shared ports PM changed (0x004ec240, 0x005661b0); whether the port does PM's version, this call included, is settled there
-0x004f3390	unsure	read with group A: a callee of shared ports PM changed (0x004f35c0); whether the port does PM's version, this call included, is settled there
 0x004f4d60	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
 0x004f6f00	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
 0x004f8e30	unsure	read with group A: a callee of shared ports PM changed (0x004f8f60); whether the port does PM's version, this call included, is settled there
@@ -644,9 +631,6 @@
 0x004112a0	unsure	the setter sweep: it writes [0x00627d70], [0x00627d74], [0x00627d78], [0x00627d7c], which the port never names, so folding it into its caller is not shown; [0x00627d70] read by nothing found; [0x00627d74] read by 0x411300, 0x4113f0, 0x411650, 0x411800, 0x411820; [0x00627d78] read by 0x411300, 0x4113f0, 0x411800; [0x00627d7c] read by 0x4113f0
 0x00413c40	unsure	the setter sweep: it writes [0x00628b48], which the port never names, so folding it into its caller is not shown; [0x00628b48] read by 0x413df0
 0x00430620	unsure	the setter sweep: it writes [0x006293e0], [0x006293e4], [0x006293e8], which the port never names, so folding it into its caller is not shown; [0x006293e0] read by nothing found; [0x006293e4] read by 0x430790, 0x430800, 0x430930, 0x431080, 0x431120; [0x006293e8] read by 0x430790, 0x431120, 0x431ce0, 0x431d70
-0x004d0cc0	unsure	the setter sweep: it writes [0x0062fa88], which the port never names, so folding it into its caller is not shown; [0x0062fa88] read by 0x4d0ee0
-0x004d2e40	unsure	the setter sweep: it writes [0x0062fb04], which the port never names, so folding it into its caller is not shown; [0x0062fb04] read by nothing found
-0x004d2f80	unsure	the setter sweep: it writes [0x0062fadc], which the port never names, so folding it into its caller is not shown; [0x0062fadc] read by 0x4d60d0, 0x4d64e0
 0x0051b270	unsure	the setter sweep: it writes [0x008d3f3c], which the port never names, so folding it into its caller is not shown; [0x008d3f3c] read by 0x51fce0
 0x00526970	unsure	the setter sweep: it writes [0x0060f684], which the port never names, so folding it into its caller is not shown; [0x0060f684] read by 0x526310, 0x526450, 0x5266b0, 0x526860, 0x526990
 0x00526980	unsure	the setter sweep: it writes [0x0060f688], which the port never names, so folding it into its caller is not shown; [0x0060f688] read by 0x526310, 0x526450, 0x5266b0, 0x526860, 0x526990
@@ -2553,3 +2537,19 @@
 0x00598230	missing	pm only, renderer, known: the script command MipBias (common.gw's MipBias -1) sets Direct3D's mip bias, clamped, with the state's dirty bit 4; the port reads the words and applies nothing (zinterp_parse.cpp:511), listed in docs/fixes.md as not reproduced yet, a candidate for Owen with the renderer's filtering
 0x005aaba0	folded	traced: MW3's 0x00589e30 with the same body (the network's held object released after its last use, through its vt+8), called from the same place in MW3's lobby scores 0x00498550 as from PM's 0x0049b730; the port's network layer keeps no such object
 0x004832e0	debug	traced: the Pre Lab State (state 7, the debug menu's Mech Lab, app_states.cpp:257): the pilot's current slot (vt+0x30 in PM, +0x34 in MW3; the lab fill reads the same entry's +0x04 as its mech) gets mech 5 in PM, 3 in MW3, through the shared +0x04 setter 0x005a2ba0, then the lab; the port passes 3 to lab_start, which is unported on both games, so the debug route sets no mech either way
+0x004c6f10	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label
+0x004d0cc0	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label
+0x004d2e40	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label
+0x004d2f80	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label
+0x004de9c0	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label
+0x004e9230	folded	the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label
+0x004e6840	folded	read: the next-ally key (PM's command 0x47; MW3's 0x46 runs 0x004d64b0, the port's AiTarget::next_ally, zai_target.h:97), unpaired by the diff: the same scan forward from the target, the same per-side tests (mode 2 when both fail, modes past 2 pass), the same wrap-round scan and the nearest-ally fallback (0x004e6df0, MW3's 0x004d6970); PM's loops break where MW3's set flags, and the target set is one vtable slot on (+0xcc)
+0x004e63e0	folded	read: the previous-ally / previous-enemy keys (PM's commands 0x4d, 0x4e; MW3's 0x4d5ee0 and 0x4d6260, the port's prev_ally / prev_enemy, zai_target.h:95-96), unpaired by the diff: the mirror of the next key 0x004e6840 (read whole, the same logic), with the same differences (PM's loops break where MW3's set flags, the side tests 0x004e6a50 / 0x004e6a80 inlined in places, the target set at +0xcc)
+0x004e65d0	folded	read: the previous-ally / previous-enemy keys (PM's commands 0x4d, 0x4e; MW3's 0x4d5ee0 and 0x4d6260, the port's prev_ally / prev_enemy, zai_target.h:95-96), unpaired by the diff: the mirror of the next key 0x004e6840 (read whole, the same logic), with the same differences (PM's loops break where MW3's set flags, the side tests 0x004e6a50 / 0x004e6a80 inlined in places, the target set at +0xcc)
+0x004cb840	folded	read: the inout state's polygon walk (0x004ce020, MW3's 0x004c3bd0 with the walk inline): each polygon whose name matches is marked tested when its kind is the message's (0x004cb780 / 0x004cb7b0), as the port's inout_set_state (zainet_inout.cpp:792)
+0x004e3b50	folded	read: a container element's copy (a vector's construct: 3 or 2 words, nothing for a null slot); the port's containers
+0x004ef160	folded	read: a container element's copy (a vector's construct: 3 or 2 words, nothing for a null slot); the port's containers
+0x004de9d0	folded	read: the same, but the sub-object it points to is at +0xffc in PM's mech (MW3's +0xf70), its layout
+0x004c51e0	folded	read: the net compile (MW3 0x004be300 from 0x004be670), ported with PM's changes (zainetedit.cpp:419: the via-node net 0x004c7a10, has_vias); its extra calls are those and PM's allocator
+0x004f3390	folded	read: the valve file's release (zrdrvalve.cpp:573), the same frees; PM frees each through 0x004f3370 (free and clear) where MW3 inlines them
+0x004ecaa0	folded	read: the editor's net node text writer (MW3 0x004db8d0), PM's with three more properties (via, terminus, static_mfb); the port writes nets with its own writer (net_save.h:25), which writes those three (net_save.cpp:155-161)

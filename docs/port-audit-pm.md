@@ -29,10 +29,10 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 2491 |
+| folded | 2507 |
 | unlabelled | 1727 |
 | replaced (SDL or the platform layer) | 223 |
-| UNSURE | 213 |
+| UNSURE | 197 |
 | MISSING LOGIC | 123 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 106 |
 | software renderer | 106 |
@@ -423,7 +423,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x00475b20 (1 functions, 35 decomp lines): read with group A: a callee of shared ports PM changed (0x00476750); whether the port does PM's version, this call included, is settled there
 - 0x004773a0 (1 functions, 23 decomp lines): read with group A: a callee of shared ports PM changed (0x00430c10); whether the port does PM's version, this call included, is settled there
 - 0x0047b740 (1 functions, 17 decomp lines): read with group A: a callee of shared ports PM changed (0x004916c0, 0x00492490, 0x00494e70); whether the port does PM's version, this call included, is settled there
-- 0x0047be40, 0x004a7420, 0x004b6e80, 0x004cb840, 0x00506390, 0x0050a550, 0x0050b1c0, 0x0050c3b0, 0x00515e40, 0x00533320, 0x00534380, 0x005a39c0 (12 functions, 356 decomp lines): group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+- 0x0047be40, 0x004a7420, 0x004b6e80, 0x00506390, 0x0050a550, 0x0050b1c0, 0x0050c3b0, 0x00515e40, 0x00533320, 0x00534380, 0x005a39c0 (11 functions, 341 decomp lines): group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 - 0x0047c800 (1 functions, 19 decomp lines): read with group A: a callee of shared ports PM changed (0x004938e0); whether the port does PM's version, this call included, is settled there
 - 0x00482240 (1 functions, 31 decomp lines): group A, read: PM's app defaults (0x0047fb80's): no default mech name where MW3 sets 'bushwacker' (app.cpp:72 keeps it), the flags on PM's layout (+0x1a8.. ones, three 1.0 floats); the default mech reaches only a start straight into a mission
 - 0x004822c0, 0x00485d50 (2 functions, 18 decomp lines): read with group A: a callee of shared ports PM changed (0x004824d0); whether the port does PM's version, this call included, is settled there
@@ -455,11 +455,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x004b9390 (1 functions, 17 decomp lines): read with group A: a callee of shared ports PM changed (0x004b5330); whether the port does PM's version, this call included, is settled there
 - 0x004ba030, 0x004ba190, 0x004ba340, 0x004bbf20, 0x004bd6f0, 0x004bd760 (6 functions, 285 decomp lines): read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
 - 0x004c2330 (1 functions, 14 decomp lines): read with group A: a callee of shared ports PM changed (0x004c1cb0); whether the port does PM's version, this call included, is settled there
-- 0x004c51e0 (1 functions, 146 decomp lines): group A: paired by its call site with MW3 0x004be300 (the shared port's call there); a changed pair, settled by group A's rules
-- 0x004c6f10 (1 functions, 9 decomp lines): read with group A: a callee of shared ports PM changed (0x004c7910); whether the port does PM's version, this call included, is settled there
-- 0x004d0cc0 (1 functions, 10 decomp lines): the setter sweep: it writes [0x0062fa88], which the port never names, so folding it into its caller is not shown; [0x0062fa88] read by 0x4d0ee0
-- 0x004d2e40 (1 functions, 11 decomp lines): the setter sweep: it writes [0x0062fb04], which the port never names, so folding it into its caller is not shown; [0x0062fb04] read by nothing found
-- 0x004d2f80 (1 functions, 9 decomp lines): the setter sweep: it writes [0x0062fadc], which the port never names, so folding it into its caller is not shown; [0x0062fadc] read by 0x4d60d0, 0x4d64e0
 - 0x004d4000 (1 functions, 12 decomp lines): as MW3 0x004c9140: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d4080 (1 functions, 55 decomp lines): as MW3 0x004c9180: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d4170 (1 functions, 20 decomp lines): as MW3 0x004c9260: the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots
@@ -472,16 +467,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x004d4690 (1 functions, 20 decomp lines): as MW3 0x004c9d70: Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d46d0 (1 functions, 14 decomp lines): as MW3 0x004c9db0: Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d4700 (1 functions, 14 decomp lines): as MW3 0x004c9de0: Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
-- 0x004de9c0 (1 functions, 12 decomp lines): read with group A: a callee of shared ports PM changed (0x004dd5e0); whether the port does PM's version, this call included, is settled there
-- 0x004de9d0 (1 functions, 15 decomp lines): read with group A: a callee of shared ports PM changed (0x004dd5e0, 0x004faff0); whether the port does PM's version, this call included, is settled there
-- 0x004e3b50 (1 functions, 13 decomp lines): read with group A: a callee of shared ports PM changed (0x004cd2f0); whether the port does PM's version, this call included, is settled there
-- 0x004e63e0, 0x004e65d0, 0x004e6840 (3 functions, 252 decomp lines): read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there
 - 0x004e75d0 (1 functions, 12 decomp lines): as MW3 0x004d7160: an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it
-- 0x004e9230 (1 functions, 9 decomp lines): read with group A: a callee of shared ports PM changed (0x004f0830); whether the port does PM's version, this call included, is settled there
-- 0x004ecaa0 (1 functions, 238 decomp lines): group A: paired by its call site with MW3 0x004db8d0 (the shared port's call there); a changed pair, settled by group A's rules
-- 0x004ef160 (1 functions, 12 decomp lines): read with group A: a callee of shared ports PM changed (0x004ec240, 0x005661b0); whether the port does PM's version, this call included, is settled there
 - 0x004eff90 (1 functions, 58 decomp lines): as MW3 0x004dee50: the aiv reader's vtable slot 0x005cd42c (58 lines): a name checked against zEntity's list (0x005a8210) and the reader's records (std::map find 0x004e1a30), no caller found; probably the editor's 'is this name free'; to settle by its slot and callers
-- 0x004f3390 (1 functions, 88 decomp lines): read with group A: a callee of shared ports PM changed (0x004f35c0); whether the port does PM's version, this call included, is settled there
 - 0x004f4d60, 0x004f6f00 (2 functions, 61 decomp lines): read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
 - 0x004f8e30 (1 functions, 50 decomp lines): read with group A: a callee of shared ports PM changed (0x004f8f60); whether the port does PM's version, this call included, is settled there
 - 0x004f9090 (1 functions, 22 decomp lines): read with group A: a callee of shared ports PM changed (0x004f90f0); whether the port does PM's version, this call included, is settled there
@@ -2926,7 +2913,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004c4570 | 24 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:430) |
 | 0x004c4b90 | 11 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:368) |
 | 0x004c5110 | 56 | folded | as MW3 0x004be230: covered where the port does it: src/mech3/zainetedit.cpp:254 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x004c51e0 | 146 | UNSURE | group A: paired by its call site with MW3 0x004be300 (the shared port's call there); a changed pair, settled by group A's rules |
+| 0x004c51e0 | 146 | folded | read: the net compile (MW3 0x004be300 from 0x004be670), ported with PM's changes (zainetedit.cpp:419: the via-node net 0x004c7a10, has_vias); its extra calls are those and PM's allocator |
 | 0x004c54c0 | 49 | folded | as MW3 0x004be5a0: covered where the port does it: src/mech3/zainetedit.cpp:463 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004c5550 | 16 | folded | as MW3 0x004be630: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004c55b0 | 205 | unlabelled |  |
@@ -2964,7 +2951,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004c6d60 | 48 | folded | as MW3 0x004bfe40: covered where the port does it: src/mech3/mech_waynet.cpp:147 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004c6ed0 | 12 | unlabelled |  |
 | 0x004c6ef0 | 10 | folded | covered by the port where it names it (src/mech3/briefing.cpp:180) |
-| 0x004c6f10 | 9 | UNSURE | read with group A: a callee of shared ports PM changed (0x004c7910); whether the port does PM's version, this call included, is settled there |
+| 0x004c6f10 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label |
 | 0x004c6f20 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:234) |
 | 0x004c6f40 | 12 | unlabelled |  |
 | 0x004c6f60 | 10 | folded | as MW3 0x004c0060: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
@@ -3048,7 +3035,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004cb730 | 14 | unlabelled |  |
 | 0x004cb780 | 9 | folded | a thunk: one call to another function |
 | 0x004cb7b0 | 38 | folded | ported, by docs/symbols.csv: ported: zainet_inout inout_set_state (0x004c2a30) |
-| 0x004cb840 | 15 | UNSURE | group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A |
+| 0x004cb840 | 15 | folded | read: the inout state's polygon walk (0x004ce020, MW3's 0x004c3bd0 with the walk inline): each polygon whose name matches is marked tested when its kind is the message's (0x004cb780 / 0x004cb7b0), as the port's inout_set_state (zainet_inout.cpp:792) |
 | 0x004cc970 | 17 | folded | inside its ported callers (0x004cb8b0, 0x004cbbb0): a small helper their ports do their own way |
 | 0x004ccac0 | 12 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_walk's drive 0x004dcd20 and the walk's steps run it (test_pm_repair_state's behaviour 0x004e0790 too); the steering's fields and the calls to the controls compared |
 | 0x004cce60 | 10 | folded | as MW3 0x004c3250: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
@@ -3105,7 +3092,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004d0b00 | 12 | unlabelled |  |
 | 0x004d0b20 | 11 | folded | covered by the port where it names it (src/mech3/zainet_region.cpp:38) |
 | 0x004d0bc0 | 9 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:225) |
-| 0x004d0cc0 | 10 | UNSURE | the setter sweep: it writes [0x0062fa88], which the port never names, so folding it into its caller is not shown; [0x0062fa88] read by 0x4d0ee0 |
+| 0x004d0cc0 | 10 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label |
 | 0x004d0cf0 | 12 | unlabelled |  |
 | 0x004d0d20 | 9 | folded | a thunk: one call to another function |
 | 0x004d0e20 | 12 | unlabelled |  |
@@ -3162,9 +3149,9 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004d2d00 | 13 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x004c78c0: an AI dev dialog's window close (PostNcDestroy, [0x0060b420] cleared) |
 | 0x004d2da0 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain_pm.cpp:227) |
 | 0x004d2db0 | 27 | folded | ported, by docs/symbols.csv: ported; LinkWay::measure (first half) |
-| 0x004d2e40 | 11 | UNSURE | the setter sweep: it writes [0x0062fb04], which the port never names, so folding it into its caller is not shown; [0x0062fb04] read by nothing found |
+| 0x004d2e40 | 11 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label |
 | 0x004d2f40 | 15 | folded | ported, by docs/symbols.csv: ported inline; LinkWay |
-| 0x004d2f80 | 9 | UNSURE | the setter sweep: it writes [0x0062fadc], which the port never names, so folding it into its caller is not shown; [0x0062fadc] read by 0x4d60d0, 0x4d64e0 |
+| 0x004d2f80 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label |
 | 0x004d2f90 | 9 | folded | a thunk: one call to another function |
 | 0x004d2fe0 | 19 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.cpp:8) |
 | 0x004d3010 | 23 | folded | as MW3 0x004c7bb0: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
@@ -3409,8 +3396,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004de0d0 | 10 | folded | as MW3 0x004d0090: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004de920 | 24 | folded | inside its ported callers (0x004dd5e0): a small helper their ports do their own way |
 | 0x004de980 | 17 | unlabelled |  |
-| 0x004de9c0 | 12 | UNSURE | read with group A: a callee of shared ports PM changed (0x004dd5e0); whether the port does PM's version, this call included, is settled there |
-| 0x004de9d0 | 15 | UNSURE | read with group A: a callee of shared ports PM changed (0x004dd5e0, 0x004faff0); whether the port does PM's version, this call included, is settled there |
+| 0x004de9c0 | 12 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label |
+| 0x004de9d0 | 15 | folded | read: the same, but the sub-object it points to is at +0xffc in PM's mech (MW3's +0xf70), its layout |
 | 0x004dea90 | 8 | folded | as MW3 0x004d1e60: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004deb80 | 22 | unlabelled |  |
 | 0x004ded40 | 12 | folded | covered by the port where it names it (src/mech3/zainet_region.h:18) |
@@ -3488,7 +3475,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004e3aa0 | 9 | folded | a thunk: one call to another function |
 | 0x004e3ac0 | 20 | folded | as MW3 0x004d35f0: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
 | 0x004e3b10 | 16 | folded | as MW3 0x004d3640: covered: the AI states' constructors and destructors, the deploy listener, the brain's IControls cast (0x004d1e60, its vtable slots ported as BrainHooks), the animation root's move (zai_target), the valves' and owners' lists, the nets' begin and end (app_mission.cpp:697, app_vehicle.cpp:743; player.h's 'not ported' note is stale), saved_or_ally (app_hud.cpp:685), the entity lookup by name, the sensors' sort, list instances |
-| 0x004e3b50 | 13 | UNSURE | read with group A: a callee of shared ports PM changed (0x004cd2f0); whether the port does PM's version, this call included, is settled there |
+| 0x004e3b50 | 13 | folded | read: a container element's copy (a vector's construct: 3 or 2 words, nothing for a null slot); the port's containers |
 | 0x004e3b70 | 119 | folded | as MW3 0x004d3680: covered where the port does it: src/mech3/zai_target.cpp:322 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004e3d80 | 25 | folded | covered by the port where it names it (src/mech3/zai_target.cpp:383) |
 | 0x004e3de0 | 55 | folded | as MW3 0x004d38f0: covered where the port does it: src/mech3/zai_target.cpp:322 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -3553,10 +3540,10 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004e5c20 | 38 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
 | 0x004e5d00 | 56 | unlabelled |  |
 | 0x004e5f70 | 16 | folded | covered by the port where it names it (src/mech3/sensors.cpp:653) |
-| 0x004e63e0 | 71 | UNSURE | read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there |
+| 0x004e63e0 | 71 | folded | read: the previous-ally / previous-enemy keys (PM's commands 0x4d, 0x4e; MW3's 0x4d5ee0 and 0x4d6260, the port's prev_ally / prev_enemy, zai_target.h:95-96), unpaired by the diff: the mirror of the next key 0x004e6840 (read whole, the same logic), with the same differences (PM's loops break where MW3's set flags, the side tests 0x004e6a50 / 0x004e6a80 inlined in places, the target set at +0xcc) |
 | 0x004e6520 | 31 | unlabelled |  |
-| 0x004e65d0 | 71 | UNSURE | read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there |
-| 0x004e6840 | 110 | UNSURE | read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there |
+| 0x004e65d0 | 71 | folded | read: the previous-ally / previous-enemy keys (PM's commands 0x4d, 0x4e; MW3's 0x4d5ee0 and 0x4d6260, the port's prev_ally / prev_enemy, zai_target.h:95-96), unpaired by the diff: the mirror of the next key 0x004e6840 (read whole, the same logic), with the same differences (PM's loops break where MW3's set flags, the side tests 0x004e6a50 / 0x004e6a80 inlined in places, the target set at +0xcc) |
+| 0x004e6840 | 110 | folded | read: the next-ally key (PM's command 0x47; MW3's 0x46 runs 0x004d64b0, the port's AiTarget::next_ally, zai_target.h:97), unpaired by the diff: the same scan forward from the target, the same per-side tests (mode 2 when both fail, modes past 2 pass), the same wrap-round scan and the nearest-ally fallback (0x004e6df0, MW3's 0x004d6970); PM's loops break where MW3's set flags, and the target set is one vtable slot on (+0xcc) |
 | 0x004e6ab0 | 106 | folded | ported, by docs/symbols.csv: ported: E |
 | 0x004e6ed0 | 50 | folded | ported, by docs/symbols.csv: ported: Ctrl+E |
 | 0x004e7170 | 35 | unlabelled |  |
@@ -3596,7 +3583,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004e9190 | 23 | folded | as MW3 0x004d8d90: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004e91d0 | 21 | folded | as MW3 0x004d8dc0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004e9210 | 18 | folded | as MW3 0x004d8df0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
-| 0x004e9230 | 9 | UNSURE | read with group A: a callee of shared ports PM changed (0x004f0830); whether the port does PM's version, this call included, is settled there |
+| 0x004e9230 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port; a PM change around it is its caller's label |
 | 0x004e9240 | 10 | folded | as MW3 0x004d8e20: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
 | 0x004e9260 | 10 | unlabelled |  |
 | 0x004e93e0 | 10 | folded | as MW3 0x004d8fe0: AI support code ported or folded: start-up cosines (the port's constants), the params' vlist copies, squares and destructors (zai_params), the brain's destructor chain, the listeners' constructor and destructor, the steps' states |
@@ -3666,7 +3653,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004ebf70 | 118 | folded | ported, by docs/symbols.csv: ported: zrdrainet |
 | 0x004ec1d0 | 19 | folded | as MW3 0x004db140: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004ec240 | 319 | unlabelled |  |
-| 0x004ecaa0 | 238 | UNSURE | group A: paired by its call site with MW3 0x004db8d0 (the shared port's call there); a changed pair, settled by group A's rules |
+| 0x004ecaa0 | 238 | folded | read: the editor's net node text writer (MW3 0x004db8d0), PM's with three more properties (via, terminus, static_mfb); the port writes nets with its own writer (net_save.h:25), which writes those three (net_save.cpp:155-161) |
 | 0x004ed2d0 | 9 | folded | a thunk: one call to another function |
 | 0x004ed2e0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004ed3b0 | 9 | folded | a thunk: one call to another function |
@@ -3693,7 +3680,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004eec10 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x004eecc0 | 24 | folded | as MW3 0x004ddc20: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004eed30 | 171 | folded | as MW3 0x004ddc90: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
-| 0x004ef160 | 12 | UNSURE | read with group A: a callee of shared ports PM changed (0x004ec240, 0x005661b0); whether the port does PM's version, this call included, is settled there |
+| 0x004ef160 | 12 | folded | read: a container element's copy (a vector's construct: 3 or 2 words, nothing for a null slot); the port's containers |
 | 0x004ef180 | 21 | unlabelled |  |
 | 0x004ef1d0 | 12 | unlabelled |  |
 | 0x004ef200 | 9 | folded | covered by the port where it names it (src/mech3/zai_drive_pm.cpp:499) |
@@ -3750,7 +3737,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004f3110 | 12 | unlabelled |  |
 | 0x004f3130 | 111 | unlabelled |  |
 | 0x004f3370 | 12 | folded | as MW3 0x0042f430: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x004f3390 | 88 | UNSURE | read with group A: a callee of shared ports PM changed (0x004f35c0); whether the port does PM's version, this call included, is settled there |
+| 0x004f3390 | 88 | folded | read: the valve file's release (zrdrvalve.cpp:573), the same frees; PM frees each through 0x004f3370 (free and clear) where MW3 inlines them |
 | 0x004f3570 | 24 | folded | as MW3 0x004e20d0: the valve reader's records, actions and lists: constructors, destructors, factories and list helpers of classes ported in zrdrvalve/zai_valve |
 | 0x004f35c0 | 22 | unlabelled |  |
 | 0x004f3630 | 117 | unlabelled |  |
