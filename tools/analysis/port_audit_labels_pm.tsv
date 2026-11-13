@@ -496,14 +496,6 @@
 0x004b4560	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0, 0x004b43a0, 0x004b4480); whether the port does PM's version, this call included, is settled there
 0x004b5f80	unsure	read with group A: a callee of shared ports PM changed (0x004b4a90); whether the port does PM's version, this call included, is settled there
 0x004b67e0	unsure	read with group A: a callee of shared ports PM changed (0x004b64f0, 0x004b6820); whether the port does PM's version, this call included, is settled there
-0x004b9390	unsure	read with group A: a callee of shared ports PM changed (0x004b5330); whether the port does PM's version, this call included, is settled there
-0x004ba030	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
-0x004ba190	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
-0x004ba340	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
-0x004bbf20	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
-0x004bd6f0	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
-0x004bd760	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
-0x004c2330	unsure	read with group A: a callee of shared ports PM changed (0x004c1cb0); whether the port does PM's version, this call included, is settled there
 0x004f4d60	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
 0x004f6f00	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
 0x004f8e30	unsure	read with group A: a callee of shared ports PM changed (0x004f8f60); whether the port does PM's version, this call included, is settled there
@@ -642,7 +634,6 @@
 0x00566760	unsure	the setter sweep: it writes [0x008c14e8], which the port never names, so folding it into its caller is not shown; [0x008c14e8] read by 0x563da0, 0x564710
 0x005776c0	unsure	the setter sweep: it writes [0x008c153c], which the port never names, so folding it into its caller is not shown; [0x008c153c] read by nothing found
 0x005908e0	unsure	the setter sweep: it writes [0x00613214], which the port never names, so folding it into its caller is not shown; [0x00613214] read by 0x590d70
-0x005a8a90	unsure	the setter sweep: it writes [0x008cdcd0], [0x008cdcd4], [0x008cdcd8], which the port never names, so folding it into its caller is not shown; [0x008cdcd0] read by nothing found; [0x008cdcd4] read by 0x5a8b30, 0x5a8ba0, 0x5a8c20, 0x5a8cd0; [0x008cdcd8] read by 0x5a8b30, 0x5a8ba0, 0x5a8c20
 0x005b6ec0	unsure	the setter sweep: it writes [0x008c4c44], which the port never names, so folding it into its caller is not shown; [0x008c4c44] read by nothing found
 0x005b6ed0	unsure	the setter sweep: it writes [0x008c4c4c], which the port never names, so folding it into its caller is not shown; [0x008c4c4c] read by nothing found
 0x005b6ee0	unsure	the setter sweep: it writes [0x008c4c48], which the port never names, so folding it into its caller is not shown; [0x008c4c48] read by nothing found
@@ -2553,3 +2544,12 @@
 0x004c51e0	folded	read: the net compile (MW3 0x004be300 from 0x004be670), ported with PM's changes (zainetedit.cpp:419: the via-node net 0x004c7a10, has_vias); its extra calls are those and PM's allocator
 0x004f3390	folded	read: the valve file's release (zrdrvalve.cpp:573), the same frees; PM frees each through 0x004f3370 (free and clear) where MW3 inlines them
 0x004ecaa0	folded	read: the editor's net node text writer (MW3 0x004db8d0), PM's with three more properties (via, terminus, static_mfb); the port writes nets with its own writer (net_save.h:25), which writes those three (net_save.cpp:155-161)
+0x004ba030	folded	checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm)
+0x004ba190	folded	checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm)
+0x004ba340	folded	checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm)
+0x004bbf20	folded	checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm)
+0x004bd6f0	folded	checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm)
+0x004bd760	folded	checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm)
+0x004b9390	folded	read: a volley record's copy (5 words, nothing for a null slot), container code for the planner's vector
+0x004c2330	folded	read: one section (+0x50..+0x5c) of the vehicle editor's changed-settings test (0x004c1cb0, MW3 0x004bb7e0 with the sections compared inline; game_editor_vehicles.cpp)
+0x005a8a90	folded	read: a static list head made (zWeapon's list at [0x008cdcd4], empty, its count 0): container start-up; the port's list is its own
