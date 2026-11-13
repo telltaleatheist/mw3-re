@@ -278,7 +278,7 @@ def write_doc(o, g, rows):
             lines = sum(x['lines'] for x in rs)
             out.append(f'- **{", ".join(x["addr"] for x in rs[:6])}{" ..." if len(rs) > 6 else ""}** ({len(rs)} functions, {lines} decomp lines; '
                        f'{LABEL_WORDS[kind]}): {why}')
-    broken = ROOT / 'tools' / 'analysis' / 'port_audit_broken.tsv'
+    broken = ROOT / 'tools' / 'analysis' / ('port_audit_broken_pm.tsv' if o.game == 'pm' else 'port_audit_broken.tsv')
     if broken.exists():
         out += ['', '## BROKEN (null hook)', '',
                 'Hooks the ported code calls that the program leaves unset (a null field, a census stand-in, or a',
