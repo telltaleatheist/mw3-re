@@ -1321,3 +1321,8 @@
 0x004e4310	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
 0x004e45f0	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
 0x004e46f0	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
+0x004dbf10	folded	fd0 read: the same logic (the 2D normalise, 0 for a zero length; the net's node add, index lookup and its paths), PM's compiler and layout (the net's fields 0x10 on)
+0x004d22f0	folded	fd0 read: the same logic (the 2D normalise, 0 for a zero length; the net's node add, index lookup and its paths), PM's compiler and layout (the net's fields 0x10 on)
+0x004d2460	folded	fd0 read: the same logic (the 2D normalise, 0 for a zero length; the net's node add, index lookup and its paths), PM's compiler and layout (the net's fields 0x10 on)
+0x004d26c0	folded	fd0 read: the same logic (the 2D normalise, 0 for a zero length; the net's node add, index lookup and its paths), PM's compiler and layout (the net's fields 0x10 on)
+0x004d28d0	folded	fd0 read: the same logic (the 2D normalise, 0 for a zero length; the net's node add, index lookup and its paths), PM's compiler and layout (the net's fields 0x10 on)
