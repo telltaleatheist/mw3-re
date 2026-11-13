@@ -11,12 +11,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2387 |
+| folded | 2375 |
 | unlabelled | 1897 |
 | replaced (SDL or the platform layer) | 222 |
-| UNSURE | 188 |
+| UNSURE | 196 |
 | software renderer | 105 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 100 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 104 |
 | MISSING LOGIC | 96 |
 | debug or dev tool: PORT (preserve) | 80 |
 | unused: PORT (preserve) | 59 |
@@ -77,6 +77,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x004b2260** (1 functions, 14 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae960: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b2280** (1 functions, 23 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae980: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004c5cb0** (1 functions, 83 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004bed90: the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file
+- **0x004fcff0, 0x004fd080, 0x004fd110, 0x004fd1a0** (4 functions, 56 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): checked by data: the script commands NodeSetOverrideAmbient, NodeSetOverrideAmbientValue, NodeSetOverrideDiffuse and NodeSetOverrideDiffuseValue (PM's dispatcher 0x005b2d10; node +0x2c bits 7, 9..16, 8, 17..24): no shipped PM script uses them (interp.zbd, 30 scripts) and the PM interp has no entry for them
 - **0x00504e70** (1 functions, 49 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f1cd0, whose class PM's changes keep: under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them
 - **0x00504f50** (1 functions, 16 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f1d90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00504f80** (1 functions, 15 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004f1dc0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
@@ -139,7 +140,7 @@ of a campaign, Instant Action or training run) or the static check (the data and
 
 | Hook | Original | Reached by | The original does | In the port | Seen in play | Shown by |
 |---|---|---|---|---|---|---|
-| DamageCalls.zaps_hud (mech.h) | 0x0043cf50 (MW3 0x0043be70) | the hit wrappers on the player's mech | the HUD static from the hitting weapon's ZAPS_HUD | a census stand-in, as in MW3: nothing shown | yes, if a PM weapon has ZAPS_HUD (not checked in PM's weapons.zrd yet) | static (MW3's row) |
+| DamageCalls.zaps_hud (mech.h) | 0x0043cf50 (MW3 0x0043be70) | the hit wrappers on the player's mech | the HUD static from the hitting weapon's ZAPS_HUD | a census stand-in, as in MW3: nothing shown | yes: PM's weapons.zrd gives ZAPS_HUD to the ER PPC only (0.5 2.0), as MW3's | static (MW3's row) |
 
 Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1, seed 1999, 33 ms) reached 0 functions outside the known table and skipped 0 script calls, but for one report: the mech build's CZMechFirePoint::CFixup message (mech.cpp line 0xee, rows c1sa3 and c3sa3) goes through the unported() report hook instead of zerr::report. The port's fixup itself runs (mech_build.cpp:699); only the report's routing is missing, with no effect in play.
 
@@ -432,6 +433,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x004f9960 (1 functions, 17 decomp lines): read with group A: a callee of shared ports PM changed (0x00483de0); whether the port does PM's version, this call included, is settled there
 - 0x004fa090 (1 functions, 32 decomp lines): read with group A: a callee of shared ports PM changed (0x004dd1e0); whether the port does PM's version, this call included, is settled there
 - 0x004fbe60 (1 functions, 9 decomp lines): read with group A: a callee of shared ports PM changed (0x004d3c30, 0x004d6070); whether the port does PM's version, this call included, is settled there
+- 0x004fcfb0, 0x004fd280, 0x004fd4a0, 0x005067c0, 0x00506a60 (5 functions, 87 decomp lines): node getters and setters with the null-node report called by ported code outside the script dispatcher (0x00528120, 0x004e5d00, 0x00461120.., 0x004fd7a0, 0x004447a0): not script commands; to read with their callers
+- 0x004fd0d0, 0x004fd160, 0x004fd1f0 (3 functions, 39 decomp lines): the node's ambient and diffuse overrides read by PM's model draw 0x00507f30 (bit 7 / bits 9..16 into 0x0050e6f0, bit 8 / bits 17..24 into 0x0050e7c0); the shared draw (camera.cpp:79) has no override. The script commands that set them ship in no PM script; to check: whether PM's gamez.zbd nodes carry these +0x2c bits from the file
 - 0x005000d0 (1 functions, 21 decomp lines): read with group A: a callee of shared ports PM changed (0x004ffd20, 0x00501ab0); whether the port does PM's version, this call included, is settled there
 - 0x005017e0 (1 functions, 27 decomp lines): read with group A: a callee of shared ports PM changed (0x00501030); whether the port does PM's version, this call included, is settled there
 - 0x0050b8f0 (1 functions, 20 decomp lines): read with group A: a callee of shared ports PM changed (0x0050b920); whether the port does PM's version, this call included, is settled there
@@ -3925,24 +3928,24 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004fceb0 | 25 | unlabelled |  |
 | 0x004fcf20 | 18 | unlabelled |  |
 | 0x004fcf70 | 14 | unlabelled |  |
-| 0x004fcfb0 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
-| 0x004fcff0 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fcfb0 | 14 | UNSURE | node getters and setters with the null-node report called by ported code outside the script dispatcher (0x00528120, 0x004e5d00, 0x00461120.., 0x004fd7a0, 0x004447a0): not script commands; to read with their callers |
+| 0x004fcff0 | 14 | MISSING LOGIC (only data the shipped game lacks reaches it) | checked by data: the script commands NodeSetOverrideAmbient, NodeSetOverrideAmbientValue, NodeSetOverrideDiffuse and NodeSetOverrideDiffuseValue (PM's dispatcher 0x005b2d10; node +0x2c bits 7, 9..16, 8, 17..24): no shipped PM script uses them (interp.zbd, 30 scripts) and the PM interp has no entry for them |
 | 0x004fd040 | 13 | folded | covered by the port where it names it (src/gamez/zgeometry/zgeo_model.cpp:446) |
-| 0x004fd080 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
-| 0x004fd0d0 | 13 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
-| 0x004fd110 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
-| 0x004fd160 | 13 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
-| 0x004fd1a0 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
-| 0x004fd1f0 | 13 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fd080 | 14 | MISSING LOGIC (only data the shipped game lacks reaches it) | checked by data: the script commands NodeSetOverrideAmbient, NodeSetOverrideAmbientValue, NodeSetOverrideDiffuse and NodeSetOverrideDiffuseValue (PM's dispatcher 0x005b2d10; node +0x2c bits 7, 9..16, 8, 17..24): no shipped PM script uses them (interp.zbd, 30 scripts) and the PM interp has no entry for them |
+| 0x004fd0d0 | 13 | UNSURE | the node's ambient and diffuse overrides read by PM's model draw 0x00507f30 (bit 7 / bits 9..16 into 0x0050e6f0, bit 8 / bits 17..24 into 0x0050e7c0); the shared draw (camera.cpp:79) has no override. The script commands that set them ship in no PM script; to check: whether PM's gamez.zbd nodes carry these +0x2c bits from the file |
+| 0x004fd110 | 14 | MISSING LOGIC (only data the shipped game lacks reaches it) | checked by data: the script commands NodeSetOverrideAmbient, NodeSetOverrideAmbientValue, NodeSetOverrideDiffuse and NodeSetOverrideDiffuseValue (PM's dispatcher 0x005b2d10; node +0x2c bits 7, 9..16, 8, 17..24): no shipped PM script uses them (interp.zbd, 30 scripts) and the PM interp has no entry for them |
+| 0x004fd160 | 13 | UNSURE | the node's ambient and diffuse overrides read by PM's model draw 0x00507f30 (bit 7 / bits 9..16 into 0x0050e6f0, bit 8 / bits 17..24 into 0x0050e7c0); the shared draw (camera.cpp:79) has no override. The script commands that set them ship in no PM script; to check: whether PM's gamez.zbd nodes carry these +0x2c bits from the file |
+| 0x004fd1a0 | 14 | MISSING LOGIC (only data the shipped game lacks reaches it) | checked by data: the script commands NodeSetOverrideAmbient, NodeSetOverrideAmbientValue, NodeSetOverrideDiffuse and NodeSetOverrideDiffuseValue (PM's dispatcher 0x005b2d10; node +0x2c bits 7, 9..16, 8, 17..24): no shipped PM script uses them (interp.zbd, 30 scripts) and the PM interp has no entry for them |
+| 0x004fd1f0 | 13 | UNSURE | the node's ambient and diffuse overrides read by PM's model draw 0x00507f30 (bit 7 / bits 9..16 into 0x0050e6f0, bit 8 / bits 17..24 into 0x0050e7c0); the shared draw (camera.cpp:79) has no override. The script commands that set them ship in no PM script; to check: whether PM's gamez.zbd nodes carry these +0x2c bits from the file |
 | 0x004fd230 | 18 | unlabelled |  |
-| 0x004fd280 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fd280 | 14 | UNSURE | node getters and setters with the null-node report called by ported code outside the script dispatcher (0x00528120, 0x004e5d00, 0x00461120.., 0x004fd7a0, 0x004447a0): not script commands; to read with their callers |
 | 0x004fd2c0 | 18 | unlabelled |  |
 | 0x004fd310 | 14 | unlabelled |  |
 | 0x004fd350 | 18 | unlabelled |  |
 | 0x004fd3a0 | 18 | unlabelled |  |
 | 0x004fd3f0 | 14 | unlabelled |  |
 | 0x004fd430 | 14 | unlabelled |  |
-| 0x004fd4a0 | 14 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x004fd4a0 | 14 | UNSURE | node getters and setters with the null-node report called by ported code outside the script dispatcher (0x00528120, 0x004e5d00, 0x00461120.., 0x004fd7a0, 0x004447a0): not script commands; to read with their callers |
 | 0x004fd4f0 | 14 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:205) |
 | 0x004fd540 | 16 | unlabelled |  |
 | 0x004fd590 | 18 | unlabelled |  |
@@ -4027,14 +4030,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00506670 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f32a0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x005066b0 | 34 | unlabelled |  |
 | 0x00506760 | 23 | unlabelled |  |
-| 0x005067c0 | 22 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x005067c0 | 22 | UNSURE | node getters and setters with the null-node report called by ported code outside the script dispatcher (0x00528120, 0x004e5d00, 0x00461120.., 0x004fd7a0, 0x004447a0): not script commands; to read with their callers |
 | 0x00506810 | 9 | folded | a thunk: one call to another function |
 | 0x00506830 | 36 | unlabelled |  |
 | 0x005068d0 | 35 | unlabelled |  |
 | 0x00506960 | 11 | unused: PORT (preserve) | as MW3 0x004f3540: no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60) |
 | 0x00506970 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f3550: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00506980 | 49 | unlabelled |  |
-| 0x00506a60 | 23 | folded | PM's node property script commands (node +0x2c bits 7, 8, 9..16, 17..24): checked by the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1): their census skipped 0 script calls, so each command the shipped scripts use is wired |
+| 0x00506a60 | 23 | UNSURE | node getters and setters with the null-node report called by ported code outside the script dispatcher (0x00528120, 0x004e5d00, 0x00461120.., 0x004fd7a0, 0x004447a0): not script commands; to read with their callers |
 | 0x00506ae0 | 41 | unlabelled |  |
 | 0x00506c10 | 40 | unlabelled |  |
 | 0x00506cd0 | 44 | unlabelled |  |
@@ -5638,44 +5641,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005beca0 | 12 | unlabelled |  |
 | 0x005becd0 | 38 | unlabelled |  |
 
-### zgame (33 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005b1550 | 140 | unlabelled |  |
-| 0x005b18b5 | 11 | unlabelled | follows 0x005b1550:  |
-| 0x005b18d3 | 58 | replaced (SDL or the platform layer) | as MW3 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b1964 | 11 | unlabelled | follows 0x005b1550:  |
-| 0x005b19c0 | 17 | unlabelled |  |
-| 0x005b19e0 | 102 | unlabelled |  |
-| 0x005b1bd0 | 99 | unlabelled |  |
-| 0x005b1db0 | 101 | unlabelled |  |
-| 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2050 | 74 | UNSURE | read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there |
-| 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
-| 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2260 | 11 | unlabelled |  |
-| 0x005b2280 | 26 | replaced (SDL or the platform layer) | as MW3 0x00590880: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b22e0 | 8 | replaced (SDL or the platform layer) | as MW3 0x005908e0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2340 | 12 | unlabelled |  |
-| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b24f0 | 10 | replaced (SDL or the platform layer) | as MW3 0x00590b40: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2510 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590b60: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2530 | 22 | replaced (SDL or the platform layer) | as MW3 0x00590b80: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2580 | 13 | replaced (SDL or the platform layer) | as MW3 0x00590bd0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2620 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
-| 0x005b2650 | 12 | unlabelled |  |
-| 0x005b2670 | 20 | folded | as MW3 0x00590cc0: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b26c0 | 12 | unlabelled |  |
-| 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2830 | 231 | unlabelled |  |
-| 0x005b2c60 | 16 | unlabelled |  |
-
 ### zweapon (33 not ported)
 
 | Address | Lines | Class | Why |
@@ -5713,6 +5678,44 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+
+### zgame (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005b1550 | 140 | unlabelled |  |
+| 0x005b18b5 | 11 | unlabelled | follows 0x005b1550:  |
+| 0x005b18d3 | 58 | replaced (SDL or the platform layer) | as MW3 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b1964 | 11 | unlabelled | follows 0x005b1550:  |
+| 0x005b19c0 | 17 | unlabelled |  |
+| 0x005b19e0 | 102 | unlabelled |  |
+| 0x005b1bd0 | 99 | unlabelled |  |
+| 0x005b1db0 | 101 | unlabelled |  |
+| 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2050 | 74 | UNSURE | read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there |
+| 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
+| 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2260 | 11 | unlabelled |  |
+| 0x005b2280 | 26 | replaced (SDL or the platform layer) | as MW3 0x00590880: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b22e0 | 8 | replaced (SDL or the platform layer) | as MW3 0x005908e0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2340 | 12 | unlabelled |  |
+| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b24f0 | 10 | replaced (SDL or the platform layer) | as MW3 0x00590b40: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2510 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590b60: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2530 | 22 | replaced (SDL or the platform layer) | as MW3 0x00590b80: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2580 | 13 | replaced (SDL or the platform layer) | as MW3 0x00590bd0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2620 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
+| 0x005b2650 | 12 | unlabelled |  |
+| 0x005b2670 | 20 | folded | as MW3 0x00590cc0: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b26c0 | 12 | unlabelled |  |
+| 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2830 | 231 | unlabelled |  |
+| 0x005b2c60 | 16 | unlabelled |  |
 
 ### zutil (31 not ported)
 
