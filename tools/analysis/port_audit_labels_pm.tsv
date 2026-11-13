@@ -266,7 +266,6 @@
 0x00485480	folded	inside its ported callers (0x004826e0): a small helper their ports do their own way
 0x00485530	folded	inside its ported callers (0x004826e0): a small helper their ports do their own way
 0x004868d0	folded	inside its ported callers (0x00479510): a small helper their ports do their own way
-0x0048b510	folded	inside its ported callers (0x004916c0): a small helper their ports do their own way
 0x0048bce0	folded	inside its ported callers (0x004916c0): a small helper their ports do their own way
 0x00490530	folded	inside its ported callers (0x00490760): a small helper their ports do their own way
 0x004927f0	folded	inside its ported callers (0x004486e0): a small helper their ports do their own way
@@ -840,3 +839,28 @@
 0x004b61a0	folded	fd0 read: the same logic (a BEAM type makes the beam weapon 0x004b3c10/0x004b3d70, else the projectile one), its branches swapped; PM's weapon objects 8 bytes larger (0xa0/0xac for 0x98/0xa4) on its layout
 0x004b6360	folded	fd0 read: the same logic (a BEAM type makes the beam weapon 0x004b3c10/0x004b3d70, else the projectile one), its branches swapped; PM's weapon objects 8 bytes larger (0xa0/0xac for 0x98/0xa4) on its layout
 0x00451730	missing	pm only, small, PM's own quirk (port as written, a discoveries.md line): the mech lab's part highlight; in PM the torso parts (1, 7, 8) light the head green with the torso (weight 0.3) and the head (6) lights nothing, where MW3 and the port light the head only for 6 (lab_view.cpp:272-296). PM numbers the parts as MW3 does: its list fill 0x00456760 adds 6 first with the cockpit, life support and sensors texts (0x24e..0x250), then 1, 7, 8, 2, 3, 4, 5, so PM's 6 is the head (MW3 0x004504d0)
+0x004b6c90	folded	fd0 read: the same logic and constants (a 35 degree cone, cos computed once; the vector 0, 0, -1), the branches laid out as jumps; the mech's +0x37c/+0x39c -> +0x38c/+0x3ac on PM's layout
+0x004b3ab0	folded	fd0 read: the same list walk (entries 0x004afe10 refuses taken off and freed, the count +0x88 down), its loops laid out as jumps by PM's compiler; the same fields
+0x0048a210	folded	fd0 read: PM's clamp of the index to -1..last is in the pm port (menu_widgets.cpp:630-632)
+0x00439620	folded	fd0 read: the same logic (the item's +4 by index, out of range read as MW3 reads it), PM's compiler using masks and early returns
+0x0043a7f0	folded	fd0 read: the same logic (the item's +4 by index, out of range read as MW3 reads it), PM's compiler using masks and early returns
+0x004881f0	folded	fd0 read: the same logic (the item's +4 by index, out of range read as MW3 reads it), PM's compiler using masks and early returns
+0x00489bd0	folded	fd0 read: the same logic (the item's +4 by index, out of range read as MW3 reads it), PM's compiler using masks and early returns
+0x00489c20	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks and joining the tails; the widget's fields on PM's layout (+0x380/+0x384 -> +0x680/+0x684)
+0x00489d70	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks and joining the tails; the widget's fields on PM's layout (+0x380/+0x384 -> +0x680/+0x684)
+0x0048a090	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks and joining the tails; the widget's fields on PM's layout (+0x380/+0x384 -> +0x680/+0x684)
+0x0048a2e0	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks and joining the tails; the widget's fields on PM's layout (+0x380/+0x384 -> +0x680/+0x684)
+0x0048a340	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks and joining the tails; the widget's fields on PM's layout (+0x380/+0x384 -> +0x680/+0x684)
+0x0048a3a0	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks and joining the tails; the widget's fields on PM's layout (+0x380/+0x384 -> +0x680/+0x684)
+0x0048b530	unused	fd0 read: the list box's arrows as MW3's 0x0048c910 plus two PM bytes that keep UP (+0x1e0) and DOWN (+0x1e1) enabled; the pm port has the arrows without them (menu_widgets.cpp:1264-1330). Only 0x0048b510 sets them, from the pilot screen's training case (0x004916c0 case 4), which PM's menu doesn't reach (pm-mech-step.md:472), so no shipped path shows it
+0x0048b510	unused	fd0 read: the list box's arrows as MW3's 0x0048c910 plus two PM bytes that keep UP (+0x1e0) and DOWN (+0x1e1) enabled; the pm port has the arrows without them (menu_widgets.cpp:1264-1330). Only 0x0048b510 sets them, from the pilot screen's training case (0x004916c0 case 4), which PM's menu doesn't reach (pm-mech-step.md:472), so no shipped path shows it
+0x0048a4a0	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks; fields one or two dwords on (+0x1e0 -> +0x1e8)
+0x0048a740	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks; fields one or two dwords on (+0x1e0 -> +0x1e8)
+0x0048b4c0	folded	fd0 read: the same logic, PM's compiler folding the vector-size checks; fields one or two dwords on (+0x1e0 -> +0x1e8)
+0x0048c640	folded	fd0 read: the same logic on PM's layout (fields one dword on, the techs at +0x214); the 'any kind' value is 4 in PM where MW3's is 5, but the only caller, the refill (PM 0x0048c860, MW3 0x0048dbe0), passes 0..3 in both, so neither is reached
+0x0048b920	folded	fd0 read: the same logic, PM's compiler folding the range checks into one condition; fields on PM's layout (+0x1e0 -> +0x1e8, the rows' +0x4d0 -> +0x4d8, vtable slots 8 on)
+0x0048b9c0	folded	fd0 read: the same logic, PM's compiler folding the range checks into one condition; fields on PM's layout (+0x1e0 -> +0x1e8, the rows' +0x4d0 -> +0x4d8, vtable slots 8 on)
+0x0048be00	folded	fd0 read: the same logic, PM's compiler folding the range checks into one condition; fields on PM's layout (+0x1e0 -> +0x1e8, the rows' +0x4d0 -> +0x4d8, vtable slots 8 on)
+0x0048bef0	folded	fd0 read: the same logic, PM's compiler folding the range checks into one condition; fields on PM's layout (+0x1e0 -> +0x1e8, the rows' +0x4d0 -> +0x4d8, vtable slots 8 on)
+0x0048bf40	folded	fd0 read: the same logic, PM's compiler folding the range checks into one condition; fields on PM's layout (+0x1e0 -> +0x1e8, the rows' +0x4d0 -> +0x4d8, vtable slots 8 on)
+0x0048c260	folded	fd0 read: the same logic, PM's compiler folding the range checks into one condition; fields on PM's layout (+0x1e0 -> +0x1e8, the rows' +0x4d0 -> +0x4d8, vtable slots 8 on)
