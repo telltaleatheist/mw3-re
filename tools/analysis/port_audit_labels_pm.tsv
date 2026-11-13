@@ -256,7 +256,6 @@
 0x0045af30	folded	inside its ported callers (0x0045b0d0): a small helper their ports do their own way
 0x00462f30	folded	inside its ported callers (0x00462ba0): a small helper their ports do their own way
 0x00465e00	folded	inside its ported callers (0x0041f4d0): a small helper their ports do their own way
-0x00472cb0	folded	inside its ported callers (0x00471040): a small helper their ports do their own way
 0x004735f0	folded	inside its ported callers (0x0045dc00, 0x00460570): a small helper their ports do their own way
 0x004738b0	folded	inside its ported callers (0x00473f70, 0x00474010, 0x004745a0, 0x00474810): a small helper their ports do their own way
 0x004790c0	folded	inside its ported callers (0x00477f90): a small helper their ports do their own way
@@ -276,7 +275,6 @@
 0x00499550	folded	inside its ported callers (0x00498b70): a small helper their ports do their own way
 0x0049b3c0	folded	inside its ported callers (0x0049a3c0): a small helper their ports do their own way
 0x004a02b0	folded	inside its ported callers (0x0049ef20): a small helper their ports do their own way
-0x004ac130	folded	inside its ported callers (0x004ac070): a small helper their ports do their own way
 0x004ae850	folded	inside its ported callers (0x004ac1e0): a small helper their ports do their own way
 0x004af6b0	folded	inside its ported callers (0x004af590): a small helper their ports do their own way
 0x004b2da0	folded	inside its ported callers (0x0041b930): a small helper their ports do their own way
@@ -329,9 +327,7 @@
 0x004fc130	folded	inside its ported callers (0x004faff0): a small helper their ports do their own way
 0x00513a30	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x00515bb0	folded	inside its ported callers (0x004fd5e0, 0x0050d4e0, 0x005b2d10): a small helper their ports do their own way
-0x0051b340	folded	inside its ported callers (0x0051b2c0): a small helper their ports do their own way
 0x005210d0	folded	inside its ported callers (0x0051f900): a small helper their ports do their own way
-0x00521f80	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x00526df0	folded	inside its ported callers (0x0051b500, 0x005a27b0, 0x005a3df0, 0x005a6c60): a small helper their ports do their own way
 0x00537e60	folded	inside its ported callers (0x004d92c0, 0x004d9a90, 0x004da1c0, 0x004dcd20): a small helper their ports do their own way
 0x00563740	folded	inside its ported callers (0x00507f30): a small helper their ports do their own way
@@ -361,17 +357,12 @@
 0x00591120	folded	inside its ported callers (0x00590f80): a small helper their ports do their own way
 0x00591220	folded	inside its ported callers (0x00590d70): a small helper their ports do their own way
 0x00592040	folded	inside its ported callers (0x00592170): a small helper their ports do their own way
-0x00594150	folded	inside its ported callers (0x00591900): a small helper their ports do their own way
-0x00598230	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
 0x00598420	folded	inside its ported callers (0x00547dd0): a small helper their ports do their own way
 0x005a36c0	folded	inside its ported callers (0x004b73f0): a small helper their ports do their own way
 0x005a4dc0	folded	inside its ported callers (0x004e37d0, 0x00513310, 0x00524492): a small helper their ports do their own way
-0x005a52c0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
-0x005a52d0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x005a94f0	folded	inside its ported callers (0x0049a3c0, 0x0049df10): a small helper their ports do their own way
 0x005aa6a0	folded	inside its ported callers (0x005a9980): a small helper their ports do their own way
 0x005aa700	folded	inside its ported callers (0x005a9980): a small helper their ports do their own way
-0x005aaba0	folded	inside its ported callers (0x0049b730): a small helper their ports do their own way
 0x005b0da0	folded	inside its ported callers (0x005adfe0): a small helper their ports do their own way
 0x005b21b0	folded	inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way
 0x005b7430	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
@@ -812,3 +803,37 @@
 0x00451730	missing	pm only, group A, read: the mech lab's armour section highlight; in PM the torso sections (1, 7, 8) light the head green with the torso (weight 0.3) and section 6 (the head) lights nothing, where MW3 and the port light the head only for section 6 and set it on unlit for the torso sections (lab_view.cpp:272-296); the same names, colour (0, 1, 0) and weight in both (MW3 0x004504d0)
 0x00407f10	folded	group A, read: the same as MW3's 0x004091e0 plus PM's vt+0x64 call first (the game's start: Standalone's 0x0040e3f0, the base's reader open 0x004350c0, new in PM); the pm port makes it in load_state_enter (app_menus.cpp:838, 'vt+0x64 at 0x00407f38') with the reader opened by Missions (mission.cpp:407); the movie flag is the same one (MW3 0x00608c88 +0x1c1, PM 0x0062ca98 +0x1bd)
 0x0043b2d0	missing	pm only, minor, group A, read: the TEXTURES cycle offers the same items by the same bits and card memory, but selects differently: PM selects the screen's stored value per device (app +200, +0x14150 for software, +0x14154 + device*4 for a card) and a card past index 3 first selects 2 MB, with no fallback, so an unset (0) value leaves the selection where it was; MW3 and the port select the last item added (or the card's megabytes), then TextureMemory if set (options_menu.cpp:326-360) (MW3 0x0043a310)
+0x004b45f0	folded	fd0 read: the same logic on PM's layout (the weapon's owner +0x80 -> +0x84, the mech's fields +0x144c -> +0x1464); the control flow differs by how PM's compiler lays out the branches
+0x004b4640	folded	fd0 read: the same logic on PM's layout (the weapon's owner +0x80 -> +0x84, the mech's fields +0x144c -> +0x1464); the control flow differs by how PM's compiler lays out the branches
+0x004b4c70	folded	fd0 read: the same logic on PM's layout (the weapon's owner +0x80 -> +0x84, the mech's fields +0x144c -> +0x1464); the control flow differs by how PM's compiler lays out the branches
+0x005a5110	folded	fd0 read: the same logic: the killer and where (0x009a1788/0x009a1790 in MW3), PM's compiler repeating the tail
+0x004b3eb0	folded	fd0 read: the weapon type's allocation, 0xc0 bytes in PM where MW3's is 200 (the port's own struct), then the same constructor call; the type at def +0x200 on PM's layout (+0x1f0 in MW3)
+0x004b7c90	folded	fd0 read: the same test with its branches reordered (state 0 takes unflagged items, 1 flagged ones, any other all)
+0x004b4270	folded	fd0 read: the same logic on PM's layout (the manager's count +0x24 -> +0x28, its weapons from +0x40 -> +0x44, a weapon's group +0x28 -> +0x2c and its slots one dword on); PM's compiler repeating tails or folding the nested tests
+0x004b4900	folded	fd0 read: the same logic on PM's layout (the manager's count +0x24 -> +0x28, its weapons from +0x40 -> +0x44, a weapon's group +0x28 -> +0x2c and its slots one dword on); PM's compiler repeating tails or folding the nested tests
+0x004b40c0	folded	fd0 read: the same logic on PM's layout (the manager's count +0x24 -> +0x28, its weapons from +0x40 -> +0x44, a weapon's group +0x28 -> +0x2c and its slots one dword on); PM's compiler repeating tails or folding the nested tests
+0x004b7d40	folded	fd0 read: the same logic and constant (1.0 at PM 0x005de7b0); the mech's field +0x5b8 -> +0x63c on PM's layout
+0x004b8a60	folded	fd0 read: the same logic (100 past 150, 20 past 20, else 1 without a def; the type's +0x38 cap with one), the type at +0x200 on PM's layout
+0x004b4750	folded	fd0 read: the same logic on PM's layout (the manager +0x24/+0x28/+0x40 -> +0x28/+0x2c/+0x44, the weapons' vtable slots 0x0c on, the mech's +0x6fc -> +0x76c); PM also returns 0 for an empty slot where MW3 would read through it (a guard, no shipped case)
+0x004b4940	folded	fd0 read: the same logic on PM's layout (one dword on); PM returns early where MW3 nests
+0x004b5ce0	folded	fd0 read: the same logic on PM's layout (one dword on); PM returns early where MW3 nests
+0x004b8620	folded	fd0 read: the same logic and constants (rand x 1/32767 x 2 pi, 1.0, 0.0); PM passes the helpers' arguments where MW3 leaves them in registers; the type at +0x200, the mech's +0x58c -> +0x60c
+0x004b8e10	folded	fd0 read: the same logic and constants (rand x 1/32767 x 2 pi, 1.0, 0.0); PM passes the helpers' arguments where MW3 leaves them in registers; the type at +0x200, the mech's +0x58c -> +0x60c
+0x005a50a0	folded	fd0 read: the same logic; PM's touch handlers take the hit as an argument where MW3 leaves it in EDX, which the port gives them through touch_hit() (zweapon.h:25)
+0x005a4110	folded	fd0 read: the same logic; PM's hit record is one dword longer (0x2c, the clutter owner at +0x28, zwep_init.h:146), so the queued hits are 0x48 apart with 11 dwords copied; the mech's +0x5bc -> +0x640
+0x004b7220	folded	fd0 read: the same logic on PM's layout (one dword on; the type at +0x200); PM passes the cockpit sound's index (0x0e) and the sound helpers' arguments where MW3 leaves them in registers; the constants 0.0 and 1.0 the same
+0x004b7120	folded	fd0 read: the same logic on PM's layout (one dword on; the type at +0x200); PM passes the cockpit sound's index (0x0e) and the sound helpers' arguments where MW3 leaves them in registers; the constants 0.0 and 1.0 the same
+0x004b8e70	folded	fd0 read: the same logic on PM's layout (one dword on; the type at +0x200); PM passes the cockpit sound's index (0x0e) and the sound helpers' arguments where MW3 leaves them in registers; the constants 0.0 and 1.0 the same
+0x005a52c0	missing	pm only: at object detail 2 (0x0040b1e0 == 2) PM's world load 0x00492830 turns off two zWeapon switches (0x005a52c0 the FIRE block's EFFECT, 0x005a52d0 the impact animations; 0x005a5170 sets both to 1 at start): the impact animations of hits (0x005a3df0), beams (0x005a2ae0) and damage (0x005a4e80) are not played, and a FIRE EFFECT is read as its MODEL (no shipped weapon has one); the pm port has neither switch (mission.cpp:114 load_world, zweapon.cpp)
+0x005a52d0	missing	pm only: at object detail 2 (0x0040b1e0 == 2) PM's world load 0x00492830 turns off two zWeapon switches (0x005a52c0 the FIRE block's EFFECT, 0x005a52d0 the impact animations; 0x005a5170 sets both to 1 at start): the impact animations of hits (0x005a3df0), beams (0x005a2ae0) and damage (0x005a4e80) are not played, and a FIRE EFFECT is read as its MODEL (no shipped weapon has one); the pm port has neither switch (mission.cpp:114 load_world, zweapon.cpp)
+0x005a3df0	missing	pm only: at object detail 2 (0x0040b1e0 == 2) PM's world load 0x00492830 turns off two zWeapon switches (0x005a52c0 the FIRE block's EFFECT, 0x005a52d0 the impact animations; 0x005a5170 sets both to 1 at start): the impact animations of hits (0x005a3df0), beams (0x005a2ae0) and damage (0x005a4e80) are not played, and a FIRE EFFECT is read as its MODEL (no shipped weapon has one); the pm port has neither switch (mission.cpp:114 load_world, zweapon.cpp)
+0x005a2ae0	unsure	fd0 / group A: carries the low-detail impact switch (pm only: at object detail 2 (0x0040b1e0 == 2) PM's world load 0x00492830 turns off two zWeapon switches (0x005a52c0 the FIRE block's EFFECT, 0x005a52d0 the impact animations; 0x005a5170 sets both to 1 at start): the impact animations of hits (0x005a3df0), beams (0x005a2ae0) and damage (0x005a4e80) are not played, and a FIRE EFFECT is read as its MODEL (no shipped weapon has one); the pm port has neither switch (mission.cpp:114 load_world, zweapon.cpp)); the rest to read
+0x005a4e80	unsure	fd0 / group A: carries the low-detail impact switch (pm only: at object detail 2 (0x0040b1e0 == 2) PM's world load 0x00492830 turns off two zWeapon switches (0x005a52c0 the FIRE block's EFFECT, 0x005a52d0 the impact animations; 0x005a5170 sets both to 1 at start): the impact animations of hits (0x005a3df0), beams (0x005a2ae0) and damage (0x005a4e80) are not played, and a FIRE EFFECT is read as its MODEL (no shipped weapon has one); the pm port has neither switch (mission.cpp:114 load_world, zweapon.cpp)); the rest to read
+0x005a5170	folded	fd0 read: the zWeapon init as MW3's 0x00583750 plus PM's switches set to 1 (the low-detail ones, see 0x005a52c0, missing)
+0x00472cb0	unsure	small-helper fold rechecked by the setter rule: it writes a global (PM's own), and that the port writes the same is not shown; to trace (0x005a52c0/0x005a52d0, folded the same way, turned out missing)
+0x004ac130	unsure	small-helper fold rechecked by the setter rule: it writes a global (PM's own), and that the port writes the same is not shown; to trace (0x005a52c0/0x005a52d0, folded the same way, turned out missing)
+0x0051b340	unsure	small-helper fold rechecked by the setter rule: it writes a global (PM's own), and that the port writes the same is not shown; to trace (0x005a52c0/0x005a52d0, folded the same way, turned out missing)
+0x00521f80	unsure	small-helper fold rechecked by the setter rule: it writes a global (PM's own), and that the port writes the same is not shown; to trace (0x005a52c0/0x005a52d0, folded the same way, turned out missing)
+0x00594150	unsure	small-helper fold rechecked by the setter rule: it writes a global (PM's own), and that the port writes the same is not shown; to trace (0x005a52c0/0x005a52d0, folded the same way, turned out missing)
+0x00598230	unsure	small-helper fold rechecked by the setter rule: it writes a global (PM's own), and that the port writes the same is not shown; to trace (0x005a52c0/0x005a52d0, folded the same way, turned out missing)
+0x005aaba0	unsure	small-helper fold rechecked by the setter rule: it writes a global (PM's own), and that the port writes the same is not shown; to trace (0x005a52c0/0x005a52d0, folded the same way, turned out missing)
