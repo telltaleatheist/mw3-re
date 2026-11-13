@@ -277,9 +277,14 @@ def write_doc(o, g, rows):
                 'of a campaign, Instant Action or training run) or the static check (the data and the callers).', '',
                 '| Hook | Original | Reached by | The original does | In the port | Seen in play | Shown by |',
                 '|---|---|---|---|---|---|---|']
+        notes = []
         for line in broken.read_text().splitlines():
-            if line.strip() and not line.startswith('#'):
+            if line.startswith('> '):
+                notes.append(line[2:])
+            elif line.strip() and not line.startswith('#'):
                 out.append('| ' + ' | '.join(line.split('\t')) + ' |')
+        for n in notes:
+            out += ['', n]
     out += ['', '## PORT (preserve)', '']
     for kind in ('debug', 'devdialog-logic', 'unused'):
         groups = {}
