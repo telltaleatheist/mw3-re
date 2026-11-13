@@ -793,6 +793,14 @@ Kept:
   always on): its row is in the table, "The Small Pulse Laser's muzzle flash".
   The other three stay as they are.
 
+- **A beam freed while still on its weapon's list** (UNSURE, pending a check; found 2026-11-13 in
+  the PM audit, docs/port-audit-pm.md at 0x005a6650). PM's beam free unlinks a beam still on its
+  weapon's active list first ("Releasing beam still on weapons list"); MW3's 0x00584b40 and the
+  port's `zwep::beam_free` free it as it is. `Turret::~Turret` (turret.cpp:334, MW3's 0x004a5ff0)
+  frees its beam without stopping it, so a turret destroyed mid-beam could leave the list pointing at
+  freed memory. To check, in MW3 and PM: a turret destroyed while its beam fires; whether the active
+  list keeps the freed beam and what reads it the next frame. A crash there would be a FIX (bug).
+
 - **Message names the game's own text file lacks** (data, not code; found 2026-11-13 by
   `tools/analysis/msg_name_scan.py`, docs/port-audit-pm.md at 0x00447840). Both exes show an unknown
   name as itself (0x00575fb0, PM's 0x00596db0), and so does the port (zutl::localize). MW3 1.2: none.
