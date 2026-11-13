@@ -395,4 +395,102 @@ void way_reset_pm(BrainSidePmHooks& h, zgame::Handle v, float throttle, const fl
   h.set_way(from, here, speed, v);
 }
 
+namespace {
+// Pirate's Moon 1.0 @ 0x004fbbc0 (vt+0x4c): with the current order leavable, every order above the first goes,
+// each pop resuming the one under it (0x004ea8d0 down to 0x004eab10's first), and the kept target with them.
+int32_t stop_lance_pm(LancePmHooks& h) {
+  if (!h.leavable()) return 0;
+  if (const zgame::Handle first = h.first_order()) h.pop_to(first);
+  h.keep(0);
+  return 1;
+}
+
+// Pirate's Moon 1.0 @ 0x004fba80 / 0x004fbaf0 (vt+0x2c; vt+0x30 and +0x40, which calls it): the contact's vehicle's own
+// net, stopped on and given with its follow behaviour, the kept target cleared.
+int32_t follow_lance_pm(LancePmHooks& h, zgame::Handle c) {
+  const zgame::Handle v = h.contact_vehicle(c);
+  if (!h.leavable() || !v) return 0;
+  const zgame::Handle net = h.vehicle_net(v);
+  if (!net) return 0;
+  stop_lance_pm(h);
+  h.give(net, h.follow_behaviour(net));
+  h.keep(0);
+  return 1;
+}
+
+// Pirate's Moon 1.0 @ 0x004fbb70 (vt+0x34): stopped, and the formation net given (0x004ea690 answers 1).
+int32_t form_lance_pm(LancePmHooks& h) {
+  if (!h.leavable()) return 0;
+  stop_lance_pm(h);
+  if (h.give_net(h.formation()) != 1) return 0;
+  h.keep(0);
+  return 1;
+}
+
+// FIX (bug), in the three below: a contact whose vehicle is null is read through null in the exe (the wrappers
+// let it by); here the order is not taken, as MW3's ally_of (zai_brain.cpp).
+
+// Pirate's Moon 1.0 @ 0x004fbb00 (vt+0x38): any not an ally followed, and kept as the target.
+int32_t attack_lance_pm(LancePmHooks& h, zgame::Handle c) {
+  const zgame::Handle own = h.own_vehicle();
+  const zgame::Handle v = h.contact_vehicle(c);
+  if (!v || (h.team(v) & h.allies(own)) != 0) return 0;
+  const int32_t r = follow_lance_pm(h, c);
+  if (r == 1) h.keep(h.contact_vehicle(c));
+  return r;
+}
+
+// Pirate's Moon 1.0 @ 0x004fba20 (vt+0x3c and +0x54): an ally followed.
+int32_t ally_lance_pm(LancePmHooks& h, zgame::Handle c) {
+  const zgame::Handle v = h.contact_vehicle(c);
+  const zgame::Handle own = h.own_vehicle();
+  if (!v || (h.team(v) & h.allies(own)) == 0) return 0;
+  return follow_lance_pm(h, c);
+}
+
+// Pirate's Moon 1.0 @ 0x004fb9b0 (vt+0x50): an enemy followed, and kept as the target.
+int32_t enemy_lance_pm(LancePmHooks& h, zgame::Handle c) {
+  const zgame::Handle v = h.contact_vehicle(c);
+  const zgame::Handle own = h.own_vehicle();
+  if (!v || (h.team(v) & h.enemies(own)) == 0) return 0;
+  const int32_t r = follow_lance_pm(h, c);
+  if (r == 1) h.keep(v);
+  return r;
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004fb420, 0x004fb4a0, 0x004fb4f0, 0x004fb570, 0x004fb5d0, 0x004fb630, 0x004fb690
+// Pirate's Moon 1.0 @ 0x004fb6e0, 0x004fb730, 0x004fb790, 0x004fb7f0, 0x004fb3f0 (the radio: MW3's 0x004e9fd0,
+// its lines): the orders but 1, 7, 9 and 12 are refused when the pilot has no vehicle or the contact's is its own.
+int32_t lance_order_pm(LancePmHooks& h, int32_t order, zgame::Handle c) {
+  if (order < 0 || order > 12 || order == 2) return 0;
+  int32_t r = 0, line = 2;  // confirm_order (+0x08)
+  const bool checked = order != 1 && order != 7 && order != 9 && order != 12;
+  bool go = true;
+  if (checked) {
+    const zgame::Handle v = h.contact_vehicle(c);
+    const zgame::Handle own = h.own_vehicle();
+    go = own && own != v;
+  }
+  if (go) switch (order) {
+      case 0: r = follow_lance_pm(h, c), line = 12; break;  // vt+0x2c, follow (+0x30)
+      case 8: r = follow_lance_pm(h, c), line = 12; break;  // vt+0x30
+      case 1: r = form_lance_pm(h), line = 13; break;       // vt+0x34 (+0x34)
+      case 3: r = attack_lance_pm(h, c); break;             // vt+0x38
+      case 4:                                                // vt+0x3c
+      case 11: r = ally_lance_pm(h, c); break;              // vt+0x54
+      case 5: r = follow_lance_pm(h, c); break;             // vt+0x40
+      case 6: r = 0; break;                                 // vt+0x44 (0x005afca0)
+      case 7:
+      case 12: r = h.refit(), line = 3; break;              // vt+0x48, confirm_refit (+0x0c)
+      case 9: r = stop_lance_pm(h), line = 5; break;        // vt+0x4c, disengages_order (+0x14)
+      case 10: r = enemy_lance_pm(h, c); break;             // vt+0x50
+    }
+  if (h.has_radio()) {
+    if (r == 0) h.radio_line(4);  // disregard_order (+0x10)
+    else if (r == 1) h.radio_line(line);
+  }
+  return r;
+}
+
 }  // namespace mech3::ai

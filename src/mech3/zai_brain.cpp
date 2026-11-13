@@ -1,5 +1,6 @@
 #include "mech3/zai_brain.h"
 #include "mech3/zai_wire_pm.h"
+#include "mech3/zai_wire_orders_pm.h"
 #include "mech3/zai_wire_states_pm.h"
 #include "mech3/zai_x87.h"
 
@@ -1218,6 +1219,7 @@ bool Brain::ally_only(Contact* c) { return ally_of(*this, c) == 1 && attack_targ
 // callbacks 0x004ea030 / 0x004ea0a0 / 0x004ea0e0 / 0x004ea1b0 / 0x004ea1f0
 // play: radio +0x30, +0x34, +0x08, +0x0c, +0x14).
 int32_t Brain::lance_order(int32_t order, Contact* c) {
+  if (pm_ai_on()) return pm_lance_order(*this, order, c);  // Pirate's Moon's (zai_wire_orders_pm.cpp)
   int32_t r = 0, line = 2;  // confirm_order
   switch (order) {
     case 0: r = attack_target(c), line = 12; break;   // 0x004ea000 vt+0x20, follow

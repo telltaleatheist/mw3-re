@@ -22,6 +22,8 @@ void pm_give_order(Brain& b, AiNet* net, Behaviour* beh);  // 0x004ea740 (0x004f
 void pm_push_behaviour(Brain& b, Behaviour* beh);          // 0x004ea7f0 (0x004fa170)
 void pm_pop_order(Brain& b);                               // 0x004ea220
 bool pm_order_leavable(Brain& b);                          // 0x004fa320: the refit order may take the pilot
+// PM's lance orders (0x004fb420..0x004fb7f0 with their slots), for Brain::lance_order under PM's AI.
+int32_t pm_lance_order(Brain& b, int32_t order, Contact* c);
 
 }  // namespace mech3::ai
 
