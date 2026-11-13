@@ -232,10 +232,19 @@ def write_doc(o, g, rows):
         if len(parts) >= 3:
             labels[parts[0]] = (parts[1], parts[2])
     byaddr = {r['addr']: r for r in rows}
+    mw3_labels = {}
+    if o.game == 'pm':
+        for line in open(o.mw3_labels, errors='replace'):
+            parts = line.rstrip('\n').split('\t')
+            if len(parts) >= 3:
+                mw3_labels[parts[0]] = (parts[1], parts[2])
 
     def label_of(r, depth=0):
         if r['addr'] in labels:
             return labels[r['addr']]
+        if r.get('same') and r.get('mw3') in mw3_labels:
+            lab, why = mw3_labels[r['mw3']]
+            return lab, f'as MW3 {r["mw3"]}: {why}'
         sh = r['shape']
         if sh and sh[0] == 'follows' and depth < 8:
             t = byaddr.get(sh[1])
@@ -332,14 +341,29 @@ def main():
     ap.add_argument('--out')
     ap.add_argument('--module')
     ap.add_argument('--doc', help='write the audit document (docs/port-audit.md) from the labels')
-    ap.add_argument('--labels', default=str(ROOT / 'tools' / 'analysis' / 'port_audit_labels.tsv'))
+    ap.add_argument('--labels', help='the labels (default port_audit_labels.tsv, PM: port_audit_labels_pm.tsv)')
+    ap.add_argument('--mw3-labels', default=str(ROOT / 'tools' / 'analysis' / 'port_audit_labels.tsv'),
+                    help="PM: the MW3 labels a same-logic pair takes")
     o = ap.parse_args()
+    if not o.labels:
+        o.labels = str(ROOT / 'tools' / 'analysis' / ('port_audit_labels_pm.tsv' if o.game == 'pm' else 'port_audit_labels.tsv'))
     g = GAMES[o.game]
     f2f = json.load(open(g['f2f']))
     crt = crt_start(f2f, g['crt'])
     every = sorted(int(a, 16) for a in f2f)
     game = [a for a in every if a < crt]
     ported, named = scan_src(Path(o.src), g['tag'])
+    # Pirate's Moon: a PM function paired with an MW3 one (pm-diff/pairs.json)
+    # whose logic is the same (identical, or changed in its instructions only)
+    # is ported where the shared MW3 port is; named where it is; and takes the
+    # MW3 label otherwise. A pair whose calls, strings, constants or imports
+    # changed is 'changed': the shared port may not do PM's version.
+    pairs, mw3p, mw3n = {}, {}, {}
+    if o.game == 'pm':
+        mw3p, mw3n = scan_src(Path(o.src), GAMES['mw3']['tag'])
+        for x in json.load(open(A / 'pm-diff' / 'pairs.json')):
+            if 'pm' in x and 'mw3' in x:
+                pairs[int(x['pm'], 16)] = x
     callers, callees, refs, data_refs = scan_asm(g['asm'], every)
     tables = scan_tables(g['exe'], set(every))
     refs_from = defaultdict(set)
@@ -368,6 +392,17 @@ def main():
     for a in game:
         path = f2f[f'0x{a:x}']
         status = 'ported' if a in ported else 'named' if a in named else 'none'
+        x = pairs.get(a)
+        m = int(x['mw3'], 16) if x else None
+        same = bool(x) and (x['kind'] == 'identical' or not x.get('feature_diff'))
+        shared = ''
+        if status != 'ported' and m is not None:
+            if m in mw3p:
+                status, shared = ('ported' if same else 'changed'), f'{mw3p[m]} (shared: MW3 0x{m:08x})'
+            elif m in mw3n and status == 'none':
+                status = 'named'
+                named[a] = mw3n[m]
+        sa = m if m is not None else a
         rows.append(dict(
             addr=f'0x{a:08x}', status=status, module=module_of(path), file=path,
             lines=decomp_lines(g['decomp'], a),
@@ -378,12 +413,18 @@ def main():
             tables=[f'0x{t:08x}' for t in tables[a][:8]],
             from_ported=any(c in ported for c in callers[a]),
             reached=a in reach,
-            ported_in=ported.get(a, ''),
-            shape=None if a in ported else (['folded', 'ported, by docs/symbols.csv: ' + sym[a][:120]]
-                                             if sym.get(a, '').lower().startswith('ported') else shape(body_of(g['decomp'], a))),
-            symbols=sym.get(a, ''),
+            ported_in=ported.get(a, '') or shared,
+            shape=None if status in ('ported', 'changed') else (['folded', 'ported, by docs/symbols.csv: ' + sym[sa][:120]]
+                                             if (o.game == 'mw3' or same) and sym.get(sa, '').lower().startswith('ported') else shape(body_of(g['decomp'], a))),
+            symbols=sym.get(sa, '') if (o.game == 'mw3' or m is not None) else '',
             near='' if a in ported else near(a),
+            mw3=f'0x{m:08x}' if m is not None else '',
+            pair=x['kind'] if x else ('new in PM' if o.game == 'pm' else ''),
+            same=same,
         ))
+    done_ported = {int(r['addr'], 16) for r in rows if r['status'] == 'ported'}
+    for r in rows:
+        r['from_ported'] = any(int(c, 16) in done_ported for c in r['callers'])
     # A thunk is folded only when its target is ported or folded itself; else it
     # follows its target (so missing logic cannot hide behind a thunk). A setter
     # or small constructor is folded only when ported code calls it.
