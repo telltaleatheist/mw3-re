@@ -16561,9 +16561,10 @@ TEST(mission_c1m1_game_editor_on_shift_f12_headless) {
   std::printf("  without the flag: entered %d, view on the mech %d; THROTTLE_UP %.2f s: the player's mech %.2f m\n",
               off.entered, off.view_back, off.seconds, off.mech_moved);
   EXPECT(!off.entered && off.view_back && !off.view_on_stealth);  // without the flag the key does nothing
-  // The mech under the stealth answers THROTTLE_UP as it does without the
-  // editor (the exe's: the player's tick runs the pilot's vehicle either way).
-  EXPECT(off.mech_moved > 0.1f && std::fabs(on.mech_moved - off.mech_moved) < 0.05f);
+  // The mech under the stealth stays put: the view's attach onto the stealth (0x004acd90 -> 0x0040adf0)
+  // runs the player's mech's vt+0x104 (0x0041b980), which suspends it (state 14) until the view comes
+  // back; without the editor THROTTLE_UP moves it.
+  EXPECT(off.mech_moved > 0.1f && on.mech_moved == 0.0f);
 }
 
 TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {
