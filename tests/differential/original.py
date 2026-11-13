@@ -33,8 +33,9 @@ ROOT = Path(__file__).resolve().parents[2]
 def mw3_probe_built():
     """Whether this build makes MW3's probe library. The `pm` branch builds only PM's (pmprobe): a libmw3probe in its
     build folder is left from another branch's build and would test old code, so loading one is refused."""
-    ninja = ROOT / 'build' / 'build.ninja'
-    return not ninja.exists() or 'libmw3probe' in ninja.read_text(errors='ignore')
+    # The cache says it whatever the generator (Ninja or Makefiles); main has no MW3_BUILD_MW3 and always builds it.
+    cache = ROOT / 'build' / 'CMakeCache.txt'
+    return not cache.exists() or 'MW3_BUILD_MW3:BOOL=OFF' not in cache.read_text(errors='ignore')
 
 
 def _refuse_stale_mw3probe():
