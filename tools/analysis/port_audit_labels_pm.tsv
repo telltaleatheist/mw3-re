@@ -144,15 +144,6 @@
 0x004c7c90	debug	called only from 0x004c7cf0, which are debug
 0x005a2680	sdl	called only from 0x005a2770, which are sdl
 0x005a2700	sdl	called only from 0x005a2680, which are sdl
-0x00404600	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x004ab720	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x004aea00	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x004d7810	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x004e3b50	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x004ef160	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x00514170	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x00566a00	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x00566a20	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x0056b230	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x0056b2d0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x0056b540	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
@@ -222,7 +213,6 @@
 0x00575cf0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x00576220	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x00576340	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x00576390	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x005763b0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x00576440	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x00576750	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
@@ -240,14 +230,200 @@
 0x00576f20	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x00576f50	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x00576f70	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x00596520	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x005b09f0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x005c5590	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x005c57d0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x005caa10	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x005caa30	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x005caa40	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x005cb3e0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x005cb6f0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
-0x005cc3a0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 0x00510ab0	missing	PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
+0x0040b210	folded	inside its ported callers (0x0043a060): a small helper their ports do their own way
+0x0040b320	folded	inside its ported callers (0x0040b720): a small helper their ports do their own way
+0x0040b6b0	folded	inside its ported callers (0x00484fa0, 0x004aefe0): a small helper their ports do their own way
+0x0040b9f0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
+0x0040ca30	folded	inside its ported callers (0x0048eaf0): a small helper their ports do their own way
+0x0040ca50	folded	inside its ported callers (0x0048eaf0): a small helper their ports do their own way
+0x0040dc00	folded	inside its ported callers (0x0040e250): a small helper their ports do their own way
+0x0040e6b0	folded	inside its ported callers (0x0047f420): a small helper their ports do their own way
+0x0040f9c0	folded	inside its ported callers (0x0040f980): a small helper their ports do their own way
+0x004164c0	folded	inside its ported callers (0x00415fc0, 0x004705e0): a small helper their ports do their own way
+0x0041dc70	folded	inside its ported callers (0x004225e0, 0x00422780, 0x00422cd0): a small helper their ports do their own way
+0x0041e280	folded	inside its ported callers (0x004299f0, 0x004db0e0): a small helper their ports do their own way
+0x0041ee80	folded	inside its ported callers (0x0043cc20, 0x00474f80): a small helper their ports do their own way
+0x0041f920	folded	inside its ported callers (0x004705e0, 0x00471040): a small helper their ports do their own way
+0x00425d80	folded	inside its ported callers (0x00426000): a small helper their ports do their own way
+0x00428000	folded	inside its ported callers (0x0044a010): a small helper their ports do their own way
+0x00438790	folded	inside its ported callers (0x00438580): a small helper their ports do their own way
+0x00439a20	folded	inside its ported callers (0x0043a060): a small helper their ports do their own way
+0x0043be70	folded	inside its ported callers (0x0043e590, 0x0043e9a0, 0x0043f220, 0x00444680): a small helper their ports do their own way
+0x00445110	folded	inside its ported callers (0x00445a50): a small helper their ports do their own way
+0x00445580	folded	inside its ported callers (0x00442f10, 0x00445b50, 0x00447da0): a small helper their ports do their own way
+0x0045abf0	folded	inside its ported callers (0x0045ab90): a small helper their ports do their own way
+0x0045af30	folded	inside its ported callers (0x0045b0d0): a small helper their ports do their own way
+0x0045cac0	folded	inside its ported callers (0x0045c080): a small helper their ports do their own way
+0x004615b0	folded	inside its ported callers (0x004616c0, 0x00463380, 0x00464780, 0x00467290): a small helper their ports do their own way
+0x00462f30	folded	inside its ported callers (0x00462ba0): a small helper their ports do their own way
+0x004654d0	folded	inside its ported callers (0x00463af0): a small helper their ports do their own way
+0x00465e00	folded	inside its ported callers (0x0041f4d0): a small helper their ports do their own way
+0x00469bc0	folded	inside its ported callers (0x00469dc0): a small helper their ports do their own way
+0x0046b4b0	folded	inside its ported callers (0x0041cad0): a small helper their ports do their own way
+0x00472cb0	folded	inside its ported callers (0x00471040): a small helper their ports do their own way
+0x004735f0	folded	inside its ported callers (0x0045dc00, 0x00460570): a small helper their ports do their own way
+0x004738b0	folded	inside its ported callers (0x00473f70, 0x00474010, 0x004745a0, 0x00474810): a small helper their ports do their own way
+0x004790c0	folded	inside its ported callers (0x00477f90): a small helper their ports do their own way
+0x004793c0	folded	inside its ported callers (0x00479440): a small helper their ports do their own way
+0x00479c20	folded	inside its ported callers (0x004440b0): a small helper their ports do their own way
+0x0047a9a0	folded	inside its ported callers (0x0047a8f0): a small helper their ports do their own way
+0x0047a9c0	folded	inside its ported callers (0x0047a8f0): a small helper their ports do their own way
+0x0047cbe0	folded	inside its ported callers (0x0041cad0): a small helper their ports do their own way
+0x00481950	folded	inside its ported callers (0x00481910): a small helper their ports do their own way
+0x00483330	folded	inside its ported callers (0x004832e0): a small helper their ports do their own way
+0x00485480	folded	inside its ported callers (0x004826e0): a small helper their ports do their own way
+0x00485530	folded	inside its ported callers (0x004826e0): a small helper their ports do their own way
+0x004868d0	folded	inside its ported callers (0x00479510): a small helper their ports do their own way
+0x00488530	folded	inside its ported callers (0x0042a5e0, 0x0042bb80, 0x00438c10, 0x00439a30 ...): a small helper their ports do their own way
+0x0048b510	folded	inside its ported callers (0x004916c0): a small helper their ports do their own way
+0x0048bce0	folded	inside its ported callers (0x004916c0): a small helper their ports do their own way
+0x00490530	folded	inside its ported callers (0x00490760): a small helper their ports do their own way
+0x004927f0	folded	inside its ported callers (0x004486e0): a small helper their ports do their own way
+0x00492810	folded	inside its ported callers (0x004486e0): a small helper their ports do their own way
+0x00493a60	folded	inside its ported callers (0x004938e0): a small helper their ports do their own way
+0x00499550	folded	inside its ported callers (0x00498b70): a small helper their ports do their own way
+0x0049b3c0	folded	inside its ported callers (0x0049a3c0): a small helper their ports do their own way
+0x004a02b0	folded	inside its ported callers (0x0049ef20): a small helper their ports do their own way
+0x004ac130	folded	inside its ported callers (0x004ac070): a small helper their ports do their own way
+0x004ae850	folded	inside its ported callers (0x004ac1e0): a small helper their ports do their own way
+0x004af6b0	folded	inside its ported callers (0x004af590): a small helper their ports do their own way
+0x004b1390	folded	inside its ported callers (0x004b1220): a small helper their ports do their own way
+0x004b2da0	folded	inside its ported callers (0x0041b930): a small helper their ports do their own way
+0x004b5bf0	folded	inside its ported callers (0x004bb700): a small helper their ports do their own way
+0x004b7a90	folded	inside its ported callers (0x004bcd40): a small helper their ports do their own way
+0x004b7b10	folded	inside its ported callers (0x004b6ad0, 0x004b8310): a small helper their ports do their own way
+0x004b8c20	folded	inside its ported callers (0x00493ca0): a small helper their ports do their own way
+0x004b8ed0	folded	inside its ported callers (0x004b64f0, 0x004b6820): a small helper their ports do their own way
+0x004b8f10	folded	inside its ported callers (0x004b7da0, 0x004b7ea0): a small helper their ports do their own way
+0x004b9450	folded	inside its ported callers (0x004796f0): a small helper their ports do their own way
+0x004b9670	folded	inside its ported callers (0x004b9620): a small helper their ports do their own way
+0x004b9d40	folded	inside its ported callers (0x004b9de0, 0x004ba9e0, 0x004bcd40, 0x004bd1c0): a small helper their ports do their own way
+0x004b9d60	folded	inside its ported callers (0x004ba9e0): a small helper their ports do their own way
+0x004b9d70	folded	inside its ported callers (0x004ba9e0): a small helper their ports do their own way
+0x004b9d80	folded	inside its ported callers (0x004b9de0): a small helper their ports do their own way
+0x004bc230	folded	inside its ported callers (0x004bbfa0): a small helper their ports do their own way
+0x004bc260	folded	inside its ported callers (0x004bc2e0): a small helper their ports do their own way
+0x004bc2a0	folded	inside its ported callers (0x004bc2e0): a small helper their ports do their own way
+0x004bc8c0	folded	inside its ported callers (0x004bb700): a small helper their ports do their own way
+0x004bd2b0	folded	inside its ported callers (0x004bcd40): a small helper their ports do their own way
+0x004bd2e0	folded	inside its ported callers (0x004bbfa0): a small helper their ports do their own way
+0x004be1a0	folded	inside its ported callers (0x004ba750): a small helper their ports do their own way
+0x004c7e90	folded	inside its ported callers (0x004cbbb0): a small helper their ports do their own way
+0x004c8230	folded	inside its ported callers (0x004c9af0): a small helper their ports do their own way
+0x004c82b0	folded	inside its ported callers (0x004cb8b0, 0x004cbbb0): a small helper their ports do their own way
+0x004c86e0	folded	inside its ported callers (0x004c9600): a small helper their ports do their own way
+0x004c8940	folded	inside its ported callers (0x004c9600): a small helper their ports do their own way
+0x004c9220	folded	inside its ported callers (0x004c8c30): a small helper their ports do their own way
+0x004cb700	folded	inside its ported callers (0x004cc7f0): a small helper their ports do their own way
+0x004cc970	folded	inside its ported callers (0x004cb8b0, 0x004cbbb0): a small helper their ports do their own way
+0x004ce380	folded	inside its ported callers (0x004ce320): a small helper their ports do their own way
+0x004ced50	folded	inside its ported callers (0x004cedd0): a small helper their ports do their own way
+0x004cf2c0	folded	inside its ported callers (0x004be620): a small helper their ports do their own way
+0x004cfb80	folded	inside its ported callers (0x004c9af0): a small helper their ports do their own way
+0x004d3e30	folded	inside its ported callers (0x004dd800): a small helper their ports do their own way
+0x004d8950	folded	inside its ported callers (0x004d89d0): a small helper their ports do their own way
+0x004dc270	folded	inside its ported callers (0x004d9a90, 0x004dcfe0, 0x004ddab0, 0x004de0e0 ...): a small helper their ports do their own way
+0x004dc3b0	folded	inside its ported callers (0x004dc9d0): a small helper their ports do their own way
+0x004de920	folded	inside its ported callers (0x004dd5e0): a small helper their ports do their own way
+0x004df460	folded	inside its ported callers (0x004c9600): a small helper their ports do their own way
+0x004df7e0	folded	inside its ported callers (0x004df860): a small helper their ports do their own way
+0x004e1ea0	folded	inside its ported callers (0x004c4c20): a small helper their ports do their own way
+0x004e7800	folded	inside its ported callers (0x004e5f90): a small helper their ports do their own way
+0x004e7820	folded	inside its ported callers (0x004e5f90): a small helper their ports do their own way
+0x004e7840	folded	inside its ported callers (0x004e5f90): a small helper their ports do their own way
+0x004e7860	folded	inside its ported callers (0x004e5f90): a small helper their ports do their own way
+0x004ea070	folded	inside its ported callers (0x004d9d00, 0x004dedf0, 0x004e0790, 0x004e1fd0): a small helper their ports do their own way
+0x004ea0e0	folded	inside its ported callers (0x004fb260): a small helper their ports do their own way
+0x004ebec0	folded	inside its ported callers (0x004ed430): a small helper their ports do their own way
+0x004f1a40	folded	inside its ported callers (0x004c1cb0, 0x004c2680): a small helper their ports do their own way
+0x004f4f70	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
+0x004f5240	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
+0x004f5360	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
+0x004f54b0	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
+0x004f55d0	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
+0x004f57e0	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
+0x004f5f00	folded	inside its ported callers (0x004c9600): a small helper their ports do their own way
+0x004f7010	folded	inside its ported callers (0x004f38e0): a small helper their ports do their own way
+0x004fafe0	folded	inside its ported callers (0x004ea5f0, 0x004fa860): a small helper their ports do their own way
+0x004fc130	folded	inside its ported callers (0x004faff0): a small helper their ports do their own way
+0x004fc1c0	folded	inside its ported callers (0x004faff0): a small helper their ports do their own way
+0x005116e0	folded	inside its ported callers (0x005116b0): a small helper their ports do their own way
+0x00513a30	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
+0x00515bb0	folded	inside its ported callers (0x004fd5e0, 0x0050d4e0, 0x005b2d10): a small helper their ports do their own way
+0x00515bd0	folded	inside its ported callers (0x004fd7a0, 0x0050bdf0): a small helper their ports do their own way
+0x0051b340	folded	inside its ported callers (0x0051b2c0): a small helper their ports do their own way
+0x005210d0	folded	inside its ported callers (0x0051f900): a small helper their ports do their own way
+0x00521f80	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
+0x00526df0	folded	inside its ported callers (0x0051b500, 0x005a27b0, 0x005a3df0, 0x005a6c60): a small helper their ports do their own way
+0x00534780	folded	inside its ported callers (0x00534700): a small helper their ports do their own way
+0x00537e60	folded	inside its ported callers (0x004d92c0, 0x004d9a90, 0x004da1c0, 0x004dcd20): a small helper their ports do their own way
+0x00540740	folded	inside its ported callers (0x00504fb0): a small helper their ports do their own way
+0x00541a30	folded	inside its ported callers (0x0040b120): a small helper their ports do their own way
+0x00563740	folded	inside its ported callers (0x00507f30): a small helper their ports do their own way
+0x00565f00	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00565fd0	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566020	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566030	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566040	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566050	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566060	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566070	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566080	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566130	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566140	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566540	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x005665b0	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566640	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x005666b0	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
+0x00566910	folded	inside its ported callers (0x00565320): a small helper their ports do their own way
+0x00566990	folded	inside its ported callers (0x00565320): a small helper their ports do their own way
+0x00577950	folded	inside its ported callers (0x0058fb60): a small helper their ports do their own way
+0x00577d80	folded	inside its ported callers (0x005780b0): a small helper their ports do their own way
+0x00578070	folded	inside its ported callers (0x00493820, 0x005b2d10): a small helper their ports do their own way
+0x00578090	folded	inside its ported callers (0x00493820, 0x005b2d10): a small helper their ports do their own way
+0x00579130	folded	inside its ported callers (0x004060d0, 0x0042abb0, 0x0043cc20, 0x00440ce0 ...): a small helper their ports do their own way
+0x00579150	folded	inside its ported callers (0x00579170, 0x005a52e0): a small helper their ports do their own way
+0x00579300	folded	inside its ported callers (0x00578630): a small helper their ports do their own way
+0x00579330	folded	inside its ported callers (0x00484ed0, 0x00494b80): a small helper their ports do their own way
+0x0058fc20	folded	inside its ported callers (0x0058fb60): a small helper their ports do their own way
+0x00590310	folded	inside its ported callers (0x00590530): a small helper their ports do their own way
+0x00590610	folded	inside its ported callers (0x0058ff90): a small helper their ports do their own way
+0x005908b0	folded	inside its ported callers (0x00590880): a small helper their ports do their own way
+0x005908e0	folded	inside its ported callers (0x00482ca0): a small helper their ports do their own way
+0x00590b90	folded	inside its ported callers (0x00590ae0): a small helper their ports do their own way
+0x00590d20	folded	inside its ported callers (0x005920e0): a small helper their ports do their own way
+0x00591120	folded	inside its ported callers (0x00590f80): a small helper their ports do their own way
+0x00591220	folded	inside its ported callers (0x00590d70): a small helper their ports do their own way
+0x00592040	folded	inside its ported callers (0x00592170): a small helper their ports do their own way
+0x00594150	folded	inside its ported callers (0x00591900): a small helper their ports do their own way
+0x00594f10	folded	inside its ported callers (0x0058f390): a small helper their ports do their own way
+0x005950e0	folded	inside its ported callers (0x0058f7d0): a small helper their ports do their own way
+0x005952a0	folded	inside its ported callers (0x0058fc70): a small helper their ports do their own way
+0x00598230	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
+0x00598420	folded	inside its ported callers (0x00547dd0): a small helper their ports do their own way
+0x005a36c0	folded	inside its ported callers (0x004b73f0): a small helper their ports do their own way
+0x005a4dc0	folded	inside its ported callers (0x004e37d0, 0x00513310, 0x00524492): a small helper their ports do their own way
+0x005a52c0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
+0x005a52d0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
+0x005a6410	folded	inside its ported callers (0x005a52b0): a small helper their ports do their own way
+0x005a8a90	folded	inside its ported callers (0x005a8a40): a small helper their ports do their own way
+0x005a94f0	folded	inside its ported callers (0x0049a3c0, 0x0049df10): a small helper their ports do their own way
+0x005aa6a0	folded	inside its ported callers (0x005a9980): a small helper their ports do their own way
+0x005aa700	folded	inside its ported callers (0x005a9980): a small helper their ports do their own way
+0x005aaba0	folded	inside its ported callers (0x0049b730): a small helper their ports do their own way
+0x005b0da0	folded	inside its ported callers (0x005adfe0): a small helper their ports do their own way
+0x005b21b0	folded	inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way
+0x005b6ec0	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
+0x005b6ed0	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
+0x005b6ee0	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
+0x005b7430	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
+0x005bb190	folded	inside its ported callers (0x005ba110): a small helper their ports do their own way
+0x005c0500	folded	inside its ported callers (0x005c1360): a small helper their ports do their own way
+0x005c5890	folded	inside its ported callers (0x004879a0): a small helper their ports do their own way
+0x005c6df0	folded	inside its ported callers (0x005c6d10): a small helper their ports do their own way
+0x005c9590	folded	inside its ported callers (0x0048cec0): a small helper their ports do their own way
+0x005cb320	folded	inside its ported callers (0x004e37d0): a small helper their ports do their own way
