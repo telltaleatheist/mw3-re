@@ -1218,6 +1218,7 @@ int probe_anim(const char* world, const char* path, int fail_at, int full, uint8
 }  // extern "C"
 
 #include "gamez/zutil/zutl_msg.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_skin.h"
 
 namespace {
@@ -1710,3 +1711,5 @@ extern "C" void probe_set_fpu53(int on) { zfix::options().fpu53 = on != 0; }
 extern "C" int32_t probe_weapon_family(int32_t weapon) { return mech3::weapon_family(weapon); }
 // An equipment kind's voice index (0x00485360), which picks its callout (test_equip_voice.py).
 extern "C" int32_t probe_equip_voice_index(int32_t kind) { return mech3::equip_voice_index(kind); }
+// zMath's pitch and yaw to the way they face (0x00522170, test_look_dir.py).
+extern "C" void probe_look_dir(const float* angles, float* out) { zmth::look_dir(angles, out); }

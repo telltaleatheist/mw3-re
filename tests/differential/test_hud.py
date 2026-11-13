@@ -928,7 +928,7 @@ class Original:
         w.answers['0x0041cdf0'] = vecs + 12
 
         for a2, spec in (
-                         (0x479ef0, 's0,s1'), (0x43f2d0, 'c,s0')):
+                         (0x479ef0, 's0,s1'),):
             e.stub(a2, spec=spec)
 
     def radar_world(self, r):

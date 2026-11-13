@@ -911,6 +911,20 @@ void HudRadar::set_dir(const float* d) {
   lines[1].set(get_x(), get_y(), x1, y1);
 }
 
+// Mech3.exe 1.2 @ 0x0043f2d0: the facing kept (null: the last); with the mission map shown, the red
+// line from the radar's centre a radius along it, the map's way up as set_dir's (0x005c007c).
+void HudRadar::set_heading(const float* d) {
+  if (d) heading[0] = d[0], heading[1] = d[1], heading[2] = d[2];
+  if (!active) return;
+  HudHooks& k = *g_hooks;
+  float v[3] = {heading[0], heading[1], heading[2]};
+  if (k.entry_flip(k.mission_entry()) > 0.0f) v[0] = -v[0], v[1] = -v[1], v[2] = -v[2];
+  const float rr = static_cast<float>(radius);
+  const int32_t y1 = get_y() + crt::msvc_ftol(rr * v[2]);
+  const int32_t x1 = get_x() + crt::msvc_ftol(rr * v[0]);
+  lines[2].set(get_x(), get_y(), x1, y1);
+}
+
 // Mech3.exe 1.2 @ 0x004b5440
 HudViewWindow::HudViewWindow(const char* name) {
   HudHooks& k = *g_hooks;
@@ -3394,7 +3408,9 @@ void Hud::data_update(float dt) {
       v[1] = 0.0f;
       h.normalize(v);
       radar.set_dir(v);
-      h.radar_heading(&radar, mech);
+      float fwd[3];
+      h.mech_forward(mech, fwd);  // the mech's +0x24
+      radar.set_heading(fwd);
     } else {
       h.mech_radar_dir(mech, v);
       radar.set_dir(v);
