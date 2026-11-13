@@ -208,7 +208,7 @@ differ in some bit (mostly rounding), 9,860 by more than 1 mm in a hit, and
 5,011 on 126 models in the answer a caller takes (the highest ground hit,
 the nearest crossing). The largest are a different face: on
 `mech_thor_1.flt` a probe from above stops at a face 1.5 m lower, and a
-level shot meets a face a metre further in. So the port, which keeps the
+level shot meets a face 0.9 m from the one the port finds. So the port, which keeps the
 reader's polygons, answers as the original's software mode, not as its
 hardware mode. To port (queued after the port audit): load-time, checked
 model by model against the exe.
