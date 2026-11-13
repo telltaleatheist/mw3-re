@@ -214,6 +214,93 @@ def scan_tables(exe, sset):
     return tables
 
 
+LABEL_WORDS = {
+    'folded': 'folded', 'sdl': 'replaced (SDL or the platform layer)', 'software': 'software renderer',
+    'unused': 'unused: PORT (preserve)', 'debug': 'debug or dev tool: PORT (preserve)',
+    'devdialog-logic': 'dev dialog (MFC), its logic: PORT (preserve)',
+    'devdialog-shell': 'dev dialog (MFC), its window plumbing: replaced',
+    'missing': 'MISSING LOGIC', 'missing-mod': 'MISSING LOGIC (only data the shipped game lacks reaches it)',
+    'unsure': 'UNSURE',
+}
+
+
+def write_doc(o, g, rows):
+    """docs/port-audit.md: the labels by class, then a table per module."""
+    labels = {}
+    for line in open(o.labels, errors='replace'):
+        parts = line.rstrip('\n').split('\t')
+        if len(parts) >= 3:
+            labels[parts[0]] = (parts[1], parts[2])
+    byaddr = {r['addr']: r for r in rows}
+
+    def label_of(r, depth=0):
+        if r['addr'] in labels:
+            return labels[r['addr']]
+        sh = r['shape']
+        if sh and sh[0] == 'follows' and depth < 8:
+            t = byaddr.get(sh[1])
+            if t:
+                lab, why = label_of(t, depth + 1)
+                return lab, f'follows {sh[1]}: {why}'
+        if sh and sh[0] == 'folded':
+            return 'folded', sh[1] + (f' ({sh[2]})' if len(sh) > 2 else '')
+        return None, ''
+
+    un = [r for r in rows if r['status'] != 'ported']
+    done = [(r, *label_of(r)) for r in un]
+    out = ['# Port audit: the original functions not ported (' + o.game + ')', '',
+           'Every game function of the original (below the C runtime) that has no port of its own, labelled from its decomp,',
+           'its callers and callees, the port\'s comments and the docs (tools/analysis/port_audit.py; labels with their',
+           'reasons in tools/analysis/port_audit_labels.tsv). Addresses and plain words only.', '',
+           'Classes: **folded** (into its callers or a ported class: getters, setters, constructors, destructors, thunks,',
+           'container code, or covered where the port names it); **replaced** (SDL or the platform layer); **PORT (preserve)**',
+           '(debug and dev tools, unused code: to be ported for preservation, not called by the game); **MISSING LOGIC**',
+           '(runs in play and the port does not, or does it differently); **UNSURE** (what would settle it is said).', '']
+    from collections import Counter as C
+    cnt = C(lab or 'unlabelled' for _, lab, _ in done)
+    out += ['| Class | Functions |', '|---|---|'] + [f'| {LABEL_WORDS.get(k, k)} | {n} |' for k, n in cnt.most_common()] + ['']
+    out += ['## MISSING LOGIC', '']
+    for kind in ('missing', 'missing-mod'):
+        groups = {}
+        for r, lab, why in done:
+            if lab == kind:
+                groups.setdefault(re.sub(r'^(follows 0x[0-9a-f]+: )+', '', why), []).append(r)
+        for why, rs in groups.items():
+            lines = sum(x['lines'] for x in rs)
+            out.append(f'- **{", ".join(x["addr"] for x in rs[:6])}{" ..." if len(rs) > 6 else ""}** ({len(rs)} functions, {lines} decomp lines; '
+                       f'{LABEL_WORDS[kind]}): {why}')
+    out += ['', '## PORT (preserve)', '']
+    for kind in ('debug', 'devdialog-logic', 'unused'):
+        groups = {}
+        for r, lab, why in done:
+            if lab == kind:
+                groups.setdefault(re.sub(r'^(follows 0x[0-9a-f]+: )+', '', why), []).append(r)
+        if groups:
+            out.append(f'### {LABEL_WORDS[kind]}')
+            out.append('')
+            for why, rs in groups.items():
+                out.append(f'- {len(rs)} functions, {sum(x["lines"] for x in rs)} decomp lines ({", ".join(x["addr"] for x in rs[:4])}'
+                           f'{" ..." if len(rs) > 4 else ""}): {why}')
+            out.append('')
+    out += ['## UNSURE', '']
+    groups = {}
+    for r, lab, why in done:
+        if lab == 'unsure':
+            groups.setdefault(re.sub(r'^(follows 0x[0-9a-f]+: )+', '', why), []).append(r)
+    for why, rs in groups.items():
+        out.append(f'- {", ".join(x["addr"] for x in rs)} ({len(rs)} functions, {sum(x["lines"] for x in rs)} decomp lines): {why}')
+    out += ['', '## By module', '']
+    mods = sorted({r['module'] for r in un}, key=lambda m: -sum(1 for r in un if r['module'] == m))
+    for m in mods:
+        rs = [(r, lab, why) for r, lab, why in done if r['module'] == m]
+        out += [f'### {m} ({len(rs)} not ported)', '', '| Address | Lines | Class | Why |', '|---|---|---|---|']
+        for r, lab, why in rs:
+            out.append(f'| {r["addr"]} | {r["lines"]} | {LABEL_WORDS.get(lab, lab or "unlabelled")} | {why.replace("|", "/")} |')
+        out.append('')
+    Path(o.doc).write_text('\n'.join(out) + '\n')
+    print(f'wrote {o.doc}: ' + ', '.join(f'{k} {n}' for k, n in cnt.most_common()))
+
+
 def pe_entry(exe):
     data = exe.read_bytes()
     pe = struct.unpack_from('<I', data, 0x3c)[0]
@@ -228,6 +315,8 @@ def main():
     ap.add_argument('--src', default=str(ROOT / 'src'))
     ap.add_argument('--out')
     ap.add_argument('--module')
+    ap.add_argument('--doc', help='write the audit document (docs/port-audit.md) from the labels')
+    ap.add_argument('--labels', default=str(ROOT / 'tools' / 'analysis' / 'port_audit_labels.tsv'))
     o = ap.parse_args()
     g = GAMES[o.game]
     f2f = json.load(open(g['f2f']))
@@ -338,6 +427,8 @@ def main():
         rows = [r for r in rows if r['module'] == o.module]
     if o.out:
         json.dump(rows, open(o.out, 'w'), indent=1)
+    if o.doc:
+        write_doc(o, g, rows)
     by = defaultdict(Counter)
     for r in rows:
         by[r['module']][r['status']] += 1
