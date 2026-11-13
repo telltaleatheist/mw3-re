@@ -60,8 +60,8 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3433 |
-| unlabelled | 777 |
+| folded | 3440 |
+| unlabelled | 770 |
 | replaced (SDL or the platform layer) | 242 |
 | MISSING LOGIC | 234 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 115 |
@@ -1808,20 +1808,20 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00475b20 | 35 | folded | read: a skin entry's texture (MW3's 0x00473d40, the port's SkinEntry::load, mech_skin.cpp:248), the same fetch, find and load; PM drops MW3's forcing of the alternate for 'vult_d03_c', which no PM file names, so the port's keeping it changes nothing on PM |
 | 0x00475dd0 | 88 | folded | container code (MW3's 0x00471fb0 / 0x00474000 / 0x00474210 / 0x00470d20: a vector's insert or assign for the configs' and skins' lists, a list's free), PM's element copies through 0x004d7810 where MW3's are inline; the port's std containers |
 | 0x00475fe0 | 92 | folded | container code (MW3's 0x00471fb0 / 0x00474000 / 0x00474210 / 0x00470d20: a vector's insert or assign for the configs' and skins' lists, a list's free), PM's element copies through 0x004d7810 where MW3's are inline; the port's std containers |
-| 0x00476750 | 78 | unlabelled |  |
+| 0x00476750 | 78 | folded | ported: src/mech3/mech_skin.cpp (MW3's 0x004749e0, a skin put on a model's materials: each polygon's textured material's texture looked up and swapped) over PM's model layout (0x28-byte polygons, the first of each polygon's materials, the port's each_material on pm_model naming 0x00476610) |
 | 0x00476bf0 | 17 | folded | as MW3 0x00474ef0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00476c10 | 9 | folded | a thunk: one call to another function |
-| 0x00476c60 | 77 | unlabelled |  |
-| 0x00476ff0 | 108 | unlabelled |  |
+| 0x00476c60 | 77 | folded | read: MW3's 0x00474f60 / 0x004752e0 (mech_skin.h: a skin list's vector set to a size; a skin by name in the table 0x00607424 for 0x005e5454); the same, container helpers by other addresses, the arguments explicit |
+| 0x00476ff0 | 108 | folded | read: MW3's 0x00474f60 / 0x004752e0 (mech_skin.h: a skin list's vector set to a size; a skin by name in the table 0x00607424 for 0x005e5454); the same, container helpers by other addresses, the arguments explicit |
 | 0x004773a0 | 23 | folded | read with its caller (the mech data load 0x00430c10): the definition's skins put on the model by its first entry (MW3 0x00475780, the port's skins_apply, mech_data.cpp:371) |
 | 0x00477470 | 97 | folded | group A, read: the same logic; the element count's checks are inlined in different branches (the ctor 0x00475be0 called from three of them) |
 | 0x004777f0 | 35 | folded | covered by the port where it names it (src/mech3/mech_part_update.cpp:352) |
 | 0x004779e0 | 29 | folded | covered by the port where it names it (src/mech3/mech_pose.cpp:228) |
-| 0x00477dd0 | 31 | unlabelled |  |
+| 0x00477dd0 | 31 | folded | a destructor out of line, from the mech's destructor 0x00415940 (MW3's inline there): the two objects at +0x3c / +0x40 deleted, the one at +0x38 deleted after its node is taken out of its parent and destroyed; the port's destructors free their own |
 | 0x00477ef0 | 15 | folded | covered by the port where it names it (src/mech3/mech_skis.cpp:201) |
 | 0x00477f90 | 693 | folded | ported, checked by test: the skis' update (MW3's 0x004765b0, mech_skis.cpp); tests/differential/test_pm_skis.py runs 0x00477f90 each frame and compares the skis, the mech's vertical speed and push, the prediction and every call out (5,600 frames identical, 2026-11-13) |
 | 0x004790c0 | 11 | folded | inside its ported callers (0x00477f90): a small helper their ports do their own way |
-| 0x004790f0 | 32 | unlabelled |  |
+| 0x004790f0 | 32 | folded | ported: src/mech3/mech_skis.cpp Skis::slope_slide (MW3's 0x00477620) with PM's constants on pm: steeper than a normal y of 0.84 (MW3's 0.85) and a slide of 20 (MW3's 30), kSteep / kSlide naming 0x006079c0 / 0x006079c4; the kick test 0x00477ef0 (MW3's inline), the arguments explicit |
 | 0x00479330 | 28 | folded | covered by the port where it names it (src/mech3/mech_headlight.h:4) |
 | 0x004793c0 | 19 | folded | inside its ported callers (0x00479440): a small helper their ports do their own way |
 | 0x004796c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004796f0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
@@ -1833,8 +1833,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00479cd0 | 9 | folded | a thunk: one call to another function |
 | 0x00479d80 | 169 | folded | ported, checked by test: the pilot's constructor (MW3's 0x00477b20, pilot.cpp); tests/differential/test_pm_pilot.py builds pilots with 0x00479d80 and compares the files read and written back byte for byte (400 crafted files, 2026-11-13) |
 | 0x0047a080 | 13 | folded | covered by the port where it names it (src/mech3/pilot.cpp:123) |
-| 0x0047a6e0 | 66 | unlabelled |  |
-| 0x0047a860 | 23 | unlabelled |  |
+| 0x0047a6e0 | 66 | folded | ported: src/mech3/app_mech.cpp program_pilot_set_mech (MW3's 0x004783c0, the player's mech made again as another, the respawn's): the camera, place, heading and team kept, rebuilt, placed, the view attached, the HUD reset, powered down, the fire mode kept; PM's rebuild takes the configuration (0x00415190) where MW3 configures after (0x00414430), as the port does, the same result |
+| 0x0047a860 | 23 | folded | ported: src/mech3/pilot.h (MW3's 0x00478560, the pilots' folder scanned: pilots and pilots\games made, each *.mw3 read); the same, PM closing the find with FindClose where MW3 calls CloseHandle (the port lists the folder itself) |
 | 0x0047a8f0 | 51 | unlabelled |  |
 | 0x0047a9a0 | 12 | folded | inside its ported callers (0x0047a8f0): a small helper their ports do their own way |
 | 0x0047a9c0 | 15 | folded | inside its ported callers (0x0047a8f0): a small helper their ports do their own way |
