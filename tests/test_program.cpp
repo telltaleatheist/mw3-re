@@ -13885,6 +13885,87 @@ TEST(mission_c1m1_jump_jets_lift_in_every_state_headless) {
   EXPECT(hovers == 0);
   EXPECT(original_hovers > 0);
 }
+// The view leaving the player's mech (0x0041b980, the mech's vt+0x104 from the view's attach 0x0040adf0)
+// suspends it (state 14: Mech::update returns at once) and hides its HUD; coming back (0x0041b930, vt+0x100)
+// gives the state it had back and shows the HUD. Here the game editor's views: onto the stealth object
+// and back onto the pilot's mech (docs/port-audit.md, MISSING 0x0041b930 / 0x0041b980).
+TEST(mission_c1m1_view_leaving_the_player_suspends_it_headless) {
+  if (!have_game()) return;
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir("mission_view_suspend"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  int before = -2, hud_before = -2, away = -2, hud_away = -2, back = -2, hud_back = -2, kept = -2;
+  float moved = -1.0f;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1m1
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    mech3::LaunchedMech at{};
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      ++frames;
+      void* player = mech3::mech_mission_player();
+      if (!player) return;
+      if (frames == 30) {
+        before = mech3::program_mech_anim_state(player);
+        hud_before = mech3::program_hud_active(player);
+        mech3::editor_hooks().view_on_stealth();
+        away = mech3::program_mech_anim_state(player);
+        hud_away = mech3::program_hud_active(player);
+        mech3::describe_mech(player, &at);
+      }
+      if (frames == 60) {  // 30 frames on the stealth: the mech held where it was
+        mech3::LaunchedMech now{};
+        mech3::describe_mech(player, &now);
+        moved = std::fabs(now.pos[0] - at.pos[0]) + std::fabs(now.pos[1] - at.pos[1]) + std::fabs(now.pos[2] - at.pos[2]);
+        kept = mech3::program_mech_anim_state(player);
+        mech3::editor_hooks().view_on_pilot();
+        back = mech3::program_mech_anim_state(player);
+        hud_back = mech3::program_hud_active(player);
+      }
+    };
+    CountingPump pump;
+    pump.stop = [&] { return frames >= 61; };
+    pump.limit = 3000;
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  reset_process_state();
+  mech3::options() = mech3::Options{};
+  std::printf("  state %d, HUD %d; on the stealth: state %d, HUD %d, after 30 frames state %d, moved %.4f m; back: state %d, HUD %d\n",
+              before, hud_before, away, hud_away, kept, moved, back, hud_back);
+  EXPECT(before != 14 && hud_before == 1);
+  EXPECT(away == 14 && hud_away == 0);
+  EXPECT(kept == 14 && moved == 0.0f);
+  EXPECT(back == before && hud_back == 1);
+}
+
 // Playtest W33: the reticle's pick (0x00444350) ran from the camera's near
 // to its far clip (800 m), short of an ER large laser's 1000 m: aimed at a
 // mech 860 m off, in the selected group's range, the reticle stayed green.
@@ -13898,6 +13979,11 @@ TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
     bool on_owens = false;
   };
   Pick picks[2];  // the fixes off, on
+  struct Sky {
+    int group = 0;
+    float range = 0, distance = 0, far = 0;
+  };
+  std::vector<Sky> skies[2];  // at the sky with each group selected, the fixes off and on
   void* owens = nullptr;
   for (int fixes = 0; fixes < 2; ++fixes) {
     SavedMounts keep;
@@ -13954,6 +14040,16 @@ TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
           Pick& k = picks[fixes];
           k.state = mech3::program_hud_pick_at(at, &k.node, &k.distance, &k.range, &k.far);
           k.on_owens = k.node && mech3::program_hud_node_object(k.node) == owens;
+          // The sky 300 m over the Owens: a miss. Each group in turn, the ER lasers' last.
+          const float sky[3] = {o.pos[0], o.pos[1] + 300.0f, o.pos[2]};
+          for (int g : {1, 2, 4, 5, 3}) {
+            if (!mech3::mech_select_group(player, g)) continue;
+            Sky y;
+            y.group = g;
+            void* n = nullptr;
+            mech3::program_hud_pick_at(sky, &n, &y.distance, &y.range, &y.far);
+            if (!n) skies[fixes].push_back(y);
+          }
         }
       };
       CountingPump pump;
@@ -13978,6 +14074,19 @@ TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
   EXPECT(picks[0].range >= 1000.0f && picks[0].far < 850.0f);
   EXPECT(!picks[0].node && picks[0].state == 0);  // the original: green
   EXPECT(picks[1].on_owens && picks[1].distance > 850.0f && picks[1].state == 2);  // yellow
+  // At the sky the zoom window's "[range = %1m]" reads the miss's distance: the far clip in the
+  // original, the farther of it and the group's range with the fixes (as Pirate's Moon).
+  bool over = false, under = false;
+  for (int f = 0; f < 2; ++f)
+    for (const Sky& y : skies[f]) {
+      const float want = f ? std::max(y.far, y.range) : y.far;
+      std::printf("  fixes %d: group %d (range %.0f m) at the sky reads %.0f m (far clip %.0f m)\n", f, y.group, y.range,
+                  y.distance, y.far);
+      EXPECT(std::fabs(y.distance - want) < 0.5f);
+      if (f) (y.range > y.far ? over : under) = true;
+    }
+  EXPECT(skies[0].size() >= 2 && skies[1].size() == skies[0].size());
+  EXPECT(over && under);  // a group past the far clip and one short of it
 }
 
 // Playtest W34: the AI's missiles ("sometimes they come from the side or the
@@ -16452,9 +16561,10 @@ TEST(mission_c1m1_game_editor_on_shift_f12_headless) {
   std::printf("  without the flag: entered %d, view on the mech %d; THROTTLE_UP %.2f s: the player's mech %.2f m\n",
               off.entered, off.view_back, off.seconds, off.mech_moved);
   EXPECT(!off.entered && off.view_back && !off.view_on_stealth);  // without the flag the key does nothing
-  // The mech under the stealth answers THROTTLE_UP as it does without the
-  // editor (the exe's: the player's tick runs the pilot's vehicle either way).
-  EXPECT(off.mech_moved > 0.1f && std::fabs(on.mech_moved - off.mech_moved) < 0.05f);
+  // The mech under the stealth stays put: the view's attach onto the stealth (0x004acd90 -> 0x0040adf0)
+  // runs the player's mech's vt+0x104 (0x0041b980), which suspends it (state 14) until the view comes
+  // back; without the editor THROTTLE_UP moves it.
+  EXPECT(off.mech_moved > 0.1f && on.mech_moved == 0.0f);
 }
 
 TEST(mission_c2m1_lance_order_keys_end_to_end_headless) {

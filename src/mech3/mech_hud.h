@@ -25,6 +25,11 @@ MechHudCalls& mech_hud_calls();
 Hud* pilot_hud(MechData& p);                 // 0x00430aa0: made when first asked (0x00430ad0)
 void player_frame(Mech& m);               // 0x0041ce60
 void hud_handoff(Mech& m, float dt);      // 0x0041cd40 (the mech's vt+0xe0)
+// The view taking (vt+0x100, 0x0041b930) and leaving (vt+0x104, 0x0041b980) a mech: the mission's player is
+// suspended (state 14, mech_update.cpp) while the view is off it and given its state back after; its HUD
+// shown on the way in and hidden on the way out.
+void view_attached(Mech& m);
+void view_detached(Mech& m, bool view_target);  // view_target: the view's +0x64 is still m
 bool aim_at_point(Mech& m, const float p[3], bool check);  // 0x0041bd80
 // 0x0041d940: where to aim the selected group's current weapon so its shot
 // meets the target (TARGET's lead circle, hud.md section 14); false

@@ -92,6 +92,8 @@ the 800 m view distance and the selected weapon group's range, and aimed
 at the sky the zoom window reads that distance. So with an ER Large
 Laser or a NARC selected it reads 1000 m, with an ER PPC 920 m and with a
 Gauss rifle 880 m, but any group whose reach is under 800 m still
-reads 800 (PM's reticle, 0x00445cf0). The MW3 rebuild's fix (bug fixes on) makes
-the reticle find mechs out to the weapons' range, but its sky reading
-stays 800 m, as in the original MW3.
+reads 800 (PM's reticle, 0x00445cf0). The MW3 rebuild with bug fixes on
+does the same: the reticle finds mechs out to the weapons' range, and aimed
+at the sky the zoom window reads the farther of 800 m and the selected
+group's range, as Pirate's Moon. With bug fixes off it reads 800 m, as the
+original MW3.

@@ -1,6 +1,7 @@
 #include "mech3/mech_hud.h"
 
 #include <cstring>
+#include <utility>
 
 #include "mech3/hud.h"
 #include "mech3/mech.h"
@@ -122,5 +123,25 @@ void mech_radar_blips_destroy() {
 
 // Mech3.exe 1.2 @ 0x0041ec60 (the Mech's vt+0x3c)
 ztwod::Image* mech_radar_blip(int32_t kind) { return g_blips[kind]; }
+
+// Mech3.exe 1.2 @ 0x0041b930 (vt+0x100, from the view's attach 0x0040adf0 on the new target).
+void view_attached(Mech& m) {
+  if (&m == world().mission_player) {
+    if (m.anim_state == 14) std::swap(m.anim_state, m.prev_state);  // the state it had, 14 kept behind
+    m.active = true;
+  }
+  if (Hud* h = m.pilot ? pilot_hud(*m.pilot) : nullptr) h->set_active(1);
+}
+
+// Mech3.exe 1.2 @ 0x0041b980 (vt+0x104, on the old target): the HUD off only for the view's own
+// target ([0x005f4c8c] +0x64), which the old target still is when the attach calls this.
+void view_detached(Mech& m, bool view_target) {
+  if (&m == world().mission_player) {
+    m.prev_state = m.anim_state;
+    m.anim_state = 14;
+  }
+  if (!view_target) return;
+  if (Hud* h = m.pilot ? pilot_hud(*m.pilot) : nullptr) h->set_active(0);
+}
 
 }  // namespace mech3

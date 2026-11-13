@@ -41,6 +41,7 @@ std::unique_ptr<PlayerView> g_view;
 // view is on the stealth object, the game editor's: editor.md S4).
 void* g_target = nullptr;
 Mech* g_target_mech = nullptr;
+Mech* g_view_mech = nullptr;  // the view's target when it is a mech (vt+0x104 is then 0x0041b980)
 
 zcls::Node* zn(void* p) { return static_cast<zcls::Node*>(p); }
 
@@ -173,11 +174,21 @@ struct ProgramViewHooks : ViewHooks {
     if (&t == g_target_mech) return mech_camera(*g_target_mech, id);
     return vehicle_camera(id);
   }
-  // A mech's vt+0x100 and vt+0x104 do nothing here (the HUD's set-up is
-  // program_view_attach's); the stealth's vt+0x100 is empty (0x005ac5c0),
-  // its vt+0x104 (0x004a50d0) turns its overlay off.
-  void target_attached(Vehicle&) override {}
-  void target_detached(Vehicle& t) override { program_vehicle_view_detached(t); }
+  // A mech's vt+0x100 / vt+0x104 (0x0041b930 / 0x0041b980): the mission's player suspended while the
+  // view is off it, its HUD on and off; the stealth's vt+0x100 is empty (0x005ac5c0), its vt+0x104
+  // (0x004a50d0) turns its overlay off.
+  // (Which vehicle is a mech: the attach is program_view_attach's, which sets g_target_mech first.)
+  void target_attached(Vehicle& t) override {
+    g_view_mech = &t == g_target_mech ? g_target_mech : nullptr;
+    if (g_view_mech) view_attached(*g_view_mech);
+  }
+  void target_detached(Vehicle& t) override {
+    if (&t == g_view_mech) {
+      g_view_mech = nullptr;
+      return view_detached(*static_cast<Mech*>(&t), g_view && g_view->target == &t);
+    }
+    program_vehicle_view_detached(t);
+  }
   uint32_t mech_dead(Mech& t) override { return t.anim_state == 10 ? 1u : 0u; }
   const float* torso_aim(Mech& t) override {
     static float q[4] = {1, 0, 0, 0};
@@ -317,7 +328,7 @@ void program_view_make(void* camera) {
 
 void program_view_free() {
   g_view.reset();
-  g_target = nullptr, g_target_mech = nullptr;
+  g_target = nullptr, g_target_mech = nullptr, g_view_mech = nullptr;
 }
 
 // Mech3.exe 1.2 @ 0x0041ce30: the view onto the mech in its data's current
