@@ -420,7 +420,6 @@
 0x0050b1c0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x0050c3b0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x00515e40	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
-0x00532b60	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x00533320	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x00534380	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x0057c950	unsure	group A: paired by its call site with MW3 0x0055a950 (the shared port's call there); a changed pair, settled by group A's rules
@@ -500,7 +499,6 @@
 0x004b4560	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0, 0x004b43a0, 0x004b4480); whether the port does PM's version, this call included, is settled there
 0x004b5f80	unsure	read with group A: a callee of shared ports PM changed (0x004b4a90); whether the port does PM's version, this call included, is settled there
 0x004b67e0	unsure	read with group A: a callee of shared ports PM changed (0x004b64f0, 0x004b6820); whether the port does PM's version, this call included, is settled there
-0x004b8ce0	unsure	read with group A: a callee of shared ports PM changed (0x004b5330); whether the port does PM's version, this call included, is settled there
 0x004b9390	unsure	read with group A: a callee of shared ports PM changed (0x004b5330); whether the port does PM's version, this call included, is settled there
 0x004ba030	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
 0x004ba190	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
@@ -2424,3 +2422,130 @@
 0x005baf00	folded	folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 5d13d2bf, docs/port-audit-pm.md method): the text differs only in register allocation, calling conventions and PM's field offsets
 0x005c6d10	folded	folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 5d13d2bf, docs/port-audit-pm.md method): the text differs only in register allocation, calling conventions and PM's field offsets
 0x005c7b40	folded	folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 5d13d2bf, docs/port-audit-pm.md method): the text differs only in register allocation, calling conventions and PM's field offsets
+0x0051d960	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the record steps, 0x2c in PM for MW3's 0x28 (PM's struct); the same logic
+0x005225f0	folded	flagged by the feature compare (5d13d2bf), read: MW3 clears bit 15 by 'and ah, 0x7f', PM by a full-word mask; the same logic
+0x0051f6f0	folded	flagged by the feature compare (5d13d2bf), read: the animation's two lists reset: PM's records 0x5c and 0x2c bytes (MW3's 0x60 and 0x28), the cleared field +0x24 and +0x28 in them (MW3 +0x24 both), its layout; the same logic
+0x00527670	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the source line numbers in its error report; the same logic
+0x0052f9f0	folded	checked by test (block trace, 2026-11-13): test_pm_crater_cut's cut 0x00528920 runs it; the results, the outline and every model field compared. flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps and argument slots, the float tests the same in number and kind
+0x005278f0	folded	checked by test (block trace, 2026-11-13): test_pm_crater_cut's cut 0x00528920 runs it; the results, the outline and every model field compared. flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps and argument slots, the float tests the same in number and kind
+0x005299c0	folded	checked by test (block trace, 2026-11-13): test_pm_crater_cut's cut 0x00528920 runs it; the results, the outline and every model field compared. flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps and argument slots, the float tests the same in number and kind
+0x0052d0f0	folded	checked by test (block trace, 2026-11-13): test_pm_crater_cut's cut 0x00528920 runs it; the results, the outline and every model field compared. flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps and argument slots, the float tests the same in number and kind
+0x0052d380	folded	checked by test (block trace, 2026-11-13): test_pm_crater_cut's cut 0x00528920 runs it; the results, the outline and every model field compared. flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps and argument slots, the float tests the same in number and kind
+0x00531a70	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is the allocation size, 0xb0 in PM for MW3's 0xac (its struct); the same logic
+0x00532b60	software	PM's mip chain, in place of MW3's 0x00519270 (link_mips, zimg_texture.cpp:195): MW3 links mips only for a name ending in '_1' and counts its digit up; PM appends '_1' to any texture's name (a 260-byte buffer, MW3's 64), loads each level by name and counts the last character up, and reports '%s: Mip file %s used externally' when a level is already loaded without pixels. Only the software renderer reads the mips (the GPU path does not; mip_scale has no reader), so on PM the port links none, and loads no level images
+0x00532880	folded	flagged by the feature compare (5d13d2bf), read: a texture's load (zimg_texture.cpp, MW3 0x00518f70), the same logic; it calls PM's mip chain 0x00532b60 (software renderer only, labelled there) where MW3 calls 0x00519270, the fields PM's layout
+0x00531b50	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is the allocation size, 0xb0 in PM for MW3's 0xac (its struct); the same logic
+0x00532350	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the record steps, 0x2c in PM for MW3's 0x28 (PM's struct); the same logic
+0x00532980	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the record steps, 0x2c in PM for MW3's 0x28 (PM's struct); the same logic
+0x00535820	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is an index scaled by shift where PM scales in the address; the same logic
+0x00535ad0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is an index scaled by shift where PM scales in the address; the same logic
+0x005b7740	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is an element step (0x20) MW3 takes by lea; the same logic
+0x0053f3b0	folded	flagged by the feature compare (5d13d2bf), read: the same vector steps (the decompiled bodies match); PM writes an output word 0 before filling it
+0x0055d9a0	folded	flagged by the feature compare (5d13d2bf), read: the shadow image's texture made through the renderer's create entry ([0x72f364], the port's own GPU textures): PM passes a descriptor (named gModShadow, flags 3) where MW3 passes (0, 1, 1); the rest PM's layout
+0x0055de50	folded	flagged by the feature compare (5d13d2bf), read: the node render switch calls 0x0050b050 and 0x0050b140, the twins of the 0x004f7670 and 0x004f7750 MW3 calls (the decompiled bodies match); the same logic
+0x00533a00	folded	flagged by the feature compare (5d13d2bf), read: the keyboard's start (zin_kbd.cpp:65), the same logic; the flagged immediates are the source line numbers its error reports carry (PM's 4 higher; the port's shared code reports MW3's, a log detail)
+0x0055e690	folded	flagged by the feature compare (5d13d2bf), read: the flagged constants are one magic number added in PM (+6.755e15, the double rounding trick) where MW3 subtracts its negative; the same sums
+0x005ae3e0	folded	flagged by the feature compare (5d13d2bf), read: the flagged constants are 0.5 added in PM where MW3 subtracts -0.5; the same sums
+0x005ae9e0	folded	flagged by the feature compare (5d13d2bf), read: the flagged constants are 0.5 added in PM where MW3 subtracts -0.5; the same sums
+0x005564d0	folded	flagged by the feature compare (5d13d2bf), read: the material's defaults, the flags word set to (high byte & 0xf8) and 0xff by a word mask in PM, by bytes in MW3; the same values
+0x005aa4a0	folded	flagged by the feature compare (5d13d2bf), read: the player data's write through DirectPlay (the port's own network layer, znet_dplay.cpp): PM calls the newer interface's method (vt+0x74, with its flags 2) where MW3 calls vt+0x50; the same request
+0x005af2a0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the record steps of PM's layout; the same logic
+0x00591460	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the source line numbers in its error reports (PM's file); the same logic
+0x005c0dd0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the source line numbers in its error reports (PM's file); the same logic
+0x005c0fc0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the source line numbers in its error reports (PM's file); the same logic
+0x005c12e0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the source line numbers in its error reports (PM's file); the same logic
+0x00590a70	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is an element step MW3 adds where PM takes it by lea; the same logic
+0x005c9150	folded	flagged by the feature compare (5d13d2bf), read: the message box's destructor; the flagged immediate is its exception-unwind state number; the same logic
+0x005c2ae0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are an index's scale, 32-byte records in PM for MW3's 16 (its struct); the same logic
+0x005964e0	folded	flagged by the feature compare (5d13d2bf), read: the reciprocal keeper, the same: 1/x kept for x > 0, else 1 over the kept; the constants 0 and 1 compiled from data in PM
+0x005b95e0	folded	flagged by the feature compare (5d13d2bf), read: MW3 tests the count nonzero before 2 < n < 8, PM only the range (the same answers)
+0x00597400	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the source line numbers in its error report; the same logic
+0x005992a0	folded	flagged by the feature compare (5d13d2bf), read: PM passes the argument MW3 passes in a register (the same call); the same logic
+0x0059f150	folded	flagged by the feature compare (5d13d2bf), read: the zeros PM stores from one load where MW3 loads 0.0 three times; the same values
+0x005a46e0	folded	flagged by the feature compare (5d13d2bf), read: an impact's random animation: PM's effect records are 100 bytes (MW3's 0x5c), the list at +0x2c/+0x30 in them, the index taken by rand() the same way; its layout
+0x005a4740	folded	flagged by the feature compare (5d13d2bf), read: an impact's random animation: PM's effect records are 100 bytes (MW3's 0x5c), the list at +0x2c/+0x30 in them, the index taken by rand() the same way; its layout
+0x005a7f20	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout or argument slots; the same logic
+0x0047d110	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout or argument slots; the same logic
+0x00472480	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout or argument slots; the same logic
+0x00411300	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout or argument slots; the same logic
+0x004832e0	unsure	flagged by the feature compare (5d13d2bf), read: the pre-lab state's step (app_states.cpp:257): PM sets the pilot's entry's +0x04 to 5 where MW3 sets 3 (through 0x005a2ba0, a shared +0x04 setter), the entry got by vt+0x30 (MW3 vt+0x34); the port passes 3 to lab_start, which is unported (the base's log) on both games, so neither value lands. To trace: what reads that +0x04 in PM and whether the port needs it (fix list)
+0x0044bb00	folded	flagged by the feature compare (5d13d2bf), read: the lab's mech button: its mech starts at 25, none, on PM (19 on MW3), the port's kMechCount (debriefing.h:32); its vtable PM's twin
+0x00480a70	folded	flagged by the feature compare (5d13d2bf), read: the colours (0, 0xff, 0) and (0, 0xaa, 0) PM pushes, MW3 passes in registers; the same values
+0x00481130	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout; the same logic
+0x004b9b80	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout; the same logic
+0x0043bda0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout; the same logic
+0x004c0460	folded	flagged by the feature compare (5d13d2bf), read: PM calls the object's constructor 0x004c6550 after its allocation where MW3 builds it inline; the same logic
+0x004c2d00	folded	flagged by the feature compare (5d13d2bf), read: the editor's mech list runs to 25 on PM (19 on MW3), as the pm port's loop (game_editor_vehicles.cpp:116)
+0x0043ea60	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the HUD's colour bytes PM pushes and MW3 loads into registers (0xe2, 0xad, 0xc3, 0xa2, 0xff: the same values)
+0x0043ed60	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the HUD's colour bytes PM pushes and MW3 loads into registers (0xe2, 0xad, 0xc3, 0xa2, 0xff: the same values)
+0x00443dc0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the HUD's colour bytes PM pushes and MW3 loads into registers (0xe2, 0xad, 0xc3, 0xa2, 0xff: the same values)
+0x004451a0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the HUD's colour bytes PM pushes and MW3 loads into registers (0xe2, 0xad, 0xc3, 0xa2, 0xff: the same values)
+0x00440e70	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is an exception-unwind state number; the same logic
+0x00444310	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is an exception-unwind state number; the same logic
+0x00445420	folded	flagged by the feature compare (5d13d2bf), read: the record copied is 11 words in PM, 10 in MW3 (rep movsd: PM's struct 4 bytes longer), the field after it moved with it; the same logic
+0x00446100	folded	flagged by the feature compare (5d13d2bf), read: the record copied is 11 words in PM, 10 in MW3 (rep movsd: PM's struct 4 bytes longer), the field after it moved with it; the same logic
+0x00446890	folded	flagged by the feature compare (5d13d2bf), read: the HUD's bar boxes: PM computes 4 x 0x2f and the -8 from its images' points where MW3 has them as constants (the same values, as the port's, hud.cpp:705)
+0x004476d0	missing	pm only, minor (1 pixel): the HUD weapon line's placing (hud.cpp:526, HudWeaponLine::place): PM puts its mark at y + 3 where MW3 puts it at y + 2; the shared port uses MW3's +2 on both. The count text and the light as MW3's
+0x00452620	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is a colour byte PM pushes where MW3 passes it in a register; the same logic
+0x0044b080	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or argument slots of PM's layout; the same logic
+0x0044dd20	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or argument slots of PM's layout; the same logic
+0x00427430	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or argument slots of PM's layout; the same logic
+0x0045a6e0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or argument slots of PM's layout; the same logic
+0x00417290	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or argument slots of PM's layout; the same logic
+0x005cc500	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or argument slots of PM's layout; the same logic
+0x004867c0	folded	flagged by the feature compare (5d13d2bf), read: the names' lookups run to PM's 25 mechs and 56 weapons (MW3's 19 and 37), as the pm port's kMechCount and kWeaponCount (mech_ids.h:6); the message call is PM's twin of MW3's 0x00576040
+0x00486830	folded	flagged by the feature compare (5d13d2bf), read: the names' lookups run to PM's 25 mechs and 56 weapons (MW3's 19 and 37), as the pm port's kMechCount and kWeaponCount (mech_ids.h:6); the message call is PM's twin of MW3's 0x00576040
+0x00486a50	folded	flagged by the feature compare (5d13d2bf), read: the names' lookups run to PM's 25 mechs and 56 weapons (MW3's 19 and 37), as the pm port's kMechCount and kWeaponCount (mech_ids.h:6); the message call is PM's twin of MW3's 0x00576040
+0x00486a80	folded	flagged by the feature compare (5d13d2bf), read: the names' lookups run to PM's 25 mechs and 56 weapons (MW3's 19 and 37), as the pm port's kMechCount and kWeaponCount (mech_ids.h:6); the message call is PM's twin of MW3's 0x00576040
+0x00486ab0	folded	flagged by the feature compare (5d13d2bf), read: the names' lookups run to PM's 25 mechs and 56 weapons (MW3's 19 and 37), as the pm port's kMechCount and kWeaponCount (mech_ids.h:6); the message call is PM's twin of MW3's 0x00576040
+0x00486ad0	folded	flagged by the feature compare (5d13d2bf), read: the names' lookups run to PM's 25 mechs and 56 weapons (MW3's 19 and 37), as the pm port's kMechCount and kWeaponCount (mech_ids.h:6); the message call is PM's twin of MW3's 0x00576040
+0x00449ef0	folded	flagged by the feature compare (5d13d2bf), read: the lab's mech list starts with 25 entries' room on PM (19 on MW3), as the pm port's kMechCount
+0x00430bd0	folded	flagged by the feature compare (5d13d2bf), read: the same squares (x*k)*(x*k), PM keeping each product in a temporary where MW3 takes it twice; the same values
+0x0045cae0	folded	flagged by the feature compare (5d13d2bf), read: the same comparisons compiled otherwise; PM passes the argument MW3 passes in a register
+0x00486d20	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate is data disassembled as code; the same logic
+0x00472110	folded	flagged by the feature compare (5d13d2bf), read: the decompiled bodies make the same calls in order; PM passes the arguments MW3 passes in registers
+0x00464450	folded	flagged by the feature compare (5d13d2bf), read: the same two bit tests (4 and 0x10) on PM's field, the vectors passed as PM's temporaries; the same logic
+0x00465150	missing	pm only, minor (a report, not play): as 0x00463650, the leg's and the torso's damage tints (mech_parts.cpp:1058 leg_view_tint, :1067 torso_view_tint): PM skips a node of class 6 (a LoD) for the blend; the port tints any node, and object3d_set_blend reports 'Bad Class Found' for a LoD and sets nothing, so only the report differs
+0x00465bd0	missing	pm only, minor (a report, not play): as 0x00463650, the leg's and the torso's damage tints (mech_parts.cpp:1058 leg_view_tint, :1067 torso_view_tint): PM skips a node of class 6 (a LoD) for the blend; the port tints any node, and object3d_set_blend reports 'Bad Class Found' for a LoD and sets nothing, so only the report differs
+0x00468a40	folded	flagged by the feature compare (5d13d2bf), read: the leg's fly-away, already ported as PM's (mech_parts.cpp:292, Leg::fly_away): PM's rosters 4 and 16 and its destroyed-arm check
+0x00465360	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout; the same logic
+0x00476eb0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout; the same logic
+0x0044bec0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout; the same logic
+0x00487a60	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps of PM's layout; the same logic
+0x004867f0	folded	flagged by the feature compare (5d13d2bf), read: the definition cache runs to PM's 25 mechs (MW3's 19), as the pm port's kMechCount
+0x00474e10	folded	flagged by the feature compare (5d13d2bf), read: salvage skips PM's TAG (weapon 0x2c; MW3's is 0x20), as the pm port's kTag (mech_salvage.cpp:32); the store's add one vtable slot lower in PM
+0x004792b0	folded	flagged by the feature compare (5d13d2bf), read: the same comparisons compiled otherwise (fewer fnstsw tests by reuse); the same logic
+0x0047ba30	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are the source line numbers in its error report; the same logic
+0x00488240	folded	flagged by the feature compare (5d13d2bf), read: PM adds y/x * pi where MW3 subtracts y/x * -pi, the 2.0 and 0.3 the same raw values; the same sums
+0x00496c30	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediate lies past MW3's return (the next function's code); the same logic
+0x004b5230	missing	pm only, AI: the volley planner's weapon test (weapon_planner.cpp:92 shot_of and add_weapon, through in_range's type_ready()): MW3's 0x004b4ba0 needs the weapon's owner, its definition and the reload time passed ([0x0060991c] >= def+0xc4, 0x004b4c70); PM's 0x004b8ce0 needs only the owner. So PM's burst record 0x004b5230 counts a reloading weapon's damage and PM's add-weapon 0x004b5330 takes it as a candidate and into its group's sums; the port keeps MW3's ready test on PM. Reached through PM's volley 0x004b56d0 (MW3 0x004b1860)
+0x004b8ce0	missing	pm only, AI: the volley planner's weapon test (weapon_planner.cpp:92 shot_of and add_weapon, through in_range's type_ready()): MW3's 0x004b4ba0 needs the weapon's owner, its definition and the reload time passed ([0x0060991c] >= def+0xc4, 0x004b4c70); PM's 0x004b8ce0 needs only the owner. So PM's burst record 0x004b5230 counts a reloading weapon's damage and PM's add-weapon 0x004b5330 takes it as a candidate and into its group's sums; the port keeps MW3's ready test on PM. Reached through PM's volley 0x004b56d0 (MW3 0x004b1860)
+0x004b5330	missing	pm only, AI: the volley planner's weapon test (weapon_planner.cpp:92 shot_of and add_weapon, through in_range's type_ready()): MW3's 0x004b4ba0 needs the weapon's owner, its definition and the reload time passed ([0x0060991c] >= def+0xc4, 0x004b4c70); PM's 0x004b8ce0 needs only the owner. So PM's burst record 0x004b5230 counts a reloading weapon's damage and PM's add-weapon 0x004b5330 takes it as a candidate and into its group's sums; the port keeps MW3's ready test on PM. Reached through PM's volley 0x004b56d0 (MW3 0x004b1860)
+0x00409c30	folded	flagged by the feature compare (5d13d2bf), read: the same calls; PM passes the argument MW3 passes in a register
+0x0040a960	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or data past a return; the same logic
+0x0047a9f0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or data past a return; the same logic
+0x004363b0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or data past a return; the same logic
+0x00422f80	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or data past a return; the same logic
+0x0046a2b0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, allocation sizes or data past a return; the same logic
+0x0040adf0	folded	flagged by the feature compare (5d13d2bf), read: MW3 gives 6 when the value is 1, else 3, by (-(x == 1) & 3) + 3; PM the same by (-(x != 1) & ~2) + 6
+0x00437ad0	folded	flagged by the feature compare (5d13d2bf), read: the training game: its slot made with mech 5 on PM (MW3 3), as the pm port's Game (pilot_games.cpp:536, slot(5, ...)); its vtables PM's twins
+0x00473e70	folded	flagged by the feature compare (5d13d2bf), read: the store's mech checks run to PM's 25 mechs (MW3's 19), as the pm port's kMechCount
+0x004692d0	folded	flagged by the feature compare (5d13d2bf), read: the pocket view's step: the same calls and tests, the 0.5 PM multiplies by where MW3 multiplies by -0.5 and negates (the same products), the comparisons compiled otherwise
+0x0046a3b0	folded	flagged by the feature compare (5d13d2bf), read: the node flag set by a byte or in PM, by a word or in MW3 (the same bit 2); the same logic
+0x004a5450	folded	flagged by the feature compare (5d13d2bf), read: the heading kept within +-2 pi: PM adds 2 pi where MW3 subtracts -2 pi; the same sums
+0x004d8450	folded	flagged by the feature compare (5d13d2bf), read: the clamp to -1..1 the same, its constants from data in PM; one more comparison by reuse
+0x004b5a20	folded	flagged by the feature compare (5d13d2bf), read: the same comparisons compiled otherwise; the same logic
+0x004dc360	folded	flagged by the feature compare (5d13d2bf), read: the contacts' reach: PM reads its reach and band from the steering's fields (+0x5c, +0x60) where MW3 has the constants 30 and 10; ported as PM's (zai_steer_pm.cpp:191)
+0x004dcb30	folded	flagged by the feature compare (5d13d2bf), read: the steering's step: PM's ease a field (+0x30) where MW3 has a constant; ported as PM's (zai_steer_pm.cpp:201, SteerPm::update)
+0x004f9270	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, the byte mask MW3 applies to a setcc, or the comparisons compiled otherwise; the same logic
+0x004fa9e0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, the byte mask MW3 applies to a setcc, or the comparisons compiled otherwise; the same logic
+0x004d4a20	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, the byte mask MW3 applies to a setcc, or the comparisons compiled otherwise; the same logic
+0x004e9dc0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, the byte mask MW3 applies to a setcc, or the comparisons compiled otherwise; the same logic
+0x004d0b40	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, the byte mask MW3 applies to a setcc, or the comparisons compiled otherwise; the same logic
+0x0055b7e0	folded	flagged by the feature compare (5d13d2bf), read: the flagged immediates are pointer steps, the byte mask MW3 applies to a setcc, or the comparisons compiled otherwise; the same logic
+0x004e9b60	folded	flagged by the feature compare (5d13d2bf), read: the AI parameters' record copied is 0x3b words in PM (0x33 in MW3: its struct 0x20 bytes longer, the field after it moved with it); the same logic
+0x004e9c80	folded	flagged by the feature compare (5d13d2bf), read: the AI parameters' record copied is 0x3b words in PM (0x33 in MW3: its struct 0x20 bytes longer, the field after it moved with it); the same logic
+0x004e9d60	folded	flagged by the feature compare (5d13d2bf), read: the AI parameters' record copied is 0x3b words in PM (0x33 in MW3: its struct 0x20 bytes longer, the field after it moved with it); the same logic
+0x00597570	folded	flagged by the feature compare (5d13d2bf), read: PM's archive reads (zArchive version 2: 12-byte header, MW3's 8), ported as PM's (src/pm/gamez/zutil/zutl_zar.cpp)
+0x00597610	folded	flagged by the feature compare (5d13d2bf), read: PM's archive reads (zArchive version 2: 12-byte header, MW3's 8), ported as PM's (src/pm/gamez/zutil/zutl_zar.cpp)
+0x004e9e10	folded	flagged by the feature compare (5d13d2bf), read: the AI parameters' squares and degrees to radians (0.017453292, raw) the same, then the same call (MW3's 0x004d9250 by a tail jump, so the compare counted no call; PM's twin 0x004e95f0 by call)
