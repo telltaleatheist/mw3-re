@@ -68,9 +68,9 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3859 |
-| unlabelled | 284 |
-| MISSING LOGIC | 276 |
+| folded | 3868 |
+| MISSING LOGIC | 277 |
+| unlabelled | 274 |
 | replaced (SDL or the platform layer) | 242 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 114 |
 | software renderer | 108 |
@@ -84,6 +84,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00404780** (1 functions, 87 decomp lines; MISSING LOGIC): pm only, minor, visible: the briefing's buttons (MW3's 0x00404c30, BriefingScreen::on_button, briefing.cpp:398; the address map did not place it). Before MECHLAB (2) and SALVAGE (4) PM runs every step not yet done with 60 s (each step's vt+0, 60.0) and only then stops the script, so coming back the briefing shows its end (every marker and text in place); MW3 and the port stop where it was. ABORT (0) also sets the leaving flag +0x113ad when +0x113b4 is set (0x00404bf0) before going on; REPLAY (3) and LAUNCH (1) as MW3's; 7 shows the reallocation (0x00404650, in the pm port)
 - **0x00405f20** (1 functions, 71 decomp lines; MISSING LOGIC): pm only, visible: PM's briefing frame (MW3's 0x00406440, unpaired by the diff; briefing.cpp BriefingScreen::update) is MW3's but for the skip: on Space or S, PM first runs every step left in the script, from the one playing to the end, once each with 60 seconds (vt+0 with 60.0), then stops the voice and clears the script as MW3 does; MW3 and the port only stop (BriefingScript::stop). So skipping PM's briefing leaves the map as the whole script would have drawn it (its objects shown, lines and markers placed); the port leaves it where the skip came
 - **0x00407fb0** (1 functions, 52 decomp lines; MISSING LOGIC): pm only, minor: the Load State's resume (MW3's 0x004092e0, app_states.cpp: back from the lab with 4, the reallocation refreshed and shown, as the port). For Instant Action (the game's kind 2) PM then copies the line-up's mechs back into the action game's setup: slot 0's mech at +0x40, the others' at +0x48.., the rest of the five -1, so the Instant Action screen offers the mechs chosen in the lab next time; the port keeps the setup as the screen left it
+- **0x00408120** (1 functions, 111 decomp lines; MISSING LOGIC): pm only, minor, audible: the Load State's update (MW3's 0x00409440, app_states.cpp LoadState::update), read: the same build (the sounds, the geometry, the missions object, the briefing's block name, its voice and sound sets, the screen and script; PM's block-name format is in the pm port). Before reading the mission's sounds.zrd PM sets zSound's range scale ([0x00613488], 0x00591830): 0.5 when the sound setting (0x0040b1e0, the graphics/audio screen's SOUND cycle) is 2 (low), else 1; the sound reader (0x00592170) multiplies every sound's RANGE (its near and far distances) by it, so at low sound quality every sound carries half as far. The port reads the ranges unscaled
 - **0x00408b20** (1 functions, 50 decomp lines; MISSING LOGIC): PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog
 - **0x00408d00, 0x005404f0** (2 functions, 40 decomp lines; MISSING LOGIC): PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
 - **0x0040b120** (1 functions, 47 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the object detail's level 2 sets the camera's LOD scale to 0.2 in PM (0x3e4ccccd), 0.4 in MW3 (options.cpp:260, cam_scale)
@@ -679,9 +680,9 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00407f10 | 39 | folded | group A, read: the same as MW3's 0x004091e0 plus PM's vt+0x64 call first (the game's start: Standalone's 0x0040e3f0, the base's reader open 0x004350c0, new in PM); the pm port makes it in load_state_enter (app_menus.cpp:838, 'vt+0x64 at 0x00407f38') with the reader opened by Missions (mission.cpp:407); the movie flag is the same one (MW3 0x00608c88 +0x1c1, PM 0x0062ca98 +0x1bd) |
 | 0x00407fa0 | 9 | folded | a thunk: one call to another function |
 | 0x00407fb0 | 52 | MISSING LOGIC | pm only, minor: the Load State's resume (MW3's 0x004092e0, app_states.cpp: back from the lab with 4, the reallocation refreshed and shown, as the port). For Instant Action (the game's kind 2) PM then copies the line-up's mechs back into the action game's setup: slot 0's mech at +0x40, the others' at +0x48.., the rest of the five -1, so the Instant Action screen offers the mechs chosen in the lab next time; the port keeps the setup as the screen left it |
-| 0x00408080 | 29 | unlabelled |  |
+| 0x00408080 | 29 | folded | MW3's 0x004099c0 (the briefing's movie, app_menus.cpp:912's briefing_play_movie): fmv.zrd's entry by the game's block name (vt+0x58), its window the main one, played |
 | 0x004080e0 | 15 | folded | the Load State's leave (MW3's 0x004093e0, app_states.cpp), read: the base leave, the briefing's abort steps (0x00404c20), the briefing screen deleted and cleared |
-| 0x00408120 | 111 | unlabelled |  |
+| 0x00408120 | 111 | MISSING LOGIC | pm only, minor, audible: the Load State's update (MW3's 0x00409440, app_states.cpp LoadState::update), read: the same build (the sounds, the geometry, the missions object, the briefing's block name, its voice and sound sets, the screen and script; PM's block-name format is in the pm port). Before reading the mission's sounds.zrd PM sets zSound's range scale ([0x00613488], 0x00591830): 0.5 when the sound setting (0x0040b1e0, the graphics/audio screen's SOUND cycle) is 2 (low), else 1; the sound reader (0x00592170) multiplies every sound's RANGE (its near and far distances) by it, so at low sound quality every sound carries half as far. The port reads the ranges unscaled |
 | 0x00408360 | 11 | folded | read: a range of 0x4d4-byte elements destroyed, each by its vt+0 (the STL's destroy), from the HUD 0x0043c900 and 0x00405ca0; the port's containers do it |
 | 0x00408390 | 19 | folded | as MW3 0x00437580: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x004083e0 | 19 | folded | list container helpers (each element deleted, by operator delete or its virtual destructor, then the node's pointer cleared; the port's std containers) |
@@ -740,18 +741,18 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040c660 | 8 | folded | returns a constant or a global |
 | 0x0040c670 | 8 | folded | returns a constant or a global |
 | 0x0040c6a0 | 11 | folded | covered by the port where it names it (src/mech3/pilot.h:322) |
-| 0x0040c6b0 | 12 | unlabelled |  |
-| 0x0040c6c0 | 8 | unlabelled |  |
+| 0x0040c6b0 | 12 | folded | PM's Instant Action game's progression parts (pilot.h ActionGame, its Pirate's Moon waves, load_progression 0x0040c410 ported): the world's folder name for ia_progression.zrd's block (vt+0x54 0x0040c6b0: 0x00486df0 on vt+0x50's index), the fallback "default" (0x0040c6c0), the mission getter (+0xd4, 0x0040c750), the waves cleared (0x0040c780), the game's destructor (0x0040c800) and the waves' vector copied (0x0040d280); the port's std containers |
+| 0x0040c6c0 | 8 | folded | PM's Instant Action game's progression parts (pilot.h ActionGame, its Pirate's Moon waves, load_progression 0x0040c410 ported): the world's folder name for ia_progression.zrd's block (vt+0x54 0x0040c6b0: 0x00486df0 on vt+0x50's index), the fallback "default" (0x0040c6c0), the mission getter (+0xd4, 0x0040c750), the waves cleared (0x0040c780), the game's destructor (0x0040c800) and the waves' vector copied (0x0040d280); the port's std containers |
 | 0x0040c6d0 | 8 | folded | returns a constant or a global |
 | 0x0040c6e0 | 12 | folded | covered by the port where it names it (src/mech3/pilot.h:259) |
 | 0x0040c700 | 8 | folded | as MW3 0x00437860: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0040c720 | 9 | folded | a thunk: one call to another function |
 | 0x0040c730 | 8 | folded | by the slot pairing: PM vtable 0x5df058 slot 0x8 is MW3 vtable 0x5bed50's 0x004487d0 (MW3 folded: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setter), the feature compare equal (7f6e9e10) |
 | 0x0040c740 | 8 | folded | by the slot pairing: PM vtable 0x5df058 slot 0xc is MW3 vtable 0x5bed50's 0x0040a840 (MW3 folded: a getter of a member), the feature compare equal (7f6e9e10) |
-| 0x0040c750 | 8 | unlabelled |  |
+| 0x0040c750 | 8 | folded | PM's Instant Action game's progression parts (pilot.h ActionGame, its Pirate's Moon waves, load_progression 0x0040c410 ported): the world's folder name for ia_progression.zrd's block (vt+0x54 0x0040c6b0: 0x00486df0 on vt+0x50's index), the fallback "default" (0x0040c6c0), the mission getter (+0xd4, 0x0040c750), the waves cleared (0x0040c780), the game's destructor (0x0040c800) and the waves' vector copied (0x0040d280); the port's std containers |
 | 0x0040c760 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0040c800, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x0040c780 | 28 | unlabelled |  |
-| 0x0040c800 | 46 | unlabelled |  |
+| 0x0040c780 | 28 | folded | PM's Instant Action game's progression parts (pilot.h ActionGame, its Pirate's Moon waves, load_progression 0x0040c410 ported): the world's folder name for ia_progression.zrd's block (vt+0x54 0x0040c6b0: 0x00486df0 on vt+0x50's index), the fallback "default" (0x0040c6c0), the mission getter (+0xd4, 0x0040c750), the waves cleared (0x0040c780), the game's destructor (0x0040c800) and the waves' vector copied (0x0040d280); the port's std containers |
+| 0x0040c800 | 46 | folded | PM's Instant Action game's progression parts (pilot.h ActionGame, its Pirate's Moon waves, load_progression 0x0040c410 ported): the world's folder name for ia_progression.zrd's block (vt+0x54 0x0040c6b0: 0x00486df0 on vt+0x50's index), the fallback "default" (0x0040c6c0), the mission getter (+0xd4, 0x0040c750), the waves cleared (0x0040c780), the game's destructor (0x0040c800) and the waves' vector copied (0x0040d280); the port's std containers |
 | 0x0040c9c0 | 17 | folded | covered by the port where it names it (src/mech3/mission.cpp:93) |
 | 0x0040ca30 | 9 | folded | inside its ported callers (0x0048eaf0): a small helper their ports do their own way |
 | 0x0040ca50 | 9 | folded | inside its ported callers (0x0048eaf0): a small helper their ports do their own way |
@@ -762,7 +763,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040cf60 | 17 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
 | 0x0040cfa0 | 108 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
 | 0x0040d230 | 23 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
-| 0x0040d280 | 45 | unlabelled |  |
+| 0x0040d280 | 45 | folded | PM's Instant Action game's progression parts (pilot.h ActionGame, its Pirate's Moon waves, load_progression 0x0040c410 ported): the world's folder name for ia_progression.zrd's block (vt+0x54 0x0040c6b0: 0x00486df0 on vt+0x50's index), the fallback "default" (0x0040c6c0), the mission getter (+0xd4, 0x0040c750), the waves cleared (0x0040c780), the game's destructor (0x0040c800) and the waves' vector copied (0x0040d280); the port's std containers |
 | 0x0040d320 | 110 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040d4d0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x0040d4e0 | 9 | folded | a thunk: one call to another function |
@@ -833,7 +834,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040f780 | 9 | debug or dev tool: PORT (preserve) | follows 0x0040f7a0: as MW3 0x0040ff40, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x0040f7a0 | 34 | debug or dev tool: PORT (preserve) | as MW3 0x0040ff40, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x0040f840 | 9 | folded | a thunk: one call to another function |
-| 0x0040f860 | 20 | unlabelled |  |
+| 0x0040f860 | 20 | folded | a destructor body (unwind callers): an array of 0x19 texts (0x4b8 bytes each) destroyed, then the base; the port's arrays destroy themselves |
 | 0x0040f8d0 | 9 | debug or dev tool: PORT (preserve) | follows 0x0040fa20: as MW3 0x0040f150: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x0040f8e0 | 9 | folded | a thunk: one call to another function |
 | 0x0040f9c0 | 9 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
@@ -931,7 +932,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00414950 | 24 | folded | checked by test: test_pm_mech_build builds an AI mech through PM's 0x00414950 (MW3's 0x00414150, mech_build.cpp:163) and the port's down the whole constructor chain, comparing every call out and block (240 cases, the rebuilt build matching; the 2026-11-13 sweep) |
 | 0x00414b80 | 11 | folded | ported, by docs/symbols.csv: ported (app_mech DamageCalls::roster_x1c): the roster entry's mech definition's skin set (+0x1c) |
 | 0x00414ba0 | 25 | MISSING LOGIC | pm only, minor, effect to check: PM's mech_set_skin (MW3's 0x00414390, mech_build.cpp mech_set_skin; unpaired by the diff), from the mech build 0x00415190, the network (0x0046f510, 0x004701d0), the mission launch 0x00494500 and the player 0x004a0e10 / 0x004a17d0: when the torso's headlight (torso part +0x7c) is there, its node's only child is detached before the skin is applied (0x00479c30, kept at +0x38) and put back after (0x00479c60); the port applies the skin with the child in place. Whether the skin apply (0x004773e0) touches that child is not read; 0x0041b900 (a vt slot) also detaches it |
-| 0x00415160 | 17 | unlabelled |  |
+| 0x00415160 | 17 | folded | inside its ported caller (0x00414cb0, MW3's 0x00414430, the loadout applied to the mech): a temporary engine item made from an index clamped to 0..[0x006054ac] and the XL byte, to read its rating (0x00433aa0) when the loadout's engine is outside the definition's ratings; the port clamps in place |
 | 0x00415190 | 112 | MISSING LOGIC | pm only, minor: the mech made again in place (MW3's 0x004148c0, mech_rebuild, mech_build.cpp:188), read: the same steps (the type's data, the controls kept, destroyed and constructed again, the skin by name, the HUD's fall mode 0); and when it is rebuilt as its own type with MASC on (+0x598 not 0), PM turns MASC on again afterwards (0x0041eec0(1), MW3's masc 0x0041df50); the port's rebuild leaves MASC off |
 | 0x004158b0 | 8 | folded | by the slot pairing: PM vtable 0x5dfaac slot 0x44 is MW3 vtable 0x5bcef8's 0x004d2a70 (MW3 ported src/mech3/entity_classes.cpp:35), the feature compare equal (7f6e9e10) |
 | 0x004158c0 | 8 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
@@ -5577,52 +5578,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005cc600 | 25 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:135) |
 | 0x005cc650 | 11 | folded | covered by the port where it names it (src/gamez/zsave/zsave.h:8) |
 
-### zfmv (41 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005ba110 | 450 | unlabelled |  |
-| 0x005ba7f0 | 16 | unlabelled |  |
-| 0x005ba830 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac80, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005ba850 | 19 | folded | by the slot pairing: PM vtable 0x5f1c5c slot 0x8 is MW3 vtable 0x5cf7d8's 0x00599d10 (MW3 ported src/gamez/zfmv/fmv_script.cpp:467), the feature compare equal (7f6e9e10) |
-| 0x005ba8a0 | 11 | unlabelled |  |
-| 0x005ba960 | 47 | unlabelled |  |
-| 0x005baa70 | 14 | folded | ported, by docs/symbols.csv: ported: timeGetTime() x 0.001f |
-| 0x005baab0 | 14 | folded | ported, by docs/symbols.csv: ported |
-| 0x005baaf0 | 9 | folded | ported, by docs/symbols.csv: ported: 0x00598d30(flag) |
-| 0x005bab80 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac20, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bac80 | 9 | unlabelled |  |
-| 0x005bacb0 | 33 | unlabelled |  |
-| 0x005badd0 | 42 | unlabelled |  |
-| 0x005baec0 | 12 | folded | by the slot pairing: PM vtable 0x5f1cd4 slot 0xc is MW3 vtable 0x5cf868's 0x00599be0 (MW3 ported src/gamez/zfmv/fmv_script.cpp:272), the feature compare equal (7f6e9e10) |
-| 0x005bb070 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(1) |
-| 0x005bb100 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(2) |
-| 0x005bb190 | 12 | folded | inside its ported callers (0x005ba110): a small helper their ports do their own way |
-| 0x005bb1b0 | 8 | unlabelled |  |
-| 0x005bb1d0 | 13 | unlabelled |  |
-| 0x005bb3d0 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
-| 0x005bb510 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
-| 0x005bb540 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
-| 0x005bb680 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
-| 0x005bb7c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bb8c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bba70 | 33 | unlabelled |  |
-| 0x005bbcd0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bbcf0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bbcf0 | 86 | unlabelled |  |
-| 0x005bca10 | 105 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059cb30 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005bccc0 | 316 | unlabelled |  |
-| 0x005bd7b0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bd7d0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bdb30 | 179 | unlabelled |  |
-| 0x005be050 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005be070, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005be0c0 | 19 | unlabelled |  |
-| 0x005be3f0 | 112 | unlabelled |  |
-| 0x005be700 | 68 | unlabelled |  |
-| 0x005be8e0 | 19 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059e9c0 with only offsets and sizes of PM's larger structures changed (0x4b8->0x4c0); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005be940 | 9 | folded | by the slot pairing: PM vtable 0x5e0c34 slot 0x90 is MW3 vtable 0x5be308's 0x0059ea20 (MW3 folded: a thunk: one call to another function), the feature compare equal (7f6e9e10) |
-| 0x005be950 | 68 | unlabelled |  |
-| 0x005beb50 | 52 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059ec40 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005becd0 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059edc0 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
-
 ### zdeclient (41 not ported)
 
 | Address | Lines | Class | Why |
@@ -5668,6 +5623,52 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00520080 | 53 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
 | 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005207b0 | 8 | folded | returns a constant or a global |
+
+### zfmv (41 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005ba110 | 450 | unlabelled |  |
+| 0x005ba7f0 | 16 | unlabelled |  |
+| 0x005ba830 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac80, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005ba850 | 19 | folded | by the slot pairing: PM vtable 0x5f1c5c slot 0x8 is MW3 vtable 0x5cf7d8's 0x00599d10 (MW3 ported src/gamez/zfmv/fmv_script.cpp:467), the feature compare equal (7f6e9e10) |
+| 0x005ba8a0 | 11 | unlabelled |  |
+| 0x005ba960 | 47 | unlabelled |  |
+| 0x005baa70 | 14 | folded | ported, by docs/symbols.csv: ported: timeGetTime() x 0.001f |
+| 0x005baab0 | 14 | folded | ported, by docs/symbols.csv: ported |
+| 0x005baaf0 | 9 | folded | ported, by docs/symbols.csv: ported: 0x00598d30(flag) |
+| 0x005bab80 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac20, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bac80 | 9 | unlabelled |  |
+| 0x005bacb0 | 33 | unlabelled |  |
+| 0x005badd0 | 42 | unlabelled |  |
+| 0x005baec0 | 12 | folded | by the slot pairing: PM vtable 0x5f1cd4 slot 0xc is MW3 vtable 0x5cf868's 0x00599be0 (MW3 ported src/gamez/zfmv/fmv_script.cpp:272), the feature compare equal (7f6e9e10) |
+| 0x005bb070 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(1) |
+| 0x005bb100 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(2) |
+| 0x005bb190 | 12 | folded | inside its ported callers (0x005ba110): a small helper their ports do their own way |
+| 0x005bb1b0 | 8 | unlabelled |  |
+| 0x005bb1d0 | 13 | unlabelled |  |
+| 0x005bb3d0 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
+| 0x005bb510 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
+| 0x005bb540 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
+| 0x005bb680 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
+| 0x005bb7c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bb8c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bba70 | 33 | unlabelled |  |
+| 0x005bbcd0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bbcf0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bbcf0 | 86 | unlabelled |  |
+| 0x005bca10 | 105 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059cb30 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005bccc0 | 316 | unlabelled |  |
+| 0x005bd7b0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bd7d0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bdb30 | 179 | unlabelled |  |
+| 0x005be050 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005be070, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005be0c0 | 19 | unlabelled |  |
+| 0x005be3f0 | 112 | unlabelled |  |
+| 0x005be700 | 68 | unlabelled |  |
+| 0x005be8e0 | 19 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059e9c0 with only offsets and sizes of PM's larger structures changed (0x4b8->0x4c0); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005be940 | 9 | folded | by the slot pairing: PM vtable 0x5e0c34 slot 0x90 is MW3 vtable 0x5be308's 0x0059ea20 (MW3 folded: a thunk: one call to another function), the feature compare equal (7f6e9e10) |
+| 0x005be950 | 68 | unlabelled |  |
+| 0x005beb50 | 52 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059ec40 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005becd0 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059edc0 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
 
 ### zgame (33 not ported)
 
