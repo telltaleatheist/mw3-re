@@ -34,9 +34,9 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 2636 |
+| folded | 2646 |
 | unlabelled | 1716 |
-| replaced (SDL or the platform layer) | 231 |
+| replaced (SDL or the platform layer) | 234 |
 | MISSING LOGIC | 153 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 112 |
 | software renderer | 106 |
@@ -44,7 +44,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 | unused: PORT (preserve) | 61 |
 | dev dialog (MFC), its window plumbing: replaced | 48 |
 | dev dialog (MFC), its logic: PORT (preserve) | 35 |
-| UNSURE | 33 |
+| UNSURE | 20 |
 
 ## MISSING LOGIC
 
@@ -426,19 +426,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 0x004d4700 (1 functions, 14 decomp lines): as MW3 0x004c9de0: Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004e75d0 (1 functions, 12 decomp lines): as MW3 0x004d7160: an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it
 - 0x004eff90 (1 functions, 58 decomp lines): as MW3 0x004dee50: the aiv reader's vtable slot 0x005cd42c (58 lines): a name checked against zEntity's list (0x005a8210) and the reader's records (std::map find 0x004e1a30), no caller found; probably the editor's 'is this name free'; to settle by its slot and callers
-- 0x0053fe30 (1 functions, 87 decomp lines): read with group A: a callee of shared ports PM changed (0x00482ca0); whether the port does PM's version, this call included, is settled there
-- 0x00594600 (1 functions, 198 decomp lines): read with group A: a callee of shared ports PM changed (0x005941c0); whether the port does PM's version, this call included, is settled there
-- 0x00596520 (1 functions, 41 decomp lines): read with group A: a callee of shared ports PM changed (0x0043bb70, 0x004fd6f0, 0x00505c80); whether the port does PM's version, this call included, is settled there
-- 0x005969a0 (1 functions, 100 decomp lines): read with group A: a callee of shared ports PM changed (0x00482090); whether the port does PM's version, this call included, is settled there
-- 0x005aa410 (1 functions, 43 decomp lines): read with group A: a callee of shared ports PM changed (0x0049faf0, 0x0049fed0); whether the port does PM's version, this call included, is settled there
-- 0x005aa4e0 (1 functions, 14 decomp lines): read with group A: a callee of shared ports PM changed (0x0046f910, 0x005aa470); whether the port does PM's version, this call included, is settled there
-- 0x005ac170 (1 functions, 280 decomp lines): read with group A: a callee of shared ports PM changed (0x005a9220, 0x005a9620, 0x005a9980); whether the port does PM's version, this call included, is settled there
-- 0x005acba0 (1 functions, 21 decomp lines): read with group A: a callee of shared ports PM changed (0x004a0e10, 0x004a2dc0, 0x004dd1e0); whether the port does PM's version, this call included, is settled there
-- 0x005b09f0 (1 functions, 16 decomp lines): read with group A: a callee of shared ports PM changed (0x00592910, 0x005a9220, 0x005a9980); whether the port does PM's version, this call included, is settled there
-- 0x005b1050 (1 functions, 57 decomp lines): read with group A: a callee of shared ports PM changed (0x00482140); whether the port does PM's version, this call included, is settled there
-- 0x005b14e0 (1 functions, 25 decomp lines): read with group A: a callee of shared ports PM changed (0x005c9280); whether the port does PM's version, this call included, is settled there
-- 0x005b2050 (1 functions, 74 decomp lines): read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there
-- 0x005cb4b0 (1 functions, 11 decomp lines): read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
 
 ## By module
 
@@ -4480,9 +4467,9 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005aa360 | 14 | replaced (SDL or the platform layer) | as MW3 0x005895b0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005aa380 | 18 | unlabelled |  |
 | 0x005aa3b0 | 43 | replaced (SDL or the platform layer) | as MW3 0x00589600: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005aa410 | 43 | UNSURE | read with group A: a callee of shared ports PM changed (0x0049faf0, 0x0049fed0); whether the port does PM's version, this call included, is settled there |
+| 0x005aa410 | 43 | folded | read: a name looked for in the network's team-name list ([0x008cdcfc], strcmp), from the lobby's team lines (0x0049faf0, 0x0049fed0); the port's znet::team_named (mp_lobby.cpp:1564) |
 | 0x005aa470 | 12 | unlabelled |  |
-| 0x005aa4e0 | 14 | UNSURE | read with group A: a callee of shared ports PM changed (0x0046f910, 0x005aa470); whether the port does PM's version, this call included, is settled there |
+| 0x005aa4e0 | 14 | replaced (SDL or the platform layer) | read: DirectPlay's GetPlayerData (the session's IDirectPlay4 vt+0x50: id, buffer, size, flags 0; true when it succeeds), from the network mech 0x0046f910, the pilot games and the lobby; the port's znet::get_player_data over its own network layer (znet_dplay.h:70, frontend/sdl/net_enet) |
 | 0x005aa5d0 | 15 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.cpp:336) |
 | 0x005aa600 | 8 | folded | returns a constant or a global |
 | 0x005aa660 | 18 | folded | the network's team list walk (each team's id to the callback), for the lobby's team lines (PM 0x0049bb70; pilot_games.cpp:1673 walks the port's teams); not run under a test (trace) |
@@ -4554,12 +4541,12 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005ac0e0 | 19 | replaced (SDL or the platform layer) | as MW3 0x0058a830: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005ac120 | 8 | folded | empty: does nothing |
 | 0x005ac130 | 15 | folded | covered by the port where it names it (src/gamez/znetwork/znet_dplay.cpp:272) |
-| 0x005ac170 | 280 | UNSURE | read with group A: a callee of shared ports PM changed (0x005a9220, 0x005a9620, 0x005a9980); whether the port does PM's version, this call included, is settled there |
+| 0x005ac170 | 280 | folded | read: the DirectPlay error's name for a report (MW3's 0x0058a8c0, which names each through the message DLL; PM spells its 65 names in the exe, MSG_DPERR_PLAYERLOST among them), from the session calls in znet_dplay; text in error reports only, the port names them its own way (znet_dplay.cpp:142) |
 | 0x005ac8f0 | 19 | folded | as MW3 0x0058ae90: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x005ac920 | 67 | unlabelled |  |
 | 0x005aca50 | 12 | unlabelled |  |
 | 0x005acb00 | 44 | folded | ported, by docs/symbols.csv: ported (the dock's net_element): the first element of that name (vt+0x24) |
-| 0x005acba0 | 21 | UNSURE | read with group A: a callee of shared ports PM changed (0x004a0e10, 0x004a2dc0, 0x004dd1e0); whether the port does PM's version, this call included, is settled there |
+| 0x005acba0 | 21 | folded | read: MW3's 0x0058b160 (znet's object by its number: the network objects' list [0x00627c3c] walked for the one whose vt+0x18 is the id), unpaired by the diff; from the player and others (11 callers); the port's znet_find (player.h:78, zai_brain.h:48) |
 | 0x005acc40 | 19 | unused: PORT (preserve) | called only from 0x00410880, which are unused |
 | 0x005acc70 | 25 | folded | as MW3 0x0058b220: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x005acd30 | 29 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.cpp:15) |
@@ -4609,7 +4596,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005b0500 | 138 | debug or dev tool: PORT (preserve) | as MW3 0x0058ee40, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b08b0 | 60 | debug or dev tool: PORT (preserve) | as MW3 0x0058f170: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b09c0 | 11 | debug or dev tool: PORT (preserve) | as MW3 0x0058f270: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
-| 0x005b09f0 | 16 | UNSURE | read with group A: a callee of shared ports PM changed (0x00592910, 0x005a9220, 0x005a9980); whether the port does PM's version, this call included, is settled there |
+| 0x005b09f0 | 16 | folded | read: a std::list node erased (the STL's erase: unlinked, freed, the count lowered, the next returned), 10 callers; the port's lists |
 | 0x005b0a30 | 77 | debug or dev tool: PORT (preserve) | as MW3 0x0058f420: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b0b90 | 37 | debug or dev tool: PORT (preserve) | as MW3 0x0058f580: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b0c60 | 78 | debug or dev tool: PORT (preserve) | as MW3 0x0058f2e0: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
@@ -4625,14 +4612,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005b0f40 | 11 | debug or dev tool: PORT (preserve) | as MW3 0x0058f7b0: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x005b0f50 | 11 | folded | covered by the port where it names it (src/gamez/znetwork/znet_view.h:50) |
 | 0x005b1040 | 8 | debug or dev tool: PORT (preserve) | as MW3 0x0058f8b0: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
-| 0x005b1050 | 57 | UNSURE | read with group A: a callee of shared ports PM changed (0x00482140); whether the port does PM's version, this call included, is settled there |
+| 0x005b1050 | 57 | folded | read: ZGameApp's destructor, MW3's 0x0058f8d0 with PM's addresses (the app's +0xc0 cleared, the state deque's blocks freed, then CWinApp's); the port's app frees its own (MFC's base replaced) |
 | 0x005b1180 | 12 | unlabelled |  |
 | 0x005b11a0 | 18 | folded | as MW3 0x0058fa40: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x005b1200 | 12 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:59) |
 | 0x005b1220 | 72 | folded | as MW3 0x0058fac0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
 | 0x005b13d0 | 8 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.h:96) |
 | 0x005b1440 | 38 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.h:59) |
-| 0x005b14e0 | 25 | UNSURE | read with group A: a callee of shared ports PM changed (0x005c9280); whether the port does PM's version, this call included, is settled there |
+| 0x005b14e0 | 25 | replaced (SDL or the platform layer) | read: a Win32 message pump (PeekMessage, then MFC's PumpMessage until the queue is empty or WM_QUIT), from the message box 0x005c9280 (MW3's 0x005a7280, twod_msgbox.cpp); the port's SDL event loop |
 
 ### ztwod (145 not ported)
 
@@ -4996,7 +4983,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0053f020 | 16 | folded | MW3's 0x00525690 unpaired (a quaternion's conjugate product, the same terms; the first component's four products are summed in another order, rounding only), in another calling convention; not run under a test (trace) |
 | 0x0053f310 | 35 | unlabelled |  |
 | 0x0053f900 | 144 | unused: PORT (preserve) | as MW3 0x00525fa0, whose class PM's changes keep: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
-| 0x0053fe30 | 87 | UNSURE | read with group A: a callee of shared ports PM changed (0x00482ca0); whether the port does PM's version, this call included, is settled there |
+| 0x0053fe30 | 87 | folded | read after the feature compare's flag: MW3's 0x00526510 (zModel's start: the render state's defaults) with one PM value more, [0x008d4ae8] = 750 (slots a block), which the pm port has (src/pm/gamez/zmodel/gmod_const.h:61); the other defaults as MW3's (gmod_draw.h:37) |
 | 0x00540090 | 16 | folded | read: the model code's GfxFlags pointer bound to the registry's value of that name (GfxFlags_HW / GfxFlags_SW, 0x005b9070) or to a local default, from the app's settings read (0x00482ca0) and the graphics screen; the port keeps GfxFlags in its options (options.cpp) and the model code reads them through its hooks |
 | 0x005400c0 | 10 | folded | read: teardown frees at the app's end (a model table freed and its count cleared; the video's buffer freed), from the app's cleanup (0x00483020 / 0x00482090); the port's objects free themselves |
 | 0x005400e0 | 32 | unlabelled |  |
@@ -5061,7 +5048,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00593f10 | 26 | replaced (SDL or the platform layer) | as MW3 0x005731f0, whose class PM's changes keep: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
 | 0x00594150 | 33 | folded | traced: SOUND_GROUPS read into the sound group list ([0x008c1b28], each group by 0x005941c0); the port's read_groups (zsnd_init.cpp:245, its comment naming 0x00594150) |
 | 0x005941c0 | 303 | unlabelled |  |
-| 0x00594600 | 198 | UNSURE | read with group A: a callee of shared ports PM changed (0x005941c0); whether the port does PM's version, this call included, is settled there |
+| 0x00594600 | 198 | folded | read after the feature compare's flags: MW3's 0x005739f0 (a sound group's entries from its reader node; zsnd_grp.cpp) but for the compiler's: the entry-type switch drops MW3's separate case for type 1, which went to the default's place (0x00573c98) anyway (sub 2 becomes sub 3), and fsub -0.5 is written fadd 0.5 |
 | 0x005949c0 | 27 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_grp.cpp:141) |
 | 0x00594a10 | 90 | folded | ported, by docs/symbols.csv: ported: weighted rand pick, dynamic weights |
 | 0x00594ba0 | 99 | unlabelled |  |
@@ -5089,13 +5076,13 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00595c60 | 15 | unlabelled |  |
 | 0x00595ca0 | 101 | replaced (SDL or the platform layer) | as MW3 0x00574ff0: DirectSound buffers: made from a WAV (0x00574ff0) and released (0x00574d90, 0x00574f10); SDL audio holds the port's |
 | 0x00596510 | 9 | unlabelled |  |
-| 0x00596520 | 41 | UNSURE | read with group A: a callee of shared ports PM changed (0x0043bb70, 0x004fd6f0, 0x00505c80); whether the port does PM's version, this call included, is settled there |
+| 0x00596520 | 41 | folded | read: PM's realloc (the old block's _msize, a new malloc, the smaller size copied, the old freed; null in, a malloc), 64 callers growing arrays; the port's containers (zutl_zar.cpp:52 names it) |
 | 0x00596590 | 224 | debug or dev tool: PORT (preserve) | as MW3 0x00575b00: the developer's stdout redirect (freopen to a log; editor.md:214) |
 | 0x00596780 | 9 | replaced (SDL or the platform layer) | as MW3 0x00575d00: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00596790 | 8 | replaced (SDL or the platform layer) | as MW3 0x00575d10: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x005967c0 | 69 | unlabelled |  |
 | 0x005968d0 | 56 | replaced (SDL or the platform layer) | as MW3 0x00575d40, whose class PM's changes keep: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
-| 0x005969a0 | 100 | UNSURE | read with group A: a callee of shared ports PM changed (0x00482090); whether the port does PM's version, this call included, is settled there |
+| 0x005969a0 | 100 | replaced (SDL or the platform layer) | read: CD autorun turned off while the game runs and put back at its end (HKCU ...\Policies\Explorer NoDriveTypeAutoRun saved as SaveNoDriveTypeAutoRun and set to 0xff, and HKCR AudioCD\Shell's default action saved and replaced; restored and the copies deleted when param_1 is 1), from the start (0x00485480) and the end (0x00485530, 0x00482090); Win32 system settings the port leaves alone (it plays no disc) |
 | 0x00596c00 | 43 | replaced (SDL or the platform layer) | as MW3 0x00575e30: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00596d30 | 16 | replaced (SDL or the platform layer) | as MW3 0x00575f30: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
 | 0x00596d70 | 12 | replaced (SDL or the platform layer) | as MW3 0x00575f70: Win32 plumbing the port replaces: the MCI notify window's flag (app_engine.h:541) and its reader, the CD-ROM drive search (FIX (A) and (trap): fixes.md:56, 130), the Winsock 2 check (FIX (A), mp_connect.cpp:280), Mech3Msg.dll's LoadLibrary, FreeLibrary and FormatMessage (the port reads the DLL as a file: fixes.md:259, 281; sdl_twod_host.cpp:435) |
@@ -5484,7 +5471,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005cb3a0 | 11 | folded | covered by the port where it names it (src/mech3/veh_controls.h:82) |
 | 0x005cb3c0 | 11 | folded | as MW3 0x005a8730: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
 | 0x005cb3e0 | 49 | MISSING LOGIC | PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib |
-| 0x005cb4b0 | 11 | UNSURE | read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there |
+| 0x005cb4b0 | 11 | folded | read: MW3's 0x005a8820 (an entity on zEntity's list: 0x005cb6f0 = MW3's 0x0049ced0 on +8 with 1, the walk's two cursors reset to +4), the same body with the argument on the stack; from the mission load 0x00494b80 (MW3's 0x00491780); the port's entities_add (mission.h:274, app_mission.cpp:1896) |
 | 0x005cb4e0 | 15 | folded | covered by the port where it names it (src/mech3/app_mech.h:341) |
 | 0x005cb510 | 15 | folded | covered by the port where it names it (src/mech3/app_mech.h:342) |
 | 0x005cb690 | 34 | folded | as MW3 0x005a89c0: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
@@ -5653,7 +5640,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005b1bd0 | 99 | unlabelled |  |
 | 0x005b1db0 | 101 | unlabelled |  |
 | 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2050 | 74 | UNSURE | read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there |
+| 0x005b2050 | 74 | folded | read: a std::deque's growth at the back (a 0x1000-byte block made, the map of blocks doubled when full), from the app's state calls 0x005b19e0 / 0x005b1bd0 / 0x005b1db0 (MW3's 0x00590250 / 0x00590400 / 0x005905a0, zgameapp.cpp); the port's containers |
 | 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
 | 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 | 0x005b2260 | 11 | unlabelled |  |
