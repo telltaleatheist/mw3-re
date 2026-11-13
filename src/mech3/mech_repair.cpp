@@ -11,6 +11,7 @@
 #include "mech3/hud.h"
 #include "mech3/mech.h"
 #include "mech3/mech_config.h"
+#include "mech3/mech_data.h"
 #include "mech3/mech_hud.h"
 #include "mech3/mech_names.h"
 #include "mech3/mech_parts.h"
@@ -43,14 +44,17 @@ void RepairHooks::hud_reset(void* hud) {
 // touched. Ammo comes from the store by need; any armour of the mech's
 // kind restores all of it, costing a half ton per half ton missing,
 // rounded, as far as the store has it (unlimited items cost nothing).
-// Pirate's Moon outside a campaign (Instant Action, Pirate Missions, multiplayer): every bin refilled by all it
-// lacks, free, and the armour left as it is; MW3 took both from the game's store there too.
+// Pirate's Moon: outside a campaign (Instant Action, Pirate Missions, multiplayer) every bin is refilled by all it
+// lacks, free, and no armour is looked for or charged; and the armour is made full at every repair (0x00415f10),
+// where MW3 restored it only when the store had armour of the mech's kind.
 bool Mech::repair(float dt) {
   (void)dt;
   RepairHooks& h = *g_hooks;
   MechPart* const sections[6] = {legs[0], legs[1], arms[0], arms[1], head, torso};
-  for (int i = 0; i < 5; ++i) sections[i]->set_internal(1.0f, 0);
+  // Pirate's Moon's 0x00415e90: the torso's three, the head, the legs and arms (MW3's legs, arms, head, torso).
   for (int s = 0; s < 3; ++s) torso->set_internal(1.0f, s);
+  head->set_internal(1.0f, 0);
+  for (int i = 0; i < 4; ++i) sections[i]->set_internal(1.0f, 0);
 
   Store* store = h.store();
   const bool campaign = h.campaign();  // 0x00415fef
@@ -91,8 +95,8 @@ bool Mech::repair(float dt) {
   // Ours (playtest W35): what the repair did with the armour, in the log.
   std::printf("mw3: repair: %s armour (%s, tech %d): %s\n", h.viewed(*this) ? "the player's" : "a mech's",
               config->ferro ? "ferro-fibrous" : "standard", static_cast<int>(config->armor_tech),
-              !campaign ? "not a campaign: not restored" : !store ? "no store: not restored"
-                     : found ? "restored from the store" : "none of that kind in the store: not restored");
+              !campaign ? "not a campaign: restored free" : !store ? "no store: restored free"
+                     : found ? "paid for from the store" : "none of that kind in the store: restored free");
   if (found) {
     // The armour left in points (each part's share times 100), summed as
     // the exe does, in play's single precision (docs/vehicles.md).
@@ -106,9 +110,11 @@ bool Mech::repair(float dt) {
     const float d = std::floor(0.5f - (static_cast<float>(points - static_cast<int32_t>(left)) / per) * -2.0f);
     const float cost = d * 0.5f + d * 0.5f;
     if (cost > 0.0f) repair_store_remove(store, found, static_cast<int32_t>(cost));
-    for (int i = 0; i < 5; ++i) sections[i]->set_armor(1.0f, 0);
-    for (int s = 0; s < 6; ++s) torso->set_armor(1.0f, s);
   }
+  // Pirate's Moon (0x00415f10, after the cost either way): the armour full whether or not any was in the store.
+  for (int i = 0; i < 4; ++i) sections[i]->set_armor(1.0f, 0);
+  for (int s = 0; s < 6; ++s) torso->set_armor(1.0f, s);
+  sections[4]->set_armor(1.0f, 0);  // the head last
 
   coolant = 1.0f;
   jet_fuel = equipment[11] > 0 ? 1.0f : 0.0f;
@@ -122,12 +128,14 @@ bool Mech::repair(float dt) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00415a90
+// Mech3.exe 1.2 @ 0x00415a90, Pirate's Moon 1.0 @ 0x004164c0. PM then sets the top speed back as the launch does
+// (0x00486830 the mech's mass, 0x00433b30 the engine's run speed, 0x00414c00 with the gaits).
 void Mech::end_limp() {
   if ((limp == 0 || limp == 1) && anims[11]) {
     delete anims[11];  // 0x004152c0 -> 0x005a9dc0
     anims[11] = nullptr;
     limp = -1;
+    if (config) set_max_speed(engine_speed(config->engine, max_mass(config->mech)), true);
   }
 }
 

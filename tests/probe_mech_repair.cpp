@@ -54,18 +54,21 @@ zwep::WeaponDef g_defs[16];
 m3::WeaponType g_types[16];
 m3::Store* g_store = nullptr;
 bool g_viewed = false;
+bool g_campaign = true;   // PM: the game's type is a campaign (RepairHooks::campaign)
+bool g_pm = false;        // PM's HUD layout (its weapon lines at +0x658c)
 
 struct Hooks : m3::RepairHooks {
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return probe_app::call(key, args);
   }
   m3::Store* store() override { return g_store; }
+  bool campaign() override { return g_campaign; }
   bool viewed(m3::Mech& m) override { return g_viewed && &m == &g_mech; }
   void* hud(m3::Mech& m) override {
     (void)m;
     return reinterpret_cast<void*>(static_cast<uintptr_t>(unported("0x00430aa0", {0x684})));
   }
-  void hud_weapons_refresh(void* h) override { unported("0x00446520", {lo(h) + 0x6520}); }
+  void hud_weapons_refresh(void* h) override { unported("0x00446520", {lo(h) + (g_pm ? 0x658cu : 0x6520u)}); }
   void hud_reset(void* h) override { unported("0x0043be10", {lo(h)}); }
 };
 Hooks g_hooks;
@@ -81,6 +84,8 @@ void clear_weapons() {
 
 extern "C" {
 void probe_rp_hooks(int on) { m3::set_repair_hooks(on ? &g_hooks : nullptr); }
+// PM's repair (test_pm_mech_repair.py): whether the game is a campaign, and PM's HUD offsets.
+void probe_rp_pm(int pm, int campaign) { g_pm = pm != 0, g_campaign = campaign != 0; }
 
 // i: ferro, armor_tech, equipment[0], equipment[11], ams (0 none), ams
 // rounds, limp, anims[11] set, viewed, the weapons' count; f: armor tons,
@@ -114,6 +119,10 @@ void probe_rp_setup(const int32_t* i, const float* f, const int32_t* w, int32_t 
   g_mech.anims[11] = i[7] ? new m3::MechAnim : nullptr;
   g_viewed = i[8] != 0;
   g_mech.coolant = f[1], g_mech.jet_fuel = f[2];
+  if (g_pm) {  // PM's limp end sets the speed back from the mech's mass and engine (i[10], i[11]; f[5], f[6] before)
+    g_config->mech = i[10], g_config->engine = i[11];
+    g_mech.max_speed = f[5], g_mech.walk_speed = f[6];
+  }
   g_mech.net_damaged = 0;
 
   g_manager = new m3::WeaponManager(nullptr);
@@ -165,6 +174,7 @@ int probe_rp_image(int32_t nb, uint32_t* out) {
   out[k++] = zgame::bits(g_mech.coolant), out[k++] = zgame::bits(g_mech.jet_fuel);
   out[k++] = static_cast<uint32_t>(g_ams.rounds);
   out[k++] = static_cast<uint32_t>(g_mech.limp), out[k++] = g_mech.anims[11] ? 1u : 0u, out[k++] = g_mech.net_damaged;
+  if (g_pm) out[k++] = zgame::bits(g_mech.max_speed), out[k++] = zgame::bits(g_mech.walk_speed);  // PM's limp end
   if (g_store) k += rp_store_dump(g_store, out + k);
   else out[k++] = 0xffffffffu;
   return k;
