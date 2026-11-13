@@ -107,6 +107,10 @@ def shape(body):
 def scan_src(src, tag):
     """Ported addresses (a comment starting with the tag) and every address named anywhere."""
     head = re.compile(r'//\s*' + tag + r' @ 0x([0-9a-fA-F]{6,8})')
+    # Pirate's Moon's header also comes after MW3's on a shared port
+    # ("Mech3.exe 1.2 @ ..., Pirate's Moon 1.0 @ ...") or inside a comment,
+    # with a list of addresses: each one listed is ported there.
+    pm_head = re.compile(r"Pirate's Moon(?:'s)? 1\.0 @ ((?:0x[0-9a-fA-F]{6,8}(?:, | and | / |/)?)+)") if 'Pirate' in tag else None
     any_addr = re.compile(r'0x(00)?([45][0-9a-fA-F]{5})\b')
     ported, named = {}, defaultdict(list)
     for p in sorted(src.rglob('*')):
@@ -116,6 +120,10 @@ def scan_src(src, tag):
         for n, line in enumerate(p.open(errors='replace'), 1):
             for m in head.finditer(line):
                 ported.setdefault(int(m.group(1), 16), rel)
+            if pm_head and '//' in line:
+                for m in pm_head.finditer(line[line.index('//'):]):
+                    for a in re.findall(r'0x([0-9a-fA-F]{6,8})', m.group(1)):
+                        ported.setdefault(int(a, 16), rel)
             for m in any_addr.finditer(line):
                 named[int(m.group(2), 16)].append(f'{rel}:{n}')
     return ported, named
@@ -440,7 +448,7 @@ def main():
         rows.append(dict(
             addr=f'0x{a:08x}', status=status, module=module_of(path), file=path,
             lines=decomp_lines(g['decomp'], a),
-            named_in=sorted(set(named.get(a, [])))[:6] if status == 'named' else [],
+            named_in=sorted(set(named.get(a, [])))[:6] if status in ('named', 'changed') else [],  # changed: where the pm port mentions it, to read with
             callers=[f'0x{c:08x}' for c in sorted(callers[a])],
             callees=[f'0x{c:08x}' for c in sorted(callees[a])],
             refs=[f'0x{c:08x}' for c in sorted(refs[a])],
