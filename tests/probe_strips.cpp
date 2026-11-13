@@ -11,6 +11,8 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_hit.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zmodel/gmod_strip.h"
+#include <cstdlib>
 
 namespace {
 struct Built {
@@ -133,5 +135,62 @@ int strip_segments(int slot, const float* segs, int count, uint32_t* out) {
   }
   std::memcpy(out + n++, b.model.header + 0x58, 4);
   return n;
+}
+
+// The port's stripper (zmod::strip_model) on slot `slot`'s model as the reader leaves it (each array malloc'd,
+// as the exe's), then the model dumped as strip_hits.py / test_mech_strips.py dump the exe's: per polygon
+// flags, priority, material index, zone, then the vertex, normal, UV and colour lists, each behind a present
+// byte. Returns the bytes written to out (cap bytes at most), the polygon count in *npolys.
+int strip_port(int slot, uint32_t limit, uint32_t small, uint8_t* out, int cap, int* npolys) {
+  Built& b = g_slot[slot];
+  zmod::Model m{};
+  std::memcpy(m.header, b.model.header, 0x5c);
+  const uint32_t n0 = static_cast<uint32_t>(b.polys.size());
+  m.polygons = n0 ? new zmod::Polygon[n0] : nullptr;  // new[]'d as the reader's (cls_mechlib.cpp)
+  for (uint32_t i = 0; i < n0; ++i) {
+    zmod::Polygon q = b.polys[i];
+    auto dup = [](const void* src, size_t bytes) -> void* {
+      if (!src) return nullptr;
+      void* d = std::malloc(bytes ? bytes : 1);
+      std::memcpy(d, src, bytes);
+      return d;
+    };
+    const size_t k = q.flags & 0xff;
+    q.vertex_indices = static_cast<uint32_t*>(dup(q.vertex_indices, 4 * k));
+    q.normal_indices = static_cast<uint32_t*>(dup(q.normal_indices, 4 * k));
+    q.uvs = static_cast<float*>(dup(q.uvs, 8 * k));
+    q.colors = static_cast<float*>(dup(q.colors, 12 * k));
+    q.scratch = nullptr;
+    m.polygons[i] = q;
+  }
+  m.vertices = b.verts.data();
+  zmod::strip_model(m, limit, small);
+  uint32_t np = 0;
+  std::memcpy(&np, m.header + 0x10, 4);
+  *npolys = static_cast<int>(np);
+  int w = 0;
+  auto put = [&](const void* src, int bytes) {
+    if (w + bytes <= cap) std::memcpy(out + w, src, bytes);
+    w += bytes;
+  };
+  for (uint32_t i = 0; i < np; ++i) {
+    const zmod::Polygon& q = m.polygons[i];
+    const int32_t mi = q.material ? static_cast<int32_t>(q.material - b.mats.data()) : -1;
+    put(&q.flags, 4), put(&q.priority, 4), put(&mi, 4), put(&q.zone_set, 4);
+    const int k = static_cast<int>(q.flags & 0xff);
+    const void* arrs[4] = {q.vertex_indices, (q.flags & 0x200) ? q.normal_indices : nullptr, q.uvs, q.colors};
+    const int sizes[4] = {4, 4, 8, 12};
+    for (int a = 0; a < 4; ++a) {
+      const uint8_t on = arrs[a] && k > 0;
+      put(&on, 1);
+      if (on) put(arrs[a], sizes[a] * k);
+    }
+  }
+  for (uint32_t i = 0; i < np; ++i) {
+    zmod::Polygon& q = m.polygons[i];
+    std::free(q.vertex_indices), std::free(q.normal_indices), std::free(q.uvs), std::free(q.colors), std::free(q.scratch);
+  }
+  delete[] m.polygons;
+  return w;
 }
 }
