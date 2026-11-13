@@ -301,7 +301,11 @@ def write_doc(o, g, rows):
                 'immediates that pair one MW3 value off for one PM value, each a multiple of 4 and at least 0x40 (the offsets',
                 'and sizes of PM\'s larger structures), and float constants against their negatives (fsub written as fadd): no',
                 'call, no field count, no other immediate. Such a pair is folded, the label naming its pairs; a small or odd',
-                'value (a mask, a count) is read.',
+                'value (a mask, a count) is read. A multiple of 4 can also be a tuning value, so each matched value\'s uses',
+                'were then checked (tools/analysis/pm_layout_shift_uses.py): of the 72, 16 used one other than as an address',
+                'offset or a size before operator new; read, 15 were element sizes for the vector constructor and destructor',
+                'iterators or a malloc wrapper, error-report line numbers, a stack frame\'s size or a record\'s stride, and',
+                'one was a real value (0x0057a170, the static\'s noise table: 40000 bytes for 25600), taken off the rule.',
                 '**Checked by test** means a passing PM differential test ran the',
                 'function\'s body (a block trace of the emulator, per entry the test calls) and compares what that body',
                 'produces; the label names the compared value. Reaching a function, or running a caller, is not enough.', '']
