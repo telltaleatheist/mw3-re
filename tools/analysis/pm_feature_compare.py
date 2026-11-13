@@ -13,9 +13,10 @@ can move, as multisets over the function's instructions:
 - float and double constants loaded from data, by their raw values in each exe;
 - field offsets off a register (not esp, not ebp's locals), reported but not
   flagged: PM's layouts shift them;
-- how many field accesses and field stores there are (off a register other
-  than esp and ebp), whatever their offsets: an added read or write shows
-  there where a layout's shift does not.
+- how many field accesses and field stores there are, and how many distinct
+  field offsets (off a register other than esp and ebp), whatever the offsets
+  are: an added read or write, or an access moved to another field, shows there
+  where a layout's shift does not.
 
 --flag marks a function when a call, an immediate above 1, a float constant or
 a field count differs. A re-read the compiler did not keep in a register
@@ -110,6 +111,7 @@ FLD = re.compile(r'(dword|qword) ptr \[0x([0-9a-f]+)\]')
 def features(game, addr):
     ins, idx = asm(game)
     c = collections.Counter()
+    seen = set()
     for k in (k for s, e in RANGES[game][addr] for k in range(bisect.bisect_left(idx, s), bisect.bisect_right(idx, e))):
         ad, mn, ops = ins[k]
         if mn.startswith('j') or mn == 'ret' or ops.startswith('esp,'):
@@ -124,6 +126,7 @@ def features(game, addr):
                 c['fields'] += 1
                 if mn.startswith('mov') and ops.find(m.group(0)) < ops.find(','):
                     c['field stores'] += 1
+                seen.add(m.group(2) + m.group(3))
         for m in IMM.finditer(re.sub(r'[+-] 0x[0-9a-f]+\]', ']', ops)):
             v = int(m.group(1), 16)
             kind = 'call ' if mn == 'call' else 'ref '
@@ -142,6 +145,9 @@ def features(game, addr):
                     v = struct.unpack('<d' if m.group(1) == 'qword' else '<f', b)[0]
                     if v == 0 or 1e-30 < abs(v) < 1e30:
                         c['const %s %.9g' % (m.group(1)[0], v)] += 1
+    # An access moved to another field usually adds a distinct offset; a
+    # layout's shift only renames one.
+    c['fields distinct'] = len(seen)
     return c
 
 
