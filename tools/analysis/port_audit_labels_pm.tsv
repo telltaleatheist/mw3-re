@@ -1297,3 +1297,9 @@
 0x004d71e0	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
 0x004e03c0	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
 0x004ba820	folded	fd0 read: PM's own AI ports (zai_brain_pm.cpp, zai_drive_pm.cpp name these PM addresses); the firing state's dtor freeing PM's own blocks
+0x004ba8c0	unsure	fd0 read, to trace: PM's firing stand-down keeps the plan when the firing state has a name (p[0x25] non-empty: +0x34 set, p[0xc] = p[4], p[0x13] = 0, no phase change), and otherwise also calls 0x004b4a20(0) when the vehicle's +0xd4 is set; the shared port's Firing::stand_down is MW3's (zai_firing.cpp:108-113, reached from zai_brain.cpp:118); PM's own firing (zai_firing_pm.cpp, zai_wire_firing_pm.cpp:585) has its stand_down hook but no port names 0x004ba8c0, so whether the PM build runs PM's is to check (MW3 0x004b6700)
+0x004b9f00	folded	fd0 read: PM's own firing and params ports (zai_firing_pm.cpp, zai_params.cpp name PM's addresses); the path's steps and its links, the same logic with vtable slots 4 on
+0x004f8dc0	folded	fd0 read: PM's own firing and params ports (zai_firing_pm.cpp, zai_params.cpp name PM's addresses); the path's steps and its links, the same logic with vtable slots 4 on
+0x004a06c0	folded	fd0 read: PM's own firing and params ports (zai_firing_pm.cpp, zai_params.cpp name PM's addresses); the path's steps and its links, the same logic with vtable slots 4 on
+0x004d33e0	folded	fd0 read: PM's own firing and params ports (zai_firing_pm.cpp, zai_params.cpp name PM's addresses); the path's steps and its links, the same logic with vtable slots 4 on
+0x004d3670	folded	fd0 read: PM's own firing and params ports (zai_firing_pm.cpp, zai_params.cpp name PM's addresses); the path's steps and its links, the same logic with vtable slots 4 on
