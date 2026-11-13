@@ -7,6 +7,10 @@ namespace mech3 {
 
 // 0x00479430 on [0x0060861c]
 Store* RepairHooks::store() { return current_pilot() ? current_pilot()->store() : nullptr; }
+bool RepairHooks::campaign() {
+  const Pilot* p = current_pilot();
+  return p && p->current && p->current->type() == kCampaign;  // 1
+}
 ConfigItem* repair_store_find(Store* s, const ConfigItem& like) { return s->find_like(&like); }
 void repair_store_remove(Store* s, ConfigItem* item, int32_t n) { s->remove(item, n); }
 
