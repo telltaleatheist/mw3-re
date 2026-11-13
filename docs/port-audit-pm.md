@@ -56,10 +56,10 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3345 |
-| unlabelled | 900 |
-| replaced (SDL or the platform layer) | 234 |
-| MISSING LOGIC | 208 |
+| folded | 3356 |
+| unlabelled | 870 |
+| replaced (SDL or the platform layer) | 240 |
+| MISSING LOGIC | 221 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 115 |
 | software renderer | 106 |
 | debug or dev tool: PORT (preserve) | 86 |
@@ -113,10 +113,19 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x004b0790** (1 functions, 76 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the vehicle's above camera pitched -81 degrees (-1.413716) in PM, -90 in MW3; its 150 m the same in both (veh_basic_object.cpp:500)
 - **0x004b0d90** (1 functions, 71 decomp lines; MISSING LOGIC): pm only: MW3's 0x004ad3f0 (veh_basic_object.cpp vehicle_damage) without its heat and freeze branches: every hit takes health - damage, so on PM a heat weapon (every laser's IMPACT HEAT) no longer warms the basic vehicle's glow by the share lost (0x00586a30), a freeze weapon damages instead of chilling, and the frozen extra damage is gone; the health's glow step (0x005a5150 = MW3's 0x00583730), the jolt over 5 and the death and kill credit as MW3's. The port keeps MW3's branches
 - **0x004b10b0** (1 functions, 9 decomp lines; MISSING LOGIC): MW3's 0x004ad7c0 (veh_basic_object.cpp, the vehicles' vt+0x90: the turret's limit clamp) as a direct call to PM's clamp 0x004a71f0 (labelled there: the limit's direction along the heading's own length)
+- **0x004b43a0, 0x004b4480** (2 functions, 104 decomp lines; MISSING LOGIC): pm only: MW3's 0x004b04f0 / 0x004b0610 (weapon.cpp next_group / prev_group: the next group holding a beam or a weapon with ammo) with PM's test, the same both ways: a live weapon counts when it is a beam (vt+0x08), needs no ammo (0x00486ab0 = weapon_uses_ammo false), has its +0x5c object's +0x0c flag set (unread), or holds ammo (vt+0x20 > 0); so PM's previous group no longer skips a Flamer-only group, and an empty group of ammo weapons with that flag still counts. The port keeps MW3's two tests
 - **0x004b4560** (1 functions, 39 decomp lines; MISSING LOGIC): pm only, weapons: selecting a weapon group (0x004b4560, PM's in MW3's 0x004b0730 place, the port's WeaponManager::select_group, weapon.cpp:650): when the group's current weapon is not ready (0x004b7bd0, MW3's 0x004b3a20), PM moves the group on to its next ready weapon (0x004b5e10, MW3's 0x004b1f40) before the HUD's refresh; MW3 and the port keep the current one. Reached from the group keys, the mech build, the weapon planner and two weapon manager steps
+- **0x004b4a90** (1 functions, 122 decomp lines; MISSING LOGIC): pm only: MW3's 0x004b0c30 (weapon.cpp WeaponManager::update) with three changes. (1) The fire mode is spoken one second after its last change: once the mode time (+0x20, the port's mode_until, set by the fire-mode key) has passed, 0x004b46c0 plays voice 0x16 / 0x15 / 0x14 for chain / single / group (0x0041f310) and clears it; MW3 played its sound at the key (0x004b0830). The port sets mode_until but nothing reads it, so on pm the fire mode is never spoken. (2) Chain fire's first press keeps the trigger held when the trigger call fails and the group's current weapon's +0x78 is clear. (3) Chain fire's release refreshes the view player's HUD (0x00447da0) when that +0x78 is clear. Nothing runs with no weapons; the alpha strike and the rest as MW3's
+- **0x004b4f10** (1 functions, 50 decomp lines; MISSING LOGIC): pm only: MW3's 0x004b1040 (weapon.cpp WeaponManager::part_lost: every weapon on a part that came off destroyed) skipped whole when the owner (+0x84) is dead or in state 10 (0x0041ade0), so a part lost after death keeps its weapons; the part matched by the firepoint's +0x68 for MW3's +0x0c, the HUD refreshed only for the view's player, else as MW3's. The port runs it always
+- **0x004b4fe0** (1 functions, 35 decomp lines; MISSING LOGIC): pm only: MW3's 0x004b1110 (weapon.cpp WeaponManager::destroy_all, from the mech's death 0x0041be50 and 0x004b8a20) without the weapons' destroy: each weapon not already at damage 1 is counted and stopped (its vt+0x38, and its beam off through 0x004b82a0 when vt+0x10 says one is on) but keeps its damage, where MW3 runs the full destroy (0x004b3020, PM's 0x004b6f70: damage 1, the HUD and the rest). The port runs MW3's destroy on each; what keeping the damage changes after death (salvage, the debriefing) is not traced
 - **0x004b5330, 0x004b8ce0** (2 functions, 124 decomp lines; MISSING LOGIC): pm only, AI: the volley planner's weapon test (weapon_planner.cpp:92 shot_of and add_weapon, through in_range's type_ready()): MW3's 0x004b4ba0 needs the weapon's owner, its definition and the reload time passed ([0x0060991c] >= def+0xc4, 0x004b4c70); PM's 0x004b8ce0 needs only the owner. So PM's burst record 0x004b5230 counts a reloading weapon's damage and PM's add-weapon 0x004b5330 takes it as a candidate and into its group's sums; the port keeps MW3's ready test on PM. Reached through PM's volley 0x004b56d0 (MW3 0x004b1860)
+- **0x004b5e10, 0x004b5ea0** (2 functions, 100 decomp lines; MISSING LOGIC): pm only: MW3's 0x004b1f40 / 0x004b2000 (weapon.cpp WeaponGroup::next / prev, chain fire's step) picking the next weapon ready to fire (0x004b7bd0: its firepoint, its +0x78 flag, the owner's +0x8d, reloaded, ammo left or unlimited, not destroyed) where MW3 takes the next with ammo and not destroyed; so PM's chain fire skips a weapon still reloading. The port keeps MW3's
 - **0x004b5f80** (1 functions, 110 decomp lines; MISSING LOGIC): pm only, weapons, group fire (mode 2): PM's group trigger (0x004b5f80, in MW3's 0x004b2100 place, the port's WeaponGroup::trigger, weapon.cpp:455) fires the best-rated beam first, then each other weapon telling zWeapon whether its definition already fired in this volley (0x005a3680, MW3's 0x00581f90, the port's set_fire_animation): the first of a kind plays its FIRE animation, the repeats its second one (fire.animation2, zwep_shot.cpp:341). The port's trigger fires in order and never sets the choice, so every weapon of a kind plays the first animation; the beams' ground effect is cleared as MW3's
 - **0x004b6e80** (1 functions, 44 decomp lines; MISSING LOGIC): pm only, weapons, the player's: PM's per-weapon enable (0x004b6e80, in MW3's 0x004b2f90 place, the port's Weapon::set_enabled, weapon.cpp:1310) adds a firing cone: for the player's own mech it runs the weapon's line to the aim point (0x004b7800 on the manager's +0x0c, the pm port's weapon_line, zai_firing_pm.cpp:922) and switches the weapon off when the cone clamps it (the line's cosine differs from the kept one). The water and side tests are MW3's. The port's set_enabled has only those two, so on PM the player's weapons that cannot bear on the aim point still fire
+- **0x004b7600, 0x004b8030** (2 functions, 81 decomp lines; MISSING LOGIC): pm only: MW3's 0x004b3660 / 0x004b3f40 (weapon.cpp aim_and_fire, the projectile's and the beam's start, PM's vtables +0x30 for MW3's +0x24) through PM's aim (0x004b7ac0, labelled there); and when forced (the network's fire, 0x004b4750 = MW3's 0x004b08c0 net_fire) the readiness test and the aim's check are skipped: the line is run with [0x0062f86c] set (no facing test) and the weapon fires whatever it says, where MW3's forced path still returns on a failed aim and its beam start has no forced path. The port keeps MW3's
+- **0x004b76d0** (1 functions, 54 decomp lines; MISSING LOGIC): pm only, PM's AI: a weapon's muzzle (from the firing 0x004baae0 and the brain 0x004e7210): the firepoint's local offset (its +0x70..+0x78, or the origin without one) plus the weapon's spread (+0x88..), or for a salvo weapon (+0x6c) a random jitter by the firepoint's share (+0x60), put into the part node's frame (0x004ff3c0); none for a destroyed weapon. The pm port's hooks for it (zai_wire_firing_pm.cpp muzzle, weapon_place) answer the weapon node's world origin (app_mech.cpp weapon_node_position), without the firepoint's offset or the spread
+- **0x004b7ac0, 0x004b7b10** (2 functions, 25 decomp lines; MISSING LOGIC): pm only: PM's aim check, in MW3's 0x004b36e0 place (weapon.cpp Weapon::aim): the weapon's line 0x004b7800, whose facing test is the firepoint's own aim limit (the dfn's, default cosine 0.4735 at 0x006070d8, mech_reader.cpp) where MW3 tests 0.89, then that cosine against the weapon's +0x98 (-1 as the constructor sets it); 0x004b7b10 its wrapper. The pm port's AI has the line (zai_firing_pm.cpp weapon_line); the player's and the vehicles' weapons keep MW3's aim (cone_cos 0.89, with its widening FIX). Related: 0x004b6e80
+- **0x004b80f0** (1 functions, 81 decomp lines; MISSING LOGIC): pm only, multiplayer: MW3's 0x004b3fc0 (weapon.cpp: a recharging weapon fires only from a full charge) with one step first: when the owner's vt+0x64 answers non-zero, which only the network mech's vtable 0x005e59a8 does (0x00402250; every other vehicle's is 0x00406ce0, 0), the bin is set to its capacity (0x004b8d30 / 0x004b8d40), so a remote mech's recharging weapons always fire full; the rest as MW3's. The port's recharge fire has no such step (how its replicas' bins are kept not traced)
 - **0x004bb6a0** (1 functions, 10 decomp lines; MISSING LOGIC): pm only, AI, traced: a shot that hits an ally (IControls vt+0x98, PM 0x004fbc00 as MW3's 0x004ea500) goes to PM's firing, 0x004bb6a0: the ally kept as the obstacle (+0x28), then PM's stand-down 0x004ba8c0, which keeps the plan when the firing has a name (+0x34 set, +0x30 = +0x10, +0x4c = 0) and otherwise rests, drops the plan, clears the aim and, with the vehicle's +0xd4 set, calls 0x004b4a20(0), phase 5. The port's ally hit (mech_control.cpp:636, zai_brain.h:632) goes to MW3's Firing (obstacle, stand_down: zai_firing.cpp:109), which PM's AI does not use (PM_AI=1 runs PM's firing record, zai_firing_pm.cpp, whose stand-down hook is the plan's end, not this); so under PM's AI an ally hit neither marks the obstacle nor stands the firing down
 - **0x004bd280, 0x004ea3a0, 0x004ea5c0, 0x004ea8a0, 0x004ea8d0, 0x004eab10 ...** (16 functions, 368 decomp lines; MISSING LOGIC): pm only, with PM's lance orders (0x004fb420's row): PM's brain answers more of its command interface than MW3's (adjustor thunks at 0x004dea90 and the AI controls' slots 0x004f9530..0x004f9560 jump to them): forget a vehicle as the kept lance target (0x004fbe10 -> 0x004bd280, the attackers' +0x8c / +0x90), drop the order on a net (0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0, the last order popped when it is that net's), give an object's net as the only order (0x004fa190 -> 0x004ea8a0), pop the orders back to one (0x004fa1b0 -> 0x004ea8d0), the order count (0x004fa1d0 -> 0x004eab10), an order on a net removed with every order after it (0x004f9540 -> 0x004fa770); the pm port's brain and AI controls have MW3's interface. Which callers reach each: to trace at fix time (calls through these offsets are too many to type statically)
 - **0x004e2820** (1 functions, 73 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's target description build (MW3's 0x004d25c0, zai_target.cpp desc_build) makes a target with an mpoption (targets.zrd's, +0x38 >= 0) only in a multiplayer game (the pilot's game of type 3, 0x0047b710) whose option allows it (0x00437920: the game's +0x98 is 4, or 1/2 and its vt+0x48 the same); otherwise none is made. The port reads mpoption (zrdraiv.cpp:585) and builds the target always. Shipped mpoption targets are only in the multiplayer readers (readermp1/2's targets.zrd, two on each of c1..c4), so single play is the same
@@ -2493,7 +2502,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004b13c0 | 19 | folded | as MW3 0x004ade90: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b1400 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004b1440, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004b1420 | 10 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:241) |
-| 0x004b1440 | 9 | unlabelled |  |
+| 0x004b1440 | 9 | folded | read: MW3's 0x004adb10 (a destructor that sets its vtable); the same |
 | 0x004b1470 | 9 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.cpp:138) |
 | 0x004b14d0 | 12 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:143) |
 | 0x004b14f0 | 18 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:143) |
@@ -2527,7 +2536,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004b2940 | 9 | folded | ported, by docs/symbols.csv: ported: HitRecord::within(1) (the manoeuvre's direct call) |
 | 0x004b2980 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004b29a0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004b29a0 | 26 | folded | as MW3 0x004c5090: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
-| 0x004b2a00 | 27 | unlabelled |  |
+| 0x004b2a00 | 27 | folded | ported: mech_control.h IControls::on_hit (MW3's 0x004aec90): the attacker recorded (PM's 0x004b2740 with the weapon, collision and damage, zai_attackers_pm), then an allied attacker's controls told it hit an ally (vt+0x90, MW3's +0x98), PM checking the controls for null first; the vtables' slots shifted |
 | 0x004b2a70 | 17 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1619) |
 | 0x004b2ab0 | 11 | folded | ported, by docs/symbols.csv: ported: MechControls::on_death (vt+0xa8: the tick once more) |
 | 0x004b2ac0 | 10 | folded | covered by the port where it names it (src/mech3/mech.h:162) |
@@ -2543,29 +2552,29 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004b2e60 | 8 | folded | returns a constant or a global |
 | 0x004b2e70 | 18 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x004aefb0: the vehicle-pick dialog's MFC plumbing |
 | 0x004b2ec0 | 30 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004af000: a vehicle-pick dev dialog (resource 0x8f, from the debug key's 0x004a3550): its list of zEntity's vehicles |
-| 0x004b2f60 | 9 | unlabelled |  |
-| 0x004b2f70 | 47 | unlabelled |  |
+| 0x004b2f60 | 9 | replaced (SDL or the platform layer) | replaced (SDL or the platform layer): PM's version from the exe's own version resource (EnumResourceNamesA / FindResourceExA on RT_VERSION into a static at 0x0062f760, built at start-up by 0x004b3170; its number +0x1c and its text "%d.%d" 0x004b3120), where MW3's 0x004af230 returns a constant; the port's version is a constant (mp_connect.h kGameVersion, compared in the lobby as PM's 0x0049828a), the text its own |
+| 0x004b2f70 | 47 | replaced (SDL or the platform layer) | replaced (SDL or the platform layer): PM's version from the exe's own version resource (EnumResourceNamesA / FindResourceExA on RT_VERSION into a static at 0x0062f760, built at start-up by 0x004b3170; its number +0x1c and its text "%d.%d" 0x004b3120), where MW3's 0x004af230 returns a constant; the port's version is a constant (mp_connect.h kGameVersion, compared in the lobby as PM's 0x0049828a), the text its own |
 | 0x004b3020 | 33 | folded | covered by the port where it names it (src/mech3/weapon.cpp:1327) |
 | 0x004b3080 | 19 | replaced (SDL or the platform layer) | as MW3 0x004af1a0: Win32: the exe's version info for the window title and menus (GetFileVersionInfoA; protection.md) and the OK/Cancel MessageBoxExA helper (the game's own box replaces it, W16) |
-| 0x004b3110 | 8 | unlabelled |  |
-| 0x004b3120 | 14 | unlabelled |  |
-| 0x004b3180 | 9 | unlabelled | follows 0x004b2f70:  |
+| 0x004b3110 | 8 | replaced (SDL or the platform layer) | replaced (SDL or the platform layer): PM's version from the exe's own version resource (EnumResourceNamesA / FindResourceExA on RT_VERSION into a static at 0x0062f760, built at start-up by 0x004b3170; its number +0x1c and its text "%d.%d" 0x004b3120), where MW3's 0x004af230 returns a constant; the port's version is a constant (mp_connect.h kGameVersion, compared in the lobby as PM's 0x0049828a), the text its own |
+| 0x004b3120 | 14 | replaced (SDL or the platform layer) | replaced (SDL or the platform layer): PM's version from the exe's own version resource (EnumResourceNamesA / FindResourceExA on RT_VERSION into a static at 0x0062f760, built at start-up by 0x004b3170; its number +0x1c and its text "%d.%d" 0x004b3120), where MW3's 0x004af230 returns a constant; the port's version is a constant (mp_connect.h kGameVersion, compared in the lobby as PM's 0x0049828a), the text its own |
+| 0x004b3180 | 9 | replaced (SDL or the platform layer) | replaced (SDL or the platform layer): PM's version from the exe's own version resource (EnumResourceNamesA / FindResourceExA on RT_VERSION into a static at 0x0062f760, built at start-up by 0x004b3170; its number +0x1c and its text "%d.%d" 0x004b3120), where MW3's 0x004af230 returns a constant; the port's version is a constant (mp_connect.h kGameVersion, compared in the lobby as PM's 0x0049828a), the text its own |
 | 0x004b3190 | 9 | folded | a thunk: one call to another function |
 | 0x004b31b0 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
 | 0x004b31c0 | 9 | folded | a thunk: one call to another function |
-| 0x004b31d0 | 9 | unlabelled | follows 0x004b3110:  |
-| 0x004b31e0 | 130 | unlabelled |  |
+| 0x004b31d0 | 9 | replaced (SDL or the platform layer) | replaced (SDL or the platform layer): PM's version from the exe's own version resource (EnumResourceNamesA / FindResourceExA on RT_VERSION into a static at 0x0062f760, built at start-up by 0x004b3170; its number +0x1c and its text "%d.%d" 0x004b3120), where MW3's 0x004af230 returns a constant; the port's version is a constant (mp_connect.h kGameVersion, compared in the lobby as PM's 0x0049828a), the text its own |
+| 0x004b31e0 | 130 | folded | ported: src/mech3/veh_controls.cpp (MW3's 0x004af2a0, the vehicle's weapons from its file): the same entries, flags, firepoints and their hiding, the first weapon's firepoints shown; the beam's constructor 0x005a6560 also given the weapon and the owner (MW3's 0x00584a70, labelled with the beams), the arguments explicit, the controls at +0xe8 (layout) |
 | 0x004b34d0 | 200 | folded | group A, read: weapons.zrd's reader as the shared port; every key PM reads (SHOW_ON_RADAR, SALVO and its count, delta, radius, delay, truecount, BURST, ISNARC, IMPACT_FORCE, RECOIL, ZAPS_HUD, U_FIRE_TIME, U_RECHARGE_TIME, U_RECHARGE_SND, U_DESIGNATE_AIRSTRIKE, U_LOOPED) is read in weapon.cpp; MW3 reads them too (the strings referenced another way) |
 | 0x004b3c80 | 20 | folded | as MW3 0x004afe10: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b3d60 | 48 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x004afed0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
-| 0x004b43a0 | 52 | unlabelled |  |
-| 0x004b4480 | 52 | unlabelled |  |
+| 0x004b43a0 | 52 | MISSING LOGIC | pm only: MW3's 0x004b04f0 / 0x004b0610 (weapon.cpp next_group / prev_group: the next group holding a beam or a weapon with ammo) with PM's test, the same both ways: a live weapon counts when it is a beam (vt+0x08), needs no ammo (0x00486ab0 = weapon_uses_ammo false), has its +0x5c object's +0x0c flag set (unread), or holds ammo (vt+0x20 > 0); so PM's previous group no longer skips a Flamer-only group, and an empty group of ammo weapons with that flag still counts. The port keeps MW3's two tests |
+| 0x004b4480 | 52 | MISSING LOGIC | pm only: MW3's 0x004b04f0 / 0x004b0610 (weapon.cpp next_group / prev_group: the next group holding a beam or a weapon with ammo) with PM's test, the same both ways: a live weapon counts when it is a beam (vt+0x08), needs no ammo (0x00486ab0 = weapon_uses_ammo false), has its +0x5c object's +0x0c flag set (unread), or holds ammo (vt+0x20 > 0); so PM's previous group no longer skips a Flamer-only group, and an empty group of ammo weapons with that flag still counts. The port keeps MW3's two tests |
 | 0x004b4560 | 39 | MISSING LOGIC | pm only, weapons: selecting a weapon group (0x004b4560, PM's in MW3's 0x004b0730 place, the port's WeaponManager::select_group, weapon.cpp:650): when the group's current weapon is not ready (0x004b7bd0, MW3's 0x004b3a20), PM moves the group on to its next ready weapon (0x004b5e10, MW3's 0x004b1f40) before the HUD's refresh; MW3 and the port keep the current one. Reached from the group keys, the mech build, the weapon planner and two weapon manager steps |
 | 0x004b4690 | 13 | folded | covered by the port where it names it (src/mech3/mech_command.cpp:230) |
 | 0x004b4a80 | 10 | folded | covered by the port where it names it (src/mech3/app_weapons.cpp:554) |
-| 0x004b4a90 | 122 | unlabelled |  |
-| 0x004b4f10 | 50 | unlabelled |  |
-| 0x004b4fe0 | 35 | unlabelled |  |
+| 0x004b4a90 | 122 | MISSING LOGIC | pm only: MW3's 0x004b0c30 (weapon.cpp WeaponManager::update) with three changes. (1) The fire mode is spoken one second after its last change: once the mode time (+0x20, the port's mode_until, set by the fire-mode key) has passed, 0x004b46c0 plays voice 0x16 / 0x15 / 0x14 for chain / single / group (0x0041f310) and clears it; MW3 played its sound at the key (0x004b0830). The port sets mode_until but nothing reads it, so on pm the fire mode is never spoken. (2) Chain fire's first press keeps the trigger held when the trigger call fails and the group's current weapon's +0x78 is clear. (3) Chain fire's release refreshes the view player's HUD (0x00447da0) when that +0x78 is clear. Nothing runs with no weapons; the alpha strike and the rest as MW3's |
+| 0x004b4f10 | 50 | MISSING LOGIC | pm only: MW3's 0x004b1040 (weapon.cpp WeaponManager::part_lost: every weapon on a part that came off destroyed) skipped whole when the owner (+0x84) is dead or in state 10 (0x0041ade0), so a part lost after death keeps its weapons; the part matched by the firepoint's +0x68 for MW3's +0x0c, the HUD refreshed only for the view's player, else as MW3's. The port runs it always |
+| 0x004b4fe0 | 35 | MISSING LOGIC | pm only: MW3's 0x004b1110 (weapon.cpp WeaponManager::destroy_all, from the mech's death 0x0041be50 and 0x004b8a20) without the weapons' destroy: each weapon not already at damage 1 is counted and stopped (its vt+0x38, and its beam off through 0x004b82a0 when vt+0x10 says one is on) but keeps its damage, where MW3 runs the full destroy (0x004b3020, PM's 0x004b6f70: damage 1, the HUD and the rest). The port runs MW3's destroy on each; what keeping the damage changes after death (salvage, the debriefing) is not traced |
 | 0x004b5040 | 76 | unused: PORT (preserve) | as MW3 0x004b1170: the static the AI's planner builds at 0x0060b240 (two reserved vectors): read by nothing (weapon_planner.h:7) |
 | 0x004b51a0 | 9 | unused: PORT (preserve) | called only from 0x004b5040, which are unused |
 | 0x004b51b0 | 9 | folded | a thunk: one call to another function |
@@ -2573,36 +2582,36 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004b5300 | 14 | folded | ported, by docs/symbols.csv: ported; group_out |
 | 0x004b5330 | 116 | MISSING LOGIC | pm only, AI: the volley planner's weapon test (weapon_planner.cpp:92 shot_of and add_weapon, through in_range's type_ready()): MW3's 0x004b4ba0 needs the weapon's owner, its definition and the reload time passed ([0x0060991c] >= def+0xc4, 0x004b4c70); PM's 0x004b8ce0 needs only the owner. So PM's burst record 0x004b5230 counts a reloading weapon's damage and PM's add-weapon 0x004b5330 takes it as a candidate and into its group's sums; the port keeps MW3's ready test on PM. Reached through PM's volley 0x004b56d0 (MW3 0x004b1860) |
 | 0x004b5640 | 44 | folded | ported, by docs/symbols.csv: ported inline; the groups left (remove_if) |
-| 0x004b56d0 | 145 | unlabelled |  |
+| 0x004b56d0 | 145 | folded | read: MW3's 0x004b1860 (weapon_planner.cpp, the AI's volley pick, which the pm port runs for PM's firing through volley_pick): the owner's heat factor (at or below 1.5, x 2/3; else 1), the five group slots, the roll against +0x90 x 32767 for an alpha strike, else a group or a single weapon at random; the same steps and values, x - (-c) written c + x, the controls' slots +0x48 / +0x14c / +0x58 for +0x40 / +0x140 / +0x54 and the owner at +0x84 (layout) |
 | 0x004b59f0 | 12 | folded | as MW3 0x004b1ba0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b5bc0 | 13 | folded | covered by the port where it names it (src/mech3/weapon.h:124) |
 | 0x004b5bf0 | 37 | folded | inside its ported callers (0x004bb700): a small helper their ports do their own way |
-| 0x004b5e10 | 52 | unlabelled |  |
-| 0x004b5ea0 | 48 | unlabelled |  |
+| 0x004b5e10 | 52 | MISSING LOGIC | pm only: MW3's 0x004b1f40 / 0x004b2000 (weapon.cpp WeaponGroup::next / prev, chain fire's step) picking the next weapon ready to fire (0x004b7bd0: its firepoint, its +0x78 flag, the owner's +0x8d, reloaded, ammo left or unlimited, not destroyed) where MW3 takes the next with ammo and not destroyed; so PM's chain fire skips a weapon still reloading. The port keeps MW3's |
+| 0x004b5ea0 | 48 | MISSING LOGIC | pm only: MW3's 0x004b1f40 / 0x004b2000 (weapon.cpp WeaponGroup::next / prev, chain fire's step) picking the next weapon ready to fire (0x004b7bd0: its firepoint, its +0x78 flag, the owner's +0x8d, reloaded, ammo left or unlimited, not destroyed) where MW3 takes the next with ammo and not destroyed; so PM's chain fire skips a weapon still reloading. The port keeps MW3's |
 | 0x004b5f80 | 110 | MISSING LOGIC | pm only, weapons, group fire (mode 2): PM's group trigger (0x004b5f80, in MW3's 0x004b2100 place, the port's WeaponGroup::trigger, weapon.cpp:455) fires the best-rated beam first, then each other weapon telling zWeapon whether its definition already fired in this volley (0x005a3680, MW3's 0x00581f90, the port's set_fire_animation): the first of a kind plays its FIRE animation, the repeats its second one (fire.animation2, zwep_shot.cpp:341). The port's trigger fires in order and never sets the choice, so every weapon of a kind plays the first animation; the beams' ground effect is cleared as MW3's |
-| 0x004b64f0 | 142 | unlabelled |  |
+| 0x004b64f0 | 142 | folded | ported: src/mech3/weapon.cpp Weapon::Weapon (MW3's 0x004b2530): the def, firepoint, spread on a shared firepoint, part and node, the rating (0x004b8e10, MW3's inline) and the shared ammo bin as MW3's; PM adds its heat by the second at +0x1c (0x004b8ed0), which the pm port's AI computes itself (zai_wire_firing_pm.cpp); fields shifted (layout) |
 | 0x004b67a0 | 14 | folded | covered by the port where it names it (src/mech3/weapon.h:181) |
-| 0x004b67b0 | 16 | unlabelled |  |
+| 0x004b67b0 | 16 | folded | read: MW3's 0x004b2840 (weapon.cpp: 1 when the type's +0x14 is 0, else its value); the constants from PM's shared table, the type at +0x30 (layout) |
 | 0x004b67e0 | 14 | folded | read: a vector's size (0 for none), container code |
 | 0x004b6800 | 12 | folded | covered by the port where it names it (src/mech3/weapon.h:176) |
-| 0x004b6820 | 140 | unlabelled |  |
-| 0x004b6ad0 | 65 | unlabelled |  |
+| 0x004b6820 | 140 | folded | ported: src/mech3/weapon.cpp (MW3's 0x004b28d0, a weapon on a vehicle that is not a mech): the feature compare finds only the rating's call (0x004b8e10, MW3's inline, its constants with it) and the unmapped heat rate 0x004b8ed0 (PM's AI computes it) different, the rest PM's layout |
+| 0x004b6ad0 | 65 | folded | read: MW3's 0x004b2c20 (weapon.cpp Weapon::update): the reload and its recharge sound for the player, the part and node refreshed, the salvo's rest one a frame; PM also stops the looped fire sound (+0x7c, the port's loop_sound) in the update once the trigger is idle (the manager's state +0x04 is 0) or the ammo is out, where MW3 stops it at the release and when empty (weapon.cpp release and fire, the same moments), and runs a destroyed weapon's vt+0x38 each frame instead of nothing (its stop, already done by its destroy) |
 | 0x004b6e80 | 44 | MISSING LOGIC | pm only, weapons, the player's: PM's per-weapon enable (0x004b6e80, in MW3's 0x004b2f90 place, the port's Weapon::set_enabled, weapon.cpp:1310) adds a firing cone: for the player's own mech it runs the weapon's line to the aim point (0x004b7800 on the manager's +0x0c, the pm port's weapon_line, zai_firing_pm.cpp:922) and switches the weapon off when the cone clamps it (the line's cosine differs from the kept one). The water and side tests are MW3's. The port's set_enabled has only those two, so on PM the player's weapons that cannot bear on the aim point still fire |
 | 0x004b6f60 | 8 | folded | returns a constant or a global |
-| 0x004b72d0 | 14 | unlabelled |  |
-| 0x004b73f0 | 94 | unlabelled |  |
-| 0x004b7600 | 42 | unlabelled |  |
-| 0x004b76d0 | 54 | unlabelled |  |
+| 0x004b72d0 | 14 | folded | by the slot pairing, read: PM's weapon vtable 0x005eb618 +0x2c is MW3's 0x005c9088 +0x20 0x004b3330 (weapon.cpp Weapon::try_lock), the vtable 0xc longer before it; the same, the manager's flag at +0x8c for +0x88 |
+| 0x004b73f0 | 94 | folded | read: MW3's 0x004b3450 (weapon.cpp Weapon::fire, one projectile): the same steps on PM's layout, the vtable slots +0x20 / +0x58 at +0x2c / +0x60, the part's lookup 0x00462020(3, firepoint +0x68) for MW3's 0x00460c10(3, +0x0c) |
+| 0x004b7600 | 42 | MISSING LOGIC | pm only: MW3's 0x004b3660 / 0x004b3f40 (weapon.cpp aim_and_fire, the projectile's and the beam's start, PM's vtables +0x30 for MW3's +0x24) through PM's aim (0x004b7ac0, labelled there); and when forced (the network's fire, 0x004b4750 = MW3's 0x004b08c0 net_fire) the readiness test and the aim's check are skipped: the line is run with [0x0062f86c] set (no facing test) and the weapon fires whatever it says, where MW3's forced path still returns on a failed aim and its beam start has no forced path. The port keeps MW3's |
+| 0x004b76d0 | 54 | MISSING LOGIC | pm only, PM's AI: a weapon's muzzle (from the firing 0x004baae0 and the brain 0x004e7210): the firepoint's local offset (its +0x70..+0x78, or the origin without one) plus the weapon's spread (+0x88..), or for a salvo weapon (+0x6c) a random jitter by the firepoint's share (+0x60), put into the part node's frame (0x004ff3c0); none for a destroyed weapon. The pm port's hooks for it (zai_wire_firing_pm.cpp muzzle, weapon_place) answer the weapon node's world origin (app_mech.cpp weapon_node_position), without the firepoint's offset or the spread |
 | 0x004b7a90 | 17 | folded | inside its ported callers (0x004bcd40): a small helper their ports do their own way |
-| 0x004b7ac0 | 16 | unlabelled |  |
-| 0x004b7b10 | 9 | unlabelled | follows 0x004b7ac0:  |
+| 0x004b7ac0 | 16 | MISSING LOGIC | pm only: PM's aim check, in MW3's 0x004b36e0 place (weapon.cpp Weapon::aim): the weapon's line 0x004b7800, whose facing test is the firepoint's own aim limit (the dfn's, default cosine 0.4735 at 0x006070d8, mech_reader.cpp) where MW3 tests 0.89, then that cosine against the weapon's +0x98 (-1 as the constructor sets it); 0x004b7b10 its wrapper. The pm port's AI has the line (zai_firing_pm.cpp weapon_line); the player's and the vehicles' weapons keep MW3's aim (cone_cos 0.89, with its widening FIX). Related: 0x004b6e80 |
+| 0x004b7b10 | 9 | MISSING LOGIC | pm only: PM's aim check, in MW3's 0x004b36e0 place (weapon.cpp Weapon::aim): the weapon's line 0x004b7800, whose facing test is the firepoint's own aim limit (the dfn's, default cosine 0.4735 at 0x006070d8, mech_reader.cpp) where MW3 tests 0.89, then that cosine against the weapon's +0x98 (-1 as the constructor sets it); 0x004b7b10 its wrapper. The pm port's AI has the line (zai_firing_pm.cpp weapon_line); the player's and the vehicles' weapons keep MW3's aim (cone_cos 0.89, with its widening FIX). Related: 0x004b6e80 |
 | 0x004b7da0 | 44 | folded | group A, read: a weapon's constructor as the shared port; the per-second numbers MW3 works out inline PM keeps in helpers (0x004b8e70 the damage, 0x004b8f10 the heat by the second at +0x1c), covered with PM's firing (zai_wire_firing_pm.cpp:111) |
 | 0x004b7e70 | 8 | folded | covered by the port where it names it (src/mech3/weapon.h:218) |
 | 0x004b7e80 | 12 | folded | covered by the port where it names it (src/mech3/weapon.h:216) |
 | 0x004b7ea0 | 45 | folded | group A, read: a weapon's constructor as the shared port; the per-second numbers MW3 works out inline PM keeps in helpers (0x004b8e70 the damage, 0x004b8f10 the heat by the second at +0x1c), covered with PM's firing (zai_wire_firing_pm.cpp:111) |
-| 0x004b8030 | 39 | unlabelled |  |
-| 0x004b80f0 | 81 | unlabelled |  |
-| 0x004b8310 | 29 | unlabelled |  |
+| 0x004b8030 | 39 | MISSING LOGIC | pm only: MW3's 0x004b3660 / 0x004b3f40 (weapon.cpp aim_and_fire, the projectile's and the beam's start, PM's vtables +0x30 for MW3's +0x24) through PM's aim (0x004b7ac0, labelled there); and when forced (the network's fire, 0x004b4750 = MW3's 0x004b08c0 net_fire) the readiness test and the aim's check are skipped: the line is run with [0x0062f86c] set (no facing test) and the weapon fires whatever it says, where MW3's forced path still returns on a failed aim and its beam start has no forced path. The port keeps MW3's |
+| 0x004b80f0 | 81 | MISSING LOGIC | pm only, multiplayer: MW3's 0x004b3fc0 (weapon.cpp: a recharging weapon fires only from a full charge) with one step first: when the owner's vt+0x64 answers non-zero, which only the network mech's vtable 0x005e59a8 does (0x00402250; every other vehicle's is 0x00406ce0, 0), the bin is set to its capacity (0x004b8d30 / 0x004b8d40), so a remote mech's recharging weapons always fire full; the rest as MW3's. The port's recharge fire has no such step (how its replicas' bins are kept not traced) |
+| 0x004b8310 | 29 | folded | read: MW3's 0x004b41b0 (weapon.cpp, a beam's start): the same; the network event 0x16 now passes the weapon (vt+0x17c(0x16, weapon), MW3's vt+0x168(0x16)), the aim through 0x004b7b10 (MW3's 0x004b36e0), the HUD refresh 0x00448040 = MW3's 0x004464c0 |
 | 0x004b87c0 | 104 | unlabelled |  |
 | 0x004b8ad0 | 9 | folded | a thunk: one call to another function |
 | 0x004b8ae0 | 9 | folded | a thunk: one call to another function |
@@ -5515,52 +5524,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005cc600 | 25 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:135) |
 | 0x005cc650 | 11 | folded | covered by the port where it names it (src/gamez/zsave/zsave.h:8) |
 
-### zfmv (41 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005ba110 | 450 | unlabelled |  |
-| 0x005ba7f0 | 16 | unlabelled |  |
-| 0x005ba830 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac80, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005ba850 | 19 | folded | by the slot pairing: PM vtable 0x5f1c5c slot 0x8 is MW3 vtable 0x5cf7d8's 0x00599d10 (MW3 ported src/gamez/zfmv/fmv_script.cpp:467), the feature compare equal (7f6e9e10) |
-| 0x005ba8a0 | 11 | unlabelled |  |
-| 0x005ba960 | 47 | unlabelled |  |
-| 0x005baa70 | 14 | folded | ported, by docs/symbols.csv: ported: timeGetTime() x 0.001f |
-| 0x005baab0 | 14 | folded | ported, by docs/symbols.csv: ported |
-| 0x005baaf0 | 9 | folded | ported, by docs/symbols.csv: ported: 0x00598d30(flag) |
-| 0x005bab80 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac20, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bac80 | 9 | unlabelled |  |
-| 0x005bacb0 | 33 | unlabelled |  |
-| 0x005badd0 | 42 | unlabelled |  |
-| 0x005baec0 | 12 | folded | by the slot pairing: PM vtable 0x5f1cd4 slot 0xc is MW3 vtable 0x5cf868's 0x00599be0 (MW3 ported src/gamez/zfmv/fmv_script.cpp:272), the feature compare equal (7f6e9e10) |
-| 0x005bb070 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(1) |
-| 0x005bb100 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(2) |
-| 0x005bb190 | 12 | folded | inside its ported callers (0x005ba110): a small helper their ports do their own way |
-| 0x005bb1b0 | 8 | unlabelled |  |
-| 0x005bb1d0 | 13 | unlabelled |  |
-| 0x005bb3d0 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
-| 0x005bb510 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
-| 0x005bb540 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
-| 0x005bb680 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
-| 0x005bb7c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bb8c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bba70 | 33 | unlabelled |  |
-| 0x005bbcd0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bbcf0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bbcf0 | 86 | unlabelled |  |
-| 0x005bca10 | 105 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059cb30 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005bccc0 | 316 | unlabelled |  |
-| 0x005bd7b0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bd7d0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005bdb30 | 179 | unlabelled |  |
-| 0x005be050 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005be070, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005be0c0 | 19 | unlabelled |  |
-| 0x005be3f0 | 112 | unlabelled |  |
-| 0x005be700 | 68 | unlabelled |  |
-| 0x005be8e0 | 19 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059e9c0 with only offsets and sizes of PM's larger structures changed (0x4b8->0x4c0); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005be940 | 9 | folded | by the slot pairing: PM vtable 0x5e0c34 slot 0x90 is MW3 vtable 0x5be308's 0x0059ea20 (MW3 folded: a thunk: one call to another function), the feature compare equal (7f6e9e10) |
-| 0x005be950 | 68 | unlabelled |  |
-| 0x005beb50 | 52 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059ec40 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005becd0 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059edc0 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
-
 ### zdeclient (41 not ported)
 
 | Address | Lines | Class | Why |
@@ -5606,6 +5569,52 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00520080 | 53 | unlabelled |  |
 | 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005207b0 | 8 | folded | returns a constant or a global |
+
+### zfmv (41 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005ba110 | 450 | unlabelled |  |
+| 0x005ba7f0 | 16 | unlabelled |  |
+| 0x005ba830 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac80, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005ba850 | 19 | folded | by the slot pairing: PM vtable 0x5f1c5c slot 0x8 is MW3 vtable 0x5cf7d8's 0x00599d10 (MW3 ported src/gamez/zfmv/fmv_script.cpp:467), the feature compare equal (7f6e9e10) |
+| 0x005ba8a0 | 11 | unlabelled |  |
+| 0x005ba960 | 47 | unlabelled |  |
+| 0x005baa70 | 14 | folded | ported, by docs/symbols.csv: ported: timeGetTime() x 0.001f |
+| 0x005baab0 | 14 | folded | ported, by docs/symbols.csv: ported |
+| 0x005baaf0 | 9 | folded | ported, by docs/symbols.csv: ported: 0x00598d30(flag) |
+| 0x005bab80 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bac20, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bac80 | 9 | unlabelled |  |
+| 0x005bacb0 | 33 | unlabelled |  |
+| 0x005badd0 | 42 | unlabelled |  |
+| 0x005baec0 | 12 | folded | by the slot pairing: PM vtable 0x5f1cd4 slot 0xc is MW3 vtable 0x5cf868's 0x00599be0 (MW3 ported src/gamez/zfmv/fmv_script.cpp:272), the feature compare equal (7f6e9e10) |
+| 0x005bb070 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(1) |
+| 0x005bb100 | 28 | folded | ported, by docs/symbols.csv: ported: 0x0055a540(2) |
+| 0x005bb190 | 12 | folded | inside its ported callers (0x005ba110): a small helper their ports do their own way |
+| 0x005bb1b0 | 8 | unlabelled |  |
+| 0x005bb1d0 | 13 | unlabelled |  |
+| 0x005bb3d0 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
+| 0x005bb510 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
+| 0x005bb540 | 37 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:632) |
+| 0x005bb680 | 19 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
+| 0x005bb7c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bb8c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bba70 | 33 | unlabelled |  |
+| 0x005bbcd0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bbcf0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bbcf0 | 86 | unlabelled |  |
+| 0x005bca10 | 105 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059cb30 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005bccc0 | 316 | unlabelled |  |
+| 0x005bd7b0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bd7d0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005bdb30 | 179 | unlabelled |  |
+| 0x005be050 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005be070, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005be0c0 | 19 | unlabelled |  |
+| 0x005be3f0 | 112 | unlabelled |  |
+| 0x005be700 | 68 | unlabelled |  |
+| 0x005be8e0 | 19 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059e9c0 with only offsets and sizes of PM's larger structures changed (0x4b8->0x4c0); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005be940 | 9 | folded | by the slot pairing: PM vtable 0x5e0c34 slot 0x90 is MW3 vtable 0x5be308's 0x0059ea20 (MW3 folded: a thunk: one call to another function), the feature compare equal (7f6e9e10) |
+| 0x005be950 | 68 | unlabelled |  |
+| 0x005beb50 | 52 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059ec40 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005becd0 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059edc0 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
 
 ### zweapon (33 not ported)
 
