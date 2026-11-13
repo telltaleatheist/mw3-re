@@ -1315,3 +1315,9 @@
 0x004dd800	folded	fd0 read: the same logic (the steps' plans and their lists; the target's paths; its contact test), PM's compiler, layout and register arguments
 0x004e2400	folded	fd0 read: the same logic (the steps' plans and their lists; the target's paths; its contact test), PM's compiler, layout and register arguments
 0x004e2ab0	folded	fd0 read: the same logic (the steps' plans and their lists; the target's paths; its contact test), PM's compiler, layout and register arguments
+0x004e6df0	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
+0x004e7010	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
+0x004e4100	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
+0x004e4310	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
+0x004e45f0	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
+0x004e46f0	folded	fd0 read: the same logic (the target's first contact of a kind, ally or enemy by the team masks; the valves' get or make, lookup by name, list sweep and add), PM's compiler laying the loops and branches differently
