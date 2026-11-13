@@ -10,6 +10,7 @@
 
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_mechlib_json.h"
+#include "gamez/zmodel/gmod_strip.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zgame/zgame_table.h"
@@ -86,9 +87,11 @@ bool mod_entry(const MechLib& lib, const std::string& entry, std::vector<uint8_t
 }
 }  // namespace
 
-bool& mechlib_post_process() {
-  static bool on = false;
-  return on;
+// Mech3.exe 1.2 @ 0x004fc8b0
+void mechlib_strip(Node* node) {
+  if (!node) return;
+  for (int32_t i = 0; i < node->child_count(); ++i) mechlib_strip(node->children[i]);
+  if (node->model) zmod::strip_model(*node->model, 0x7fffffff, 4);
 }
 
 bool mechlib_open(MechLib& lib, const char* path) { return zgame::game().zcls_mechlib_open(lib, path); }
@@ -168,7 +171,7 @@ Node* mw3_mechlib_load(MechLib& lib, const char* name) {
     return nullptr;
   }
   mechlib_resolve(lib, root);
-  // 0x004fc8b0 (the hardware mode's triangle stripper) is not ported (docs/mechlib.md).
+  if (zmod::strips()) mechlib_strip(root);
   if (root) lib.trees.push_back(root);
   return root;
 }

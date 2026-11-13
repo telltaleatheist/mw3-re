@@ -1038,6 +1038,14 @@ From mission.cpp, 0x48faf0 and 0x490ab0 (details: `mission-load.md`).
   whatever the card reports.
 - **In software mode the mechs wear a cheaper texture set** (`mechtexS`, the
   palettised one); with a 3D card they use `mechtex`.
+- **With a 3D card the mechs are rebuilt as triangle strips when they load.**
+  The game joins each mech's triangles that share an edge (same texture,
+  colour and shading) into strips of up to 64 points: 302 of the 770 mech
+  models change, 10,589 polygons becoming 9,046. The shapes stay the same,
+  but shots and the ground test check the faces in a new order and stop at
+  the first that answers, so where two faces overlap, a shot in 3D-card mode
+  can meet a different face than in software mode (on a Thor, one up to
+  1.5 m away). The rebuild does as the 3D-card mode.
 - **Every mission opens with an animation script, not code.** The start is
   `start_single_player_m<n>` (instant action `switch_ia_m<n>`, multiplayer
   `start_multiplayer_m<n>`, training `start_training_m<n>`) from the

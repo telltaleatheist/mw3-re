@@ -54,6 +54,7 @@
 #include "pm/gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_init.h"
 #include "gamez/zmodel/gmod_light.h"
+#include "gamez/zmodel/gmod_strip.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zrender/zrndr_span.h"
 #include "gamez/zrender/zrndr_flare.h"
@@ -694,6 +695,7 @@ void GameEngine::clock_init() { ztimer::init(); }
 // chosen; the software renderer's modes are not offered (render.md).
 int32_t GameEngine::video_open(uint32_t, int32_t hw, int32_t, int32_t) {
   poke32(0x72f348, hw ? 1u : 0u);
+  zmod::strips() = hw != 0;  // 0x00579e79
   if (!hw) unported("0x00579c60 software", {});
   video_opened_ = true;  // [0x0080271c]
   const Rect& d = mech3::display();

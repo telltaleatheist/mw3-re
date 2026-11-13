@@ -14,6 +14,7 @@
 #include "crt/msvc_math.h"
 #include "gamez/zutil/ztimer.h"
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zmodel/gmod_strip.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -79,7 +80,10 @@ Model* reread_model(std::FILE* f, int32_t index) {
   uint32_t offset;
   std::memcpy(&offset, raw + 0x5c, 4);
   std::fseek(f, static_cast<long>(offset), SEEK_SET);
-  if (read_model_data(f, *m) == 0) return m;  // 0x00553450's triangle stripper: not ported (docs/mechlib.md)
+  if (read_model_data(f, *m) == 0) {
+    if (strips()) strip_model(*m, 0x7fffffff, 4);
+    return m;
+  }
   model_release(m);  // 1 (kept) when the file's use count is not 0
   return nullptr;
 }

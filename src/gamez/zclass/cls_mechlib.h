@@ -63,10 +63,9 @@ void material_free(Material& m);                        // 0x004fc490
 // 0x004fc790: the trees stay (the world's nodes), the materials are freed,
 // the archive closed.
 void mechlib_close(MechLib& lib);
-// 0x00553450 ([0x0072be74], set in hardware mode by zvid_init.c 0x00579e79):
-// mechlib_load then strips every model's triangles (0x004fc8b0), not ported
-// (the readers draw and test the same triangles either way; docs/mechlib.md).
-bool& mechlib_post_process();
+// Every model of the tree stripped (0x00552540), children first; mechlib_load
+// calls it in hardware mode (zmod::strips(); docs/mechlib.md).
+void mechlib_strip(Node* node);  // 0x004fc8b0
 
 bool read_material(std::FILE* f, Material& m);   // 0x004fc570
 Node* read_node(std::FILE* f, Node* parent);     // 0x004fce50

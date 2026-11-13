@@ -656,6 +656,7 @@ int probe_models(const char* path, long moff, long off, uint8_t* out, int cap) {
 #include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmodel/gmod_fog.h"
+#include "gamez/zmodel/gmod_strip.h"
 #include "gamez/zrender/zrndr_fog.h"
 
 namespace {
@@ -1014,7 +1015,7 @@ int probe_copy_lib(const char* path) {
   g_copy_lib = zcls::MechLib{};
   zutl_zar::init(g_copy_lib.archive);
   zcls::copy_state() = zcls::CopyState{};
-  zcls::mechlib_post_process() = false;
+  zmod::strips() = false;
   return zcls::mechlib_open(g_copy_lib, path) ? 1 : 0;
 }
 int probe_copy_load(const char* name) { return node_index(zcls::mechlib_load(g_copy_lib, name)); }
