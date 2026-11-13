@@ -297,6 +297,11 @@ def write_doc(o, g, rows):
                 'class, the label naming the pairing; a pair that differs is read, since PM\'s longer vtables move the later',
                 'slots (the pairing then names another function). A scalar deleting destructor (one call to a destructor,',
                 'then delete when bit 0 is set, matched on its whole body) is folded, its destructor labelled on its own row.',
+                'A changed pair is a **layout shift** (tools/analysis/pm_layout_shift.py) when the compare flags nothing but',
+                'immediates that pair one MW3 value off for one PM value, each a multiple of 4 and at least 0x40 (the offsets',
+                'and sizes of PM\'s larger structures), and float constants against their negatives (fsub written as fadd): no',
+                'call, no field count, no other immediate. Such a pair is folded, the label naming its pairs; a small or odd',
+                'value (a mask, a count) is read.',
                 '**Checked by test** means a passing PM differential test ran the',
                 'function\'s body (a block trace of the emulator, per entry the test calls) and compares what that body',
                 'produces; the label names the compared value. Reaching a function, or running a caller, is not enough.', '']
