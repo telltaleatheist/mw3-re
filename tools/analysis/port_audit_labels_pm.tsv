@@ -797,3 +797,15 @@
 0x005a6a00	unsure	group A, read: logic differs, to trace: a shot taken from the pool gets PM's attach (0x0050f9c0) when +0x100 is 0 (MW3 0x00584df0)
 0x00451730	unsure	group A, read: logic differs, to trace: the mech lab view shows and hides the model's parts by name (0x004516d0 with names) where MW3 does it by slot (0x00450470) (MW3 0x004504d0)
 0x00529410	unsure	group A, read: the Weiler clip's call counts differ (0x00513680 6 -> 9, 0x0050fe10 2 -> 5, 0x00514dd0 5 -> 12): likely PM's compiler not sharing the tails, to check (MW3 0x0050faf0)
+0x004628c0	folded	group A, read: the same logic; PM looks the owner mech up once at the top (0x00460000's work in place), MW3 at each use; the net event's vtable slot moved (vt+0x168 -> +0x17c)
+0x00477470	folded	group A, read: the same logic; the element count's checks are inlined in different branches (the ctor 0x00475be0 called from three of them)
+0x0047c0e0	folded	group A, read: the same logic; the clock getter (0x0040b680) is read once after the branch where MW3 reads it in each
+0x00495190	folded	group A, read: the same logic; PM's sun is a 12-byte node handle (vtable 0x005e82d0) freed by its destructor 0x00495db0, which frees the node only when its owns-byte +8 is set, and 0x00495ba0 makes it with +8 = 0: a plain free as MW3's
+0x00409ec0	folded	group A, read: the same logic; PM inlines the compare (0x00409c60 called once with the value read) where MW3 calls 0x0040bf50 per name; the machine fields read are the same ones in the same order (MW3 0x005f4ca8/ac/b8/b4/b0, PM 0x00618768/6c/78/74/70: VIDEO_KB one dword off in both)
+0x00436050	folded	group A, read: a destructor; PM's one more member (0x004731b0) is a container the port's member frees itself
+0x004381d0	folded	group A, read: PM's mech lab line-up (the player's slot 5 where MW3 has 3, line-up mech 5 only where MW3 sets 3, 8 and 13, the rest -1) is in the pm port: pilot_games.cpp:536 and 553
+0x004a8a40	folded	group A, read: the teleport dialog; PM takes IDOK only (== 1 where MW3 takes any nonzero), which the port already does (teleport.cpp:183-197)
+0x004aa670	folded	group A, read: the same logic and constants (3.0 and 8.0 the turn rate, 1.0, cos 0.89); PM's test reads 'in range and dot >= 0.89' where MW3's reads 'not (out of range or dot <= 0.89)', so only a dot of exactly 0.89 differs; PM passes the node helpers' arguments where MW3 leaves them in registers
+0x004e52f0	folded	group A, read: the same logic; PM passes the owner and the callback (0x00521bb0 with 0x004e4f40) where MW3's 0x00508f00 takes them in registers, and drops two locals
+0x004f9c30	folded	group A, read: the same logic; the field +0xd8 is +0xf8 on PM's layout, and the two free paths are joined
+0x0046a480	folded	group A, read: the same logic and constants (0, 1, 2, 1.1547); PM passes the node and the out vector to its helpers (0x00540880, 0x0040b940, 0x005c45b0) where MW3 leaves them in registers, and hoists the +0x84 offset; the field +0x168 is +0x188 on PM's layout
