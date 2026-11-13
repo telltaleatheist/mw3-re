@@ -18,6 +18,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+_ninja = ROOT / 'build' / 'build.ninja'
+if _ninja.exists() and 'libmw3probe' not in _ninja.read_text(errors='ignore'):
+    sys.exit('this build has no mw3probe target (the pm branch builds pmprobe): a libmw3probe here is stale, not loaded')
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
 probe = ctypes.CDLL(str(LIB))
 probe.probe_bz2.argtypes = [ctypes.c_char_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_char_p, ctypes.c_uint32,
