@@ -39,8 +39,8 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3139 |
-| unlabelled | 1132 |
+| folded | 3175 |
+| unlabelled | 1096 |
 | replaced (SDL or the platform layer) | 232 |
 | MISSING LOGIC | 188 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 112 |
@@ -2864,56 +2864,56 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004c7c80 | 11 | debug or dev tool: PORT (preserve) | as MW3 0x0058f2d0, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
 | 0x004c7c90 | 13 | debug or dev tool: PORT (preserve) | called only from 0x004c7cf0, which are debug |
 | 0x004c7cf0 | 20 | debug or dev tool: PORT (preserve) | called only from 0x004c7c80, which are debug |
-| 0x004c7dc0 | 15 | unlabelled |  |
-| 0x004c7df0 | 12 | unlabelled |  |
-| 0x004c7e00 | 12 | unlabelled |  |
-| 0x004c7e10 | 11 | unlabelled |  |
-| 0x004c7e30 | 12 | unlabelled |  |
-| 0x004c7e50 | 22 | unlabelled |  |
+| 0x004c7dc0 | 15 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c7df0 | 12 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c7e00 | 12 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c7e10 | 11 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c7e30 | 12 | folded | folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 7f6e9e10, docs/port-audit-pm.md method): the text differs only in register allocation, calling convention or layout |
+| 0x004c7e50 | 22 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
 | 0x004c7e90 | 34 | folded | inside its ported callers (0x004cbbb0): a small helper their ports do their own way |
 | 0x004c7f30 | 29 | folded | PM's inout query record's constructor (0x54 bytes): MW3's 0x004c0ed0 plus PM's fields +0x3c..+0x50 zeroed; the port keeps only the read fields (InOutLast, zainet_inout.h:174, null and false by default); not run under a test (trace) |
 | 0x004c8010 | 21 | unused: PORT (preserve) | as MW3 0x004c0ed0: the vehicle's +0xd8 record of each in/out query (its constructor and reset): written, never read (docs/symbols.csv: not kept; ai.md 11) |
 | 0x004c80a0 | 11 | folded | ported, by docs/symbols.csv: ported: zainet_inout lerp (x and z, a's height) |
 | 0x004c80f0 | 9 | folded | ported, by docs/symbols.csv: ported: zainet_inout dist_xz |
-| 0x004c8130 | 9 | unlabelled | follows 0x004c8140:  |
-| 0x004c8140 | 33 | unlabelled |  |
+| 0x004c8130 | 9 | folded | follows its MW3 twin (identical): MW3 folded it (a thunk; a scalar deleting destructor) |
+| 0x004c8140 | 33 | folded | folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 7f6e9e10, docs/port-audit-pm.md method): the text differs only in register allocation, calling convention or layout |
 | 0x004c8230 | 21 | folded | inside its ported callers (0x004c9af0): a small helper their ports do their own way |
 | 0x004c82b0 | 22 | folded | inside its ported callers (0x004cb8b0, 0x004cbbb0): a small helper their ports do their own way |
-| 0x004c8340 | 17 | unlabelled |  |
+| 0x004c8340 | 17 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
 | 0x004c8370 | 30 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:490) |
-| 0x004c8450 | 32 | unlabelled |  |
-| 0x004c8540 | 10 | unlabelled |  |
-| 0x004c8570 | 13 | unlabelled |  |
-| 0x004c85b0 | 46 | unlabelled |  |
+| 0x004c8450 | 32 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c8540 | 10 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c8570 | 13 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c85b0 | 46 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
 | 0x004c86e0 | 13 | folded | inside its ported callers (0x004c9600): a small helper their ports do their own way |
-| 0x004c8720 | 56 | unlabelled |  |
+| 0x004c8720 | 56 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
 | 0x004c8940 | 14 | folded | inside its ported callers (0x004c9600): a small helper their ports do their own way |
-| 0x004c8990 | 59 | unlabelled |  |
-| 0x004c8b90 | 14 | unlabelled |  |
+| 0x004c8990 | 59 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c8b90 | 14 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
 | 0x004c8be0 | 15 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:62) |
 | 0x004c9220 | 10 | folded | inside its ported callers (0x004c8c30): a small helper their ports do their own way |
-| 0x004c9260 | 22 | unlabelled |  |
-| 0x004c9570 | 10 | unlabelled |  |
-| 0x004c9580 | 9 | unlabelled |  |
+| 0x004c9260 | 22 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c9570 | 10 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004c9580 | 9 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
 | 0x004c9590 | 9 | folded | a thunk: one call to another function |
 | 0x004c95b0 | 13 | folded | as MW3 0x004c2820: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
-| 0x004c9a40 | 12 | unlabelled |  |
-| 0x004c9a70 | 17 | unlabelled |  |
-| 0x004ca4e0 | 45 | unlabelled |  |
-| 0x004caa60 | 15 | unlabelled |  |
-| 0x004caac0 | 16 | unlabelled |  |
-| 0x004cab20 | 62 | unlabelled |  |
+| 0x004c9a40 | 12 | folded | follows its MW3 twin (identical): MW3 folded it (a thunk; a scalar deleting destructor) |
+| 0x004c9a70 | 17 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004ca4e0 | 45 | folded | read: the in/out objects' destructors (an area's: its buffer freed, its vias' vectors and polygons freed; a net of areas: each element through 0x004cb4d0, then the vector), the port's InOutArea and its lists free their own (zainet_inout.cpp) |
+| 0x004caa60 | 15 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004caac0 | 16 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004cab20 | 62 | folded | ported (read): the side test the pm port names as 0x004caef0 / 0x004cb0e0 'over 0x004cab20' (zainet_inout.cpp:382) |
 | 0x004caca0 | 37 | folded | as MW3 0x004c2e90: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
-| 0x004cad50 | 21 | unlabelled |  |
+| 0x004cad50 | 21 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
 | 0x004cade0 | 10 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_boundary's query 0x004cc7f0, the via lists 0x004cf350 and 0x004ccaf0 run it; every corner's words, the answer and the query's state compared |
-| 0x004cae10 | 9 | unlabelled | follows 0x004cab20:  |
+| 0x004cae10 | 9 | folded | read: a thunk to 0x004cab20 (the side test, ported: zainet_inout.cpp:382) |
 | 0x004cae40 | 12 | folded | as MW3 0x004c2670: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cae70 | 19 | folded | covered by the port where it names it (src/mech3/zainet_inout.cpp:382) |
-| 0x004cb4a0 | 12 | unlabelled |  |
-| 0x004cb4d0 | 11 | unlabelled |  |
-| 0x004cb510 | 65 | unlabelled |  |
+| 0x004cb4a0 | 12 | folded | follows its MW3 twin (identical): MW3 folded it (a thunk; a scalar deleting destructor) |
+| 0x004cb4d0 | 11 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004cb510 | 65 | folded | read: the in/out objects' destructors (an area's: its buffer freed, its vias' vectors and polygons freed; a net of areas: each element through 0x004cb4d0, then the vector), the port's InOutArea and its lists free their own (zainet_inout.cpp) |
 | 0x004cb700 | 11 | folded | inside its ported callers (0x004cc7f0): a small helper their ports do their own way |
-| 0x004cb730 | 14 | unlabelled |  |
+| 0x004cb730 | 14 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
 | 0x004cb780 | 9 | folded | a thunk: one call to another function |
 | 0x004cb7b0 | 38 | folded | ported, by docs/symbols.csv: ported: zainet_inout inout_set_state (0x004c2a30) |
 | 0x004cb840 | 15 | folded | read: the inout state's polygon walk (0x004ce020, MW3's 0x004c3bd0 with the walk inline): each polygon whose name matches is marked tested when its kind is the message's (0x004cb780 / 0x004cb7b0), as the port's inout_set_state (zainet_inout.cpp:792) |
@@ -2923,19 +2923,19 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004cce70 | 9 | folded | follows 0x004ce0e0: as MW3 0x004c3c90: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cce80 | 9 | folded | a thunk: one call to another function |
 | 0x004ccea0 | 12 | folded | as MW3 0x004c3290: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
-| 0x004cd2f0 | 161 | unlabelled |  |
+| 0x004cd2f0 | 161 | folded | read after the feature compare's flags: MW3's 0x004c3380 (zainet_inout.cpp:207 read_model: the vertices through the matrix, put on the ground (0x004ce8a0 = MW3's 0x004c4240), then the polygons) on PM's model layout with the STL vector code inline; the pm port reads PM's model (node->pm_model, :210) the same way |
 | 0x004cd720 | 11 | folded | as MW3 0x004c3600: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
-| 0x004cd740 | 106 | unlabelled |  |
+| 0x004cd740 | 106 | folded | read: the STL vector of 0xc0-byte areas built as n copies of the query's template (0x004cb370, ported: zainet_inout.cpp:327), from 0x004cddb0 (ported, :695) |
 | 0x004cdda0 | 8 | folded | as MW3 0x004c3910: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004cdff0 | 11 | folded | as MW3 0x004c3b50: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004ce0e0 | 11 | folded | as MW3 0x004c3c90: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004ce110 | 12 | folded | by the slot pairing: PM vtable 0x5ed5f4 slot 0x0 is MW3 vtable 0x5cac78's 0x004c3cc0 (MW3 folded: the scalar deleting destructor (the destructor, then delete)), the feature compare equal (7f6e9e10) |
-| 0x004ce140 | 39 | unlabelled |  |
+| 0x004ce140 | 39 | folded | read: MW3's 0x004c3cf0 (the boundary listener's destructor) with the areas' vector freed inline where MW3 calls 0x004c5090 |
 | 0x004ce270 | 12 | folded | ported, by docs/symbols.csv: ported: zainet_inout inout_mission_load (listener 0x0060b338 slot +0x08) |
 | 0x004ce380 | 19 | folded | inside its ported callers (0x004ce320): a small helper their ports do their own way |
 | 0x004ce410 | 8 | folded | empty: does nothing |
-| 0x004ce420 | 11 | unlabelled |  |
-| 0x004ce4d0 | 28 | unlabelled |  |
+| 0x004ce420 | 11 | folded | read: pieces of PM's in/out (boundary) queries inside their ported functions (zainet_inout.cpp: the polygon passes 0x004c9600's loops at :62-110, the via walks 0x004ce2f0 / 0x004c7d60 / 0x004c7c00, the side tests 0x004cb2d0 / 0x004cab20): the for_each functors and their constructors (vtables 0x005ed5d8..0x005ed5e8), loops over the vias, a query record's defaults (FLT_MAX), a cross-product step, an offset along a side's normal, a vector freed, a deleter, a predicate, small copies and setters, the boundary listener's +0x18 (0x004c7dc0 at the mission's end), a static reset |
+| 0x004ce4d0 | 28 | folded | read after the feature compare's flag: MW3's 0x004c3ed0 (zainet_inout.cpp:243 walk) but for the error report's source line (0x845 in MW3, 0xcba in PM) |
 | 0x004ce570 | 13 | folded | as MW3 0x004c3f70: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004ce5b0 | 40 | folded | as MW3 0x004c3fb0: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004ce6f0 | 21 | folded | as MW3 0x004c40e0: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
@@ -5571,44 +5571,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x005207b0 | 8 | folded | returns a constant or a global |
 
-### zweapon (33 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005a52e0 | 521 | unlabelled |  |
-| 0x005a62a0 | 74 | unlabelled |  |
-| 0x005a6410 | 9 | unlabelled | follows 0x005a6420:  |
-| 0x005a6420 | 63 | unlabelled |  |
-| 0x005a6550 | 9 | unlabelled | follows 0x005a6420:  |
-| 0x005a6650 | 42 | unlabelled |  |
-| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
-| 0x005a6a00 | 37 | folded | group A, read: the same logic as MW3's 0x00584df0 on PM's 8-byte-longer effect block (flyout model +0x110, model animation +0x100): a pooled copy when animated, then under the shot's node; PM passes the add-child's arguments where MW3 leaves them in registers |
-| 0x005a6c20 | 20 | unlabelled |  |
-| 0x005a6c60 | 286 | MISSING LOGIC | pm only, group A, read: PM's shot spawn plays every FIRE animation (choice 0 all, k the k-th; attached when flag bit 1 and an attach node), then sets the choice back to 0; the port plays one, chosen 0 or 1 (zwep_shot.cpp:340-352). Goes with the reader 0x005a6700 (MW3 0x00585010) |
-| 0x005a7570 | 36 | MISSING LOGIC | pm only, minor: PM retires a dead shot a frame late: its retire (MW3 0x00586600) first stamps the shot (+0x638) with zClass's frame count [0x008c4b60, MW3 0x0072f338] + 1 and returns 0, and its def's shot walk (0x005a7570, new in PM) keeps it linked until a later call finds the stamp matching; so the node stays in the world at its last place, its flyout animations run one more frame and the pool slot comes back a frame later. The port retires at once, as MW3 (zwep_shot.cpp:455-466, 491-501) |
-| 0x005a75c0 | 129 | unlabelled |  |
-| 0x005a79a0 | 162 | unlabelled |  |
-| 0x005a8090 | 58 | unlabelled |  |
-| 0x005a8230 | 58 | unlabelled |  |
-| 0x005a8430 | 29 | unlabelled |  |
-| 0x005a8510 | 71 | unlabelled |  |
-| 0x005a8820 | 20 | unlabelled |  |
-| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
-| 0x005a8a90 | 16 | folded | read: a static list head made (zWeapon's list at [0x008cdcd4], empty, its count 0): container start-up; the port's list is its own |
-| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
-| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
-| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
-| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-
 ### zgame (33 not ported)
 
 | Address | Lines | Class | Why |
@@ -5646,6 +5608,44 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 | 0x005b2830 | 231 | unlabelled |  |
 | 0x005b2c60 | 16 | debug or dev tool: PORT (preserve) | the script command PrintChildren (PM only): the current node's children's names to the console ('  %s'); no shipped PM script uses it, the port's interpreter does not know it |
+
+### zweapon (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005a52e0 | 521 | unlabelled |  |
+| 0x005a62a0 | 74 | unlabelled |  |
+| 0x005a6410 | 9 | unlabelled | follows 0x005a6420:  |
+| 0x005a6420 | 63 | unlabelled |  |
+| 0x005a6550 | 9 | unlabelled | follows 0x005a6420:  |
+| 0x005a6650 | 42 | unlabelled |  |
+| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
+| 0x005a6a00 | 37 | folded | group A, read: the same logic as MW3's 0x00584df0 on PM's 8-byte-longer effect block (flyout model +0x110, model animation +0x100): a pooled copy when animated, then under the shot's node; PM passes the add-child's arguments where MW3 leaves them in registers |
+| 0x005a6c20 | 20 | unlabelled |  |
+| 0x005a6c60 | 286 | MISSING LOGIC | pm only, group A, read: PM's shot spawn plays every FIRE animation (choice 0 all, k the k-th; attached when flag bit 1 and an attach node), then sets the choice back to 0; the port plays one, chosen 0 or 1 (zwep_shot.cpp:340-352). Goes with the reader 0x005a6700 (MW3 0x00585010) |
+| 0x005a7570 | 36 | MISSING LOGIC | pm only, minor: PM retires a dead shot a frame late: its retire (MW3 0x00586600) first stamps the shot (+0x638) with zClass's frame count [0x008c4b60, MW3 0x0072f338] + 1 and returns 0, and its def's shot walk (0x005a7570, new in PM) keeps it linked until a later call finds the stamp matching; so the node stays in the world at its last place, its flyout animations run one more frame and the pool slot comes back a frame later. The port retires at once, as MW3 (zwep_shot.cpp:455-466, 491-501) |
+| 0x005a75c0 | 129 | unlabelled |  |
+| 0x005a79a0 | 162 | unlabelled |  |
+| 0x005a8090 | 58 | unlabelled |  |
+| 0x005a8230 | 58 | unlabelled |  |
+| 0x005a8430 | 29 | unlabelled |  |
+| 0x005a8510 | 71 | unlabelled |  |
+| 0x005a8820 | 20 | unlabelled |  |
+| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
+| 0x005a8a90 | 16 | folded | read: a static list head made (zWeapon's list at [0x008cdcd4], empty, its count 0): container start-up; the port's list is its own |
+| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
+| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
+| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
+| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
+| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 
 ### zutil (31 not ported)
 
@@ -5717,16 +5717,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00530b20 | 13 | replaced (SDL or the platform layer) | as MW3 0x00517230: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 | 0x00530b40 | 20 | replaced (SDL or the platform layer) | as MW3 0x00517250: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
-### zerror (5 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00527250 | 9 | folded | a thunk: one call to another function |
-| 0x00527270 | 15 | unlabelled |  |
-| 0x00527490 | 22 | unlabelled |  |
-| 0x00527500 | 38 | unlabelled |  |
-| 0x005275d0 | 30 | unlabelled |  |
-
 ### zsiscript (5 not ported)
 
 | Address | Lines | Class | Why |
@@ -5736,4 +5726,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005cd090 | 27 | unlabelled |  |
+
+### zerror (5 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00527250 | 9 | folded | a thunk: one call to another function |
+| 0x00527270 | 15 | unlabelled |  |
+| 0x00527490 | 22 | unlabelled |  |
+| 0x00527500 | 38 | unlabelled |  |
+| 0x005275d0 | 30 | unlabelled |  |
 
