@@ -36,7 +36,7 @@ gauges, reticle and the lance panel draw as in the exe.
 | 0x40fb50 | 101 | the 25 text lines at 0x5fc848 (0x4b0 each): mode 0 clears them all (vt+0x7c, vt+0x64), 1 arms, 2 a picked line by the cursor | not ported; developer-only (hud.md section 20) |
 | 0x40e4b0 (`hud_draw`) | 81 | those 25 lines drawn and hit-tested by the mouse (rows y = 0x5f + 12 i; hover colour 0xff00) | not ported; developer-only (section 20) |
 | 0x40f1f0 | 36 | a frame-rate text (frames over a second) on the debug text object [0x5fc378] | not ported; shown only by a dead key command (section 20) |
-| 0x5a6790 / 0x5a67c0 | 12 + 9 | **not the HUD's**: the weather's manager [0x736328], its rect and its objects' tick: the rain and snow (hud.md section 20) | logged; the program makes no weather (below) |
+| 0x5a6790 / 0x5a67c0 | 12 + 9 | **not the HUD's**: the weather's manager [0x736328], its rect and its objects' tick: the rain and snow (hud.md section 20) | the weather's: ported and wired since (below) |
 | 0x430aa0 | 16 | the pilot's HUD (MechData +0x224), made on first use | ported as `pilot_hud`; the launch's call wired (item 6); the draw paths' (`Engine::mech_ai`) still logs |
 | 0x41ab90 | 14 | the mech's +0x378 zTwoD panel drawn (0x5a4410) | multiplayer only (made by commands 0x76 / 0x77 when networked; mech-build.md): nothing in single player |
 | 0x4583b0 | 72 | maps.zrd: the mission maps (0x4580c0, 54 each; list [0x605acc]); free 0x4582c0 (17); find 0x458590 (42) | not ported: the radar's map mode (Shift+R, 0x43dc10) has no map |
@@ -48,12 +48,10 @@ frame-rate text are developer-only: every writer is reached only through
 the app key handler's dead commands, a vehicle or the stealth object as the
 view's target (hud.md section 20). Nothing in single player depends on
 0x41ab90. **Outside the HUD**, item 1 found the weather missing: rain in
-c3, c4 and t1 and snow in c4b missions 4 and 6 are never made by the
-program (`create_rain` / `create_snow` empty), and 0x5a67c0 is their tick.
-That is its own item for the render or effects side (the rain and snow
-classes, vtables 0x5d0660 and 0x5d05e0 over the base 0x5d0528, built by
-0x5a60a0 / 0x5a5ad0; about 400 to 600 decomp lines with their draws),
-not the HUD's.
+c3, c4 and t1 and snow in c4b missions 4 and 6 were not made by the
+program then (`create_rain` / `create_snow` empty; 0x5a67c0 is their
+tick). They are ported and made now (the rain and snow classes 0x5a60a0 /
+0x5a5ad0, `create_rain` / `create_snow` in app_mission.cpp; weather.md).
 
 ## 3. Function families left, with sizes
 

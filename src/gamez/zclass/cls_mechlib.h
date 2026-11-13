@@ -60,8 +60,9 @@ void material_free(Material& m);                        // 0x004fc490
 // 0x004fc790: the trees stay (the world's nodes), the materials are freed,
 // the archive closed.
 void mechlib_close(MechLib& lib);
-// 0x00553450 ([0x0072be74], set in one video mode by zvid_init.c 0x00579e79):
-// mechlib_load then runs 0x004fc8b0 over every model, which is not ported.
+// 0x00553450 ([0x0072be74], set in hardware mode by zvid_init.c 0x00579e79):
+// mechlib_load then strips every model's triangles (0x004fc8b0), not ported
+// (the readers draw and test the same triangles either way; docs/mechlib.md).
 bool& mechlib_post_process();
 
 bool read_material(std::FILE* f, Material& m);   // 0x004fc570

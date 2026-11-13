@@ -79,7 +79,7 @@ Model* reread_model(std::FILE* f, int32_t index) {
   uint32_t offset;
   std::memcpy(&offset, raw + 0x5c, 4);
   std::fseek(f, static_cast<long>(offset), SEEK_SET);
-  if (read_model_data(f, *m) == 0) return m;  // 0x00553450's edge pass: not ported (one video mode)
+  if (read_model_data(f, *m) == 0) return m;  // 0x00553450's triangle stripper: not ported (docs/mechlib.md)
   model_release(m);  // 1 (kept) when the file's use count is not 0
   return nullptr;
 }
