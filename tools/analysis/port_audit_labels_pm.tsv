@@ -766,3 +766,7 @@
 0x005288a0	folded	group A, read: the shared port's logic; PM's realloc wrapper (0x00596520) where MW3 calls the C runtime's realloc; the crater clip's unstrip (0x005726f0, pm::zmod::model_unstrip, pm-map.md) and the material sort (0x0055c470, PM's gmod_const.cpp:219)
 0x005290b0	folded	group A, read: the shared port's logic; PM's realloc wrapper (0x00596520) where MW3 calls the C runtime's realloc; the crater clip's unstrip (0x005726f0, pm::zmod::model_unstrip, pm-map.md) and the material sort (0x0055c470, PM's gmod_const.cpp:219)
 0x00527ff0	folded	group A, read: the shared port's logic; PM's realloc wrapper (0x00596520) where MW3 calls the C runtime's realloc; the crater clip's unstrip (0x005726f0, pm::zmod::model_unstrip, pm-map.md) and the material sort (0x0055c470, PM's gmod_const.cpp:219)
+0x004754d0	folded	group A, read: the salvage's have-enough check gives the same answer (false as soon as one item is short); MW3 reports each shortage (CONFIG: want %d %s, only have %d) and goes on, PM stops at the first without a report: a developer message only
+0x00435410	folded	group A, read: the campaign game's destructor on PM's layout (its string list and members freed through PM's helpers 0x00435d10, 0x00434ab0, 0x004731b0); pilot_games.cpp:583
+0x004354e0	folded	group A, read: imports only (the C runtime's), the logic as the shared port
+0x00437ce0	folded	group A, read: imports only (the C runtime's), the logic as the shared port
