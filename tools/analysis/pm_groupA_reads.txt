@@ -1,0 +1,696 @@
+# Group A to read (2026-11-13): the shared ports PM changed whose calls, strings or imports differ and that no PM test names; per function the calls PM added or dropped (PM callees mapped to MW3 addresses; (PM) = PM's own) and the strings. tools: scratchpad calldiff.py over port_audit --game pm
+== 0x00506760 (MW3 0x004f33a0) 23L camera.cpp [calls]
+   calls added: 0x004fb600
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_Came
+== 0x00506c10 (MW3 0x004f37c0) 40L camera.cpp [calls]
+   calls added: 0x004fb600
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_Came
+== 0x00506d90 (MW3 0x004f3920) 44L camera.cpp [calls]
+   calls added: 0x004fb600
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_Came
+== 0x005079a0 (MW3 0x004f4580) 88L camera.cpp [calls]
+   calls gone : 0x00541760
+== 0x00507b70 (MW3 0x004f4730) 94L camera.cpp [calls]
+   calls gone : 0x00541760
+== 0x00507d60 (MW3 0x004f4900) 88L camera.cpp [calls]
+   calls gone : 0x00541760
+== 0x00507f30 (MW3 0x004f4ab0) 269L camera.cpp [calls]
+   calls added: 0x004eb6a0 0x004fd0d0(PM) 0x004fd160(PM) 0x004fd1f0(PM) 0x004d7220 0x004d7230 0x004f5910 0x004faff0 0x004fa9b0 0x0051ea00 0x00526a10 0x0053d750 0x00563740(PM)
+   calls gone : 0x00541760
+== 0x005084d0 (MW3 0x004f4ee0) 96L camera.cpp [calls]
+   calls gone : 0x00541760
+== 0x00508680 (MW3 0x004f5090) 266L camera.cpp [calls]
+   calls gone : 0x00541760
+== 0x00508cb0 (MW3 0x004f56c0) 58L camera.cpp [calls]
+   calls gone : 0x00541760
+== 0x00508de0 (MW3 0x004f57e0) 68L camera.cpp [calls]
+   calls gone : 0x00541760
+== 0x005092a0 (MW3 0x004f5c80) 274L camera.cpp [calls]
+   calls gone : 0x00541760
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_Came
+== 0x00509830 (MW3 0x004f61b0) 286L camera.cpp [calls]
+   calls gone : 0x00541760
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_Came
+== 0x00509dd0 (MW3 0x004f6720) 187L camera.cpp [calls]
+   calls added: 0x00504450(PM) 0x0050a1e0(PM) 0x005404f0(PM)
+   calls gone : 0x0051dfa0 0x00526a60 0x00526b80
+== 0x0050a6c0 (MW3 0x004f6d40) 28L camera.cpp [calls]
+== 0x004fe510 (MW3 0x004eca00) 104L class.cpp [calls]
+   calls added: 0x004fb310
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_Clas
+== 0x004ffd20 (MW3 0x004eddb0) 161L cls_di.cpp [calls]
+   calls added: 0x005000d0(PM)
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_cls_
+== 0x004fc650 (MW3 0x004eada0) 30L cls_node.cpp [calls]
+== 0x004fc750 (MW3 0x004eaea0) 56L cls_node.cpp [calls]
+   calls added: 0x00515ba0(PM)
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_Clas
+== 0x004fd6f0 (MW3 0x004eba90) 34L cls_node.cpp [calls,imports]
+   calls added: 0x004fb600 0x00596520(PM)
+== 0x0050c790 (MW3 0x004f8c80) 56L cls_node.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x0050d4e0 (MW3 0x004f9840) 66L cls_util.cpp [calls]
+   calls added: 0x00515bb0(PM) 0x00515c00(PM)
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_cls_
+== 0x00505ab0 (MW3 0x004f2770) 71L cls_world.cpp [calls]
+   calls added: 0x005044d0(PM)
+== 0x00515730 (MW3 0x004f1bd0) 22L cls_world.cpp [calls,strings]
+   calls added: 0x0049bfd0
+   strings +  : C__zipper_branchep1_gamez_zClass Null_node_pointer_
+== 0x0050bdf0 (MW3 0x004f84b0) 280L list.cpp [calls]
+   calls added: 0x005067c0(PM) 0x004fd1e0 0x00515ba0(PM) 0x00515bd0(PM)
+   calls gone : 0x004f9f60 0x004fd230 0x004fe0b0
+   strings +  : C__zipper_branchep1_gamez_zClass
+   strings -  : C__zipper_GameZMech3_zClass_List
+== 0x00517ce0 (MW3 0x004ff940) 53L zdec_crater.cpp [calls]
+   calls added: 0x00513d90(PM) 0x005020b0
+   strings +  : C__zipper_branchep1_gamez_zDECli
+   strings -  : C__zipper_GameZMech3_zDEClient_z
+== 0x00518350 (MW3 0x004fff80) 290L zdec_crater.cpp [calls]
+   calls added: 0x005189f0(PM) 0x00518a10(PM) 0x0055c470(PM)
+   strings +  : ZDEC_FEATURE
+== 0x00518c60 (MW3 0x00500850) 102L zdec_crater.cpp [calls]
+   calls added: 0x00519e90(PM)
+== 0x0051ab70 (MW3 0x005026c0) 280L zdec_qsand.cpp [calls]
+   calls added: 0x00515ba0(PM)
+   strings +  : ZDEC_FEATURE
+== 0x00522160 (MW3 0x005092e0) 53L zeff_anim_init.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+   strings +  : C__zipper_branchep1_gamez_zEffec
+   strings -  : C__zipper_GameZMech3_zEffect_zef
+== 0x00522280 (MW3 0x00509400) 52L zeff_anim_init.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+   strings +  : C__zipper_branchep1_gamez_zEffec
+   strings -  : C__zipper_GameZMech3_zEffect_zef
+== 0x00522670 (MW3 0x005097c0) 436L zeff_anim_init.cpp [imports]
+   calls added: 0x005224a0(PM)
+   calls gone : 0x00509640
+   strings +  : C__zipper_branchep1_gamez_zEffec
+   strings -  : C__zipper_GameZMech3_zEffect_zef
+== 0x00524492 (MW3 0x0050ae60) 99L zeff_anim_init.cpp [calls]
+   calls added: 0x00521c70(PM) 0x005a4dc0(PM)
+   calls gone : 0x005833f0
+   strings +  : C__zipper_branchep1_gamez_zEffec
+   strings -  : C__zipper_GameZMech3_zEffect_zef
+== 0x00524710 (MW3 0x0050b0e0) 119L zeff_anim_init.cpp [calls]
+   calls added: 0x00515ba0(PM) 0x005a4de0(PM)
+   calls gone : 0x00583400
+== 0x00522390 (MW3 0x00509520) 47L zeff_anim_puffer.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+   strings +  : C__zipper_branchep1_gamez_zEffec
+   strings -  : C__zipper_GameZMech3_zEffect_zef
+== 0x00520800 (MW3 0x005079b0) 79L zeff_anim_run.cpp [calls]
+   calls gone : 0x00503100 0x005031b0 0x00503270 0x00503390 0x005035b0 0x00503910 0x00503ba0 0x00503c10 0x00503d50 0x00504180 0x00504350 0x00504380 0x005044d0 0x00504520 0x0050
+   strings +  : C__zipper_branchep1_gamez_zEffec
+   strings -  : C__zipper_GameZMech3_zEffect_zef
+== 0x00520f10 (MW3 0x00508310) 72L zeff_anim_run.cpp [calls]
+== 0x005ba110 (MW3 0x00598d80) 450L fmv_script.cpp [calls]
+   calls added: 0x00578950(PM) 0x005bb190(PM)
+   calls gone : 0x005569e0 0x00599c00 0x0059a220
+   strings +  : C__zipper_branchep1_gamez_zFMV_f FMV_PATH IMAGE_PATH
+   strings -  : C__zipper_GameZMech3_zFMV_fmv_sc
+== 0x005badd0 (MW3 0x00599ab0) 42L fmv_script.cpp [calls]
+   calls added: 0x005c0450(PM) 0x005c0b70(PM) 0x005c0bc0(PM)
+   calls gone : 0x00576d00 0x00576d60 0x00576de0 0x00576e70 0x00576ea0 0x00579af0 0x00579b10
+== 0x005b19e0 (MW3 0x00590250) 102L zgameapp.cpp [calls]
+   calls added: 0x005b2050(PM) 0x005b21b0(PM)
+   calls gone : 0x004ea870
+== 0x005b1bd0 (MW3 0x00590400) 99L zgameapp.cpp [calls]
+   calls added: 0x005b2050(PM) 0x005b21b0(PM)
+   calls gone : 0x004ea870
+== 0x005b1db0 (MW3 0x005905a0) 101L zgameapp.cpp [calls]
+   calls added: 0x005b2050(PM) 0x005b21b0(PM)
+   calls gone : 0x004ea870
+== 0x00527c60 (MW3 0x0050e4c0) 28L zgeo_model.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x00527d40 (MW3 0x0050e5a0) 51L zgeo_model.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x00527ff0 (MW3 0x0050e850) 50L zgeo_model.cpp [calls]
+   calls added: 0x0055c470(PM)
+== 0x00528120 (MW3 0x0050e950) 56L zgeo_model.cpp [calls]
+   calls added: 0x004fcfb0(PM) 0x00515ba0(PM)
+   calls gone : 0x004eb6a0
+== 0x005283c0 (MW3 0x0050ec10) 178L zgeo_model.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+   strings +  : C__zipper_branchep1_gamez_zGeome
+   strings -  : C__zipper_GameZMech3_zGeometry_z
+== 0x005288a0 (MW3 0x0050f0a0) 26L zgeo_model.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x005290b0 (MW3 0x0050f7b0) 92L zgeo_model.cpp [calls]
+   calls added: 0x005726f0(PM)
+   strings +  : C__zipper_branchep1_gamez_zGeome
+   strings -  : C__zipper_GameZMech3_zGeometry_z
+== 0x00529410 (MW3 0x0050faf0) 189L zgeo_weiler.cpp [calls]
+   strings +  : C__zipper_branchep1_gamez_zGeome
+   strings -  : C__zipper_GameZMech3_zGeometry_z
+== 0x0052a810 (MW3 0x00510da0) 902L zgeo_weiler.cpp [calls]
+   strings +  : C__zipper_branchep1_gamez_zGeome weilerIntersect_Error___s
+   strings -  : C__zipper_GameZMech3_zGeometry_z
+== 0x0052d500 (MW3 0x005139e0) 45L zgeo_weiler.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x00531000 (MW3 0x00517cc0) 25L zimg_library.cpp [calls]
+   calls added: 0x005c04d0(PM)
+== 0x00531ed0 (MW3 0x005187c0) 98L zimg_library.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x00532150 (MW3 0x00518a30) 115L zimg_library.cpp [calls,strings]
+   strings -  : r_s__s r_s_d__s
+== 0x005326d0 (MW3 0x00518db0) 22L zimg_library.cpp [imports]
+   calls added: 0x005325a0(PM)
+   calls gone : 0x005187c0
+== 0x005330c0 (MW3 0x00519740) 29L zimg_library.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x00535f00 (MW3 0x0051c6b0) 130L zin_cmdmap.cpp [strings]
+   strings +  : MSG_KEY_1 MSG_KEY_2 MSG_KEY_3 MSG_KEY_4 MSG_KEY_5 MSG_KEY_6 MSG_KEY_7 MSG_KEY_8 MSG_KEY_9 MSG_KEY_0 MSG_KEY_Q MSG_KEY_W MSG_KEY_E MSG_KEY_R MSG_KEY_T MSG_KEY_Y 
+== 0x00533e60 (MW3 0x0051a5d0) 191L zin_kbd.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+   strings +  : C__zipper_branchep1_gamez_zInput
+== 0x005b7310 (MW3 0x005951e0) 26L zinterp.cpp [strings]
+   strings +  : no_node_to_dump node__s_is_Inactive node__s_is_Active node_not_currently_dumpable
+== 0x005b7db0 (MW3 0x00595c60) 65L zinterp.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x005b80c0 (MW3 0x00595fa0) 28L zinterp.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x005b8140 (MW3 0x00596020) 30L zinterp.cpp [calls,strings]
+   strings +  : _s____int___d _s____float___f _s____char____s_ false _s____bool___s
+== 0x005b8690 (MW3 0x00596620) 95L zinterp.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x005b2830 (MW3 0x00590e80) 231L zinterp_parse.cpp [calls,strings]
+   calls added: 0x00595ea0
+   strings +  : _s__s_FAILED__errno_____d_ _d_Macros _12s___s _d_Variables Can_t_find_variable____s__ Can_t_modify_string_variables__y
+== 0x00558440 (MW3 0x00538640) 187L gmod_const.cpp [calls,strings,imports]
+   calls added: 0x00538fe0 0x00570b70(PM)
+   calls gone : 0x00552540 0x00577340 0x00579b40 0x00579ef0
+   strings +  : C__zipper_branchep1_gamez_zModel
+   strings -  : C__zipper_GameZMech3_zModel_gmod GameZ_model_resource_failure__re This_program_must_Abort_ ABORT__Shutting_down___
+== 0x00559af0 (MW3 0x00539ec0) 80L gmod_const.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+   strings +  : C__zipper_branchep1_gamez_zModel
+   strings -  : C__zipper_GameZMech3_zModel_gmod
+== 0x00548990 (MW3 0x00526e10) 64L gmod_init.cpp [calls]
+   calls added: 0x005a1220(PM)
+== 0x0055e720 (MW3 0x00543b60) 85L gmod_light.cpp [strings]
+   strings +  : C__zipper_branchep1_gamez_zModel ANot_enough_MAX_LIGHTS___d__requ
+   strings -  : C__zipper_GameZMech3_zModel_gmod Not_enough_MAX_LIGHTS___d__reque
+== 0x00556550 (MW3 0x00536ad0) 159L gmod_matl.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x00557040 (MW3 0x005375d0) 39L gmod_matl.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x00557290 (MW3 0x00537830) 137L gmod_matl.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x005576e0 (MW3 0x00537cb0) 109L gmod_matl.cpp [calls]
+== 0x005661b0 (MW3 0x0054adf0) 74L gmod_puff.cpp [calls]
+   calls added: 0x004ef160(PM)
+== 0x005a9980 (MW3 0x00588a70) 272L znet_dplay.cpp [calls]
+   calls added: 0x00409e90 0x005aa6a0(PM) 0x005aa700(PM) 0x005b09f0(PM)
+   calls gone : 0x0045b800 0x0049ce90 0x004d5110 0x005895c0 0x00589960
+== 0x005ac920 (MW3 0x0058aec0) 67L znet_object.cpp [calls]
+   calls added: 0x00409e90
+   calls gone : 0x004d5110
+== 0x005a9850 (MW3 0x00588930) 51L znet_session.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+   strings +  : C__zipper_branchep1_gamez_zNetwo
+   strings -  : C__zipper_GameZMech3_zNetwork_zn
+== 0x005ad3d0 (MW3 0x0058ba40) 194L znet_view.cpp [calls]
+== 0x00577f00 (MW3 0x005573d0) 39L zreader.cpp [calls]
+   calls added: 0x00577bf0(PM) 0x00577df0(PM)
+   calls gone : 0x00555f30 0x00556070 0x00576500 0x00576650
+== 0x00578040 (MW3 0x00556170) 12L zreader.cpp [calls]
+   calls gone : 0x00555e50
+== 0x005780b0 (MW3 0x00556210) 13L zreader.cpp [calls]
+   calls added: 0x00577d80(PM)
+   calls gone : 0x00555e70 0x00576120
+== 0x00579880 (MW3 0x005578f0) 90L zrndr_draw.cpp [strings]
+   strings +  : GfxFlags_SW
+== 0x00589290 (MW3 0x00567d30) 34L zrndr_flare.cpp [calls]
+== 0x005941c0 (MW3 0x00573560) 303L zsnd_grp.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+   strings +  : C__zipper_branchep1_gamez_zSound
+   strings -  : C__zipper_GameZMech3_zSound_zsnd
+== 0x00594f20 (MW3 0x005742d0) 58L zsnd_grp.cpp [calls]
+   calls added: 0x00515ba0(PM)
+== 0x00595100 (MW3 0x00574470) 65L zsnd_grp.cpp [calls]
+== 0x005c7380 (MW3 0x005a4230) 38L twod_console.cpp [calls]
+   calls gone : 0x005a4720
+== 0x005c9280 (MW3 0x005a7280) 104L twod_msgbox.cpp [calls]
+   calls added: 0x0051b360 0x00557f90 0x00558080 0x00575a00 0x00576c70 0x00576ca0 0x00576cd0 0x00576d80 0x00576db0 0x00579840 0x005b14e0(PM) 0x0059fa40 0x0059fb80 0x005c0450(PM
+== 0x005974e0 (MW3 0x00576690) 20L zutl_zar.cpp [calls,imports]
+   calls added: 0x00596520(PM)
+== 0x005a0065 (MW3 0x0057ea20) 134L zvid_ddd3d.cpp [strings,imports]
+   calls added: 0x005a03b0(PM)
+   calls gone : 0x00580550
+   strings +  : C__zipper_branchep1_gamez_zVideo Toto__we_ain_t_in_Kansas_any_mor
+   strings -  : Not_enough_ZVID_MAX_OVERWRITE_PO C__zipper_GameZMech3_zVideo_zvid
+== 0x005a8090 (MW3 0x00586350) 58L zweapon.cpp [calls]
+   calls added: 0x004fc0b0
+== 0x005a2a00 (MW3 0x00581400) 52L zwep_beam.cpp [calls]
+== 0x005a6650 (MW3 0x00584b40) 42L zwep_beam.cpp [calls,strings]
+   calls added: 0x0049bfd0 0x00581400
+   strings +  : C__zipper_branchep1_gamez_zWeapo Releasing_beam_still_on_weapons_l
+== 0x005a6a00 (MW3 0x00584df0) 37L zwep_shot.cpp [calls]
+== 0x0048d590 (MW3 0x00488bc0) 196L action_menu.cpp [calls,strings]
+   calls added: 0x00438d70 0x00438cc0 0x00488530(PM)
+   calls gone : 0x0040a5d0 0x0040d760 0x0040d770 0x0042a140 0x004c4c60 0x0059bb50
+   strings +  : ENEMYLINES
+== 0x0048e430 (MW3 0x004897b0) 41L action_menu.cpp [calls]
+   calls added: 0x0040c260(PM) 0x00479460
+== 0x0048eaf0 (MW3 0x0048a140) 291L action_menu.cpp [calls]
+   calls added: 0x0040c360(PM) 0x0040c390(PM) 0x0040ca30(PM) 0x0040ca50(PM) 0x004279e0(PM) 0x00433df0 0x004846a0
+   calls gone : 0x004368e0 0x00436950 0x004369c0
+   strings +  : ___data__s_zrdr_aipath_ia_d __zbd__s_readeria_d_zbd __zbd__s_readeria_d
+== 0x0048f300 (MW3 0x0048a810) 66L action_menu.cpp [calls]
+   calls added: 0x0040c280(PM) 0x0040c2c0(PM) 0x0040c300(PM) 0x00479460 0x0048b8f0 0x0048f4d0(PM)
+== 0x0048f970 (MW3 0x0048aac0) 174L action_menu.cpp [calls]
+   calls added: 0x0040c260(PM) 0x00426440 0x00438e10 0x0048b8f0 0x0048f660(PM) 0x004d7290
+   calls gone : 0x0048a930
+== 0x00481e20 (MW3 0x0047f7a0) 187L app.cpp [imports]
+   strings +  : mech3Msg_dll
+== 0x00482090 (MW3 0x0047fa10) 33L app.cpp [calls]
+   calls added: 0x005ac5c0 0x005969a0(PM) 0x0059aef0(PM)
+   calls gone : 0x004d72a0
+== 0x00482140 (MW3 0x0047fab0) 38L app.cpp [imports]
+== 0x00482240 (MW3 0x0047fb80) 31L app.cpp [strings,imports]
+   strings -  : bushwacker
+== 0x004824d0 (MW3 0x0047fe10) 48L app.cpp [calls]
+   calls added: 0x0040a920(PM)
+   calls gone : 0x0040cbf0
+== 0x004826e0 (MW3 0x00480000) 173L app.cpp [calls,strings,imports]
+   calls added: 0x0040c420 0x0040a870(PM) 0x0040d4d0 0x0040def0(PM) 0x0047fb80 0x0047fe10 0x0047fed0 0x00480340 0x004803a0 0x00485480(PM) 0x004854e0(PM) 0x00485530(PM) 0x004af2
+   calls gone : 0x004854c0
+   strings +  : MicroProse MechWarrior_3_EP1 DefaultCmdMap ___data_common_zrdr detail_zrd zbd_reader_zbd
+== 0x00482ca0 (MW3 0x00480570) 193L app.cpp [calls,strings]
+   calls added: 0x0040d3b0 0x00540090(PM) 0x005908e0(PM) 0x00591830(PM)
+   calls gone : 0x00557ae0
+   strings +  : PASSED FAILED zTwoD_Init___s dshell_void___STARTING GfxFlags_HW GfxFlags_SW fonts_zrd sounds_zrd maps_zrd
+== 0x00483020 (MW3 0x004808a0) 48L app.cpp [imports]
+   calls added: 0x005400c0(PM) 0x0059aef0(PM)
+   calls gone : 0x004d72a0 0x00526780
+== 0x00485620 (MW3 0x00482d10) 164L app.cpp [calls,imports]
+   calls added: 0x00527230(PM)
+   calls gone : 0x004abfe0 0x004af290 0x0050da50 0x00575d40
+   strings +  : _noclutter _verbose
+== 0x004aefe0 (MW3 0x004ab6b0) 124L app_hooks.cpp [calls]
+   calls added: 0x00518b30 0x00518c60 0x005190d0 0x00597ca0(PM) 0x00597d20(PM) 0x00597d30(PM) 0x00597ef0(PM) 0x00597f40(PM)
+   calls gone : 0x00576c80 0x00576ce0 0x00576cf0 0x00576e70 0x00576ea0
+== 0x0041dc00 (MW3 0x0041cd90) 16L app_hud.cpp [calls]
+   calls gone : 0x0043c6b0
+== 0x00414810 (MW3 0x00414000) 39L app_mech.cpp [calls]
+   calls added: 0x005ac5c0
+== 0x0048cbd0 (MW3 0x0048dfe0) 39L app_menus.cpp [calls]
+   calls added: 0x00438d70
+   calls gone : 0x0059bbe0 0x005a53e0
+== 0x00407f10 (MW3 0x004091e0) 39L app_states.cpp [calls]
+   calls gone : 0x0040a0f0 0x0040a820
+== 0x0047f7c0 (MW3 0x0047d310) 35L app_states.cpp [calls]
+   calls added: 0x0048faf0 0x004f8f50
+== 0x00483700 (MW3 0x00480c70) 74L app_states.cpp [calls]
+   calls added: 0x0040a870(PM)
+   calls gone : 0x0040cb30 0x0040d4b0 0x0048ee70
+   strings +  : mech_powerup
+== 0x004838b0 (MW3 0x00480df0) 184L app_states.cpp [calls]
+   calls added: 0x004af9f0(PM) 0x00558610 0x0057a770(PM) 0x00597d20(PM) 0x00597d30(PM) 0x00597dc0(PM) 0x00597ef0(PM) 0x00579af0 0x00579b10 0x005a66b0
+   calls gone : 0x004ac290 0x00576ce0 0x00576cf0 0x00576d60 0x00576e70
+   strings +  : Dummy_Frame L_e_t_s_P_l_a_y__
+== 0x00483de0 (MW3 0x00481170) 42L app_states.cpp [calls]
+   calls added: 0x004f8690(PM) 0x004f9960(PM)
+== 0x004848a0 (MW3 0x00481a10) 173L app_states.cpp [calls]
+   calls added: 0x0043e1f0(PM) 0x00597dc0(PM) 0x00597e30(PM) 0x00597ef0(PM)
+   calls gone : 0x00576d60 0x00576dd0 0x00576e70
+== 0x00489380 (MW3 0x00486990) 128L app_states.cpp [calls]
+   calls added: 0x00489b20(PM)
+   calls gone : 0x0042d9d0 0x0043a640
+== 0x004896e0 (MW3 0x00486d40) 56L app_states.cpp [calls]
+   calls gone : 0x00482970 0x00590400
+== 0x0048d110 (MW3 0x0048ed30) 30L app_states.cpp [calls]
+   calls added: 0x0040d7b0 0x00597d30(PM) 0x005c0450(PM) 0x005c0b70(PM) 0x005c0bc0(PM)
+   calls gone : 0x00576de0 0x00576e70 0x00576ea0
+== 0x004938e0 (MW3 0x00490950) 68L app_vehicle.cpp [calls,imports]
+   calls added: 0x0047c800(PM) 0x00493a60(PM) 0x00493a70(PM)
+   strings +  : mfb_station01
+== 0x00404d70 (MW3 0x00405230) 298L briefing.cpp [calls,strings,imports]
+   calls added: 0x00404650(PM) 0x00405f20(PM) 0x00407cc0(PM) 0x0058f2a0 0x00438cc0 0x00578950(PM) 0x0059b970 0x0059bbe0 0x0059ec40 0x005c0450(PM) 0x005c0b70(PM) 0x005c0bc0(PM)
+   calls gone : 0x00404ae0 0x00406440 0x00408ef0 0x00409a00 0x00409c60 0x00409e60 0x0040a0f0 0x0040a110 0x0040a5d0 0x0040a710 0x0040a810 0x00479480 0x0049cc80 0x004bf4e0 0x004d
+   strings +  : debug_font briefing_zrd default BRIEFINGDIALOG SOUND MARKERS
+== 0x004060d0 (MW3 0x00406650) 562L briefing.cpp [calls,strings]
+   calls added: 0x00407120(PM) 0x00578950(PM) 0x00579110(PM) 0x00579130(PM)
+   calls gone : 0x00408050 0x00409a40 0x00409d80 0x00409da0 0x00409e00 0x0040a0d0 0x0040a0f0 0x0040a840 0x0040a930 0x004bf4e0 0x005569e0 0x005570f0 0x00557110
+   strings +  : brief_grey color radius sound string db_name image label height points C__zipper_branchep1_mech3ep1_Bri
+   strings -  : circle bitmap C__zipper_Mech3_Briefing_cpp
+== 0x00407250 (MW3 0x00407ea0) 62L briefing.cpp [calls]
+   calls added: 0x004586e0 0x00491c80 0x004f8f50
+   calls gone : 0x00409ab0 0x00409d80 0x00409da0
+== 0x004074b0 (MW3 0x004084f0) 26L briefing.cpp [calls]
+   calls gone : 0x00409ab0 0x00409e10
+== 0x0041f1f0 (MW3 0x0041e660) 42L chat_panel.cpp [calls]
+   calls added: 0x0051b1c0
+== 0x0042bb80 (MW3 0x0042a590) 162L controls_menu.cpp [calls]
+   calls added: 0x00438d70 0x00438cc0 0x00488530(PM)
+   calls gone : 0x0040a5d0 0x0040d760 0x0040d770 0x0042a140 0x0042a570 0x0047fb70 0x0059bb50
+== 0x0042c8d0 (MW3 0x0042b880) 88L controls_menu.cpp [calls]
+   calls added: 0x0042b210
+   calls gone : 0x0040a600 0x00429ce0 0x0042f3a0 0x0042f3d0 0x0042f480 0x00517b10
+== 0x0042d090 (MW3 0x0042c160) 139L controls_menu.cpp [calls]
+   calls added: 0x00536c70(PM)
+   calls gone : 0x0051d310
+== 0x0042f890 (MW3 0x0042e890) 64L controls_menu.cpp [calls]
+   calls added: 0x00438d70 0x00438cc0
+   calls gone : 0x0040a5d0 0x0040cec0 0x0040d760 0x0040d770 0x0042a140 0x0042a570 0x0059c650 0x0059c8b0 0x005a53e0
+== 0x0042fc10 (MW3 0x0042eff0) 58L controls_menu.cpp [imports]
+== 0x00430550 (MW3 0x00430180) 30L controls_menu.cpp [calls]
+   calls gone : 0x0051da90
+== 0x0042a5e0 (MW3 0x004289a0) 66L credits.cpp [calls]
+   calls added: 0x00438d70 0x00438cc0 0x00488530(PM)
+   calls gone : 0x0040a5d0 0x0040d760 0x0040d770 0x0042a140 0x0042a570 0x0059bb50 0x005a53e0
+== 0x0047d890 (MW3 0x0047b430) 700L debriefing.cpp [calls]
+   calls added: 0x004794a0 0x0047d730(PM) 0x00597c30(PM)
+   calls gone : 0x0045e080 0x0047cd70 0x0048fab0 0x0048fad0 0x005a1380
+   strings +  : lab_large_whiteR lab_small_red lab_small_white lab_small_green lab_small_redR lab_small_whiteR lab_small_greenR
+== 0x0047f420 (MW3 0x0047d030) 145L debriefing.cpp [calls]
+   calls added: 0x0040e6b0(PM) 0x00435d20(PM) 0x00435e40(PM) 0x004794a0
+   calls gone : 0x00435240
+== 0x00403b10 (MW3 0x00403ae0) 56L game_editor_net.cpp [calls]
+== 0x004c1cb0 (MW3 0x004bb7e0) 148L game_editor_vehicles.cpp [calls]
+   calls added: 0x004c2330(PM) 0x004c25a0(PM)
+   calls gone : 0x004bc090
+== 0x0043c210 (MW3 0x0043b190) 99L hud.cpp [calls]
+   calls added: 0x0043dda0(PM)
+   strings +  : mech_string dmg_bg_blue dmg_bg_red dmg_bg_grn
+== 0x0043c900 (MW3 0x0043b860) 86L hud.cpp [calls]
+   calls added: 0x0040a570 0x0043df70(PM)
+   calls gone : 0x0043a890
+== 0x0043d880 (MW3 0x0043c820) 116L hud.cpp [strings]
+   strings +  : _s___s____d__d__d velM___d__d__d velW___d__d__d ZONES__d__v__s_c__s
+== 0x004411d0 (MW3 0x0043f9c0) 27L hud.cpp [imports]
+   calls added: 0x0040a570
+   calls gone : 0x0043a890
+== 0x00441440 (MW3 0x0043fc10) 16L hud.cpp [calls]
+   calls gone : 0x004eb170
+== 0x00441490 (MW3 0x0043fc60) 16L hud.cpp [calls]
+   calls gone : 0x004eb170
+== 0x00442fd0 (MW3 0x00441850) 180L hud.cpp [calls]
+   calls added: 0x00479480 0x004e76e0(PM)
+   calls gone : 0x004d7240
+== 0x0044ed20 (MW3 0x0044ca50) 150L lab_screen.cpp [calls]
+   calls added: 0x00577cb0
+== 0x0044f740 (MW3 0x0044d4d0) 295L lab_screen.cpp [calls]
+   calls added: 0x00425970(PM) 0x00426d10(PM)
+   calls gone : 0x00424010 0x0049ccc0
+== 0x0044ff10 (MW3 0x0044dc80) 16L lab_screen.cpp [calls]
+   calls added: 0x0044e680
+== 0x00451730 (MW3 0x004504d0) 47L lab_view.cpp [calls]
+== 0x004889d0 (MW3 0x00485780) 67L mainmenu.cpp [calls]
+   calls added: 0x00590920(PM)
+   calls gone : 0x0040a600 0x0042f3d0 0x00517b10 0x0056f530 0x0058b390
+== 0x00488c40 (MW3 0x00486260) 163L mainmenu.cpp [calls]
+   calls added: 0x005a53e0 0x00438cc0 0x004af9f0(PM) 0x005908f0(PM) 0x0057a3c0
+   calls gone : 0x0040d760 0x0040d770 0x0042a140 0x004ac290 0x0056f520
+   strings +  : STANDALONE debug_font
+   strings -  : TRAINING
+== 0x004891d0 (MW3 0x0048e6b0) 25L mainmenu.cpp [calls,strings]
+   calls added: 0x0042a1d0 0x00578950(PM)
+   calls gone : 0x005569e0 0x00556a60 0x00556ae0 0x0059cdc0
+   strings +  : AUXBITMAP
+== 0x00410f80 (MW3 0x00410700) 29L mech3_interp.cpp [strings]
+   strings +  : _ADamageScale
+   strings -  : DamageScale
+== 0x00411080 (MW3 0x004107e0) 60L mech3_interp.cpp [calls]
+== 0x0041faf0 (MW3 0x0041ee80) 15L mech_anim.cpp [calls]
+   calls gone : 0x0040e820 0x00421270 0x004212a0
+== 0x0041ffa0 (MW3 0x0041f340) 57L mech_anim.cpp [calls]
+   calls gone : 0x00421240
+   strings +  : C__zipper_branchep1_mech3ep1_mec
+   strings -  : C__zipper_Mech3_mech_anim_cpp
+== 0x004210d0 (MW3 0x004200c0) 23L mech_anim.cpp [calls]
+   calls gone : 0x00409f50 0x00421280
+== 0x004211b0 (MW3 0x004201b0) 21L mech_anim.cpp [calls]
+   calls gone : 0x0040e820 0x00421270 0x00421280 0x00421290 0x004212a0
+== 0x00421fc0 (MW3 0x00420ec0) 20L mech_anim.cpp [calls]
+   calls gone : 0x004212b0
+== 0x00422260 (MW3 0x00421120) 10L mech_anim.cpp [calls]
+   calls gone : 0x00409f50
+== 0x00415190 (MW3 0x004148c0) 112L mech_build.cpp [calls]
+   calls added: 0x00414ba0(PM) 0x0041df50 0x00431080(PM)
+   calls gone : 0x00414390 0x00430d10
+== 0x00430a70 (MW3 0x004306d0) 60L mech_data.cpp [strings,imports]
+   strings +  : mech_engine mech_engine_water mech_limp mech_engine_up mech_engine_down mech_servo mech_lockon_warning mech_crouch mech_landing mech_eject radar_up radar_down m
+   strings -  : mech__s
+== 0x00430c10 (MW3 0x004308a0) 97L mech_data.cpp [calls]
+   calls added: 0x004773a0(PM)
+   calls gone : 0x00430e70 0x00475780
+   strings +  : C__zipper_branchep1_mech3ep1_mec
+   strings -  : C__zipper_Mech3_mech_data_cpp
+== 0x0045a250 (MW3 0x004590b0) 209L mech_fieldbase.cpp [calls]
+   calls added: 0x0045b100(PM) 0x00473160(PM) 0x00475100(PM) 0x00484670
+   calls gone : 0x0045b900 0x00470cd0 0x00484650
+== 0x0045ac20 (MW3 0x00459b80) 102L mech_fieldbase.cpp [calls]
+   calls added: 0x0045bc50(PM)
+   strings +  : mcb_contact mcb_waiting mcb_complete
+== 0x0045c2e0 (MW3 0x0045af00) 72L mech_fieldbase_dock.cpp [calls]
+   calls added: 0x00419c40(PM)
+   calls gone : 0x00418e90 0x004d5110 0x0058f2a0
+== 0x0045c720 (MW3 0x0045b3b0) 41L mech_fieldbase_dock.cpp [calls]
+   calls added: 0x0045a000
+== 0x0045c7d0 (MW3 0x0045b460) 61L mech_fieldbase_dock.cpp [calls]
+   calls gone : 0x004d5110 0x0058f2a0
+== 0x0041dbb0 (MW3 0x0041cd40) 19L mech_hud.cpp [calls]
+   calls gone : 0x0041bd80
+== 0x00487480 (MW3 0x004852b0) 56L mech_names.cpp [strings]
+   strings -  : sphere
+== 0x00437f5a (MW3 0x00437140) 85L mech_objective.cpp [calls]
+   calls added: 0x00578950(PM)
+   calls gone : 0x00556740 0x005569e0
+== 0x0045ccd0 (MW3 0x0045bb00) 68L mech_objective.cpp [calls]
+   calls gone : 0x00409870 0x004bf530
+== 0x0045d7a0 (MW3 0x0045c4a0) 156L mech_objective.cpp [calls]
+   calls added: 0x0049cc80
+== 0x0045f980 (MW3 0x0045f630) 61L mech_objective.cpp [calls]
+== 0x00462090 (MW3 0x00460d50) 275L mech_parts.cpp [calls]
+   calls added: 0x0041ade0(PM) 0x00460c10 0x00462ba0(PM)
+   calls gone : 0x00416770 0x00460cc0 0x00467310
+== 0x004628c0 (MW3 0x00461510) 54L mech_parts.cpp [calls]
+== 0x0046c920 (MW3 0x0046ad80) 72L mech_pocket.cpp [calls]
+   calls added: 0x0051d390 0x0051d490
+== 0x00476750 (MW3 0x004749e0) 78L mech_skin.cpp [calls]
+   calls added: 0x00475b20(PM) 0x0055c470(PM)
+   calls gone : 0x00473d40
+== 0x00477470 (MW3 0x00475870) 97L mech_skin.cpp [calls]
+== 0x00477c80 (MW3 0x00476320) 86L mech_skis.cpp [calls]
+   calls gone : 0x004eb170
+   strings +  : ski_base
+== 0x004790f0 (MW3 0x00477620) 32L mech_skis.cpp [calls]
+   calls added: 0x00477ef0(PM)
+== 0x0047c0e0 (MW3 0x00479dd0) 59L mech_waynet.cpp [calls]
+== 0x0047c1f0 (MW3 0x00479ef0) 69L mech_waynet.cpp [calls]
+   calls added: 0x004b51f0
+== 0x00439840 (MW3 0x00438be0) 53L menu_states.cpp [calls]
+   calls added: 0x0042d9d0 0x0043a640
+== 0x0048c860 (MW3 0x0048dbe0) 103L menu_widgets.cpp [calls]
+   calls added: 0x00475100(PM)
+== 0x00492490 (MW3 0x0048f740) 90L mission.cpp [strings,imports]
+   calls added: 0x0040c3b0(PM) 0x0047b740(PM) 0x00559310(PM)
+   calls gone : 0x0045c2d0 0x004794a0 0x005392c0
+== 0x00494500 (MW3 0x00491150) 222L mission_launch.cpp [calls,strings,imports]
+   calls added: 0x0040d3b0 0x00414ba0(PM) 0x00431080(PM) 0x00470bc0 0x004eb170 0x004f7fe0
+   calls gone : 0x00414390 0x00430d10
+   strings +  : cpit_ania cpit_anib cpit_anic tur_ppc02 dbase
+== 0x00459300 (MW3 0x004580c0) 43L mission_map.cpp [strings]
+   calls added: 0x005790d0(PM)
+   calls gone : 0x005570b0
+   strings +  : offset
+== 0x00495190 (MW3 0x00491d80) 24L mission_world.cpp [imports]
+== 0x00495dd0 (MW3 0x00492660) 32L mission_world.cpp [calls]
+   calls gone : 0x004eb170
+== 0x00496660 (MW3 0x00493260) 162L mp_connect.cpp [calls,strings]
+   calls added: 0x00488530(PM)
+   calls gone : 0x0040a5d0 0x0040d760 0x0040d770 0x0042a140 0x00495310 0x0059bb50
+   strings -  : TEAM_CHECKBOX
+== 0x00496d30 (MW3 0x00493a70) 73L mp_connect.cpp [calls]
+   calls gone : 0x00429ce0 0x0042f3a0 0x0042f3d0 0x00517b10 0x0058b390 0x0059bb50 0x0059bdd0
+== 0x00498b70 (MW3 0x00495f90) 274L mp_lobby.cpp [calls,strings,imports]
+   calls added: 0x00433cc0 0x00488530(PM) 0x00499550(PM) 0x005ac2a0
+   calls gone : 0x0040d760 0x0040d770 0x0042a140 0x0044ed40 0x00496910 0x0049cc80 0x0059bb50
+   strings +  : CANCEL_ZONE SALVAGE_BUTTON OPTIONS_BUTTON GAME_TYPE SALVAGE_AWARD ROUNDS_LIST JETS_CHECKBOX RADAR_CHECKBOX
+== 0x00499890 (MW3 0x00496b90) 109L mp_lobby.cpp [calls,imports]
+   calls added: 0x00405b60(PM) 0x00433d60 0x005ac160
+   calls gone : 0x00406020
+== 0x0049fd60 (MW3 0x0049c550) 72L mp_lobby.cpp [calls]
+   calls added: 0x0059bb50
+== 0x00409ec0 (MW3 0x0040c1a0) 162L options.cpp [calls]
+== 0x0040b120 (MW3 0x0040d310) 47L options.cpp [calls]
+   calls added: 0x00541a30(PM)
+== 0x00438c10 (MW3 0x004379f0) 128L options_menu.cpp [calls]
+   calls added: 0x00488530(PM)
+   calls gone : 0x0040a5d0 0x0042a570 0x00438090 0x0047fb70 0x0059bb50 0x005a53e0
+== 0x00439a30 (MW3 0x00438f60) 131L options_menu.cpp [calls]
+   calls added: 0x00438d70 0x00488530(PM)
+   calls gone : 0x0040a5d0 0x0042a570 0x0047fb70 0x0059bb50 0x005a53e0
+== 0x0043af70 (MW3 0x0043a0d0) 108L options_menu.cpp [calls,strings]
+   calls added: 0x0040a920(PM) 0x0043a890(PM) 0x0048b8f0 0x0048bac0 0x0048bda0 0x00540090(PM)
+   calls gone : 0x0040cbf0 0x00557ae0
+   strings +  : LIGHT_MAPS LIGHT_MAPS_A LIGHT_MAPS_B GfxFlags_HW GfxFlags_SW
+== 0x0043b2d0 (MW3 0x0043a310) 71L options_menu.cpp [calls]
+   calls gone : 0x0040d410
+== 0x00495ec0 (MW3 0x00492750) 81L pause_menu.cpp [calls]
+   calls added: 0x00438d70 0x005908f0(PM)
+   calls gone : 0x0040a5d0 0x0042a570 0x004c4c60 0x0059bbe0
+== 0x0047a8f0 (MW3 0x004785f0) 51L pilot.cpp [calls,strings]
+   calls added: 0x00477f50 0x0047a9c0(PM)
+   strings +  : DefaultPlayer
+== 0x0047ad20 (MW3 0x00478a40) 81L pilot.cpp [calls]
+   calls gone : 0x00477ac0
+   strings +  : DefaultPlayer
+== 0x00435410 (MW3 0x00434740) 38L pilot_games.cpp [calls]
+   calls added: 0x00434ab0(PM) 0x00435d10(PM)
+   calls gone : 0x00435240
+== 0x004354e0 (MW3 0x00434820) 42L pilot_games.cpp [imports]
+== 0x00436050 (MW3 0x00435500) 61L pilot_games.cpp [calls]
+== 0x00437ce0 (MW3 0x00436f10) 35L pilot_games.cpp [imports]
+== 0x004381d0 (MW3 0x004373e0) 30L pilot_games.cpp [calls]
+== 0x00474810 (MW3 0x00472630) 132L pilot_games.cpp [calls]
+   calls added: 0x004738b0(PM)
+   calls gone : 0x00471460
+== 0x004754d0 (MW3 0x004735f0) 47L pilot_games.cpp [strings]
+   calls gone : 0x0049bfd0
+   strings -  : C__zipper_Mech3_mech_salvage_cpp CONFIG__want__d__s__only_have__d
+== 0x00490980 (MW3 0x00486f40) 116L pilot_menu.cpp [calls,strings]
+   calls added: 0x00438d70 0x00488530(PM)
+   calls gone : 0x0040a5d0 0x0042a570 0x0048b280 0x0048e420 0x0059bb50 0x005a53e0
+   strings -  : SCENARIO_LIST SCENARIO_DESC SCENARIO_COMPLETE
+== 0x004916c0 (MW3 0x004882b0) 159L pilot_menu.cpp [calls,strings]
+   calls added: 0x004a5270 0x0040e340(PM) 0x0040e4d0(PM) 0x0042f3a0 0x00478250 0x0047b740(PM) 0x0048b510(PM) 0x0048bce0(PM) 0x0048bdf0(PM)
+   calls gone : 0x00437060 0x004370d0 0x0048bac0 0x0048bda0 0x0048d0c0 0x004aa700
+   strings +  : Pilot_Statistics Total_Kills___d Total_Shots___d Kills_per_1k_Shots___6_2f
+== 0x004a0e10 (MW3 0x0049dc80) 385L player.cpp [calls]
+   calls added: 0x0040c260(PM) 0x0040c280(PM) 0x0040c2c0(PM) 0x0040c300(PM) 0x00414ba0(PM) 0x00556820 0x00578950(PM) 0x005acba0(PM)
+   calls gone : 0x00414390 0x005569e0 0x0058b160
+   strings +  : vehicle_zrd Emobilehq C__zipper_branchep1_mech3ep1_pla
+   strings -  : FffvAmobilehq C__zipper_Mech3_player_cpp
+== 0x00408f40 (MW3 0x0040b310) 145L player_view.cpp [calls]
+   calls added: 0x005ac350
+== 0x00422940 (MW3 0x00421ad0) 46L player_view.cpp [calls]
+   calls added: 0x00467a90(PM)
+   calls gone : 0x00466190
+== 0x00422cd0 (MW3 0x00421e40) 111L player_view.cpp [calls]
+   calls added: 0x0053ef90(PM)
+   calls gone : 0x005255d0
+== 0x00469060 (MW3 0x004674f0) 30L pocket_panel.cpp [strings]
+   strings +  : Apocket_menu_grey
+== 0x0046a480 (MW3 0x00468900) 108L pocket_panel.cpp [calls]
+== 0x0046c620 (MW3 0x0046aaa0) 31L pocket_panel.cpp [calls]
+   calls gone : 0x00467d80 0x0046aa40 0x0046ab40 0x0046ab50 0x004eb170
+   strings +  : cmd_target_flt
+== 0x0047f870 (MW3 0x0047d3b0) 206L salvage_screen.cpp [calls]
+   calls added: 0x00479480
+== 0x00480260 (MW3 0x0047dcf0) 191L salvage_screen.cpp [calls]
+   calls added: 0x00475100(PM) 0x00479480 0x00484670
+   calls gone : 0x0045b900 0x00470cd0 0x00479440 0x00484650
+== 0x004806c0 (MW3 0x0047e110) 74L salvage_screen.cpp [calls]
+   calls added: 0x00472970
+== 0x00480840 (MW3 0x0047e270) 77L salvage_screen.cpp [calls]
+   calls added: 0x00475100(PM)
+   calls gone : 0x00470cd0 0x00479440
+== 0x004aba80 (MW3 0x004a8530) 85L sensors.cpp [calls,imports]
+   calls added: 0x00409e90
+   calls gone : 0x004d5110
+== 0x004ac7b0 (MW3 0x004a92c0) 93L sensors.cpp [calls]
+   calls added: 0x00448600 0x004ac9d0(PM)
+   calls gone : 0x004ed280 0x0051e9d0 0x0051ea00 0x0051fde0
+== 0x004acb90 (MW3 0x004a9680) 107L sensors.cpp [calls]
+   calls added: 0x004ace80(PM) 0x004acec0(PM) 0x004acf00(PM)
+   calls gone : 0x004a9530 0x004a9980
+== 0x004acff0 (MW3 0x004a9a60) 143L sensors.cpp [calls]
+   calls added: 0x004a9910 0x004ace80(PM) 0x004acec0(PM)
+   calls gone : 0x004a9980
+== 0x004a8a40 (MW3 0x0040dfe0) 51L teleport.cpp [calls]
+== 0x004a95f0 (MW3 0x004a6270) 413L turret.cpp [calls]
+   calls added: 0x004a7390(PM) 0x004d5af0 0x00521050(PM) 0x00578950(PM) 0x005790f0(PM)
+   calls gone : 0x004a4b30 0x00508460 0x005569e0 0x005570d0
+   strings +  : PARTS healthy DEACTIVATE EFFECT HEALTH DESTROY_ANIM ONFIRE_ANIM WAKEUP_ANIM SLEEP_ANIM AUX_ANIM IS_IDLE SOUNDS LIMITS WEAPON DETECTION_RANGE FIRE_LIMITS FIRE_RA
+   strings -  : C__zipper_Mech3_turret_cpp
+== 0x004aa080 (MW3 0x004a6be0) 176L turret.cpp [calls]
+   calls added: 0x00581f90 0x00581fd0
+   calls gone : 0x00581fb0
+== 0x004aa670 (MW3 0x004a71c0) 116L turret.cpp [calls]
+== 0x004b0c70 (MW3 0x004ad2d0) 33L veh_basic_object.cpp [calls]
+   calls gone : 0x00586af0
+== 0x004b0d90 (MW3 0x004ad3f0) 71L veh_basic_object.cpp [calls]
+   calls gone : 0x00586a30
+== 0x004b1030 (MW3 0x004ad740) 13L veh_basic_object.cpp [calls]
+   calls added: 0x004a70c0(PM)
+== 0x004b10b0 (MW3 0x004ad7c0) 9L veh_basic_object.cpp [calls]
+   calls added: 0x004a71f0(PM)
+== 0x004b0560 (MW3 0x004acbc0) 67L veh_controls.cpp [calls]
+   calls added: 0x00578950(PM)
+   calls gone : 0x005569e0 0x005869d0
+   strings +  : start_anims health
+== 0x004f90f0 (MW3 0x004e72f0) 53L veh_controls.cpp [calls]
+   calls added: 0x004f9090(PM)
+== 0x004a3200 (MW3 0x0049ff80) 83L veh_move.cpp [calls]
+   calls added: 0x004a3e00(PM) 0x004a3e20(PM) 0x004a4320(PM)
+   calls gone : 0x004a0b00 0x004a0b20 0x004a1020
+== 0x004b34d0 (MW3 0x004af5a0) 200L weapon.cpp [strings]
+   calls added: 0x00578950(PM) 0x005790f0(PM)
+   calls gone : 0x005569e0 0x005570d0
+   strings +  : SHOW_ON_RADAR ZAPS_HUD SALVO count delta radius delay truecount BURST ISNARC IMPACT_FORCE RECOIL U_FIRE_TIME U_RECHARGE_TIME U_DESIGNATE_AIRSTRIKE U_LOOPED U_RE
+== 0x004b64f0 (MW3 0x004b2530) 142L weapon.cpp [calls]
+   calls added: 0x004b67e0(PM) 0x004b4de0 0x004b8ed0(PM)
+   calls gone : 0x004b2870
+== 0x004b6ad0 (MW3 0x004b2c20) 65L weapon.cpp [calls]
+   calls added: 0x004b7b10(PM)
+   calls gone : 0x004b36e0
+== 0x004b6f70 (MW3 0x004b3020) 69L weapon.cpp [calls]
+   calls added: 0x004b4560(PM)
+   calls gone : 0x004b0730
+== 0x004b7da0 (MW3 0x004b3c10) 44L weapon.cpp [calls]
+   calls added: 0x004b4e50 0x004b8f10(PM)
+== 0x004b7ea0 (MW3 0x004b3d70) 45L weapon.cpp [calls]
+   calls added: 0x004b4e50 0x004b8f10(PM)
+== 0x004b80f0 (MW3 0x004b3fc0) 81L weapon.cpp [calls]
+   calls added: 0x004b4d10
+== 0x004b5330 (MW3 0x004b1470) 116L weapon_planner.cpp [calls]
+   calls added: 0x004b8ce0(PM) 0x004c5180 0x004c51c0 0x004b9390(PM)
+   calls gone : 0x004b4ba0 0x0054bb30 0x0054be10
+== 0x004e52f0 (MW3 0x004d4f20) 85L zai_anim_owner.cpp [calls]
+== 0x004d3c30 (MW3 0x004c87f0) 33L zai_brain.cpp [calls]
+   calls added: 0x004fbe60(PM)
+== 0x004d6070 (MW3 0x004ccec0) 14L zai_brain.cpp [calls]
+   calls added: 0x004fbe60(PM)
+== 0x004dd1e0 (MW3 0x004cf330) 89L zai_brain.cpp [imports]
+   calls added: 0x004b2950(PM) 0x004dc0f0(PM) 0x004fa090(PM) 0x004fa860(PM) 0x005acba0(PM)
+   calls gone : 0x004aec00 0x004ce620 0x004d9a50 0x004e82a0 0x004e9380 0x0058b160
+== 0x004dd5e0 (MW3 0x004cf630) 96L zai_brain.cpp [calls]
+   calls added: 0x004de920(PM) 0x004ea7e0 0x004ea8e0
+== 0x004f9c30 (MW3 0x004e7e20) 55L zai_brain.cpp [calls]
+== 0x004faff0 (MW3 0x004e9d90) 97L zai_brain.cpp [calls]
+   calls added: 0x004fbfd0(PM) 0x004fc130(PM) 0x004fc1c0(PM)
+   calls gone : 0x004e8070
+== 0x004bacc0 (MW3 0x004b6fa0) 28L zai_firing.cpp [calls]
+   calls gone : 0x005a8630
+== 0x004e2730 (MW3 0x004d24f0) 54L zai_target.cpp [calls]
+   calls added: 0x0050b450
+== 0x004e2820 (MW3 0x004d25c0) 73L zai_target.cpp [calls]
+   calls added: 0x00437920(PM) 0x00479480
+== 0x004cd2f0 (MW3 0x004c3380) 161L zainet_inout.cpp [calls,imports]
+   calls added: 0x004cced0(PM) 0x004c4240 0x004e3b50(PM)
+   calls gone : 0x0040a850 0x004c0030 0x004c3520 0x004c35e0 0x004c5100 0x004c5170 0x004c5440 0x004c5470 0x0058b390
+== 0x004cefc0 (MW3 0x004c4730) 52L zainet_inout_view.cpp [calls]
+   calls added: 0x004c43b0
+   calls gone : 0x0040a850 0x004c0030 0x004c4900 0x004c50e0 0x004c5530
+== 0x004d13d0 (MW3 0x004c6050) 154L zainet_node.cpp [calls]
+   calls added: 0x0049d190
+== 0x004d1670 (MW3 0x004c62d0) 57L zainet_node.cpp [calls]
+   calls added: 0x0049d1f0 0x0049d250
+== 0x004d1790 (MW3 0x004c63a0) 167L zainet_node.cpp [calls]
+   calls added: 0x0049d210 0x0049d250
+== 0x004d1fe0 (MW3 0x004c6bd0) 46L zainet_node.cpp [calls]
+   calls added: 0x0049d250
+== 0x004f3130 (MW3 0x004e1d70) 111L zrdrvalve.cpp [calls]
+   calls added: 0x0042f430 0x0049ccb0
