@@ -963,3 +963,19 @@
 0x00454210	folded	fd0 read: the same logic (the item rows' draw, hit test and vector growth), PM's compiler folding the size checks into loop conditions and swapping the branches
 0x00454570	folded	fd0 read: the same logic (the item rows' draw, hit test and vector growth), PM's compiler folding the size checks into loop conditions and swapping the branches
 0x004547e0	folded	fd0 read: the same logic (the item rows' draw, hit test and vector growth), PM's compiler folding the size checks into loop conditions and swapping the branches
+0x00503180	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c; the ray/sphere walk's stop flag PM's own global), PM passing register arguments and splitting the tests
+0x00503290	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c; the ray/sphere walk's stop flag PM's own global), PM passing register arguments and splitting the tests
+0x00503d70	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c; the ray/sphere walk's stop flag PM's own global), PM passing register arguments and splitting the tests
+0x005041e0	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c; the ray/sphere walk's stop flag PM's own global), PM passing register arguments and splitting the tests
+0x005108b0	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c; the ray/sphere walk's stop flag PM's own global), PM passing register arguments and splitting the tests
+0x0050c8e0	folded	fd0 read: the node pool's take and give back as MW3's (0xd4-byte nodes, the free list in the low 24 bits of +0xd0); PM also zeroes the node's 0x35 dwords, which the port's own nodes are made with
+0x0050c9d0	folded	fd0 read: the node pool's take and give back as MW3's (0xd4-byte nodes, the free list in the low 24 bits of +0xd0); PM also zeroes the node's 0x35 dwords, which the port's own nodes are made with
+0x00517ac0	missing	pm only, BROKEN row: PM's re-read of a node from the read world (only when exactly one gamez file was read, 0x00639c2c == 1, the first in PM's list 0x00639c28) for the crater reset at a history restore; the pm port's shared reread (cls_zbd.cpp:311) depends on zbd_path(), which PM's reader (src/pm/gamez/zclass/cls_zbd.cpp:364) never sets, and reads MW3's node format, so on PM it returns at once (MW3 0x004ff730)
+0x00517b30	missing	pm only, BROKEN row: PM's node re-read in PM's node format (MW3 0x004ff7a0), the shared port's MW3 format only; see 0x00517ac0
+0x00504fb0	folded	fd0 read: the same logic (the world's fog and light parameters by their flags; PM's fog mode setter 0x005404f0 is its own row, missing; the colour push 0x00540740 is MW3's 0x00526de0 with PM's 0xa4e040, MW3's 0x74a234), PM's compiler returning early
+0x0050daf0	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c), PM passing register arguments and returning early
+0x0050cc80	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c), PM passing register arguments and returning early
+0x0050cd10	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c), PM passing register arguments and returning early
+0x00515ea0	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c), PM passing register arguments and returning early
+0x0050b2b0	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c), PM passing register arguments and returning early
+0x0050b700	folded	fd0 read: the same logic on PM's node layout (children a short count +0x56 and array +0x5c), PM passing register arguments and returning early
