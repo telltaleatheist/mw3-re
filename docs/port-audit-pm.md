@@ -56,14 +56,14 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3328 |
-| unlabelled | 929 |
-| replaced (SDL or the platform layer) | 233 |
-| MISSING LOGIC | 199 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 114 |
+| folded | 3345 |
+| unlabelled | 900 |
+| replaced (SDL or the platform layer) | 234 |
+| MISSING LOGIC | 208 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 115 |
 | software renderer | 106 |
 | debug or dev tool: PORT (preserve) | 86 |
-| unused: PORT (preserve) | 70 |
+| unused: PORT (preserve) | 71 |
 | dev dialog (MFC), its logic: PORT (preserve) | 66 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
 
@@ -92,6 +92,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x0045a250, 0x0045b100** (2 functions, 223 decomp lines; MISSING LOGIC): pm only, field bases: when a field base (MCB) dies, PM first counts the bases still alive (0x0045b0d0) and, with none left, aborts the dock in progress (0x0045b320, the front state's abort, the port's FieldBases::abort_front); then the campaign's cut as MW3's (the base count by the campaign's vt+0x5c, the share 1 / 0.7 / 0.5, 2 mechs and 300 tons kept per base left). The port's field_base_die (mech_fieldbase.cpp:316) has the death and the cut but no abort, so on PM the dock in progress when the last base dies is not aborted (what the abort undoes: mech_fieldbase_dock.cpp:196)
 - **0x0045b240** (1 functions, 44 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's dock registry frame (0x0045b240, from the mission frame 0x004921a0, in MW3's 0x0045a270's place) runs the dock states in every game type and has no multiplayer branch; PM checks the deployment in its refit instead (0x0045be50, ported: DockRefit::may_start). The port's FieldBases::frame (mech_fieldbase_dock.cpp:329) is MW3's on PM too: in multiplayer (type 3) it runs no dock states and, with mobile bases on, MW3's station check and its 'too far from MFB deployment point' line, which PM's frame never does
 - **0x00464780** (1 functions, 201 decomp lines; MISSING LOGIC): MW3's 0x00463110 (mech_part_update.cpp Foot::update) with one change: the footprint on a footfall is left out for the Elemental (PM's id 11), which also skips stopping the water wake there; the rest as MW3's (the footprint test 0x00464610 = MW3's 0x00462fa0 with its register arguments explicit, the effect's call 0x005216e0 = 0x00508aa0). The pm port keeps MW3's: an Elemental's steps print
+- **0x00468d50** (1 functions, 12 decomp lines; MISSING LOGIC): PM's torso override of the parts' vt+0x5c (MW3's torso has the base 0x00467290, mech_lod.cpp MechPart::switch_lod): the base switch (0x00468cd0), then with a headlight (+0x7c) the headlight re-parented under the torso's new node (0x004798d0(node, no offset)). The port's Torso has no override, so after a level-of-detail switch its headlight stays under the other model's node (what that shows in play not traced)
 - **0x00469c80** (1 functions, 63 decomp lines; MISSING LOGIC): pm only, minor, effect to check: the lance command's target marker (cmd_target.flt; MW3's 0x00468100, the port's make_marker, app_pocket.cpp:175): PM gives it side bit 1 outright (MW3 the player's side by 0x004d5af0(0), 1 for side 0 as well), passes it to 0x004e88b0 (a list's add-if-missing on the AI registry), and starts it switched off: its node inactive (0x004fca50(node, 0)) and its +8 byte cleared; the port's marker starts on, as MW3's. Whether anything finds the marker while it is off is to check
 - **0x0047be40** (1 functions, 29 decomp lines; MISSING LOGIC): pm only, field bases: the MCB waynet's nearest point (0x0047c960, MW3 0x0047a680, the port's McbWaynet::nearest, mech_waynet.cpp:312): PM walks the waynet's points itself (0x0047be40 with 0x0047bdc0 / 0x0047bde0) and takes the nearest whose hidden byte (+0x11) is clear, selecting nothing when none is; MW3's (0x00479b50, the port's Waynet::nearest, mech_waynet.cpp:195) asks the net's nearest step and falls back to the current point. PM hides the dock points that aren't static MFBs as it counts them (the port's dock_count, mech_waynet.cpp:417), so on PM the port can pick a hidden point where PM would not
 - **0x00480260** (1 functions, 191 decomp lines; MISSING LOGIC): pm only, multiplayer, with 0x00480840's row (the rounds' salvage capacity from the game: vt+0x5c bases, vt+0x60 or vt+0x64 tons): PM's salvage screen set-up (MW3's 0x0047dcf0); its other differences, 191 lines, are read with the menus
@@ -103,10 +104,15 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x004a3200** (1 functions, 83 decomp lines; MISSING LOGIC): pm only, vehicles, traced: PM's vehicle collision record (0x004a3cb0) puts hits on a mech's part nodes (0x0040f210, the part's owner) in a new list +0x358 and other entities' (0x0040f1a0) in +0x354, dropping one whose object's byte +8 is 0; the step (0x004a3200, MW3 0x004a09e0) answers either list with 0x004a4320, which runs the collision response 0x004a3e40 (MW3 0x004a0b40) on +0x354 only, and sets the hit flag (+0x374) for both. So in PM a vehicle that runs into a mech is flagged as hit but gets no response from the mech's parts (MW3 and the port respond to every entity hit: veh_move.cpp vehicle_collision_query, one list); the flag still keeps the ground step's own response (the end of 0x004a3200) from running
 - **0x004a7170, 0x004a71f0, 0x004aaf80** (3 functions, 86 decomp lines; MISSING LOGIC): pm only, with bug fixes off: PM's limit clamp (0x004a71f0, with 0x004a7170; from the vehicles' vt+0x90 0x004b10b0, MW3's 0x004ad7c0) gives the limit's direction along the heading's own length, hypot(x, z): run in the emulator against MW3's 0x004a41b0 on vehicle limits (gun pitch, full yaw), the answer agrees on all 2,000 and the direction on every one within the limits, and past them PM's is the unit direction at the limit where MW3's has its hypot(x, y) typo. The port's TurretLimits::clamp (veh_controls.cpp) gives PM's with zfix's fixes on and MW3's typo with them off, and PM's AI reads it (zai_firing_pm.cpp plan_turn: there || dot(out, dir) >= cone), so on the pm branch the original path should be PM's formula unswitched. tests/differential/explore/pm_clamp_cmp.py (2026-11-13)
 - **0x004abc60** (1 functions, 93 decomp lines; MISSING LOGIC): pm only, minor, sensors: PM's sensor frame set-up (0x004abc60, MW3's 0x004a8710, inside the update 0x004ac1e0 / MW3 0x004a8cd0) adds the player and handles the stealth but not the view target; PM's per-entity add (0x004ac6c0, MW3 0x004a91b0) skips only the player and the stealth, so a viewed vehicle that isn't the player comes in list order and only when its vehicle answers vt+0xd8. MW3 adds the view second, whatever its answer, and the port does as MW3 (sensors.cpp:482-485, and the loop's skip of the view at :487); the order sets which pairs run first (the player's, the lancemates', the rest)
+- **0x004ac7b0** (1 functions, 93 decomp lines; MISSING LOGIC): pm only, sensors, the same rule as 0x004ad2b0: MW3's 0x004a92c0 (sensors.cpp pair, two others each sensing the other) with the C3 rule: a record with bit 8 (a C3 master) senses one with bit 0x10 (a C3 slave) at any range, both ways; the visibility test 0x004ac9d0 (MW3's inline one), the contact 0x004aca30. The port's pair has the range test only
+- **0x004acb90, 0x004acff0** (2 functions, 250 decomp lines; MISSING LOGIC): pm only, sensors, the same rule as 0x004ad2b0: MW3's 0x004a9680 / 0x004a9a60 (sensors.cpp: the player, and each lancemate under orders, with every other) with the range tests through 0x004acec0 and 0x004acf00, which add the C3 master and slave at any range (labelled there); the rest MW3's steps through PM's helpers
 - **0x004acec0** (1 functions, 18 decomp lines; MISSING LOGIC): pm only, sensors, the same rule as 0x004ad2b0: the range test of the player's and the lancemates' passes (0x004acb90 / 0x004acff0, MW3 0x004a9680 / 0x004a9a60): sensed when everything is shown, or within range, or when the sensing record has bit 8 (a C3 master) and the other bit 0x10 (a C3 slave), at any range; the port's in_range (sensors.cpp:85) has the first two only
 - **0x004acf00** (1 functions, 43 decomp lines; MISSING LOGIC): pm only, sensors, the same rule as 0x004ad2b0 for the other direction (the other vehicle sensing the player or the lancemate): within range, everything shown, or C3 master and slave at any range; then MW3's side tests for the contact's kind
 - **0x004ad5c0** (1 functions, 108 decomp lines; MISSING LOGIC): pm only, sensors, with 0x004ad2b0's C3 rules: PM's C3 merge (0x004ad5c0, MW3 0x004a9fd0) puts into a master's list only what its C3 slaves saw (the other record's bit 0x10); MW3's merges every C3 unit's, masters too (bits 0x18), and the port does as MW3 (c3_merge, sensors.cpp:373)
+- **0x004af210, 0x004af2d0, 0x004af360** (3 functions, 112 decomp lines; MISSING LOGIC): pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus)
 - **0x004b0790** (1 functions, 76 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the vehicle's above camera pitched -81 degrees (-1.413716) in PM, -90 in MW3; its 150 m the same in both (veh_basic_object.cpp:500)
+- **0x004b0d90** (1 functions, 71 decomp lines; MISSING LOGIC): pm only: MW3's 0x004ad3f0 (veh_basic_object.cpp vehicle_damage) without its heat and freeze branches: every hit takes health - damage, so on PM a heat weapon (every laser's IMPACT HEAT) no longer warms the basic vehicle's glow by the share lost (0x00586a30), a freeze weapon damages instead of chilling, and the frozen extra damage is gone; the health's glow step (0x005a5150 = MW3's 0x00583730), the jolt over 5 and the death and kill credit as MW3's. The port keeps MW3's branches
+- **0x004b10b0** (1 functions, 9 decomp lines; MISSING LOGIC): MW3's 0x004ad7c0 (veh_basic_object.cpp, the vehicles' vt+0x90: the turret's limit clamp) as a direct call to PM's clamp 0x004a71f0 (labelled there: the limit's direction along the heading's own length)
 - **0x004b4560** (1 functions, 39 decomp lines; MISSING LOGIC): pm only, weapons: selecting a weapon group (0x004b4560, PM's in MW3's 0x004b0730 place, the port's WeaponManager::select_group, weapon.cpp:650): when the group's current weapon is not ready (0x004b7bd0, MW3's 0x004b3a20), PM moves the group on to its next ready weapon (0x004b5e10, MW3's 0x004b1f40) before the HUD's refresh; MW3 and the port keep the current one. Reached from the group keys, the mech build, the weapon planner and two weapon manager steps
 - **0x004b5330, 0x004b8ce0** (2 functions, 124 decomp lines; MISSING LOGIC): pm only, AI: the volley planner's weapon test (weapon_planner.cpp:92 shot_of and add_weapon, through in_range's type_ready()): MW3's 0x004b4ba0 needs the weapon's owner, its definition and the reload time passed ([0x0060991c] >= def+0xc4, 0x004b4c70); PM's 0x004b8ce0 needs only the owner. So PM's burst record 0x004b5230 counts a reloading weapon's damage and PM's add-weapon 0x004b5330 takes it as a candidate and into its group's sums; the port keeps MW3's ready test on PM. Reached through PM's volley 0x004b56d0 (MW3 0x004b1860)
 - **0x004b5f80** (1 functions, 110 decomp lines; MISSING LOGIC): pm only, weapons, group fire (mode 2): PM's group trigger (0x004b5f80, in MW3's 0x004b2100 place, the port's WeaponGroup::trigger, weapon.cpp:455) fires the best-rated beam first, then each other weapon telling zWeapon whether its definition already fired in this volley (0x005a3680, MW3's 0x00581f90, the port's set_fire_animation): the first of a kind plays its FIRE animation, the repeats its second one (fire.animation2, zwep_shot.cpp:341). The port's trigger fires in order and never sets the choice, so every weapon of a kind plays the first animation; the beams' ground effect is cleared as MW3's
@@ -172,6 +178,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00465a60** (1 functions, 56 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): ported otherwise: src/mech3/mech_part_update.cpp Torso::setup (MW3's 0x00464290) with PM's headlight (0x00465b8c) and fields at +0x148..+0x164 and +0x84/+0x88 (layout); one difference: when the base set-up fails PM returns before the cockpit call (0x00465e20(0)), where MW3 and the port make it either way; a failing set-up needs a part the shipped data lacks
 - **0x00467d10** (1 functions, 62 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): ported otherwise: src/mech3/mech_part_update.cpp Arm::setup (MW3's 0x004663e0); one difference: a hand whose set-up fails has its items taken off first (0x0041c380, MW3's 0x0041b5f0 with a -1 check) before it is deleted, where MW3 and the port only delete it; a failing set-up needs a part the shipped data lacks
 - **0x004a70c0, 0x004a7390, 0x004a7420, 0x004aaf40** (4 functions, 60 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only, measured: PM's turn limits are a new class (promote1.cpp's CZValidateDir: set 0x004a7390 / 0x004a7420, made by 0x004a6ee0, tested by 0x004a7000 and its thunk 0x004a70c0) in MW3's TurnLimits' place (turret.cpp make/within, MW3 0x004a4b30 and vt+0x08). Run in the emulator against a float copy of the port's (which agrees with MW3's on all 3,000 cases), PM's test differs on 457 of 3,000 (narrow and wide yaw ranges only; the full and fixed kinds agree), and agrees on 2,999 once the yaw range is negated: a turret's yaw arc is mirrored left to right from MW3's (0x004a7390 passes -yhi, -ylo). No shipped PM turret has LIMITS YAW (aiTurrets.zrd: 42 turrets, none; FIRE_LIMITS is the bursts'), the constructor's full turn and the vehicles' full-yaw gun pitch agree, so only a mod's turret with an uneven YAW shows it. tests/differential/explore/pm_limits_cmp.py (2026-11-13)
+- **0x004b1030** (1 functions, 13 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): MW3's 0x004ad740 (veh_basic_object.cpp vehicle_gun_within: the controls' turret limits, vt+0x08) as a direct call to PM's turn-limit test 0x004a70c0 on the controls' limits (+0x764 + 0x28, asm), both branches the same; the class is PM's (labelled at 0x004a7000 / 0x004a70c0)
 - **0x004b1b80** (1 functions, 31 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae270, whose class PM's changes keep: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b1c40** (1 functions, 8 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae340: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b1c50** (1 functions, 8 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae350: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
@@ -408,6 +415,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 - 1 functions, 52 decomp lines (0x0041ed00): as MW3 0x0041dd90: read: the mech's vt+0x94 (a world direction clamped into the torso's arc through 0x00465c70, the vehicles' 0x004ad7f0 counterpart): the 20 calls through +0x94 in the exe are on other classes (IControls' on_hit, the 2D widgets, the behaviours' attack test, the edit bar, a part), none on a mech; the port's aim uses vt+0x90 (Mech::clamp_aim, 0x0041dca0)
 - 1 functions, 10 decomp lines (0x0048b510): fd0 read: the list box's arrows as MW3's 0x0048c910 plus two PM bytes that keep UP (+0x1e0) and DOWN (+0x1e1) enabled; the pm port has the arrows without them (menu_widgets.cpp:1264-1330). Only 0x0048b510 sets them, from the pilot screen's training case (0x004916c0 case 4), which PM's menu doesn't reach (pm-mech-step.md:472), so no shipped path shows it
 - 1 functions, 28 decomp lines (0x004964f0): as MW3 0x00493120: the movie base's run to the end on its own clock (0x00575d30): nothing calls it (fmv.md)
+- 1 functions, 10 decomp lines (0x004aaea0): unused: PORT (preserve): no caller and no table holds it; a wrapper calling 0x0040f1d0 and then 0x004aaa50 with its last three arguments
 - 1 functions, 76 decomp lines (0x004b5040): as MW3 0x004b1170: the static the AI's planner builds at 0x0060b240 (two reserved vectors): read by nothing (weapon_planner.h:7)
 - 1 functions, 9 decomp lines (0x004b51a0): called only from 0x004b5040, which are unused
 - 1 functions, 21 decomp lines (0x004c8010): as MW3 0x004c0ed0: the vehicle's +0xd8 record of each in/out query (its constructor and reset): written, never read (docs/symbols.csv: not kept; ai.md 11)
@@ -1665,7 +1673,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00468bf0 | 10 | folded | as MW3 0x00467180: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00468c30 | 8 | folded | returns a constant or a global |
 | 0x00468c50 | 25 | folded | covered by the port where it names it (src/mech3/mech_parts.cpp:985) |
-| 0x00468d50 | 12 | unlabelled |  |
+| 0x00468d50 | 12 | MISSING LOGIC | PM's torso override of the parts' vt+0x5c (MW3's torso has the base 0x00467290, mech_lod.cpp MechPart::switch_lod): the base switch (0x00468cd0), then with a headlight (+0x7c) the headlight re-parented under the torso's new node (0x004798d0(node, no offset)). The port's Torso has no override, so after a level-of-detail switch its headlight stays under the other model's node (what that shows in play not traced) |
 | 0x00468d80 | 12 | folded | as MW3 0x004c4c60: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x00468da0 | 127 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
 | 0x00468ff0 | 9 | folded | a thunk: one call to another function |
@@ -1689,11 +1697,11 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0046a990 | 16 | folded | ported, by docs/symbols.csv: ported: the record with the target at +0x10 |
 | 0x0046a9c0 | 36 | folded | ported, by docs/symbols.csv: ported: pocket_order's unit step (on the target) |
 | 0x0046ab20 | 40 | folded | ported, by docs/symbols.csv: ported: pocket_order (on a contact made on the target) |
-| 0x0046ac20 | 102 | unlabelled |  |
-| 0x0046af20 | 94 | unlabelled |  |
-| 0x0046b1b0 | 112 | unlabelled |  |
-| 0x0046b4b0 | 9 | unlabelled | follows 0x0046b4d0:  |
-| 0x0046b4d0 | 182 | unlabelled |  |
+| 0x0046ac20 | 102 | folded | ported, checked by test: src/mech3/mech_pocket.cpp (MW3's 0x004690d0, the pocket mode's constructor, on PM's controls 0x00428fd0 and IControls base 0x004b2950); tests/differential/test_pm_pocket.py makes the mode through the dispatcher and compares its fields after the start (400 cases identical, 2026-11-13) |
+| 0x0046af20 | 94 | folded | ported, checked by test: src/mech3/lance_orders.cpp (MW3's 0x00469400 / 0x00469650, the lance order on the lancemate's contact on the player / on the player's target); tests/differential/test_pm_lance_dispatch.py runs them through the dispatcher and compares every order, marker move and show, the controls returned and the markers' team words (3,000 cases identical, 2026-11-13) |
+| 0x0046b1b0 | 112 | folded | ported, checked by test: src/mech3/lance_orders.cpp (MW3's 0x00469400 / 0x00469650, the lance order on the lancemate's contact on the player / on the player's target); tests/differential/test_pm_lance_dispatch.py runs them through the dispatcher and compares every order, marker move and show, the controls returned and the markers' team words (3,000 cases identical, 2026-11-13) |
+| 0x0046b4b0 | 9 | folded | follows 0x0046b4d0: the lance order dispatcher with its third argument 1 (outside the command mode), from the key commands' lance-order cases (mech_command.cpp) |
+| 0x0046b4d0 | 182 | folded | ported, checked by test: src/mech3/mech_pocket.cpp and lance_orders.cpp (MW3's 0x00469940, the lance order dispatcher); test_pm_pocket.py (the mode made, its fields, axes and the controls given back) and test_pm_lance_dispatch.py (every order and marker) run it against the port, both identical (2026-11-13) |
 | 0x0046b8b0 | 9 | folded | a thunk: one call to another function |
 | 0x0046bf70 | 10 | folded | ported, by docs/symbols.csv: ported: pocket_draw's |
 | 0x0046c110 | 12 | folded | covered by the port where it names it (src/mech3/pocket_panel.cpp:290) |
@@ -2399,13 +2407,13 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004aa080 | 176 | unlabelled |  |
 | 0x004aa670 | 116 | folded | group A, read: the same logic and constants (3.0 and 8.0 the turn rate, 1.0, cos 0.89); PM's test reads 'in range and dot >= 0.89' where MW3's reads 'not (out of range or dot <= 0.89)', so only a dot of exactly 0.89 differs; PM passes the node helpers' arguments where MW3 leaves them in registers |
 | 0x004aabe0 | 119 | unlabelled |  |
-| 0x004aaea0 | 10 | unlabelled |  |
+| 0x004aaea0 | 10 | unused: PORT (preserve) | unused: PORT (preserve): no caller and no table holds it; a wrapper calling 0x0040f1d0 and then 0x004aaa50 with its last three arguments |
 | 0x004aaf40 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | follows 0x004a70c0: pm only, measured: PM's turn limits are a new class (promote1.cpp's CZValidateDir: set 0x004a7390 / 0x004a7420, made by 0x004a6ee0, tested by 0x004a7000 and its thunk 0x004a70c0) in MW3's TurnLimits' place (turret.cpp make/within, MW3 0x004a4b30 and vt+0x08). Run in the emulator against a float copy of the port's (which agrees with MW3's on all 3,000 cases), PM's test differs on 457 of 3,000 (narrow and wide yaw ranges only; the full and fixed kinds agree), and agrees on 2,999 once the yaw range is negated: a turret's yaw arc is mirrored left to right from MW3's (0x004a7390 passes -yhi, -ylo). No shipped PM turret has LIMITS YAW (aiTurrets.zrd: 42 turrets, none; FIRE_LIMITS is the bursts'), the constructor's full turn and the vehicles' full-yaw gun pitch agree, so only a mod's turret with an uneven YAW shows it. tests/differential/explore/pm_limits_cmp.py (2026-11-13) |
 | 0x004aaf60 | 9 | folded | a thunk: one call to another function |
 | 0x004aaf80 | 9 | MISSING LOGIC | follows 0x004a71f0: pm only, with bug fixes off: PM's limit clamp (0x004a71f0, with 0x004a7170; from the vehicles' vt+0x90 0x004b10b0, MW3's 0x004ad7c0) gives the limit's direction along the heading's own length, hypot(x, z): run in the emulator against MW3's 0x004a41b0 on vehicle limits (gun pitch, full yaw), the answer agrees on all 2,000 and the direction on every one within the limits, and past them PM's is the unit direction at the limit where MW3's has its hypot(x, y) typo. The port's TurretLimits::clamp (veh_controls.cpp) gives PM's with zfix's fixes on and MW3's typo with them off, and PM's AI reads it (zai_firing_pm.cpp plan_turn: there // dot(out, dir) >= cone), so on the pm branch the original path should be PM's formula unswitched. tests/differential/explore/pm_clamp_cmp.py (2026-11-13) |
 | 0x004aafa0 | 9 | folded | a thunk: one call to another function |
 | 0x004aafc0 | 8 | folded | ported, by docs/symbols.csv: ported: vt+0xa0 |
-| 0x004aafd0 | 16 | unlabelled |  |
+| 0x004aafd0 | 16 | folded | by the slot pairing, read: PM's turret vtable 0x005ead98 slot +0xd8 is MW3's 0x005c8770 +0xcc 0x004a7a70 (turret.h awake, the sensors' vt+0xcc): active, not idle (+0x294 for +0x27c) and in the player's view; the same |
 | 0x004ab0e0 | 13 | folded | covered by the port where it names it (src/mech3/mech_command.cpp:195) |
 | 0x004ab1d0 | 11 | folded | covered by the port where it names it (src/mech3/sensors.cpp:142) |
 | 0x004ab1f0 | 18 | folded | as MW3 0x004a7c90: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
@@ -2413,40 +2421,40 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004ab260 | 87 | folded | as MW3 0x004a7d00: covered where the port does it: src/mech3/sensors.cpp:142 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004ab480 | 42 | folded | read: the same loop as MW3's 0x004a7cd0 walk (the first match taken and kept at +8), PM's breaking where MW3's tests in the condition |
 | 0x004ab720 | 12 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.h:8) |
-| 0x004ab750 | 73 | unlabelled |  |
+| 0x004ab750 | 73 | folded | read: MW3's 0x004a81f0 (sensors.cpp, the record's vt+0x00: a target pushed on the list); the same vector growth (PM's helper folds MW3's size test), the copy 0x004d7810 = 0x004d5110 |
 | 0x004ab910 | 67 | folded | as MW3 0x004a83c0: covered where the port does it: src/mech3/sensors.cpp:457 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x004aba80 | 85 | unlabelled |  |
+| 0x004aba80 | 85 | folded | read: MW3's 0x004a8530 (sensors.cpp, a target if active: recorded, flagged into the enemy and ally lists by its bits 8 and 0x10, its caches freed and fields cleared); the same, PM's list insert written through 0x0045cb10 where MW3 inlines one of the two |
 | 0x004abc30 | 12 | folded | as MW3 0x004a86e0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004abc60 | 93 | MISSING LOGIC | pm only, minor, sensors: PM's sensor frame set-up (0x004abc60, MW3's 0x004a8710, inside the update 0x004ac1e0 / MW3 0x004a8cd0) adds the player and handles the stealth but not the view target; PM's per-entity add (0x004ac6c0, MW3 0x004a91b0) skips only the player and the stealth, so a viewed vehicle that isn't the player comes in list order and only when its vehicle answers vt+0xd8. MW3 adds the view second, whatever its answer, and the port does as MW3 (sensors.cpp:482-485, and the loop's skip of the view at :487); the order sets which pairs run first (the player's, the lancemates', the rest) |
 | 0x004abe80 | 98 | folded | read: MW3's 0x004a8990 unpaired by the diff (a vehicle added to the sensor frame: its records grown, the entity's made), called where MW3's set-up calls it (0x004abc60) |
 | 0x004ac130 | 27 | folded | traced: the sensors' static contact vector (32 slots), MW3's 0x004a8c30 with each slot built through a helper; the port's sensors keep their own container (sensors.cpp:179) |
 | 0x004ac190 | 9 | folded | a thunk: one call to another function |
-| 0x004ac1e0 | 237 | unlabelled |  |
+| 0x004ac1e0 | 237 | folded | read: MW3's 0x004a8cd0 (sensors.cpp, the sensors' pass): the feature compare finds only the sort's call different, PM calling its own template copy 0x004add70 where MW3 calls 0x0049ced0 with the same arguments (the two copies differ only in element copies through 0x004d7810 where MW3's are inline) |
 | 0x004ac6c0 | 50 | folded | as MW3 0x004a91b0: covered where the port does it: src/mech3/sensors.cpp:179 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x004ac7b0 | 93 | unlabelled |  |
+| 0x004ac7b0 | 93 | MISSING LOGIC | pm only, sensors, the same rule as 0x004ad2b0: MW3's 0x004a92c0 (sensors.cpp pair, two others each sensing the other) with the C3 rule: a record with bit 8 (a C3 master) senses one with bit 0x10 (a C3 slave) at any range, both ways; the visibility test 0x004ac9d0 (MW3's inline one), the contact 0x004aca30. The port's pair has the range test only |
 | 0x004ac9d0 | 22 | folded | read: the pair pass's side test (whether a contact of that kind counts: shown-all, the vehicle's vt+0xc0, the records' side bits), MW3's inline in 0x004a92c0 (the port's pair) |
-| 0x004acb90 | 107 | unlabelled |  |
+| 0x004acb90 | 107 | MISSING LOGIC | pm only, sensors, the same rule as 0x004ad2b0: MW3's 0x004a9680 / 0x004a9a60 (sensors.cpp: the player, and each lancemate under orders, with every other) with the range tests through 0x004acec0 and 0x004acf00, which add the C3 master and slave at any range (labelled there); the rest MW3's steps through PM's helpers |
 | 0x004acdc0 | 18 | folded | covered by the port where it names it (src/mech3/sensors.cpp:277) |
 | 0x004ace10 | 29 | folded | covered by the port where it names it (src/mech3/sensors.cpp:281) |
 | 0x004ace80 | 16 | folded | read: a contact made (0x004aca30, labelled there) and pushed on the sensing record's list; the wrapper's own steps are MW3's |
 | 0x004acec0 | 18 | MISSING LOGIC | pm only, sensors, the same rule as 0x004ad2b0: the range test of the player's and the lancemates' passes (0x004acb90 / 0x004acff0, MW3 0x004a9680 / 0x004a9a60): sensed when everything is shown, or within range, or when the sensing record has bit 8 (a C3 master) and the other bit 0x10 (a C3 slave), at any range; the port's in_range (sensors.cpp:85) has the first two only |
 | 0x004acf00 | 43 | MISSING LOGIC | pm only, sensors, the same rule as 0x004ad2b0 for the other direction (the other vehicle sensing the player or the lancemate): within range, everything shown, or C3 master and slave at any range; then MW3's side tests for the contact's kind |
-| 0x004acff0 | 143 | unlabelled |  |
+| 0x004acff0 | 143 | MISSING LOGIC | pm only, sensors, the same rule as 0x004ad2b0: MW3's 0x004a9680 / 0x004a9a60 (sensors.cpp: the player, and each lancemate under orders, with every other) with the range tests through 0x004acec0 and 0x004acf00, which add the C3 master and slave at any range (labelled there); the rest MW3's steps through PM's helpers |
 | 0x004ad5c0 | 108 | MISSING LOGIC | pm only, sensors, with 0x004ad2b0's C3 rules: PM's C3 merge (0x004ad5c0, MW3 0x004a9fd0) puts into a master's list only what its C3 slaves saw (the other record's bit 0x10); MW3's merges every C3 unit's, masters too (bits 0x18), and the port does as MW3 (c3_merge, sensors.cpp:373) |
 | 0x004ad840 | 55 | folded | read: the C3 merge's contact copy for the union (a contact taken over into the master's list, its box and distance from the master's vehicle), the steps MW3's merge has inline (c3_contact, sensors.cpp); with 0x004ad5c0 |
 | 0x004ada00 | 16 | folded | ported, by docs/symbols.csv: ported: a null contact, or one whose vehicle is the one going |
 | 0x004ada30 | 16 | folded | ported, by docs/symbols.csv: ported: one entity's vehicle (vt+0x2c) told (vt+0xd4) |
 | 0x004adc90 | 19 | folded | as MW3 0x004aa740: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004adcd0 | 11 | unlabelled |  |
+| 0x004adcd0 | 11 | folded | a getter written out of line: a vector's count of 0x44-byte elements, inline in MW3's caller (0x004abc60's twin) |
 | 0x004add00 | 11 | folded | as MW3 0x004aa9a0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004add30 | 16 | folded | as MW3 0x004aa9d0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004add70 | 100 | folded | read: a vector's insert of n copies (the template instantiated for 4-byte contacts), container code; the port's std::vector |
 | 0x004adfd0 | 138 | folded | read: a vector's insert of n copies for the sensors' 0x44-byte records (MW3 0x004aaa10, the same template), its element copy 17 words; container code |
-| 0x004ae370 | 120 | unlabelled |  |
+| 0x004ae370 | 120 | folded | read: MW3's 0x004aad20 / 0x004aaf20 (template copies with no port of their own: a sensor record's copy and assignment, its vectors of 0x44- and 8-byte entries reallocated or copied); the same steps, PM's arguments explicit, an element copy through a call where MW3's is inline |
 | 0x004ae570 | 58 | folded | as MW3 0x004ab0f0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004ae670 | 120 | unlabelled |  |
+| 0x004ae670 | 120 | folded | read: MW3's 0x004aad20 / 0x004aaf20 (template copies with no port of their own: a sensor record's copy and assignment, its vectors of 0x44- and 8-byte entries reallocated or copied); the same steps, PM's arguments explicit, an element copy through a call where MW3's is inline |
 | 0x004ae850 | 12 | folded | inside its ported callers (0x004ac1e0): a small helper their ports do their own way |
-| 0x004ae870 | 102 | unlabelled |  |
+| 0x004ae870 | 102 | folded | container code written out of line: a vector of 8-byte entries assigned (the sensor record's inner vector), inline in MW3's insert 0x004aaa10 (PM's 0x004adfd0, labelled there) |
 | 0x004aea00 | 11 | folded | as MW3 0x004ab1d0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aea20 | 15 | folded | as MW3 0x0054bde0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x004aea50 | 140 | folded | as MW3 0x004ab1f0: covered where the port does it: src/crt/msvc_sort.h:8 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -2454,30 +2462,30 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004aee60 | 10 | folded | covered by the port where it names it (src/mech3/sensors.cpp:403) |
 | 0x004aee80 | 18 | folded | covered by the port where it names it (src/mech3/sensors.cpp:403) |
 | 0x004aeeb0 | 75 | folded | as MW3 0x004ab500: covered where the port does it: src/crt/msvc_sort.h:7 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x004aefe0 | 124 | unlabelled |  |
-| 0x004af210 | 44 | unlabelled |  |
-| 0x004af2d0 | 43 | unlabelled |  |
-| 0x004af360 | 25 | unlabelled |  |
+| 0x004aefe0 | 124 | replaced (SDL or the platform layer) | replaced (SDL or the platform layer): MW3's 0x004ab6b0, the screen mode switch (app_hooks.cpp, resolution.md step 3, on the port's zVideo), with PM's light-map set unloaded before the D3D surfaces are remade and reloaded after (its name kept from [0x00683cb0], 0x00532300 / 0x00532450 / 0x005329e0); the port's GPU textures survive a mode change, so it has no such step |
+| 0x004af210 | 44 | MISSING LOGIC | pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus) |
+| 0x004af2d0 | 43 | MISSING LOGIC | pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus) |
+| 0x004af360 | 25 | MISSING LOGIC | pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus) |
 | 0x004af510 | 22 | folded | covered by the port where it names it (src/mech3/mech_build.cpp:327) |
 | 0x004af6b0 | 9 | folded | inside its ported callers (0x004af590): a small helper their ports do their own way |
-| 0x004af770 | 57 | unlabelled |  |
+| 0x004af770 | 57 | folded | ported, checked by test: the ground pick (MW3's 0x004abd90, mech3/veh_basic.h ground_pick); tests/differential/test_pm_ai_nets.py runs 0x004af770 against the port's on every node it grounds and compares the compiled nets as text, the nodes' heights in them (9,892 nodes grounded, 0 differ, 2026-11-13) |
 | 0x004af9f0 | 15 | folded | read: MW3's music play 0x004ac290 unpaired by the diff (the request kept, the track played when CD music is on, else stopped), the port's music::play (music.cpp:17) |
 | 0x004afb30 | 31 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x004ac150 with only offsets and sizes of PM's larger structures changed (0x12498->0x12638); calls, field counts and every other immediate and float constant as MW3's |
 | 0x004afc30 | 13 | folded | as MW3 0x004ac2c0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004afc60 | 9 | folded | a thunk: one call to another function |
-| 0x004afc90 | 42 | unlabelled |  |
+| 0x004afc90 | 42 | folded | ported: src/mech3/veh_basic_object.cpp vehicle_create (MW3's 0x004ac320): the named node, or the type's cloned, named and added to the world; the object 0x100 bytes for 0xfc (PM's layout), the arguments explicit |
 | 0x004afec0 | 55 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x004ac530 with only offsets and sizes of PM's larger structures changed (0xa70->0xa94); calls, field counts and every other immediate and float constant as MW3's |
 | 0x004b00e0 | 9 | folded | covered by the port where it names it (src/mech3/veh_controls.cpp:145) |
-| 0x004b00f0 | 27 | unlabelled |  |
+| 0x004b00f0 | 27 | folded | read: MW3's 0x004ac750 (the vehicle controls' constructor) on PM's IControls base 0x004b2950 in place of MW3's inline base, as the mech controls (0x00428200); the rest the same stores, PM's offsets |
 | 0x004b01f0 | 22 | folded | as MW3 0x004ac860: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004b0220 | 9 | folded | frees the object (a destructor's release) |
-| 0x004b0560 | 67 | unlabelled |  |
+| 0x004b0560 | 67 | folded | read: MW3's 0x004acbc0 (the basic vehicle's set-up from its file: the start_anims run, the health set from the file's value); the same, the name lookups' arguments explicit (0x00578950 / 0x00524b50 / 0x00521870 = MW3's 0x005569e0 / 0x0050b450 / 0x00508c10), the controls at +0x20 for +0x14 (layout) |
 | 0x004b0790 | 76 | MISSING LOGIC | a PM value the shared port keeps as MW3's (pm only): the vehicle's above camera pitched -81 degrees (-1.413716) in PM, -90 in MW3; its 150 m the same in both (veh_basic_object.cpp:500) |
 | 0x004b0c70 | 33 | folded | group A, read: the same logic: a callee renamed by the map (0x0051da90 = PM 0x00537420), a direct call made virtual (0x0041bd80 through vt+0x168), PM's layout (+0xe8 for +0xe4, a null check added), a destructor on PM's members |
-| 0x004b0d90 | 71 | unlabelled |  |
+| 0x004b0d90 | 71 | MISSING LOGIC | pm only: MW3's 0x004ad3f0 (veh_basic_object.cpp vehicle_damage) without its heat and freeze branches: every hit takes health - damage, so on PM a heat weapon (every laser's IMPACT HEAT) no longer warms the basic vehicle's glow by the share lost (0x00586a30), a freeze weapon damages instead of chilling, and the frozen extra damage is gone; the health's glow step (0x005a5150 = MW3's 0x00583730), the jolt over 5 and the death and kill credit as MW3's. The port keeps MW3's branches |
 | 0x004b1010 | 9 | folded | covered by the port where it names it (src/mech3/veh_controls.h:224) |
-| 0x004b1030 | 13 | unlabelled |  |
-| 0x004b10b0 | 9 | unlabelled |  |
+| 0x004b1030 | 13 | MISSING LOGIC (only data the shipped game lacks reaches it) | follows 0x004a70c0: MW3's 0x004ad740 (veh_basic_object.cpp vehicle_gun_within: the controls' turret limits, vt+0x08) as a direct call to PM's turn-limit test 0x004a70c0 on the controls' limits (+0x764 + 0x28, asm), both branches the same; the class is PM's (labelled at 0x004a7000 / 0x004a70c0) |
+| 0x004b10b0 | 9 | MISSING LOGIC | follows 0x004a71f0: MW3's 0x004ad7c0 (veh_basic_object.cpp, the vehicles' vt+0x90: the turret's limit clamp) as a direct call to PM's clamp 0x004a71f0 (labelled there: the limit's direction along the heading's own length) |
 | 0x004b1130 | 53 | folded | as MW3 0x004ad840: covered where the port does it: src/mech3/veh_basic_object.h:38 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004b1220 | 72 | unlabelled |  |
 | 0x004b1390 | 9 | folded | follows 0x004b1130: as MW3 0x004ad840: covered where the port does it: src/mech3/veh_basic_object.h:38 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -5507,52 +5515,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005cc600 | 25 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:135) |
 | 0x005cc650 | 11 | folded | covered by the port where it names it (src/gamez/zsave/zsave.h:8) |
 
-### zdeclient (41 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00517ce0 | 53 | unlabelled |  |
-| 0x00517e90 | 179 | unlabelled |  |
-| 0x00518350 | 290 | unlabelled |  |
-| 0x005189f0 | 12 | folded | a thunk: one call to another function |
-| 0x00518a10 | 9 | folded | a thunk: one call to another function |
-| 0x00518ab0 | 15 | unlabelled |  |
-| 0x00518ad0 | 9 | folded | a thunk: one call to another function |
-| 0x00518c60 | 102 | unlabelled |  |
-| 0x005190d0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519190 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005192c0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005193e0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519910 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005199a0 | 197 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519cb0 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519d60 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519e20 | 28 | folded | as MW3 0x00501a40: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x00519e60 | 24 | folded | as MW3 0x00501a80: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x00519e90 | 17 | folded | read: a 13-word record copy (nothing for a null slot), container code |
-| 0x00519eb0 | 182 | unlabelled |  |
-| 0x0051a6d0 | 179 | unlabelled |  |
-| 0x0051ab70 | 280 | unlabelled |  |
-| 0x0051b1f0 | 8 | folded | returns a constant or a global |
-| 0x0051b270 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
-| 0x0051b280 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:258) |
-| 0x0051b2a0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:259) |
-| 0x0051b2c0 | 20 | unlabelled |  |
-| 0x0051b340 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | pm only, traced: PM's damage handler on an animation (0x0051b2c0, MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832) first runs 0x0051b340 on every hit: when the def has its second sequence (+0xd4, with events) it stamps the time ([0x008d3f68]), clears +0xb0 and runs that sequence from its start (0x0051fc00, 0x00520800: MW3's 0x00506f40, 0x005079b0); the port reads the sequence (AnimDef::pm_seq2, pm/gamez/zeffect/zeff_anim_init.cpp:126) but never runs it, and no shipped PM animation has one, so only a mod's would show it |
-| 0x0051c2f0 | 21 | unlabelled |  |
-| 0x0051c4d0 | 126 | unlabelled |  |
-| 0x0051deb0 | 23 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:625) |
-| 0x0051df10 | 138 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
-| 0x0051e720 | 14 | unlabelled |  |
-| 0x0051e750 | 48 | unlabelled |  |
-| 0x0051e890 | 42 | unlabelled |  |
-| 0x0051f750 | 40 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506bc0 with only offsets and sizes of PM's larger structures changed (0x13c->0x10c); calls, field counts and every other immediate and float constant as MW3's |
-| 0x0051f830 | 43 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506ca0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
-| 0x0051fce0 | 145 | unlabelled |  |
-| 0x00520080 | 53 | unlabelled |  |
-| 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
-| 0x005207b0 | 8 | folded | returns a constant or a global |
-
 ### zfmv (41 not ported)
 
 | Address | Lines | Class | Why |
@@ -5598,6 +5560,52 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005beb50 | 52 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059ec40 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
 | 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x005becd0 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059edc0 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
+
+### zdeclient (41 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00517ce0 | 53 | unlabelled |  |
+| 0x00517e90 | 179 | unlabelled |  |
+| 0x00518350 | 290 | unlabelled |  |
+| 0x005189f0 | 12 | folded | a thunk: one call to another function |
+| 0x00518a10 | 9 | folded | a thunk: one call to another function |
+| 0x00518ab0 | 15 | unlabelled |  |
+| 0x00518ad0 | 9 | folded | a thunk: one call to another function |
+| 0x00518c60 | 102 | unlabelled |  |
+| 0x005190d0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519190 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005192c0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005193e0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519910 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005199a0 | 197 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519cb0 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519d60 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519e20 | 28 | folded | as MW3 0x00501a40: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00519e60 | 24 | folded | as MW3 0x00501a80: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00519e90 | 17 | folded | read: a 13-word record copy (nothing for a null slot), container code |
+| 0x00519eb0 | 182 | unlabelled |  |
+| 0x0051a6d0 | 179 | unlabelled |  |
+| 0x0051ab70 | 280 | unlabelled |  |
+| 0x0051b1f0 | 8 | folded | returns a constant or a global |
+| 0x0051b270 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
+| 0x0051b280 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:258) |
+| 0x0051b2a0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:259) |
+| 0x0051b2c0 | 20 | unlabelled |  |
+| 0x0051b340 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | pm only, traced: PM's damage handler on an animation (0x0051b2c0, MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832) first runs 0x0051b340 on every hit: when the def has its second sequence (+0xd4, with events) it stamps the time ([0x008d3f68]), clears +0xb0 and runs that sequence from its start (0x0051fc00, 0x00520800: MW3's 0x00506f40, 0x005079b0); the port reads the sequence (AnimDef::pm_seq2, pm/gamez/zeffect/zeff_anim_init.cpp:126) but never runs it, and no shipped PM animation has one, so only a mod's would show it |
+| 0x0051c2f0 | 21 | unlabelled |  |
+| 0x0051c4d0 | 126 | unlabelled |  |
+| 0x0051deb0 | 23 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:625) |
+| 0x0051df10 | 138 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
+| 0x0051e720 | 14 | unlabelled |  |
+| 0x0051e750 | 48 | unlabelled |  |
+| 0x0051e890 | 42 | unlabelled |  |
+| 0x0051f750 | 40 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506bc0 with only offsets and sizes of PM's larger structures changed (0x13c->0x10c); calls, field counts and every other immediate and float constant as MW3's |
+| 0x0051f830 | 43 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506ca0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
+| 0x0051fce0 | 145 | unlabelled |  |
+| 0x00520080 | 53 | unlabelled |  |
+| 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
+| 0x005207b0 | 8 | folded | returns a constant or a global |
 
 ### zweapon (33 not ported)
 
