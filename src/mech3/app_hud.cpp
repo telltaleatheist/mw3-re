@@ -866,6 +866,9 @@ void wire_hud() {
     h.set_active(0);
   };
   update_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.layout(); };
+  damage_calls().zaps_hud = [](void* s, float level, int kind, float hold) {  // 0x0043be70
+    static_cast<Hud*>(s)->zap_static(level, kind, hold);
+  };
   damage_calls().hud_weapons = [](void* s) { static_cast<Hud*>(s)->weapons.refresh_all(); };
   damage_calls().message = [](int id) { return hud_hooks().message(id); };
   // 0x00586ce0: in a network game a destroyed part always takes the first
@@ -1007,6 +1010,7 @@ void unwire_hud() {
   update_calls().hud_weapons = nullptr;
   damage_calls().hud_weapons = nullptr;
   damage_calls().head_hit_hud = nullptr;
+  damage_calls().zaps_hud = nullptr;
   WeaponCalls& wc = weapon_calls();
   wc.screen = nullptr, wc.hud_screen = nullptr, wc.hud_groups = nullptr, wc.hud_weapons = nullptr;
   wc.hud_fire = nullptr, wc.hud_highlight = nullptr, wc.lock_shot = nullptr;

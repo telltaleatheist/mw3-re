@@ -769,6 +769,8 @@ class Original:
             if fr.random() < 0.3:  # the static (0x0043cd20): GameIntensity's flag, an add, the tick
                 if fr.random() < 0.15:
                     self.ops.append((41, fr.choice([0, 0, 1])))
+                if fr.random() < 0.3:  # a ZAPS_HUD hit's (0x0043be70)
+                    self.ops.append((44, fr.randrange(6) | fr.randrange(4) << 4 | fr.randrange(4) << 8))
                 if fr.random() < 0.4:
                     self.ops.append((40, fr.randrange(6) | fr.randrange(4) << 4 | fr.randrange(4) << 8
                                      | fr.randrange(4) << 12))
@@ -1157,6 +1159,8 @@ class Original:
             elif k == 40:
                 e.call(0x43bfe0, ecx=h, stack=(f32(STATIC_STEP[v >> 4 & 3]), v & 0xf, f32(STATIC_HOLD[v >> 8 & 3]),
                                                f32(STATIC_MOST[v >> 12 & 3])))
+            elif k == 44:  # the ZAPS_HUD static (0x0043be70)
+                e.call(0x43be70, ecx=h, stack=(f32(STATIC_STEP[v >> 4 & 3]), v & 0xf, f32(STATIC_HOLD[v >> 8 & 3])))
             elif k == 41:
                 e.cpu.write(0x608e4c, bytes([v]))
             elif k == 43:  # 0x0040f330: ECX and EDX none, or **[0x5f4d1c] / [0x5f4d20] / [0x5f4d24]

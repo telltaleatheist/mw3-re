@@ -1823,6 +1823,26 @@ void Hud::add_static(float step, int32_t kind, float hold, float most) {
   if (kind == 0) radar.set_fade(s.level);
 }
 
+// Mech3.exe 1.2 @ 0x0043be70: a hit by a weapon with ZAPS_HUD (the ER PPC: 0.5, 2.0). Kinds as
+// add_static's; the level grows by `level` with no top (the draw stops at 0.9), the hold to `hold`;
+// kind 0 sets the radar's fade from the new level.
+void Hud::zap_static(float level, int32_t kind, float hold) {
+  static constexpr int kChannel[4] = {3, 1, 0, 2};
+  if (kind == 4) {
+    for (int32_t k = 0; k < 4; ++k) zap_static(level, k, hold);
+    return;
+  }
+  if (kind == 5) {
+    zap_static(level, crt::msvc_rand() & 3, hold);
+    return;
+  }
+  if (kind < 0 || kind > 3) return;
+  Static& s = statics[kChannel[kind]];
+  s.level = level + s.level;
+  if (s.hold < hold) s.hold = hold;
+  if (kind == 0) radar.set_fade(s.level);
+}
+
 // Mech3.exe 1.2 @ 0x0043c1f0: the channel (kinds as add_static's) at least
 // `level`, its hold at least `hold`; the radar's fade set (0x0043dc70) for
 // kind 0. The heat's haze (mech.cpp): a random one over the haze's heat.

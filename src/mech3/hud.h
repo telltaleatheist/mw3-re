@@ -1102,6 +1102,7 @@ class Hud : public ztwod::Layer {
   void static_tick(float dt);        // 0x0043cd20: from the frame's draw paths
   void add_static(float step, int32_t kind, float hold, float most);  // 0x0043bfe0
   void raise_static(float level, int32_t kind, float hold);          // 0x0043c1f0
+  void zap_static(float level, int32_t kind, float hold);            // 0x0043be70: a ZAPS_HUD hit's
   zrdr::Node* reader = nullptr;      // +0x22e38 hud.zrd's root during the set-up
   // +0x22e3c the resolution's block during it. Not set by the original's
   // constructor; FIX (bug), behind zfix fixed: cleared here (docs/hud.md).
