@@ -279,6 +279,11 @@ def write_doc(o, g, rows):
                 'byte): the 130 they passed and this one flags were taken back to be read. **Residual risk**: the compare cannot',
                 'see an access moved from one existing field to another the function already touches, with the counts unchanged;',
                 'the offsets are not yet mapped through the pm port\'s PM structures to check each one against the layout\'s shift.',
+                'A call the address map cannot place counts as "unmapped" on both sides, so a caller passes with an unmapped',
+                'callee that differs from its MW3 counterpart: of the 867 folded by the compare, 161 have such calls (68 callee',
+                'pairs, matched by their place in the call order: 47 equal by the same compare, the other 21 mispaired by that',
+                'order or differing). Each unmapped PM callee has a row of its own here, so a difference in it is labelled on',
+                'that row, not on its caller\'s.',
                 '**Checked by test** means a passing PM differential test ran the',
                 'function\'s body (a block trace of the emulator, per entry the test calls) and compares what that body',
                 'produces; the label names the compared value. Reaching a function, or running a caller, is not enough.', '']
