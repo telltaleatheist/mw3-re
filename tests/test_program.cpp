@@ -13898,6 +13898,11 @@ TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
     bool on_owens = false;
   };
   Pick picks[2];  // the fixes off, on
+  struct Sky {
+    int group = 0;
+    float range = 0, distance = 0, far = 0;
+  };
+  std::vector<Sky> skies[2];  // at the sky with each group selected, the fixes off and on
   void* owens = nullptr;
   for (int fixes = 0; fixes < 2; ++fixes) {
     SavedMounts keep;
@@ -13954,6 +13959,16 @@ TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
           Pick& k = picks[fixes];
           k.state = mech3::program_hud_pick_at(at, &k.node, &k.distance, &k.range, &k.far);
           k.on_owens = k.node && mech3::program_hud_node_object(k.node) == owens;
+          // The sky 300 m over the Owens: a miss. Each group in turn, the ER lasers' last.
+          const float sky[3] = {o.pos[0], o.pos[1] + 300.0f, o.pos[2]};
+          for (int g : {1, 2, 4, 5, 3}) {
+            if (!mech3::mech_select_group(player, g)) continue;
+            Sky y;
+            y.group = g;
+            void* n = nullptr;
+            mech3::program_hud_pick_at(sky, &n, &y.distance, &y.range, &y.far);
+            if (!n) skies[fixes].push_back(y);
+          }
         }
       };
       CountingPump pump;
@@ -13978,6 +13993,19 @@ TEST(mission_c1m1_reticle_picks_out_to_the_weapons_range_headless) {
   EXPECT(picks[0].range >= 1000.0f && picks[0].far < 850.0f);
   EXPECT(!picks[0].node && picks[0].state == 0);  // the original: green
   EXPECT(picks[1].on_owens && picks[1].distance > 850.0f && picks[1].state == 2);  // yellow
+  // At the sky the zoom window's "[range = %1m]" reads the miss's distance: the far clip in the
+  // original, the farther of it and the group's range with the fixes (as Pirate's Moon).
+  bool over = false, under = false;
+  for (int f = 0; f < 2; ++f)
+    for (const Sky& y : skies[f]) {
+      const float want = f ? std::max(y.far, y.range) : y.far;
+      std::printf("  fixes %d: group %d (range %.0f m) at the sky reads %.0f m (far clip %.0f m)\n", f, y.group, y.range,
+                  y.distance, y.far);
+      EXPECT(std::fabs(y.distance - want) < 0.5f);
+      if (f) (y.range > y.far ? over : under) = true;
+    }
+  EXPECT(skies[0].size() >= 2 && skies[1].size() == skies[0].size());
+  EXPECT(over && under);  // a group past the far clip and one short of it
 }
 
 // Playtest W34: the AI's missiles ("sometimes they come from the side or the
