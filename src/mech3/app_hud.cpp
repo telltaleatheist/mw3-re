@@ -1057,6 +1057,11 @@ int program_hud_aim_at(void* node, float distance) {
 
 // For the tests: the reticle put over a world point and its pick run
 // (0x00444350), then its aim state (0x00443d20); the node hit, if any.
+int program_hud_active(void* mech) {
+  auto* m = static_cast<Mech*>(mech);
+  Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
+  return h ? h->active : -1;
+}
 int program_hud_pick_at(const float at[3], void** node, float* distance, float* range, float* far_clip) {
   auto* m = static_cast<Mech*>(mech_mission_player());
   Hud* h = m && m->pilot ? pilot_hud(*m->pilot) : nullptr;
