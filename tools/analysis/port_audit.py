@@ -404,8 +404,24 @@ def main():
             fn, n = ref.rsplit(':', 1)
             if '/pm/' in fn or re.search(r'_pm\.\w+$', fn):  # src/pm/, or the pm port's *_pm files
                 return True
-            line = (src_root / fn).read_text(errors='replace').splitlines()[int(n) - 1]
-            return bool(re.search(r"Pirate|\bPM\b|\bpm\b", line))
+            lines = src_lines.setdefault(fn, (src_root / fn).read_text(errors='replace').splitlines())
+            line = lines[int(n) - 1]
+            if re.search(r"Pirate|\bPM\b|\bpm\b", line):
+                return True
+            # Or inside a function the pm port headed as Pirate's Moon's: the
+            # nearest header above (either game's) is a Pirate's Moon one, with
+            # no function's end (a '}' in the first column) between, and in a
+            # header file no blank line between (declarations run on).
+            header = fn.endswith(('.h', '.hpp', '.inc'))
+            for k in range(int(n) - 1, -1, -1):
+                if re.search(r"//\s*Mech3\.exe 1\.2 @", lines[k]):
+                    return False
+                if re.search(r"//\s*Pirate's Moon 1\.0 @", lines[k]):
+                    return True
+                if k < int(n) - 1 and (lines[k].startswith('}') or (header and not lines[k].strip())):
+                    return False
+            return False
+        src_lines = {}
         named = defaultdict(list, {a: [r for r in rs if pm_ref(r)] for a, rs in named.items()})
         named = defaultdict(list, {a: rs for a, rs in named.items() if rs})
         for x in json.load(open(A / 'pm-diff' / 'pairs.json')):
