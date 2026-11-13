@@ -5,10 +5,7 @@
 // put in at each mission's start and frame (MissionHooks::hooks_check).
 // SKIP(accessor, field, key)
 SKIP(mech3::collide_calls, ff_jolt, "0x004335d0")  // CollideCalls.ff_jolt
-SKIP(mech3::damage_calls, equip_voice, "0x00485390")  // DamageCalls.equip_voice
 SKIP(mech3::damage_calls, ff_hit, "0x00433720")  // DamageCalls.ff_hit
-SKIP(mech3::damage_calls, voice, "0x00485370")  // DamageCalls.voice
-SKIP(mech3::damage_calls, zaps_hud, "0x0043be70")  // DamageCalls.zaps_hud
 SKIP(mech3::frame_calls, net_entity, "FrameCalls.net_entity")  // FrameCalls.net_entity
 SKIP(mech3::frame_calls, net_place, "FrameCalls.net_place")  // FrameCalls.net_place
 SKIP(mech3::free_calls, player_object_free, "0x0041e580")  // FreeCalls.player_object_free

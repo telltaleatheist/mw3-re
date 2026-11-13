@@ -31,6 +31,7 @@ bool weapon_uses_ammo(int32_t weapon);     // 0x00484960, the table's byte at 0x
 bool weapon_has_tech(int32_t weapon, int32_t tech);  // 0x00484940, the table's mask at 0x005e6500
 int32_t weapon_family(int32_t weapon);     // 0x004853c0, the table's word at 0x005e64f8: its destroyed voice
 bool equip_has_tech(int32_t kind, int32_t tech);    // 0x00484a00, the table's mask at 0x005e6878
+int32_t equip_voice_index(int32_t kind);           // 0x00485360, the table's word at 0x005e6870: its voice in 0x00608fc0
 // The Mech3Msg.dll ids of the shown names (the tables' first words): a mech's
 // 0x00484670 (0x005e6098), a weapon's 0x00484920 (0x005e64f4), equipment's
 // 0x00484980 (0x005e6874); -1 out of range ("notmech", "noweapon", "none").

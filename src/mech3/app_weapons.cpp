@@ -548,6 +548,14 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   };
   d.node_owner = node_owner;
   d.attacker = [] { return node_entity(zwep::hit_state().attacker); };  // 0x0040eee0 on [0x009a0edc]
+  // 0x00485390 / 0x00485370: the player's callouts for a destroyed piece of equipment (its kind's voice,
+  // equip_voice_index) and the engine hit (voice 6), through 0x004e6d80 (no place, volume 1, no fade).
+  d.equip_voice = [](int kind) {
+    if (Handle s = equipment_voice(equip_voice_index(kind))) sound_play(static_cast<zsnd::Object*>(s), nullptr, 1.0f, nullptr, -1.0f);
+  };
+  d.voice = [](int index) {
+    if (Handle s = equipment_voice(index)) sound_play(static_cast<zsnd::Object*>(s), nullptr, 1.0f, nullptr, -1.0f);
+  };
 
   UpdateCalls& u = update_calls();
   u.key = [](int cmd) { return zin::command(cmd); };  // 0x0051d300: the view key (CMD 0x17), torso and free look
@@ -864,6 +872,8 @@ void unwire_weapons() {
   damage_calls().node_part = nullptr;
   damage_calls().node_owner = nullptr;
   damage_calls().attacker = nullptr;
+  damage_calls().equip_voice = nullptr;
+  damage_calls().voice = nullptr;
 }
 
 // Mech3.exe 1.2 @ 0x005833b0(mech, node, 1, 0x004161a0): the mech's node

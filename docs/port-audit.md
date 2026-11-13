@@ -11,22 +11,20 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2999 |
+| folded | 2997 |
 | replaced (SDL or the platform layer) | 221 |
 | software renderer | 111 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 110 |
 | debug or dev tool: PORT (preserve) | 82 |
 | unused: PORT (preserve) | 82 |
 | dev dialog (MFC), its logic: PORT (preserve) | 54 |
-| MISSING LOGIC | 52 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
+| MISSING LOGIC | 50 |
 
 ## MISSING LOGIC
 
 - **0x00402140, 0x004fc8b0, 0x00550010, 0x00550120, 0x00550160, 0x005503c0 ...** (48 functions, 3599 decomp lines; MISSING LOGIC): the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md)
 - **0x0041b930, 0x0041b980** (2 functions, 46 decomp lines; MISSING LOGIC): the player's mech suspended while the view is off it: the mech's vt+0x104 (0x0041b980, called by the view's attach 0x0040adf0 on the old target) puts the player's mech into state 14 'suspended' (Mech Update returns at once; also the HUD's 0x00430aa0), vt+0x100 (0x0041b930, on the new target) puts its state back. The port's view hooks say these do nothing (app_view.cpp:165) and nothing sets state 14 (mech_update.cpp only reads it). In play the view leaves the player's mech at a mission's end, on a rebuild and for the editor or stealth camera; whether it shows (the mech going on under its controls meanwhile) is to be seen. Port: small
-- **0x0043be70** (1 functions, 56 decomp lines; MISSING LOGIC): the HUD's ZAPS static (0x0043be70): a hit by a weapon with ZAPS_HUD (WeaponType +0x14, e.g. the PPC) adds its level to a HUD channel's static and holds the largest; not ported, and DamageCalls.zaps_hud is a census stand-in: see BROKEN (damage.md:225, hud.md:43)
-- **0x0043f2d0** (1 functions, 32 decomp lines; MISSING LOGIC): the radar's map-mode position (HudRadar 0x0043f2d0): stores the mech's position and, with the mission map shown, moves the mech's marker line on the map (0x00491c80, 0x005a6880); not ported, and its hook radar_heading (hud.h:880) is never overridden: see BROKEN
 - **0x00401050, 0x00401100, 0x00401400, 0x00401500, 0x00401620, 0x00401680 ...** (21 functions, 1001 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00402190, 0x004021c0, 0x004022e0, 0x00402300, 0x004024a0, 0x004024e0 ...** (8 functions, 482 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them
 - **0x00410400, 0x004c0310** (2 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
@@ -54,13 +52,10 @@ of a campaign, Instant Action or training run) or the static check (the data and
 
 | Hook | Original | Reached by | The original does | In the port | Seen in play | Shown by |
 |---|---|---|---|---|---|---|
-| HudHooks.radar_view_dir (hud.h:876) | 0x00522170 | the HUD's data update (hud.cpp:3373), every frame while the mission map is shown (Shift+R) | the view camera's pitch and yaw turned into the way it faces; the radar's view wedge over the map points there | no override: the base answers 0, so the wedge's two lines collapse to its centre | yes: Shift+R in every mission with a map | static (no override); then reached in mission_c1m1_maps_and_the_radar_map_mode_headless (MW3_TRACE_UNPORTED=0x00522170) |
-| HudHooks.radar_heading (hud.h:880) | 0x0043f2d0 | the same branch, right after radar_view_dir | the mech's position stored and, with the map shown, the mech's marker line moved to its spot on the map (0x00491c80, 0x005a6880) | not ported and no override: the marker stays where the map put it | yes: the same | static (no override, no port) |
-| DamageCalls.zaps_hud (mech.h:428) | 0x0043be70 | the torso, arm and head hit wrappers (0x00464720, 0x00466ba0, 0x00467200) on the player's mech | static over a HUD channel from the hitting weapon's ZAPS_HUD (in 1.2 only the ER PPC has one: 0.5, 2.0) | a census stand-in: nothing shown | yes: every ER PPC hit on the player | static (weapons.zrd, the callers) |
-| DamageCalls.equip_voice (mech.h:431) | 0x00485390 | a critical hit that destroys a piece of the player's equipment (mech_parts.cpp:428) | the callout for that equipment (snd_equip_ams .. snd_equip_tc, [0x005e6870 + 0x14 x kind]) | a census stand-in: silent | yes, heard: equipment crits on the player | static (the callers, the voice table) |
-| DamageCalls.voice (mech.h:432) | 0x00485370 | a torso critical hit on the player, the engine (mech_parts.cpp:436) | voice 6, snd_equip_engine | a census stand-in: silent | yes, heard: engine hits on the player | static (the callers) |
 
 Checked and not broken (2026-11-13): the census of the campaign by objectives (20 missions), every Instant Action world and scenario, and training reached 0 functions outside the known table and skipped 0 script calls. The script entries left null (hook_allow counted:) are used only under ifndef USEZBD (the world built from scripts; the game loads gamez.zbd) and in the Support\*.gw and dev*.gs scripts. The never-overridden virtuals left are no effect (render_use_gfx_flags: [0x008008d8] unread in hardware), multiplayer (the field bases' station repairs behind mp_repairs), the software path's views (app_states 0x00481290, 0x00481a10), a failed spawn's delete, the mech lab without its screen, the empty mission_complete report, and translate_to_anim_root, which no shipped targets.zrd has.
+
+Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's view wedge over the mission map (radar_view_dir on zmth::look_dir, 0x00522170, test_look_dir.py) and the mech's heading line (HudRadar::set_heading, 0x0043f2d0, run in test_hud.py), the ZAPS_HUD static (Hud::zap_static, 0x0043be70, test_hud.py op 44), the equipment callout and the engine-hit voice (0x00485390 with 0x00485360, 0x00485370; test_equip_voice.py).
 
 ## PORT (preserve)
 
@@ -134,7 +129,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 
 ## By module
 
-### mech3 (2589 not ported)
+### mech3 (2586 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -786,7 +781,6 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x0043b690 | 23 | folded | the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x0043b700 | 47 | folded | the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x0043b800 | 22 | folded | the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
-| 0x0043be70 | 56 | MISSING LOGIC | the HUD's ZAPS static (0x0043be70): a hit by a weapon with ZAPS_HUD (WeaponType +0x14, e.g. the PPC) adds its level to a HUD channel's static and holds the largest; not ported, and DamageCalls.zaps_hud is a census stand-in: see BROKEN (damage.md:225, hud.md:43) |
 | 0x0043cb10 | 46 | debug or dev tool: PORT (preserve) | the HUD's debug overlays (docs/hud.md section 11: the mech's gait, speeds and the like into five debug texts while the debug text shows, command 0x82); hooked in the port (hud_debug, unported) |
 | 0x0043cc00 | 41 | debug or dev tool: PORT (preserve) | the HUD's debug overlays (docs/hud.md section 11: the mech's gait, speeds and the like into five debug texts while the debug text shows, command 0x82); hooked in the port (hud_debug, unported) |
 | 0x0043cca0 | 23 | folded | the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
@@ -795,7 +789,6 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x0043d600 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0043d810 | 41 | folded | the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x0043dce0 | 18 | folded | the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
-| 0x0043f2d0 | 32 | MISSING LOGIC | the radar's map-mode position (HudRadar 0x0043f2d0): stores the mech's position and, with the mission map shown, moves the mech's marker line on the map (0x00491c80, 0x005a6880); not ported, and its hook radar_heading (hud.h:880) is never overridden: see BROKEN |
 | 0x0043f4e0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0043f870 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0043fa20 | 13 | folded | the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
@@ -1174,7 +1167,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x0047ea90 | 12 | folded | covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x0047eac0 | 23 | folded | covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x0047eb40 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0047f140 | 29 | folded | covered by the port where it names it (src/mech3/app_hud.cpp:692) |
+| 0x0047f140 | 29 | folded | covered by the port where it names it (src/mech3/app_hud.cpp:699) |
 | 0x0047f1c0 | 13 | folded | covered by the port where it names it (src/mech3/salvage_screen.cpp:28) |
 | 0x0047f1e0 | 23 | folded | covered by the port where it names it (src/mech3/salvage_screen.cpp:28) |
 | 0x0047f220 | 12 | folded | covered by the port where it names it (src/mech3/app_states.h:237) |
@@ -1273,12 +1266,11 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x00484200 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00484220 | 21 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
 | 0x00484540 | 42 | folded | covered where the port does it: src/mech3/mech_lib.cpp:89 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x00485360 | 10 | folded | covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00485370 | 9 | folded | a thunk: one call to another function |
-| 0x00485390 | 10 | folded | the equipment callout: the voice for an equipment kind ([0x005e6870 + 0x14 x kind], 0x00485360) played as 0x00485370 plays one; the port has the table (mech_lib.cpp:18-24, equipment_voice) and sound_say, but its hook DamageCalls.equip_voice is a census stand-in: see BROKEN |
+| 0x00485390 | 10 | folded | the equipment callout: the voice for an equipment kind (0x00485360, mech_names.cpp equip_voice_index, into 0x00608fc0) played as 0x00485370 plays one; wired as DamageCalls.equip_voice (app_weapons.cpp), test_equip_voice.py |
 | 0x004853d0 | 10 | folded | covered by the port where it names it (src/mech3/app_weapons.cpp:185) |
-| 0x00485430 | 12 | folded | covered by the port where it names it (src/mech3/mech_names.cpp:359) |
-| 0x00485460 | 12 | folded | covered by the port where it names it (src/mech3/mech_names.cpp:359) |
+| 0x00485430 | 12 | folded | covered by the port where it names it (src/mech3/mech_names.cpp:367) |
+| 0x00485460 | 12 | folded | covered by the port where it names it (src/mech3/mech_names.cpp:367) |
 | 0x00485490 | 12 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:576) |
 | 0x004854c0 | 10 | folded | covered by the port where it names it (src/mech3/app.cpp:167) |
 | 0x00485a60 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -3153,7 +3145,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x004fe6c0 | 104 | debug or dev tool: PORT (preserve) | the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
 | 0x004fe8e0 | 115 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 
-### zinput (86 not ported)
+### zinput (85 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -3218,7 +3210,6 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x005214f0 | 67 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x00521a90 | 61 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x00521e10 | 89 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
-| 0x00522170 | 45 | folded | pitch and yaw to a direction, ported where the game uses it (mission_world.cpp:82, mech_objective.cpp:122); but the HUD's hook for it, radar_view_dir (hud.h:876), is never overridden: see BROKEN |
 | 0x00522210 | 30 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:373) |
 | 0x00522280 | 49 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x005223c0 | 17 | unused: PORT (preserve) | zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |

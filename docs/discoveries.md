@@ -1263,13 +1263,19 @@ From mission.cpp's frame 0x48f470 and its neighbours (details:
 - **The reticle stops looking at 800 m.** It only turns yellow over what
   it finds within the camera's 800 m view distance, but six weapons reach
   further (the ER large laser and NARC 1000 m, the ER PPC 920, the Gauss
-  rifle 880, the LB 2-X 870, the Ultra AC/2 810): a mech past 800 m stays
+  rifle 880, the LB 2-X 900 counting its 30 m shell, the Ultra AC/2 810): a mech past 800 m stays
   under a green reticle (and never locks), though your shots still hit it. The rebuild looks out to
   your selected weapons' range (bug fixes on).
 - **Pirate's Moon fixed the 800 m reticle and sharpened it:** its reticle
   looks as far as your selected weapons reach, and it tests the units near
   you by their actual shapes rather than their boxes, so aiming past a mech's
   legs or arms no longer counts as on it. (From the code: 0x00445cf0.)
+- **Aimed at the sky, the zoom window reads your weapons' reach.** With
+  nothing under the reticle it shows how far the reticle looked: the farther
+  of the 800 m view distance and the selected group's range. So an ER Large
+  Laser reads 1000 m, a Gauss rifle 880 m, and anything shorter than 800 m
+  reads 800. In MW3 it always reads 800 m. Every weapon's range is in
+  `docs/weapon-ranges.md`.
 - **Buildings you target never show in the TARGET window.** Only their
   name and range appear. The mission files can turn the picture on for a
   building (a `display` flag), but none of the shipped missions do.

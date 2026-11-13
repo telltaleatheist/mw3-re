@@ -935,6 +935,20 @@ void HudRadar::set_dir(const float* d) {
   lines[1].set(get_x(), get_y(), x1, y1);
 }
 
+// Mech3.exe 1.2 @ 0x0043f2d0: the facing kept (null: the last); with the mission map shown, the red
+// line from the radar's centre a radius along it, the map's way up as set_dir's (0x005c007c).
+void HudRadar::set_heading(const float* d) {
+  if (d) heading[0] = d[0], heading[1] = d[1], heading[2] = d[2];
+  if (!active) return;
+  HudHooks& k = *g_hooks;
+  float v[3] = {heading[0], heading[1], heading[2]};
+  if (k.entry_flip(k.mission_entry()) > 0.0f) v[0] = -v[0], v[1] = -v[1], v[2] = -v[2];
+  const float rr = static_cast<float>(radius);
+  const int32_t y1 = get_y() + crt::msvc_ftol(rr * v[2]);
+  const int32_t x1 = get_x() + crt::msvc_ftol(rr * v[0]);
+  lines[2].set(get_x(), get_y(), x1, y1);
+}
+
 // Mech3.exe 1.2 @ 0x004b5440
 HudViewWindow::HudViewWindow(const char* name) {
   HudHooks& k = *g_hooks;
@@ -1869,6 +1883,26 @@ int32_t static_add(HudStaticChannel* statics, float step, int32_t kind, float ho
 void Hud::add_static(float step, int32_t kind, float hold, float most) {
   // The radar's channel sets its fade at once (0x0043f190), also when kinds 4 and 5 reach it.
   if (static_add(statics, step, kind, hold, most) == 3 || kind == 4) radar.set_fade(statics[3].level);
+}
+
+// Mech3.exe 1.2 @ 0x0043be70: a hit by a weapon with ZAPS_HUD (the ER PPC: 0.5, 2.0). Kinds as
+// add_static's; the level grows by `level` with no top (the draw stops at 0.9), the hold to `hold`;
+// kind 0 sets the radar's fade from the new level.
+void Hud::zap_static(float level, int32_t kind, float hold) {
+  static constexpr int kChannel[4] = {3, 1, 0, 2};
+  if (kind == 4) {
+    for (int32_t k = 0; k < 4; ++k) zap_static(level, k, hold);
+    return;
+  }
+  if (kind == 5) {
+    zap_static(level, crt::msvc_rand() & 3, hold);
+    return;
+  }
+  if (kind < 0 || kind > 3) return;
+  Static& s = statics[kChannel[kind]];
+  s.level = level + s.level;
+  if (s.hold < hold) s.hold = hold;
+  if (kind == 0) radar.set_fade(s.level);
 }
 
 // Mech3.exe 1.2 @ 0x0043c1f0: the channel (kinds as add_static's) at least
@@ -3561,7 +3595,9 @@ void Hud::data_update(float dt) {
       v[1] = 0.0f;
       h.normalize(v);
       radar.set_dir(v);
-      h.radar_heading(&radar, mech);
+      float fwd[3];
+      h.mech_forward(mech, fwd);  // the mech's +0x24
+      radar.set_heading(fwd);
     } else {
       h.mech_radar_dir(mech, v);
       radar.set_dir(v);
