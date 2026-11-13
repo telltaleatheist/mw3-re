@@ -60,10 +60,10 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3385 |
-| unlabelled | 831 |
+| folded | 3415 |
+| unlabelled | 800 |
 | replaced (SDL or the platform layer) | 242 |
-| MISSING LOGIC | 228 |
+| MISSING LOGIC | 229 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 115 |
 | software renderer | 107 |
 | debug or dev tool: PORT (preserve) | 86 |
@@ -98,6 +98,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00464780** (1 functions, 201 decomp lines; MISSING LOGIC): MW3's 0x00463110 (mech_part_update.cpp Foot::update) with one change: the footprint on a footfall is left out for the Elemental (PM's id 11), which also skips stopping the water wake there; the rest as MW3's (the footprint test 0x00464610 = MW3's 0x00462fa0 with its register arguments explicit, the effect's call 0x005216e0 = 0x00508aa0). The pm port keeps MW3's: an Elemental's steps print
 - **0x00468d50** (1 functions, 12 decomp lines; MISSING LOGIC): PM's torso override of the parts' vt+0x5c (MW3's torso has the base 0x00467290, mech_lod.cpp MechPart::switch_lod): the base switch (0x00468cd0), then with a headlight (+0x7c) the headlight re-parented under the torso's new node (0x004798d0(node, no offset)). The port's Torso has no override, so after a level-of-detail switch its headlight stays under the other model's node (what that shows in play not traced)
 - **0x00469c80** (1 functions, 63 decomp lines; MISSING LOGIC): pm only, minor, effect to check: the lance command's target marker (cmd_target.flt; MW3's 0x00468100, the port's make_marker, app_pocket.cpp:175): PM gives it side bit 1 outright (MW3 the player's side by 0x004d5af0(0), 1 for side 0 as well), passes it to 0x004e88b0 (a list's add-if-missing on the AI registry), and starts it switched off: its node inactive (0x004fca50(node, 0)) and its +8 byte cleared; the port's marker starts on, as MW3's. Whether anything finds the marker while it is off is to check
+- **0x00470f60** (1 functions, 35 decomp lines; MISSING LOGIC): pm only, multiplayer: the network mech's weapon hit (its vtable 0x005e59a8 +0x178, the mech's take_damage slot, MW3's NetMech +0x164 0x0046ef50, which does nothing): when the weapon's type has a force (+0x48 > 0) and the collision a line (0x005a34b0), the line's direction flattened (y 0), normalized and passed with that force to +0x3ac's vt+0x1c, so a remote mech is pushed where it is hit; still no damage (that comes with its states). The port's Mech::take_damage returns at once for a remote mech (mech_damage.cpp)
 - **0x0047bd00, 0x0047bd60, 0x0047c8e0, 0x0047c920** (4 functions, 108 decomp lines; MISSING LOGIC): pm only, field bases, with 0x0047be40: the MCB waynet's next / prev (PM's vtable 0x005e5d2c +0x58 / +0x5c, MW3's 0x0047a5c0 / 0x0047a620, the port's McbWaynet::next / prev) step through PM's 0x0047bd00 / 0x0047bd60, which pass over points with no station (vt+0x78) or whose hidden byte (+0x11) is set; MW3's step (0x00479b10) is the next modulo the count. The feature compare passed the pair: each side has one unmapped call, the step helper (the unmapped-call hole, method)
 - **0x0047bdc0, 0x0047bde0** (2 functions, 34 decomp lines; MISSING LOGIC): the nearest-point search's start (the best distance FLT_MAX, the result cleared) and its per-point step (a point with a station, not hidden (+0x11), nearer than the best so far)
 - **0x0047be40** (1 functions, 29 decomp lines; MISSING LOGIC): pm only, field bases: the MCB waynet's nearest point (0x0047c960, MW3 0x0047a680, the port's McbWaynet::nearest, mech_waynet.cpp:312): PM walks the waynet's points itself (0x0047be40 with 0x0047bdc0 / 0x0047bde0) and takes the nearest whose hidden byte (+0x11) is clear, selecting nothing when none is; MW3's (0x00479b50, the port's Waynet::nearest, mech_waynet.cpp:195) asks the net's nearest step and falls back to the current point. PM hides the dock points that aren't static MFBs as it counts them (the port's dock_count, mech_waynet.cpp:417), so on PM the port can pick a hidden point where PM would not
@@ -717,11 +718,11 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040cfa0 | 108 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
 | 0x0040d230 | 23 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
 | 0x0040d280 | 45 | unlabelled |  |
-| 0x0040d320 | 110 | unlabelled |  |
+| 0x0040d320 | 110 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040d4d0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x0040d4e0 | 9 | folded | a thunk: one call to another function |
 | 0x0040d510 | 15 | folded | as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x0040d530 | 38 | unlabelled |  |
+| 0x0040d530 | 38 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040d5e0 | 12 | unlabelled |  |
 | 0x0040d600 | 22 | unlabelled |  |
 | 0x0040d660 | 117 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
@@ -731,28 +732,28 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040dac0 | 9 | folded | a thunk: one call to another function |
 | 0x0040dae0 | 9 | folded | a thunk: one call to another function |
 | 0x0040db00 | 9 | folded | a thunk: one call to another function |
-| 0x0040db20 | 12 | unlabelled |  |
+| 0x0040db20 | 12 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040db40 | 9 | folded | a thunk: one call to another function |
-| 0x0040db50 | 38 | unlabelled |  |
+| 0x0040db50 | 38 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040dc00 | 24 | folded | inside its ported callers (0x0040e250): a small helper their ports do their own way |
-| 0x0040dc70 | 81 | unlabelled |  |
+| 0x0040dc70 | 81 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040de60 | 36 | folded | covered by the port where it names it (src/mech3/pilot_standalone.cpp:86) |
 | 0x0040dee0 | 8 | folded | returns a constant or a global |
 | 0x0040e1b0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0040e1d0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x0040e1d0 | 26 | unlabelled |  |
-| 0x0040e310 | 8 | unlabelled |  |
-| 0x0040e320 | 8 | unlabelled |  |
-| 0x0040e330 | 8 | unlabelled |  |
+| 0x0040e1d0 | 26 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
+| 0x0040e310 | 8 | folded | ported: PM's standalone game (src/mech3/pilot.h StandaloneGame, pilot_games.cpp): its getters vt+0x50 / +0x08 / +0x0c / +0x48 (the mission's world index, the two texts, the number), named in pilot.h |
+| 0x0040e320 | 8 | folded | ported: PM's standalone game (src/mech3/pilot.h StandaloneGame, pilot_games.cpp): its getters vt+0x50 / +0x08 / +0x0c / +0x48 (the mission's world index, the two texts, the number), named in pilot.h |
+| 0x0040e330 | 8 | folded | ported: PM's standalone game (src/mech3/pilot.h StandaloneGame, pilot_games.cpp): its getters vt+0x50 / +0x08 / +0x0c / +0x48 (the mission's world index, the two texts, the number), named in pilot.h |
 | 0x0040e5e0 | 9 | folded | a thunk: one call to another function |
 | 0x0040e5f0 | 17 | folded | covered by the port where it names it (src/mech3/mission.cpp:93) |
-| 0x0040e660 | 8 | unlabelled |  |
+| 0x0040e660 | 8 | folded | ported: PM's standalone game (src/mech3/pilot.h StandaloneGame, pilot_games.cpp): its getters vt+0x50 / +0x08 / +0x0c / +0x48 (the mission's world index, the two texts, the number), named in pilot.h |
 | 0x0040e670 | 9 | folded | a thunk: one call to another function |
 | 0x0040e680 | 9 | folded | a thunk: one call to another function |
 | 0x0040e690 | 9 | folded | a thunk: one call to another function |
 | 0x0040e6a0 | 9 | folded | covered by the port where it names it (src/mech3/briefing.cpp:824) |
 | 0x0040e6b0 | 9 | folded | inside its ported callers (0x0047f420): a small helper their ports do their own way |
-| 0x0040e860 | 78 | unlabelled |  |
-| 0x0040e9c0 | 31 | unlabelled |  |
+| 0x0040e860 | 78 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
+| 0x0040e9c0 | 31 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040ea50 | 9 | unlabelled | follows 0x0040ea60:  |
 | 0x0040ea60 | 47 | unlabelled |  |
 | 0x0040eb80 | 24 | folded | covered by the port where it names it (src/mech3/game_editor.cpp:46) |
@@ -1271,7 +1272,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00438340 | 8 | folded | returns a constant or a global |
 | 0x00438350 | 14 | folded | as MW3 0x00437550: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00438790 | 20 | folded | inside its ported callers (0x00438580): a small helper their ports do their own way |
-| 0x004387f0 | 9 | unlabelled | follows 0x004731b0:  |
+| 0x004387f0 | 9 | folded | follows 0x004731b0: container code (MW3's 0x00471fb0 / 0x00474000 / 0x00474210 / 0x00470d20: a vector's insert or assign for the configs' and skins' lists, a list's free), PM's element copies through 0x004d7810 where MW3's are inline; the port's std containers |
 | 0x00438800 | 11 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:233) |
 | 0x00438820 | 140 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
 | 0x00438ac0 | 75 | folded | as MW3 0x004375e0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
@@ -1746,23 +1747,23 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0046ecf0 | 46 | folded | as MW3 0x0046cc00: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0046eda0 | 16 | folded | as MW3 0x0046cd40: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0046edd0 | 9 | folded | a thunk: one call to another function |
-| 0x0046ee60 | 16 | unlabelled |  |
+| 0x0046ee60 | 16 | folded | a static list's start-up constructor (the list head allocated, its count 0), MW3's inline in its start-up; the port's std containers |
 | 0x0046ee90 | 9 | folded | a thunk: one call to another function |
 | 0x0046ef20 | 17 | folded | as MW3 0x0046d0b0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0046ef40 | 9 | folded | a thunk: one call to another function |
-| 0x0046f510 | 157 | unlabelled |  |
+| 0x0046f510 | 157 | folded | ported: src/mech3/mech_net.cpp net_mech_create (MW3's 0x0046d450): the player's record read (kind 2), its loadout unpacked (0x00427830), validated (0x00427360) and named, the controls on PM's base (0x004b2950, 0x00428200), the mech data and the mech; the same steps through PM's helpers and layout |
 | 0x0046f8e0 | 13 | folded | as MW3 0x0046d380: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
-| 0x0046f910 | 27 | unlabelled |  |
+| 0x0046f910 | 27 | folded | ported: src/mech3/mech_net.cpp net_read_record (MW3's 0x0046d820): the player's data read when longer than 7 bytes, else freed and none; the same, written with one exit |
 | 0x0046fe30 | 32 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1166) |
 | 0x00470110 | 26 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1244) |
 | 0x00470170 | 28 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0046e0a0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
-| 0x004703c0 | 57 | unlabelled |  |
+| 0x004703c0 | 57 | folded | ported: the network mech's constructor (mech_net.h NetMech; the address map pairs it with the wrong MW3 function): the mech's base (0x00415340), the label (0x005c0ca0), vtable 0x005e59a8, its owner, the mech pushed on the network list; PM's layout |
 | 0x00470500 | 55 | folded | as MW3 0x0046e3c0: covered where the port does it: src/mech3/mech_net.cpp:1184 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x004705e0 | 206 | unlabelled |  |
+| 0x004705e0 | 206 | folded | ported, checked by test: the network mech's state apply (MW3's 0x0046e4d0, mech_net.cpp, PM's flags word state_bits); tests/differential/test_pm_net_state.py part 2 runs 0x004705e0 on made-up states and compares the mech's fields and the calls after each (3,000 states identical, 2026-11-13) |
 | 0x00470d70 | 9 | folded | a thunk: one call to another function |
-| 0x00470f60 | 35 | unlabelled |  |
-| 0x00471db0 | 31 | unlabelled |  |
-| 0x00471e70 | 53 | unlabelled |  |
+| 0x00470f60 | 35 | MISSING LOGIC | pm only, multiplayer: the network mech's weapon hit (its vtable 0x005e59a8 +0x178, the mech's take_damage slot, MW3's NetMech +0x164 0x0046ef50, which does nothing): when the weapon's type has a force (+0x48 > 0) and the collision a line (0x005a34b0), the line's direction flattened (y 0), normalized and passed with that force to +0x3ac's vt+0x1c, so a remote mech is pushed where it is hit; still no damage (that comes with its states). The port's Mech::take_damage returns at once for a remote mech (mech_damage.cpp) |
+| 0x00471db0 | 31 | folded | ported: src/mech3/mech_net.cpp net_crater_veto (MW3's 0x0046fd30): stored into the craters' veto [0x00639c48] by code at 0x0046efd2 (no table holds it, hence no reference found); its own (radius 0 or less) passed with the radius negated, the player's own sent or made at the host; the same |
+| 0x00471e70 | 53 | folded | ported: src/mech3/mech_net.cpp net_crater_in (MW3's 0x0046fde0, the crater message, routed by type in the port and registered per type by PM, test_pm_net_state checks the registrations): the host makes any and echoes it with bit 7, the others make only those; the same |
 | 0x00472760 | 9 | folded | a thunk: one call to another function |
 | 0x00472770 | 16 | folded | covered by the port where it names it (src/mech3/app_states.h:85) |
 | 0x004727b0 | 8 | folded | returns a constant or a global |
@@ -1775,21 +1776,21 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004730b0 | 12 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:624) |
 | 0x00473120 | 14 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:13) |
 | 0x00473160 | 10 | folded | read with its caller 0x0045a250: the tons kept per base left, 300 (the port's kTonsPerBase, mech_fieldbase_cut.cpp:26) |
-| 0x004731b0 | 35 | unlabelled |  |
+| 0x004731b0 | 35 | folded | container code (MW3's 0x00471fb0 / 0x00474000 / 0x00474210 / 0x00470d20: a vector's insert or assign for the configs' and skins' lists, a list's free), PM's element copies through 0x004d7810 where MW3's are inline; the port's std containers |
 | 0x00473240 | 34 | folded | covered by the port where it names it (src/mech3/mission_launch.cpp:220) |
-| 0x004732b0 | 191 | unlabelled |  |
+| 0x004732b0 | 191 | folded | ported: src/mech3/pilot_games.cpp (MW3's 0x00470e30, a game's store filled from the roster) over PM's 25 mechs and 56 weapons (the 0x13 -> 0x19 counts), with PM's changes marked there (the Elemental listed) |
 | 0x004735f0 | 39 | folded | inside its ported callers (0x0045dc00, 0x00460570): a small helper their ports do their own way |
-| 0x00473690 | 101 | unlabelled |  |
+| 0x00473690 | 101 | folded | ported, checked by test: the objectives' salvage block (MW3's 0x004711a0, mech_objective.cpp); tests/differential/test_pm_objectives.py runs 0x00473690 on every shipped objectives.zrd block and made-up ones and compares what it reads (66 shipped runs, 400 made up, 0 mismatches, 2026-11-13) |
 | 0x004738b0 | 20 | folded | inside its ported callers (0x00473f70, 0x00474010, 0x004745a0, 0x00474810): a small helper their ports do their own way |
-| 0x004741a0 | 140 | unlabelled |  |
-| 0x00474810 | 132 | unlabelled |  |
+| 0x004741a0 | 140 | folded | container code (MW3's 0x00471fb0 / 0x00474000 / 0x00474210 / 0x00470d20: a vector's insert or assign for the configs' and skins' lists, a list's free), PM's element copies through 0x004d7810 where MW3's are inline; the port's std containers |
+| 0x00474810 | 132 | folded | ported: src/mech3/pilot_games.cpp add_copy (MW3's 0x00472630, a store item's copy added or its count changed); the same steps, the arguments explicit |
 | 0x00474ae0 | 26 | folded | as MW3 0x004729d0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00475100 | 19 | folded | read with its caller 0x0045a250: the store's tons (MW3's 0x0045b900 walk), the port's store_tons (mech_fieldbase_cut.cpp) |
 | 0x00475140 | 10 | folded | covered by the port where it names it (src/mech3/mech_config.h:35) |
 | 0x004751e0 | 9 | folded | a thunk: one call to another function |
-| 0x00475220 | 23 | unlabelled |  |
+| 0x00475220 | 23 | folded | by the slot pairing, read: PM's loadout-item vtable 0x005e36b4 +0x08 is MW3's 0x005c0fc0 +0x08 0x00473220: the item's part through its firepoint (the mech's firepoints by its definition, the item's index; the part at the firepoint's +0x68 for +0x0c), the mech's number passed where MW3's is in a register |
 | 0x00475270 | 15 | folded | checked by test (block trace, 2026-11-13): test_pm_pilot's read 0x0047b2f0 runs it; the file read and written back compared byte for byte |
-| 0x004752a0 | 10 | unlabelled |  |
+| 0x004752a0 | 10 | folded | a constructor out of line: its base (0x00473240) then 0x00475270 with the argument |
 | 0x004754d0 | 47 | folded | group A, read: the salvage's have-enough check gives the same answer (false as soon as one item is short); MW3 reports each shortage (CONFIG: want %d %s, only have %d) and goes on, PM stops at the first without a report: a developer message only |
 | 0x004755f0 | 19 | folded | covered by the port where it names it (src/mech3/app_hooks.h:957) |
 | 0x00475630 | 32 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:148) |
@@ -1798,11 +1799,11 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00475760 | 55 | folded | by the slot pairing: PM vtable 0x5e36b4 slot 0x20 is MW3 vtable 0x5c0fc0's 0x00473900 (MW3 folded: covered where the port does it: src/mech3/mech_salvage.cpp:100 (read: a destructor, a container insert or assi), the feature compare equal (7f6e9e10) |
 | 0x004757d0 | 55 | folded | by the slot pairing: PM vtable 0x5dfc70 slot 0x20 is MW3 vtable 0x5bd180's 0x00473960 (MW3 folded: covered where the port does it: src/mech3/mech_salvage.cpp:101 (read: a destructor, a container insert or assi), the feature compare equal (7f6e9e10) |
 | 0x00475840 | 9 | folded | a thunk: one call to another function |
-| 0x00475860 | 16 | unlabelled |  |
+| 0x00475860 | 16 | folded | a static list's start-up constructor (the list head allocated, its count 0), MW3's inline in its start-up; the port's std containers |
 | 0x00475890 | 9 | folded | a thunk: one call to another function |
 | 0x00475b20 | 35 | folded | read: a skin entry's texture (MW3's 0x00473d40, the port's SkinEntry::load, mech_skin.cpp:248), the same fetch, find and load; PM drops MW3's forcing of the alternate for 'vult_d03_c', which no PM file names, so the port's keeping it changes nothing on PM |
-| 0x00475dd0 | 88 | unlabelled |  |
-| 0x00475fe0 | 92 | unlabelled |  |
+| 0x00475dd0 | 88 | folded | container code (MW3's 0x00471fb0 / 0x00474000 / 0x00474210 / 0x00470d20: a vector's insert or assign for the configs' and skins' lists, a list's free), PM's element copies through 0x004d7810 where MW3's are inline; the port's std containers |
+| 0x00475fe0 | 92 | folded | container code (MW3's 0x00471fb0 / 0x00474000 / 0x00474210 / 0x00470d20: a vector's insert or assign for the configs' and skins' lists, a list's free), PM's element copies through 0x004d7810 where MW3's are inline; the port's std containers |
 | 0x00476750 | 78 | unlabelled |  |
 | 0x00476bf0 | 17 | folded | as MW3 0x00474ef0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x00476c10 | 9 | folded | a thunk: one call to another function |
@@ -5531,52 +5532,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005cc600 | 25 | folded | covered by the port where it names it (src/gamez/zsiscript/si_script.cpp:135) |
 | 0x005cc650 | 11 | folded | covered by the port where it names it (src/gamez/zsave/zsave.h:8) |
 
-### zdeclient (41 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00517ce0 | 53 | unlabelled |  |
-| 0x00517e90 | 179 | unlabelled |  |
-| 0x00518350 | 290 | unlabelled |  |
-| 0x005189f0 | 12 | folded | a thunk: one call to another function |
-| 0x00518a10 | 9 | folded | a thunk: one call to another function |
-| 0x00518ab0 | 15 | unlabelled |  |
-| 0x00518ad0 | 9 | folded | a thunk: one call to another function |
-| 0x00518c60 | 102 | unlabelled |  |
-| 0x005190d0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519190 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005192c0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005193e0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519910 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005199a0 | 197 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519cb0 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519d60 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00519e20 | 28 | folded | as MW3 0x00501a40: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x00519e60 | 24 | folded | as MW3 0x00501a80: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x00519e90 | 17 | folded | read: a 13-word record copy (nothing for a null slot), container code |
-| 0x00519eb0 | 182 | unlabelled |  |
-| 0x0051a6d0 | 179 | unlabelled |  |
-| 0x0051ab70 | 280 | unlabelled |  |
-| 0x0051b1f0 | 8 | folded | returns a constant or a global |
-| 0x0051b270 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
-| 0x0051b280 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:258) |
-| 0x0051b2a0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:259) |
-| 0x0051b2c0 | 20 | unlabelled |  |
-| 0x0051b340 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | pm only, traced: PM's damage handler on an animation (0x0051b2c0, MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832) first runs 0x0051b340 on every hit: when the def has its second sequence (+0xd4, with events) it stamps the time ([0x008d3f68]), clears +0xb0 and runs that sequence from its start (0x0051fc00, 0x00520800: MW3's 0x00506f40, 0x005079b0); the port reads the sequence (AnimDef::pm_seq2, pm/gamez/zeffect/zeff_anim_init.cpp:126) but never runs it, and no shipped PM animation has one, so only a mod's would show it |
-| 0x0051c2f0 | 21 | unlabelled |  |
-| 0x0051c4d0 | 126 | unlabelled |  |
-| 0x0051deb0 | 23 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:625) |
-| 0x0051df10 | 138 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
-| 0x0051e720 | 14 | unlabelled |  |
-| 0x0051e750 | 48 | unlabelled |  |
-| 0x0051e890 | 42 | unlabelled |  |
-| 0x0051f750 | 40 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506bc0 with only offsets and sizes of PM's larger structures changed (0x13c->0x10c); calls, field counts and every other immediate and float constant as MW3's |
-| 0x0051f830 | 43 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506ca0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
-| 0x0051fce0 | 145 | unlabelled |  |
-| 0x00520080 | 53 | unlabelled |  |
-| 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
-| 0x005207b0 | 8 | folded | returns a constant or a global |
-
 ### zfmv (41 not ported)
 
 | Address | Lines | Class | Why |
@@ -5623,43 +5578,51 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x005becd0 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059edc0 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
 
-### zweapon (33 not ported)
+### zdeclient (41 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x005a52e0 | 521 | unlabelled |  |
-| 0x005a62a0 | 74 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x005847c0 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204 0x5d8->0x65c); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005a6410 | 9 | folded | follows 0x005a6420: by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005a6420 | 63 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005a6550 | 9 | folded | follows 0x005a6420: by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005a6650 | 42 | unlabelled |  |
-| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
-| 0x005a6a00 | 37 | folded | group A, read: the same logic as MW3's 0x00584df0 on PM's 8-byte-longer effect block (flyout model +0x110, model animation +0x100): a pooled copy when animated, then under the shot's node; PM passes the add-child's arguments where MW3 leaves them in registers |
-| 0x005a6c20 | 20 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584fe0 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005a6c60 | 286 | MISSING LOGIC | pm only, group A, read: PM's shot spawn plays every FIRE animation (choice 0 all, k the k-th; attached when flag bit 1 and an attach node), then sets the choice back to 0; the port plays one, chosen 0 or 1 (zwep_shot.cpp:340-352). Goes with the reader 0x005a6700 (MW3 0x00585010) |
-| 0x005a7570 | 36 | MISSING LOGIC | pm only, minor: PM retires a dead shot a frame late: its retire (MW3 0x00586600) first stamps the shot (+0x638) with zClass's frame count [0x008c4b60, MW3 0x0072f338] + 1 and returns 0, and its def's shot walk (0x005a7570, new in PM) keeps it linked until a later call finds the stamp matching; so the node stays in the world at its last place, its flyout animations run one more frame and the pool slot comes back a frame later. The port retires at once, as MW3 (zwep_shot.cpp:455-466, 491-501) |
-| 0x005a75c0 | 129 | unlabelled |  |
-| 0x005a79a0 | 162 | unlabelled |  |
-| 0x005a8090 | 58 | unlabelled |  |
-| 0x005a8230 | 58 | unlabelled |  |
-| 0x005a8430 | 29 | unlabelled |  |
-| 0x005a8510 | 71 | unlabelled |  |
-| 0x005a8820 | 20 | unlabelled |  |
-| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
-| 0x005a8a90 | 16 | folded | read: a static list head made (zWeapon's list at [0x008cdcd4], empty, its count 0): container start-up; the port's list is its own |
-| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
-| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
-| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
-| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
-| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
-| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
-| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x00517ce0 | 53 | unlabelled |  |
+| 0x00517e90 | 179 | unlabelled |  |
+| 0x00518350 | 290 | unlabelled |  |
+| 0x005189f0 | 12 | folded | a thunk: one call to another function |
+| 0x00518a10 | 9 | folded | a thunk: one call to another function |
+| 0x00518ab0 | 15 | unlabelled |  |
+| 0x00518ad0 | 9 | folded | a thunk: one call to another function |
+| 0x00518c60 | 102 | unlabelled |  |
+| 0x005190d0 | 44 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519190 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005192c0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005193e0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519910 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005199a0 | 197 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519cb0 | 47 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519d60 | 51 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00519e20 | 28 | folded | as MW3 0x00501a40: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00519e60 | 24 | folded | as MW3 0x00501a80: small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00519e90 | 17 | folded | read: a 13-word record copy (nothing for a null slot), container code |
+| 0x00519eb0 | 182 | unlabelled |  |
+| 0x0051a6d0 | 179 | unlabelled |  |
+| 0x0051ab70 | 280 | unlabelled |  |
+| 0x0051b1f0 | 8 | folded | returns a constant or a global |
+| 0x0051b270 | 9 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
+| 0x0051b280 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:258) |
+| 0x0051b2a0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:259) |
+| 0x0051b2c0 | 20 | unlabelled |  |
+| 0x0051b340 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | pm only, traced: PM's damage handler on an animation (0x0051b2c0, MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832) first runs 0x0051b340 on every hit: when the def has its second sequence (+0xd4, with events) it stamps the time ([0x008d3f68]), clears +0xb0 and runs that sequence from its start (0x0051fc00, 0x00520800: MW3's 0x00506f40, 0x005079b0); the port reads the sequence (AnimDef::pm_seq2, pm/gamez/zeffect/zeff_anim_init.cpp:126) but never runs it, and no shipped PM animation has one, so only a mod's would show it |
+| 0x0051c2f0 | 21 | unlabelled |  |
+| 0x0051c4d0 | 126 | unlabelled |  |
+| 0x0051deb0 | 23 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:625) |
+| 0x0051df10 | 138 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
+| 0x0051e720 | 14 | unlabelled |  |
+| 0x0051e750 | 48 | unlabelled |  |
+| 0x0051e890 | 42 | unlabelled |  |
+| 0x0051f750 | 40 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506bc0 with only offsets and sizes of PM's larger structures changed (0x13c->0x10c); calls, field counts and every other immediate and float constant as MW3's |
+| 0x0051f830 | 43 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506ca0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
+| 0x0051fce0 | 145 | unlabelled |  |
+| 0x00520080 | 53 | unlabelled |  |
+| 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
+| 0x005207b0 | 8 | folded | returns a constant or a global |
 
 ### zgame (33 not ported)
 
@@ -5698,6 +5661,44 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
 | 0x005b2830 | 231 | unlabelled |  |
 | 0x005b2c60 | 16 | debug or dev tool: PORT (preserve) | the script command PrintChildren (PM only): the current node's children's names to the console ('  %s'); no shipped PM script uses it, the port's interpreter does not know it |
+
+### zweapon (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005a52e0 | 521 | unlabelled |  |
+| 0x005a62a0 | 74 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x005847c0 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204 0x5d8->0x65c); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005a6410 | 9 | folded | follows 0x005a6420: by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005a6420 | 63 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005a6550 | 9 | folded | follows 0x005a6420: by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005a6650 | 42 | unlabelled |  |
+| 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:250) |
+| 0x005a6a00 | 37 | folded | group A, read: the same logic as MW3's 0x00584df0 on PM's 8-byte-longer effect block (flyout model +0x110, model animation +0x100): a pooled copy when animated, then under the shot's node; PM passes the add-child's arguments where MW3 leaves them in registers |
+| 0x005a6c20 | 20 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584fe0 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005a6c60 | 286 | MISSING LOGIC | pm only, group A, read: PM's shot spawn plays every FIRE animation (choice 0 all, k the k-th; attached when flag bit 1 and an attach node), then sets the choice back to 0; the port plays one, chosen 0 or 1 (zwep_shot.cpp:340-352). Goes with the reader 0x005a6700 (MW3 0x00585010) |
+| 0x005a7570 | 36 | MISSING LOGIC | pm only, minor: PM retires a dead shot a frame late: its retire (MW3 0x00586600) first stamps the shot (+0x638) with zClass's frame count [0x008c4b60, MW3 0x0072f338] + 1 and returns 0, and its def's shot walk (0x005a7570, new in PM) keeps it linked until a later call finds the stamp matching; so the node stays in the world at its last place, its flyout animations run one more frame and the pool slot comes back a frame later. The port retires at once, as MW3 (zwep_shot.cpp:455-466, 491-501) |
+| 0x005a75c0 | 129 | unlabelled |  |
+| 0x005a79a0 | 162 | unlabelled |  |
+| 0x005a8090 | 58 | unlabelled |  |
+| 0x005a8230 | 58 | unlabelled |  |
+| 0x005a8430 | 29 | unlabelled |  |
+| 0x005a8510 | 71 | unlabelled |  |
+| 0x005a8820 | 20 | unlabelled |  |
+| 0x005a88b0 | 30 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
+| 0x005a8a90 | 16 | folded | read: a static list head made (zWeapon's list at [0x008cdcd4], empty, its count 0): container start-up; the port's list is its own |
+| 0x005a8ac0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8d20 | 16 | replaced (SDL or the platform layer) | as MW3 0x00587ca0, whose class PM's changes keep: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a8d50 | 9 | folded | a thunk: one call to another function |
+| 0x005a8dd0 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
+| 0x005a8de0 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e10 | 9 | unlabelled | follows 0x005a4b90:  |
+| 0x005a8e20 | 9 | folded | a thunk: one call to another function |
+| 0x005a8e40 | 28 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8ec0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:248) |
+| 0x005a8f30 | 42 | folded | as MW3 0x00587ed0: covered: the DirectPlay error names (znet_dplay.cpp:142 names each through localize), the sessions' list clear (znet_session.cpp:248), the net view's inlined steps (znet_view.cpp:68, :151), the net object's static, ZGameApp's base InitInstance and engine start (overridden by the app's 0x00480000 / 0x00480570, game-loop.md) |
+| 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+| 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 
 ### zutil (31 not ported)
 
@@ -5769,16 +5770,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00530b20 | 13 | replaced (SDL or the platform layer) | as MW3 0x00517230: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 | 0x00530b40 | 20 | replaced (SDL or the platform layer) | as MW3 0x00517250: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
-### zsiscript (5 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005cc670 | 22 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:412) |
-| 0x005cc880 | 29 | debug or dev tool: PORT (preserve) | as MW3 0x005a9bc0: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
-| 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
-| 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
-| 0x005cd090 | 27 | unlabelled |  |
-
 ### zerror (5 not ported)
 
 | Address | Lines | Class | Why |
@@ -5788,4 +5779,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00527490 | 22 | unlabelled |  |
 | 0x00527500 | 38 | unlabelled |  |
 | 0x005275d0 | 30 | unlabelled |  |
+
+### zsiscript (5 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005cc670 | 22 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:412) |
+| 0x005cc880 | 29 | debug or dev tool: PORT (preserve) | as MW3 0x005a9bc0: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
+| 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
+| 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
+| 0x005cd090 | 27 | unlabelled |  |
 
