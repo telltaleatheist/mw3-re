@@ -405,7 +405,6 @@
 0x005bfdc0	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x005c57d0	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x00514120	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
-0x0044abb0	unsure	group A: paired by its call site with MW3 0x00449760 (the shared port's call there); a changed pair, settled by group A's rules
 0x0047be40	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x004a7420	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x004ab480	unsure	group A: paired by its call site with MW3 0x004a7f30 (the shared port's call there); a changed pair, settled by group A's rules
@@ -433,16 +432,7 @@
 0x0040a870	unsure	read with group A: a callee of shared ports PM changed (0x004826e0, 0x00483700); whether the port does PM's version, this call included, is settled there
 0x0040a920	unsure	read with group A: a callee of shared ports PM changed (0x0043af70, 0x004824d0); whether the port does PM's version, this call included, is settled there
 0x00414ba0	unsure	read with group A: a callee of shared ports PM changed (0x00415190, 0x0046f510, 0x00494500); whether the port does PM's version, this call included, is settled there
-0x004279e0	unsure	read with group A: a callee of shared ports PM changed (0x0048eaf0); whether the port does PM's version, this call included, is settled there
-0x00428750	unsure	read with group A: a callee of shared ports PM changed (0x0046cc50); whether the port does PM's version, this call included, is settled there
-0x0042b0d0	unsure	read with group A: a callee of shared ports PM changed (0x0042abb0); whether the port does PM's version, this call included, is settled there
-0x0042c360	unsure	read with group A: a callee of shared ports PM changed (0x0042c8d0); whether the port does PM's version, this call included, is settled there
-0x00431080	unsure	read with group A: a callee of shared ports PM changed (0x00414950, 0x00415190, 0x0046f510); whether the port does PM's version, this call included, is settled there
 0x004356c0	unsure	read with group A: a callee of shared ports PM changed (0x004a19c0); whether the port does PM's version, this call included, is settled there
-0x00435d20	unsure	read with group A: a callee of shared ports PM changed (0x0047f420); whether the port does PM's version, this call included, is settled there
-0x0044a320	unsure	read with group A: a callee of shared ports PM changed (0x0044a010); whether the port does PM's version, this call included, is settled there
-0x0045b240	unsure	read with group A: a callee of shared ports PM changed (0x004921a0); whether the port does PM's version, this call included, is settled there
-0x00462a00	unsure	read with group A: a callee of shared ports PM changed (0x004b73f0, 0x004b80f0); whether the port does PM's version, this call included, is settled there
 0x00469c80	unsure	read with group A: a callee of shared ports PM changed (0x0046c620); whether the port does PM's version, this call included, is settled there
 0x00475b20	unsure	read with group A: a callee of shared ports PM changed (0x00476750); whether the port does PM's version, this call included, is settled there
 0x004773a0	unsure	read with group A: a callee of shared ports PM changed (0x00430c10); whether the port does PM's version, this call included, is settled there
@@ -603,7 +593,6 @@
 0x0040b320	unsure	the setter sweep: it writes [0x0061880c], which the port never names, so folding it into its caller is not shown; [0x0061880c] read by 0x40b330
 0x004112a0	unsure	the setter sweep: it writes [0x00627d70], [0x00627d74], [0x00627d78], [0x00627d7c], which the port never names, so folding it into its caller is not shown; [0x00627d70] read by nothing found; [0x00627d74] read by 0x411300, 0x4113f0, 0x411650, 0x411800, 0x411820; [0x00627d78] read by 0x411300, 0x4113f0, 0x411800; [0x00627d7c] read by 0x4113f0
 0x00413c40	unsure	the setter sweep: it writes [0x00628b48], which the port never names, so folding it into its caller is not shown; [0x00628b48] read by 0x413df0
-0x00430620	unsure	the setter sweep: it writes [0x006293e0], [0x006293e4], [0x006293e8], which the port never names, so folding it into its caller is not shown; [0x006293e0] read by nothing found; [0x006293e4] read by 0x430790, 0x430800, 0x430930, 0x431080, 0x431120; [0x006293e8] read by 0x430790, 0x431120, 0x431ce0, 0x431d70
 0x0051b270	unsure	the setter sweep: it writes [0x008d3f3c], which the port never names, so folding it into its caller is not shown; [0x008d3f3c] read by 0x51fce0
 0x00526970	unsure	the setter sweep: it writes [0x0060f684], which the port never names, so folding it into its caller is not shown; [0x0060f684] read by 0x526310, 0x526450, 0x5266b0, 0x526860, 0x526990
 0x00526980	unsure	the setter sweep: it writes [0x0060f688], which the port never names, so folding it into its caller is not shown; [0x0060f688] read by 0x526310, 0x526450, 0x5266b0, 0x526860, 0x526990
@@ -2556,3 +2545,14 @@
 0x00459b20	folded	read: MW3's 0x004589a0 unpaired by the diff (the dock arm's +0x88 set to 1 or 0 by the flag), the same; called where MW3 calls it in the dock step 0x0045a990 (MW3 0x004598d0, mech_fieldbase_dock.cpp:123)
 0x00415940	missing	pm only, minor (a mech deleted mid-mission: a network player leaving): PM's mech destructor (0x00415940, MW3's 0x00414f40, mech_build.cpp:225) first clears the owner (+0x6c, +0x70, +0x74) of every live shot that mech fired (0x005a35f0 over zWeapon's pools), and frees its node's handler table (0x005a4de0); MW3 and the port do neither, so a shot outliving its mech keeps the gone owner. To check: whether the port's shot reads that owner afterwards (its hit credit, its tether)
 0x005a35f0	missing	pm only, minor (a mech deleted mid-mission: a network player leaving): PM's mech destructor (0x00415940, MW3's 0x00414f40, mech_build.cpp:225) first clears the owner (+0x6c, +0x70, +0x74) of every live shot that mech fired (0x005a35f0 over zWeapon's pools), and frees its node's handler table (0x005a4de0); MW3 and the port do neither, so a shot outliving its mech keeps the gone owner. To check: whether the port's shot reads that owner afterwards (its hit credit, its tether)
+0x0042b0d0	folded	read: a vector's insert of n copies (MW3 0x00429700, the template credits.h:41 names), its loops compiled otherwise; container code, the port's std::vector
+0x0042c360	folded	read: the same as MW3's 0x0042b210 but one step taken from a field (one statement each side, the same value)
+0x00428750	folded	read: a this-adjusting thunk (multiple inheritance: the object 0x60 back, its vt+0x18), the compiler's; the port's classes
+0x00431080	folded	read: MW3's mech data cache 0x00430d10 unpaired by the diff (found by mech id at +0xc or made, 0x234 bytes, its count +8 up, given when its +0x20 is set), the port's mech_data hook (mech_build.cpp:198); PM counts up before the null test and skips MW3's 0x004303c0 first
+0x004279e0	folded	read: container code (a vector's index of a value; a static list head made)
+0x00430620	folded	read: container code (a vector's index of a value; a static list head made)
+0x00435d20	folded	read: a wrapper of 0x00434df0 (inline where MW3 calls it)
+0x0044a320	folded	read with its caller, the lab state's update (0x0044a010, MW3 0x00448a80, mech_lab.cpp, ported with PM's changes at 0x0044a127 / 0x0044a16f): the lab's two 2D layers drawn, the surface locked round them in software; the port's draw
+0x00462a00	folded	read: MW3's 0x00461670 (a weapon's heat added when it fires: a timed beam's heat times the frame, else the definition's, with the recoil vt+0x24 for a non-beam), the same branches in another order; the definition at PM's +0x200 for MW3's +0x1f0
+0x0044abb0	folded	read: the same as MW3's 0x00449760, a field 8 bytes on in PM's lab screen (+0x4d4 for +0x4cc)
+0x0045b240	missing	pm only, multiplayer: PM's dock registry frame (0x0045b240, from the mission frame 0x004921a0, in MW3's 0x0045a270's place) runs the dock states in every game type and has no multiplayer branch; PM checks the deployment in its refit instead (0x0045be50, ported: DockRefit::may_start). The port's FieldBases::frame (mech_fieldbase_dock.cpp:329) is MW3's on PM too: in multiplayer (type 3) it runs no dock states and, with mobile bases on, MW3's station check and its 'too far from MFB deployment point' line, which PM's frame never does
