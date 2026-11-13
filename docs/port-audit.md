@@ -11,7 +11,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2998 |
+| folded | 2992 |
 | replaced (SDL or the platform layer) | 221 |
 | software renderer | 111 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 110 |
@@ -20,7 +20,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | MISSING LOGIC | 52 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
 | dev dialog (MFC), its logic: PORT (preserve) | 42 |
-| UNSURE | 22 |
+| UNSURE | 28 |
 
 ## MISSING LOGIC
 
@@ -125,11 +125,17 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 
 ## UNSURE
 
+- 0x00410010 (1 functions, 13 decomp lines): the setter sweep: it writes [0x006040a4], which the port never names, so folding it into its caller is not shown; [0x006040a4] read by nothing found
+- 0x00410a20 (1 functions, 16 decomp lines): the setter sweep: it writes [0x00604118], [0x00604120], [0x00604124], which the port never names, so folding it into its caller is not shown; [0x00604118] read by nothing found; [0x00604120] read by 0x410a80, 0x410b70, 0x410f80; [0x00604124] read by 0x410b70
 - 0x0041cee0, 0x0041d220, 0x0041d280, 0x0041d2c0, 0x0041d300, 0x0041d320, 0x0041d380, 0x0041dd90 (8 functions, 172 decomp lines): the mech's (and another class's, vtables 0x005bcf80.., 0x005c3590..) speed and motion queries for the AI, vt+0x124..+0x13c and two part queries over 0x00465bc0 / 0x00465c70: the port answers vt+0x118 and +0x120 (app_mech.h:445); whether the AI asks these others in play is to settle
+- 0x004c58d0 (1 functions, 10 decomp lines): the setter sweep: it writes [0x0060b3d0], which the port never names, so folding it into its caller is not shown; [0x0060b3d0] read by 0x4c5ad0
+- 0x004c79e0 (1 functions, 11 decomp lines): the setter sweep: it writes [0x0060b46c], which the port never names, so folding it into its caller is not shown; [0x0060b46c] read by nothing found
 - 0x004c9140, 0x004c9180, 0x004c9260, 0x004c92b0, 0x004c9310, 0x004c9360, 0x004c9410, 0x004c9480 (8 functions, 231 decomp lines): the node steps' vt+0x30..+0x50 (vtables 0x005cbf3c, 0x005cc6fc, 0x005cc7b4; like Step's 0x004c9d20 family): set a link slot (+0x20) from a picked node's behaviour (vt+0x60, +0x74), find or count links, the node's position set: probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004c9d20, 0x004c9d70, 0x004c9db0, 0x004c9de0 (4 functions, 74 decomp lines): Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004d7160 (1 functions, 12 decomp lines): an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it
 - 0x004dee50 (1 functions, 58 decomp lines): the aiv reader's vtable slot 0x005cd42c (58 lines): a name checked against zEntity's list (0x005a8210) and the reader's records (std::map find 0x004e1a30), no caller found; probably the editor's 'is this name free'; to settle by its slot and callers
+- 0x00500670 (1 functions, 16 decomp lines): the setter sweep: it writes [0x0060bf90], [0x0060bf98], which the port never names, so folding it into its caller is not shown; [0x0060bf90] read by nothing found; [0x0060bf98] read by 0x500850, 0x500af0, 0x500c60
+- 0x00555d00 (1 functions, 13 decomp lines): the setter sweep: it writes [0x0072be84], which the port never names, so folding it into its caller is not shown; [0x0072be84] read by nothing found
 
 ## By module
 
@@ -377,7 +383,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x0040ff40 | 35 | debug or dev tool: PORT (preserve) | the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x0040fff0 | 9 | folded | a thunk: one call to another function |
 | 0x00410000 | 9 | folded | a thunk: one call to another function |
-| 0x00410010 | 13 | folded | covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
+| 0x00410010 | 13 | UNSURE | the setter sweep: it writes [0x006040a4], which the port never names, so folding it into its caller is not shown; [0x006040a4] read by nothing found |
 | 0x00410040 | 9 | folded | a thunk: one call to another function |
 | 0x00410050 | 9 | folded | a thunk: one call to another function |
 | 0x00410090 | 9 | folded | a thunk: one call to another function |
@@ -425,7 +431,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x004106e0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00410920 | 18 | folded | covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00410950 | 38 | folded | covered by the port where it names it (src/mech3/controls_cfg.h:24) |
-| 0x00410a20 | 16 | folded | covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
+| 0x00410a20 | 16 | UNSURE | the setter sweep: it writes [0x00604118], [0x00604120], [0x00604124], which the port never names, so folding it into its caller is not shown; [0x00604118] read by nothing found; [0x00604120] read by 0x410a80, 0x410b70, 0x410f80; [0x00604124] read by 0x410b70 |
 | 0x00410a40 | 9 | folded | a thunk: one call to another function |
 | 0x00410b00 | 25 | folded | covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x00411020 | 12 | folded | a thunk: one call to another function |
@@ -2005,7 +2011,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x004c5720 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004c5740 | 13 | folded | covered by the port where it names it (src/mech3/zainet_region.cpp:38) |
 | 0x004c57c0 | 11 | folded | sets members (a setter or a small constructor) |
-| 0x004c58d0 | 10 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
+| 0x004c58d0 | 10 | UNSURE | the setter sweep: it writes [0x0060b3d0], which the port never names, so folding it into its caller is not shown; [0x0060b3d0] read by 0x4c5ad0 |
 | 0x004c5900 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004c5930 | 9 | folded | a thunk: one call to another function |
 | 0x004c5ad0 | 8 | folded | returns a constant or a global |
@@ -2053,7 +2059,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x004c78c0 | 15 | dev dialog (MFC), its window plumbing: replaced | an AI dev dialog's window close (PostNcDestroy, [0x0060b420] cleared) |
 | 0x004c7950 | 11 | folded | covered by the port where it names it (src/mech3/zai_node.cpp:103) |
 | 0x004c7960 | 27 | folded | ported, by docs/symbols.csv: ported; LinkWay::measure (first half) |
-| 0x004c79e0 | 11 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
+| 0x004c79e0 | 11 | UNSURE | the setter sweep: it writes [0x0060b46c], which the port never names, so folding it into its caller is not shown; [0x0060b46c] read by nothing found |
 | 0x004c7ae0 | 16 | folded | ported, by docs/symbols.csv: ported inline; LinkWay |
 | 0x004c7b20 | 9 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004c7b30 | 9 | folded | a thunk: one call to another function |
@@ -2890,7 +2896,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 | 0x00555620 | 16 | MISSING LOGIC | the hardware mode's triangle stripper (0x004fc8b0 -> 0x00552540 over every mechlib model, flag set by zvid_init 0x00579e79 when [0x0072f348]; about 45 functions, 3,500 lines, much of it STL): joins triangles that share an edge with matching material, priority, normals, UVs and colours into strips (0x400, up to 64 vertices). Measured (strip_hits.py): 302 of 770 models change, and on 126 the ground and segment tests stop at a different face (up to 1.5 m away), so the port answers as software mode, not hardware mode. A port, queued after the audit (docs/mechlib.md) |
 | 0x005557f0 | 147 | software renderer | the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
 | 0x00555cd0 | 19 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
-| 0x00555d00 | 13 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
+| 0x00555d00 | 13 | UNSURE | the setter sweep: it writes [0x0072be84], which the port never names, so folding it into its caller is not shown; [0x0072be84] read by nothing found |
 | 0x00555d20 | 29 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00555d90 | 19 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00555de0 | 34 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
@@ -3828,7 +3834,7 @@ Checked and not broken (2026-11-13): the census of the campaign by objectives (2
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00500670 | 16 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x00500670 | 16 | UNSURE | the setter sweep: it writes [0x0060bf90], [0x0060bf98], which the port never names, so folding it into its caller is not shown; [0x0060bf90] read by nothing found; [0x0060bf98] read by 0x500850, 0x500af0, 0x500c60 |
 | 0x005006b0 | 9 | folded | a thunk: one call to another function |
 | 0x005006f0 | 22 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00500cd0 | 43 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
