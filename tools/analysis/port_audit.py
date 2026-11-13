@@ -107,6 +107,10 @@ def shape(body):
 def scan_src(src, tag):
     """Ported addresses (a comment starting with the tag) and every address named anywhere."""
     head = re.compile(r'//\s*' + tag + r' @ 0x([0-9a-fA-F]{6,8})')
+    # Pirate's Moon's header also comes after MW3's on a shared port
+    # ("Mech3.exe 1.2 @ ..., Pirate's Moon 1.0 @ ...") or inside a comment,
+    # with a list of addresses: each one listed is ported there.
+    pm_head = re.compile(r"Pirate's Moon(?:'s)? 1\.0 @ ((?:0x[0-9a-fA-F]{6,8}(?:, | and | / |/)?)+)") if 'Pirate' in tag else None
     any_addr = re.compile(r'0x(00)?([45][0-9a-fA-F]{5})\b')
     ported, named = {}, defaultdict(list)
     for p in sorted(src.rglob('*')):
@@ -116,6 +120,10 @@ def scan_src(src, tag):
         for n, line in enumerate(p.open(errors='replace'), 1):
             for m in head.finditer(line):
                 ported.setdefault(int(m.group(1), 16), rel)
+            if pm_head and '//' in line:
+                for m in pm_head.finditer(line[line.index('//'):]):
+                    for a in re.findall(r'0x([0-9a-fA-F]{6,8})', m.group(1)):
+                        ported.setdefault(int(a, 16), rel)
             for m in any_addr.finditer(line):
                 named[int(m.group(2), 16)].append(f'{rel}:{n}')
     return ported, named
@@ -265,6 +273,62 @@ def write_doc(o, g, rows):
            'container code, or covered where the port names it); **replaced** (SDL or the platform layer); **PORT (preserve)**',
            '(debug and dev tools, unused code: to be ported for preservation, not called by the game); **MISSING LOGIC**',
            '(runs in play and the port does not, or does it differently); **UNSURE** (what would settle it is said).', '']
+    if o.game == 'pm':
+        out += ['## Method (pm)', '',
+                'Each PM function is paired with its MW3 twin by analysis-output/pm-diff (pairs.json, addrmap.json). A pair',
+                'the diff calls identical takes the MW3 label ("as MW3 ..."). A changed pair under a shared port was read:',
+                'those whose control flow differs from the twin\'s one by one, by file; those whose text differs but not their',
+                'control flow either by reading or by **the feature compare** (tools/analysis/pm_feature_compare.py, at commit',
+                '7f6e9e10): the calls and data references (MW3\'s mapped to PM), the immediates and the float constants by their',
+                'raw values, as multisets over the function, and the number of field accesses, field stores and distinct field',
+                'offsets (the offsets themselves reported apart: PM\'s layouts shift them). A sample of 40 was read whole; the',
+                'functions the compare flags are read one by one, the rest are labelled "folded, by the feature compare". Its',
+                'earlier versions counted no field accesses and passed added reads and writes (a new field cleared, a new flag',
+                'byte): the 130 they passed and this one flags were taken back to be read. **Residual risk**: the compare cannot',
+                'see an access moved from one existing field to another the function already touches, with the counts unchanged;',
+                'the offsets are not yet mapped through the pm port\'s PM structures to check each one against the layout\'s shift.',
+                'A call the address map cannot place counts as "unmapped" on both sides, so a caller passes with an unmapped',
+                'callee that differs from its MW3 counterpart: of the 867 folded by the compare, 161 have such calls (68 callee',
+                'pairs, matched by their place in the call order: 47 equal by the same compare, the other 21 mispaired by that',
+                'order or differing). Each unmapped PM callee has a row of its own here, so a difference in it is labelled on',
+                'that row, not on its caller\'s. Its second half: a caller folded by the compare is right only if that',
+                'callee is the same too, so tools/analysis/pm_fold_propagation.py checks every compare, slot or layout fold',
+                'against its unmapped callees\' labels (a jmp thunk followed): a callee MISSING or unsure sends the fold back',
+                'to read, an unlabelled one makes it wait. First run (2026-11-13): 2 back (0x0047c960, 0x0050a5d0, both',
+                'relabelled as following their callees), 27 waiting, 14 after their callees were read; it runs again at the end.',
+                'The **order-aware compare** (tools/analysis/pm_shape_compare.py) keeps what carries logic in order (calls by',
+                'mapped target, conditional jumps, float constants, compares, tests and logic with small immediates, stored',
+                'immediates) and aligns the two sequences, so a test moved or a branch added shows where counting does not; the',
+                'long changed rows from 2026-11-13 on are read with it. Run back over the 1,647 compare, slot and layout folds',
+                '(tools/analysis/pm_shape_back.py, their logic tokens as multisets, constants as sets of values): 1,518 the same,',
+                '48 with a constant or immediate differing and 54 with only calls differing (27 without a twin or range); 93 of',
+                'the 102 had been read when labelled, and the 9 that had not are all the same logic (stack alignment, a mask',
+                'compiled two ways, immediates for registers, deleting destructors calling their own class\'s destructor).',
+                'A function reached only through a table is paired **by its slot**: the MW3 function in the same slot of',
+                'its vtable\'s MW3 twin (pm-diff/vtables.json). A pair the feature compare finds equal takes the MW3 function\'s',
+                'class, the label naming the pairing; a pair that differs is read, since PM\'s longer vtables move the later',
+                'slots (the pairing then names another function). A scalar deleting destructor (one call to a destructor,',
+                'then delete when bit 0 is set, matched on its whole body) is folded, its destructor labelled on its own row.',
+                'A changed pair is a **layout shift** (tools/analysis/pm_layout_shift.py) when the compare flags nothing but',
+                'immediates that pair one MW3 value off for one PM value, each a multiple of 4 and at least 0x40 (the offsets',
+                'and sizes of PM\'s larger structures), and float constants against their negatives, each only added or subtracted with the operation swapped (fsub -c written fadd c, checked by instruction): no',
+                'call, no field count, no other immediate. Such a pair is folded, the label naming its pairs; a small or odd',
+                'value (a mask, a count) is read. A multiple of 4 can also be a tuning value, so each matched value\'s uses',
+                'were then checked (tools/analysis/pm_layout_shift_uses.py): of the 72, 16 used one other than as an address',
+                'offset or a size before operator new; read, 15 were element sizes for the vector constructor and destructor',
+                'iterators or a malloc wrapper, error-report line numbers, a stack frame\'s size or a record\'s stride, and',
+                'one was a real value (0x0057a170, the static\'s noise table: 40000 bytes for 25600), taken off the rule.',
+                'The compare up to 7f6e9e10 counted data references but did not flag them, and an unmapped string counted as',
+                '"unmapped" whatever its text, so a function naming another string passed (0x00430a70: "mech_targeting" for',
+                'MW3\'s "mech_%s"). It now keys each string of 4+ characters by its text (a source path by its file name),',
+                'flags data references, and keeps apart what is no data: code addresses (exception handlers pushed),',
+                'negatives (an SEH frame\'s -1) and values outside the image (flags). The 1,627 labels resting on the compare',
+                'were rechecked with it: 20 flag a reference; 12 had been read already, of the other 8 seven are register',
+                'reuse, a return written twice, a COMDAT-folded callback or the DirectInput data format (in MW3\'s .text), and',
+                'one was real (0x00430a70, labelled missing). The layout-shift rule refuses a reference or string difference too.',
+                '**Checked by test** means a passing PM differential test ran the',
+                'function\'s body (a block trace of the emulator, per entry the test calls) and compares what that body',
+                'produces; the label names the compared value. Reaching a function, or running a caller, is not enough.', '']
     from collections import Counter as C
     cnt = C(lab or 'unlabelled' for _, lab, _ in done)
     out += ['| Class | Functions |', '|---|---|'] + [f'| {LABEL_WORDS.get(k, k)} | {n} |' for k, n in cnt.most_common()] + ['']
@@ -367,10 +431,26 @@ def main():
         src_root = Path(o.src).parent
         def pm_ref(ref):
             fn, n = ref.rsplit(':', 1)
-            if '/pm/' in fn:
+            if '/pm/' in fn or re.search(r'_pm\.\w+$', fn):  # src/pm/, or the pm port's *_pm files
                 return True
-            line = (src_root / fn).read_text(errors='replace').splitlines()[int(n) - 1]
-            return bool(re.search(r"Pirate|\bPM\b|\bpm\b", line))
+            lines = src_lines.setdefault(fn, (src_root / fn).read_text(errors='replace').splitlines())
+            line = lines[int(n) - 1]
+            if re.search(r"Pirate|\bPM\b|\bpm\b", line):
+                return True
+            # Or inside a function the pm port headed as Pirate's Moon's: the
+            # nearest header above (either game's) is a Pirate's Moon one, with
+            # no function's end (a '}' in the first column) between, and in a
+            # header file no blank line between (declarations run on).
+            header = fn.endswith(('.h', '.hpp', '.inc'))
+            for k in range(int(n) - 1, -1, -1):
+                if re.search(r"//\s*Mech3\.exe 1\.2 @", lines[k]):
+                    return False
+                if re.search(r"//\s*Pirate's Moon 1\.0 @", lines[k]):
+                    return True
+                if k < int(n) - 1 and (lines[k].startswith('}') or (header and not lines[k].strip())):
+                    return False
+            return False
+        src_lines = {}
         named = defaultdict(list, {a: [r for r in rs if pm_ref(r)] for a, rs in named.items()})
         named = defaultdict(list, {a: rs for a, rs in named.items() if rs})
         for x in json.load(open(A / 'pm-diff' / 'pairs.json')):
@@ -418,7 +498,7 @@ def main():
         rows.append(dict(
             addr=f'0x{a:08x}', status=status, module=module_of(path), file=path,
             lines=decomp_lines(g['decomp'], a),
-            named_in=sorted(set(named.get(a, [])))[:6] if status == 'named' else [],
+            named_in=sorted(set(named.get(a, [])))[:6] if status in ('named', 'changed') else [],  # changed: where the pm port mentions it, to read with
             callers=[f'0x{c:08x}' for c in sorted(callers[a])],
             callees=[f'0x{c:08x}' for c in sorted(callees[a])],
             refs=[f'0x{c:08x}' for c in sorted(refs[a])],
