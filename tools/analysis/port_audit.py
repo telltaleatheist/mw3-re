@@ -299,7 +299,7 @@ def write_doc(o, g, rows):
                 'then delete when bit 0 is set, matched on its whole body) is folded, its destructor labelled on its own row.',
                 'A changed pair is a **layout shift** (tools/analysis/pm_layout_shift.py) when the compare flags nothing but',
                 'immediates that pair one MW3 value off for one PM value, each a multiple of 4 and at least 0x40 (the offsets',
-                'and sizes of PM\'s larger structures), and float constants against their negatives (fsub written as fadd): no',
+                'and sizes of PM\'s larger structures), and float constants against their negatives, each only added or subtracted with the operation swapped (fsub -c written fadd c, checked by instruction): no',
                 'call, no field count, no other immediate. Such a pair is folded, the label naming its pairs; a small or odd',
                 'value (a mask, a count) is read. A multiple of 4 can also be a tuning value, so each matched value\'s uses',
                 'were then checked (tools/analysis/pm_layout_shift_uses.py): of the 72, 16 used one other than as an address',

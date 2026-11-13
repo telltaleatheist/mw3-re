@@ -9,6 +9,7 @@ addresses.
 import re
 import sys
 import json
+import struct
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -41,12 +42,40 @@ def shift_only(pm):
     for (_, _), (neg, pos) in const.items():
         if neg + pos != 0:
             return False
+    # and each such constant is only added or subtracted, the operation swapped with its sign (fadd -c is fsub c)
+    flipped = {a for (_, a), (neg, pos) in const.items() if neg or pos}
+    if flipped:
+        def ops(game, addr):
+            import bisect
+            ins, idx = F.asm(game)
+            c = {}
+            for s, e in F.RANGES[game][addr]:
+                for k in range(bisect.bisect_left(idx, s), bisect.bisect_right(idx, e)):
+                    _, mn, o = ins[k]
+                    m = F.FLD.search(o) if mn.startswith('f') else None
+                    if not m:
+                        continue
+                    b = F.EXE[game](int(m.group(2), 16), 8 if m.group(1) == 'qword' else 4)
+                    if not b:
+                        continue
+                    v = struct.unpack('<d' if m.group(1) == 'qword' else '<f', b)[0]
+                    if any(abs(abs(v) - a) <= 1e-6 * max(1.0, a) for a in flipped):
+                        sign = 1 if v > 0 else -1
+                        base = {'fadd': 1, 'fsub': -1}.get(mn)
+                        if base is None:
+                            return None  # used other than added or subtracted: read it
+                        key = round(abs(v), 6)
+                        c[key] = c.get(key, 0) + base * sign  # +1: adds |c|, -1: subtracts |c|
+            return c
+        a, b = ops('mw3', mw), ops('pm', pm)
+        if a is None or b is None or a != b:
+            return False
     if len(imm_w) != len(imm_p):
         return False
     for v in imm_w + imm_p:
         if v % 4 or v < 0x40:
             return False
-    return list(zip(sorted(imm_w), sorted(imm_p)))
+    return list(zip(sorted(imm_w), sorted(imm_p))) or [("sign", "sign")]
 
 
 def main(argv):
@@ -62,7 +91,7 @@ def main(argv):
         except KeyError:
             continue
         if r:
-            print('0x%08x' % a if only else '0x%08x MW3 0x%08x  %s' % (a, F.TWIN[a], ' '.join('%#x->%#x' % x for x in r)))
+            print('0x%08x' % a if only else '0x%08x MW3 0x%08x  %s' % (a, F.TWIN[a], ' '.join(('%#x->%#x' % x) if x[0] != 'sign' else 'float constants by sign only' for x in r)))
 
 
 if __name__ == '__main__':

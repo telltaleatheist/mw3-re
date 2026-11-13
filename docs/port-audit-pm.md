@@ -35,7 +35,7 @@ slots (the pairing then names another function). A scalar deleting destructor (o
 then delete when bit 0 is set, matched on its whole body) is folded, its destructor labelled on its own row.
 A changed pair is a **layout shift** (tools/analysis/pm_layout_shift.py) when the compare flags nothing but
 immediates that pair one MW3 value off for one PM value, each a multiple of 4 and at least 0x40 (the offsets
-and sizes of PM's larger structures), and float constants against their negatives (fsub written as fadd): no
+and sizes of PM's larger structures), and float constants against their negatives, each only added or subtracted with the operation swapped (fsub -c written fadd c, checked by instruction): no
 call, no field count, no other immediate. Such a pair is folded, the label naming its pairs; a small or odd
 value (a mask, a count) is read. A multiple of 4 can also be a tuning value, so each matched value's uses
 were then checked (tools/analysis/pm_layout_shift_uses.py): of the 72, 16 used one other than as an address
@@ -48,8 +48,8 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 3260 |
-| unlabelled | 1004 |
+| folded | 3286 |
+| unlabelled | 978 |
 | replaced (SDL or the platform layer) | 233 |
 | MISSING LOGIC | 194 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 112 |
@@ -838,7 +838,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00413c40 | 11 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
 | 0x00413c70 | 9 | folded | follows 0x0040d510: as MW3 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
 | 0x00413c80 | 9 | folded | a thunk: one call to another function |
-| 0x00413ce0 | 40 | unlabelled |  |
+| 0x00413ce0 | 40 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00413470 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x00414090 | 111 | folded | as MW3 0x004137c0: covered where the port does it: src/mech3/landmines.cpp:53 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00414340 | 14 | folded | as MW3 0x00413a70: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x004147e0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005bb8c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
@@ -939,28 +939,28 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0041fc70 | 40 | unlabelled |  |
 | 0x0041fdc0 | 9 | folded | a thunk: one call to another function |
 | 0x0041ffa0 | 57 | folded | group A, read: PM does the dropped helpers' work in place: MW3's small getters and setters (of +4, +8, +0xc, +0x10) appear inline in PM's body with the same fields; the rest as MW3's (mech_anim's gait, the briefing's shown test) |
-| 0x004201e0 | 31 | unlabelled |  |
+| 0x004201e0 | 31 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
 | 0x00420530 | 25 | folded | covered by the port where it names it (src/mech3/mech_anim.h:27) |
-| 0x00420930 | 27 | unlabelled |  |
-| 0x00420a50 | 17 | unlabelled |  |
+| 0x00420930 | 27 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
+| 0x00420a50 | 17 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
 | 0x00420aa0 | 87 | unlabelled |  |
 | 0x00420e40 | 42 | folded | checked by test (block trace, 2026-11-13): test_pm_mechanim runs it (the animation objects and samplers compared); the compare passes it |
 | 0x00420f10 | 15 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:378) |
 | 0x004210d0 | 23 | folded | group A, read: PM does the dropped helpers' work in place: MW3's small getters and setters (of +4, +8, +0xc, +0x10) appear inline in PM's body with the same fields; the rest as MW3's (mech_anim's gait, the briefing's shown test) |
 | 0x004211b0 | 21 | folded | group A, read: PM does the dropped helpers' work in place: MW3's small getters and setters (of +4, +8, +0xc, +0x10) appear inline in PM's body with the same fields; the rest as MW3's (mech_anim's gait, the briefing's shown test) |
-| 0x004212c0 | 11 | unlabelled |  |
-| 0x004213d0 | 18 | unlabelled |  |
-| 0x004214c0 | 52 | unlabelled |  |
-| 0x00421680 | 39 | unlabelled |  |
-| 0x00421870 | 39 | unlabelled |  |
-| 0x00421a60 | 31 | unlabelled |  |
-| 0x00421bd0 | 18 | unlabelled |  |
-| 0x00421ce0 | 16 | unlabelled |  |
+| 0x004212c0 | 11 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
+| 0x004213d0 | 18 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
+| 0x004214c0 | 52 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
+| 0x00421680 | 39 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
+| 0x00421870 | 39 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
+| 0x00421a60 | 31 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
+| 0x00421bd0 | 18 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
+| 0x00421ce0 | 16 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
 | 0x00421e00 | 40 | unlabelled |  |
 | 0x00421ef0 | 22 | folded | covered by the port where it names it (src/mech3/mech_anim.cpp:639) |
 | 0x00421f60 | 21 | folded | covered by the port where it names it (src/mech3/mech_data.cpp:548) |
 | 0x00421fc0 | 20 | folded | group A, read: PM does the dropped helpers' work in place: MW3's small getters and setters (of +4, +8, +0xc, +0x10) appear inline in PM's body with the same fields; the rest as MW3's (mech_anim's gait, the briefing's shown test) |
-| 0x00422080 | 36 | unlabelled |  |
+| 0x00422080 | 36 | folded | read (slot-paired, the compare differing): MW3's mech animation slots (vtables 0x005bd1f0 / 0x005bd240 / 0x005bd290 for PM's 0x005dfe48 / 0x005dfea0 / 0x005dfeec; mech_anim.cpp MechAnim::init :326, the blend's velocity, frame and sample slots :492-565, MechAction::advance :574) with MW3's small helpers written inline (the owner set and put back 0x00421510 / 0x00421520, the clamp 0x00409980, the stride and the left-forward start) and PM's layout; no other difference |
 | 0x00422260 | 10 | folded | group A, read: PM does the dropped helpers' work in place: MW3's small getters and setters (of +4, +8, +0xc, +0x10) appear inline in PM's body with the same fields; the rest as MW3's (mech_anim's gait, the briefing's shown test) |
 | 0x00422380 | 12 | folded | covered by the port where it names it (src/mech3/credits.h:90) |
 | 0x00422410 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00422430, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
@@ -982,7 +982,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00425de0 | 18 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:590) |
 | 0x00425e40 | 53 | unlabelled |  |
 | 0x004262a0 | 22 | unlabelled |  |
-| 0x004262f0 | 204 | unlabelled |  |
+| 0x004262f0 | 204 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x004247a0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x00426600 | 33 | folded | checked by test (block trace, 2026-11-13): test_pm_puton runs it (the put rule per row, the events, armour, loadout items and store compared) |
 | 0x00426680 | 11 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:371) |
 | 0x004266a0 | 11 | folded | covered by the port where it names it (src/mech3/lab_screen.cpp:2001) |
@@ -991,8 +991,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00426bd0 | 52 | folded | folded, by the feature compare (calls, data refs, immediates, float constants and control flow equal; tools/analysis/pm_feature_compare.py at 7f6e9e10, docs/port-audit-pm.md method): the text differs only in register allocation, calling convention or layout |
 | 0x00427020 | 63 | folded | as MW3 0x004251d0: covered where the port does it: src/mech3/mech_config.cpp:698 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x00427420 | 12 | folded | covered by the port where it names it (src/mech3/mech_config.cpp:589) |
-| 0x004274d0 | 119 | unlabelled |  |
-| 0x00427830 | 91 | unlabelled |  |
+| 0x004274d0 | 119 | folded | ported (read): PM's config packed for the network and unpacked (its bit fields a bit higher than MW3's), the pm port's Config::packed and its reader (mech_config.cpp:621, 655 name them) |
+| 0x00427830 | 91 | folded | ported (read): PM's config packed for the network and unpacked (its bit fields a bit higher than MW3's), the pm port's Config::packed and its reader (mech_config.cpp:621, 655 name them) |
 | 0x004279e0 | 26 | folded | read: container code (a vector's index of a value; a static list head made) |
 | 0x00427c40 | 13 | folded | as MW3 0x00425e00: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x00427c60 | 11 | folded | as MW3 0x00425e20: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
@@ -1307,7 +1307,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0043f200 | 11 | folded | as MW3 0x0043dce0: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x00440ac0 | 33 | MISSING LOGIC | as MW3 0x0043f2d0: the radar's map-mode position (HudRadar 0x0043f2d0): stores the mech's position and, with the mission map shown, moves the mech's marker line on the map (0x00491c80, 0x005a6880); not ported, and its hook radar_heading (hud.h:880) is never overridden: see BROKEN |
 | 0x00440cc0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0043c5c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x00440d70 | 22 | unlabelled |  |
+| 0x00440d70 | 22 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0043f590 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x00440e30 | 12 | unlabelled |  |
 | 0x00441080 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004411d0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004411d0 | 27 | folded | group A, read: the same logic as the shared port: a destructor swapped for PM's class layout (0x0040a570 for 0x0043a890); the show and hide set the panel's object active through its vtable (vt+0xc) where MW3 calls node_set_active 0x004eb170 directly |
@@ -1544,7 +1544,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0045b5d0 | 10 | folded | ported, by docs/symbols.csv: ported |
 | 0x0045b9e0 | 13 | folded | as MW3 0x0045ab30: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0045ba20 | 36 | folded | by the slot pairing: PM vtable 0x5e4c64 slot 0x18 is MW3 vtable 0x5c2620's 0x0045ab70 (MW3 ported src/mech3/mech_fieldbase_dock.cpp:608), the feature compare equal (7f6e9e10) |
-| 0x0045baa0 | 16 | unlabelled |  |
+| 0x0045baa0 | 16 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0045ac20 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x0045bb30 | 47 | unlabelled |  |
 | 0x0045bbf0 | 12 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1078) |
 | 0x0045bc10 | 9 | folded | a thunk: one call to another function |
@@ -1717,7 +1717,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0046f910 | 27 | unlabelled |  |
 | 0x0046fe30 | 32 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1166) |
 | 0x00470110 | 26 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1244) |
-| 0x00470170 | 28 | unlabelled |  |
+| 0x00470170 | 28 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0046e0a0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x004703c0 | 57 | unlabelled |  |
 | 0x00470500 | 55 | folded | as MW3 0x0046e3c0: covered where the port does it: src/mech3/mech_net.cpp:1184 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004705e0 | 206 | unlabelled |  |
@@ -2535,7 +2535,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004b31e0 | 130 | unlabelled |  |
 | 0x004b34d0 | 200 | folded | group A, read: weapons.zrd's reader as the shared port; every key PM reads (SHOW_ON_RADAR, SALVO and its count, delta, radius, delay, truecount, BURST, ISNARC, IMPACT_FORCE, RECOIL, ZAPS_HUD, U_FIRE_TIME, U_RECHARGE_TIME, U_RECHARGE_SND, U_DESIGNATE_AIRSTRIKE, U_LOOPED) is read in weapon.cpp; MW3 reads them too (the strings referenced another way) |
 | 0x004b3c80 | 20 | folded | as MW3 0x004afe10: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004b3d60 | 48 | unlabelled |  |
+| 0x004b3d60 | 48 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x004afed0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x004b43a0 | 52 | unlabelled |  |
 | 0x004b4480 | 52 | unlabelled |  |
 | 0x004b4560 | 39 | MISSING LOGIC | pm only, weapons: selecting a weapon group (0x004b4560, PM's in MW3's 0x004b0730 place, the port's WeaponManager::select_group, weapon.cpp:650): when the group's current weapon is not ready (0x004b7bd0, MW3's 0x004b3a20), PM moves the group on to its next ready weapon (0x004b5e10, MW3's 0x004b1f40) before the HUD's refresh; MW3 and the port keep the current one. Reached from the group keys, the mech build, the weapon planner and two weapon manager steps |
@@ -3958,7 +3958,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00504e70 | 49 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f1cd0, whose class PM's changes keep: under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them |
 | 0x00504f50 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f1d90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00504f80 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f1dc0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x00505230 | 18 | unlabelled |  |
+| 0x00505230 | 18 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x004f2060 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x00505300 | 85 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x005054e0 | 18 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.cpp:370) |
 | 0x00505550 | 49 | unlabelled |  |
@@ -4689,7 +4689,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005c6080 | 205 | unlabelled |  |
 | 0x005c6620 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005c6640, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x005c6640 | 10 | folded | as MW3 0x005a6100: covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005c6650 | 194 | unlabelled |  |
+| 0x005c6650 | 194 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x005a6110 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x005c6b40 | 10 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:77) |
 | 0x005c6b60 | 12 | folded | ported, by docs/symbols.csv: ported: the tint's +0x38 colour, +0x40 alpha, shown for 0 s (vt+0x60) |
 | 0x005c6b90 | 18 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a6650: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
@@ -4780,7 +4780,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005982d0 | 11 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_stream.cpp:92) |
 | 0x00598300 | 11 | replaced (SDL or the platform layer) | as MW3 0x005792a0: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00598420 | 10 | folded | inside its ported callers (0x00547dd0): a small helper their ports do their own way |
-| 0x00598470 | 24 | unlabelled |  |
+| 0x00598470 | 24 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x005793c0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x00598530 | 27 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:974) |
 | 0x00598600 | 88 | replaced (SDL or the platform layer) | as MW3 0x00579500: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00598760 | 104 | replaced (SDL or the platform layer) | as MW3 0x00579660: DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
@@ -4861,7 +4861,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005a36c0 | 10 | folded | inside its ported callers (0x004b73f0): a small helper their ports do their own way |
 | 0x005a36e0 | 27 | unlabelled |  |
 | 0x005a37a0 | 59 | unlabelled |  |
-| 0x005a38a0 | 43 | unlabelled |  |
+| 0x005a38a0 | 43 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x005821c0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x005a39c0 | 29 | folded | read: MW3's 0x005822c0 (a weapon's burst at a point: a zeroed hit record at the point, health 1.0, then 0x005821c0) not paired by the diff, its record grown to 0x196 dwords; the anim event's detonate (zeff_anim_events.cpp ev_detonate_weapon) runs it through the port's zwep::burst_at (app_mission.cpp:2170) |
 | 0x005a3a30 | 35 | unlabelled |  |
 | 0x005a4540 | 43 | unlabelled |  |
@@ -5533,7 +5533,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0051e750 | 48 | unlabelled |  |
 | 0x0051e890 | 42 | unlabelled |  |
 | 0x0051f750 | 40 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506bc0 with only offsets and sizes of PM's larger structures changed (0x13c->0x10c); calls, field counts and every other immediate and float constant as MW3's |
-| 0x0051f830 | 43 | unlabelled |  |
+| 0x0051f830 | 43 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00506ca0 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
 | 0x0051fce0 | 145 | unlabelled |  |
 | 0x00520080 | 53 | unlabelled |  |
 | 0x00520500 | 100 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
@@ -5585,44 +5585,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005beca0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005becd0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x005becd0 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0059edc0 with only offsets and sizes of PM's larger structures changed (0x4cc->0x4d4); calls, field counts and every other immediate and float constant as MW3's |
 
-### zgame (33 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005b1550 | 140 | unlabelled |  |
-| 0x005b18b5 | 11 | unlabelled | follows 0x005b1550:  |
-| 0x005b18d3 | 58 | replaced (SDL or the platform layer) | as MW3 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b1964 | 11 | unlabelled | follows 0x005b1550:  |
-| 0x005b19c0 | 17 | unlabelled |  |
-| 0x005b19e0 | 102 | unlabelled |  |
-| 0x005b1bd0 | 99 | unlabelled |  |
-| 0x005b1db0 | 101 | unlabelled |  |
-| 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2050 | 74 | folded | read: a std::deque's growth at the back (a 0x1000-byte block made, the map of blocks doubled when full), from the app's state calls 0x005b19e0 / 0x005b1bd0 / 0x005b1db0 (MW3's 0x00590250 / 0x00590400 / 0x005905a0, zgameapp.cpp); the port's containers |
-| 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
-| 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2260 | 11 | unlabelled |  |
-| 0x005b2280 | 26 | replaced (SDL or the platform layer) | as MW3 0x00590880: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b22e0 | 8 | replaced (SDL or the platform layer) | as MW3 0x005908e0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2340 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005b2360, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b24f0 | 10 | replaced (SDL or the platform layer) | as MW3 0x00590b40: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2510 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590b60: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2530 | 22 | replaced (SDL or the platform layer) | as MW3 0x00590b80: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2580 | 13 | replaced (SDL or the platform layer) | as MW3 0x00590bd0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2620 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
-| 0x005b2650 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005b2670, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005b2670 | 20 | folded | as MW3 0x00590cc0: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b26c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005b26e0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2830 | 231 | unlabelled |  |
-| 0x005b2c60 | 16 | debug or dev tool: PORT (preserve) | the script command PrintChildren (PM only): the current node's children's names to the console ('  %s'); no shipped PM script uses it, the port's interpreter does not know it |
-
 ### zweapon (33 not ported)
 
 | Address | Lines | Class | Why |
@@ -5660,6 +5622,44 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+
+### zgame (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005b1550 | 140 | unlabelled |  |
+| 0x005b18b5 | 11 | unlabelled | follows 0x005b1550:  |
+| 0x005b18d3 | 58 | replaced (SDL or the platform layer) | as MW3 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b1964 | 11 | unlabelled | follows 0x005b1550:  |
+| 0x005b19c0 | 17 | unlabelled |  |
+| 0x005b19e0 | 102 | unlabelled |  |
+| 0x005b1bd0 | 99 | unlabelled |  |
+| 0x005b1db0 | 101 | unlabelled |  |
+| 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2050 | 74 | folded | read: a std::deque's growth at the back (a 0x1000-byte block made, the map of blocks doubled when full), from the app's state calls 0x005b19e0 / 0x005b1bd0 / 0x005b1db0 (MW3's 0x00590250 / 0x00590400 / 0x005905a0, zgameapp.cpp); the port's containers |
+| 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
+| 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2260 | 11 | unlabelled |  |
+| 0x005b2280 | 26 | replaced (SDL or the platform layer) | as MW3 0x00590880: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b22e0 | 8 | replaced (SDL or the platform layer) | as MW3 0x005908e0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2340 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005b2360, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b24f0 | 10 | replaced (SDL or the platform layer) | as MW3 0x00590b40: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2510 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590b60: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2530 | 22 | replaced (SDL or the platform layer) | as MW3 0x00590b80: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2580 | 13 | replaced (SDL or the platform layer) | as MW3 0x00590bd0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2620 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
+| 0x005b2650 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005b2670, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005b2670 | 20 | folded | as MW3 0x00590cc0: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b26c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005b26e0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
+| 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2830 | 231 | unlabelled |  |
+| 0x005b2c60 | 16 | debug or dev tool: PORT (preserve) | the script command PrintChildren (PM only): the current node's children's names to the console ('  %s'); no shipped PM script uses it, the port's interpreter does not know it |
 
 ### zutil (31 not ported)
 
@@ -5731,16 +5731,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00530b20 | 13 | replaced (SDL or the platform layer) | as MW3 0x00517230: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 | 0x00530b40 | 20 | replaced (SDL or the platform layer) | as MW3 0x00517250: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
-### zerror (5 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00527250 | 9 | folded | a thunk: one call to another function |
-| 0x00527270 | 15 | unlabelled |  |
-| 0x00527490 | 22 | unlabelled |  |
-| 0x00527500 | 38 | unlabelled |  |
-| 0x005275d0 | 30 | unlabelled |  |
-
 ### zsiscript (5 not ported)
 
 | Address | Lines | Class | Why |
@@ -5750,4 +5740,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005cd090 | 27 | unlabelled |  |
+
+### zerror (5 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00527250 | 9 | folded | a thunk: one call to another function |
+| 0x00527270 | 15 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0050da90 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
+| 0x00527490 | 22 | unlabelled |  |
+| 0x00527500 | 38 | unlabelled |  |
+| 0x005275d0 | 30 | unlabelled |  |
 
