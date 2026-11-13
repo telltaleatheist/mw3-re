@@ -11,9 +11,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 2362 |
-| unlabelled | 2108 |
-| replaced (SDL or the platform layer) | 206 |
+| folded | 2386 |
+| unlabelled | 2060 |
+| replaced (SDL or the platform layer) | 218 |
 | software renderer | 105 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 100 |
 | MISSING LOGIC | 95 |
@@ -21,7 +21,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | unused: PORT (preserve) | 59 |
 | dev dialog (MFC), its window plumbing: replaced | 48 |
 | dev dialog (MFC), its logic: PORT (preserve) | 34 |
-| UNSURE | 20 |
+| UNSURE | 32 |
 
 ## MISSING LOGIC
 
@@ -330,6 +330,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - 0x004d4700 (1 functions, 14 decomp lines): as MW3 0x004c9de0: Step's vt+0x30..+0x44 (sets, compares or offers the step's next from a picked node's behaviour, vt+0x60/+0x74): probably the AI net editor's linking; to settle by finding who calls these slots
 - 0x004e75d0 (1 functions, 12 decomp lines): as MW3 0x004d7160: an entity vtable slot (0x005bcf64 and two more vtables, beside 0x004d7270): when on, tints the object (blend weight 0.6, 0x004fb8c0) and switches its blend use (0x004fb840); not found in the port; to settle which slot it is and who calls it
 - 0x004eff90 (1 functions, 58 decomp lines): as MW3 0x004dee50: the aiv reader's vtable slot 0x005cd42c (58 lines): a name checked against zEntity's list (0x005a8210) and the reader's records (std::map find 0x004e1a30), no caller found; probably the editor's 'is this name free'; to settle by its slot and callers
+- 0x004fcfb0, 0x004fcff0, 0x004fd080, 0x004fd0d0, 0x004fd110, 0x004fd160, 0x004fd1a0, 0x004fd1f0, 0x004fd280, 0x004fd4a0, 0x005067c0, 0x00506a60 (12 functions, 182 decomp lines): PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census
 
 ## By module
 
@@ -3780,24 +3781,24 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x004fceb0 | 25 | unlabelled |  |
 | 0x004fcf20 | 18 | unlabelled |  |
 | 0x004fcf70 | 14 | unlabelled |  |
-| 0x004fcfb0 | 14 | unlabelled |  |
-| 0x004fcff0 | 14 | unlabelled |  |
+| 0x004fcfb0 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fcff0 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
 | 0x004fd040 | 13 | folded | covered by the port where it names it (src/gamez/zgeometry/zgeo_model.cpp:446) |
-| 0x004fd080 | 14 | unlabelled |  |
-| 0x004fd0d0 | 13 | unlabelled |  |
-| 0x004fd110 | 14 | unlabelled |  |
-| 0x004fd160 | 13 | unlabelled |  |
-| 0x004fd1a0 | 14 | unlabelled |  |
-| 0x004fd1f0 | 13 | unlabelled |  |
+| 0x004fd080 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fd0d0 | 13 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fd110 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fd160 | 13 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fd1a0 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
+| 0x004fd1f0 | 13 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
 | 0x004fd230 | 18 | unlabelled |  |
-| 0x004fd280 | 14 | unlabelled |  |
+| 0x004fd280 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
 | 0x004fd2c0 | 18 | unlabelled |  |
 | 0x004fd310 | 14 | unlabelled |  |
 | 0x004fd350 | 18 | unlabelled |  |
 | 0x004fd3a0 | 18 | unlabelled |  |
 | 0x004fd3f0 | 14 | unlabelled |  |
 | 0x004fd430 | 14 | unlabelled |  |
-| 0x004fd4a0 | 14 | unlabelled |  |
+| 0x004fd4a0 | 14 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
 | 0x004fd4f0 | 14 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:205) |
 | 0x004fd540 | 16 | unlabelled |  |
 | 0x004fd590 | 18 | unlabelled |  |
@@ -3864,7 +3865,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00504f50 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f1d90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00504f80 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f1dc0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00505230 | 18 | unlabelled |  |
-| 0x00505300 | 85 | unlabelled |  |
+| 0x00505300 | 85 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x005054e0 | 18 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.cpp:370) |
 | 0x00505550 | 49 | unlabelled |  |
 | 0x005056b0 | 9 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.h:45) |
@@ -3882,14 +3883,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00506670 | 17 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f32a0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x005066b0 | 34 | unlabelled |  |
 | 0x00506760 | 23 | unlabelled |  |
-| 0x005067c0 | 22 | unlabelled |  |
+| 0x005067c0 | 22 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
 | 0x00506810 | 9 | folded | a thunk: one call to another function |
 | 0x00506830 | 36 | unlabelled |  |
 | 0x005068d0 | 35 | unlabelled |  |
 | 0x00506960 | 11 | unused: PORT (preserve) | as MW3 0x004f3540: no effect in the original (app_engine.cpp's list): a camera word nothing reads (0x004f3540), zClass's start defaults the port's initialisers already hold (0x004f8f20), a zSave registration with flag 0 (0x004f8f60) |
 | 0x00506970 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004f3550: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00506980 | 49 | unlabelled |  |
-| 0x00506a60 | 23 | unlabelled |  |
+| 0x00506a60 | 23 | UNSURE | PM's new node property script commands (node +0x2c bits 7, 8, 9..16, 17..24; get and set through the null-node report), called by the ported script dispatcher 0x005b2d10 and the anim run 0x00507f30: covered when PM's script engine sets them, else counted by PM's script census; to settle with the PM chains' census |
 | 0x00506ae0 | 41 | unlabelled |  |
 | 0x00506c10 | 40 | unlabelled |  |
 | 0x00506cd0 | 44 | unlabelled |  |
@@ -3951,8 +3952,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x0050cc10 | 23 | unlabelled |  |
 | 0x0050cdc0 | 128 | unlabelled |  |
 | 0x0050d1f0 | 67 | unlabelled |  |
-| 0x0050d340 | 10 | unlabelled |  |
-| 0x0050d360 | 10 | unlabelled |  |
+| 0x0050d340 | 10 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
+| 0x0050d360 | 10 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x0050d380 | 65 | unlabelled |  |
 | 0x0050d4c0 | 10 | folded | covered by the port where it names it (src/gamez/zclass/cls_util.cpp:221) |
 | 0x0050d4e0 | 66 | unlabelled |  |
@@ -4020,17 +4021,17 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00512eb0 | 9 | unlabelled | follows 0x005a4b90:  |
 | 0x00512ec0 | 9 | folded | a thunk: one call to another function |
 | 0x00512ee0 | 55 | unlabelled |  |
-| 0x00513030 | 123 | unlabelled |  |
+| 0x00513030 | 123 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x005139d0 | 27 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_clutter.h:71) |
 | 0x00513a30 | 9 | folded | inside its ported callers (0x00492830): a small helper their ports do their own way |
 | 0x00513a40 | 50 | unlabelled |  |
 | 0x00513b40 | 15 | unlabelled |  |
 | 0x00513b80 | 55 | unlabelled |  |
-| 0x00513d90 | 65 | unlabelled |  |
+| 0x00513d90 | 65 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x00513ed0 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00514000 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00514120 | 16 | unlabelled |  |
-| 0x00514170 | 19 | unlabelled |  |
+| 0x00514120 | 16 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
+| 0x00514170 | 19 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x005141c0 | 318 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x005146f0 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
 | 0x00514780 | 197 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
@@ -4054,7 +4055,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00515960 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fde90: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x005159b0 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fded0: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00515a00 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fdf10: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x00515ba0 | 9 | unlabelled | follows 0x004fc930:  |
+| 0x00515ba0 | 9 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x00515bb0 | 9 | folded | inside its ported callers (0x004fd5e0, 0x0050d4e0, 0x005b2d10): a small helper their ports do their own way |
 | 0x00515bd0 | 9 | folded | inside its ported callers (0x004fd7a0, 0x0050bdf0): a small helper their ports do their own way |
 | 0x00515c00 | 98 | unlabelled |  |
@@ -4073,7 +4074,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x00540450 | 16 | unlabelled |  |
-| 0x005404f0 | 15 | unlabelled |  |
+| 0x005404f0 | 15 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00540740 | 9 | folded | inside its ported callers (0x00504fb0): a small helper their ports do their own way |
 | 0x00540750 | 14 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:326) |
 | 0x00540790 | 14 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.h:133) |
@@ -4130,7 +4131,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00557b00 | 11 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:485) |
 | 0x00557b20 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:331) |
 | 0x00557b30 | 20 | debug or dev tool: PORT (preserve) | called only from 0x00515fb0, which are debug |
-| 0x00557be0 | 51 | unlabelled |  |
+| 0x00557be0 | 51 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00557d50 | 302 | debug or dev tool: PORT (preserve) | as MW3 0x005380e0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool |
 | 0x00558440 | 187 | unlabelled |  |
 | 0x005590e0 | 8 | folded | returns a constant or a global |
@@ -4193,7 +4194,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00566140 | 9 | folded | inside its ported callers (0x0051bbf0): a small helper their ports do their own way |
 | 0x00566160 | 9 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_puff.h:156) |
 | 0x005661b0 | 74 | unlabelled |  |
-| 0x00566380 | 74 | unlabelled |  |
+| 0x00566380 | 74 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00566540 | 27 | folded | inside its ported callers (0x0051bbf0): a small helper their ports do their own way |
 | 0x005665b0 | 34 | folded | inside its ported callers (0x0051bbf0): a small helper their ports do their own way |
 | 0x00566640 | 23 | folded | inside its ported callers (0x0051bbf0): a small helper their ports do their own way |
@@ -4202,13 +4203,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00566750 | 11 | folded | as MW3 0x0054b660: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00566760 | 11 | folded | as MW3 0x0054b670: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00566770 | 28 | folded | as MW3 0x0054b680: covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |
-| 0x005667e0 | 50 | unlabelled |  |
-| 0x005668d0 | 16 | unlabelled |  |
+| 0x005667e0 | 50 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
+| 0x005668d0 | 16 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00566910 | 40 | folded | inside its ported callers (0x00565320): a small helper their ports do their own way |
 | 0x00566990 | 35 | folded | inside its ported callers (0x00565320): a small helper their ports do their own way |
-| 0x00566a00 | 11 | unlabelled |  |
+| 0x00566a00 | 11 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00566a20 | 19 | folded | as MW3 0x004dd6a0: the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
-| 0x00566a60 | 180 | unlabelled |  |
+| 0x00566a60 | 180 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00567290 | 145 | unlabelled |  |
 | 0x00569290 | 368 | unlabelled |  |
 | 0x00569b00 | 420 | unlabelled |  |
@@ -4313,7 +4314,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00577810 | 16 | folded | as MW3 0x00555e50: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577830 | 17 | folded | as MW3 0x00555e70: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577870 | 12 | folded | as MW3 0x00555ea0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
-| 0x00577890 | 28 | unlabelled |  |
+| 0x00577890 | 28 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x005778e0 | 12 | folded | as MW3 0x00555f10: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577900 | 27 | folded | covered by the port where it names it (src/gamez/zreader/zreader.cpp:595) |
 | 0x00577950 | 33 | folded | inside its ported callers (0x0058fb60): a small helper their ports do their own way |
@@ -4326,13 +4327,13 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00577b90 | 9 | folded | follows 0x00577b00: as MW3 0x005560d0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577bb0 | 11 | folded | as MW3 0x00556160: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00577bc0 | 13 | unlabelled |  |
-| 0x00577bf0 | 34 | unlabelled |  |
+| 0x00577bf0 | 34 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00577c70 | 15 | unlabelled |  |
 | 0x00577cc0 | 9 | folded | a thunk: one call to another function |
 | 0x00577ce0 | 36 | unlabelled |  |
 | 0x00577d80 | 12 | folded | inside its ported callers (0x005780b0): a small helper their ports do their own way |
 | 0x00577da0 | 19 | folded | as MW3 0x005561a0: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
-| 0x00577df0 | 36 | unlabelled |  |
+| 0x00577df0 | 36 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00577e50 | 38 | unlabelled |  |
 | 0x00577f00 | 39 | unlabelled |  |
 | 0x00577f80 | 35 | unlabelled |  |
@@ -4345,9 +4346,9 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005782a0 | 19 | folded | covered by the port where it names it (src/pm/gamez/zreader/zrdr_main.cpp:49) |
 | 0x00578630 | 76 | unlabelled |  |
 | 0x00578950 | 9 | folded | a thunk: one call to another function |
-| 0x005790d0 | 12 | unlabelled |  |
-| 0x005790f0 | 12 | unlabelled |  |
-| 0x00579110 | 12 | unlabelled |  |
+| 0x005790d0 | 12 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
+| 0x005790f0 | 12 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
+| 0x00579110 | 12 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
 | 0x00579130 | 12 | folded | inside its ported callers (0x004060d0, 0x0042abb0, 0x0043cc20, 0x00440ce0 ...): a small helper their ports do their own way |
 | 0x00579150 | 12 | folded | inside its ported callers (0x00579170, 0x005a52e0): a small helper their ports do their own way |
 
@@ -4531,22 +4532,22 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 |---|---|---|---|
 | 0x005bf790 | 25 | unlabelled |  |
 | 0x005bf850 | 51 | unlabelled |  |
-| 0x005bfa00 | 13 | unlabelled |  |
+| 0x005bfa00 | 13 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x005bfa40 | 19 | folded | as MW3 0x00429ce0: covered by ported code beside them: controls file and landmine helpers, getters and setters, the mech's IControls cast, the animation's members, list helpers, constructors and destructors, the force feedback's release and reset (input.md) |
 | 0x005bfa80 | 12 | unlabelled |  |
 | 0x005bfab0 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod_control.cpp:21) |
 | 0x005bfd50 | 15 | unlabelled |  |
-| 0x005bfdc0 | 9 | unlabelled |  |
+| 0x005bfdc0 | 9 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x005c02c0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005a0050: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
-| 0x005c0320 | 11 | unlabelled |  |
+| 0x005c0320 | 11 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
 | 0x005c0340 | 12 | unlabelled |  |
-| 0x005c0360 | 55 | unlabelled |  |
-| 0x005c0450 | 29 | unlabelled |  |
-| 0x005c04d0 | 16 | unlabelled |  |
+| 0x005c0360 | 55 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
+| 0x005c0450 | 29 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
+| 0x005c04d0 | 16 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
 | 0x005c0500 | 11 | folded | inside its ported callers (0x005c1360): a small helper their ports do their own way |
-| 0x005c08f0 | 158 | unlabelled |  |
-| 0x005c0b70 | 25 | unlabelled |  |
-| 0x005c0bc0 | 16 | unlabelled |  |
+| 0x005c08f0 | 158 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
+| 0x005c0b70 | 25 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
+| 0x005c0bc0 | 16 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
 | 0x005c0bf0 | 40 | unlabelled |  |
 | 0x005c0db0 | 12 | unlabelled |  |
 | 0x005c1230 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:319) |
@@ -4573,10 +4574,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005c3bf0 | 26 | unlabelled |  |
 | 0x005c3c70 | 21 | unlabelled |  |
 | 0x005c3ce0 | 89 | unlabelled |  |
-| 0x005c4030 | 93 | unlabelled |  |
+| 0x005c4030 | 93 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
 | 0x005c4290 | 35 | folded | covered by the port where it names it (src/mech3/briefing.cpp:228) |
 | 0x005c4720 | 18 | unlabelled |  |
-| 0x005c4760 | 225 | unlabelled |  |
+| 0x005c4760 | 225 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
 | 0x005c4cb0 | 56 | unlabelled |  |
 | 0x005c4e70 | 8 | folded | returns a constant or a global |
 | 0x005c4e80 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:588) |
@@ -4584,7 +4585,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005c4ed0 | 231 | unlabelled |  |
 | 0x005c5460 | 49 | unlabelled |  |
 | 0x005c5590 | 127 | folded | as MW3 0x0054bb70: covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
-| 0x005c57d0 | 17 | unlabelled |  |
+| 0x005c57d0 | 17 | folded | read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter) |
 | 0x005c5870 | 10 | unlabelled |  |
 | 0x005c5890 | 11 | folded | inside its ported callers (0x004879a0): a small helper their ports do their own way |
 | 0x005c58b0 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a5400: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
@@ -4628,8 +4629,8 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005c8110 | 49 | unlabelled |  |
 | 0x005c82b0 | 9 | folded | a thunk: one call to another function |
 | 0x005c8340 | 9 | folded | a thunk: one call to another function |
-| 0x005c8440 | 22 | unlabelled |  |
-| 0x005c84e0 | 112 | unlabelled |  |
+| 0x005c8440 | 22 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
+| 0x005c84e0 | 112 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
 | 0x005c87b0 | 64 | unlabelled |  |
 | 0x005c8920 | 46 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a6a10: Line2D's reader from a dialog .zrd (its COLOR and its end), shared by the line classes' vtables; inferred unused by shipped data (the dialog reader matches the exe on every shipped dialog without it), not checked file by file |
 | 0x005c8a40 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:620) |
@@ -4660,7 +4661,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005c9d40 | 14 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x005a7cd0: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
 | 0x005c9e30 | 212 | unlabelled |  |
 | 0x005ca3c0 | 17 | unlabelled |  |
-| 0x005ca3e0 | 74 | unlabelled |  |
+| 0x005ca3e0 | 74 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
 | 0x005ca590 | 35 | unlabelled |  |
 | 0x005ca600 | 83 | unlabelled |  |
 | 0x005ca7f0 | 95 | unlabelled |  |
@@ -5493,44 +5494,6 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005beca0 | 12 | unlabelled |  |
 | 0x005becd0 | 38 | unlabelled |  |
 
-### zgame (33 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005b1550 | 140 | unlabelled |  |
-| 0x005b18b5 | 11 | unlabelled | follows 0x005b1550:  |
-| 0x005b18d3 | 58 | replaced (SDL or the platform layer) | as MW3 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b1964 | 11 | unlabelled | follows 0x005b1550:  |
-| 0x005b19c0 | 17 | unlabelled |  |
-| 0x005b19e0 | 102 | unlabelled |  |
-| 0x005b1bd0 | 99 | unlabelled |  |
-| 0x005b1db0 | 101 | unlabelled |  |
-| 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2050 | 74 | unlabelled |  |
-| 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
-| 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2260 | 11 | unlabelled |  |
-| 0x005b2280 | 26 | replaced (SDL or the platform layer) | as MW3 0x00590880: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b22e0 | 8 | replaced (SDL or the platform layer) | as MW3 0x005908e0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2340 | 12 | unlabelled |  |
-| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b24f0 | 10 | replaced (SDL or the platform layer) | as MW3 0x00590b40: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2510 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590b60: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2530 | 22 | replaced (SDL or the platform layer) | as MW3 0x00590b80: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2580 | 13 | replaced (SDL or the platform layer) | as MW3 0x00590bd0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005b2620 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
-| 0x005b2650 | 12 | unlabelled |  |
-| 0x005b2670 | 20 | folded | as MW3 0x00590cc0: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b26c0 | 12 | unlabelled |  |
-| 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x005b2830 | 231 | unlabelled |  |
-| 0x005b2c60 | 16 | unlabelled |  |
-
 ### zweapon (33 not ported)
 
 | Address | Lines | Class | Why |
@@ -5568,6 +5531,44 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005a8fc0 | 78 | replaced (SDL or the platform layer) | as MW3 0x00587fb0: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005a9090 | 55 | replaced (SDL or the platform layer) | as MW3 0x00588070: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
 | 0x005a9150 | 19 | replaced (SDL or the platform layer) | as MW3 0x00588130: DirectPlay: the sessions, players and groups lists, the providers and connections (IDirectPlay4A), the lobby launch (0x005899b0 / 0x00589a50) and a game service's score report that does not exist (0x00589d00..0x00589e30): the port's ENet transport and its own session and player lists replace them (multiplayer-port.md) |
+
+### zgame (33 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005b1550 | 140 | unlabelled |  |
+| 0x005b18b5 | 11 | unlabelled | follows 0x005b1550:  |
+| 0x005b18d3 | 58 | replaced (SDL or the platform layer) | as MW3 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b1964 | 11 | unlabelled | follows 0x005b1550:  |
+| 0x005b19c0 | 17 | unlabelled |  |
+| 0x005b19e0 | 102 | unlabelled |  |
+| 0x005b1bd0 | 99 | unlabelled |  |
+| 0x005b1db0 | 101 | unlabelled |  |
+| 0x005b1fa0 | 42 | folded | as MW3 0x00590780: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2050 | 74 | unlabelled |  |
+| 0x005b21b0 | 31 | folded | inside its ported callers (0x005b19e0, 0x005b1bd0, 0x005b1db0): a small helper their ports do their own way |
+| 0x005b2220 | 12 | folded | as MW3 0x00590850: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2260 | 11 | unlabelled |  |
+| 0x005b2280 | 26 | replaced (SDL or the platform layer) | as MW3 0x00590880: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b22e0 | 8 | replaced (SDL or the platform layer) | as MW3 0x005908e0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b22f0 | 8 | replaced (SDL or the platform layer) | as MW3 0x00590900: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2300 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590920: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2340 | 12 | unlabelled |  |
+| 0x005b2360 | 27 | replaced (SDL or the platform layer) | as MW3 0x00590980, whose class PM's changes keep: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b23e0 | 14 | replaced (SDL or the platform layer) | as MW3 0x005909f0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2400 | 9 | folded | as MW3 0x00590a10: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2440 | 41 | replaced (SDL or the platform layer) | as MW3 0x00590a50: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b24f0 | 10 | replaced (SDL or the platform layer) | as MW3 0x00590b40: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2510 | 15 | replaced (SDL or the platform layer) | as MW3 0x00590b60: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2530 | 22 | replaced (SDL or the platform layer) | as MW3 0x00590b80: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2580 | 13 | replaced (SDL or the platform layer) | as MW3 0x00590bd0: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005b2620 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
+| 0x005b2650 | 12 | unlabelled |  |
+| 0x005b2670 | 20 | folded | as MW3 0x00590cc0: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b26c0 | 12 | unlabelled |  |
+| 0x005b26e0 | 20 | folded | as MW3 0x00590d30: zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x005b2830 | 231 | unlabelled |  |
+| 0x005b2c60 | 16 | unlabelled |  |
 
 ### zutil (31 not ported)
 
@@ -5639,16 +5640,6 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x00530b20 | 13 | replaced (SDL or the platform layer) | as MW3 0x00517230: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 | 0x00530b40 | 20 | replaced (SDL or the platform layer) | as MW3 0x00517250: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
-### zerror (5 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00527250 | 9 | folded | a thunk: one call to another function |
-| 0x00527270 | 15 | unlabelled |  |
-| 0x00527490 | 22 | unlabelled |  |
-| 0x00527500 | 38 | unlabelled |  |
-| 0x005275d0 | 30 | unlabelled |  |
-
 ### zsiscript (5 not ported)
 
 | Address | Lines | Class | Why |
@@ -5658,4 +5649,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005cd090 | 27 | unlabelled |  |
+
+### zerror (5 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00527250 | 9 | folded | a thunk: one call to another function |
+| 0x00527270 | 15 | unlabelled |  |
+| 0x00527490 | 22 | unlabelled |  |
+| 0x00527500 | 38 | unlabelled |  |
+| 0x005275d0 | 30 | unlabelled |  |
 
