@@ -12,10 +12,14 @@ can move, as multisets over the function's instructions:
 - immediates (stack arithmetic and `ret n` left out: calling conventions);
 - float and double constants loaded from data, by their raw values in each exe;
 - field offsets off a register (not esp, not ebp's locals), reported but not
-  flagged: PM's layouts shift them.
+  flagged: PM's layouts shift them;
+- how many field accesses and field stores there are (off a register other
+  than esp and ebp), whatever their offsets: an added read or write shows
+  there where a layout's shift does not.
 
---flag marks a function when a call, an immediate above 1 or a float constant
-differs. Each function is Ghidra's body (pm-decomp/functions.jsonl,
+--flag marks a function when a call, an immediate above 1, a float constant or
+a field count differs. A re-read the compiler did not keep in a register
+also changes the count, so a flag is a reason to read, not a finding. Each function is Ghidra's body (pm-decomp/functions.jsonl,
 pm-diff/mw3/functions.jsonl: its ranges). Reads analysis-output/{pm.asm,
 mech3.asm,pm-decomp,pm-diff} and the two exes under game/ (git-ignored).
 """
@@ -113,6 +117,13 @@ def features(game, addr):
         for m in OFF.finditer(ops):
             if m.group(1) != 'esp' and not (m.group(1) == 'ebp' and m.group(2) == '-'):
                 c['off' + m.group(2) + m.group(3)] += 1
+            if m.group(1) not in ('esp', 'ebp'):
+                # How many field accesses and stores, whatever the offsets: a
+                # layout moves them between offsets, an added read or write
+                # changes the count (ebp left out: PM's stack arguments).
+                c['fields'] += 1
+                if mn.startswith('mov') and ops.find(m.group(0)) < ops.find(','):
+                    c['field stores'] += 1
         for m in IMM.finditer(re.sub(r'[+-] 0x[0-9a-f]+\]', ']', ops)):
             v = int(m.group(1), 16)
             kind = 'call ' if mn == 'call' else 'ref '
@@ -139,7 +150,7 @@ def compare(pm):
     fp, fw = features('pm', pm), features('mw3', mw)
     diff = [(k, fw[k], fp[k]) for k in sorted(set(fp) | set(fw)) if fw[k] != fp[k]]
     flagged = [k for k, _, _ in diff
-               if k.startswith('call') or k.startswith('const')
+               if k.startswith('call') or k.startswith('const') or k.startswith('field')
                or (k.startswith('imm') and int(k.split()[1], 16) > 1)]
     return mw, diff, flagged
 
