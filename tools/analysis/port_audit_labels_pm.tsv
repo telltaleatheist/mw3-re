@@ -242,7 +242,6 @@
 0x0040ca50	folded	inside its ported callers (0x0048eaf0): a small helper their ports do their own way
 0x0040dc00	folded	inside its ported callers (0x0040e250): a small helper their ports do their own way
 0x0040e6b0	folded	inside its ported callers (0x0047f420): a small helper their ports do their own way
-0x0040f9c0	folded	inside its ported callers (0x0040f980): a small helper their ports do their own way
 0x004164c0	folded	inside its ported callers (0x00415fc0, 0x004705e0): a small helper their ports do their own way
 0x0041dc70	folded	inside its ported callers (0x004225e0, 0x00422780, 0x00422cd0): a small helper their ports do their own way
 0x0041e280	folded	inside its ported callers (0x004299f0, 0x004db0e0): a small helper their ports do their own way
@@ -255,15 +254,9 @@
 0x0043be70	folded	inside its ported callers (0x0043e590, 0x0043e9a0, 0x0043f220, 0x00444680): a small helper their ports do their own way
 0x00445110	folded	inside its ported callers (0x00445a50): a small helper their ports do their own way
 0x00445580	folded	inside its ported callers (0x00442f10, 0x00445b50, 0x00447da0): a small helper their ports do their own way
-0x0045abf0	folded	inside its ported callers (0x0045ab90): a small helper their ports do their own way
 0x0045af30	folded	inside its ported callers (0x0045b0d0): a small helper their ports do their own way
-0x0045cac0	folded	inside its ported callers (0x0045c080): a small helper their ports do their own way
-0x004615b0	folded	inside its ported callers (0x004616c0, 0x00463380, 0x00464780, 0x00467290): a small helper their ports do their own way
 0x00462f30	folded	inside its ported callers (0x00462ba0): a small helper their ports do their own way
-0x004654d0	folded	inside its ported callers (0x00463af0): a small helper their ports do their own way
 0x00465e00	folded	inside its ported callers (0x0041f4d0): a small helper their ports do their own way
-0x00469bc0	folded	inside its ported callers (0x00469dc0): a small helper their ports do their own way
-0x0046b4b0	folded	inside its ported callers (0x0041cad0): a small helper their ports do their own way
 0x00472cb0	folded	inside its ported callers (0x00471040): a small helper their ports do their own way
 0x004735f0	folded	inside its ported callers (0x0045dc00, 0x00460570): a small helper their ports do their own way
 0x004738b0	folded	inside its ported callers (0x00473f70, 0x00474010, 0x004745a0, 0x00474810): a small helper their ports do their own way
@@ -272,13 +265,9 @@
 0x00479c20	folded	inside its ported callers (0x004440b0): a small helper their ports do their own way
 0x0047a9a0	folded	inside its ported callers (0x0047a8f0): a small helper their ports do their own way
 0x0047a9c0	folded	inside its ported callers (0x0047a8f0): a small helper their ports do their own way
-0x0047cbe0	folded	inside its ported callers (0x0041cad0): a small helper their ports do their own way
-0x00481950	folded	inside its ported callers (0x00481910): a small helper their ports do their own way
-0x00483330	folded	inside its ported callers (0x004832e0): a small helper their ports do their own way
 0x00485480	folded	inside its ported callers (0x004826e0): a small helper their ports do their own way
 0x00485530	folded	inside its ported callers (0x004826e0): a small helper their ports do their own way
 0x004868d0	folded	inside its ported callers (0x00479510): a small helper their ports do their own way
-0x00488530	folded	inside its ported callers (0x0042a5e0, 0x0042bb80, 0x00438c10, 0x00439a30 ...): a small helper their ports do their own way
 0x0048b510	folded	inside its ported callers (0x004916c0): a small helper their ports do their own way
 0x0048bce0	folded	inside its ported callers (0x004916c0): a small helper their ports do their own way
 0x00490530	folded	inside its ported callers (0x00490760): a small helper their ports do their own way
@@ -291,26 +280,19 @@
 0x004ac130	folded	inside its ported callers (0x004ac070): a small helper their ports do their own way
 0x004ae850	folded	inside its ported callers (0x004ac1e0): a small helper their ports do their own way
 0x004af6b0	folded	inside its ported callers (0x004af590): a small helper their ports do their own way
-0x004b1390	folded	inside its ported callers (0x004b1220): a small helper their ports do their own way
 0x004b2da0	folded	inside its ported callers (0x0041b930): a small helper their ports do their own way
 0x004b5bf0	folded	inside its ported callers (0x004bb700): a small helper their ports do their own way
 0x004b7a90	folded	inside its ported callers (0x004bcd40): a small helper their ports do their own way
-0x004b7b10	folded	inside its ported callers (0x004b6ad0, 0x004b8310): a small helper their ports do their own way
-0x004b8c20	folded	inside its ported callers (0x00493ca0): a small helper their ports do their own way
 0x004b8ed0	folded	inside its ported callers (0x004b64f0, 0x004b6820): a small helper their ports do their own way
 0x004b8f10	folded	inside its ported callers (0x004b7da0, 0x004b7ea0): a small helper their ports do their own way
-0x004b9450	folded	inside its ported callers (0x004796f0): a small helper their ports do their own way
-0x004b9670	folded	inside its ported callers (0x004b9620): a small helper their ports do their own way
 0x004b9d40	folded	inside its ported callers (0x004b9de0, 0x004ba9e0, 0x004bcd40, 0x004bd1c0): a small helper their ports do their own way
 0x004b9d60	folded	inside its ported callers (0x004ba9e0): a small helper their ports do their own way
 0x004b9d70	folded	inside its ported callers (0x004ba9e0): a small helper their ports do their own way
 0x004b9d80	folded	inside its ported callers (0x004b9de0): a small helper their ports do their own way
 0x004bc230	folded	inside its ported callers (0x004bbfa0): a small helper their ports do their own way
 0x004bc260	folded	inside its ported callers (0x004bc2e0): a small helper their ports do their own way
-0x004bc2a0	folded	inside its ported callers (0x004bc2e0): a small helper their ports do their own way
 0x004bc8c0	folded	inside its ported callers (0x004bb700): a small helper their ports do their own way
 0x004bd2b0	folded	inside its ported callers (0x004bcd40): a small helper their ports do their own way
-0x004bd2e0	folded	inside its ported callers (0x004bbfa0): a small helper their ports do their own way
 0x004be1a0	folded	inside its ported callers (0x004ba750): a small helper their ports do their own way
 0x004c7e90	folded	inside its ported callers (0x004cbbb0): a small helper their ports do their own way
 0x004c8230	folded	inside its ported callers (0x004c9af0): a small helper their ports do their own way
@@ -324,7 +306,6 @@
 0x004ced50	folded	inside its ported callers (0x004cedd0): a small helper their ports do their own way
 0x004cf2c0	folded	inside its ported callers (0x004be620): a small helper their ports do their own way
 0x004cfb80	folded	inside its ported callers (0x004c9af0): a small helper their ports do their own way
-0x004d3e30	folded	inside its ported callers (0x004dd800): a small helper their ports do their own way
 0x004d8950	folded	inside its ported callers (0x004d89d0): a small helper their ports do their own way
 0x004dc270	folded	inside its ported callers (0x004d9a90, 0x004dcfe0, 0x004ddab0, 0x004de0e0 ...): a small helper their ports do their own way
 0x004dc3b0	folded	inside its ported callers (0x004dc9d0): a small helper their ports do their own way
@@ -338,8 +319,6 @@
 0x004e7860	folded	inside its ported callers (0x004e5f90): a small helper their ports do their own way
 0x004ea070	folded	inside its ported callers (0x004d9d00, 0x004dedf0, 0x004e0790, 0x004e1fd0): a small helper their ports do their own way
 0x004ea0e0	folded	inside its ported callers (0x004fb260): a small helper their ports do their own way
-0x004ebec0	folded	inside its ported callers (0x004ed430): a small helper their ports do their own way
-0x004f1a40	folded	inside its ported callers (0x004c1cb0, 0x004c2680): a small helper their ports do their own way
 0x004f4f70	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
 0x004f5240	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
 0x004f5360	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
@@ -348,20 +327,14 @@
 0x004f57e0	folded	inside its ported callers (0x004f5f50): a small helper their ports do their own way
 0x004f5f00	folded	inside its ported callers (0x004c9600): a small helper their ports do their own way
 0x004f7010	folded	inside its ported callers (0x004f38e0): a small helper their ports do their own way
-0x004fafe0	folded	inside its ported callers (0x004ea5f0, 0x004fa860): a small helper their ports do their own way
 0x004fc130	folded	inside its ported callers (0x004faff0): a small helper their ports do their own way
-0x004fc1c0	folded	inside its ported callers (0x004faff0): a small helper their ports do their own way
-0x005116e0	folded	inside its ported callers (0x005116b0): a small helper their ports do their own way
 0x00513a30	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x00515bb0	folded	inside its ported callers (0x004fd5e0, 0x0050d4e0, 0x005b2d10): a small helper their ports do their own way
-0x00515bd0	folded	inside its ported callers (0x004fd7a0, 0x0050bdf0): a small helper their ports do their own way
 0x0051b340	folded	inside its ported callers (0x0051b2c0): a small helper their ports do their own way
 0x005210d0	folded	inside its ported callers (0x0051f900): a small helper their ports do their own way
 0x00521f80	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x00526df0	folded	inside its ported callers (0x0051b500, 0x005a27b0, 0x005a3df0, 0x005a6c60): a small helper their ports do their own way
-0x00534780	folded	inside its ported callers (0x00534700): a small helper their ports do their own way
 0x00537e60	folded	inside its ported callers (0x004d92c0, 0x004d9a90, 0x004da1c0, 0x004dcd20): a small helper their ports do their own way
-0x00540740	folded	inside its ported callers (0x00504fb0): a small helper their ports do their own way
 0x00541a30	folded	inside its ported callers (0x0040b120): a small helper their ports do their own way
 0x00563740	folded	inside its ported callers (0x00507f30): a small helper their ports do their own way
 0x00565f00	folded	inside its ported callers (0x0051bbf0): a small helper their ports do their own way
@@ -382,17 +355,9 @@
 0x00566910	folded	inside its ported callers (0x00565320): a small helper their ports do their own way
 0x00566990	folded	inside its ported callers (0x00565320): a small helper their ports do their own way
 0x00577950	folded	inside its ported callers (0x0058fb60): a small helper their ports do their own way
-0x00577d80	folded	inside its ported callers (0x005780b0): a small helper their ports do their own way
-0x00578070	folded	inside its ported callers (0x00493820, 0x005b2d10): a small helper their ports do their own way
-0x00578090	folded	inside its ported callers (0x00493820, 0x005b2d10): a small helper their ports do their own way
-0x00579130	folded	inside its ported callers (0x004060d0, 0x0042abb0, 0x0043cc20, 0x00440ce0 ...): a small helper their ports do their own way
-0x00579150	folded	inside its ported callers (0x00579170, 0x005a52e0): a small helper their ports do their own way
-0x00579300	folded	inside its ported callers (0x00578630): a small helper their ports do their own way
-0x00579330	folded	inside its ported callers (0x00484ed0, 0x00494b80): a small helper their ports do their own way
 0x0058fc20	folded	inside its ported callers (0x0058fb60): a small helper their ports do their own way
 0x00590310	folded	inside its ported callers (0x00590530): a small helper their ports do their own way
 0x00590610	folded	inside its ported callers (0x0058ff90): a small helper their ports do their own way
-0x005908b0	folded	inside its ported callers (0x00590880): a small helper their ports do their own way
 0x005908e0	folded	inside its ported callers (0x00482ca0): a small helper their ports do their own way
 0x00590b90	folded	inside its ported callers (0x00590ae0): a small helper their ports do their own way
 0x00590d20	folded	inside its ported callers (0x005920e0): a small helper their ports do their own way
@@ -400,16 +365,12 @@
 0x00591220	folded	inside its ported callers (0x00590d70): a small helper their ports do their own way
 0x00592040	folded	inside its ported callers (0x00592170): a small helper their ports do their own way
 0x00594150	folded	inside its ported callers (0x00591900): a small helper their ports do their own way
-0x00594f10	folded	inside its ported callers (0x0058f390): a small helper their ports do their own way
-0x005950e0	folded	inside its ported callers (0x0058f7d0): a small helper their ports do their own way
-0x005952a0	folded	inside its ported callers (0x0058fc70): a small helper their ports do their own way
 0x00598230	folded	inside its ported callers (0x005b2d10): a small helper their ports do their own way
 0x00598420	folded	inside its ported callers (0x00547dd0): a small helper their ports do their own way
 0x005a36c0	folded	inside its ported callers (0x004b73f0): a small helper their ports do their own way
 0x005a4dc0	folded	inside its ported callers (0x004e37d0, 0x00513310, 0x00524492): a small helper their ports do their own way
 0x005a52c0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
 0x005a52d0	folded	inside its ported callers (0x00492830): a small helper their ports do their own way
-0x005a6410	folded	inside its ported callers (0x005a52b0): a small helper their ports do their own way
 0x005a8a90	folded	inside its ported callers (0x005a8a40): a small helper their ports do their own way
 0x005a94f0	folded	inside its ported callers (0x0049a3c0, 0x0049df10): a small helper their ports do their own way
 0x005aa6a0	folded	inside its ported callers (0x005a9980): a small helper their ports do their own way
@@ -424,7 +385,6 @@
 0x005bb190	folded	inside its ported callers (0x005ba110): a small helper their ports do their own way
 0x005c0500	folded	inside its ported callers (0x005c1360): a small helper their ports do their own way
 0x005c5890	folded	inside its ported callers (0x004879a0): a small helper their ports do their own way
-0x005c6df0	folded	inside its ported callers (0x005c6d10): a small helper their ports do their own way
 0x005c9590	folded	inside its ported callers (0x0048cec0): a small helper their ports do their own way
 0x005cb320	folded	inside its ported callers (0x004e37d0): a small helper their ports do their own way
 0x005404f0	folded	read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers
@@ -475,29 +435,173 @@
 0x005bfdc0	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x005c57d0	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
 0x00514120	folded	read: covered where PM's port names it (cls_world.h:19, cls_clutter.h:60 and 120, cls_util.cpp:222-223 the copy refusals) or container code (list erase and copy, a vector clear, a thunk, a member setter)
-0x00415940	folded	called only from shared ports whose logic is MW3's (0x00415ce0 = MW3 0x004152d0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x00443530	folded	called only from shared ports whose logic is MW3's (0x004414e0 = MW3 0x0043fcb0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x0044abb0	folded	called only from shared ports whose logic is MW3's (0x0044a530 = MW3 0x0044f4c0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x00469a30	folded	called only from shared ports whose logic is MW3's (0x00469dc0 = MW3 0x00468250): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x0047be40	folded	called only from shared ports whose logic is MW3's (0x0047c960 = MW3 0x0047a680): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x004a7420	folded	called only from shared ports whose logic is MW3's (0x004a9010 = MW3 0x004a5c60): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x004ab480	folded	called only from shared ports whose logic is MW3's (0x004aca30 = MW3 0x004a9530): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x004b6e80	folded	called only from shared ports whose logic is MW3's (0x004b6c90 = MW3 0x004b2da0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x004c51e0	folded	called only from shared ports whose logic is MW3's (0x004c5590 = MW3 0x004be670): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x004cb840	folded	called only from shared ports whose logic is MW3's (0x004ce020 = MW3 0x004c3bd0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x004ecaa0	folded	called only from shared ports whose logic is MW3's (0x004eb840 = MW3 0x004da7e0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x00506390	folded	called only from shared ports whose logic is MW3's (0x0051b500 = MW3 0x00502fd0, 0x00525530 = MW3 0x0050be30): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x0050a550	folded	called only from shared ports whose logic is MW3's (0x0050a5d0 = MW3 0x004f6c50): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x0050b1c0	folded	called only from shared ports whose logic is MW3's (0x0050b9b0 = MW3 0x004f8050, 0x0050b9e0 = MW3 0x004f8080, 0x0050ba90 = MW3 0x004f8140): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x0050c3b0	folded	called only from shared ports whose logic is MW3's (0x0050c340 = MW3 0x004f8ab0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x00515e40	folded	called only from shared ports whose logic is MW3's (0x0050caf0 = MW3 0x004f8fb0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x00532b60	folded	called only from shared ports whose logic is MW3's (0x00532880 = MW3 0x00518f70): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x00533320	folded	called only from shared ports whose logic is MW3's (0x004af590 = MW3 0x004abb60): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x00534380	folded	called only from shared ports whose logic is MW3's (0x0042cd30 = MW3 0x0042be10): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x0057c950	folded	called only from shared ports whose logic is MW3's (0x005c5cf0 = MW3 0x005a57d0): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
-0x005a39c0	folded	called only from shared ports whose logic is MW3's (0x005201b0 = MW3 0x00507340): their calls match MW3's, so this is the counterpart of the MW3 callee the pairing missed, done by the shared port
+0x00415940	unsure	group A: paired by its call site with MW3 0x00414f40 (the shared port's call there); a changed pair, settled by group A's rules
+0x00443530	unsure	group A: paired by its call site with MW3 0x00441da0 (the shared port's call there); a changed pair, settled by group A's rules
+0x0044abb0	unsure	group A: paired by its call site with MW3 0x00449760 (the shared port's call there); a changed pair, settled by group A's rules
+0x00469a30	unsure	group A: paired by its call site with MW3 0x00467f70 (the shared port's call there); a changed pair, settled by group A's rules
+0x0047be40	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x004a7420	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x004ab480	unsure	group A: paired by its call site with MW3 0x004a7f30 (the shared port's call there); a changed pair, settled by group A's rules
+0x004b6e80	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x004c51e0	unsure	group A: paired by its call site with MW3 0x004be300 (the shared port's call there); a changed pair, settled by group A's rules
+0x004cb840	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x004ecaa0	unsure	group A: paired by its call site with MW3 0x004db8d0 (the shared port's call there); a changed pair, settled by group A's rules
+0x00506390	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x0050a550	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x0050b1c0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x0050c3b0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x00515e40	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x00532b60	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x00533320	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x00534380	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
+0x0057c950	unsure	group A: paired by its call site with MW3 0x0055a950 (the shared port's call there); a changed pair, settled by group A's rules
+0x005a39c0	unsure	group A: called only from same-logic shared ports, but no MW3 call site maps to its call; a changed pair without a pair, read under group A
 0x005a12a0	sdl	called only from 0x005c0450, 0x005c0b70, which are sdl
 0x005c0bf0	sdl	called only from 0x005c04d0, which are sdl
 0x005c9e30	sdl	called only from 0x005c08f0, which are sdl
 0x005ca3c0	sdl	called only from 0x0059c230, 0x005c9e30, which are sdl
 0x005ca600	sdl	called only from 0x005c9e30, which are sdl
+0x00404c90	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
+0x00405b60	unsure	read with group A: a callee of shared ports PM changed (0x00499890); whether the port does PM's version, this call included, is settled there
+0x00405f20	unsure	read with group A: a callee of shared ports PM changed (0x00404d70); whether the port does PM's version, this call included, is settled there
+0x00407120	unsure	read with group A: a callee of shared ports PM changed (0x004060d0); whether the port does PM's version, this call included, is settled there
+0x00408360	unsure	read with group A: a callee of shared ports PM changed (0x0043c900); whether the port does PM's version, this call included, is settled there
+0x00408580	unsure	read with group A: a callee of shared ports PM changed (0x004311e0, 0x004b0790); whether the port does PM's version, this call included, is settled there
+0x00408d00	unsure	read with group A: a callee of shared ports PM changed (0x00408b20); whether the port does PM's version, this call included, is settled there
+0x0040a870	unsure	read with group A: a callee of shared ports PM changed (0x004826e0, 0x00483700); whether the port does PM's version, this call included, is settled there
+0x0040a920	unsure	read with group A: a callee of shared ports PM changed (0x0043af70, 0x004824d0); whether the port does PM's version, this call included, is settled there
+0x00414ba0	unsure	read with group A: a callee of shared ports PM changed (0x00415190, 0x0046f510, 0x00494500); whether the port does PM's version, this call included, is settled there
+0x0041ade0	unsure	read with group A: a callee of shared ports PM changed (0x00462090, 0x004b4f10); whether the port does PM's version, this call included, is settled there
+0x00420e40	unsure	read with group A: a callee of shared ports PM changed (0x00420aa0, 0x00431e20); whether the port does PM's version, this call included, is settled there
+0x00426600	unsure	read with group A: a callee of shared ports PM changed (0x004262f0); whether the port does PM's version, this call included, is settled there
+0x004279e0	unsure	read with group A: a callee of shared ports PM changed (0x0048eaf0); whether the port does PM's version, this call included, is settled there
+0x00428750	unsure	read with group A: a callee of shared ports PM changed (0x0046cc50); whether the port does PM's version, this call included, is settled there
+0x00428a00	unsure	read with group A: a callee of shared ports PM changed (0x00428f10); whether the port does PM's version, this call included, is settled there
+0x0042b0d0	unsure	read with group A: a callee of shared ports PM changed (0x0042abb0); whether the port does PM's version, this call included, is settled there
+0x0042c360	unsure	read with group A: a callee of shared ports PM changed (0x0042c8d0); whether the port does PM's version, this call included, is settled there
+0x00431020	unsure	read with group A: a callee of shared ports PM changed (0x00416560); whether the port does PM's version, this call included, is settled there
+0x00431080	unsure	read with group A: a callee of shared ports PM changed (0x00414950, 0x00415190, 0x0046f510); whether the port does PM's version, this call included, is settled there
+0x00434980	unsure	read with group A: a callee of shared ports PM changed (0x004a0e10); whether the port does PM's version, this call included, is settled there
+0x00434ab0	unsure	read with group A: a callee of shared ports PM changed (0x00435410); whether the port does PM's version, this call included, is settled there
+0x004356c0	unsure	read with group A: a callee of shared ports PM changed (0x004a19c0); whether the port does PM's version, this call included, is settled there
+0x00435d20	unsure	read with group A: a callee of shared ports PM changed (0x0047f420); whether the port does PM's version, this call included, is settled there
+0x0044a320	unsure	read with group A: a callee of shared ports PM changed (0x0044a010); whether the port does PM's version, this call included, is settled there
+0x00459110	unsure	read with group A: a callee of shared ports PM changed (0x00457cb0, 0x00458690); whether the port does PM's version, this call included, is settled there
+0x00459b20	unsure	read with group A: a callee of shared ports PM changed (0x0045a990); whether the port does PM's version, this call included, is settled there
+0x0045b100	unsure	read with group A: a callee of shared ports PM changed (0x0045a250); whether the port does PM's version, this call included, is settled there
+0x0045b240	unsure	read with group A: a callee of shared ports PM changed (0x004921a0); whether the port does PM's version, this call included, is settled there
+0x0045bc50	unsure	read with group A: a callee of shared ports PM changed (0x0045ac20); whether the port does PM's version, this call included, is settled there
+0x0045cb40	unsure	read with group A: a callee of shared ports PM changed (0x004faff0); whether the port does PM's version, this call included, is settled there
+0x00462a00	unsure	read with group A: a callee of shared ports PM changed (0x004b73f0, 0x004b80f0); whether the port does PM's version, this call included, is settled there
+0x00462f50	unsure	read with group A: a callee of shared ports PM changed (0x00468660); whether the port does PM's version, this call included, is settled there
+0x00469c80	unsure	read with group A: a callee of shared ports PM changed (0x0046c620); whether the port does PM's version, this call included, is settled there
+0x00473160	unsure	read with group A: a callee of shared ports PM changed (0x0045a250); whether the port does PM's version, this call included, is settled there
+0x00475100	unsure	read with group A: a callee of shared ports PM changed (0x0045a250, 0x00480260, 0x00480840); whether the port does PM's version, this call included, is settled there
+0x00475b20	unsure	read with group A: a callee of shared ports PM changed (0x00476750); whether the port does PM's version, this call included, is settled there
+0x004773a0	unsure	read with group A: a callee of shared ports PM changed (0x00430c10); whether the port does PM's version, this call included, is settled there
+0x0047b740	unsure	read with group A: a callee of shared ports PM changed (0x004916c0, 0x00492490, 0x00494e70); whether the port does PM's version, this call included, is settled there
+0x0047c800	unsure	read with group A: a callee of shared ports PM changed (0x004938e0); whether the port does PM's version, this call included, is settled there
+0x004822c0	unsure	read with group A: a callee of shared ports PM changed (0x004824d0); whether the port does PM's version, this call included, is settled there
+0x004824c0	unsure	read with group A: a callee of shared ports PM changed (0x00489380, 0x00494e70); whether the port does PM's version, this call included, is settled there
+0x004854e0	unsure	read with group A: a callee of shared ports PM changed (0x004826e0); whether the port does PM's version, this call included, is settled there
+0x00488470	unsure	read with group A: a callee of shared ports PM changed (0x00404d70, 0x0042a5e0, 0x0042bb80); whether the port does PM's version, this call included, is settled there
+0x0048bdf0	unsure	read with group A: a callee of shared ports PM changed (0x004916c0); whether the port does PM's version, this call included, is settled there
+0x0048f660	unsure	read with group A: a callee of shared ports PM changed (0x0048f970); whether the port does PM's version, this call included, is settled there
+0x0048fd90	unsure	read with group A: a callee of shared ports PM changed (0x0048f240, 0x0048f2a0); whether the port does PM's version, this call included, is settled there
+0x00491ea0	unsure	read with group A: a callee of shared ports PM changed (0x0048f240); whether the port does PM's version, this call included, is settled there
+0x004936f0	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
+0x0049d130	unsure	read with group A: a callee of shared ports PM changed (0x0049cf60); whether the port does PM's version, this call included, is settled there
+0x0049db90	unsure	read with group A: a callee of shared ports PM changed (0x0049fed0); whether the port does PM's version, this call included, is settled there
+0x004a0120	unsure	read with group A: a callee of shared ports PM changed (0x00489380); whether the port does PM's version, this call included, is settled there
+0x004a0dd0	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
+0x004a6ec0	unsure	read with group A: a callee of shared ports PM changed (0x0046d690); whether the port does PM's version, this call included, is settled there
+0x004a70c0	unsure	read with group A: a callee of shared ports PM changed (0x004b1030); whether the port does PM's version, this call included, is settled there
+0x004a71f0	unsure	read with group A: a callee of shared ports PM changed (0x004b10b0); whether the port does PM's version, this call included, is settled there
+0x004a7390	unsure	read with group A: a callee of shared ports PM changed (0x004a2220, 0x004a95f0); whether the port does PM's version, this call included, is settled there
+0x004abc60	unsure	read with group A: a callee of shared ports PM changed (0x004ac1e0); whether the port does PM's version, this call included, is settled there
+0x004ac9d0	unsure	read with group A: a callee of shared ports PM changed (0x004ac7b0); whether the port does PM's version, this call included, is settled there
+0x004ace80	unsure	read with group A: a callee of shared ports PM changed (0x004acb90, 0x004acff0); whether the port does PM's version, this call included, is settled there
+0x004acec0	unsure	read with group A: a callee of shared ports PM changed (0x004acb90, 0x004acff0); whether the port does PM's version, this call included, is settled there
+0x004acf00	unsure	read with group A: a callee of shared ports PM changed (0x004acb90); whether the port does PM's version, this call included, is settled there
+0x004ad840	unsure	read with group A: a callee of shared ports PM changed (0x004ad5c0); whether the port does PM's version, this call included, is settled there
+0x004add70	unsure	read with group A: a callee of shared ports PM changed (0x004ac1e0); whether the port does PM's version, this call included, is settled there
+0x004adfd0	unsure	read with group A: a callee of shared ports PM changed (0x004aba80, 0x004abe80); whether the port does PM's version, this call included, is settled there
+0x004aecf0	unsure	read with group A: a callee of shared ports PM changed (0x004ad5c0); whether the port does PM's version, this call included, is settled there
+0x004af9f0	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x00488c40); whether the port does PM's version, this call included, is settled there
+0x004b31b0	unsure	read with group A: a callee of shared ports PM changed (0x004826e0); whether the port does PM's version, this call included, is settled there
+0x004b4560	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0, 0x004b43a0, 0x004b4480); whether the port does PM's version, this call included, is settled there
+0x004b5f80	unsure	read with group A: a callee of shared ports PM changed (0x004b4a90); whether the port does PM's version, this call included, is settled there
+0x004b67e0	unsure	read with group A: a callee of shared ports PM changed (0x004b64f0, 0x004b6820); whether the port does PM's version, this call included, is settled there
+0x004b8ce0	unsure	read with group A: a callee of shared ports PM changed (0x004b5330); whether the port does PM's version, this call included, is settled there
+0x004b9390	unsure	read with group A: a callee of shared ports PM changed (0x004b5330); whether the port does PM's version, this call included, is settled there
+0x004ba030	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
+0x004ba190	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
+0x004ba340	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
+0x004bbf20	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
+0x004bd6f0	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
+0x004bd760	unsure	read with group A: a callee of shared ports PM changed (0x004bbfa0); whether the port does PM's version, this call included, is settled there
+0x004c2330	unsure	read with group A: a callee of shared ports PM changed (0x004c1cb0); whether the port does PM's version, this call included, is settled there
+0x004c6f10	unsure	read with group A: a callee of shared ports PM changed (0x004c7910); whether the port does PM's version, this call included, is settled there
+0x004de9c0	unsure	read with group A: a callee of shared ports PM changed (0x004dd5e0); whether the port does PM's version, this call included, is settled there
+0x004de9d0	unsure	read with group A: a callee of shared ports PM changed (0x004dd5e0, 0x004faff0); whether the port does PM's version, this call included, is settled there
+0x004e3b50	unsure	read with group A: a callee of shared ports PM changed (0x004cd2f0); whether the port does PM's version, this call included, is settled there
+0x004e63e0	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there
+0x004e65d0	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there
+0x004e6840	unsure	read with group A: a callee of shared ports PM changed (0x0041cad0); whether the port does PM's version, this call included, is settled there
+0x004e9230	unsure	read with group A: a callee of shared ports PM changed (0x004f0830); whether the port does PM's version, this call included, is settled there
+0x004ef160	unsure	read with group A: a callee of shared ports PM changed (0x004ec240, 0x005661b0); whether the port does PM's version, this call included, is settled there
+0x004f3390	unsure	read with group A: a callee of shared ports PM changed (0x004f35c0); whether the port does PM's version, this call included, is settled there
+0x004f4d60	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
+0x004f6f00	unsure	read with group A: a callee of shared ports PM changed (0x004f5f50); whether the port does PM's version, this call included, is settled there
+0x004f8e30	unsure	read with group A: a callee of shared ports PM changed (0x004f8f60); whether the port does PM's version, this call included, is settled there
+0x004f9090	unsure	read with group A: a callee of shared ports PM changed (0x004f90f0); whether the port does PM's version, this call included, is settled there
+0x004f9960	unsure	read with group A: a callee of shared ports PM changed (0x00483de0); whether the port does PM's version, this call included, is settled there
+0x004f99c0	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
+0x004fa090	unsure	read with group A: a callee of shared ports PM changed (0x004dd1e0); whether the port does PM's version, this call included, is settled there
+0x004fbe60	unsure	read with group A: a callee of shared ports PM changed (0x004d3c30, 0x004d6070); whether the port does PM's version, this call included, is settled there
+0x004fbfd0	unsure	read with group A: a callee of shared ports PM changed (0x004faff0); whether the port does PM's version, this call included, is settled there
+0x005000d0	unsure	read with group A: a callee of shared ports PM changed (0x004ffd20, 0x00501ab0); whether the port does PM's version, this call included, is settled there
+0x005017e0	unsure	read with group A: a callee of shared ports PM changed (0x00501030); whether the port does PM's version, this call included, is settled there
+0x0050b8f0	unsure	read with group A: a callee of shared ports PM changed (0x0050b920); whether the port does PM's version, this call included, is settled there
+0x00515c00	unsure	read with group A: a callee of shared ports PM changed (0x0050d4e0); whether the port does PM's version, this call included, is settled there
+0x00519e90	unsure	read with group A: a callee of shared ports PM changed (0x00518c60); whether the port does PM's version, this call included, is settled there
+0x00521050	unsure	read with group A: a callee of shared ports PM changed (0x00430e60, 0x004a95f0, 0x00524380); whether the port does PM's version, this call included, is settled there
+0x00521870	unsure	read with group A: a callee of shared ports PM changed (0x004aa080, 0x004b0560, 0x004b0c70); whether the port does PM's version, this call included, is settled there
+0x00521a20	unsure	read with group A: a callee of shared ports PM changed (0x00460e50, 0x005a6c60); whether the port does PM's version, this call included, is settled there
+0x00521c70	unsure	read with group A: a callee of shared ports PM changed (0x00524492); whether the port does PM's version, this call included, is settled there
+0x00524be0	unsure	read with group A: a callee of shared ports PM changed (0x004e2820); whether the port does PM's version, this call included, is settled there
+0x00527230	unsure	read with group A: a callee of shared ports PM changed (0x00485620); whether the port does PM's version, this call included, is settled there
+0x005325a0	unsure	read with group A: a callee of shared ports PM changed (0x005326d0); whether the port does PM's version, this call included, is settled there
+0x0053c780	unsure	read with group A: a callee of shared ports PM changed (0x004fdd60); whether the port does PM's version, this call included, is settled there
+0x0053ef90	unsure	read with group A: a callee of shared ports PM changed (0x004225e0, 0x00422cd0, 0x00464060); whether the port does PM's version, this call included, is settled there
+0x0053fe30	unsure	read with group A: a callee of shared ports PM changed (0x00482ca0); whether the port does PM's version, this call included, is settled there
+0x00540090	unsure	read with group A: a callee of shared ports PM changed (0x0043af70, 0x00482ca0); whether the port does PM's version, this call included, is settled there
+0x005400c0	unsure	read with group A: a callee of shared ports PM changed (0x00483020); whether the port does PM's version, this call included, is settled there
+0x00579310	unsure	read with group A: a callee of shared ports PM changed (0x004826e0); whether the port does PM's version, this call included, is settled there
+0x0057a770	unsure	read with group A: a callee of shared ports PM changed (0x004838b0); whether the port does PM's version, this call included, is settled there
+0x005906a0	unsure	read with group A: a callee of shared ports PM changed (0x0058ff90); whether the port does PM's version, this call included, is settled there
+0x00594600	unsure	read with group A: a callee of shared ports PM changed (0x005941c0); whether the port does PM's version, this call included, is settled there
+0x00596520	unsure	read with group A: a callee of shared ports PM changed (0x0043bb70, 0x004fd6f0, 0x00505c80); whether the port does PM's version, this call included, is settled there
+0x005969a0	unsure	read with group A: a callee of shared ports PM changed (0x00482090); whether the port does PM's version, this call included, is settled there
+0x00596de0	unsure	read with group A: a callee of shared ports PM changed (0x0042d090, 0x00442fd0, 0x0044c930); whether the port does PM's version, this call included, is settled there
+0x00597ca0	unsure	read with group A: a callee of shared ports PM changed (0x004aefe0); whether the port does PM's version, this call included, is settled there
+0x00597d20	unsure	read with group A: a callee of shared ports PM changed (0x004447a0, 0x0044a010, 0x004838b0); whether the port does PM's version, this call included, is settled there
+0x00597d30	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x0048d110, 0x004aefe0); whether the port does PM's version, this call included, is settled there
+0x00597dc0	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x004848a0, 0x004afb30); whether the port does PM's version, this call included, is settled there
+0x00597e30	unsure	read with group A: a callee of shared ports PM changed (0x004848a0); whether the port does PM's version, this call included, is settled there
+0x00597ef0	unsure	read with group A: a callee of shared ports PM changed (0x004838b0, 0x004848a0, 0x004aefe0); whether the port does PM's version, this call included, is settled there
+0x00597f40	unsure	read with group A: a callee of shared ports PM changed (0x004aefe0); whether the port does PM's version, this call included, is settled there
+0x0059aef0	unsure	read with group A: a callee of shared ports PM changed (0x00482090, 0x00483020); whether the port does PM's version, this call included, is settled there
+0x005a03b0	unsure	read with group A: a callee of shared ports PM changed (0x005a0065); whether the port does PM's version, this call included, is settled there
+0x005a1220	unsure	read with group A: a callee of shared ports PM changed (0x00548990); whether the port does PM's version, this call included, is settled there
+0x005a4de0	unsure	read with group A: a callee of shared ports PM changed (0x00524710); whether the port does PM's version, this call included, is settled there
+0x005a7570	unsure	read with group A: a callee of shared ports PM changed (0x005a3a30); whether the port does PM's version, this call included, is settled there
+0x005aa410	unsure	read with group A: a callee of shared ports PM changed (0x0049faf0, 0x0049fed0); whether the port does PM's version, this call included, is settled there
+0x005aa4e0	unsure	read with group A: a callee of shared ports PM changed (0x0046f910, 0x005aa470); whether the port does PM's version, this call included, is settled there
+0x005ac170	unsure	read with group A: a callee of shared ports PM changed (0x005a9220, 0x005a9620, 0x005a9980); whether the port does PM's version, this call included, is settled there
+0x005acba0	unsure	read with group A: a callee of shared ports PM changed (0x004a0e10, 0x004a2dc0, 0x004dd1e0); whether the port does PM's version, this call included, is settled there
+0x005b09f0	unsure	read with group A: a callee of shared ports PM changed (0x00592910, 0x005a9220, 0x005a9980); whether the port does PM's version, this call included, is settled there
+0x005b1050	unsure	read with group A: a callee of shared ports PM changed (0x00482140); whether the port does PM's version, this call included, is settled there
+0x005b14e0	unsure	read with group A: a callee of shared ports PM changed (0x005c9280); whether the port does PM's version, this call included, is settled there
+0x005b2050	unsure	read with group A: a callee of shared ports PM changed (0x005b19e0, 0x005b1bd0, 0x005b1db0); whether the port does PM's version, this call included, is settled there
+0x005cb4b0	unsure	read with group A: a callee of shared ports PM changed (0x00494b80); whether the port does PM's version, this call included, is settled there
