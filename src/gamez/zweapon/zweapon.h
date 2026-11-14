@@ -77,8 +77,8 @@ struct HitState {
   HitRecord* killed_at = nullptr;      // 0x009a1790  and where, for the craters
   float health_after = 1;              // 0x009a178c  set by the handler (0x00583730)
   void (*pre_hit)(Handle handler, Handle node, float damage, WeaponDef* def) = nullptr;  // 0x009a17a4
-  int32_t hits = 0;                    // 0x009a17c0  hits by `counted` (network "WeaponData")
-  Handle counted = nullptr;            // 0x009a17c4
+  int32_t hits = 0;                    // 0x009a17c0 (PM 0x00b0e440)  hits by `counted` (zSave's "Weapons/WeaponData")
+  Handle counted = nullptr;            // 0x009a17c4 (PM 0x00b0e444)  only ever 0: ownerless hits
   float dt = 0;                        // 0x0072c52c  the frame's, set by the game loop
   float tether_ceiling = 30;           // 0x009a17a0  a tethered shot's height limit
 };
@@ -274,7 +274,7 @@ void set_query_zone(uint32_t zone);
 // [0x005f1e5c]) the network's handler would be registered (not ported).
 // Returns 0, which the start's report reads as passed.
 int32_t startup();
-void set_network(int32_t on);  // 0x00583740
+void set_save(int32_t on);  // 0x00583740, PM 0x005a5160: the "Weapons" save section at the start, or none
 // The mission cleanup's 0x00584fe0: every definition's live shots killed.
 void kill_every_shot();
 

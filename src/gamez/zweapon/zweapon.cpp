@@ -1,5 +1,9 @@
 #include "gamez/zweapon/zweapon.h"
 
+#include <cstring>
+
+#include "gamez/zsave/zsave.h"
+
 #include <cmath>
 
 #include "crt/msvc_math.h"
@@ -536,13 +540,26 @@ void attach_fire(WeaponDef* def, Handle node, const void* offset) {
 }
 
 namespace {
-int32_t g_network = 0;  // [0x005f1e5c]
+int32_t g_save = 1;  // [0x0061585c] (MW3 [0x005f1e5c]), 1 in the data; the app's start sets it 0
+
+// Pirate's Moon 1.0 @ 0x005a5260 (MW3's 0x00583830): the section "Weapons" saves its one entry, "WeaponData", the
+// ownerless hits' count.
+void weapons_save(zsave::Context& ctx, void*) {
+  const int32_t n = hit_state().hits;
+  zsave::write(ctx, "WeaponData", &n, sizeof n);
+}
+// Pirate's Moon 1.0 @ 0x005a5290 (MW3's 0x00583860): the count read back; [0x00b0e400] (MW3's [0x009a1780]) cleared,
+// a word nothing the port has found reads.
+void weapons_load(zsave::Context&, const char*, const void* data, uint32_t size, void*) {
+  if (size >= 4) std::memcpy(&hit_state().hits, data, 4);
+}
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00583740
-void set_network(int32_t on) { g_network = on; }
+// Mech3.exe 1.2 @ 0x00583740, Pirate's Moon 1.0 @ 0x005a5160: zWeapon's save section on or off before its start.
+// The app's start (PM 0x004829ab) turns it off, so the shipped game never registers it.
+void set_save(int32_t on) { g_save = on; }
 
-// Mech3.exe 1.2 @ 0x00583750. [0x009a0ef4] and [0x009a1780], also cleared,
+// Mech3.exe 1.2 @ 0x00583750, Pirate's Moon 1.0 @ 0x005a5170. [0x009a0ef4] and [0x009a1780], also cleared,
 // have no reader the port has found.
 int32_t startup() {
   HitState& h = hit_state();
@@ -563,8 +580,8 @@ int32_t startup() {
   st.max_crater_radius = 30.0f;
   st.fire_effects = st.impact_animations = true;  // Pirate's Moon 1.0 @ 0x005a5170
   run_state().pool_objects = 0;
-  // With the network mode: 0x005a8a20(0x00583850, 1000, 0), the shots'
-  // network messages (not ported).
+  // With the save flag on: zSave's section "Weapons" (PM 0x005cb900, MW3 0x005a8a20), priority 1000.
+  if (g_save) zsave::add("Weapons", weapons_save, weapons_load, 1000, nullptr);
   return 0;
 }
 
