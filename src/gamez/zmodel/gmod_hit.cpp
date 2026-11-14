@@ -715,6 +715,87 @@ int32_t model_segment(Model* model, zcls::LineHit* slot, const float a[3], const
   return 0;
 }
 
+namespace {
+// The mark's span on one axis: the target's size `t`, the mark's `m`, the centre's pixel `c` (truncated). The
+// mark's columns [src0, src1) go from dst onward. A mark wider than the target gives its middle at 0; one past
+// the near edge is drawn from 0 (not cut), past the far edge moved back inside.
+void mark_span(int32_t t, int32_t m, int32_t c, int32_t* src0, int32_t* src1, int32_t* dst) {
+  const int32_t at = c - (m >> 1);
+  if (t < m) {
+    *dst = 0;
+    *src0 = (m - t) >> 1;
+    *src1 = m - *src0;
+    return;
+  }
+  *src0 = 0, *src1 = m;
+  if (at < 0) *dst = 0;
+  else if (at + m > t) *dst = at - (at + m) + t;
+  else *dst = at;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00542060 (ECX the hit; its material here): with the marks on, a textured, non-cycled material
+// with flag 2 gets the impact type's mark image painted into its texture's image at the captured UV (wrapped into
+// -0.01..1.01 and written back), both unpalettered. Without a mask the mark's non-zero pixels are copied; with one
+// a mask value blends (565: over 3, 555: over 7) and from 0xfc copies, as the cookie does. Ported for
+// preservation: only WriteTextureSetMap turns the marks on and no shipped script uses it.
+// FIX (A): the exe paints a Direct3D texture's locked surface ([0x0072f368], unlocked by [0x0072f36c], then
+// [0x0072f374]); here the image is painted and handed to the reload hook, as the damage decals' are.
+void mark_paint(Material* m) {
+  if (!g_uv.on || !m || !(m->flags & 1) || !(m->flags & 2) || (m->flags & 4)) return;
+  // The wrap on the x87, each value stored only when it stepped (0x005ce220 1.01, 0x005ce224 -0.01).
+  double u = g_uv.uv[0], v = g_uv.uv[1];
+  if (u > 1.01f) { do u -= 1.0; while (u > 1.01f); g_uv.uv[0] = static_cast<float>(u); }
+  if (v > 1.01f) { do v -= 1.0; while (v > 1.01f); g_uv.uv[1] = static_cast<float>(v); }
+  if (u < -0.01f) { do u -= -1.0; while (u < -0.01f); g_uv.uv[0] = static_cast<float>(u); }
+  if (v < -0.01f) { do v -= -1.0; while (v < -0.01f); g_uv.uv[1] = static_cast<float>(v); }
+  zimg::TextureEntry* map = g_uv.maps[g_uv.type];
+  const auto* mark = map ? static_cast<const zimg::Texture*>(map->image) : nullptr;
+  zimg::TextureEntry* target = m->texture;
+  auto* img = target ? static_cast<zimg::Texture*>(target->image) : nullptr;
+  if (!mark || !img || mark->palette_count != 0 || img->palette_count != 0) return;
+  const int32_t tw = img->width, th = img->height, mw = mark->width, mh = mark->height;
+  int32_t sx0, sx1, dx, sy0, sy1, dy;
+  mark_span(tw, mw, crt::msvc_ftol(static_cast<double>(tw) * u), &sx0, &sx1, &dx);
+  mark_span(th, mh, crt::msvc_ftol(static_cast<double>(th) * v), &sy0, &sy1, &dy);
+  auto* dst = static_cast<uint16_t*>(img->pixels);
+  const auto* src = static_cast<const uint16_t*>(mark->pixels);
+  const bool rgb565 = zrndr::target2d().format == 6;  // [0x0074a738]
+  for (int32_t r = sy0, y = dy; r < sy1; ++r, ++y) {
+    for (int32_t c = sx0, x = dx; c < sx1; ++c, ++x) {
+      const int32_t i = y * tw + x, s = src[r * mw + c];
+      // FIX (A): a mark larger than the image by an odd count draws one column and one row more than it has; the
+      // extra column lands at the next row's start (kept), and past the image's end the exe writes on (dropped).
+      if (i >= tw * th) continue;
+      if (!mark->alpha) {
+        if (s != 0) dst[i] = static_cast<uint16_t>(s);
+        continue;
+      }
+      const uint32_t a = mark->alpha[r * mw + c];
+      if (a <= (rgb565 ? 3u : 7u)) continue;
+      if (a >= 0xfc) {
+        dst[i] = static_cast<uint16_t>(s);
+        continue;
+      }
+      const int32_t d = dst[i], k = static_cast<int32_t>(a);
+      if (rgb565) {
+        const int32_t r5 = (((s & 0xf800) - (d & 0xf800)) * k >> 8) & static_cast<int32_t>(0xfffff800);
+        const int32_t g6 = ((s & 0x7e0) - (d & 0x7e0)) * k >> 8;
+        int32_t g = (g6 & ~0x1f) & ~0x20;
+        if (g6 < 0) g |= 0x20;
+        const int32_t d1 = d + r5;
+        dst[i] = static_cast<uint16_t>(d1 + (((s & 0x1f) - (d1 & 0x1f)) * k >> 8) + g);
+      } else {
+        const int32_t r5 = (((s & 0x7c00) - (d & 0x7c00)) * k >> 8) & 0xfc00;
+        const int32_t g = (((s & 0x3e0) - (d & 0x3e0)) * k >> 8) & 0xffe0;
+        const int32_t b = ((s & 0x1f) - (d & 0x1f)) * k >> 8;
+        dst[i] = static_cast<uint16_t>(b + g + r5 + d);
+      }
+    }
+  }
+  if (target->surface && zimg::texture_hooks().reload) zimg::texture_hooks().reload(target->surface, img);
+}
+
 // Mech3.exe 1.2 @ 0x00542730
 bool cookie(zimg::TextureEntry* target, const zimg::Texture* from, const zimg::Texture* hole) {
   const auto* img = target ? static_cast<zimg::Texture*>(target->image) : nullptr;

@@ -58,6 +58,13 @@ int32_t ev_if(AnimDef& def, SeqDef& s, uint8_t* e);              // 31  0x005070
 int32_t ev_else(SeqDef& s);                                      // 32  0x005073b0 (33 0x005073e0)
 int32_t ev_callback(AnimDef& def, uint8_t* e);                   // 35  0x00507410
 int32_t ev_detonate_weapon(AnimDef& def, uint8_t* e);            // 41  0x00507430
+// The events no shipped anim.zbd uses, ported for preservation; the dispatcher still hands them to its hooks
+// (anim-run.md, The events no shipped file uses). Event 38's text and its 2D display (0x00576040 and 0x005a3fd0,
+// the text layer, not ported) are the caller's.
+int32_t ev_object_remove_child(AnimDef& def, uint8_t* e);        // 16  0x00505df0
+int32_t ev_camera_state(AnimDef& def, SeqDef* s, uint8_t* e);    // 20  0x00503c10
+int32_t ev_camera_from_to(AnimDef& def, SeqDef* s, uint8_t* e);  // 21  0x00503d50 (with 0x0050414d)
+int32_t ev_message(uint8_t* e, const char* (*text)(int32_t id), void (*show)(const char* text, float seconds));  // 38  0x00507970
 
 // Pieces the handlers share (0x00502f00..0x00505710).
 float connector_set(zcls::Node* node, const float from[3], const float to[3]);  // 0x00502f00
