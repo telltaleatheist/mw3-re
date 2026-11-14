@@ -1798,6 +1798,8 @@ SUNFIRE, DESERT, WASP, SLATE, JUNGLE, ARCTIC and SPECTRE.
   The developers seem to have meant the special case for this texture and
   misspelt its name. The rebuild's SMALL FIXES makes it work as meant (the
   canopy takes `vult06_c`).
+  Pirate's Moon fixed the data instead: its texture library has
+  `vultur_d03_c`, so its DESERT Vulture is whole.
 - **Five primary textures are missing from every library**: `bushwacker14`,
   `blkhwk16`, `cauldron01`, `cauldron08`, `owens13` (not in `rmechtex*.zbd` or
   `rimage.zbd`). Probably unused by the models; not checked.
