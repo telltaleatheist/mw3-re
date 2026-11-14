@@ -499,21 +499,22 @@ ai::Net105Node* BasicControlsHooks::node_make(BasicControls& c) {
 
 // Mech3.exe 1.2 @ 0x004023d0 (ECX the record, EDX `from`): the offset to `to`; the flat length less the width, or
 // half the width when that is less (a NaN: the half); the offset flat-normalised, the side across it, the two
-// turned 45 either way; the width.
-void BasicControlsHooks::link_fill(ai::Net105Link* r, const float* to, const float* from, float width) {
-  if (!r) return;
-  r->offset[0] = to[0] - from[0], r->offset[1] = to[1] - from[1], r->offset[2] = to[2] - from[2];
-  const float flat = std::sqrt(r->offset[0] * r->offset[0] + r->offset[2] * r->offset[2]);
+// turned 45 either way (the exe passes 45 as is); the width. Also the v105 nets' measure (ai::net105_link_fill).
+void basic_link_fill(ai::Net105Link& r, const float from[3], const float to[3], float width) {
+  r.offset[0] = to[0] - from[0], r.offset[1] = to[1] - from[1], r.offset[2] = to[2] - from[2];
+  const float flat = std::sqrt(r.offset[0] * r.offset[0] + r.offset[2] * r.offset[2]);
   const float half = width * 0.5f;  // [0x005bb920]
-  r->length = flat - width > half ? flat - width : half;
-  zmth::Vec3 o{r->offset[0], r->offset[1], r->offset[2]};
+  r.length = flat - width > half ? flat - width : half;
+  zmth::Vec3 o{r.offset[0], r.offset[1], r.offset[2]};
   zmth::flat_normalize(o, o);
-  r->offset[0] = o.x, r->offset[1] = o.y, r->offset[2] = o.z;
-  float* side = reinterpret_cast<float*>(r) + 4;  // +0x10, 0x00522460: (-z, 0, x)
-  side[0] = -r->offset[2], side[1] = 0.0f, side[2] = r->offset[0];
-  zmth::rotate_y(reinterpret_cast<float*>(r) + 7, side, 45.0f);   // +0x1c
-  zmth::rotate_y(reinterpret_cast<float*>(r) + 10, side, -45.0f); // +0x28
-  r->width = width;
+  r.offset[0] = o.x, r.offset[1] = o.y, r.offset[2] = o.z;
+  r.side[0] = -r.offset[2], r.side[1] = 0.0f, r.side[2] = r.offset[0];  // 0x00522460
+  zmth::rotate_y(r.left, r.side, 45.0f);
+  zmth::rotate_y(r.right, r.side, -45.0f);
+  r.width = width;
+}
+void BasicControlsHooks::link_fill(ai::Net105Link* r, const float* to, const float* from, float width) {
+  if (r) basic_link_fill(*r, from, to, width);
 }
 
 }  // namespace mech3

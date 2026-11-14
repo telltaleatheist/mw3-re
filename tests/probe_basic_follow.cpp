@@ -238,3 +238,14 @@ int probe_basic_follow(uint32_t veh, uint32_t ctl, uint32_t target, int32_t kind
 }
 
 }  // extern "C"
+
+extern "C" {
+// 0x004023d0 alone: a record measured from `from` to `to` at `width`; out its 15 words.
+void probe_link_fill(const float* from, const float* to, uint32_t width_bits, uint32_t* out) {
+  mech3::ai::Net105Link r;
+  float w;
+  std::memcpy(&w, &width_bits, 4);
+  mech3::basic_link_fill(r, from, to, w);
+  std::memcpy(out, &r, 0x3c);
+}
+}  // extern "C"

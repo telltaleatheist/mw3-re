@@ -257,6 +257,43 @@ def run(probe, seed):
     return True
 
 
+def fills(probe, n):
+    # 0x4023d0 on its own (ECX the record, EDX `from`, then `to` and the width), over close places, far ones and NaNs:
+    # its half-width floor is reached only by places within one and a half widths, which the frame's breadcrumbs never
+    # are (they are made 20 or more from the node).
+    probe.probe_link_fill.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float), U,
+                                      ctypes.POINTER(U)]
+    bad = 0
+    t = Trace()
+    e = Emu(t)
+    e.cpu.fpu_control(0x007f)
+    rec, a, b = e.world_alloc(0x3c), e.world_alloc(12), e.world_alloc(12)
+    out = (U * 15)()
+    for s in range(n):
+        r = random.Random(f'fill {s}')
+        p = [r.uniform(-300, 300) for _ in range(3)]
+        q = [x + r.choice([r.uniform(-8, 8), r.uniform(-300, 300)]) for x in p]
+        if r.random() < 0.03:
+            q[r.randrange(3)] = math.nan
+        width = r.choice([0.0, 10.0, r.uniform(0, 40)])
+        for k in range(3):
+            e.wf(a + 4 * k, p[k]), e.wf(b + 4 * k, q[k])
+        e.cpu.write(rec, bytes(0x3c))
+        e.call(0x4023d0, ecx=rec, edx=a, stack=(b, f2b(width)))
+        exe = [e.r32(rec + 4 * k) for k in range(15)]
+        probe.probe_link_fill((ctypes.c_float * 3)(*p), (ctypes.c_float * 3)(*q), f2b(width), out)
+        port = list(out)
+
+        def nan(w):
+            return (w & 0x7f800000) == 0x7f800000 and (w & 0x7fffff) != 0
+        if any(x != y and not (nan(x) and nan(y)) for x, y in zip(exe, port)):  # a NaN's sign is not compared
+            bad += 1
+            if bad <= 3:
+                print(f'fill {s}: exe {[hex(v) for v in exe]} port {[hex(v) for v in port]}')
+    print(f'{n} link fills (0x4023d0), {bad} differ')
+    return bad
+
+
 def main():
     probe = load_probe()
     probe.probe_basic_follow.argtypes = [U, U, U, I, ctypes.POINTER(U)]
@@ -269,6 +306,7 @@ def main():
             if bad >= 8:
                 break
     print(f'{n} cases, {bad} differ; {COVER}')
+    bad += fills(probe, 600)
     sys.exit(1 if bad else 0)
 
 

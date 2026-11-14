@@ -1582,10 +1582,10 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004ade70 | 14 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.cpp:257) |
 | 0x004ade90 | 20 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aded0 | 156 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004ae340 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:81) |
+| 0x004ae340 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:84) |
 | 0x004ae360 | 12 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
-| 0x004ae380 | 16 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:77) |
-| 0x004ae6a0 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:86) |
+| 0x004ae380 | 16 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:80) |
+| 0x004ae6a0 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:89) |
 | 0x004ae8b0 | 9 | folded | a thunk: one call to another function |
 | 0x004ae8c0 | 9 | folded | a thunk: one call to another function |
 | 0x004aeb30 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |

@@ -13,6 +13,9 @@ namespace mech3 {
 
 // The record a net number names: a version-105 AI net (mech3/zainet105.h, ai::Net105) on [0x005f4c4c].
 using Net105Record = ai::Net105;
+// Mech3.exe 1.2 @ 0x004023d0: a link record measured from `from` to `to` (the controls' breadcrumbs and the v105
+// nets' reader and node measures, ai::net105_link_fill).
+void basic_link_fill(ai::Net105Link& rec, const float from[3], const float to[3], float width);
 
 struct BasicControls;
 

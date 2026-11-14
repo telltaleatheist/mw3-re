@@ -1705,7 +1705,7 @@ stealth object does when the view is on it, through its own frame 0x4a5050
 matrix; no path test as a basic vehicle's 0x4a1040 has), ported 2026-11-01
 (editor.md S4).
 
-## The basic vehicle's own controls (part 1 ported for preservation, 2026-11-14)
+## The basic vehicle's own controls (ported for preservation, 2026-11-14; not wired in)
 
 A vehicle made without AI controls makes its own (0x4ac860(0xa70), then
 0x4ae270; vtables 0x5c8c50, IControls 0x5c8b98): settings from the
@@ -1738,8 +1738,51 @@ pursuit_range (two values), not_pursuit_dwell and return_range for the record's 
 in order. `test_basic_controls.py` runs init, setup and the answers against the exe over 600 random cases
 (records with zeros, NaNs and values, each kind, no node, no record, no element, no "healthy", each key): call
 traces and fields equal. Breaks: a NaN taken as non-zero (83 differ), +0xa08 cleared (28), no swap (31), the
-dwell squared (25). Part 2 (the path follower 0x401050..0x403e70) and the v105 node class's methods
-(0x4ae8e0..0x4ae980, 0x403cd0..0x403e70, vtable 0x5c8cb8) are still open.
+dwell squared (25). The record and its nodes are dev 1's `ai::Net105` / `Net105Node` (mech3/zainet105, the v105 nets' group).
+
+**Part 2, the path follower (ported for preservation, 2026-11-14; not wired in).** The controls' frame (IControls
+vt+0x0c, 0x4ae850) runs 0x401050 when not destroyed, the player's mech ([0x60861c]+0x14) as the target; each mode
+runs on the vehicle (`BasicControls::follow`, `basic_*` in mech3/veh_basic_controls.cpp):
+- mode 0 (0x401100), along the links. The followed link is the node in hand's (+0xa0c) slot +0xa10. Blocked (the
+  last frame hit an object or wall, or a sweep 0x4a0910 to the place ahead by the velocity x 0.7143 hits one): on
+  to the next node, mode 4, turning to face the new link's node (+0x760, the heading +0x748). Else toward the link's
+  node: ahead, the throttle 1 - |cross| (at least 0.25) and the turn the cross; behind, once it was ahead (+0xa54),
+  on to the next node at once; else stopped, turning +-1. A submarine pitches by the height to the node (the
+  controls' +0x7ec, x 0.01745 less the pitch, x 5.7, through the input curve). Within 10, on to the next node.
+- on to the next node (0x401500): the link's node; a node made at run time left behind is freed (0x4024a0); at
+  one, link 0 (a kind-1 net's vehicle back in mode 2); else a link other than the one back (0x401620: one link the
+  first, two the first, else rand() % count, the next when it is the one back; the links are packed from slot 0).
+- after mode 0 and in mode 4 (the turn 0, back to mode 0 once the heading is reached): the engage (0x401940).
+  Armed, past the dwell (+0xa18), both centroids' matrices fresh, the centroids' places (+0x84 of their nodes' data)
+  within attack_rad with a clear line (0x4d5980): the pursuit (mode 1). The weapon's next shot now, a breadcrumb
+  toward the link's node, its place kept (+0xa34), +0x350, the dwell's end = now + attack_dwell. A clear line
+  refused: +0x350 off.
+- a breadcrumb (0x401ab0): 400 or more (squared) from the node in hand, a node made at the vehicle's place, its
+  link 0 the given node, its record measured (0x4023d0, width 10); the node in hand, link 0, the next one a second
+  on (+0xa40).
+- mode 1, the pursuit (0x401680): a breadcrumb (linked to the node in hand) when due; toward the target: ahead,
+  the throttle 1 past pursuit_far, -1 inside pursuit_near, else 0; behind, 0 and the turn +-1. A submarine pitches
+  (0.8 x the rise over the length) and banks (0.1 x the height) through the curve. The lock point is aimed at
+  (+0x6f0), then the fire check. The pursuit holds only while all of these are true: before the dwell's end, the
+  target active, within the return range of the kept place, and at 0.8 of full health. Otherwise it goes back to
+  the path (0x401bf0: a breadcrumb linked to the node in hand, mode 0), and the next engage waits not_pursuit_dwell.
+- mode 2 (a kind-1 net's, 0x401c30): standing, turning to face, the lock point; once engaged, every vehicle on the
+  +0xe0 ring still in mode 2 joins: mode 1, a breadcrumb, its dwell's end now + attack_dwell.
+- mode 3 (a kind-2 net's, 0x401e30): turning to face, the lock point, the fire check.
+- the fire check (0x401f50, the first weapon slot: +0x24 the next shot, +0x28 the interval, +0x2c / +0x30 the
+  range, squared). Not beaming, the target active, due, facing past 0.75 and within range: fire (+0x390), the next
+  shot an interval on. A beam weapon (def +0x6c bit 1) starts its beam (0x581230, ECX the beam, EDX the controls'
+  +0x14). A locking one (bit 15) locks (+0x65c, +0x664 the lock point, +0x668 the target's velocity). Beaming:
+  past the time, facing under 0.75, out of range or the target gone ends the fire.
+The exe reads through null in two places a working net never reaches: the fire check with no weapon (the port
+returns), and a link pick naming an empty slot when a node's links have a gap. The measure 0x4023d0 is also the v105
+nets' (`ai::net105_link_fill` defaults to `basic_link_fill`). `test_basic_follow.py`: 800 random scenes
+(each mode, run-time and loaded nodes, blocked or not, within 10, the submarine, armed or not, the target in and out
+of each range, active or not, a clear line or not, beam and locking weapons, rings of up to three) against the
+exe, the traces, every vehicle's controls' fields (the curve's two outputs within an ulp) and the made nodes
+equal; and 600 measures on their own. Breaks: no exclusion in the pick (8 differ), the pursuit's ranges swapped
+(7), the sweep ignored (the run fails), no half-width floor (124 of the measures), the way back's breadcrumb
+linked to the link's node (8).
 
 ## Why 2.1 waits for the AI (2026-10-21)
 

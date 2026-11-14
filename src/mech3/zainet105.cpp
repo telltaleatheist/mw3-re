@@ -1,4 +1,5 @@
 #include "mech3/zainet105.h"
+#include "mech3/veh_basic_controls.h"
 
 #include <cctype>
 #include <cstdio>
@@ -43,7 +44,8 @@ Net105Node* Net105::make_node() {
   return made.back().get();
 }
 
-void (*net105_link_fill)(Net105Link& rec, const float from[3], const float to[3], float width) = nullptr;
+// The basic controls' 0x004023d0 (mech3/veh_basic_controls.cpp) by default; a test may stub it.
+void (*net105_link_fill)(Net105Link& rec, const float from[3], const float to[3], float width) = mech3::basic_link_fill;
 
 namespace {
 // 0x004023d0 through the hook (the basic controls' own); none leaves the record as it is.
