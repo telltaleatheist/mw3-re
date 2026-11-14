@@ -182,6 +182,8 @@ class WaynetHooks : public zgame::Unported {
   virtual int32_t screen_w();
   virtual int32_t screen_h();
   virtual uint32_t project(const float in[3], float out[3]);
+  // PM 0x004b9620 (MW3 0x004b51f0) on the main camera: its view set again, before the arrow's projection.
+  virtual void view_prepare() { unported("0x004b51f0", {}); }
   // The nav waynet's build (0x004797c0): the builder with the build flag
   // (zainetedit, version 107); a waynet's id (0x0058b1c0 from 10000).
   virtual Waynet* build_waynet(int32_t id, const char* name);

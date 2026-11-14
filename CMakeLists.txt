@@ -762,6 +762,8 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_objectives.cpp
     tests/pm/test_pm_light_override.cpp
     tests/pm/test_pm_mission_music.cpp
+    tests/pm/test_pm_waypoint_arrow.cpp
+    tests/pm/test_pm_lab_highlight.cpp
     tests/pm/test_pm_options.cpp
     tests/pm/test_pm_sound_range.cpp
     tests/pm/test_pm_hud.cpp
@@ -864,6 +866,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_camera_moved.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_top_cameras.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_screen_modes.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_mech_sounds.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_weapon_name.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_retire.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ally_hit.cpp)

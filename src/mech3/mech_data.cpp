@@ -7,6 +7,8 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zeffect/zeff_anim_run.h"
+#include "gamez/zgame/zgame_table.h"
+#include "mech3/mech_lod.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zerror/zerr.h"
@@ -27,6 +29,10 @@ MechDataCalls g_calls;
 const char kFile[] = "C:\\zipper\\Mech3\\mech_data.cpp";
 constexpr uint32_t kGaitFrames = 60;    // 0x3c, every gait resampled to 60 keys
 constexpr uint32_t kActionFrames = 20;  // 0x14, passed and unused (0x00421120)
+// Pirate's Moon at low object detail ([0x006293a8], lod_table().low): the gaits at 15 keys, the actions' count 10.
+bool pm_low_data() { return zgame::game().mech_data_low_detail && lod_table().low; }
+uint32_t gait_frames() { return pm_low_data() ? 15u : kGaitFrames; }    // PM 0x00431730
+uint32_t action_frames() { return pm_low_data() ? 10u : kActionFrames; }  // PM 0x00431a00
 
 MechDataHooks g_default_hooks;
 MechDataHooks* g_hooks = &g_default_hooks;
@@ -172,8 +178,13 @@ const int kSoundOrder[24] = {0, 1, 2, 7, 8, 4, 9, 11, 12, 10, 16, 17, 14, 3, 15,
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x004306d0. Slot 24 is the mech's own, mech_<name>.
+// Pirate's Moon 1.0 @ 0x00430a70: slot 24 is mech_targeting for every mech (zgame::Table targeting_sound).
 void load_sounds(MechData& p) {
   for (int k : kSoundOrder) p.sounds[k] = g_hooks->sound_find(kSounds[k]);
+  if (zgame::game().targeting_sound) {
+    p.sounds[24] = g_hooks->sound_find("mech_targeting");
+    return;
+  }
   char name[64];
   std::snprintf(name, sizeof name, "mech_%s", p.name);
   p.sounds[24] = g_hooks->sound_find(name);
@@ -351,12 +362,19 @@ void mech_data_refresh() {
 // Mech3.exe 1.2 @ 0x004308a0. Both mechlib trees (the intersection flag set
 // on each), the definition; then each step in turn while +0x20 holds. The
 // soils load whatever happened; a failure shows the error box with no name.
+// Pirate's Moon 1.0 @ 0x00430c10: at low object detail only the low model (variant 1) is loaded, as the model.
 bool mech_data_load(MechData& p) {
   p.x20 = 0;
   p.motion_refused = 0;
-  for (int v = 0; v < 2; ++v) {
-    p.models[v] = g_hooks->mech_model(p.roster, v);
-    g_hooks->node_set_intersect(p.models[v], 1);
+  if (pm_low_data()) {
+    p.models[0] = g_hooks->mech_model(p.roster, 1);
+    g_hooks->node_set_intersect(p.models[0], 1);
+    p.models[1] = nullptr;
+  } else {
+    for (int v = 0; v < 2; ++v) {
+      p.models[v] = g_hooks->mech_model(p.roster, v);
+      g_hooks->node_set_intersect(p.models[v], 1);
+    }
   }
   p.model = p.models[0];
   if (!p.model) {
@@ -437,16 +455,16 @@ bool load_gait(MechData& p, zrdr::Node* motion, int i) {
   else std::snprintf(name, sizeof name, "%s_%s", p.name, g);
   if (zrdr::get_vec2(n, "trans", pair)) p.trans[i][0] = pair[0], p.trans[i][1] = pair[1];
   if (i == 2 || i == 3 || i == 12) {
-    p.anims[i] = load_anim(name, 0.0f, kGaitFrames);
+    p.anims[i] = load_anim(name, 0.0f, gait_frames());
     // FIX (bug): the exe frees the hip's velocity keys of a missing stand or
     // step without a check (a crash); never with the shipped motions.
     if (p.anims[i]) zsis::free_velocities(p.anims[i]->hip_part);
   } else {
     const float speed = i == 0 || i == 1 ? p.limp_speed : config_speed(p, false);
-    p.anims[i] = load_anim(name, speed, kGaitFrames);
+    p.anims[i] = load_anim(name, speed, gait_frames());
   }
   if (!p.anims[i]) return false;
-  if (i == 1) p.anims[1]->mirror_init(p.limp_speed, kGaitFrames);
+  if (i == 1) p.anims[1]->mirror_init(p.limp_speed, gait_frames());
   return true;
 }
 
@@ -457,11 +475,11 @@ bool load_action_motion(MechData& p, int i) {
   float fps = 20.0f;
   char name[128];
   std::snprintf(name, sizeof name, "%s_%s", p.name, action_name(i == 7 ? 8 : i));
-  p.actions[i] = load_action(name, kActionFrames);
+  p.actions[i] = load_action(name, action_frames());
   if (i == 7 || i == 8) {
     if (!p.actions[i]) {
       std::snprintf(name, sizeof name, "%s_fallb", p.name);
-      p.actions[i] = load_action(name, kActionFrames);
+      p.actions[i] = load_action(name, action_frames());
     } else {
       fps = 15.0f;
     }

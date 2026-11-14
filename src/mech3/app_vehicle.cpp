@@ -209,7 +209,12 @@ void (*g_set_mission_waynet)(void*) = nullptr;
 
 // The waynets' (mech_waynet): the "waypoint" node, the world, the nav lines,
 // the mission's waynet, a mech's place and vehicle.
+zcls::Node* camera_node();
+void camera_refresh(zcls::Node* cam);
 struct WiredWaynets : WaynetHooks {
+  void view_prepare() override {  // 0x004b51f0 / PM 0x004b9620
+    if (zcls::Node* cam = camera_node()) camera_refresh(cam);
+  }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }

@@ -5,6 +5,7 @@
 #include "crt/msvc_math.h"
 #include "crt/msvc_string.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zmodel/gmod_screen.h"
 #include "gamez/ztwod/twod_host.h"
@@ -280,6 +281,7 @@ void Waynet::hud_arrow(bool active) {
   if (!p) return;
   const float at[3] = {p[0], p[1], p[2]};
   float s[3];
+  if (zgame::game().waypoint_arrow_view) h.view_prepare();  // Pirate's Moon 1.0 @ 0x0047c1f0: the main camera's view first
   const uint32_t off = h.project(at, s);  // 0x0053cf10
   render_point_to_canvas(&s[0], &s[1]);  // FIX (B): onto the canvas (resolution.md step 4); none before
   if (off & 1) return arrow_at(mfb, 0, 0, crt::msvc_ftol(s[1]));

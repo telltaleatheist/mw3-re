@@ -87,6 +87,8 @@
 #include "mech3/app_mech.h"
 #include "mech3/mech_control.h"
 #include "mech3/zai_target.h"
+#include "mech3/mech_pocket.h"
+#include "mech3/pocket_panel.h"
 #include "mech3/zai_wire_orders_pm.h"
 #include "mech3/mech_objective.h"
 #include "mech3/mission.h"
@@ -4412,83 +4414,233 @@ bool pm_cheat_fast();
 void pm_controls_aim(void* mech, float out[4]);
 TEST(pm_cheat_box_keeps_the_reticle) {
   if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
-  zgame::set_game(pm::table());
-  zutl::mounts() = zutl::Mounts{};
-  zutl::mount(MW3PM_GAME_DIR);
-  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_cwal_write";
-  std::filesystem::create_directories(wd);
-  zutl::set_write_dir(wd.c_str());
-  mech3::reset_states();
-  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
-  mech3::missions() = mech3::Missions{};
-  mech3::mech_types_forget();
-  mech3::player_controls_instance() = nullptr;
-  mech3::options() = mech3::Options{};
-  TypedKeys keys;
-  TypedHost host;
-  zin::set_host(&host);
-  Window window;
-  Alert alert;
-  FixedSeed seed(1u);
-  Clock clock;
-  MovieClock movies;
-  Screen screen;
-  platform::SilentSoundOutput sound;
-  mech3::MountFiles files;
-  mech3::Platform p;
-  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
-  p.sound = &sound, p.files = &files, p.input = &keys;
-  mech3::GameEngine engine(p, "mech3.exe -nofmv");
-  engine.quiet = true;
-  mech3::Mech3App app(&engine);
-  mech3::set_app(&app);
-  EXPECT(app.init_instance());
-  mech3::GameEngine::Launch l;
-  l.index = 1, l.type = 1, l.number = 3;
-  engine.set_launch(l);
-  app.post_intro_ = &mech3::states().load;
-  int frames = 0, last_view = -1;
-  bool done = false;
-  std::string seen;
-  float moved_before = 0, moved_after = 0, twist_after = 0;
-  engine.on_present = [&](int) {
-    if (app.current() != &mech3::states().core) return;
-    void* me = mech3::mission_player_mech();
-    if (!me || pm_controls_view(me) < 0) return;
-    ++frames;
-    // The mouse right for 10 frames before the code, left for 10 after.
-    const bool moving = (frames >= 10 && frames < 20) || (frames >= 80 && frames < 90);
-    keys.mouse_dx = moving ? (frames < 50 ? 4 : -4) : 0;
-    float a[4];
-    pm_controls_aim(me, a);
-    if (frames == 10) moved_before = -a[0];
-    if (frames == 20) moved_before += a[0];
-    if (frames == 80) moved_after = a[0];
-    if (frames == 90) moved_after -= a[0];
-    if (frames >= 80 && frames <= 95) twist_after = std::max(twist_after, std::fabs(a[2]));
-    if (pm_controls_view(me) != last_view) {
-      last_view = pm_controls_view(me);
-      seen += " f" + std::to_string(frames) + ":" + std::to_string(last_view);
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();  // a mission of its own, as the other runs: none of it left for the next
+  if (child == 0) {
+    zgame::set_game(pm::table());
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3PM_GAME_DIR);
+    const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_cwal_write";
+    std::filesystem::create_directories(wd);
+    zutl::set_write_dir(wd.c_str());
+    mech3::reset_states();
+    if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    TypedKeys keys;
+    TypedHost host;
+    zin::set_host(&host);
+    Window window;
+    Alert alert;
+    FixedSeed seed(1u);
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files, p.input = &keys;
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    l.index = 1, l.type = 1, l.number = 3;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0, last_view = -1;
+    bool done = false;
+    std::string seen;
+    float moved_before = 0, moved_after = 0, twist_after = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core) return;
+      void* me = mech3::mission_player_mech();
+      if (!me || pm_controls_view(me) < 0) return;
+      ++frames;
+      // The mouse right for 10 frames before the code, left for 10 after.
+      const bool moving = (frames >= 10 && frames < 20) || (frames >= 80 && frames < 90);
+      keys.mouse_dx = moving ? (frames < 50 ? 4 : -4) : 0;
+      float a[4];
+      pm_controls_aim(me, a);
+      if (frames == 10) moved_before = -a[0];
+      if (frames == 20) moved_before += a[0];
+      if (frames == 80) moved_after = a[0];
+      if (frames == 90) moved_after -= a[0];
+      if (frames >= 80 && frames <= 95) twist_after = std::max(twist_after, std::fabs(a[2]));
+      if (pm_controls_view(me) != last_view) {
+        last_view = pm_controls_view(me);
+        seen += " f" + std::to_string(frames) + ":" + std::to_string(last_view);
+      }
+      if (frames == 30) {  // Shift+Enter, the code, then L and Enter rolled over as typing does: L let go after the box shut
+        keys.read({keys.ev(0x2a, true)});
+        keys.read({keys.ev(0x1c, true), keys.ev(0x1c, false)});
+        keys.read({keys.ev(0x2a, false)});
+        keys.type("operation cwa");
+        keys.read({keys.ev(0x26, true)});
+        keys.read({keys.ev(0x1c, true)});
+        keys.read({keys.ev(0x26, false), keys.ev(0x1c, false)});
+      }
+      if (frames == 120) done = true;
+    };
+    Pump pump;
+    pump.limit = 60000;
+    pump.stop = [&] { return done; };
+    app.run(pump);
+    zgame::set_game(zgame::mw3_table());
+    zin::set_host(nullptr);
+    std::printf("  views:%s; cwal %d; the reticle moved %.3f before, %.3f after; the twist after %.3f; frames %d\n", seen.c_str(),
+                pm_cheat_fast() ? 1 : 0, moved_before, moved_after, twist_after, frames);
+    EXPECT(pm_cheat_fast() && seen == " f1:2");  // the reticle's view throughout
+    EXPECT(moved_before > 0.1f && moved_after > 0.1f && twist_after < 0.01f);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  const int status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// Pirate's Moon's lance command target marker (0x00469c80, the port's make_marker with the table's
+// command_marker_no_side): on no side (team mask 1, no allies, every side but bit 0 its enemies, as an AiTarget
+// starts), where MW3's is on the player's side (mask 2); off at the start in both (PM inside the maker, MW3
+// after it, 0x0046aaa0).
+TEST(pm_command_marker_is_on_no_side_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();  // a mission of its own, as the other runs
+  if (child == 0) {
+    zgame::set_game(pm::table());
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3PM_GAME_DIR);
+    const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_marker_write";
+    std::filesystem::create_directories(wd);
+    zutl::set_write_dir(wd.c_str());
+    mech3::reset_states();
+    if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    NoKeys keys;
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files, p.input = &keys;
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    uint32_t team = 0, allies = 0, enemies = 0, active = 9, node_active = 9;
+    bool done = false;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++frames < 2) return;
+      if (mech3::PocketMarker* k = mech3::program_pocket_marker(mech3::pocket_globals().marker)) {
+        team = k->team, allies = k->allies, enemies = k->enemies, active = k->active;
+        if (k->node) node_active = (static_cast<zcls::Node*>(k->node)->flags() & 4) ? 1 : 0;
+      }
+      done = true;
+    };
+    Pump pump;
+    pump.limit = 20000;
+    pump.stop = [&] { return done; };
+    app.run(pump);
+    std::printf("  marker team %#x allies %#x enemies %#x, shown %u, node active %u\n", team, allies, enemies, active,
+                node_active);
+    EXPECT(done && team == 1u && allies == 0u && enemies == 0xfffffffeu);
+    EXPECT(active == 0 && node_active == 0);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  const int status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+bool pm_mech_data_detail(void* mech, std::string* model, bool* second, uint32_t* keys_min, uint32_t* keys_max);
+// Pirate's Moon's mech data at low object detail (0x00430c10, 0x00431730, 0x00431a00; the port's mech_data_load and
+// gait loads with the table's mech_data_low_detail): only the low model (mechlib's variant 1, mech_<name>_1) is
+// loaded, as the model, and the gaits are resampled to 15 keys; at full detail both models and 60 keys, as MW3.
+TEST(pm_low_object_detail_loads_the_low_model_and_15_key_gaits_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  for (const int lod : {2, 0}) {
+    std::fflush(nullptr);
+    const pid_t child = check::fork_child();
+    if (child == 0) {
+      zgame::set_game(pm::table());
+      zutl::mounts() = zutl::Mounts{};
+      zutl::mount(MW3PM_GAME_DIR);
+      const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_lowdata_write";
+      std::filesystem::create_directories(wd);
+      zutl::set_write_dir(wd.c_str());
+      mech3::reset_states();
+      if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+      mech3::missions() = mech3::Missions{};
+      mech3::mech_types_forget();
+      mech3::player_controls_instance() = nullptr;
+      mech3::options() = mech3::Options{};
+      NoKeys keys;
+      Window window;
+      Alert alert;
+      Clock clock;
+      MovieClock movies;
+      Screen screen;
+      platform::SilentSoundOutput sound;
+      mech3::MountFiles files;
+      mech3::Platform p;
+      p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+      p.sound = &sound, p.files = &files, p.input = &keys;
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::options().object_lod[0] = mech3::options().object_lod[1] = lod;
+      mech3::GameEngine::Launch l;
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      bool done = false, first = false, second = true;
+      std::string model;
+      uint32_t keys_min = 0, keys_max = 0;
+      engine.on_present = [&](int) {
+        if (app.current() != &mech3::states().core) return;
+        void* me = mech3::mission_player_mech();
+        if (!me) return;
+        first = pm_mech_data_detail(me, &model, &second, &keys_min, &keys_max);
+        done = true;
+      };
+      Pump pump;
+      pump.limit = 20000;
+      pump.stop = [&] { return done; };
+      app.run(pump);
+      std::printf("  object detail %d: model %s, second %s, gait keys %u..%u\n", lod, model.c_str(),
+                  second ? "loaded" : "none", keys_min, keys_max);
+      const bool low_name = model.find("_1.") != std::string::npos;  // mech_<name>_1.flt
+      EXPECT(done && first);
+      if (lod == 2) EXPECT(low_name && !second && keys_min == 15 && keys_max == 15);
+      else EXPECT(!low_name && second && keys_min == 60 && keys_max == 60);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
     }
-    if (frames == 30) {  // Shift+Enter, the code, then L and Enter rolled over as typing does: L let go after the box shut
-      keys.read({keys.ev(0x2a, true)});
-      keys.read({keys.ev(0x1c, true), keys.ev(0x1c, false)});
-      keys.read({keys.ev(0x2a, false)});
-      keys.type("operation cwa");
-      keys.read({keys.ev(0x26, true)});
-      keys.read({keys.ev(0x1c, true)});
-      keys.read({keys.ev(0x26, false), keys.ev(0x1c, false)});
-    }
-    if (frames == 120) done = true;
-  };
-  Pump pump;
-  pump.limit = 60000;
-  pump.stop = [&] { return done; };
-  app.run(pump);
-  zgame::set_game(zgame::mw3_table());
-  zin::set_host(nullptr);
-  std::printf("  views:%s; cwal %d; the reticle moved %.3f before, %.3f after; the twist after %.3f; frames %d\n", seen.c_str(),
-              pm_cheat_fast() ? 1 : 0, moved_before, moved_after, twist_after, frames);
-  EXPECT(pm_cheat_fast() && seen == " f1:2");  // the reticle's view throughout
-  EXPECT(moved_before > 0.1f && moved_after > 0.1f && twist_after < 0.01f);
+    const int status = check::wait_child(child);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
+#endif
 }

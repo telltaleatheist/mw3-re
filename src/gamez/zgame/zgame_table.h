@@ -125,6 +125,22 @@ struct Table {
   // a disc of six tracks or more on to its end (CD mode 3) and keeps the mode for a -cd track and the resume; MW3
   // plays one track (6) every time.
   bool mission_music_to_disc_end;
+  // The lance command's target marker (mech3 app_pocket.cpp make_marker; PM 0x00469c80): PM leaves it on no side
+  // (team mask 1, nobody's ally or enemy); MW3 puts it on the player's side, an enemy to the enemy.
+  bool command_marker_no_side;
+  // The selected waypoint's arrow (mech3 mech_waynet.cpp Waynet::hud_arrow; PM 0x0047c1f0): PM sets the main
+  // camera's view (0x004b9620) before projecting the point; MW3 projects with the view last set.
+  bool waypoint_arrow_view;
+  // The mech lab's part highlight (mech3 lab_view.cpp lab_highlight; PM 0x00451730): PM lights the head with the
+  // torso (sections 1, 7, 8) and nothing for the head (6); MW3 the head for 6 only.
+  bool lab_head_with_torso;
+  // A mech's target sound, its data's slot 24 (mech3 mech_data.cpp load_sounds; PM 0x00430a70): PM finds
+  // "mech_targeting" for every mech, MW3 "mech_<name>".
+  bool targeting_sound;
+  // A mech's data at low object detail (mech3 mech_data.cpp mech_data_load, the gait and action loads; PM 0x00430c10,
+  // 0x00431730, 0x00431a00): PM loads only the low model and resamples the gaits to 15 keys (actions 10); MW3 loads
+  // both models and 60 keys at every detail.
+  bool mech_data_low_detail;
 };
 
 const Table& mw3_table();
