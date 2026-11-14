@@ -10,6 +10,7 @@
 #include "mech3/mech_config.h"
 #include "mech3/mech_reader.h"
 #include "mech3/mech_salvage.h"
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_light.h"
 #include "gamez/zinput/zinput.h"
@@ -242,7 +243,23 @@ void Engine::set_in_game_vmode(int32_t v) { options().in_game_vmode = v; }
 // Mech3.exe 1.2 @ 0x004ab860: software 3..5 (320x240 doubled to 640x480);
 // a 3D card 5 up to 7 (1024x768), 6 below 3 x 1.5 MB of free video memory,
 // 5 below 3 x 960,000 bytes. Modes 8..10 are never offered (docs/menus.md).
+// Pirate's Moon 1.0 @ 0x004af210: no memory test; a card from 5 up to the first of 10, 9, 7, 6, 5 its mode
+// list has (8 is never asked), else 5.
 void Engine::video_mode_range(int32_t device, int32_t* lo, int32_t* hi) {
+  if (zgame::game().screen_modes_listed) {
+    *lo = 3, *hi = 5;
+    if (device >= 0) {
+      *lo = 5;
+      for (const int32_t m : {10, 9, 7, 6, 5}) {
+        if (video_mode_listed(device, m)) {
+          *hi = m;
+          break;
+        }
+      }
+      if (zfix::options().any_resolution) *hi = kLastVMode;  // FIX (B), as below
+    }
+    return;
+  }
   *lo = 3;
   *hi = 7;
   int32_t free = 0, frames = 1;
@@ -345,7 +362,30 @@ void Engine::cockpit_refit(Handle mech) {
 // (3 to 5, 5 to 6, 6 to 7, the rest to its lowest; past its highest, the
 // lowest), saved as InGameVMode. FIX (B): with any_resolution 7..15 step on
 // to the next (the range reaching 16), where the exe went back to the lowest.
+// Pirate's Moon 1.0 @ 0x004af2d0: 3, 5, 6 .. 10, then the range's first; a mode off the list stays; past the
+// range's top, its first.
+int32_t Engine::next_vmode(int32_t cur) {
+  int32_t lo = 0, hi = 0;
+  video_mode_range(hw_card_dev(), &lo, &hi);
+  int32_t next = cur == 3 ? 5 : (cur >= 5 && cur <= 9) ? cur + 1 : cur == 10 ? lo : cur;
+  if (zfix::options().any_resolution && cur >= 10) next = cur < hi ? cur + 1 : lo;  // FIX (B), as MW3's below
+  return hi < next ? lo : next;
+}
+
+// Pirate's Moon 1.0 @ 0x004af360: a mode the switch refuses is skipped for the next, until the round comes back
+// to the current one; only a mode taken becomes the in-game one.
 void Engine::vmode_toggle() {
+  if (zgame::game().screen_modes_listed) {
+    const int32_t cur = vmode();
+    int32_t next = next_vmode(cur);
+    if (next == cur) return;
+    while (set_screen_mode(next) != next) {
+      next = next_vmode(next);
+      if (next == cur) return;
+    }
+    set_in_game_vmode(next);
+    return;
+  }
   int32_t lo = 0, hi = 0;
   video_mode_range(hw_card_dev(), &lo, &hi);  // always true in the exe
   const int32_t cur = vmode();
