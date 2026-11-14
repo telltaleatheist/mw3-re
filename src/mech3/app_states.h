@@ -138,6 +138,7 @@ class CoreState : public State {
   bool frame();                       // 0x00481e70
   void pick_renderer();               // 0x00480bf0
   void start_mission();               // 0x00480df0
+  void fade_present(Engine& en);      // Pirate's Moon: the fade from black stepped and shown
   bool draw_software(Handle veh, bool flag);  // 0x00481290
   bool draw_doubled(Handle veh, bool flag);   // 0x00481a10
   bool draw_hardware(Handle veh, bool flag);  // 0x00481790

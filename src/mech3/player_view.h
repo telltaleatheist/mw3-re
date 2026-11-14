@@ -182,6 +182,8 @@ class ViewHooks : public zgame::Unported {
   virtual void world_fog_range(float a, float b) = 0;                    // 0x004f2440
   virtual void world_fog_color(float r, float g, float b) = 0;           // 0x004f23f0
   virtual void world_fog_altitude(float a, float b) = 0;                 // 0x004f2420
+  // Pirate's Moon's set_underwater also sets the model renderer's fog mode (0x005404f0: 2 under water, 1 above).
+  virtual void fog_mode(int32_t mode);
   // The weather object ([0x006098d0]): +0x0c bit 4 (hidden), vt+0x64 / vt+0x60(-1).
   virtual bool has_weather() = 0;
   virtual uint32_t weather_flags() = 0;

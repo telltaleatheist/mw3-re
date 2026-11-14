@@ -538,6 +538,8 @@ class GameEngine : public Engine {
   void model_purge(int32_t models, int32_t materials) override;  // 0x005394c0: zmod::models_purge
   void weather_rect(int32_t i, Handle rect) override;  // 0x005a6790: the overlay's rect slot (weather.md)
   void weather_tick(float dt) override;               // 0x005a67c0: the rain and snow
+  void weather_fade_start(bool present) override;     // Pirate's Moon: the fade from black begun
+  bool weather_fade_step(float dt) override;          // Pirate's Moon 0x00483470
   // The lens flares around the Direct3D frame (render.md, Lens flares).
   void scene_begin_3d() override;                       // 0x00567570: the flare list cleared
   Handle scene_begin() override;                        // 0x005674d0: its count (the frame's first)

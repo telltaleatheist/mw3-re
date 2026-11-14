@@ -245,7 +245,9 @@ void set_effects_level(int32_t v) {
 // Mech3.exe 1.2 @ 0x0040d2f0
 int32_t effects_level() { return g_options.effects_level[g_options.hw ? 1 : 0]; }
 
-// Mech3.exe 1.2 @ 0x0040d310: the camera's and the mechs' level-of-detail scales.
+// Mech3.exe 1.2 @ 0x0040d310, Pirate's Moon 1.0 @ 0x0040b120: the camera's and the mechs' level-of-detail scales;
+// PM's lowest detail draws the far models' lower levels sooner (0.2, MW3's 0.4). PM also keeps [0x0062cc58] = level 2
+// (object_lod() == 2 here) and the software prep's switch (0x00541a30; the software path is not ported).
 void set_object_lod(int32_t v) {
   float cam_scale = 1.0f, mech_scale = 1.0f;
   const Handle cam = camera();
@@ -257,7 +259,7 @@ void set_object_lod(int32_t v) {
     cam_scale = 0.75f;
     mech_scale = 0.75f;
   } else if (v == 2) {
-    cam_scale = 0.4f;
+    cam_scale = 0.2f;  // PM's 0x3e4ccccd (MW3's 0.4)
     mech_scale = 0.0f;
   }
   if (cam) g_hooks->camera_set_lod_scale(cam, cam_scale);

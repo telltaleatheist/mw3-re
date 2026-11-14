@@ -282,13 +282,12 @@ bool CoreState::enter() {
   pick_renderer();
   message_box_ = en.message_box_new("dlgMessage.zrd", "MESSAGEBOX");
   en.vcall(message_box_, 0x04, {0});
+  en.weather_fade_start(en.video_mode() != 0);  // Pirate's Moon 1.0 @ 0x00483700: the fade from black
   start_mission();
   if (Handle ff = en.force_feedback()) en.force_feedback_spring(ff, 1);
-  if (en.pixel_double() == 0) {
-    en.fade(7, -1, 0, zgame::bits(kFadeSeconds), 0, 0, 0);
-  } else {
-    resume(7);
-  }
+  // Pirate's Moon 1.0 @ 0x00483700: no fade state (MW3's en.fade(7, ...) unless pixel-doubled); the mission comes up
+  // through the weather layer's black tint instead, and the start's resume (PM's 9, 0x00483de0) runs at once.
+  resume(7);
   if (en.field8(en.pilot(), 0x59) == 0) {
     if (Handle s = en.sound_find("mech_powerup")) en.sound_play(s, 1.0f);
   }
@@ -360,8 +359,12 @@ void CoreState::start_mission() {
     en.view_draw_node(en.field32(v, 0x4), part, en.field32(v, 0x14));
   }
   en.ai_reset(0x604038);
+  // Pirate's Moon's (0x004838b0; its music is still MW3's, the audit's row): the overlay's rect set, and the
+  // fade's first step drawn in this frame.
+  en.weather_rect(0, window_rect_);
   if (en.video_mode() != 0) {
     en.video_begin_3d();
+    fade_present(en);
     en.video_end_3d();
   } else {
     en.video_lock();
@@ -618,7 +621,17 @@ void update_shadows(Engine& en) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00481790: the Direct3D path.
+// Pirate's Moon (inline in 0x00484530, 0x004838b0): the fade stepped by the frame's time; when it drew, on the
+// hardware path (+0x1f1) a scene of its own shows it (0x00598bb0, [0x008c4c14], 0x00598bd0). The software path's
+// (0x0057a5d0, 0x0057a770) is not ported.
+void CoreState::fade_present(Engine& en) {
+  if (!en.weather_fade_step(en.frame_dt())) return;
+  en.video_begin_scene();
+  en.video_draw_3d();
+  en.video_end_scene();
+}
+
+// Mech3.exe 1.2 @ 0x00481790, Pirate's Moon 1.0 @ 0x00484530: the Direct3D path (PM's adds the fade from black).
 bool CoreState::draw_hardware(Handle veh, bool flag) {
   Engine& en = e();
   const Handle render = en.render_rect();
@@ -669,6 +682,7 @@ bool CoreState::draw_hardware(Handle veh, bool flag) {
   // 0x00481e70) draws here, with the HUD's 2D, else nothing showed it.
   en.vcall(message_box_, 0x00, {zgame::bits(en.frame_dt())});
   en.video_end_3d();
+  fade_present(en);  // Pirate's Moon: after the HUD, the fade from black
   return false;
 }
 

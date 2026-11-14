@@ -1,3 +1,4 @@
+#include "gamez/zmodel/gmod_fog.h"
 #include "mech3/player_view.h"
 
 #include <cmath>
@@ -788,16 +789,18 @@ void PlayerView::cycle_camera() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0040af30: the ground and water under the camera: under
+// Mech3.exe 1.2 @ 0x0040af30, Pirate's Moon 1.0 @ 0x00408b20 (its ground probe starts 1024 m above the camera,
+// MW3's 50 m): the ground and water under the camera: under
 // water the world takes the water's fog; an outside camera below the ground
 // is lifted half a metre above it; the camera's zone from the ground's hit.
 bool PlayerView::follow_ground() {
   ViewHooks& h = *g_hooks;
   float p[3];
   h.node_world_position(camera, p);
-  if (h.ground_query(p[0], p[1] - -50.0f, p[2])) return false;  // 0x005bc2f4
+  if (h.ground_query(p[0], p[1] + 1024.0f, p[2])) return false;  // PM's [0x006026e0] (MW3's 0x005bc2f4: 50 m)
   float height = 12.0f;
-  if (target) height = target->height - (p[1] - h.entity_position(*target)[1]);
+  // On the x87, one rounding (PM's at the reference runtime's 53 bits, test_pm_view_ground.py).
+  if (target) height = static_cast<float>(double{target->height} - (double{p[1]} - h.entity_position(*target)[1]));
   int32_t index = 0, kind = 0;
   float level = 0.0f;
   const float ground = h.water_query(p[1], height, &index, h.water_flag(), &kind, &level);
@@ -810,8 +813,8 @@ bool PlayerView::follow_ground() {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x0040b0e0: the world's fog, the water's or the air's
-// (world.zrd's fog blocks, mission_world.h).
+// Mech3.exe 1.2 @ 0x0040b0e0, Pirate's Moon 1.0 @ 0x00408d00: the world's fog, the water's or the air's
+// (world.zrd's fog blocks, mission_world.h); PM's also the renderer's fog mode, 2 (every model) under water.
 void PlayerView::set_underwater(bool on) {
   if (underwater == static_cast<uint8_t>(on)) return;
   ViewHooks& h = *g_hooks;
@@ -819,8 +822,11 @@ void PlayerView::set_underwater(bool on) {
   h.world_fog_range(f[0], f[1]);
   h.world_fog_color(f[4], f[5], f[6]);
   h.world_fog_altitude(f[2], f[3]);
+  h.fog_mode(on ? 2 : 1);  // 0x005404f0: 1 leaves a 2 as it is
   underwater = on;
 }
+
+void ViewHooks::fog_mode(int32_t mode) { zmod::fog_set_on(mode); }
 
 // Pirate's Moon 1.0 @ 0x004096f0's sums: see player_view.h.
 bool cloud_fill(const CloudCover& c, float y, double* alpha) {
