@@ -113,6 +113,10 @@ struct Table {
   // 0x00506cd0, 0x00506c10, 0x00506d90, 0x00506760): PM marks a camera with children (add_child: any) and everything
   // below it moved (0x004ff6d0), so what hangs under it follows at once; MW3 does not.
   bool camera_setters_mark_moved;
+  // The mech's god camera (player_view.cpp make_cameras; PM 0x004311e0) and a vehicle's above camera
+  // (veh_basic_object.cpp; PM 0x004b0790): PM pitches both -81 degrees and brings the god camera to 120 m;
+  // MW3 looks straight down from 150 m.
+  bool top_cameras_tilted;
 };
 
 const Table& mw3_table();

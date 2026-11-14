@@ -1004,3 +1004,12 @@ matrix stale, +0x2c bit 1, flag 0x2000000; a child already flagged is not entere
 runs all five against the exe on 202 trees: 1010 calls, every node's flags, +0x2c and object3d word (the link's
 changed-list push stubbed). Breaks: the flag off (962 differ), add_child unmarked (202), add_rotation unmarked
 (190).
+
+## The top-down cameras (2026-11-14)
+
+PM's mech camera set-up (0x4311e0) makes the god camera 120 m away pitched -1.413716 rad (0xbfb4f4a9, -81
+degrees), MW3's 150 m straight down; a vehicle's above camera (0x4b0790) takes the same pitch and keeps 150 m.
+The port picks them by the table's `top_cameras_tilted`. `test_pm_top_cameras.py` reads the distances and
+angles from PM's instructions (0x4314ee / 0x4314f3, 0x4b08bf / 0x4b08c4), makes the rotations with PM's
+quat_pitch (0x53ea70) and compares the port's cameras bit for bit, and MW3's table against MW3's values.
+Breaks: the flag off, the god camera's 150 m kept, the above pitch one ulp off (each caught).
