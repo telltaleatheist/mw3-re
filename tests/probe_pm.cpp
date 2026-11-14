@@ -574,6 +574,7 @@ extern "C" int probe_pm_gamez_reread(const char* world, const char* list, uint8_
     p += used;
     if (*p == '|') ++p;
     ::zcls::NodePool& np = ::zcls::nodes();
+    if (index < 0 || static_cast<size_t>(index / np.block_size) >= np.blocks.size()) return -5;  // not in the pool
     ::zcls::Node* node = &np.blocks[static_cast<size_t>(index / np.block_size)][index % np.block_size];
     const int32_t r = pm::zcls::reread(node, recurse);
     b.append(reinterpret_cast<const char*>(&r), 4);

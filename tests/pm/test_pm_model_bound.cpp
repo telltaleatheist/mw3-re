@@ -68,11 +68,11 @@ TEST(pm_model_reader_refuses_a_count_past_the_file) {
 TEST(pm_model_reader_cuts_at_a_polygon_past_the_file) {
   const double before = peak_mb();
   std::vector<uint8_t> rec(0x68, 0);
-  put(rec, 0x10, 2), put(rec, 0x5c, 1);
-  std::vector<uint8_t> data(0x28 * 2 + 64, 0);
-  put(data, 0x00, 3), put(data, 0x10, 1);                // polygon 0: 3 points, 1 material
-  put(data, 0x28, 3), put(data, 0x28 + 0x10, 0x10000000u);  // polygon 1: 268 M materials
-  put(data, 0x50 + 12, 0xffffffffu);                     // polygon 0's material: none (-1)
+  put(rec, 0x14, 3), put(rec, 0x10, 2), put(rec, 0x5c, 1);
+  std::vector<uint8_t> data(36 + 0x28 * 2 + 64, 0);       // 3 points first
+  put(data, 36 + 0x00, 3), put(data, 36 + 0x10, 1);                // polygon 0: 3 points, 1 material
+  put(data, 36 + 0x28, 3), put(data, 36 + 0x28 + 0x10, 0x10000000u);  // polygon 1: 268 M materials
+  put(data, 36 + 0x50 + 12, 0xffffffffu);                     // polygon 0's material: none (-1)
   // polygon 0's arrays: 3 point indices, its 1 material index, 3 colours (12 + 4 + 36 = 52 bytes)
   pm::zmod::Model* m = reread(rec, data);
   EXPECT(m != nullptr);
@@ -85,4 +85,32 @@ TEST(pm_model_reader_cuts_at_a_polygon_past_the_file) {
   }
   EXPECT(::zmod::read_bound().refused);
   EXPECT(peak_mb() - before < 256.0);
+}
+
+// A model whose data the code would walk past its own lists is left empty (FIX (A), pm::zmod::model_inconsistent).
+TEST(pm_model_reader_empties_a_model_with_more_morphs_than_points) {
+  std::vector<uint8_t> rec(0x68, 0);
+  put(rec, 0x14, 1), put(rec, 0x1c, 4);
+  pm::zmod::Model* m = reread(rec, std::vector<uint8_t>(60, 0));
+  EXPECT(m != nullptr);
+  if (m) {
+    EXPECT(m->count(0x14) == 0 && m->count(0x1c) == 0 && m->vertices == nullptr && m->morphs == nullptr);
+    pm::zmod::model_release(m);
+  }
+}
+
+TEST(pm_model_reader_empties_a_model_whose_refs_run_past_its_polygons) {
+  std::vector<uint8_t> rec(0x68, 0);
+  put(rec, 0x14, 3), put(rec, 0x10, 1), put(rec, 0x5c, 1);
+  std::vector<uint8_t> data(36 + 0x28 + 12 + 4 + 36 + 12, 0);
+  put(data, 36, 3), put(data, 36 + 0x10, 1);                    // the polygon: 3 points, 1 material
+  put(data, 36 + 0x28 + 12, 0xffffffffu);                       // its material: none
+  put(data, 36 + 0x28 + 12 + 4 + 36, 0xffffffffu);              // the ref: no material,
+  put(data, 36 + 0x28 + 12 + 4 + 36 + 4, 5);                    // 5 polygons of the 1
+  pm::zmod::Model* m = reread(rec, data);
+  EXPECT(m != nullptr);
+  if (m) {
+    EXPECT(m->count(0x10) == 0 && m->count(0x5c) == 0 && m->polygons == nullptr && m->refs == nullptr);
+    pm::zmod::model_release(m);
+  }
 }

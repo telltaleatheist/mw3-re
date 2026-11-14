@@ -266,7 +266,8 @@ void sort_by_material(Model& m) {
 
 // Pirate's Moon 1.0 @ 0x005587e0. MW3's 0x00538a70 with PM's polygons: the
 // material lists, UVs per material, the model's material refs.
-void read_model_data(std::FILE* f, Model& m, int32_t base) {
+namespace {
+void read_model_body(std::FILE* f, Model& m, int32_t base) {
   ::zmod::ReadBound& bound = ::zmod::read_bound();
   // FIX (A): a refused array (the bound) leaves its count and the later ones 0, so nothing walks what was not read.
   const auto stop = [&](std::initializer_list<int> counts) {
@@ -325,7 +326,8 @@ void read_model_data(std::FILE* f, Model& m, int32_t base) {
       if (ok && !bound.fits(f, n * 4, "a polygon's material list")) ok = false;
       if (ok) {
         indices[static_cast<size_t>(i)].assign(n, 0);
-        std::fread(indices[static_cast<size_t>(i)].data(), static_cast<size_t>(q.material_count) * 4, 1, f);
+        // FIX (A): the n it holds; a negative count (as size_t) had fread run to the file's end into it.
+        if (n) std::fread(indices[static_cast<size_t>(i)].data(), n * 4, 1, f);
       }
       if (ok && q.file_uvs) {
         q.uvs = static_cast<float**>(std::calloc(n ? n : 1, sizeof(float*)));
@@ -370,6 +372,19 @@ void read_model_data(std::FILE* f, Model& m, int32_t base) {
   // (0x00572ae0) one without flag 0x80 into strips (0x00570b70), in software
   // one with it back (0x005726f0). Left out: the file's form is kept
   // (docs/pm-map.md, the models' form).
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x005587e0 (the body above); FIX (A): whatever it read, the model is checked on every way out:
+// one the code would walk past its own lists is left empty, with a warning.
+void read_model_data(std::FILE* f, Model& m, int32_t base) {
+  read_model_body(f, m, base);
+  if (const char* why = model_inconsistent(m)) {
+    std::printf("mw3: a model file at byte %ld: a model whose %s. The rebuild: left this model empty. The original "
+                "game: reads past the model's own lists when it draws or tests it (can crash).\n", std::ftell(f), why);
+    std::fflush(stdout);
+    model_empty(m);
+  }
 }
 
 // Pirate's Moon 1.0 @ 0x005726f0
@@ -850,6 +865,51 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a) {
   }
   if (full) return 1;
   return fill_record(*m, k, use);
+}
+
+// FIX (A) (docs/fixes.md, ours): ::zmod::model_inconsistent on PM's model, with its 10-bit point counts, its
+// normals flag 0x1000 and the material refs' runs of polygons, which must lie in the polygon list.
+const char* model_inconsistent(const Model& m) {
+  const int32_t verts = m.vertices ? m.count(0x14) : 0, norms = m.normals ? m.count(0x18) : 0;
+  const int32_t polys = m.polygons ? m.count(0x10) : 0;
+  if (m.count(0x1c) > 0 && m.count(0x1c) > verts) return "morph list is longer than its points";
+  for (int32_t i = 0; i < polys; ++i) {
+    const Polygon& q = m.polygons[i];
+    const uint32_t k = q.flags & 0x3ff;
+    for (uint32_t j = 0; j < k; ++j) {
+      if (!q.vertex_indices || q.vertex_indices[j] >= static_cast<uint32_t>(verts)) return "polygon names a point past its point list";
+      if ((q.flags & 0x1000) && (!q.normal_indices || q.normal_indices[j] >= static_cast<uint32_t>(norms)))
+        return "polygon names a normal past its normal list";
+    }
+  }
+  int64_t used = 0;
+  for (int32_t i = 0; m.refs && i < m.count(0x5c); ++i) {
+    if (m.refs[i].usage_count < 0) return "material list has a negative count";
+    used += m.refs[i].usage_count;
+  }
+  if (used > polys) return "material list covers more polygons than it has";
+  return nullptr;
+}
+
+// FIX (A): a model's arrays freed and its counts 0 (polygons, points, normals, morphs, lights, refs), its slot kept.
+void model_empty(Model& m) {
+  for (int32_t i = 0; m.polygons && i < m.count(0x10); ++i) {
+    Polygon& q = m.polygons[i];
+    std::free(q.vertex_indices), std::free(q.normal_indices);
+    if (q.uvs) {
+      for (int32_t j = 0; j < q.material_count; ++j) std::free(q.uvs[j]);
+      std::free(q.uvs);
+    }
+    std::free(q.materials), std::free(q.colors), std::free(q.scratch), std::free(q.library_indices);
+  }
+  delete[] m.polygons;
+  std::free(m.vertices), std::free(m.normals), std::free(m.morphs);
+  for (int32_t i = 0; m.lights && i < m.count(0x20); ++i) std::free(m.lights[i].vertices);
+  std::free(m.lights);
+  delete[] m.refs;
+  m.polygons = nullptr, m.vertices = m.normals = m.morphs = nullptr, m.lights = nullptr, m.refs = nullptr;
+  std::memset(m.header + 0x10, 0, 0x14);
+  std::memset(m.header + 0x5c, 0, 4);
 }
 
 // Pirate's Moon 1.0 @ 0x005590f0

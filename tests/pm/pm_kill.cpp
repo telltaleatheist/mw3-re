@@ -259,6 +259,11 @@ int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemi
   return fired;
 }
 int pm_missile_hits() { return g_missile_hits; }
+// A mech held powered down (a test's scenario without its fire): power(1) unless down or on its way down.
+void pm_hold_down(void* mech) {
+  auto* m = static_cast<Mech*>(mech);
+  if (!m->is_powered_down() && !m->power_down_pending) m->power(1);
+}
 
 // pm-tests, a shot's flight under the real loop (PM_SHOT_FLIGHT): the player's first weapon that fires rounds fired
 // once, its newest round followed while it lives (at most 30 frames): the distance it covered against its speed times
