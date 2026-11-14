@@ -121,6 +121,10 @@ struct Table {
   // PM offers a card up to the highest of its listed sizes (1600x1200 down) and Shift+V steps through them,
   // skipping a refused one; MW3 measures the card's memory up to 1024x768 and wraps after it.
   bool screen_modes_listed;
+  // The mission music (mech3 app_states.cpp start_mission, the attract's resume; PM 0x004838b0, 0x00485280): PM plays
+  // a disc of six tracks or more on to its end (CD mode 3) and keeps the mode for a -cd track and the resume; MW3
+  // plays one track (6) every time.
+  bool mission_music_to_disc_end;
 };
 
 const Table& mw3_table();
