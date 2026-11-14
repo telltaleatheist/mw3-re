@@ -7,6 +7,7 @@
 #pragma STDC FP_CONTRACT OFF
 
 #include "crt/msvc_math.h"
+#include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zerror/zerr.h"
@@ -683,5 +684,69 @@ int area_update(World*, uint32_t* entry) {
   return 0;
 }
 }  // namespace
+
+// The script engine's world commands (docs/interp.md, The commands the shipped scripts never use): ported for
+// preservation, the engine's entries left null (no shipped script calls them).
+
+// Mech3.exe 1.2 @ 0x004f1dc0: the virtual block (w, h) (+0x54, +0x58) and the grid's cells past it (+0x5c, +0x60).
+int world_set_virtual_map_size(Node* world, int32_t w, int32_t h) {
+  World* d = world_of(world);
+  d->put<int32_t>(0x54, w), d->put<int32_t>(0x58, h);
+  d->put<int32_t>(0x5c, d->get<int32_t>(0x88) - w), d->put<int32_t>(0x60, d->get<int32_t>(0x8c) - h);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f1cd0: the changed nodes updated (0x004f7e50), then every node in the grid marked 0x8000.
+// No grid: reported (0x0050da70, level 5) and 5.
+int world_mark_partitions(Node* world) {
+  World* w = world_of(world);
+  if (!w->rows) {
+    char msg[160];
+    std::snprintf(msg, sizeof msg,
+                  "%s: Line %d: ERROR initializing virtual area partition; NULL area partitions encountered.\n",
+                  kWorldFile, 0x2db);
+    return zerr::report(5, "C:\\zipper\\GameZMech3\\zError\\zerr_old.c", 0x23, msg), 5;
+  }
+  update_changed();
+  for (int32_t z = 0; z < w->get<int32_t>(0x8c); ++z)
+    for (int32_t x = 0; x < w->get<int32_t>(0x88); ++x) {
+      Partition& p = w->rows[z][x];
+      if (!p.nodes) continue;
+      for (int16_t i = 0; i < p.get<int16_t>(0x3a); ++i) p.nodes[i]->set_flags(p.nodes[i]->flags() | 0x8000);
+    }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f1d90: +0x50; on, the grid's nodes marked and the block's size applied again.
+int world_set_virtual_partition(Node* world, int32_t on) {
+  World* w = world_of(world);
+  w->put<int32_t>(0x50, on);
+  if (on) {
+    world_mark_partitions(world);
+    world_set_virtual_map_size(world, w->get<int32_t>(0x54), w->get<int32_t>(0x58));
+  }
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f2860: +0x80, +0x84 (world_make_grid's eighth of a cell).
+int world_set_partition_tolerance(Node* world, float a, float b) {
+  World* w = world_of(world);
+  w->put(0x80, a), w->put(0x84, b);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f2880: the byte +0x4c; over 255 reported and 255.
+int world_set_partition_max_dec(Node* world, int32_t count) {
+  World* w = world_of(world);
+  if (count > 0xff) {
+    char msg[120];
+    std::snprintf(msg, sizeof msg, "ERROR setting Partition Max DEC Feature count to %d:\noverflow limit at 255.\n",
+                  count);
+    zerr::report(0x200, kWorldFile, 0xdff, msg);
+    count = 0xff;
+  }
+  w->raw[0x4c] = static_cast<uint8_t>(count);
+  return 0;
+}
 
 }  // namespace zcls

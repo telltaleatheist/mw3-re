@@ -1104,4 +1104,72 @@ int model_scroll_tick(Model* m) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x00539cf0 (ECX m, EDX on): +8 bit 0 from on's bit 0; none, nothing (zClass's set_lighting, a
+// script command's).
+void model_set_lighting(Model* m, uint32_t on) {
+  if (!m) return;
+  uint32_t f;
+  std::memcpy(&f, m->header + 8, 4);
+  f = (f & ~1u) | (on & 1u);
+  std::memcpy(m->header + 8, &f, 4);
+}
+
+// The script engine's model commands (docs/interp.md, The commands the shipped scripts never use): ported for
+// preservation, the engine's entries left null.
+
+// Mech3.exe 1.2 @ 0x00539cc0 (ECX m, EDX mode): the model's +0 (Object3DSetFacade).
+void model_set_facade(Model* m, uint32_t mode) { std::memcpy(m->header, &mode, 4); }
+
+// Mech3.exe 1.2 @ 0x0053bb50 (ECX m, EDX on): each polygon's flag 0x100 from on's bit 0.
+void model_set_show_backface(Model* m, uint32_t on) {
+  for (int32_t i = 0; i < static_cast<int32_t>(m->count(0x10)); ++i)
+    m->polygons[i].flags = (m->polygons[i].flags & ~0x100u) | ((on & 1u) << 8);
+}
+
+// Mech3.exe 1.2 @ 0x0053bd60 (ECX m, EDX color): each untextured polygon's material made the palette colour
+// `color` (+0x03 its low byte, red the number, green and blue 0, +0x18 1). The materials are shared, so every
+// model using one changes.
+void model_set_color(Model* m, int32_t color) {
+  for (int32_t i = 0; i < static_cast<int32_t>(m->count(0x10)); ++i) {
+    Material* mt = m->polygons[i].material;
+    if (mt->flags & 1) continue;
+    mt->r = static_cast<float>(color), mt->g = 0, mt->b = 0;
+    mt->rgb = static_cast<uint16_t>((mt->rgb & 0x00ff) | ((color & 0xff) << 8));
+    mt->unk_14[1] = 1.0f;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0053b960 (ECX m, EDX fixed, stack v, count, min_uses): one morph per vertex (+0x44, count
+// +0x1c), (0, v, 0) for a vertex free to move, (0, 0, 0) for one in `fixed` or used by fewer than min_uses
+// polygons (min_uses 0 or less: none by use); the morph weight +0x24 1, the model's flag 8.
+void model_set_morph(Model* m, const int32_t* fixed, float v, int32_t count, int32_t min_uses) {
+  const int32_t verts = static_cast<int32_t>(m->count(0x14));
+  m->morphs = static_cast<float*>(std::realloc(m->morphs, 12 * static_cast<size_t>(verts > 0 ? verts : 0)));
+  std::vector<int32_t> held(verts > 0 ? verts : 0), uses(verts > 0 ? verts : 0);
+  // FIX (A): the exe marks `fixed`'s indices and counts the polygons' without a bound, writing outside its arrays
+  // for one past the vertex count.
+  for (int32_t i = 0; i < count; ++i)
+    if (fixed[i] >= 0 && fixed[i] < verts) held[fixed[i]] = 1;
+  for (int32_t p = 0; p < static_cast<int32_t>(m->count(0x10)); ++p)
+    for (uint32_t k = 0; k < (m->polygons[p].flags & 0xff); ++k) {
+      const uint32_t at = m->polygons[p].vertex_indices[k];
+      if (at < static_cast<uint32_t>(verts)) ++uses[at];
+    }
+  if (min_uses > 0)
+    for (int32_t i = 0; i < verts; ++i)
+      if (uses[i] < min_uses) held[i] = 1;
+  for (int32_t i = 0; i < verts; ++i) {
+    m->morphs[3 * i] = 0;
+    m->morphs[3 * i + 1] = held[i] ? 0.0f : v;
+    m->morphs[3 * i + 2] = 0;
+  }
+  uint32_t f;
+  const float one = 1.0f;
+  std::memcpy(m->header + 0x24, &one, 4);
+  std::memcpy(&f, m->header + 8, 4);
+  f |= 8;
+  std::memcpy(m->header + 8, &f, 4);
+  std::memcpy(m->header + 0x1c, m->header + 0x14, 4);
+}
+
 }  // namespace zmod

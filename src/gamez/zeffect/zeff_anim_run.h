@@ -117,4 +117,9 @@ int32_t anim_load();                                     // 0x0050ae60
 zcls::Node* event_node(AnimDef& def, int32_t index);     // refs 1.., -200 the def's at_node
 float fast_sqrt(float v);                                // (bits >> 1) + 0x1fc00000
 
+// AnimDebugFrame (a script command; ported for preservation, the engine's entry null): the next frame's number into
+// 0x005ebbf4, which nothing in the exe reads.
+int32_t& anim_debug_frame_at();                          // 0x005ebbf4
+int32_t anim_debug_frame();                              // 0x00507dd0
+
 }  // namespace zeff

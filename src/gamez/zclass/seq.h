@@ -18,4 +18,13 @@ int animate_update(Node* node);    // 0x004fd950
 int seq_remove_child(Node* parent, Node* child);  // 0x004fdd90, its entry too
 int animate_delete(Node* node);    // 0x004fd890
 
+// The script commands' (ported for preservation; the engine's entries are null): NewSEQ, SEQAddChild,
+// SEQSetActive / Repeat / Loop / Pause (data +0x00 / +0x04 / +0x08 / +0x0c).
+Node* seq_create();                                                // 0x004fdc70
+int seq_add_child(Node* node, Node* child, int32_t at, float time);  // 0x004fdcd0
+int seq_set_active(Node* node, int32_t v);                         // 0x004fde50
+int seq_set_repeat(Node* node, int32_t v);                         // 0x004fde90
+int seq_set_loop(Node* node, int32_t v);                           // 0x004fded0
+int seq_set_pause(Node* node, int32_t v);                          // 0x004fdf10
+
 }  // namespace zcls

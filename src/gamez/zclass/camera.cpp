@@ -1376,4 +1376,53 @@ void shadow_lod(Node* node) {
   shadow_children(node);
 }
 
+// The script engine's camera commands and getters (docs/interp.md, The commands the shipped scripts never use):
+// ported for preservation, the engine's entries left null.
+
+// Mech3.exe 1.2 @ 0x004f32a0 (ECX on, stack the distance): the walk's dynamic LoD and its frame time to hold, 1 over
+// the distance (0: 0.04).
+void camera_set_dynamic_lod(int32_t on, float distance) {
+  SceneWalk& w = scene_walk();
+  w.lod_target = distance == 0.0f ? 0.04f : 1.0f / distance;
+  w.lod_dynamic = on;
+}
+
+// Mech3.exe 1.2 @ 0x004f3550 (ECX on)
+int camera_set_object_hse_test(int32_t on) {
+  scene_walk().hidden_surface = on;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f39d0: the place set (+0x14), or with +0x10 bit 1 the world one (+0xa4).
+int camera_get_translate(Node* node, float* x, float* y, float* z) {
+  if (int r = check_class(node, 1, kFile, 0x562)) return r;
+  Camera* c = cam_of(node);
+  const float* p = c->floats((c->get<uint32_t>(0x10) & 2) ? 0xa4 : 0x14);
+  *x = p[0], *y = p[1], *z = p[2];
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3b00
+int camera_get_clip(Node* node, float* near_clip, float* far_clip) {
+  if (int r = check_class(node, 1, kFile, 0x5f0)) return r;
+  Camera* c = cam_of(node);
+  *near_clip = c->get<float>(0xb0), *far_clip = c->get<float>(0xb4);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3d00: camera_set_fov's two factors (+0xd8, +0xdc).
+int camera_get_fov(Node* node, float* h, float* v) {
+  if (int r = check_class(node, 1, kFile, 0x64f)) return r;
+  Camera* c = cam_of(node);
+  *h = c->get<float>(0xd8), *v = c->get<float>(0xdc);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3f70: camera_set_lod_scale's factor (+0xd0).
+int camera_get_lod_scale(Node* node, float* f) {
+  if (int r = check_class(node, 1, kFile, 0x6ca)) return r;
+  *f = cam_of(node)->get<float>(0xd0);
+  return 0;
+}
+
 }  // namespace zcls

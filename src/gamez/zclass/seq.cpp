@@ -1,5 +1,6 @@
 #include "gamez/zclass/seq.h"
 
+#include <cstdlib>
 #include <cstring>
 
 #pragma STDC FP_CONTRACT OFF
@@ -136,5 +137,54 @@ int animate_delete(Node* node) {
   if (!node) return zerr::report(0x400, kAnimFile, 0x7f, "Null node pointer."), 5;
   return node_release(node);
 }
+
+// The script engine's sequence commands (docs/interp.md, The commands the shipped scripts never use): ported for
+// preservation, the engine's entries left null.
+
+// Mech3.exe 1.2 @ 0x004fdc70: a sequence node (class 7), stepping forward, on list 11.
+Node* seq_create() {
+  Node* node = node_alloc();
+  if (!node) return zerr::report(0x400, kSeqFile, 0x41, "Null node pointer."), nullptr;
+  node->put<int32_t>(0x34, 7);
+  auto* s = new Seq{};
+  std::memset(s->raw, 0, sizeof s->raw);
+  s->put<int32_t>(0x10, 1);
+  node->data = s;
+  push_front(kSeqs, node);
+  return node;
+}
+
+// Mech3.exe 1.2 @ 0x004fdcd0: the child linked (0x004eba90), then its entry {child, time} put in at `at`, the ones
+// from there on moved up.
+int seq_add_child(Node* node, Node* child, int32_t at, float time) {
+  if (!node) return zerr::report(0x400, kSeqFile, 0x94, "Null node pointer."), 5;
+  if (!child) return zerr::report(0x400, kSeqFile, 0x95, "Null node pointer."), 5;
+  auto* s = static_cast<Seq*>(node->data);
+  if (!s) return zerr::report(0x400, kSeqFile, 0x96, "Null class data pointer"), 5;
+  if (int r = node_link(node, child)) return r;
+  const int32_t count = s->get<int32_t>(0x1c);
+  s->entries = static_cast<Seq::Entry*>(std::realloc(s->entries, sizeof(Seq::Entry) * (count + 1)));
+  s->put<int32_t>(0x1c, count + 1);
+  // FIX (A): the exe writes the entry wherever `at` points, past the block for one beyond the count or below 0.
+  if (at < 0 || at > count) at = count;
+  for (int32_t i = count; i > at; --i) s->entries[i] = s->entries[i - 1];
+  s->entries[at] = {child, time};
+  return 0;
+}
+
+namespace {
+int seq_set(Node* node, int line, int off, int32_t v) {
+  if (!node) return zerr::report(0x400, kSeqFile, line, "Null node pointer."), 5;
+  auto* s = static_cast<Seq*>(node->data);
+  if (!s) return zerr::report(0x400, kSeqFile, line + 1, "Null class data pointer"), 5;
+  s->put<int32_t>(off, v);
+  return 0;
+}
+}  // namespace
+
+int seq_set_active(Node* node, int32_t v) { return seq_set(node, 0x113, 0x0, v); }  // Mech3.exe 1.2 @ 0x004fde50
+int seq_set_repeat(Node* node, int32_t v) { return seq_set(node, 0x133, 0x4, v); }  // Mech3.exe 1.2 @ 0x004fde90
+int seq_set_loop(Node* node, int32_t v) { return seq_set(node, 0x153, 0x8, v); }    // Mech3.exe 1.2 @ 0x004fded0
+int seq_set_pause(Node* node, int32_t v) { return seq_set(node, 0x173, 0xc, v); }   // Mech3.exe 1.2 @ 0x004fdf10
 
 }  // namespace zcls

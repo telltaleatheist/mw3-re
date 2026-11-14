@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -22,7 +23,7 @@ struct List {                      // 12 bytes
 };
 
 enum ListId { kAllNodes = 6, kChanged = 7, kCameras = 8, kLights = 9, kSounds = 10,
-              kWorlds = 13, kWindows = 14, kDisplays = 15 };
+              kSeqs = 11, kWorlds = 13, kWindows = 14, kDisplays = 15 };
 
 struct Lists {
   List list[16] = {};              // 0x0060be4c.., reached through 0x005ea6d0 / 0x005ea710
@@ -48,6 +49,7 @@ Node* list_find_by_name(int list, const char* name);  // 0x004f7fe0
 struct ListWalk {
   ListItem* cursor = nullptr;      // 0x0060be40
   const void* key = nullptr;       // 0x0060be44
+  size_t prefix_len = 0;           // 0x0060be48  list_walk_prefix's
 };
 // Removal is lazy: the item loses its node and is marked removable, and the
 // list is flagged for the purge (docs/zclass-world.md section 2). 1 when the
@@ -77,6 +79,10 @@ int sequences_update();                    // 0x004f7ec0  list 11
 int animates_update();                     // 0x004f7f10  list 12
 
 ListWalk& list_walk();
+// The script commands' (ported for preservation; the engine's entries are null): ListPrint (to `out`, else
+// stdout) and the walk by a name's prefix.
+void list_print(int list, void (*out)(const char* line) = nullptr);  // 0x004f7fa0
+Node* list_walk_prefix(const char* name, int list);                 // 0x004f8b80
 Node* list_walk_next(const void* key, int list, bool (*test)(Node* node));  // 0x004f8b20
 Node* list_walk_by_name(const char* name, int list);                       // 0x004f8bd0
 
