@@ -66,6 +66,7 @@
 #include <string>
 #include <vector>
 
+#include "frontend/sdl/vulkan_check.h"
 #include "frontend/sdl/campaign_chain.h"
 #include "frontend/sdl/editor_imgui.h"
 #include "frontend/sdl/modes_chain.h"
@@ -1077,7 +1078,12 @@ int run(const Args& a, platform::VideoForWindows* vfw) {
   sdlfe::SdlWindow window;
   if (!window.init(a.hidden, a.launcher_window)) {
     // The reason is in the line before this (SdlWindow::init).
-    sdlfe::fatal_box(std::string("MechWarrior 3 could not open its window or graphics (Vulkan on Linux): ") + SDL_GetError(), a.hidden);
+    // Ours (docs/linux.md, Vulkan): SDL's words, then what to install when Vulkan is what is missing.
+    const std::string why = SDL_GetError();
+    const std::string help = sdlfe::vulkan_help(sdlfe::vulkan_check());
+    sdlfe::fatal_box(std::string("MechWarrior 3 could not open its window or graphics (Vulkan on Linux): ") + why +
+                         (help.empty() ? "" : "\n\n" + help),
+                     a.hidden);
     return 1;
   }
   sdlfe::SdlInput input;

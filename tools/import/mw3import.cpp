@@ -348,24 +348,34 @@ int main(int argc, char** argv) {
   }
   if (install.empty())
     return std::fprintf(stderr, "mw3import: no install: give --install DIR, or start mw3 once so it finds it\n"), 1;
-  const std::string any_video = zutl::any_case(install, "video");
-  const fs::path src = any_video.empty() ? fs::path(install) / "video" : fs::path(any_video), dst = fs::path(write_dir) / "video";
+  const fs::path dst = fs::path(write_dir) / "video";
   std::error_code ec;
+  // Every folder named video in any case (an install's VIDEO beside the converted movies' video on a
+  // case-sensitive disk; launcher's video_dirs the same), the sources found before dst is made.
+  std::vector<fs::path> srcs;
+  for (fs::directory_iterator it(install, ec), end; !ec && it != end; it.increment(ec)) {
+    std::string n = it->path().filename().string();
+    for (char& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (n == "video" && it->is_directory(ec)) srcs.push_back(it->path());
+  }
+  std::sort(srcs.begin(), srcs.end());
   fs::create_directories(dst, ec);
   av_log_set_level(AV_LOG_ERROR);
-  // The movies to make: every video\*.AVI (lower-cased), or with --missing
+  // The movies to make: every video\*.AVI (lower-cased, once), or with --missing
   // the ones without a .fmv yet.
   std::vector<std::pair<fs::path, std::string>> todo;
-  for (const auto& e : fs::directory_iterator(src, ec)) {
-    std::string ext = e.path().extension().string();
-    for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (ext != ".avi") continue;
-    std::string name = e.path().stem().string();
-    for (char& c : name) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (!only.empty() && name != only) continue;
-    if (missing && fs::exists(dst / (name + ".fmv"), ec)) continue;
-    todo.emplace_back(e.path(), name);
-  }
+  for (const fs::path& src : srcs)
+    for (const auto& e : fs::directory_iterator(src, ec)) {
+      std::string ext = e.path().extension().string();
+      for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      if (ext != ".avi") continue;
+      std::string name = e.path().stem().string();
+      for (char& c : name) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      if (!only.empty() && name != only) continue;
+      if (missing && fs::exists(dst / (name + ".fmv"), ec)) continue;
+      if (std::any_of(todo.begin(), todo.end(), [&](const auto& t) { return t.second == name; })) continue;
+      todo.emplace_back(e.path(), name);
+    }
   std::sort(todo.begin(), todo.end(), [](const auto& a, const auto& b) { return a.second < b.second; });
   std::printf("progress 0 %zu\n", todo.size());
   int made = 0;

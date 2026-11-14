@@ -29,7 +29,7 @@ void read_progress(SDL_IOStream* out, Progress* pr) {
   std::string line;
   char buf[512];
   size_t n;
-  while (out && (n = SDL_ReadIO(out, buf, sizeof buf)) > 0) {
+  while (out && (n = read_child(out, buf, sizeof buf)) > 0) {
     for (size_t i = 0; i < n; ++i) {
       if (buf[i] != '\n') {
         line += buf[i];
