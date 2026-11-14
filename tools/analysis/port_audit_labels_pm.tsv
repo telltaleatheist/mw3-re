@@ -1,4 +1,3 @@
-0x00401b00	missing-mod	as MW3 0x00401ab0, whose class PM's changes keep: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 0x00403830	devdialog-logic	as MW3 0x00403820, whose class PM's changes keep: the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp
 0x00403f30	devdialog-logic	as MW3 0x00403ec0, whose class PM's changes keep: the AI tester dialog's walk over a vehicle's nets (0x00404090 -> 0x00403ec0: their extents)
 0x00406d10	sdl	as MW3 0x00409b50, whose class PM's changes keep: GDI: a font's metrics from its handle (GetObjectA), the 2D text's Windows path; the port's text goes through ztwod::Host
@@ -8,7 +7,6 @@
 0x00482a60	sdl	as MW3 0x00480340, whose class PM's changes keep: Win32 and MFC frame plumbing the SDL program replaces: the single-instance check and close (FindWindow Mech3Class; startup.md), the frame window's create, OnCreate, OnSetFocus, OnNcActivate, OnSize, WindowProc, WM_CLOSE
 0x00483d50	debug	as MW3 0x004810d0, whose class PM's changes keep: the debug console's overlay toggle (0x00608f74; game-loop.md: from 0x00480b20, itself never called)
 0x004a07a0	devdialog-logic	as MW3 0x0049d350, whose class PM's changes keep: the editor's 'add vehicle to node' (0x00403820 -> 0x0049d350, editor.md); ours does it as meant: upgrades/editor/add_vehicle.cpp
-0x004b1b80	missing-mod	as MW3 0x004ae270, whose class PM's changes keep: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 0x004bef80	devdialog-shell	as MW3 0x004b8a20, whose class PM's changes keep: the vehicle editor's MFC plumbing (its pages' CDialog constructors, its destructor, message map); its layout is the exe's dialog resources (0xa5..0xb7). The port's editor covers the job: game_editor_vehicles (vehicle_editor_open / the page handlers)
 0x004c7300	missing-mod	as MW3 0x004c0310, whose class PM's changes keep: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
 0x004c7c80	debug	as MW3 0x0058f2d0, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists)
@@ -99,14 +97,12 @@
 0x005c6fe0	debug	as MW3 0x005a3e30, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
 0x005c7030	debug	as MW3 0x005a3e80, whose class PM's changes keep: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683)
 0x005c9d10	missing-mod	as MW3 0x005a7ca0, whose class PM's changes keep: Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
-0x00401000	missing-mod	called only from 0x004b1f90, which are missing-mod
 0x004025f0	missing-mod	called only from 0x004c5cb0, which are missing-mod
 0x0040bf90	devdialog-shell	called only from 0x0040bf30, which are devdialog-shell
 0x00410190	debug	called only from 0x00410110, which are debug
 0x00410880	unused	called only from 0x00410820, which are unused
 0x00485610	sdl	called only from 0x004855d0, which are sdl
 0x004b1ec0	missing-mod	called only from 0x004b2280, which are missing-mod
-0x004b2190	missing-mod	called only from 0x004b1f90, which are missing-mod
 0x004b51a0	unused	called only from 0x004b5040, which are unused
 0x004c7cf0	debug	called only from 0x004c7c80, which are debug
 0x00516800	debug	called only from 0x00516260, which are debug

@@ -77,16 +77,16 @@ void set_basic_controls_hooks(BasicControlsHooks* h);  // null: the defaults
 // defaults in the comments are init's.
 struct BasicControls : VehicleControls {
   BasicControls(void* vehicle, int32_t net_number);  // 0x004ae270: the base's, then init
-  ~BasicControls() override = default;      // 0x004ae380
+  ~BasicControls() override = default;      // 0x004ae380, Pirate's Moon 1.0 @ 0x004b1c60
 
   void init() override;                     // vt+0x10 0x004ae3c0
   void setup_with(zrdr::Node* def, uint32_t arg2, int32_t net);  // vt+0x0c 0x004ae6b0 (def, arg2, the net's number)
-  int32_t path_mode() override { return mode; }                  // vt+0x04 0x004ae340
-  // IControls vt+0x0c's (0x004ae850, through 0x004aea10): the frame counter [0x006099c0] and +0x2f8's bit 1 are
+  int32_t path_mode() override { return mode; }                  // vt+0x04 0x004ae340, Pirate's Moon 1.0 @ 0x004b1c40
+  // IControls vt+0x0c's (0x004ae850, through 0x004aea10; Pirate's Moon 1.0 @ 0x004b2190): the frame counter [0x006099c0] and +0x2f8's bit 1 are
   // the caller's; not destroyed, the follower toward the player's mech ([0x0060861c]+0x14).
   void follow(Handle target);                                    // 0x00401050
   int32_t path_goal() override;                                  // vt+0x08 0x004ae350: the node's +0x2c
-  bool destroyed() override { return state == 4; }               // vt+0x1c 0x004ae6a0
+  bool destroyed() override { return state == 4; }               // vt+0x1c 0x004ae6a0, Pirate's Moon 1.0 @ 0x004b1f80
 
   int32_t net = 0;           // +0xa04  the net's number: the constructor's second argument, then the setup's third
   Net105Record* record = nullptr;  // +0xa08

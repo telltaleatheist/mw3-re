@@ -1285,3 +1285,15 @@ float before halving it for its tangent (+0x1d8), where MW3 kept it on the x87: 
 `test_pm_script_cmds.py`: 400 events 20 and 21 on PM's exe with the reports compared, 0 differ (the setters' derived
 words within 2 ulps, as test_script_cmds.py). Breaks: set_clip's MW3 line, MW3's vertical angle (caught). Events
 16 and 38 read in PM's asm, the same as MW3's (the remove 0x4fd7a0; the text 0x596e50, shown for 3 s by 0x5c7180).
+
+## Today's preservation ports on PM: the basic vehicle's own controls (2026-11-14)
+
+PM's controls (0x4b1b80 constructor, 0x4b1ca0 init, 0x4b1f90 setup, 0x4b1c40 / 0x4b1c50 / 0x4b1c60 / 0x4b1f80, the
+frame 0x4b2190 -> 0x401000) and the path follower (0x4010c0 .. 0x401fb0, 0x402330, the measure 0x402440) are MW3's
+in PM's layout: the controls' own fields 0x18 further on (PM's VehicleControls is longer: +0xa04 is +0xa1c, the block
+0xa88), the setup's keys the same (activation, pursuit_range, not_pursuit_dwell, return_range, healthy) and every
+float constant the same (102400, 1500, 10, 4624, 4900, 3, 62500 in init; 0.25, 1, 10, 0.7143, 400, 0.75, 0.5 in the
+follower; the breadcrumb's "now + 1" written as now - -1 in MW3). The port names the fields, so PM's comment on each
+function is all that changes. Read, not run: test_basic_controls.py and test_basic_follow.py need the address map's
+missing twins (0x401050 -> 0x401000, the reader's find 0x5569e0) and PM's shifted controls and vehicle offsets laid out
+in their emulated objects, which pm_moved.py's field tables don't cover yet.

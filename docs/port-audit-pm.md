@@ -68,7 +68,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 4073 |
+| folded | 4070 |
 | replaced (SDL or the platform layer) | 263 |
 | software renderer | 115 |
 | debug or dev tool: PORT (preserve) | 94 |
@@ -76,21 +76,18 @@ produces; the label names the compared value. Reaching a function, or running a 
 | dev dialog (MFC), its logic: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 80 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 43 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 39 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
 
 - **0x0056b230, 0x0056b2d0, 0x0056b540, 0x0056b580, 0x0056b980, 0x0056d040 ...** (87 functions, 6719 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 - **0x00570b70** (1 functions, 722 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions; not MW3's 0x00552540 on PM's polygons: 700 features against 287, 44 of 51 kinds differ): a model of type 0 with polygons made into strips (0x2000) under Direct3D. It reaches nothing at load: mechlib's post-pass 0x00510ab0 and the world reader 0x005587e0 skip a model with 0x80, every type-0 mechlib model has it (1015 of 1017; the 2 others are facades, type 1, on which it returns at once) and so does every type-0 world model; the world's facades return at once too (test_pm_strips.py, tools/analysis/pm_strip_reach.py). Its only reach on shipped data is the crater reset's model re-read 0x00558440 (from 0x00517b30 / 0x00517ac0, ported), which passes 0x7fffffff, 4 with no 0x80 test: every ground model a crater reset reads again. The reset runs only from the craters' save restore 0x00519020, a zSave section the start-up switches off (0x0051a3e0(0) from 0x004826e0, as MW3's), so never in play: a preservation port at the end, not wired in (docs/pm-map.md, the models' form)
-- **0x00401000, 0x004b2190** (2 functions, 45 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): called only from 0x004b1f90, which are missing-mod
-- **0x00401b00** (1 functions, 75 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401ab0, whose class PM's changes keep: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x004025f0** (1 functions, 9 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): called only from 0x004c5cb0, which are missing-mod
 - **0x00410ec0, 0x004c7300** (2 functions, 98 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004c0310, whose class PM's changes keep: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
 - **0x004356c0** (1 functions, 14 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only, campaign: an objective's persist name is kept across missions and gates mechs. On completion (0x0045fcf0) PM adds the objective's persist (+0x30; the port reads it, mech_objective.cpp:436, and never uses it) to the campaign's string list (+0xc4, the port's Campaign::strings, read and written with the save, pilot.h:343), and the vehicle loader (0x004a19c0, MW3 0x0049e810, player.cpp) makes a mech whose record has flag bit 4 (p12's second value, zrdraiv.cpp:381) only when its name is in that list (0x004356c0). The port does neither: it makes every such mech. No shipped PM objective has persist (raw search of the reader archives; MW3's c1 has two). Checked (2026-11-13): of the 424 p12 records in every shipped PM aiv.zrd (campaign, standalone and Instant Action), none sets bit 4 (99 set bit 5, the field after it), so no shipped mission is gated; only a mod with persist objectives and bit-4 placements would show the difference
 - **0x00465a60** (1 functions, 56 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): ported otherwise: src/mech3/mech_part_update.cpp Torso::setup (MW3's 0x00464290) with PM's headlight (0x00465b8c) and fields at +0x148..+0x164 and +0x84/+0x88 (layout); one difference: when the base set-up fails PM returns before the cockpit call (0x00465e20(0)), where MW3 and the port make it either way; a failing set-up needs a part the shipped data lacks
 - **0x00467d10** (1 functions, 62 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): ported otherwise: src/mech3/mech_part_update.cpp Arm::setup (MW3's 0x004663e0); one difference: a hand whose set-up fails has its items taken off first (0x0041c380, MW3's 0x0041b5f0 with a -1 check) before it is deleted, where MW3 and the port only delete it; a failing set-up needs a part the shipped data lacks
-- **0x004b1b80** (1 functions, 31 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004ae270, whose class PM's changes keep: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md)
 - **0x004b1ec0** (1 functions, 22 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): called only from 0x004b2280, which are missing-mod
 - **0x004fcff0, 0x004fd080, 0x004fd110, 0x004fd1a0** (4 functions, 56 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): checked by data: the script commands NodeSetOverrideAmbient, NodeSetOverrideAmbientValue, NodeSetOverrideDiffuse and NodeSetOverrideDiffuseValue (PM's dispatcher 0x005b2d10; node +0x2c bits 7, 9..16, 8, 17..24): no shipped PM script uses them (interp.zbd, 30 scripts) and the PM interp has no entry for them
 - **0x0050cb90, 0x0055b850, 0x0055b8f0** (3 functions, 92 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only, part of anim event types 44 and 45 (see 0x0051e750's label): a node tree's models given a per-vertex vector (0x0050cb90 down the children when asked; 0x0055b8f0 over a range of polygons; 0x0055b850 one polygon's array of vectors, made on first use, +0x1c); called only from those two events and itself
@@ -360,12 +357,10 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 
 ## By module
 
-### mech3ep1 (3188 not ported)
+### mech3ep1 (3181 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00401000 | 36 | MISSING LOGIC (only data the shipped game lacks reaches it) | called only from 0x004b1f90, which are missing-mod |
-| 0x00401b00 | 75 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00401ab0, whose class PM's changes keep: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00402100 | 14 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:1166) |
 | 0x00402210 | 18 | folded | MW3's 0x00402b20 (the game editor net's vt+0x04, game_editor_net.cpp:294), read: the same two virtual calls |
 | 0x00402230 | 11 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.h:32) |
@@ -2236,12 +2231,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004b16f0 | 11 | folded | ported, by docs/symbols.csv: ported: IControls +0x04 zeroed |
 | 0x004b17c0 | 12 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.cpp:258) |
 | 0x004b17e0 | 148 | folded | as MW3 0x004aded0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004b1b80 | 31 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004ae270, whose class PM's changes keep: the basic vehicle's own controls (vtable 0x005c8c50): their constructor 0x004ae270 (the port logs 'has no AI controls: its own are not ported'), the zrd settings 0x004ae3c0 / 0x004ae6b0, the path state and members, the destructor. Deferred: no shipped mission makes such a vehicle (vehicles.md) |
-| 0x004b1c40 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:84) |
-| 0x004b1c60 | 16 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:80) |
 | 0x004b1ec0 | 22 | MISSING LOGIC (only data the shipped game lacks reaches it) | called only from 0x004b2280, which are missing-mod |
-| 0x004b1f80 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:89) |
-| 0x004b2190 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | called only from 0x004b1f90, which are missing-mod |
 | 0x004b21a0 | 9 | folded | a thunk: one call to another function |
 | 0x004b21c0 | 9 | folded | as MW3 0x004c02a0: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004b2410 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004b2430, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
