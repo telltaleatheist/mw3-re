@@ -99,6 +99,11 @@ class McbWaynet : public Waynet {
   void clear();                           // 0x0047a6b0 (0x0047a720: the dock's marker clear)
   void command(Handle mech);              // 0x0047a7a0 (0x0047a910, MCB_COMMAND 0x7b)
   uint8_t frame(Handle) override { return 0; }  // vt+0x6c 0x004cd490: nothing
+  // Pirate's Moon 1.0 @ 0x0047bd00 / 0x0047bd60: the next / previous point that is shown (a point, not hidden),
+  // round to where it started; then the marker. MW3 took the next index.
+  void step_shown(int32_t dir);
+  // Pirate's Moon 1.0 @ 0x0047be40 (with 0x0047bdc0 / 0x0047bde0): the nearest shown point selected; none, nothing.
+  void nearest_shown(const float* pos);
 
   int32_t passed = 0;                     // +0x30  how often the picked point came round
   znet::Element* picked = nullptr;        // +0x34

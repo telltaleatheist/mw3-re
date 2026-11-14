@@ -9,6 +9,7 @@
 #include "gamez/zmodel/gmod_screen.h"
 #include "gamez/ztwod/twod_host.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/znetwork/znet_object.h"
 #include "mech3/mech_fieldbase.h"
 #include "mech3/zai_path.h"
@@ -295,22 +296,56 @@ void Waynet::hud_arrow(bool active) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0047a5c0 / 0x0047a620: the picked point's count goes up
-// (down) when it is left and when it comes round.
+// Pirate's Moon 1.0 @ 0x0047bd00 / 0x0047bd60
+void McbWaynet::step_shown(int32_t dir) {
+  const int32_t n = count();
+  if (n == 0) return;
+  const int32_t start = current;
+  for (;;) {
+    current = dir > 0 ? (current + 1 == n ? 0 : current + 1) : (current == 0 ? n : current) - 1;
+    if (current == start) break;
+    znet::Element* e = elem(current);
+    if (!e) continue;
+    const WaynetPoint* p = as_point(e);  // vt+0x78
+    if (p && !p->hidden) break;          // its +0x11
+  }
+  place_marker();  // 0x0047bcb0
+}
+
+// Pirate's Moon 1.0 @ 0x0047be40, 0x0047bdc0, 0x0047bde0 (its start and per-point step): each of the net's elements (+0x0c..+0x10, vt+0x60 then vt+0x78), the nearest shown
+// point with a place (0x00537a00, the distance squared; the first of equals) selected (0x0047c540).
+void McbWaynet::nearest_shown(const float* pos) {
+  WaynetPoint* best = nullptr;
+  float best_d = 3.40282347e38f;  // FLT_MAX, 0x7f7fffff
+  for (znet::Element* e : elems) {
+    WaynetPoint* p = e ? as_point(e) : nullptr;
+    if (!p || p->hidden) continue;
+    const float* at = p->position();
+    if (!at) continue;
+    const zmth::Vec3 a{pos[0], pos[1], pos[2]}, b{at[0], at[1], at[2]};
+    const float d = zmth::distance_sq(a, b);
+    if (d < best_d) best_d = d, best = p;
+  }
+  if (best) select_point(best);
+}
+
+// Mech3.exe 1.2 @ 0x0047a5c0 / 0x0047a620, Pirate's Moon 1.0 @ 0x0047c8e0 / 0x0047c920: the picked point's count
+// goes up (down) when it is left and when it comes round. PM steps over the points not shown (step_shown).
 void McbWaynet::next() {
   if (picked && picked == elem(current)) ++passed;
-  Waynet::next();
+  step_shown(1);
   if (picked && picked == elem(current)) ++passed;
 }
 void McbWaynet::prev() {
   if (picked && picked == elem(current)) --passed;
-  Waynet::prev();
+  step_shown(-1);
   if (picked && picked == elem(current)) --passed;
 }
 
-// Mech3.exe 1.2 @ 0x0047a680
+// Mech3.exe 1.2 @ 0x0047a680, Pirate's Moon 1.0 @ 0x0047c960: PM's nearest is its own (nearest_shown: no hidden
+// point, nothing when none), where MW3's asked the net's nearest step and fell back to the selected point.
 void McbWaynet::nearest(const float* pos) {
-  Waynet::nearest(pos);
+  nearest_shown(pos);
   picked = elem(current);
   passed = 0;
 }
