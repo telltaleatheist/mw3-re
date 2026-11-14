@@ -6,6 +6,7 @@
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/cls_world.h"
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
@@ -269,13 +270,22 @@ void lab_highlight_part(zcls::Node* tree, const char* part, float weight, bool o
 }
 
 // Mech3.exe 1.2 @ 0x004504d0
+// Pirate's Moon 1.0 @ 0x00451730: the torso's parts light the head with it, and the head (6) lights nothing
+// (PM's quirk, kept: zgame::Table lab_head_with_torso; discoveries.md).
 void lab_highlight(zcls::Node* tree, int32_t section) {
   constexpr float kOn = 0.3f;  // [0x005e4764]
   static const char* const kParts[8] = {"torso", "larm", "rarm", "lthigh", "lfoot", "rthigh", "rfoot", "head"};
   for (const char* p : kParts) lab_highlight_part(tree, p, 0.0f, false);
+  const bool pm = zgame::game().lab_head_with_torso;
   switch (section) {
     case 1: case 7: case 8:
       lab_highlight_part(tree, "torso", kOn, true);
+      if (pm) {
+        lab_highlight_part(tree, "head", kOn, true);
+        lab_highlight_part(tree, "larm", 0.0f, true);
+        lab_highlight_part(tree, "rarm", 0.0f, true);
+        break;
+      }
       lab_highlight_part(tree, "larm", 0.0f, true);
       lab_highlight_part(tree, "rarm", 0.0f, true);
       lab_highlight_part(tree, "head", 0.0f, true);
@@ -290,7 +300,9 @@ void lab_highlight(zcls::Node* tree, int32_t section) {
       lab_highlight_part(tree, "rthigh", kOn, true);
       lab_highlight_part(tree, "rfoot", kOn, true);
       break;
-    case 6: lab_highlight_part(tree, "head", kOn, true); break;
+    case 6:
+      if (!pm) lab_highlight_part(tree, "head", kOn, true);
+      break;
     default: break;
   }
 }

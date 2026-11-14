@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4083 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 150 |
+| MISSING LOGIC | 149 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -90,7 +90,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00431120** (1 functions, 38 decomp lines; MISSING LOGIC): pm only, minor (network games, memory only): the mech data's release, MW3's 0x00430e30 with the free its caller (the mech destructor, mech_build.cpp:268) does, folded into one; PM skips the free while a network game runs ([0x00629a88], set by net_start 0x0046ef80), so a type whose last mech goes keeps its data cached at no holders; MW3 frees it. The port frees as MW3 for both games
 - **0x00432e40** (1 functions, 20 decomp lines; MISSING LOGIC): pm only, with PM's mech destructor (0x00415940's row): before the mech's node trees are freed, PM stops every animation using any node of them (this walk, each node through 0x0051f750 = MW3's 0x00506bc0 with 1, 1: zeff::anim_stop_using), on the mech's own tree and its +0x6b8 / +0x6bc trees, and in 0x004335c0 (MW3's 0x00413db0); MW3's destructor and the port's mech teardown stop none (the field base does, mech_fieldbase.cpp:333). Effect: an animation on a deleted mech's nodes (a network player leaving, a mech removed) runs on in MW3 and the port
 - **0x004335c0** (1 functions, 36 decomp lines; MISSING LOGIC): pm only, with PM's mech destructor (0x00432e40's row): PM's debris free (MW3's 0x00413db0, the port's debris_free, app_mech.cpp:827) stops every animation on each debris tree (0x00432e40) before it is taken off its parent and freed; the port frees it without (the auto 'covered' label it had came from MW3's comment there)
-- **0x00451730** (1 functions, 47 decomp lines; MISSING LOGIC): pm only, small, PM's own quirk (port as written, a discoveries.md line): the mech lab's part highlight; in PM the torso parts (1, 7, 8) light the head green with the torso (weight 0.3) and the head (6) lights nothing, where MW3 and the port light the head only for 6 (lab_view.cpp:272-296). PM numbers the parts as MW3 does: its list fill 0x00456760 adds 6 first with the cockpit, life support and sensors texts (0x24e..0x250), then 1, 7, 8, 2, 3, 4, 5, so PM's 6 is the head (MW3 0x004504d0)
 - **0x00459cd0** (1 functions, 11 decomp lines; MISSING LOGIC): pm only: a new virtual in PM's field-base vehicle vtable 0x005e4a20 (+0x8c; MW3's 0x005c23d8 has no such slot, PM's running 0xc longer there): its controls' (+0xe8) float at +0x9c4, read through null without controls; its callers through vt+0x8c not traced
 - **0x0045a250, 0x0045b100** (2 functions, 223 decomp lines; MISSING LOGIC): pm only, field bases: when a field base (MCB) dies, PM first counts the bases still alive (0x0045b0d0) and, with none left, aborts the dock in progress (0x0045b320, the front state's abort, the port's FieldBases::abort_front); then the campaign's cut as MW3's (the base count by the campaign's vt+0x5c, the share 1 / 0.7 / 0.5, 2 mechs and 300 tons kept per base left). The port's field_base_die (mech_fieldbase.cpp:316) has the death and the cut but no abort, so on PM the dock in progress when the last base dies is not aborted (what the abort undoes: mech_fieldbase_dock.cpp:196)
 - **0x0045b240** (1 functions, 44 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's dock registry frame (0x0045b240, from the mission frame 0x004921a0, in MW3's 0x0045a270's place) runs the dock states in every game type and has no multiplayer branch; PM checks the deployment in its refit instead (0x0045be50, ported: DockRefit::may_start). The port's FieldBases::frame (mech_fieldbase_dock.cpp:329) is MW3's on PM too: in multiplayer (type 3) it runs no dock states and, with mobile bases on, MW3's station check and its 'too far from MFB deployment point' line, which PM's frame never does
@@ -490,7 +489,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 
 ## By module
 
-### mech3ep1 (3286 not ported)
+### mech3ep1 (3285 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -1466,7 +1465,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00450f40 | 13 | folded | ported, by docs/symbols.csv: ported: the entry (new(0x14)), +0x08 the mech, +0x10 -1 |
 | 0x00450f60 | 21 | folded | ported, by docs/symbols.csv: ported in lab_world_unload: the tree and the camo |
 | 0x00451110 | 50 | folded | ported, by docs/symbols.csv: ported inline in lab_place_window: the window wrapper's area, size and place |
-| 0x00451730 | 47 | MISSING LOGIC | pm only, small, PM's own quirk (port as written, a discoveries.md line): the mech lab's part highlight; in PM the torso parts (1, 7, 8) light the head green with the torso (weight 0.3) and the head (6) lights nothing, where MW3 and the port light the head only for 6 (lab_view.cpp:272-296). PM numbers the parts as MW3 does: its list fill 0x00456760 adds 6 first with the cockpit, life support and sensors texts (0x24e..0x250), then 1, 7, 8, 2, 3, 4, 5, so PM's 6 is the head (MW3 0x004504d0) |
 | 0x004518e0 | 45 | folded | folded, by the feature compare and the order-aware compare (the same calls, tests and constants in order, constants compared by value) against its MW3 twin, ported; its flags only float constants against their negatives and immediates that are structure offsets or sizes (multiples of 4 from 0x40, PM's layouts) or error reports' line numbers |
 | 0x00451e50 | 22 | folded | as MW3 0x004513f0: the mech lab (lab_screen/lab_view/mech_config, whose comments and mechlab.md name these): its controls' constructors and destructors (the CRT callers are exception unwinds), the store rows' std::sort instances (name and tonnage comparators inlined), item kinds' constant getters, list helpers |
 | 0x00452770 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00452790, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
@@ -2547,7 +2545,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004b9390 | 17 | folded | read: a volley record's copy (5 words, nothing for a null slot), container code for the planner's vector |
 | 0x004b93b0 | 10 | folded | as MW3 0x004b4fe0: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x004b93d0 | 12 | folded | covered by the port where it names it (src/mech3/weapon.h:12) |
-| 0x004b93f0 | 15 | folded | covered by the port where it names it (src/mech3/lab_view.cpp:53) |
+| 0x004b93f0 | 15 | folded | covered by the port where it names it (src/mech3/lab_view.cpp:54) |
 | 0x004b9420 | 9 | folded | as MW3 0x004b5050: the HUD (hud/app_hud, hud.md names these): pieces' constructors and destructors (CRT callers: unwinds), setters, the static and gauge helpers, the reticle's queries, the hold, funclets |
 | 0x004b9430 | 9 | folded | a thunk: one call to another function |
 | 0x004b9450 | 9 | folded | read: small node wrappers (a child added, 0x00506200; a node shown or hidden by +0x14, 0x0050a9e0 / 0x0050a750; a node holder's constructor and destructor, vtable 0x005e82d0, its node made 0x0050e470 and freed 0x0050e5f0; a slot passed on to the +0x14 object's vt+0x15c); the port's nodes do these themselves |

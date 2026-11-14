@@ -4595,6 +4595,10 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   without ever asking for 1152x864, though the key still steps through it, and a size the card refuses
   is skipped for the next. How sure this is: read from the code and checked against the game's own
   instructions in an emulator.
+- **Pirate's Moon's mech lab lights the head with the torso:** in the mech lab, picking the centre or
+  side torsos turns the head green along with the torso, and picking the head lights nothing. In
+  MechWarrior 3 the head lights only when you pick the head. How sure this is: read from the code and
+  checked against the game's own instructions in an emulator.
 - **Pirate's Moon's overhead camera is tilted:** the god's-eye view of your mech no longer looks
   straight down from 150 m as in MechWarrior 3; it hangs 120 m away pitched 81 degrees, so you see a
   little ahead of the mech. A vehicle's overhead camera gets the same tilt and keeps 150 m. How sure

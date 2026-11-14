@@ -1071,3 +1071,13 @@ projects the point; MW3's 0x479ef0 projects with whatever view was set last. The
 the new hook `WaynetHooks::view_prepare` behind `waypoint_arrow_view` (the app's: the player view's camera,
 camera_refresh). `pm_waypoint_arrow_sets_the_main_view_before_projecting`: the calls in order on both tables.
 Break: the flag off (PM's order loses the view).
+
+## The mech lab's part highlight (2026-11-14)
+
+PM's 0x451730 lights the torso and the head green (0.3) for the torso's sections (1, 7, 8), the arms on at 0, and
+nothing for the head's own section (6); MW3's 0x4504d0 keeps the head at 0 with the torso and lights it for 6.
+PM's list fill (0x456760) numbers the sections as MW3 does, so 6 is the head in both: PM's quirk, kept, behind
+the table's `lab_head_with_torso` (a discoveries.md line). `pm_lab_highlight_lights_the_head_with_the_torso`
+(mw3pmtests) checks every part's blend after each section 0..8 on both tables; `test_pm_lab_highlight.py` runs
+PM's 0x451730 in the emulator (the per-part setter 0x4516d0 stubbed) and gets the same PM table. Break: the flag
+off (4 failed checks).

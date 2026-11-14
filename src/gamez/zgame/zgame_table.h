@@ -131,6 +131,9 @@ struct Table {
   // The selected waypoint's arrow (mech3 mech_waynet.cpp Waynet::hud_arrow; PM 0x0047c1f0): PM sets the main
   // camera's view (0x004b9620) before projecting the point; MW3 projects with the view last set.
   bool waypoint_arrow_view;
+  // The mech lab's part highlight (mech3 lab_view.cpp lab_highlight; PM 0x00451730): PM lights the head with the
+  // torso (sections 1, 7, 8) and nothing for the head (6); MW3 the head for 6 only.
+  bool lab_head_with_torso;
 };
 
 const Table& mw3_table();
