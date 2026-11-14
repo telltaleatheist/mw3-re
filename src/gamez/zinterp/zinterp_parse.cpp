@@ -14,6 +14,7 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_draw.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 
 namespace zint {
 
@@ -508,9 +509,9 @@ Result letter_m(Interp& in, const char* argv0) {
     call(e.make_shadows);
     return kKnown;
   }
-  // 0x005b4b6e: D3D's mip bias (0x00598230, -1 in common.gw). Read, not applied: fixes.md.
+  // 0x005b4b6e: D3D's mip bias (0x00598230, -1 in common.gw), clamped and held: fixes.md, MipBias.
   if (zgame::game().zint_texture_additive && exact(argv0, "MipBias") && in.argc == 2) {
-    a.f();
+    zvid::set_mip_bias(a.f());
     return kKnown;
   }
   if (is(argv0, "MatlFaceColor", 0xd)) {

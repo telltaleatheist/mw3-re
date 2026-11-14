@@ -337,6 +337,13 @@ void set_tint_depth(float z) {
 }
 TLVertex* flat_buffer() { return g_flat; }
 DeviceState& device_state() { return g_state; }
+
+// Pirate's Moon 1.0 @ 0x00598230
+void set_mip_bias(float bias) {
+  if (1.0f < bias) bias = 1.0f;  // [0x005deda0], [0x005de7b0]
+  else if (!(bias >= -1.0f)) bias = -1.0f;  // [0x005dfa00], [0x005deea8]; the x87's unordered reads as below: a NaN is -1
+  device_state().mip_bias = bias;
+}
 void set_render3d(platform::Render3D* render) { g_render = render; }
 platform::Render3D* render3d() { return g_render; }
 platform::DrawState& draw_state() { return g_draw; }

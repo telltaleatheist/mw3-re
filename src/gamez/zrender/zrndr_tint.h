@@ -82,7 +82,7 @@ void tint_row_565(uint16_t* row, int32_t count);      // 0x00558320
 void tint_row_555_mmx(uint16_t* row, int32_t count);  // 0x00558380
 void tint_row_565_mmx(uint16_t* row, int32_t count);  // 0x00558460
 
-// The noise the static draws from: 0x6400 bytes of CRT rand ([0x0072c1dc],
+// The noise the static draws from: 0x6400 bytes of CRT rand (PM 40000) ([0x0072c1dc],
 // its size [0x0072c1d8]), filled once by zRender's set-up 0x005581c0. FIX
 // (A): one zeroed byte past the end (the fill's last pixel can read it).
 std::vector<uint8_t>& noise_table();

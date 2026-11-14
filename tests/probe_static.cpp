@@ -16,8 +16,11 @@ extern "C" {
 
 void probe_static_init() { zrndr::finish_init(trace_rand); }
 
-// The table's 0x6400 bytes.
-void probe_static_noise(uint8_t* out) { std::memcpy(out, zrndr::noise_table().data(), 0x6400); }
+// The table's bytes (0x6400; Pirate's Moon's 40000) and their count.
+int32_t probe_static_noise_size() { return static_cast<int32_t>(zrndr::noise_table().size()) - 1; }
+void probe_static_noise(uint8_t* out) {
+  std::memcpy(out, zrndr::noise_table().data(), static_cast<size_t>(probe_static_noise_size()));
+}
 
 // A target of w x h pixels (pitch in pixels) holding `pixels`, then the fill
 // on the rect (has_rect, left, top, right, bottom), the level's bits and the
