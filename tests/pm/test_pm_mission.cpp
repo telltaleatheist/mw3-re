@@ -551,6 +551,28 @@ static void pm_motion_survey(zcls::Node* anim, zcls::Node* moved, zcls::Node* ou
                 pos[0], pos[1], pos[2], mw3, a.c_str(), pm, b.c_str());
 }
 
+// zClass's frame counter is raised by the flip, every flip (0x00576ea0's `inc` at 0x00576eb9), menus too; not by the
+// scene walk (docs/game-loop.md).
+TEST(pm_each_flip_counts_a_frame) {
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.files = &files, p.input = &keys;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  engine.quiet = true;
+  const uint32_t before = zcls::frames().frame;
+  engine.video_flip(0, 0, 0, 0);
+  engine.video_flip(0, 0, 1, 1);
+  EXPECT(zcls::frames().frame == before + 2);
+  zcls::frames().frame = before;
+}
+
 static void kill_run(const char* which, bool quick) {
   EXPECT(zmth::matrix_stack().slot[0] == nullptr);  // a test's own local left there sends every box astray
   if (!which || !std::filesystem::exists(MW3PM_GAME_DIR)) return;
