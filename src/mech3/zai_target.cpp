@@ -336,9 +336,9 @@ void AiTarget::set_range(float r) {
   range2 = r * r;
 }
 
-// Mech3.exe 1.2 @ 0x004d6d20: the player's own vehicle (or one whose vt+0x58
-// answers) in Instant Action or multiplayer sees 50000 (0x005e8d8c); every
-// other range is capped at 1000 (0x005e8d84); a NaN is kept (C0|C3).
+// Mech3.exe 1.2 @ 0x004d6d20, Pirate's Moon 1.0 @ 0x004e7170: the player's own vehicle (or one whose vt+0x58
+// answers) in Instant Action or multiplayer sees 50000 (0x005e8d8c); every other range is capped at 1000
+// (0x005e8d84); a NaN is kept (C0|C3). PM: in multiplayer only with the game's RADAR on (+0xa8, 0x0047b710).
 void AiTarget::set_sensor_range(Handle self, float r) {
   TargetHooks& h = *g_hooks;
   bool wide = false;
@@ -346,7 +346,7 @@ void AiTarget::set_sensor_range(Handle self, float r) {
   if (h.have_pilot()) {
     if (h.self_vehicle(self) == h.player_vehicle() || h.self_x58(self) != 0) {
       const int32_t type = h.game_type();
-      wide = type == 3 || type == 2;
+      wide = type == 2 || (type == 3 && h.mp_radar());  // PM: multiplayer only with the lobby's RADAR
     }
   }
   if (wide) r = 50000.0f;
@@ -464,13 +464,15 @@ void desc_take(TargetDesc& d, TargetRec* rec, Handle anim) {
   d.flags = static_cast<uint8_t>((d.flags & 0xf0) | ((f >> 3) & 1) | ((f >> 1) & 2) | ((f >> 2) & 4) | ((f >> 2) & 8));
 }
 
-// Mech3.exe 1.2 @ 0x004d25c0, with the description 0x004d2d80 made first
-// (0x004d2480: the defaults 0x005e8bf0).
+// Mech3.exe 1.2 @ 0x004d25c0, Pirate's Moon 1.0 @ 0x004e2820, with the description 0x004d2d80 made first
+// (0x004d2480: the defaults 0x005e8bf0). PM: a record with an mpoption (a base, 1 or 2) gives its description
+// only in a network game whose kind counts that base (0x00437920); otherwise the target keeps the defaults.
 bool desc_build(TargetDesc& d, Handle node, TargetRec* rec) {
   if (!node || !rec || !rec->destroy_anim) return true;
   const int32_t len = static_cast<int32_t>(std::strlen(rec->destroy_anim));
   const Handle anim = g_hooks->anim_of_node(rec->destroy_anim, len, node);
   if (!anim) return false;
+  if (rec->mpoption >= 0 && !g_hooks->mp_option(rec->mpoption)) return true;
   desc_take(d, rec, anim);
   return true;
 }
@@ -661,8 +663,10 @@ uint32_t CZAiTarget::on_hit(Handle, Handle, float damage) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004d2cd0 (from 0x004d26d0, a collision): the health left.
+// Mech3.exe 1.2 @ 0x004d2cd0, Pirate's Moon 1.0 @ 0x004e30d0 (from 0x004d26d0, a collision): the health left. PM: a
+// multiplayer base (an mpoption) takes no collision's damage.
 float CZAiTarget::on_collide(float damage) {
+  if (desc.mpoption >= 0) return desc.health;
   desc.health = desc.health - damage;
   fire_triggers();
   if (!(desc.health > 0.0f)) destroy();

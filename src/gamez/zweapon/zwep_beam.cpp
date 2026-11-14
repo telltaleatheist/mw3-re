@@ -122,15 +122,15 @@ Beam* beam_make(WeaponDef* def, Handle owner, const uint32_t* zone, const Vec3f3
   return b;
 }
 
-// Mech3.exe 1.2 @ 0x00584b40. FIX (bug): a beam still firing comes off its
-// def's list first, as Pirate's Moon's 0x005a6650 does (docs/fixes.md: a laser
-// turret freed mid-shot left the list on freed memory for the next mission).
+// Mech3.exe 1.2 @ 0x00584b40, Pirate's Moon 1.0 @ 0x005a6650: a beam still linked on its def's list (+0 / +4) is
+// reported ("Releasing beam still on weapons list") and stopped first (0x005a2a00, beam_stop: the sounds, the FIRE
+// animations, off the list, the light, the segments). FIX (bug): PM's test misses a lone beam at the list's head
+// (no neighbours); it comes off too (docs/fixes.md: a laser turret freed mid-shot left the list on freed memory).
 int32_t beam_free(Beam* b) {
-  if (b->def && (b->prev || b->next || b->def->beams == b)) {
-    if (b->next) b->next->prev = b->prev;
-    if (b->prev) b->prev->next = b->next;
-    if (b == b->def->beams) b->def->beams = b->next;
-    b->prev = b->next = nullptr;
+  if (b->def && (b->prev || b->next)) {
+    beam_stop(b);
+  } else if (b->def && b->def->beams == b) {
+    b->def->beams = nullptr;
   }
   for (int32_t i = 0; i < b->segment_count; ++i) {
     Handle n = b->segments[i].node;

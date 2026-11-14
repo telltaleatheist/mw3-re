@@ -748,6 +748,9 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_collide_rate.cpp
     tests/pm/test_pm_mission.cpp tests/pm/pm_kill.cpp
     tests/pm/test_pm_model_users.cpp
+    tests/pm/test_pm_target_desc.cpp
+    tests/pm/test_pm_remote_hit.cpp
+    tests/pm/test_pm_net_objectives.cpp
     tests/pm/test_pm_model_bound.cpp  # the model reader's bound on PM's reader (FIX (A) memory safety)
     tests/pm/test_pm_weapon_update.cpp  # PM's weapon manager frame (0x004b4a90)
     tests/pm/test_pm_fieldbase.cpp  # PM's field bases: the last one's death, the aborts' lines
@@ -824,6 +827,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_controls.cpp)
   target_sources(pmprobe PRIVATE tests/probe_cockpit_sound.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_wake.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_sensor_range.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pilot.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pose.cpp)
   target_sources(pmprobe PRIVATE tests/probe_health.cpp)

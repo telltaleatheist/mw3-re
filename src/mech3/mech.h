@@ -340,6 +340,7 @@ struct Mech : Vehicle {
 
   // Damage (mech_damage.cpp).
   int take_damage(WeaponDef* def, Collision* coll, float damage);  // vtable +0x164, 0x0041ac60
+  int remote_hit(WeaponDef* def);  // a remote mech's hit: Pirate's Moon 0x00470f60, the torso jolted
   void die();                         // vtable +0x70, 0x0041b0d0
   void on_part_destroyed(MechPart* part);  // 0x0041b5f0
   float health();                          // 0x0041ba40 (vtable +0x98): the parts' health, cached at +0x40c

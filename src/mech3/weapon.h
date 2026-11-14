@@ -393,6 +393,7 @@ struct WeaponCalls {
   Config* (*config)(Handle owner) = nullptr;                  // +0x3ec
   float (*heat)(Handle owner) = nullptr;                      // vt+0x9c
   bool (*owner_down)(Handle owner) = nullptr;                 // Pirate's Moon 0x0041ade0: not active, or dead (10)
+  bool (*owner_remote)(Handle owner) = nullptr;               // Pirate's Moon vt+0x64: a network mech (0x00402250)
   void (*add_heat)(Handle owner, float h) = nullptr;          // 0x00419e40
   void (*recoil)(Handle part, float r) = nullptr;             // part vt+0x24
   void (*net_event)(Handle owner, int32_t kind, Weapon* w) = nullptr;  // vt+0x168 (0x16: a weapon)

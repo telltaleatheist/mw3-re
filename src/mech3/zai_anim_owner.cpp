@@ -79,9 +79,9 @@ void anim_owner_bind_all() {
   anim_owner_bind_commit(b);
 }
 
-// Mech3.exe 1.2 @ 0x004d4c80. Another def first commits the one before. A
-// valve message walks (value - 0x2a) / 2 parents up from the def's node, each
-// the only parent; past the root (a node with none, or several) nothing.
+// Mech3.exe 1.2 @ 0x004d4c80, Pirate's Moon 1.0 @ 0x004e50b0. Another def first commits the one before. A valve
+// message walks (value - 0x2a) / 2 parents up from the def's node, each the only parent; past the root (a node
+// with none, or several) nothing. PM: any other value marks the record taken but 0x32..0x34 (MW3: only 0x39..0x3c).
 void anim_owner_bind_event(AnimBinding& b, Handle anim, int32_t value) {
   AnimOwnerHooks& h = H();
   if (b.anim != anim) anim_owner_bind_commit(b);
@@ -116,10 +116,10 @@ void anim_owner_bind_event(AnimBinding& b, Handle anim, int32_t value) {
       b.rec->valve = valve;
       break;
     }
-    case 0x39: case 0x3a: case 0x3b: case 0x3c:
-      b.taken = true;
+    case 0x32: case 0x33: case 0x34:
       break;
     default:
+      b.taken = true;
       break;
   }
 }
