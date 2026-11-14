@@ -21213,6 +21213,114 @@ TEST(playtest_escape_pauses_the_mission_and_resume_returns_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The pause's Escape (FIX (bug), PauseState::escape): the pause screen stops the sounds playing (0x0056eb10,
+// 0x0056f0a0) and takes zSound's playing groups (0x005732f0); only RESUME gave them back in the exe, so after Escape
+// they stayed stopped and taken. With the fix Escape gives them back too; off, the exe's. What is playing in c1m1
+// counted before the pause and 60 frames after Escape (docs/fixes.md, discoveries.md).
+TEST(fix_pause_escape_gives_the_sounds_back_headless) {
+  if (!have_game()) return;
+  const bool was = zfix::options().fixed;
+  for (const bool fixed : {true, false}) {
+    zfix::options().fixed = fixed;
+    SavedMounts keep;
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3_GAME_DIR);
+    zutl::set_write_dir(temp_dir("pause_escape_write"));
+    mech3::reset_states();
+    reset_process_state();
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::options() = mech3::Options{};
+    struct Keys : platform::Input {
+      std::vector<platform::KeyEvent> queue;
+      uint32_t t = 0;
+      void key(uint32_t dik, bool down) { queue.push_back({dik, down ? 0x80u : 0u, ++t, t}); }
+      bool open(Device d) override { return d == kKeyboard; }
+      void close(Device) override {}
+      void set_cooperative_level(Device, uint32_t) override {}
+      int32_t acquire(Device) override { return 0; }
+      int32_t unacquire(Device) override { return 0; }
+      int32_t keyboard_data(platform::KeyEvent* out, uint32_t* count) override {
+        const uint32_t n = std::min<uint32_t>(*count, static_cast<uint32_t>(queue.size()));
+        std::copy(queue.begin(), queue.begin() + n, out);
+        queue.erase(queue.begin(), queue.begin() + n);
+        *count = n;
+        return 0;
+      }
+      int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+      int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+    } keys;
+    FakeWindow window;
+    FakeAlert alert;
+    FakeClock clock;
+    FakeScreen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+    p.input = &keys;
+    const auto playing = [] {
+      zsnd::Snapshot* sn = zsnd::snapshot();
+      const int voices = static_cast<int>(sn->size()) - 1;
+      std::printf("   ");
+      for (auto it = std::next(sn->begin()); it != sn->end(); ++it) std::printf(" %s", it->sound && it->sound->name ? it->sound->name : "?");
+      std::printf("\n");
+      zsnd::free_snapshot(sn);
+      const int groups = zsnd::state().playing ? static_cast<int>(zsnd::state().playing->size()) : 0;
+      return std::pair<int, int>{voices, groups};
+    };
+    std::pair<int, int> before{-1, -1}, after{-1, -1};
+    {
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::GameEngine::Launch l;
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      mech3::States& st = mech3::states();
+      int core = 0, paused = 0, stage = 0;
+      zgame::State* last = nullptr;
+      engine.on_present = [&](int) {
+        zgame::State* now = app.current();
+        if (now == &st.core && last == &st.pause) core = 0, stage = 2;
+        if (now == &st.pause && last != &st.pause) paused = 0;
+        last = now;
+        if (now == &st.core) {
+          ++core;
+          if (stage == 0 && core == 60) before = playing(), keys.key(1, true), stage = 1;  // Escape: the pause
+          if (stage == 1 && core == 61) keys.key(1, false);
+          if (stage == 2 && core == 60) after = playing(), stage = 3;
+        } else if (now == &st.pause) {
+          ++paused;
+          if (paused == 4) keys.key(1, true);  // Escape out of it
+          if (paused == 5) keys.key(1, false);
+        }
+      };
+      CountingPump pump;
+      pump.limit = 1200;
+      pump.stop = [&] { return stage == 3; };
+      app.run(pump);
+      mech3::missions().cleanup(false);
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    reset_process_state();
+    mech3::options() = mech3::Options{};
+    std::printf("  fix %d: playing before the pause %d voices, %d groups; 60 frames after Escape %d voices, %d groups\n", fixed,
+                before.first, before.second, after.first, after.second);
+    EXPECT(before.first >= 0 && after.first >= 0);
+    EXPECT(before.first > 0);  // c1m1 has sounds playing: the test sees something stop
+    if (fixed) EXPECT(after.first >= before.first && after.second >= before.second);  // given back
+    else EXPECT(after.first < before.first);  // the exe's: stopped for good
+  }
+  zfix::options().fixed = was;
+}
+
 // Playtest #10 (docs/playtest.md, hud.md, Images the data lacks): the HUD
 // asks for 52 images; the 40 the game ships load, and the 12 the original
 // asks for too are in no shipped library (MW3 1.2 or Pirate's Moon), so they

@@ -1,3 +1,4 @@
+#include "frontend/sdl/vulkan_check.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/log_start.h"
 #include "frontend/sdl/sdl_focus.h"
@@ -361,6 +362,7 @@ enum Id {
   kData = 40, kDataPick, kDataUsual, kMoveGo, kRemoveOld, kKeepOld,
   kUpdates = 49,
   kUpdateGo = 80, kUpdateNotNow, kUpdatePrev, kUpdateNext,
+  kVulkanAgain = 90,  // ours: the Vulkan check again (docs/linux.md)
 };
 
 struct Install {
@@ -475,6 +477,7 @@ class Launcher {
   void play();
   int movies_to_convert() const;
   void convert_movies(std::function<void()> then);
+  void show_vulkan();  // ours: what to install for Vulkan, TRY AGAIN and BACK
   void notes_refresh();
   std::string in_use() const;
   void add_disc(const std::string& source);
@@ -532,6 +535,7 @@ class Launcher {
   std::string mw1_exe_, mw1_game_;  // MechWarrior (1989): Elthial's port beside ours, the player's folder
   std::string status_;
   bool status_good_ = true;
+  Vulkan vulkan_ = Vulkan::kOk;  // ours (docs/linux.md, Vulkan): what the start found
   std::unique_ptr<Work> work_;
   Pick pick_;
   bool asking_ = false;
@@ -1030,6 +1034,11 @@ void Launcher::layout() {
         add(kKeepOld, {385, 300, 140, 40}, "KEEP IT");
         break;
       }
+      if (confirm_go_ == 4) {  // ours: Vulkan
+        add(kVulkanAgain, {170, 340, 140, 40}, "TRY AGAIN");
+        add(kBack, {330, 340, 140, 40}, "BACK");
+        break;
+      }
       if (confirm_go_ == 2) add(kMoveGo, {170, 300, 140, 40}, "MOVE");
       else if (confirm_go_) add(kGo, {170, 300, 140, 40}, "INSTALL");
       add(kBack, {330, 300, 140, 40}, "BACK");
@@ -1507,10 +1516,20 @@ void Launcher::show_update() {
   if (SDL_getenv("MW3_LAUNCHER_UPDATE_GO")) activate(kUpdateGo);  // checks: DOWNLOAD AND INSTALL pressed
 }
 
+// Ours (docs/linux.md, Vulkan): the game cannot draw without Vulkan on Linux; this screen says what
+// to install. TRY AGAIN checks again (the packages installed meanwhile), BACK to the main screen.
+void Launcher::show_vulkan() {
+  confirm_text_ = vulkan_help(vulkan_);
+  confirm_go_ = 4;
+  std::printf("mw3: launcher: %s\n", confirm_text_.c_str());
+  screen_ = kConfirm, layout();
+}
+
 // MechWarrior 3 started: by mw3launcher as the game's own program, else
 // (a plain mw3 start, or no game_bin) the window handed on.
 void Launcher::play() {
   if (!mw3_ready()) return;
+  if (vulkan_ != Vulkan::kOk && (vulkan_ = vulkan_check()) != Vulkan::kOk) return show_vulkan();  // installed meanwhile: on
   // The movies converted here first, with the bar (Owen: a first start sat
   // 44 s on "Starting MechWarrior 3..." while mw3 did it); mw3's own import
   // stays the fallback for a start without the launcher.
@@ -1885,6 +1904,13 @@ void Launcher::activate(int id) {
       screen_ = kWorking, layout();
       break;
     }
+    case kVulkanAgain:
+      vulkan_ = vulkan_check();
+      std::printf("mw3: launcher: Vulkan checked again: %s\n", vulkan_ == Vulkan::kOk ? "found" : "still missing");
+      if (vulkan_ != Vulkan::kOk) return show_vulkan();
+      status_ = "Vulkan found: MechWarrior 3 can start.", status_good_ = true;
+      screen_ = kMain, layout();
+      break;
     case kKeepOld:
       status_ = "The old copy stays in " + move_from_ + ".", status_good_ = true;
       from_files_ = false, screen_ = kMain, layout();
@@ -1967,6 +1993,7 @@ void Launcher::activate(int id) {
       if (o_.setup_only && screen_ == kSetupScreen) done_ = true;  // a plain start's QUIT
       else if (screen_ == kConfirm && confirm_go_ == 3) return activate(kKeepOld);  // Escape: nothing removed
       else if (screen_ == kConfirm && confirm_go_ == 2) screen_ = kDataScreen, layout();
+      else if (screen_ == kConfirm && confirm_go_ == 4) screen_ = kMain, layout();  // Vulkan's: the main screen
       else if (screen_ == kConfirm) screen_ = kSetupScreen, layout();
       else if (screen_ == kDataScreen) screen_ = kSetupScreen, status_.clear(), layout();
       else screen_ = kMain, from_files_ = false, status_.clear(), layout();
@@ -2049,6 +2076,10 @@ LauncherChoice Launcher::run() {
   const Uint64 t_font = SDL_GetTicksNS();
   find_install();
   const Uint64 t_install = SDL_GetTicksNS();
+  // Ours: the game draws with Vulkan on Linux, this window does not; said here, before PLAY.
+  vulkan_ = vulkan_check();
+  const bool vulkan_said = vulkan_ != Vulkan::kOk;
+
   find_mw1();
   find_pm();
   pm_refresh();
@@ -2068,6 +2099,7 @@ LauncherChoice Launcher::run() {
   notes_refresh();
   const bool first_start = o_.cfg_install.empty() && !notes_.empty();
   if (shot) {
+    if (vulkan_said && (o_.screen.empty() || o_.screen == "main")) show_vulkan();  // as the start below shows it
     if (o_.screen == "setup" || o_.screen == "pick" || o_.screen == "files")
       screen_ = kSetupScreen, from_files_ = o_.screen == "files";
     if (o_.screen == "pick") status_ = "Not found on this computer or in a disc drive. Pick it: a disc image, a download, or Mech3.exe.";
@@ -2110,6 +2142,7 @@ LauncherChoice Launcher::run() {
   // a plain mw3 start that found none shows that screen alone.
   if (o_.setup_only) screen_ = kSetupScreen;
   else if (install_.ok && first_start) screen_ = kNotes, mw3_notes_seen();
+  if (vulkan_said) show_vulkan();  // ours: before anything else, so PLAY never reaches the game's box
   layout();
   // Not high pixel density: the game takes this window (one window into the
   // game), and its sizes are the window's points (SdlWindow, SdlInput).

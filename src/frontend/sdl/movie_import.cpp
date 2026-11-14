@@ -4,7 +4,9 @@
 
 #include <cctype>
 #include <cstdio>
+#include <algorithm>
 #include <filesystem>
+#include <set>
 
 #include "frontend/sdl/sdl_child.h"
 #include "gamez/zutil/zutl_path.h"
@@ -42,14 +44,34 @@ std::string importer_path() {
   return {};
 }
 
+std::vector<std::string> video_dirs(const std::string& source) {
+  std::vector<std::string> dirs;
+  std::error_code ec;
+  for (fs::directory_iterator it(source, ec), end; !ec && it != end; it.increment(ec))
+    if (lower(it->path().filename().string()) == "video" && it->is_directory(ec)) dirs.push_back(it->path().string());
+  std::sort(dirs.begin(), dirs.end());
+  return dirs;
+}
+
+// A movie in two of them (VIDEO\C1.AVI and video\c1.avi) counts once, as mw3import makes it once.
 int movies_missing(const std::string& source, const std::string& write_dir) {
   std::error_code ec;
-  int n = 0;
-  for (const auto& e : fs::directory_iterator(zutl::any_case(source, "video"), ec)) {
-    if (lower(e.path().extension().string()) != ".avi") continue;
-    if (!fs::exists(fs::path(write_dir) / "video" / (lower(e.path().stem().string()) + ".fmv"), ec)) ++n;
+  std::set<std::string> names;
+  for (const std::string& dir : video_dirs(source))
+    for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+      if (lower(it->path().extension().string()) != ".avi") continue;
+      const std::string name = lower(it->path().stem().string());
+      if (!fs::exists(fs::path(write_dir) / "video" / (name + ".fmv"), ec)) names.insert(name);
+    }
+  return static_cast<int>(names.size());
+}
+
+size_t read_child(SDL_IOStream* io, void* buf, size_t n) {
+  for (;;) {
+    const size_t got = io ? SDL_ReadIO(io, buf, n) : 0;
+    if (got > 0 || !io || SDL_GetIOStatus(io) != SDL_IO_STATUS_NOT_READY) return got;
+    SDL_Delay(10);
   }
-  return n;
 }
 
 int run_importer(const std::string& source, const std::string& write_dir,
@@ -65,7 +87,7 @@ int run_importer(const std::string& source, const std::string& write_dir,
   std::string line;
   char buf[512];
   size_t n;
-  while (out && (n = SDL_ReadIO(out, buf, sizeof buf)) > 0) {
+  while (out && (n = read_child(out, buf, sizeof buf)) > 0) {
     for (size_t i = 0; i < n; ++i) {
       if (buf[i] != '\n') {
         line += buf[i];
