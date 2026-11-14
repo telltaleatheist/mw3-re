@@ -761,6 +761,7 @@ TEST(editor_save_as_over_a_campaign_kept_as_changed_entries) {
          read(played) == "other.zrd=camp's|net_01.zrd=one|extra.zrd=new|");
   // And the campaign it was saved from is as it was.
   EXPECT(read(mount({"camp"})) == "other.zrd=camp's|net_01.zrd=install|extra.zrd=new|");
+  mech3::current_entry() = mech3::official_entries().front().id;  // the copy's name became the run's entry (save_as.cpp)
   zutl::mounts() = saved;
   fs::remove_all(root, ec);
 }
