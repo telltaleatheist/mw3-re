@@ -6,6 +6,10 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "crt/msvc_math.h"
+#include "gamez/zfmv/fmv_script.h"
+#include "gamez/zfmv/fmv_stream.h"
+#include "gamez/zgeometry/zgeo_x87.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod.h"
@@ -507,29 +511,87 @@ void Cursor::erase() {
 // Mech3.exe 1.2 @ 0x005a7a90
 Movie2D::Movie2D() : Object2D(0, 0) {}
 
-// Mech3.exe 1.2 @ 0x005a7ae0
+// Mech3.exe 1.2 @ 0x005a7ae0: the stream closed (0x0059a530) and freed.
 Movie2D::~Movie2D() {
-  if (stream) {
-    host().unported("0x0059a530", {stream});  // the zFMV stream's close, then delete
-    stream = 0;
-  }
+  delete stream;
+  stream = nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x005a7b50 (not ported: opens a zFMV stream, 0x0059a4a0)
-void Movie2D::open(const char* name) { stream = host().unported("0x005a7b50", {name}); }
+// Mech3.exe 1.2 @ 0x005a7b50. The file by its name; a missing one leaves no
+// stream (nothing drawn). The stream has no sound of its own (0x0059a4a0's
+// second argument 0). FIX (A): the original then looked for it on the CD-ROM
+// (0x00575d40), as the movie scripts did (fmv_script.cpp); and its strncpy
+// left a name of 260 characters or more unterminated: cut and terminated.
+void Movie2D::open(const char* file) {
+  std::strncpy(name, file ? file : "", sizeof name - 1);
+  name[sizeof name - 1] = 0;
+  if (zfmv::host().file_stat(name) == -1) {
+    stream = nullptr;
+    return;
+  }
+  stream = new zfmv::Stream(name, false);
+  start();
+}
 
-// Mech3.exe 1.2 @ 0x005a7c30 (not ported)
-void Movie2D::set_color_key(uint16_t c) { host().unported("0x005a7c30", {c}); }
+// Mech3.exe 1.2 @ 0x005a7c30: the stream's picture drawn with a colour key.
+void Movie2D::set_color_key(uint16_t c) {
+  if (stream) stream->image.flags |= 2;
+  color_key = c;
+}
 
-// Mech3.exe 1.2 @ 0x005a7d10 (not ported)
-void Movie2D::start() { host().unported("0x005a7d10", {}); }
+// Mech3.exe 1.2 @ 0x005a7d10. The background rect from the object's place
+// (negative as 0) to the movie's size, cut to the background image when there
+// is one.
+void Movie2D::start() {
+  const int32_t l = get_x() > 0 ? get_x() : 0, t = get_y() > 0 ? get_y() : 0;
+  if (!stream) return;
+  Rect r{l, t, l + stream->image.width, t + stream->image.height};
+  if (background) {
+    if (r.right >= background->width) r.right = background->width;
+    if (r.bottom >= background->height) r.bottom = background->height;
+  }
+  set_bg_rect(&r);
+}
+
+// Mech3.exe 1.2 @ 0x005a7c50. Shown: the frame for the time shown at the
+// movie's rate, looped (0x0059aaf0), then the usual update, then the time on.
+// FIX (A): a stream of no frames (the exe divides by 0) shows none.
+void Movie2D::update(float dt) {
+  if (flags & kHidden) return;
+  if (stream && stream->length != 0) {
+    // fild, fmul: the product at the x87's precision (zgeo::X), then truncated.
+    const zgeo::X p = zgeo::X(static_cast<double>(static_cast<int32_t>(stream->fps))) * zgeo::X(time);
+    const int32_t f = crt::msvc_ftol(p.v);
+    host().movie_frame(stream, f % stream->length);
+  }
+  Object2D::update(dt);
+  time = time + dt;
+}
+
+// Mech3.exe 1.2 @ 0x005a7ca0: erased, then the picture at its place with the
+// colour key (0x0055b1f0).
+void Movie2D::draw() {
+  erase();
+  if (stream) host().blit(&stream->image, x, y, color_key, nullptr);
+}
+
+// Mech3.exe 1.2 @ 0x005a7cd0: the background back over the place, negative as 0.
+void Movie2D::erase() {
+  if (background) host().blit(background, x > 0 ? x : 0, y > 0 ? y : 0, 0, &bg_rect);
+}
 
 // ---- Ripple ----
 
 // Mech3.exe 1.2 @ 0x005a53e0
-Ripple::Ripple() : Object2D(0, 0) {}
+Ripple::Ripple() : ManagerObject(0, 0) {}
 
 // Mech3.exe 1.2 @ 0x005a5440
-void Ripple::draw_ripple() { host().ripple(x, y, inner, outer, amplitude, wavelength, phase, clip); }
+void Ripple::draw_in_rect() { host().ripple(x, y, inner, outer, amplitude, wavelength, phase, rect); }
+
+// Mech3.exe 1.2 @ 0x005a5400
+void Ripple::place(int32_t px, int32_t py, int32_t in, int32_t out, int32_t amp, float wl, float ph) {
+  set_pos(px, py);
+  inner = in, outer = out, amplitude = amp, wavelength = wl, phase = ph;
+}
 
 }  // namespace ztwod

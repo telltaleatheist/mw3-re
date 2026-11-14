@@ -469,28 +469,47 @@ class Cursor : public Image {
   void grab_at(int32_t px, int32_t py);  // 0x005a7970
 };
 
-// A movie in a dialog (vtable 0x005d0e28), 0x144 bytes. Its zFMV stream is not
-// ported: open, colour key and start are hooks (docs/twod.md).
+// A movie in a dialog (vtable 0x005d0e28), 0x144 bytes: a zFMV stream (no
+// sound) drawn where the object stands, looping at the movie's own rate by the
+// time it has been shown (docs/twod.md, Movies in a dialog). No shipped dialog
+// has one (BACKGROUND_VIDEOS).
 class Movie2D : public Object2D {
  public:
-  Handle stream = 0;                 // +0x34
-  uint32_t u38 = 0;                  // +0x38
-  uint8_t u3e = 0;                   // +0x3e
+  zfmv::Stream* stream = nullptr;    // +0x34  new(0x1e4); null when the file is not found
+  float time = 0.0f;                 // +0x38  seconds shown
+  uint16_t color_key = 0;            // +0x3c  display-packed
+  char name[0x104] = {};             // +0x3e
 
   Movie2D();                         // 0x005a7a90
   ~Movie2D() override;               // 0x005a7ae0
-  void open(const char* name);       // 0x005a7b50
+  void draw() override;              // +0x04  0x005a7ca0
+  void erase() override;             // +0x08  0x005a7cd0
+  void update(float dt) override;    // +0x24  0x005a7c50
+  void open(const char* file);       // 0x005a7b50
   void set_color_key(uint16_t c);    // 0x005a7c30
-  virtual void start();              // +0x7c  0x005a7d10
+  virtual void start();              // +0x7c  0x005a7d10: the background rect the movie's size
+};
+
+// What the render overlay's objects share (ours; the exe shares the code):
+// a draw 0x005a5360 that calls +0x7c once for each of the overlay's rects
+// (twod_weather.h, WeatherLayer), with +0x34 pointing at that rect; with no
+// owner, +0x7c once as it is.
+class ManagerObject : public Object2D {
+ public:
+  using Object2D::Object2D;
+  void draw() override;                 // +0x04  0x005a5360 (twod_weather.cpp)
+  virtual void draw_in_rect() = 0;      // +0x7c
+  const Rect* rect = nullptr;           // +0x34  the rect drawn into; null: the whole target
 };
 
 // A ring of the screen pushed out along a sine wave (vtable 0x005d04a8), 0x4c
-// bytes: the ripple around a main menu button (docs/mainmenu.md). It draws
-// through zRender (0x00558dd0, Host::ripple), from `inner` to `outer` pixels
-// around (x, y), shifted by up to `amplitude` pixels.
-class Ripple : public Object2D {
+// bytes: the ripple around a main menu button (docs/mainmenu.md), and the
+// render overlay's five screen waves (anim event 37, docs/anim-run.md). It
+// draws through zRender (0x00558dd0, Host::ripple), from `inner` to `outer`
+// pixels around (x, y), shifted by up to `amplitude` pixels. The menus call
+// +0x7c directly; in the overlay +0x04 draws it into each of its rects.
+class Ripple : public ManagerObject {
  public:
-  const Rect* clip = nullptr;        // +0x34  null: the whole target
   int32_t inner = 0;                 // +0x38  (not set by the constructor)
   int32_t outer = 0;                 // +0x3c
   int32_t amplitude = 0;             // +0x40
@@ -499,9 +518,8 @@ class Ripple : public Object2D {
 
   Ripple();                          // 0x005a53e0
   ~Ripple() override = default;      // 0x005a6860
-  // +0x04 (0x005a5360) draws it once for each view of the render overlay layer
-  // it belongs to (0x005a4590, not ported); the menus call +0x7c directly.
-  virtual void draw_ripple();        // +0x7c  0x005a5440
+  void draw_in_rect() override;      // +0x7c  0x005a5440
+  void place(int32_t px, int32_t py, int32_t in, int32_t out, int32_t amp, float wl, float ph);  // 0x005a5400
 };
 
 // ---- the edit bar (0x005a3830..0x005a3a40, 0x005a46a0..0x005a5340; docs/twod.md, The edit bar) ----
@@ -595,6 +613,7 @@ class Line2D : public Object2D {
   Line2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c);  // 0x005a67e0
   void set(int32_t x0, int32_t y0, int32_t x1, int32_t y1);  // 0x005a6880
   void draw() override;              // +0x04  0x005a68b0
+  bool read(zrdr::Node* node, Dialog* dialog) override;  // +0x78  0x005a6a10: COLOR, ENDP_REL, ENDP_ABS, POSITION
   int32_t end_x = 0, end_y = 0;      // +0x34
   uint32_t color = 0;                // +0x3c  a pixel
   int32_t clipped = 0;               // +0x40

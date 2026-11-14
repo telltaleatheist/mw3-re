@@ -2105,9 +2105,10 @@ struct WiredMissionHooks : MissionHooks {
     // Event 36's tint to the weather manager's (0x005a6730), drawn by its
     // next update (anim-run.md, The screen tint).
     r.screen_tint = [](void*, uint16_t colour, double alpha) { ztwod::weather_tint(colour, alpha); };
-    r.fbfx_wave = [](void*, zeff::AnimDef*, zeff::SeqDef*, uint8_t*) -> int32_t {
-      if (GameEngine* g = engine_of_hooks()) g->unported("0x005076c0", {});
-      return 2;
+    // Event 37's wave to the weather manager's (0x005a6760), drawn as a
+    // ripple by its next update (anim-run.md, The screen wave).
+    r.screen_wave = [](void*, int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amp, float wl, float ph) {
+      ztwod::weather_wave(x, y, inner, outer, amp, wl, ph);
     };
     r.message = [](void*, uint8_t*) {
       if (GameEngine* g = engine_of_hooks()) g->unported("0x00507970", {});
@@ -2130,15 +2131,13 @@ struct WiredMissionHooks : MissionHooks {
     };
   }
   // 0x0050d2c0: zEffect's table from effects.zrd (an empty list in both games).
-  void effects_load(Handle, Handle, const char* file) override {
+  // The entries' calls stay zeff's defaults (unported: no shipped file has an entry; docs/weapon-effects.md).
+  void effects_load(Handle world, Handle camera, const char* file) override {
     zeff::EffectHooks& h = zeff::effect_hooks();
-    h.unported = [](const char* key, int32_t i) {
-      if (GameEngine* g = engine_of_hooks()) g->unported(key, {i});
-    };
     h.error = [](const char* f) {
       if (GameEngine* g = engine_of_hooks(); g && !g->quiet) std::fprintf(stderr, "mw3: Failed to read %s\n", f);
     };
-    zeff::effects_init(file);
+    zeff::effects_init(file, zeff::EffectHooks::p(world), zeff::EffectHooks::p(camera));
   }
   void world_params(const char* file, const char* block) override {
     read_world_params(file, block, mission_node(*e, e->mission_camera()), e->launch().type, e->launch().number);

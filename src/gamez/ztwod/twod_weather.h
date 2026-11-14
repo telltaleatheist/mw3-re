@@ -39,17 +39,6 @@ struct WeatherStreak {
   int32_t shown = 0;                       // +0x1c  1 once set (the draw's 1-pixel offset)
 };
 
-// What the weather manager's objects share (ours; the exe shares the code):
-// a draw 0x005a5360 that calls +0x7c once for each of the manager's rects,
-// with +0x34 pointing at that rect.
-class ManagerObject : public Object2D {
- public:
-  using Object2D::Object2D;
-  void draw() override;                 // +0x04  0x005a5360
-  virtual void draw_in_rect() = 0;      // +0x7c
-  const Rect* rect = nullptr;           // +0x34  the rect drawn into (the manager's)
-};
-
 // The screen tint (vtable 0x005d0290, 0x48 bytes): the manager's +0x28,
 // hidden; the animations' event 36 shows it for a frame (0x005a6620).
 class ScreenTint : public ManagerObject {
@@ -112,14 +101,20 @@ class Snow : public Weather {
 
 // The weather manager [0x00736328]: a Layer with two rects (+0x10, +0x14),
 // set each frame (0x005a6790), the 2D text target (+0x18, zvid's) and the
-// screen tint (+0x28). Its five texts (+0x70) are not ported.
+// screen tint (+0x28) and five screen waves (+0x70, Ripples placed by the
+// animations' event 37 and shown for a frame).
 struct WeatherLayer : Layer {
   WeatherLayer();  // 0x005a4590, at static init
   const Rect* rects[2] = {};
   ScreenTint tint;
+  Ripple waves[5];
+  int32_t wave_count = 0;  // +0x1ec  this frame's, cleared by the update
 };
 WeatherLayer& weather_layer();
 void weather_tint(uint16_t colour, double alpha);  // 0x005a6730 -> 0x005a6620
+// 0x005a6760 -> 0x005a6650: the next wave placed and shown for this frame;
+// past the fifth, the fifth again.
+void weather_wave(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength, float phase);
 void weather_rect(int32_t i, const Rect* r);  // 0x005a6790 -> 0x005a66b0: i < 2 only
 void weather_tick(float dt);                  // 0x005a67c0 -> 0x005a6600: the layer's update
 

@@ -8,6 +8,7 @@
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/camera.h"
+#include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/light.h"
@@ -16,10 +17,14 @@
 #include "gamez/zeffect/zeff_anim_puffer.h"
 #include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgeometry/zgeo_x87.h"
+#include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_puff.h"
+#include "gamez/zmodel/gmod_screen.h"
 #include "gamez/zutil/ztimer.h"
+#include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "gamez/zweapon/zweapon.h"
 
@@ -104,7 +109,7 @@ int32_t dispatch(AnimDef* def, SeqDef* seq, uint8_t* e, bool* bad) {
     case 34: case 39: case 40: return 2;
     case 35: return ev_callback(d, e);
     case 36: return anim_fbfx_color(s, e);
-    case 37: return h.fbfx_wave ? h.fbfx_wave(h.ctx, def, seq, e) : 2;
+    case 37: return anim_fbfx_wave(def, seq, e);
     case 38:
       if (h.message) h.message(h.ctx, e);
       return 2;
@@ -149,6 +154,90 @@ int32_t anim_fbfx_color(SeqDef& s, uint8_t* e) {
   for (int k = 0; k < 3; ++k) b[k] = static_cast<uint8_t>(crt::msvc_ftol(c[k] * 255.0f + 0.5f));
   const uint16_t colour = zvid::pack_bytes(b[0], b[1], b[2]);  // 0x00579370
   if (g_run_hooks.screen_tint) g_run_hooks.screen_tint(g_run_hooks.ctx, colour, c[3]);
+  return r;
+}
+
+// Mech3.exe 1.2 @ 0x005076c0 (ECX the def, EDX the sequence): event 37, a
+// screen wave (FBFX_CSINWAVE_FROM_TO), a ripple through zTwoD (0x005a6760). +0x0c flags
+// (1 screen place, 2 at a node, 8 world radius), +0x0e the node, +0x10 its
+// offset, +0x1c/+0x28 x and y (from, to, rate), +0x34/+0x38 the world radius,
+// +0x3c the screen radius, +0x48/+0x54/+0x60 csin x, y, z, +0x6c the time.
+// The values are passed as integers, truncated; at the end (2: done), the
+// "to"s. docs/anim-run.md, The screen wave.
+int32_t anim_fbfx_wave(AnimDef* def, SeqDef* seq, uint8_t* e) {
+  using zgeo::X;
+  if (!def || !seq || !e) return 2;
+  const AnimRunHooks& h = g_run_hooks;
+  auto f = [e](int off) -> float& { return *reinterpret_cast<float*>(e + off); };
+  const uint16_t fl = ev::get<uint16_t>(e, 0x0c);
+  if (seq_state(seq) == 0 && (fl & 8)) {
+    // The world radius at the player's distance: a square root by halving the
+    // float's bits, times the focal length (0x0051e8d0), at most a quarter of
+    // the larger screen side.
+    const float d2 = h.distance2 ? h.distance2(h.ctx, def->root) : distance2_to_player(def->root);
+    uint32_t bits;
+    std::memcpy(&bits, &d2, 4);
+    bits = static_cast<uint32_t>(static_cast<int32_t>(bits) >> 1) + 0x1fc00000u;
+    float s;
+    std::memcpy(&s, &bits, 4);
+    const float fx = zmth::projection().fx;
+    f(0x3c) = (X(f(0x34)) / X(s) * X(fx)).f();
+    f(0x40) = (X(f(0x38)) / X(s) * X(fx)).f();
+    const zvid::Surface& back = zvid::surfaces().back;
+    const uint32_t w = static_cast<uint32_t>(back.width), ht = static_cast<uint32_t>(back.height);
+    const X m = X(static_cast<double>(w > ht ? w : ht)) * X(0.25f);
+    if (m < X(f(0x3c))) f(0x3c) = m.f();
+    if (m < X(f(0x40))) f(0x40) = m.f();
+    f(0x44) = ((X(1.0f) / X(f(0x6c))) * (X(f(0x40)) - X(f(0x3c)))).f();
+  }
+  // The time, as event 36's.
+  const float dur = f(0x6c), now = seq_f(seq, 0x28);
+  float& left = A().time_left();
+  float t;
+  X used(0.0f);
+  if (not_above(now, dur)) {
+    t = now, used = X(left);
+  } else {
+    t = dur, used = X(left) - (X(now) - X(dur));
+  }
+  left = (X(left) - used).f();
+  auto at = [&](int rate, int from) { return crt::msvc_ftol((X(f(rate)) * X(t) + X(f(from))).v); };
+  // FIX (A): with neither a screen place nor a node (or a node index <= 0)
+  // the exe passes its stack's leftovers as x and y; 0 here.
+  int32_t x = 0, y = 0;
+  if (fl & 2) {
+    const int16_t idx = ev::get<int16_t>(e, 0x0e);
+    if (idx > 0) {
+      float p[3] = {f(0x10), f(0x14), f(0x18)};
+      if (Node* n = def->nodes[idx].node) {
+        if (h.world_point) h.world_point(h.ctx, n, p);
+        else zcls::node_world_point(n, p);
+      }
+      float o[3];
+      uint32_t off;
+      if (h.project) {
+        off = h.project(h.ctx, p, o);
+      } else {
+        zmth::Vec3 v;
+        off = zmod::project_point(reinterpret_cast<const zmth::Vec3*>(p), &v);
+        o[0] = v.x, o[1] = v.y, o[2] = v.z;
+      }
+      if (off) return 1;  // off the screen: no wave this frame, the time spent
+      x = crt::msvc_ftol((X(o[0]) - X(-0.5f)).v);
+      y = crt::msvc_ftol((X(o[1]) - X(-0.5f)).v);
+    }
+  } else if (fl & 1) {
+    x = at(0x24, 0x1c), y = at(0x30, 0x28);
+  }
+  int32_t radius = at(0x44, 0x3c), cx = at(0x50, 0x48), cy = at(0x5c, 0x54), cz = at(0x68, 0x60);
+  int32_t r = 1;
+  if (seq_f(seq, 0x28) >= f(0x6c)) {
+    if (fl & 1) x = crt::msvc_ftol(f(0x20)), y = crt::msvc_ftol(f(0x2c));
+    radius = crt::msvc_ftol(f(0x40)), cx = crt::msvc_ftol(f(0x4c));
+    cy = crt::msvc_ftol(f(0x58)), cz = crt::msvc_ftol(f(0x64));
+    r = 2;
+  }
+  if (h.screen_wave) h.screen_wave(h.ctx, x, y, 0, radius, cx, static_cast<float>(cy), static_cast<float>(cz));
   return r;
 }
 

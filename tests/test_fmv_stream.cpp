@@ -5,11 +5,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include "check.h"
 #include "gamez/zfmv/fmv_script.h"
 #include "gamez/zfmv/fmv_stream.h"
+#include "gamez/ztwod/twod.h"
 #include "gamez/zutil/zfix.h"
 
 namespace {
@@ -98,4 +100,34 @@ TEST(fmv_sound_cursor_at_zero_after_a_wrap_keeps_the_frame) {
   std::printf("  the frame went back at most %d (the exe's reading: %d, a whole buffer)\n", fixed, original);
   EXPECT(fixed == 0);
   EXPECT(original >= 29);  // the exe's: back to the buffer's start, 2 s at 15 frames a second
+}
+
+// A movie in a dialog (ztwod::Movie2D, 0x005a7b50, docs/twod.md, Movies in a
+// dialog): a file not found leaves no stream and draws nothing; a found one is
+// opened without sound of its own, started at its place (its background rect
+// the movie's size), keyed when asked.
+TEST(dialog_movie_opens_found_files_only) {
+  struct Host : FakeHost {
+    int32_t file_stat(const char* path) override { return std::strstr(path, "none") ? -1 : 0; }
+  } host;
+  zfmv::set_host(&host);
+  {
+    ztwod::Movie2D missing;
+    missing.open("video\\none.avi");
+    EXPECT(missing.stream == nullptr && std::strcmp(missing.name, "video\\none.avi") == 0);
+    missing.set_color_key(0x1234);
+    EXPECT(missing.color_key == 0x1234);
+    ztwod::Movie2D m;
+    m.set_pos(10, -5);
+    m.open("video\\loop.avi");
+    EXPECT(m.stream && m.stream->video_ok && !m.stream->streamed && m.stream->image.width == 16);
+    EXPECT(m.bg_rect.left == 10 && m.bg_rect.top == 0 && m.bg_rect.right == 26 && m.bg_rect.bottom == 16);
+    m.set_color_key(0x07e0);
+    EXPECT(m.stream && (m.stream->image.flags & 2) && m.color_key == 0x07e0);
+    std::string longer(300, 'a');
+    ztwod::Movie2D far;
+    far.open(longer.c_str());  // cut and terminated (the exe's strncpy left it open)
+    EXPECT(std::strlen(far.name) == sizeof far.name - 1);
+  }
+  zfmv::set_host(nullptr);
 }

@@ -74,7 +74,7 @@ constructors (0x005ac2a0); vtables by `twod_vtables.py`.
 | Text | 0x005a15a0 | 0x005cf9d8 | 0x4cc | FontText | yes |
 | TextBox | 0x005a18f0 | 0x005cfe00 | 0x4c8 | FontText | yes |
 | Cursor | 0x005a7750 | 0x005d0da0 | 0xd0 | Image | yes |
-| Movie2D | 0x005a7a90 | 0x005d0e28 | 0x144 | Object2D | constructor and destructor; open, colour key, start hooked |
+| Movie2D | 0x005a7a90 | 0x005d0e28 | 0x144 | Object2D | yes (section 5, Movies in a dialog; 2026-11-14) |
 | Dialog | 0x0059ec40 | 0x005cfc78 (+0x58: 0x005cfc88) | 0x10fec | Window, Cursor at +0x58 | yes |
 | MessageBox | 0x005a6e60 | 0x005d08f0 | 0x12494 | Dialog | yes |
 | MbButton (8 vtables) | 0x0059bbe0 | 0x005d0d10..0x005d0920 | 0x14c | Control | yes |
@@ -412,6 +412,27 @@ since the program's mouse and keys arrive as window events where the
 exe's came from DirectInput; a quit ends the box with no answer and is
 posted again. Before, the program showed the platform's native alert.
 
+### Movies in a dialog (Movie2D, 0x005a7a90..0x005a7d10)
+
+BACKGROUND_VIDEOS (section 3) makes them; no shipped dialog has one. Open
+(0x005a7b50) keeps the name (+0x3e, 260 bytes) and, when the file is there,
+makes a zFMV stream (+0x34, fmv.md) without sound of its own, then starts
+it: the background rect from the object's place (negative as 0) to the
+movie's size, cut to the background image. The colour key (+0x3c) marks the
+stream's picture keyed (its flags byte |= 2). Each update while shown asks
+the stream for frame `fps x time shown` (truncated, at the x87's precision)
+modulo its length (0x0059aaf0), then Object2D's update (which draws when not
+managed), then adds the frame time to +0x38: a loop at the movie's own rate,
+with no sound. The draw erases (the background back at the place, negative
+as 0: 0x005a7cd0) and blits the picture with the key (0x0055b1f0). The port
+asks the frame through `Host::movie_frame`. FIX (A): the CD-ROM lookup of a
+file not found (0x00575d40) is gone, as for the movie scripts; a name of 260
+characters is cut and terminated (the exe's strncpy left it open); a stream
+of no frames shows none (the exe divides by its length).
+Test: `test_movie2d.py` (2000 random movies and operations against the exe:
+every frame asked and blit, and the fields) and
+`dialog_movie_opens_found_files_only` (the open, on a fake Video for Windows).
+
 ### The HUD's primitives
 
 zRender's 2D side draws them into the locked 16-bit target (the 3D lock's
@@ -442,6 +463,15 @@ layer in Direct3D), through `Host` and `zrndr_prim2d`:
   (0x005a3580: centre in the middle, radius half the width; an outside end
   moved to the first crossing in (0, 1)); else the plain lines.
 
+- Line2D and ClipLine2D from a dialog's .zrd (+0x78, 0x005a6a10; no shipped
+  dialog has one): COLOR (r g b) packed for the display (0x00579370);
+  ENDP_REL, the end that far from where the line stands; ENDP_ABS, the end
+  there; then Object2D's POSITION (0x0059feb0), which moves the start only.
+  So an ENDP_REL end is measured from the place before POSITION (the
+  constructor's), not from POSITION: kept. FIX (A): a list shorter than its
+  values gives 0 for the missing ones (the exe read past it); FIX (B):
+  ENDP_ABS in the dialog's frame, as POSITION.
+
 Tests: `test_prim2d.py` (the zRender routines on random targets, the same
 rand seed: 3000/3000) and `test_twod_prims.py` (each object's draw from its
 own constructor and random fields, zRender's calls logged: 3000/3000).
@@ -458,7 +488,7 @@ truncated pixel).
   0x00409af0..0x0040a8a0, 0x0059ff00..0x005a0090, 0x0059feb0), Layer
   (0x0059fba0..0x0059fd20, 0x0059fa60), Window (0x005a2b50..0x005a2bb0),
   Image (0x0059b830..0x0059bb70, 0x00409cb0, 0x00409cf0, 0x00409d30), Cursor
-  (0x005a7750..0x005a7a50), Movie2D (0x005a7a90, 0x005a7ae0), page flip
+  (0x005a7750..0x005a7a50), Movie2D (0x005a7a90..0x005a7d10), page flip
   0x0059fb80, Ripple (0x005a53e0, 0x005a5440).
 - `twod_control.cpp`: Control (0x0059bbe0..0x0059c960, read 0x0059cdc0),
   CheckButton (0x0059d870..0x0059dc40).
@@ -675,17 +705,17 @@ Mapped, not ported:
   0x004ac150 (app_engine.cpp, playtest #2). Open: 0x004ac050.
 - Movie2D's stream: open 0x005a7b50 (0x00575d40, zFMV 0x0059a4a0), colour key
   0x005a7c30, update 0x005a7c50, draw / erase 0x005a7ca0 / 0x005a7cd0, start
-  0x005a7d10. Done: the open, colour key and start (twod_object.cpp; zFMV is
-  ported, fmv.md). Open: the update and the draw and erase (no shipped
-  dialog has a movie that plays in it).
+  0x005a7d10. Done 2026-11-14 (twod_object.cpp, section 5; until then open,
+  colour key and start were hooks that only logged).
 - The render overlay 0x005a4590.. (the Ripple's +0x04 0x005a5360 draws in
   it) and zRender's ripple 0x00558dd0 (Host::ripple), the text console
   0x005a3cd0.., the interp debug console 0x005a40b0..0x005a4690, the
   key-list screen's other pieces (0x00482570). Shape's hit test 0x005a3440
   and Frame's 0x005a3b30 (TARGET's 0x00440a30, hooked in the HUD). Done:
   the ripple's +0x04 0x005a5360 and zRender's 0x00558dd0, the key list
-  0x00482570, both hit tests. Open: the overlay 0x005a4590.., the text
-  console 0x005a3cd0.. and the interp debug console (developer only).
+  0x00482570, both hit tests, the overlay 0x005a4590.. (weather.md: its
+  tint and five ripples, 2026-11-14). Open: the text console 0x005a3cd0..
+  and the interp debug console (developer only).
 - Weather drawing 0x005a5470..0x005a6110 (world-params.md). Done
   (twod_weather.cpp).
 - Outside zTwoD, behind Host: zImage's image cache 0x005179d0 / 0x00517b10

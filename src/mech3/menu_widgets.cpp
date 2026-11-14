@@ -281,8 +281,8 @@ void SlideButton::update(float dt) {
   ripple.outer = radius;
   ripple.phase = phase;
   ripple.wavelength = wavelength;
-  ripple.clip = nullptr;
-  ripple.draw_ripple();
+  ripple.rect = nullptr;
+  ripple.draw_in_rect();
 }
 
 // Mech3.exe 1.2 @ 0x00485590: a baked button's bounds are its normal image's.

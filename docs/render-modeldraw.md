@@ -13,6 +13,8 @@ Mech3.exe 1.2, 2026-10-19. Draft for `docs/render.md` section 3. Port:
 | 0x53dcf0 | `facade_centre` | model flag 0x40: mean of every polygon vertex |
 | 0x51ea90 | `billboard_y` | facade mode 0, yaw replaced by the camera's (camera data +0x3c) |
 | 0x51efb0 | `billboard_sphere` | facade mode 1, via 0x525a50 / 0x525740 / 0x51e740 (quaternion between two vectors, to a 3x3, perpendicular fallback) |
+| 0x51f390 | `billboard_x` | facade mode 2 (2026-11-14): the model-view's angles (0x523bc0's, inlined) rebuilt through 0x525340 / 0x525500 / 0x525740 with the roll turned by the camera's angle in the model's x-y plane |
+| 0x51f750 | `billboard_z` | facade mode 3 (2026-11-14): the same angles, turned about the model's x row (0x525490, 0x5255d0) by the camera's angle in its y-z plane |
 | 0x5376c0 | `material_cycle` | (`gmod_matl.c`) |
 | 0x535d20 | `screen_reject` | second-pass trivial reject |
 | 0x4020d0 | `normalize` | |
@@ -24,7 +26,9 @@ Ported since and the hooks' defaults: 0x547540 / 0x547740 (projected
 lights, `projected_strip` / `projected_draw`) and the projected-shadow
 receiver block (0x540552.., 0x540ef6..: `collect_shadows`),
 render-shadows.md. Facade modes 2 and 3
-(0x51f390, 0x51f750) are used by no shipped world and draw as default models.
+(0x51f390, 0x51f750) are used by no shipped world; ported for preservation,
+test_modeldraw.py puts facades in them (any mode above 3 still draws as a
+default model; the original leaves its slot unset).
 The draw table is `draw_table()` (function pointers with the original's
 arguments, FIX (A)); wiring it to `zvid::draw_flat` etc. is left to the
 integration (signatures match `zvid_ddd3d.h`).

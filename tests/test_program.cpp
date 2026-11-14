@@ -4514,9 +4514,9 @@ WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write
       if (++frames != 3) return;
       seen.quads_at_3 = seen.quads;
       const ztwod::WeatherLayer& m = ztwod::weather_layer();
-      // The tint first (0x005a4590), then the weather (world-params.md section 7).
-      if (auto* w = m.head == &m.tint ? dynamic_cast<Kind*>(m.tint.next) : nullptr) {
-        seen.made = m.tint.next == m.tail;
+      // The tint and the five screen waves first (0x005a4590), then the weather (world-params.md section 7).
+      if (auto* w = m.head == &m.tint && m.tint.next == &m.waves[0] ? dynamic_cast<Kind*>(m.waves[4].next) : nullptr) {
+        seen.made = m.waves[4].next == m.tail;
         seen.count = w->count;
         seen.gravity = w->gravity, seen.wind = w->wind_vel;
         seen.alpha_tail = w->alpha_tail, seen.alpha_head = w->alpha_head;
@@ -4550,7 +4550,7 @@ WeatherSeen run_weather_mission(int32_t index, int32_t number, const char* write
     pump.limit = 3000;
     app.run(pump);
     mech3::missions().cleanup(false);
-    seen.gone_after = ztwod::weather_layer().head == &ztwod::weather_layer().tint && ztwod::weather_layer().tail == &ztwod::weather_layer().tint;
+    seen.gone_after = ztwod::weather_layer().head == &ztwod::weather_layer().tint && ztwod::weather_layer().tail == &ztwod::weather_layer().waves[4];
     app.stop_game();
     app.exit_instance();
     mech3::set_app(nullptr);

@@ -584,6 +584,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_target.cpp
   tests/probe_turret.cpp
   tests/probe_net105.cpp
+  tests/probe_effects.cpp
   tests/probe_sensors.cpp
   tests/probe_anim_owner.cpp
   tests/probe_ai_lists.cpp
@@ -593,6 +594,7 @@ add_library(mw3probe SHARED
   tests/probe_entity_bind.cpp
   tests/probe_flares.cpp
   tests/probe_weather.cpp
+  tests/probe_movie2d.cpp
   tests/probe_tint.cpp
   tests/probe_decal.cpp
   tests/probe_static.cpp

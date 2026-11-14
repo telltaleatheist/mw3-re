@@ -11,7 +11,8 @@ draw. Every recorded call (function, arguments, the TL vertices and work
 records it reads, the primitive) must match, the FPU at 24 bits as in play.
 
 Edits per draw (both sides) reach what the shipped data never does: strips
-(0x400), point models, type 3, morphs, facades turned about their centre,
+(0x400), point models, type 3, morphs, facades turned about their centre and
+in modes 2 and 3,
 model flag 0x20, priorities, model-light modes, node bake fields, material
 cycles (null ones included), shadows on without casters, a second pass.
 
@@ -53,6 +54,7 @@ if COVERAGE:
 PORTED = {'draw 0x53f2e0': (0x53f2e0, 0x54174e), 'cycle 0x5376c0': (0x5376c0, 0x53779a),
           'reject 0x535d20': (0x535d20, 0x535e1f), 'centre 0x53dcf0': (0x53dcf0, 0x53de44),
           'billboard 0x51ea90': (0x51ea90, 0x51efac), 'billboard 0x51efb0': (0x51efb0, 0x51f385),
+          'billboard 0x51f390': (0x51f390, 0x51f749), 'billboard 0x51f750': (0x51f750, 0x51fb27),
           'quat 0x525a50': (0x525a50, 0x525bd7), 'quat matrix 0x525740': (0x525740, 0x525830),
           'perp 0x51e740': (0x51e740, 0x51e7ab), 'normalize 0x4020d0': (0x4020d0, 0x402130)}
 EXECUTED = set()
@@ -112,6 +114,9 @@ class Original:
         self.out = []
         self.calls = 0
         self.fake_lights = 0
+        # MSVCRT's _CIasin and _copysign for facade modes 2 and 3 (test_matrix.py's).
+        cpu.import_code(0x5bb5f4, bytes.fromhex('d9c0 d8c8 d9e8 dee1 d9fa d9f3 c3'))
+        cpu.import_code(0x5bb5ac, bytes.fromhex('8b442410 2500000080 8b4c2408 81e1ffffff7f 0bc8 894c2408 dd442404 c3'))
         for addr, which in TABLE.items():
             stub = cpu.code(b'\xc3')
             self.hook(stub, lambda c, w=which: self.table(w), POPS[which])
@@ -600,6 +605,8 @@ def edit(orig, rng, mi, mtype, node):
         flags |= 8
     if mtype == 1 and rng.random() < 0.3:
         flags |= 0x40
+    if mtype == 1 and rng.random() < 0.4:
+        set_model(4, rng.choice([2, 3]))  # facade modes 2 and 3 (0x51f390, 0x51f750): no shipped world has them
     if rng.random() < 0.3:
         flags |= 0x20  # no clouds: the lighting is told so (vary flag 4)
     if mtype == 0 and rng.random() < 0.03:

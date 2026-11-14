@@ -309,11 +309,16 @@ void Snow::update(float dt) {
   std::swap(cur, next);
 }
 
-// Mech3.exe 1.2 @ 0x005a4590: the tint added hidden (vt+0x64) and the
-// layer active. The five texts it adds after the tint are not ported.
+// Mech3.exe 1.2 @ 0x005a4590: the tint and the five waves added hidden
+// (vt+0x64) and the layer active.
 WeatherLayer::WeatherLayer() {
   add(&tint);
   tint.hide();
+  for (Ripple& w : waves) {
+    add(&w);
+    w.hide();
+  }
+  wave_count = 0;
   set_active(1);
 }
 
@@ -326,13 +331,24 @@ void weather_tint(uint16_t colour, double alpha) {
   g_layer.tint.show_for(0.0f);
 }
 
+// Mech3.exe 1.2 @ 0x005a6760 -> 0x005a6650
+void weather_wave(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength, float phase) {
+  Ripple& w = g_layer.waves[g_layer.wave_count];
+  if (g_layer.wave_count < 4) ++g_layer.wave_count;
+  w.place(x, y, inner, outer, amplitude, wavelength, phase);
+  w.show_for(0.0f);
+}
+
 // Mech3.exe 1.2 @ 0x005a6790 -> 0x005a66b0
 void weather_rect(int32_t i, const Rect* r) {
   if (i < 2) g_layer.rects[i] = r;
 }
 
-// Mech3.exe 1.2 @ 0x005a67c0 -> 0x005a6600: the layer's update (0x0059fd20);
-// its +0x1ec (the timed texts' count) cleared, not ported here.
-void weather_tick(float dt) { g_layer.update(dt); }
+// Mech3.exe 1.2 @ 0x005a67c0 -> 0x005a6600: the layer's update (0x0059fd20),
+// then this frame's waves counted from 0 again.
+void weather_tick(float dt) {
+  g_layer.update(dt);
+  g_layer.wave_count = 0;
+}
 
 }  // namespace ztwod

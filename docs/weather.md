@@ -50,7 +50,7 @@ draw_software / draw_hardware / draw_doubled): after the world's tick,
 0x005a6790(0, rect) sets the layer's first rect (the render rect, or the
 window's in the hardware path; 0x005a66b0, slots 0 and 1 only), the 3D lock
 0x00576d00, then 0x005a67c0(dt), which ticks the layer (0x005a6600 ->
-Layer::update 0x0059fd20, then clears its timed texts' count +0x1ec).
+Layer::update 0x0059fd20, then clears this frame's screen wave count +0x1ec).
 
 The camera draw 0x004f7030 would tick the layer too after its flush when
 EDX is not 0 (`camera.h` after_scene), but its one caller (0x0044337c)
@@ -59,10 +59,12 @@ passes 0.
 The layer [0x00736328] is the render overlay (0x005a4590, built at static
 init by 0x005a6700): a Layer, active from the start, holding an object of
 its own at +0x28 (vtable 0x005d0290: the screen tint, anim-run.md) and five
-0x4c-byte texts at +0x70 (0x005a53e0), all hidden; its +0x18..+0x24 are the
-2D text target. The rects, the tick and the tint are ported (`WeatherLayer`,
-`ScreenTint`); the texts are not. The tint and the weather share the draw
-0x005a5360 (`ManagerObject`, ours), and the tint is first in the list.
+0x4c-byte screen waves at +0x70 (Ripples, vtable 0x005d04a8, 0x005a53e0, the
+main menu's ripple class; the animations' event 37, anim-run.md), all
+hidden; its +0x18..+0x24 are the 2D text target. The rects, the tick, the
+tint and the waves are ported (`WeatherLayer`, `ScreenTint`, `Ripple`).
+They all share the draw 0x005a5360 (`ManagerObject`, ours), and the tint is
+first in the list.
 
 The rain's update 0x005a6110, unless hidden:
 

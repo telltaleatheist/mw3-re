@@ -10,7 +10,9 @@ on lists 0..5 (front and back), lights and sounds the world lists. Then
 random operations on random nodes of list 6: the list delete 0x4f84b0, the
 class delete 0x4eaea0, the release 0x4eb050, the tree delete 0x4f9050, a
 child's removal 0x4ebb40, the slot free 0x4eaf90, a model dropped or swapped
-(0x4eb370), the file's model read again (0x4ff730 with 0x4ff7a0 and 0x538640, the
+(0x4eb370), an object3d added under any node by class (0x4eb9b0; the
+parent posing as a sequence, animate, switch or unknown class for the call),
+the file's model read again (0x4ff730 with 0x4ff7a0 and 0x538640, the
 node alone or its tree), immediate deletes off ([0x5e9e18] 0, the shutdown's setting)
 and the lists held off ([0x5ea6b0] 0, a running action list: the deferred
 list) then purged (0x4f7bd0). Last the shutdown pass 0x4f8ab0 and the reset
@@ -49,7 +51,8 @@ OPS = {
 HISTORY = Path(os.environ['DESTROY_HISTORY']) if os.environ.get('DESTROY_HISTORY') else None  # debugging
 NAMES = {0: 'list delete', 1: 'class delete', 2: 'release', 3: 'tree delete', 4: 'remove child',
          5: 'immediate', 6: 'lists held', 7: 'purge', 8: 'object3d', 9: 'light', 10: 'sound',
-         11: 'free', 12: 'shutdown pass', 13: 'reset', 14: 'set model', 15: 're-read'}
+         11: 'free', 12: 'shutdown pass', 13: 'reset', 14: 'set model', 15: 're-read', 16: 'add child'}
+ADDS = {}  # op 16's (parent class, data nulled, result): count
 
 
 def s32(v):
@@ -136,6 +139,21 @@ class Emulated(G.Emulated):
                 cpu.call(0x4eb5b0, ecx=o, edx=b)
                 cpu.call(0x4eb500 if c else 0x4eb450, ecx=o, edx=FAKE_ACTION)
             return self.index(o)
+        if op == 16:
+            # An object3d added under n by class (0x4eb9b0), n posing as class b
+            # for the call (-1: its own; 7, 8, 11, unknown), its data null with c.
+            cpu.call(0x4fb740)
+            o = cpu.uc.reg_read(UC_X86_REG_EAX)
+            cls, data = self.i32(n + 0x34), self.i32(n + 0x38)
+            if b >= 0:
+                cpu.u32(n + 0x34, b)
+            if c:
+                cpu.u32(n + 0x38, 0)
+            cpu.call(0x4eb9b0, ecx=n, edx=o)
+            r = self.ret()
+            cpu.u32(n + 0x34, cls), cpu.u32(n + 0x38, data)
+            ADDS[(b if b >= 0 else cls, c, r)] = ADDS.get((b if b >= 0 else cls, c, r), 0) + 1
+            return self.index(o) * 8 + r
         if op in (9, 10):
             cpu.call(0x4fa720 if op == 9 else 0x4fd280)
             o = cpu.uc.reg_read(UC_X86_REG_EAX)
@@ -243,6 +261,13 @@ def pick_op(rng, emu, worlds, made):
                 break
         prio = rng.choice([-1, -1, 0, 1, 2, 3, 4, 5])
         return 8, parent, prio, rng.randrange(2)
+    if r < 0.20:
+        pose = rng.choice([-1, -1, -1, 7, 8, 8, 11, 11, 0, 12])
+        target = n
+        if pose < 0:  # its own class: worlds and LoDs most (the files have no cameras)
+            some = [k for k in nodes + worlds if emu.info(k)[0] in (2, 6)]
+            target = rng.choice(some) if some and rng.random() < 0.6 else rng.choice(nodes + worlds)
+        return 16, target, pose, int(pose == 11 and rng.random() < 0.3)
     if r < 0.22 and worlds:
         return rng.choice((9, 10)), rng.choice(worlds + [-1]), -1, 0
     if r < 0.27:
@@ -309,7 +334,9 @@ def main():
         # The run-time nodes first, then the random takedown.
         for _ in range(120):
             k = rng.random()
-            if k < 0.75:
+            if k < 0.05 and worlds:  # by class (0x4eb9b0) into a world: they go early in the takedown
+                ops.append((16, rng.choice(worlds), -1, 0))
+            elif k < 0.75:
                 parent = rng.choice(worlds) if rng.random() < 0.6 else rng.choice(
                     [i for i in emu.listed() if emu.info(i)[0] == 5] or worlds)
                 ops.append((8, parent, rng.choice([-1, 0, 1, 2, 3, 4, 5]), rng.randrange(2)))
@@ -339,12 +366,17 @@ def main():
             steps += 1
             if op[0] in (8, 9, 10) and want >= 0:
                 made.append(want)
+            if op[0] == 16:
+                made.append(want // 8)
         live = struct.unpack_from('<i', emu.dump(0), 4)[0]
         print(f'{w}: {steps} calls identical (the node pool, the lists, the deferred deletes, the models); '
               f'{live} nodes left after the reset')
         total_ops += steps
         calls += 1
     print(f'ok: {total_ops} calls on {calls} worlds identical')
+    print('add child (parent class, data nulled, result): ' + ', '.join(f'{k}: {v}' for k, v in sorted(ADDS.items())))
+    if not all(any(k[0] == c for k in ADDS) for c in (2, 5, 6, 7, 8, 11)) or not any(k[1] for k in ADDS):
+        raise SystemExit('add child: a parent class not reached')
 
 
 if __name__ == '__main__':

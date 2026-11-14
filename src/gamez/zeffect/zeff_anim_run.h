@@ -50,7 +50,14 @@ struct AnimRunHooks {
   void (*remove_child)(void* ctx, AnimDef* def, uint8_t* ev) = nullptr;    // event 16, 0x004ebb40
   void (*detonate)(void* ctx, uint8_t* ev, const float pos[3]) = nullptr;  // event 41, 0x00581ed0 / 0x005822c0
   void (*screen_tint)(void* ctx, uint16_t colour, double alpha) = nullptr;  // event 36's 0x005a6730 (zTwoD's tint)
-  int32_t (*fbfx_wave)(void* ctx, AnimDef* def, SeqDef* seq, uint8_t* ev) = nullptr;   // event 37, 0x005076c0
+  // Event 37's calls out (0x005076c0); unset: the ported 0x00507340, 0x004ed650 and 0x0053cf10.
+  float (*distance2)(void* ctx, zcls::Node* node) = nullptr;
+  int32_t (*world_point)(void* ctx, zcls::Node* node, float p[3]) = nullptr;
+  uint32_t (*project)(void* ctx, const float in[3], float out[3]) = nullptr;
+  // Its wave, 0x005a6760 (zTwoD's ripple): the place, the inner radius (0), the
+  // radius, and csin x, y and z as the ripple's amplitude, wavelength and phase.
+  void (*screen_wave)(void* ctx, int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude,
+                      float wavelength, float phase) = nullptr;
   void (*message)(void* ctx, uint8_t* ev) = nullptr;                       // event 38, 0x00507970
 };
 AnimRunHooks& anim_run_hooks();
@@ -58,6 +65,7 @@ AnimRunHooks& anim_run_hooks();
 // The runtime.
 int32_t anim_run_events(AnimDef* def, SeqDef* seq);   // 0x005079b0, 0 or -1
 int32_t anim_fbfx_color(SeqDef& seq, uint8_t* ev);     // 0x005074b0: event 36, 1 running, 2 done
+int32_t anim_fbfx_wave(AnimDef* def, SeqDef* seq, uint8_t* ev);  // 0x005076c0: event 37, 1 running, 2 done
 void anim_tick(zcls::Node* object);                    // 0x00507de0, the running def's action
 void anim_reset_tick(zcls::Node* object);              // 0x00508260, a reset sequence still running
 void anim_wait_tick(zcls::Node* object);               // 0x005085b0, waiting out the reset time
