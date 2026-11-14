@@ -8,6 +8,7 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "mech3/mech_headlight.h"
+#include "mech3/mech_ids.h"
 #include "mech3/mech.h"
 #include "mech3/mech_collide.h"
 #include "mech3/mech_move.h"
@@ -431,7 +432,8 @@ static bool footprint(const Vec3& fwd, const Vec3& n, float out[3]) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00463110. The turn-in-place counter-spin (set this frame
+// Mech3.exe 1.2 @ 0x00463110, Pirate's Moon 1.0 @ 0x00464780 (an Elemental's footfall leaves no footprint and
+// makes no step sound; sliding, it stops its water wake). The turn-in-place counter-spin (set this frame
 // by the turn, else decaying by exp(-3 dt)); the rotation onto the node; then
 // the step: on the touch (1 -> 2) the player's force feedback, on the plant
 // (2 -> 3) a splash or a footprint and the step sound. Far mechs only stop
@@ -466,6 +468,7 @@ void Foot::update(float dt) {
   Vec3 at = position(m);
   const World& wd = world();
   const int side = id != kLeftFoot;
+  const bool elemental = m.pilot && m.pilot->roster == kElemental;  // Pirate's Moon's +0x6a8 +0xc == 11
   if (ground_state == 1) {
     ground_state = 2;
     if (&m == wd.mission_player && wd.force_feedback && g_calls.footstep_ff)
@@ -486,7 +489,7 @@ void Foot::update(float dt) {
         }
       } else if (!m.skis->slid) {
         float ang[3];
-        if (footprint(m.forward, normal, ang)) {
+        if (!elemental && footprint(m.forward, normal, ang)) {
           const float y = at.y - kPrintLift;
           Handle print = m.pilot->soils ? m.pilot->soils->footprint[soil] : nullptr;
           if (print && damage_calls().spawn_effect) {
@@ -495,9 +498,11 @@ void Foot::update(float dt) {
           }
         }
         if (effect && playing(effect)) stop_fx(effect);
+      } else if (elemental && effect && playing(effect)) {  // Pirate's Moon: a sliding Elemental's wake stopped too
+        stop_fx(effect);
       }
     }
-    if (d & 1) {
+    if ((d & 1) && !elemental) {  // Pirate's Moon: an Elemental's steps make no sound
       const float vol = std::fabs(m.controls->throttle) * (1.0f - kStepVolume) + kStepVolume;
       Handle sound = m.pilot->soils ? m.pilot->soils->step_sound[soil] : nullptr;
       if (g_calls.play_at) g_calls.play_at(sound, &at, vol);

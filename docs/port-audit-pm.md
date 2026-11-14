@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4081 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 184 |
+| MISSING LOGIC | 183 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -100,7 +100,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00459cd0** (1 functions, 11 decomp lines; MISSING LOGIC): pm only: a new virtual in PM's field-base vehicle vtable 0x005e4a20 (+0x8c; MW3's 0x005c23d8 has no such slot, PM's running 0xc longer there): its controls' (+0xe8) float at +0x9c4, read through null without controls; its callers through vt+0x8c not traced
 - **0x0045b240** (1 functions, 44 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's dock registry frame (0x0045b240, from the mission frame 0x004921a0, in MW3's 0x0045a270's place) runs the dock states in every game type and has no multiplayer branch; PM checks the deployment in its refit instead (0x0045be50, ported: DockRefit::may_start). The port's FieldBases::frame (mech_fieldbase_dock.cpp:329) is MW3's on PM too: in multiplayer (type 3) it runs no dock states and, with mobile bases on, MW3's station check and its 'too far from MFB deployment point' line, which PM's frame never does
 - **0x0045b540, 0x0045bcb0** (2 functions, 40 decomp lines; MISSING LOGIC): pm only, multiplayer, field bases: PM's dock idle state's +0x90 (its vtable 0x005e4b9c, MW3's 0x005c2540 +0x90 0x0045add0, which returns its argument): in a network game (the game's vt+0x28 is 3) with the player's mech powered down (vt+0xac), the nearest field base point to it (0x004e5580) is taken and, when the mech can dock there (0x0045be50), selected and the contact started (vt+0x10 with the mech); not powered down, the state's time is set to now (0x0045bcb0). So in PM's multiplayer powering down beside a field base starts the dock; the port has MW3's nothing
-- **0x00464780** (1 functions, 201 decomp lines; MISSING LOGIC): MW3's 0x00463110 (mech_part_update.cpp Foot::update) with one change: the footprint on a footfall is left out for the Elemental (PM's id 11), which also skips stopping the water wake there; the rest as MW3's (the footprint test 0x00464610 = MW3's 0x00462fa0 with its register arguments explicit, the effect's call 0x005216e0 = 0x00508aa0). The pm port keeps MW3's: an Elemental's steps print
 - **0x00468d50** (1 functions, 12 decomp lines; MISSING LOGIC): PM's torso override of the parts' vt+0x5c (MW3's torso has the base 0x00467290, mech_lod.cpp MechPart::switch_lod): the base switch (0x00468cd0), then with a headlight (+0x7c) the headlight re-parented under the torso's new node (0x004798d0(node, no offset)). The port's Torso has no override, so after a level-of-detail switch its headlight stays under the other model's node (what that shows in play not traced)
 - **0x00469c80** (1 functions, 63 decomp lines; MISSING LOGIC): pm only, minor, effect to check: the lance command's target marker (cmd_target.flt; MW3's 0x00468100, the port's make_marker, app_pocket.cpp:175): PM gives it side bit 1 outright (MW3 the player's side by 0x004d5af0(0), 1 for side 0 as well), passes it to 0x004e88b0 (a list's add-if-missing on the AI registry), and starts it switched off: its node inactive (0x004fca50(node, 0)) and its +8 byte cleared; the port's marker starts on, as MW3's. Whether anything finds the marker while it is off is to check
 - **0x00470f60** (1 functions, 35 decomp lines; MISSING LOGIC): pm only, multiplayer: the network mech's weapon hit (its vtable 0x005e59a8 +0x178, the mech's take_damage slot, MW3's NetMech +0x164 0x0046ef50, which does nothing): when the weapon's type has a force (+0x48 > 0) and the collision a line (0x005a34b0), the line's direction flattened (y 0), normalized and passed with that force to +0x3ac's vt+0x1c, so a remote mech is pushed where it is hit; still no damage (that comes with its states). The port's Mech::take_damage returns at once for a remote mech (mech_damage.cpp)
@@ -509,7 +508,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## By module
 
-### mech3ep1 (3303 not ported)
+### mech3ep1 (3302 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -913,7 +912,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00417ea0 | 41 | folded | read: MW3's 0x00417300 (the ammo count's per-ton figure); MW3's direct tonnage 0x00416770 is PM's vt+0x8c, 0x00417270 in both mech vtables (0x005dfaac, the network mech's 0x005e59a8), the same max_mass of the mech; the Elemental by PM's id 11 (45.0 at 0x005dfcc8), fields shifted (layout) |
 | 0x00417f50 | 216 | folded | ported, checked by test: src/mech3/mech_move.cpp jump_jets (PM's, the fuel moved into Update, Pirate's Moon 0x0041ae00); tests/differential/test_pm_jets.py runs 0x00417f50 against it and compares the mech's block and the controls after each call (20,000 calls identical, 2026-11-13) |
 | 0x00419d50 | 12 | folded | by the slot pairing, read (PM's mech vtable 0x005dfaac runs 0xc past MW3's 0x005bcef8 here): slot +0xe8 is MW3's +0xdc 0x00418f30 (mech_place.cpp Mech::set_place): MW3's direct base zero 0x00426c80 is the controls' vt+0x18, as the port's controls->zero() (the player's also the look), then the yaw's quaternion, its matrix and the reset at the point |
-| 0x00419dc0 | 11 | folded | covered by the port where it names it (src/mech3/mech_part_update.cpp:725) |
+| 0x00419dc0 | 11 | folded | covered by the port where it names it (src/mech3/mech_part_update.cpp:730) |
 | 0x0041ad30 | 9 | folded | covered by the port where it names it (src/mech3/app_weapons.cpp:247) |
 | 0x0041ade0 | 11 | folded | checked by test (block trace, 2026-11-13): test_pm_damage, test_pm_hit and test_pm_heat run it (the damage done, the parts' state, the heat frame by frame compared) |
 | 0x0041be50 | 110 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
@@ -1642,7 +1641,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00463f10 | 33 | folded | read: MW3's 0x004628c0 (the leg's destructor); its water wake (+0xe4, made only by 0x00460c20, one class) deleted through its deleting destructor where MW3 calls the destructor and delete |
 | 0x00463fb0 | 8 | folded | returns a constant or a global |
 | 0x00464060 | 132 | folded | read: MW3's 0x00462a10 (mech_part_update.cpp Foot::ground_update); the same calls in the same order (the node's world position 0x004ff250 = 0x004ed530), the matrix steps' register arguments explicit, the clearance's two-frame history stored in the other order with the same values; the 0x74 an lea written as add |
-| 0x00464780 | 201 | MISSING LOGIC | MW3's 0x00463110 (mech_part_update.cpp Foot::update) with one change: the footprint on a footfall is left out for the Elemental (PM's id 11), which also skips stopping the water wake there; the rest as MW3's (the footprint test 0x00464610 = MW3's 0x00462fa0 with its register arguments explicit, the effect's call 0x005216e0 = 0x00508aa0). The pm port keeps MW3's: an Elemental's steps print |
 | 0x00464de0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00464e00, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00465210 | 60 | folded | read: MW3's 0x00463b40 (mech_parts.cpp Leg::take_hit): the limp's chance (1 - h)(p - h) with p 0.35 for the player and 1 for others, p - (-1) written p + 1, the controls' vt+0x5c at +0x64 and the limp at +0x5d0 (layout) |
 | 0x004654d0 | 9 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
@@ -1793,7 +1791,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00476ff0 | 108 | folded | read: MW3's 0x00474f60 / 0x004752e0 (mech_skin.h: a skin list's vector set to a size; a skin by name in the table 0x00607424 for 0x005e5454); the same, container helpers by other addresses, the arguments explicit |
 | 0x004773a0 | 23 | folded | read with its caller (the mech data load 0x00430c10): the definition's skins put on the model by its first entry (MW3 0x00475780, the port's skins_apply, mech_data.cpp:371) |
 | 0x00477470 | 97 | folded | group A, read: the same logic; the element count's checks are inlined in different branches (the ctor 0x00475be0 called from three of them) |
-| 0x004777f0 | 35 | folded | covered by the port where it names it (src/mech3/mech_part_update.cpp:352) |
+| 0x004777f0 | 35 | folded | covered by the port where it names it (src/mech3/mech_part_update.cpp:353) |
 | 0x004779e0 | 29 | folded | covered by the port where it names it (src/mech3/mech_pose.cpp:228) |
 | 0x00477dd0 | 31 | folded | a destructor out of line, from the mech's destructor 0x00415940 (MW3's inline there): the two objects at +0x3c / +0x40 deleted, the one at +0x38 deleted after its node is taken out of its parent and destroyed; the port's destructors free their own |
 | 0x00477ef0 | 15 | folded | covered by the port where it names it (src/mech3/mech_skis.cpp:201) |
