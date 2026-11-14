@@ -679,17 +679,17 @@ void to_frame(const BasicVehicle& v, const float d[3], float out[3]) {  // 0x004
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004ad740 (the exe reads through null without controls: none is)
+// Mech3.exe 1.2 @ 0x004ad740, Pirate's Moon 1.0 @ 0x004b1030 (the exe reads through null without controls: none is)
 bool vehicle_gun_within(const BasicVehicle& v, const float d[3]) { return v.controls->turret.within(d); }
-// Mech3.exe 1.2 @ 0x004ad780
+// Mech3.exe 1.2 @ 0x004ad780, Pirate's Moon 1.0 @ 0x004b1070
 bool vehicle_gun_within_world(const BasicVehicle& v, const float d[3]) {
   float l[3];
   to_frame(v, d, l);
   return v.controls->turret.within(l);
 }
-// Mech3.exe 1.2 @ 0x004ad7c0
+// Mech3.exe 1.2 @ 0x004ad7c0, Pirate's Moon 1.0 @ 0x004b10b0
 bool vehicle_gun_clamp(const BasicVehicle& v, const float d[3], float out[3]) { return v.controls->turret.clamp(d, out); }
-// Mech3.exe 1.2 @ 0x004ad7f0
+// Mech3.exe 1.2 @ 0x004ad7f0, Pirate's Moon 1.0 @ 0x004b10e0
 bool vehicle_gun_clamp_world(const BasicVehicle& v, const float d[3], float out[3]) {
   float l[3];
   to_frame(v, d, l);

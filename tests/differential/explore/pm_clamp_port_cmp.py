@@ -1,6 +1,6 @@
-"""EXPLORE (2026-11-14): not a passing test. PM's clamp differs from the port's past the pitch limit on about a third
-of directions (653 of 2,170): its classifier 0x4a7000 and the yaw-limit vectors (+0x20, +0x2c) give (0, sin, -cos),
-straight ahead at the limit, where the port scales the heading. PM's clamp is its own algorithm; see docs/pm-tests.md.
+"""EXPLORE (2026-11-14): found that PM's clamp is its own (straight ahead at the limit for a vertical way, where MW3's
+scaled the heading); since PM's direction limits are ported (mech3/dir_limits_pm) it passes, 0 of 3,000 differ. The
+test is test_pm_dir_limits.py (docs/pm-tests.md, The direction limits).
 
 Pirate's Moon's turret limit clamp 0x4a71f0 (with its scaling 0x4a7170; the vehicles' and turrets' vt+0x90 0x4b10b0
 / 0x4aaf80 call it) against the port's TurretLimits::clamp (tests/probe_pm_clamp.cpp), on PM's exe. A direction past

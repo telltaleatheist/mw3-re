@@ -57,7 +57,6 @@ const std::vector<const char*>& small_fixes_list() {
   static const std::vector<const char*> l = {
       "A turret's charge or glow goes out when it dies.",
       "Tripod turrets aim when facing straight up or down.",
-      "A vehicle's gun stops at its true aiming limit.",
       "A vehicle file with pitch and no roll keeps its pitch.",
       "TAG's strike lands where the target is, not was.",
       "A held beam stays on a moving mech after release.",

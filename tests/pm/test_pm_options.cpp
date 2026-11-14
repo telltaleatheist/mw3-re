@@ -564,7 +564,7 @@ TEST(pm_upgrades_page_has_five_switches_headless) {
               rows[3], rows[4], rows[5], water_on_screen, lines, keys.c_str());
   EXPECT(stage == 3 && rows[0] == 64 && rows[1] == 94 && rows[2] == 124 && rows[3] == 154 && rows[4] == 184 && rows[5] == 214);
   EXPECT(water_on_screen && water_shown_off);
-  EXPECT(lines == 11 && upgrades::small_fixes_list().size() == 11);
+  EXPECT(lines == 10 && upgrades::small_fixes_list().size() == 10);
   EXPECT(keys == "upgrade_water=1 upgrade_mfb_regroup=1 upgrade_improved_ai=1 upgrade_artemis=1 upgrade_small_fixes=0 widemenus=1 ");
   EXPECT(water_after && !small_after);  // each switch as the page left it
   // A host's word, the five bits (water the lowest), as MechWarrior 3's.

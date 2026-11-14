@@ -81,7 +81,7 @@ Pirate's Moon).
 1. A turret's charge or glow goes out when the turret dies.
 2. Two c4 enemies (readeria 1 and 2) follow their scripted orders.
 3. Tripod turrets aim and turn when facing straight up or down.
-4. A vehicle's gun stops at its true aiming limit.
+4. A vehicle's gun stops at its true aiming limit (not on Pirate's Moon's list: its own direction limits have no such bug, dir_limits_pm).
 5. A vehicle file with pitch and no roll keeps its pitch settings (no shipped vehicle).
 6. Pirate's Moon: the backup node fix (MW3's is always on: its code has no original way to give back; Pirate's Moon's the same if its code is unconditional too).
 7. Pirate's Moon: a deploy node's valves are read (no shipped file uses them).
