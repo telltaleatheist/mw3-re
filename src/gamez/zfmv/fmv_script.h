@@ -68,6 +68,9 @@ class Host : public zgame::Unported {
   virtual void sound_stop(Handle voice);               // 0x0056e9f0
   // zInput.
   virtual void input_clear();                   // 0x0051a300
+  // zSound's CD (zsnd_cd.cpp), Pirate's Moon's CD action.
+  virtual void cd_play(int32_t track, int32_t mode);  // Pirate's Moon 0x005937a0 (MW3's 0x00572af0)
+  virtual void cd_stop();                             // Pirate's Moon 0x00593940 (MW3's 0x00572c30)
   virtual uint32_t key_state(int32_t dik);      // 0x0051a9b0
   // The C runtime and Win32.
   virtual int32_t file_stat(const char* path);  // _stat: 0 found, -1 not
@@ -115,6 +118,9 @@ class Action {
   virtual bool step(double t) { (void)t; return false; }  // 0x00493110
   virtual void start(double t) { (void)t; }               // 0x0040baf0
   virtual void end() {}                                   // 0x0049bfd0
+  // Pirate's Moon's +0x10 (0x004964e0): a key may pass over it (Script::playing_at). Not the
+  // pictures (0x005bab70) nor STOPCD.
+  virtual bool skippable() { return true; }
   Action* next = nullptr;                                 // +0x04
 };
 
@@ -128,6 +134,7 @@ class ImageAction : public Action {
   bool step(double t) override;                                    // 0x00599950
   void start(double t) override;                                   // 0x00599930
   void end() override;                                             // 0x005999d0
+  bool skippable() override { return false; }                      // Pirate's Moon 0x005bab70
   std::string name;               // +0x08
   Handle image = 0;               // +0x0c
   bool flip;                      // +0x10  shown at once (SHOWIMAGE, BLITIMAGE)
@@ -215,6 +222,17 @@ class SoundAction : public Action {
   Handle sound = 0;               // +0x08
   Handle voice = 0;               // +0x0c
   std::string name;               // +0x10  strncpy'd, 0x32 bytes
+};
+
+// Pirate's Moon's PLAYCD n and STOPCD (0x005bb190, vtable 0x005f1d04, 0x10 bytes): the CD's track
+// played (mode 6) or the CD stopped as it starts; done at once (0x005bb1c0).
+class CdAction : public Action {
+ public:
+  CdAction(int32_t track, bool stop) : track(track), stop(stop) {}  // Pirate's Moon 1.0 @ 0x005bb190
+  void start(double t) override;                                   // 0x005bb1d0
+  bool skippable() override { return !stop; }                      // Pirate's Moon 1.0 @ 0x005bb1b0
+  int32_t track;                  // +0x08
+  bool stop;                      // +0x0c
 };
 
 // The script (new(0x20)).
