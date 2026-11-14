@@ -38,11 +38,26 @@ void flat_normal(const Vec3& v, Vec3& out) {
 }
 }  // namespace
 
+// Pirate's Moon 1.0 @ 0x00470f60 (the network mech's vt+0x178; MW3's 0x0046ef50 does nothing): a remote mech
+// takes no damage from a hit, but a weapon with a force jolts its torso along the shot, flat (0x00537c70).
+int Mech::remote_hit(WeaponDef* def) {
+  const WeaponType* t = def ? def->type : nullptr;
+  const float force = t ? t->impact_force : 0.0f;
+  if (force > 0.0f && torso) {  // the shot's line (0x005a34b0) is always there
+    const Vec3* shot = hit_shot();
+    const Vec3 dir{shot[0].x - shot[1].x, 0.0f, shot[0].z - shot[1].z};
+    Vec3 n{0, 0, 0};
+    flat_normal(dir, n);
+    torso->apply_impact(&n, force);
+  }
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x0041ac60 (Mech vtable +0x164): a weapon hit arrives from
 // zWeapon (docs/damage.md, the hit path).
 int Mech::take_damage(WeaponDef* def, Collision* coll, float damage) {
   int result = 0;
-  if (remote) return 0;  // a network mech's vt+0x164 is 0x0046ef50: its damage comes with its states
+  if (remote) return remote_hit(def);  // its damage comes with its states
   if (anim_state == kDead || !active) return 0;
   DamageCalls& c = calls();
   World& w = world();

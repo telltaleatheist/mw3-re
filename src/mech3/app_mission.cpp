@@ -1305,6 +1305,10 @@ struct WiredTargetHooks : ai::TargetHooks {
   Handle self_vehicle(Handle self) override { return entity_is_mech(e->object_of(self)) ? self : 0; }
   Handle self_x58(Handle) override { return 0; }
   int32_t game_type() override { return e->launch().type; }
+  bool mp_option(int32_t option) override {
+    MultiplayerGame* g = mission_multiplayer_game();
+    return g && g->base_counts(option);
+  }
   bool mp_radar() override {
     const MultiplayerGame* g = mission_multiplayer_game();
     return g && g->radar != 0;

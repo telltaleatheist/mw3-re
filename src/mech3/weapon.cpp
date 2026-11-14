@@ -1656,11 +1656,13 @@ bool BeamWeapon::aim_and_fire(const Vec3f* at, bool force) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x004b3fc0: with a recharge time, only from a full charge.
+// Mech3.exe 1.2 @ 0x004b3fc0, Pirate's Moon 1.0 @ 0x004b80f0: with a recharge time, only from a full charge.
+// PM: a network mech's (its vt+0x64) is filled first, so a remote mech's fire as its owner's machine said.
 bool BeamWeapon::trigger() {
   bool fired = false;
   bool ok = true;
   const WeaponType* t = type_of(def);
+  if (manager->owner && g_calls.owner_remote && g_calls.owner_remote(manager->owner)) bin->set_amount(bin->capacity());
   if (t->recharge_rate != 0.0f) {
     if (bin->left() < bin->capacity()) {
       ok = false;

@@ -144,3 +144,28 @@ TEST(pm_part_lost_after_death_keeps_its_weapons) {
     t.a.firepoint = nullptr;
   }
 }
+
+// Pirate's Moon 0x004b80f0 (MW3's 0x004b3fc0, BeamWeapon::trigger): a network mech's recharging beam is filled
+// before the charge test (the owner's vt+0x64), so a remote mech's fire is never held for its charge here. The
+// beam is already firing, so nothing past the charge test runs.
+TEST(pm_beam_trigger_fills_a_remote_mechs_charge) {
+  mech3::WeaponCalls saved = mech3::weapon_calls();
+  static mech3::WeaponType type;
+  type.recharge_rate = 2.0f, type.fire_time = 1.0f;
+  static mech3::WeaponDef def{};
+  def.type = &type, def.period = 10.0f;
+  mech3::WeaponManager m{nullptr};
+  int owner = 0;
+  m.owner = &owner;
+  for (const bool remote : {false, true}) {
+    mech3::weapon_calls().owner_remote = remote ? [](mech3::Handle) { return true; } : [](mech3::Handle) { return false; };
+    mech3::BeamWeapon b(&def, nullptr, &m);
+    EXPECT(b.bin->max == 10);
+    b.bin->amount = 3;
+    b.firing = true;
+    EXPECT(!b.trigger());
+    EXPECT(b.bin->amount == (remote ? 10 : 3));
+    b.firing = false;  // no beam to stop
+  }
+  mech3::weapon_calls() = saved;
+}

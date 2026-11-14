@@ -464,13 +464,15 @@ void desc_take(TargetDesc& d, TargetRec* rec, Handle anim) {
   d.flags = static_cast<uint8_t>((d.flags & 0xf0) | ((f >> 3) & 1) | ((f >> 1) & 2) | ((f >> 2) & 4) | ((f >> 2) & 8));
 }
 
-// Mech3.exe 1.2 @ 0x004d25c0, with the description 0x004d2d80 made first
-// (0x004d2480: the defaults 0x005e8bf0).
+// Mech3.exe 1.2 @ 0x004d25c0, Pirate's Moon 1.0 @ 0x004e2820, with the description 0x004d2d80 made first
+// (0x004d2480: the defaults 0x005e8bf0). PM: a record with an mpoption (a base, 1 or 2) gives its description
+// only in a network game whose kind counts that base (0x00437920); otherwise the target keeps the defaults.
 bool desc_build(TargetDesc& d, Handle node, TargetRec* rec) {
   if (!node || !rec || !rec->destroy_anim) return true;
   const int32_t len = static_cast<int32_t>(std::strlen(rec->destroy_anim));
   const Handle anim = g_hooks->anim_of_node(rec->destroy_anim, len, node);
   if (!anim) return false;
+  if (rec->mpoption >= 0 && !g_hooks->mp_option(rec->mpoption)) return true;
   desc_take(d, rec, anim);
   return true;
 }

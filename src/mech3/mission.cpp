@@ -526,16 +526,14 @@ void Missions::update(float dt) {
   play_voice();
 }
 
-// Mech3.exe 1.2 @ 0x00491050: a network game's objectives freed and read
-// again (as the load's: "mp<N>" of objectives.zrd, or mpinfo.zrd's
-// "objectives" past map 2), not won or lost any more. The respawn's.
+// Mech3.exe 1.2 @ 0x00491050, Pirate's Moon 1.0 @ 0x004943e0: a network game's objectives freed and read
+// again, not won or lost any more. The respawn's. MW3 read "mp<N>" of objectives.zrd, or mpinfo.zrd's
+// "objectives" past map 2; PM reads them as the load does, through the game (vt+0x3c, 0x00435140: objectives.zrd's
+// mp<N> on every map; PM ships no mpinfo.zrd).
 void Missions::objectives_again() {
   MissionHooks& h = *g_hooks;
-  const int32_t number = h.game_mission_number();  // the game's vt+0x4c
-  const std::string block = format("mp%d", number);
-  h.objectives_free(kObj[0], kObj[1], kObj[2], kObj[3], kObj[4]);  // 0x0045c1d0
-  h.objectives_load(number > 2 ? "mpinfo.zrd" : "objectives.zrd", number > 2 ? "objectives" : block.c_str(), kObj[0],
-                    kObj[1], kObj[2], kObj[3], kObj[4]);  // 0x0045c2d0
+  h.objectives_free(kObj[0], kObj[1], kObj[2], kObj[3], kObj[4]);  // 0x0045d530
+  h.game_objectives(kObj[0], kObj[1], kObj[2], kObj[3], kObj[4]);
   ended = aborting = 0;
 }
 
