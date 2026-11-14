@@ -1645,8 +1645,6 @@
 0x005250f0	unused	zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 0x00525fa0	unused	zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
 0x0051e1c0	folded	the 2D normalise, inline in its ported caller (0x00524247)
-0x0051f390	missing-mod	billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
-0x0051f750	missing-mod	billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
 0x00522170	folded	pitch and yaw to the way they face: zmth::look_dir (zmth_vector.cpp), used by the radar's view wedge (app_hud.cpp radar_view_dir) and inline where the game also uses it (mission_world.cpp:82, mech_objective.cpp:122); test_look_dir.py
 0x00526510	folded	zModel's start, stop and per-mission free: the render state's defaults (gmod_draw.h:37), the pools freed at the app's stop (memory only, app_engine.cpp:325) and the mission's (models_free, app_mission.cpp:1868)
 0x00526780	folded	zModel's start, stop and per-mission free: the render state's defaults (gmod_draw.h:37), the pools freed at the app's stop (memory only, app_engine.cpp:325) and the mission's (models_free, app_mission.cpp:1868)
