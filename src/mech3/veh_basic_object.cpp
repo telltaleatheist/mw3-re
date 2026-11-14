@@ -518,12 +518,10 @@ void vehicle_view_attach(BasicVehicle& v) { g_hooks->view_attach(v, vehicle_came
 // ---------------------------------------------------------------------------
 // Damage and death (step 1d)
 
-// Mech3.exe 1.2 @ 0x004ad3f0. A heat weapon (every laser's IMPACT HEAT) takes
-// its damage and warms the glow by the share lost; a freeze one only chills
-// (the vehicle frozen solid below -0.5 takes nothing more from it); once
-// frozen, other hits take x08 x health more (x08 negative then: a gain, as
-// written; no shipped weapon freezes). Dead at 0 or not a number. A hit over
-// 5 by a weapon without heat jolts it along the shot.
+// Mech3.exe 1.2 @ 0x004ad3f0, Pirate's Moon 1.0 @ 0x004b0d90. Dead at 0 or not a number. A hit over 5 by a weapon
+// without heat jolts it along the shot. PM drops MW3's heat and freeze branches: every hit takes its damage, so a
+// heat weapon (every laser's IMPACT HEAT) no longer warms the glow by the share lost and a freeze one damages
+// (MW3: a freeze weapon only chilled, frozen solid below -0.5; once frozen, other hits took x08 x health more).
 int32_t vehicle_damage(BasicVehicle& v, Handle weapon, uint32_t unused, float amount) {
   (void)unused;
   VehBasicHooks& h = *g_hooks;
@@ -533,22 +531,7 @@ int32_t vehicle_damage(BasicVehicle& v, Handle weapon, uint32_t unused, float am
     v.engine.entry = nullptr;  // 0x004adb40
     return 0;
   }
-  const uint32_t flags = weapon ? h.weapon_flags(weapon) : 0;
-  if (weapon && (flags & zwep::kTargetHeat)) {
-    if (flags & zwep::kFreeze) {
-      if (h.glow_hit(c.x398, c.node, weapon, amount * 0.01f) == 2) {
-        c.frozen = 1;
-        return 0;
-      }
-    } else {
-      c.health = c.health - amount;
-    }
-    h.glow_hit(c.x398, c.node, weapon, 1.0f - c.health / c.health_max);
-  } else if (c.frozen) {
-    c.health = c.health - (c.x398.x08 * c.health + amount);
-  } else {
-    c.health = c.health - amount;
-  }
+  c.health = c.health - amount;  // Pirate's Moon: every hit
   if (!(c.health > 0.0f)) {
     if (!weapon) {
       h.die(v);
