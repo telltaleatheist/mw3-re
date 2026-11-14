@@ -1,5 +1,9 @@
 #include "gamez/zweapon/zweapon.h"
 
+#include <cstring>
+
+#include "gamez/zsave/zsave.h"
+
 #include <cmath>
 
 #include "crt/msvc_math.h"
@@ -525,11 +529,22 @@ void attach_fire(WeaponDef* def, Handle node, const void* offset) {
 }
 
 namespace {
-int32_t g_network = 0;  // [0x005f1e5c]
+int32_t g_save = 1;  // [0x005f1e5c], 1 in the data; the app's start sets it 0
+
+// Mech3.exe 1.2 @ 0x00583830: the section "Weapons" saves its one entry, "WeaponData", the ownerless hits' count.
+void weapons_save(zsave::Context& ctx, void*) {
+  const int32_t n = hit_state().hits;
+  zsave::write(ctx, "WeaponData", &n, sizeof n);
+}
+// Mech3.exe 1.2 @ 0x00583850: the count read back; [0x009a1780] cleared, a word nothing the port has found reads.
+void weapons_load(zsave::Context&, const char*, const void* data, uint32_t size, void*) {
+  if (size >= 4) std::memcpy(&hit_state().hits, data, 4);
+}
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00583740
-void set_network(int32_t on) { g_network = on; }
+// Mech3.exe 1.2 @ 0x00583740: zWeapon's save section on or off before its start. The app's start (0x004802b1)
+// turns it off, so the shipped game never registers it (docs/save.md).
+void set_save(int32_t on) { g_save = on; }
 
 // Mech3.exe 1.2 @ 0x00583750. [0x009a0ef4] and [0x009a1780], also cleared,
 // have no reader the port has found.
@@ -551,8 +566,8 @@ int32_t startup() {
   st.free_list = nullptr;
   st.max_crater_radius = 30.0f;
   run_state().pool_objects = 0;
-  // With the network mode: 0x005a8a20(0x00583850, 1000, 0), the shots'
-  // network messages (not ported).
+  // With the save flag on: zSave's section "Weapons" (0x005a8a20), priority 1000.
+  if (g_save) zsave::add("Weapons", weapons_save, weapons_load, 1000, nullptr);
   return 0;
 }
 
