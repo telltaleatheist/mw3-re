@@ -28,13 +28,25 @@ OptionsState::OptionsState(Kind k, Handle addr) : MenuState(name_of(k), addr), k
   screen_ = e().construct(kScreens[k], {addr});
 }
 
-// Mech3.exe 1.2 @ 0x00438c90, 0x0042da50
+// Mech3.exe 1.2 @ 0x00438c90, 0x0042da50, Pirate's Moon 1.0 @ 0x0043b7c0 (Gfx and Audio: the
+// effects and music volumes kept for BACK, 0x0040b9a0 / 0x0040b9e0)
 bool OptionsState::enter() {
   Engine& en = e();
   if (kind == kGame) en.set_screen_mode(en.menu_vmode());  // 5 (ours: wide_menus)
   ShellState::enter();
+  if (kind == kGfxAudio) kept_effects = en.sound_frequency(), kept_music = en.cd_volume();
   en.vcall(screen_, 0x10, {0});
   return true;
+}
+
+// Pirate's Moon 1.0 @ 0x0043b790 (0x0040b980 / 0x0040b9b0, then the pop as 0x00438c80)
+void OptionsState::escape() {
+  if (kind == kGfxAudio) {
+    Engine& en = e();
+    en.set_sound_frequency(kept_effects);
+    en.set_cd_volume(kept_music);
+  }
+  MenuState::escape();
 }
 
 // Mech3.exe 1.2 @ 0x00429600

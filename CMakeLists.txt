@@ -752,6 +752,7 @@ if(MW3_BUILD_PM)
     tests/test_child_limits.cpp  # (main's, shared) a forked test child's own memory and time caps
     tests/pm/test_pm_objectives.cpp
     tests/pm/test_pm_options.cpp
+    tests/pm/test_pm_sound_range.cpp
     tests/pm/test_pm_hud.cpp
     tests/pm/test_pm_volley.cpp
     tests/pm/test_pm_shots.cpp
@@ -830,7 +831,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_lance.cpp tests/probe_lance.cpp tests/probe_pocket.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mech_net.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_lab.cpp)
-  target_sources(pmprobe PRIVATE tests/probe_pm_briefing_skip.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_briefing_skip.cpp tests/probe_pm_load_resume.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_nodes.cpp tests/probe_pm_ai_nets.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_valves.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_boundary.cpp)

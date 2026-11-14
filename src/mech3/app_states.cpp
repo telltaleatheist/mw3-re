@@ -1220,8 +1220,8 @@ bool LoadState::enter() {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00409440 (briefing.cpp, built without optimisation): the
-// movie first (started on the first pass, polled after), then the briefing
+// Mech3.exe 1.2 @ 0x00409440 (briefing.cpp, built without optimisation), Pirate's Moon 1.0 @
+// 0x00408120 (its sound ranges scaled by the object detail, its block name): the movie first (started on the first pass, polled after), then the briefing
 // screen is built once, then the menu runs.
 bool LoadState::update() {
   Engine& en = e();
@@ -1246,6 +1246,7 @@ bool LoadState::update() {
   const uint32_t campaign = en.pilot_campaign_number(en.pilot());
   const char* dir = en.mission_dir(campaign);
   const int32_t mission = static_cast<int32_t>(en.vcall(game, 0x4c, {}));
+  en.sound_range_scale(en.object_lod() == 2 ? 0.5f : 1.0f);  // Pirate's Moon 0x0040821a
   en.sound_load(en.app_window(), "sounds.zrd", 0x4e6b00, 0);
   char path[256];
   en.format("zbd;zbd\\%s", {dir}, path, sizeof path);
@@ -1285,14 +1286,18 @@ void LoadState::leave() {
   screen_ = 0;
 }
 
-// Mech3.exe 1.2 @ 0x004092c0 / 0x004092e0: back from the Mech Lab (4) the
-// briefing's loadout is refreshed.
+// Mech3.exe 1.2 @ 0x004092c0 / 0x004092e0, Pirate's Moon 1.0 @ 0x00407fb0: back from the
+// Mech Lab (4) the briefing's loadout is refreshed. Pirate's Moon then puts an Instant Action
+// line-up's mechs back in the Action screen's setup, so it offers the lab's choices next time.
 void LoadState::suspend(uint32_t arg) { ShellState::suspend(arg); }
 void LoadState::resume(uint32_t arg) {
   Engine& en = e();
   if (arg == 4) {
     en.briefing_refresh(en.peek32(0x5f4c80));
     en.briefing_show(en.peek32(0x5f4c80), 1);
+    if (Pilot* p = current_pilot()) {
+      if (ActionGame* a = p->action()) action_setup_from_lineup(*a);
+    }
   }
   ShellState::resume(1);
 }

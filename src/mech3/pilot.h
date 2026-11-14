@@ -418,9 +418,11 @@ CampaignGame* read_campaign_game(Pilot* p);
 // pilot's file carries ([0x00605820..0x0060587f]; the Action screen's).
 struct ActionSetup;
 ActionSetup& action_setup();
+class ActionGame;
+void action_setup_from_lineup(ActionGame& a);  // PM 0x00407fb0: back from the lab
 
 struct ActionSetup {
-  int32_t g820[5] = {-1, -1, -1, -1, -1};  // 0x00605820 (PM: per pilot, its game's +0x40, -1 by 0x0040c460)
+  int32_t g820[5] = {-1, -1, -1, -1, -1};  // 0x00605820 (PM: per pilot, its game's +0x40, -1 by 0x0040c460; mechs, MW3's rows)
   int32_t g838[6] = {-1, -1, -1, -1, -1, -1};  // 0x00605838 (PM: -1, 0x0040c460)
   int32_t g858[6] = {};              // 0x00605858
   int32_t g874 = 0, g878 = 0, g87c = 0;  // 0x00605874, 0x00605878, 0x0060587c
@@ -441,6 +443,7 @@ class ActionGame : public Game {
   GameSlot* slot_at(int32_t i);      // vt+0x34  0x004368b0
   int32_t slot_count() const { return count + 1; }  // vt+0x38  0x00436a30
   bool ally(int32_t i) const;        // 0x00436a90: slot i is on the player's side (0 is)
+  int32_t ally_count();              // PM vt+0x38  0x0040ca80: the slots on the player's side
   bool remove(int32_t i);            // 0x00436af0: lineup[i] (0-based) out, the rest moved up
   void drop_enemies();               // 0x00436ac0
   // A slot appended: its mech, side, a copy of the loadout and its paint;

@@ -186,11 +186,9 @@ void MenuScreen::borrow_background(bool option_screen) {
       background.src = &background.view;
     }
   }
-  if (option_screen && e_.mission_running()) {
-    background.moving = 0;
-    background.set_pos(0, 0);
-    background.src = &background.view;
-  }
+  // Pirate's Moon's controls, game and graphics/audio screens (0x0042bb80, 0x00438c10, 0x00439a30):
+  // MW3 then stopped an option screen's background while a mission ran (0x0047fb70);
+  // PM's scrolls from the pause as in the menus.
 }
 
 // ---- the push button ----

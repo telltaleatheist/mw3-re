@@ -32,7 +32,11 @@ class OptionsState : public MenuState {
   // 0x00438c90 (Game: the menus' screen mode 5 first), 0x0042da50 (the others).
   bool enter() override;
   void resume(uint32_t arg) override { ShellState::resume(arg); }  // 0x0042da70
+  // Pirate's Moon 1.0 @ 0x0043b790 (Gfx and Audio, vt+0x28): the volumes back as they were on
+  // entering, so BACK undoes the sliders; the others MW3's 0x00438c80.
+  void escape() override;
   Kind kind;
+  float kept_effects = 0.0f, kept_music = 0.0f;  // PM's +0x10, +0x14 (Gfx and Audio, set by enter)
 };
 
 // "Credits State" (0x004295e0, vtable 0x005bd938): the screen made on entering

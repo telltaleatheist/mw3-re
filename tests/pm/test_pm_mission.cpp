@@ -3269,6 +3269,97 @@ TEST(pm_ia_wave_rows_show_the_waves_loadout_headless) {
   mech3::action_setup() = mech3::ActionSetup{};
 }
 
+// The Action screen keeps its allies as mechs on Pirate's Moon (0x0048ded0, restored by mech by 0x0048f970 /
+// 0x0048a2e0; MW3 kept the rows), and the Load State back from the lab puts the line-up's mechs there
+// (0x00407fb0), so the screen offers the lab's choices next time: the player's mech, the Mobile Field Base
+// kept as it was, each lancemate's mech in its row, none in the rest.
+TEST(pm_ia_screen_keeps_mechs_and_offers_the_labs_lineup_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_ia_lab_lineup_" + std::to_string(getpid());
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    int stage = 0;
+    bool checked = false;
+    engine.on_present = [&](int) {
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[0].on_left_up();  // INSTANT ACTION
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+        if (!ps || !ps->screen) return;
+        ps->screen->new_bar.set_text("Lancer");
+        ps->screen->new_bar.on_return();
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 2;
+      } else if (stage == 2) {
+        auto* st = dynamic_cast<mech3::GameMenuState*>(app.current());
+        auto* a = st && st->kind == mech3::GameMenuState::kAction ? dynamic_cast<mech3::ActionScreen*>(engine.screen_of(st->screen_)) : nullptr;
+        mech3::ActionGame* g = mech3::current_pilot() ? mech3::current_pilot()->action() : nullptr;
+        if (!a || !g || !app.pending_list().empty()) return;
+        mech3::ActionSetup& k = mech3::action_setup();
+        EXPECT(&k == &g->setup);
+        // Kept: the rows' mechs, the Mobile Field Base's 15 (PM's "on"), a lancemate's none -1.
+        EXPECT(a->allies[0].select_value(4) >= 0 && a->allies[1].select_value(15) == 1);
+        EXPECT(a->allies[2].select_value(7) == 8 && a->allies[3].select_value(-1) == 0 && a->allies[4].select_value(0) == 1);
+        a->keep_lineup();
+        std::printf("  kept %d %d %d %d %d\n", k.g820[0], k.g820[1], k.g820[2], k.g820[3], k.g820[4]);
+        EXPECT(k.g820[0] == 4 && k.g820[1] == 15 && k.g820[2] == 7 && k.g820[3] == -1 && k.g820[4] == 0);
+        // Back from the lab: the player in mech 9, two lancemates (12 and 0), an enemy (3).
+        g->count = 0;
+        g->slot.mech = 9;
+        g->add(12, 1, nullptr, 0), g->add(0, 1, nullptr, 0), g->add(3, 0, nullptr, 0);
+        mech3::action_setup_from_lineup(*g);
+        EXPECT(k.g820[0] == 9 && k.g820[1] == 15 && k.g820[2] == 12 && k.g820[3] == 0 && k.g820[4] == -1);
+        a->reset();
+        const int32_t shown[5] = {a->allies[0].selected_value(), a->allies[1].selected_value(), a->allies[2].selected_value(),
+                                  a->allies[3].selected_value(), a->allies[4].selected_value()};
+        std::printf("  offered %d %d %d %d %d\n", shown[0], shown[1], shown[2], shown[3], shown[4]);
+        EXPECT(shown[0] == 9 && shown[1] == 15 && shown[2] == 12 && shown[3] == 0 && shown[4] == -1);
+        checked = true;
+        stage = 3;
+      }
+    };
+    Pump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    EXPECT(checked);
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
+}
+
 // pm-tests item 23 on Pirate's Moon, as mission_c1m1_player_knocked_down_headless on MW3: the player knocked down
 // in c1m1. (1) Hits of the weapon with the largest IMPACT_FORCE from 50 m ahead build the knock past the threshold
 // (0x00417a80): Stagger, a fall. (2) Dropped from 150 m, a hard landing (0x004162c0: the fall's speed over 80 m/s)

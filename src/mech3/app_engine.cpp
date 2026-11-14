@@ -614,6 +614,7 @@ int32_t GameEngine::sound_init(uint32_t window) {
   return zsnd::init(window);
 }
 void GameEngine::sound_set_mode(int32_t v) { zsnd::set_archives(v); }
+void GameEngine::sound_range_scale(float s) { zsnd::set_range_scale(s); }
 // 0x004e6b00: each sound's EXTRA record (its repeat delay and subtitle),
 // freed again by 0x004e6be0 when the groups shut down.
 void GameEngine::sound_load(uint32_t window, const char* name, uint32_t callback, uint32_t a) {
