@@ -817,8 +817,14 @@ struct ProgramHudHooks : HudHooks {
   void* group_weapon(void* g, int32_t k) override { return static_cast<WeaponGroup*>(g)->weapons[k]; }
   void* wm_current(void* w) override { return wm(w)->current(); }  // 0x004b04c0
   int32_t weapon_group(void* w) override { return wp(w)->group; }
-  const char* weapon_name(void* w) override {  // the definition's DESC (+8)
-    return wp(w)->def && wp(w)->def->desc ? wp(w)->def->desc : "";
+  // Pirate's Moon 1.0 @ 0x00486a50 (from the weapon line 0x00447840 on the weapon's +0x2c): the text of PM's weapon
+  // table's message for rows 0..0x37 (0x00596e50), "noweapon" for any other; MW3 (0x00445d10) showed the definition's
+  // DESC. A mod's weapon (ours, past the table) keeps its DESC.
+  const char* weapon_name(void* w) override {
+    const Weapon* x = wp(w);
+    if (const int32_t m = weapon_name_message(x->index); m >= 0) return message(m);
+    if (x->index >= kBuiltinWeapons && x->index < weapon_count()) return x->def && x->def->desc ? x->def->desc : "";
+    return "noweapon";
   }
   void weapon_vt8(void* w) override { wp(w)->is_beam(); }
   float weapon_recycle(void* w) override { return wp(w)->ready(); }        // vt+0x34
