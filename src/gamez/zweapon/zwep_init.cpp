@@ -7,6 +7,7 @@
 #include "crt/msvc_math.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zweapon/zweapon.h"
 
 #pragma STDC FP_CONTRACT OFF
 
@@ -377,7 +378,7 @@ int init(Handle world, const char* path, int32_t arg, TypeCallback callback) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x00584930
+// Mech3.exe 1.2 @ 0x00584930, Pirate's Moon 1.0 @ 0x005a6420 (with the saved hit count cleared, 0x00584a40 / 0x005a6531)
 void shutdown(void (*per_def)(WeaponDef* def)) {
   State& s = g_state;
   if (g_hooks.pool_objects) g_hooks.pool_objects(0);
@@ -398,6 +399,7 @@ void shutdown(void (*per_def)(WeaponDef* def)) {
   s.tree = nullptr;
   if (s.tick && g_hooks.node_destroy) g_hooks.node_destroy(s.tick);
   s.tick = nullptr;
+  hit_state().hits = 0;
 }
 
 }  // namespace zwep

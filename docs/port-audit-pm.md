@@ -68,12 +68,12 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 4081 |
+| folded | 4080 |
 | replaced (SDL or the platform layer) | 263 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 121 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
-| MISSING LOGIC | 94 |
+| MISSING LOGIC | 93 |
 | dev dialog (MFC), its logic: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 80 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
@@ -88,7 +88,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x0057a170** (1 functions, 30 decomp lines; MISSING LOGIC): pm only, minor, visual: PM's finish set-up (MW3's 0x005581c0, zrndr_tint.cpp:189 finish_init) fills the static's random table with 40000 bytes ([0x008c1a28] = 0x9c40) where MW3 and the port use 0x6400 (25600; static_fill's size, :204), so the static's noise repeats on another period; its scratch buffer is 0x3a9800 bytes (1600 x 1200 x 2) for MW3's 0x180000 (1024 x 768), which the port sizes its own way. Found by the layout-shift rule's use check (earlier labelled a layout shift)
 - **0x0057a770** (1 functions, 9 decomp lines; MISSING LOGIC): pm only, renderer, effect to check: PM drops the pending screen tint after each frame's finish (0x0057a770, MW3's tint_clear 0x005587b0, which MW3 never calls; PM's core frame 0x004838b0 calls it after 0x0057a5d0 when [0x0062cf29] is clear). MW3 and the port keep a tint pending until another is set (zrndr_tint.cpp:137), so a tint set once shows on every later frame in the port and on one in PM; which tints are set once (not every frame) is to check
 - **0x00598230** (1 functions, 20 decomp lines; MISSING LOGIC): pm only, renderer, known: the script command MipBias (common.gw's MipBias -1) sets Direct3D's mip bias, clamped, with the state's dirty bit 4; the port reads the words and applies nothing (zinterp_parse.cpp:511), listed in docs/fixes.md as not reproduced yet, a candidate for Owen with the renderer's filtering
-- **0x005a5260** (1 functions, 12 decomp lines; MISSING LOGIC): pm only (MW3 has no such section): one of PM's six save sections (zSave, from the mission load 0x00492830): "WeaponData", the 4-byte word at [0x00b0e440] (0x005cb930); the pm port registers only the three animation sections (docs/pm-tests.md item 30), so our saved games carry no WeaponData. The original PM loads them all the same: a mission-2 save from pm 00b95cc8 loaded in the stock PM, briefed c1m2 and played 90+ s (dev 3, 2026-11-09, item 30); what the word restores is left as the load finds it
 - **0x00401000, 0x004b2190** (2 functions, 45 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): called only from 0x004b1f90, which are missing-mod
 - **0x004010c0** (1 functions, 132 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401100: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00401430** (1 functions, 44 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00401400: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
@@ -4571,7 +4570,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x005cad20 | 9 | folded | follows 0x004fd3f0: folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin in zClass; the only immediates that differ are the error reports' line numbers (pushed, or passed in a register in MW3, before the report 0x00406cb0 / 0x0049bfd0; three read: a bit cleared by a byte and, a switch's bound, line numbers through a variable) |
 | 0x005cad40 | 10 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:520) |
 
-### zvideo (105 not ported)
+### zvideo (104 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -4679,7 +4678,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x005a4dc0 | 9 | folded | inside its ported callers (0x004e37d0, 0x00513310, 0x00524492): a small helper their ports do their own way |
 | 0x005a4de0 | 19 | folded | read: MW3's 0x00583400 (remove_handlers: the node's own handler table cleared from it and its children, then freed) not paired by the diff, the table also taken off PM's list of tables (0x005a4aa0) before the free; the port's zwep::remove_handlers, called from the same teardowns (app_mech.cpp:848, app_turret.cpp, app_vehicle.cpp, zai_target.cpp, zeff_anim_init.cpp:706) |
 | 0x005a5150 | 11 | folded | as MW3 0x00583730: covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
-| 0x005a5260 | 12 | MISSING LOGIC | pm only (MW3 has no such section): one of PM's six save sections (zSave, from the mission load 0x00492830): "WeaponData", the 4-byte word at [0x00b0e440] (0x005cb930); the pm port registers only the three animation sections (docs/pm-tests.md item 30), so our saved games carry no WeaponData. The original PM loads them all the same: a mission-2 save from pm 00b95cc8 loaded in the stock PM, briefed c1m2 and played 90+ s (dev 3, 2026-11-09, item 30); what the word restores is left as the load finds it |
 
 ### zinput (103 not ported)
 
@@ -5484,15 +5482,14 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00530b20 | 13 | replaced (SDL or the platform layer) | as MW3 0x00517230: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 | 0x00530b40 | 20 | replaced (SDL or the platform layer) | as MW3 0x00517250: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
-### zweapon (29 not ported)
+### zweapon (28 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x005a52e0 | 521 | folded | read against MW3's 0x00583880 (zwep_init.cpp, weapons.zrd into the definitions): the same 56 keys in the same order, every one read by the port, the same tests (GRAVITY kept off a lock-on definition, zwep_init.cpp:211); PM's definition 0x204 bytes for 500 and its flag bits placed apart, the rest source line numbers in reports (test_pm_mission_load only stubs it, so no test runs it) |
 | 0x005a62a0 | 74 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x005847c0 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204 0x5d8->0x65c); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005a6410 | 9 | folded | follows 0x005a6420: by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005a6420 | 63 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
-| 0x005a6550 | 9 | folded | follows 0x005a6420: by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584930 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
+| 0x005a6410 | 9 | folded | a thunk: one call to another function |
+| 0x005a6550 | 9 | folded | a thunk: one call to another function |
 | 0x005a69f0 | 9 | folded | covered by the port where it names it (src/gamez/zweapon/zwep_init.h:261) |
 | 0x005a6a00 | 37 | folded | group A, read: the same logic as MW3's 0x00584df0 on PM's 8-byte-longer effect block (flyout model +0x110, model animation +0x100): a pooled copy when animated, then under the shot's node; PM passes the add-child's arguments where MW3 leaves them in registers |
 | 0x005a6c20 | 20 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x00584fe0 with only offsets and sizes of PM's larger structures changed (0x1f4->0x204); calls, field counts and every other immediate and float constant as MW3's |
