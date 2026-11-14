@@ -1705,7 +1705,7 @@ stealth object does when the view is on it, through its own frame 0x4a5050
 matrix; no path test as a basic vehicle's 0x4a1040 has), ported 2026-11-01
 (editor.md S4).
 
-## The basic vehicle's own controls (open; deferred 2026-11-01)
+## The basic vehicle's own controls (part 1 ported for preservation, 2026-11-14)
 
 A vehicle made without AI controls makes its own (0x4ac860(0xa70), then
 0x4ae270; vtables 0x5c8c50, IControls 0x5c8b98): settings from the
@@ -1721,6 +1721,25 @@ t1m1..t1m4, every Instant Action map (c1..c4 ia1..ia3, t1ia1) and every
 multiplayer map (c1mp1..2, c2mp1..2, c3mp1..4, c4mp1..2, t1mp1, hosted
 alone): 48 missions, none. The line's break check (its condition
 inverted) names c1m1's four vehicles.
+
+**Part 1, ported for preservation (2026-11-14; not wired in).** `mech3/veh_basic_controls` holds the class
+over `VehicleControls` (`BasicControls`, 0xa70 bytes): its constructor 0x4ae270 (the base's, the net's
+number at +0xa04, then init), init 0x4ae3c0, setup 0x4ae6b0 and the answers vt+0x04 0x4ae340 (the mode
++0xa14), vt+0x08 0x4ae350 (the net node's +0x2c) and vt+0x1c 0x4ae6a0 (state 4). Init, with the vehicle's
+node, runs the base's init. A positive net number that names a record (0x4022c0 over [0x5f4c4c]: the
+version-105 nets' records, a stand-in `Net105Record` until that group is ported) sets state 2. The mode comes
+from the record's kind (0, 2 or 3). The node is the record's net's element nearest the vehicle (0x4d51d0, then
+the element's vt+0x80). The vehicle's "healthy" node gets the box test on and flag 8 off. The ranges come from
+the record, each 0 (or a NaN, the fcomp's unordered) its default (activation 320^2, +0xa24 1500, +0xa1c 10,
+pursuit 68^2 / 70^2, the dwell 3, return 250^2), and the vehicle's +0xe0 is set to itself (its constructor
+zeroes it after). No record: state 4; no positive number leaves +0xa08 as it was. Setup keeps its third
+argument as the number, runs the base's setup, and with state 2 takes the definition's activation,
+pursuit_range (two values), not_pursuit_dwell and return_range for the record's zeros, putting the pursuit pair
+in order. `test_basic_controls.py` runs init, setup and the answers against the exe over 600 random cases
+(records with zeros, NaNs and values, each kind, no node, no record, no element, no "healthy", each key): call
+traces and fields equal. Breaks: a NaN taken as non-zero (83 differ), +0xa08 cleared (28), no swap (31), the
+dwell squared (25). Part 2 (the path follower 0x401050..0x403e70) and the v105 node class's methods
+(0x4ae8e0..0x4ae980, 0x403cd0..0x403e70, vtable 0x5c8cb8) are still open.
 
 ## Why 2.1 waits for the AI (2026-10-21)
 
