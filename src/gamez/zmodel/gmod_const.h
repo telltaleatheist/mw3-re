@@ -56,6 +56,9 @@ void reset_pool();
 // stops the game ("GameZ model resource failure").
 Model* model_alloc();                         // 0x00538fe0
 int read_models(std::FILE* f);                // 0x00538e30
+// WriteZBD's (ported for preservation): a model's slot (-1 for none) and the pool written back.
+int32_t model_index(const Model* m);           // 0x00538090
+int write_models(std::FILE* f);                // 0x005380e0
 // FIX (A) memory safety (docs/fixes.md, ours): what a count read from a model file may size. An array that fits in
 // what is left of the file is read as the exe reads it; one past the file's end is still allocated and read as zeros,
 // as the exe does with a cut file, while all of those in one read stay within kPastEnd bytes. Past that the read is

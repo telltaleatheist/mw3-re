@@ -134,6 +134,7 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_light.cpp
   src/gamez/zmodel/gmod_matl.cpp
   src/gamez/zmodel/gmod_puff.cpp
+  src/gamez/zmodel/gmod_shadows.cpp
   src/gamez/zmodel/gmod_strip.cpp
   src/gamez/zmodel/gmod_screen.cpp
   src/gamez/zreader/zreader.cpp

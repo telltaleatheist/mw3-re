@@ -57,6 +57,7 @@ struct ListWalk {
 int list_remove(int list, Node* node);     // 0x004f8220 ECX list, EDX node
 int list_purge(int list);                  // 0x004f7980
 int purge_lists();                         // 0x004f7bd0, then the deferred deletes (0x004f81e0)
+void deferred_flush();                     // 0x004f81e0
 int deferred_push(Node* node);             // 0x004f8050: freed (0x004eaf90) at the next purge
 int node_unlist(Node* node);               // 0x004f8390: off every list it is on
 // A node and its ties (docs/zclass-world.md, Destroy): its model let go (and

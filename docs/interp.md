@@ -706,6 +706,24 @@ A mod's scripts would need them wired (`make_engine`); that is a decision for la
   +0x24 1, flag 8; FIX (A): listed indices past the vertex count are skipped where the exe writes outside its
   arrays), TextureSetWorldBase 0x526ac0 and TextureSetWorldPerMeter 0x526aa0 (0x74a29c.. and 0x74a2a4..; nothing in
   the exe reads them), AnimDebugFrame 0x507dd0 (the next frame's number at 0x5ebbf4, which nothing reads).
+- WriteZBD 0x4fe8e0 (`zcls::write_zbd`, the world back to a gamez.zbd, and its texture, material, model and node
+  writers): gamez.md, Writing a world back; `test_write_zbd.py`.
+- MakeShadows 0x5487d0 (`zmod::make_shadows`, gmod_shadows): shadows baked into a world's vertex colours. The
+  light "sunlight" on list 9 gives the offset (its direction +0x84 times -1000) and "world1" on list 13 the world;
+  0x548650 updates the changed nodes, puts an identity on the stack, asks first crossings only (0x4ed9c0), and walks
+  every cell's nodes column by column, then the world's children: active, intersecting nodes (flags 4 and 0x10),
+  an object3d (0x5484c0: its matrix on the stack unless its data's flag 8, the world matrix
+  +0x60 as it is with node flag 0x80000 and no data flag 0x20, else made from the top and the local +0x30; its
+  model, its children), or each child of a LoD (0x548600). Each model with +0 clear (0x548250): its points, morphed
+  when flag 8 has a weight and morphs, through the top; each point's segment to the point plus the offset
+  (0x4eed90), and a crossing darkens that point's colour on every polygon to a fifth. FIX (A): the exe keeps the
+  answers in 1,024 words on its stack, overrun by a model of more points. 0x5485b0, the same walk for LoDs, is
+  never called. Not run by any shipped script; each world holds both names, so it would work on any of them.
+  `test_make_shadows.py`: on all six worlds, the exe and the port with the same stand-in segment query (a hash of
+  the point): 258,214 segments, their ends bit for bit in the same order, and every model's colours equal. Breaks
+  caught: a quarter for a fifth, the rows outer, the offset away from the light, the LoDs' children skipped (the
+  shipped worlds have no morphing model and no object taking its world matrix as it is, so those two branches are
+  not reached by them).
 - Not ported, the software renderer's (CLAUDE.md, Rendering): SetPerspectiveTextureAdaptive 0x558120 (the span's
   step, read at 0x55f8bc) and SetPaletteName 0x5975e0 (the 8-bit palette, through 0x597680).
 

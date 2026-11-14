@@ -66,6 +66,7 @@ void mechlib_strip(Node* node);  // 0x004fc8b0
 
 bool read_material(std::FILE* f, Material& m);   // 0x004fc570
 Node* read_node(std::FILE* f, Node* parent);     // 0x004fce50
+const char* mechlib_type_name(int32_t type);     // 0x004fce40: the debug log's
 Node* read_tree(TreeReader& lib, std::FILE* f, Node* parent);  // 0x004fcdc0
 // When node +0x3c != 0: a model from the world pool (0x00538fe0), its
 // polygons' materials left as mechlib's indices (Polygon::material_index).
