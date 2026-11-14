@@ -149,6 +149,9 @@ class VehBasicHooks : public zgame::Unported {
   virtual void ground_many(float* probes, int32_t count, float top, zcls::GroundHits* out);
   virtual void set_position(BasicVehicle& v, const float pos[3]);  // vt+0x18, zEntity3d's 0x005a8550
   virtual void refresh(Vehicle& v) { unported("0x005a85c0", {ref(&v)}); }
+  // Pirate's Moon 0x004a6a20's end: the controls' brain (vt+0x14c, vt+0x58) told to lay its way afresh (vt+0x0c,
+  // 0x004fbe90); none without one.
+  virtual void brain_way_reset(BasicVehicle& v) { (void)v; }
   // The three HUD markers (zTwoD images 0x0059b830, vtable 0x005bce78, +0x48 1).
   virtual Handle marker_create(const char* name) { return h(unported("0x0059b830", {name, 0, 0, 1})); }
   virtual void marker_delete(Handle m) { unported("marker.vt+0x0", {ref(m), 1}); }

@@ -74,6 +74,10 @@ Stealth* g_stealth = nullptr;         // [0x00609a2c], made at each mission load
 zcls::Node* zn(Handle h) { return static_cast<zcls::Node*>(h); }
 
 struct WiredVehicles : VehBasicHooks {
+  void brain_way_reset(BasicVehicle& v) override {  // Pirate's Moon 0x004a6a20 -> 0x004fbe90, PM's AI only
+    if (!ai::pm_ai_on()) return;
+    if (auto* c = dynamic_cast<ai::AiVehicleControls*>(v.controls); c && c->brain) ai::pm_way_reset(*c->brain);
+  }
   uint32_t unported(const char* key, std::initializer_list<zgame::Arg> args) override {
     return g_w.unported ? g_w.unported(g_w.engine, key, args) : 0;
   }

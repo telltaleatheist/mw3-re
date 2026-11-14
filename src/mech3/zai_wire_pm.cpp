@@ -194,9 +194,11 @@ class WiredSidePm final : public BrainSidePmHooks {
   // 0x004b2ab0 (MW3's 0x004aed50): the controls' tick once more; AiVehicleControls::died runs it before Brain::died
   // reaches here, in the exe's order (the tick, then the radio's line).
   void died_base() override {}
-  double speed_at(zgame::Handle, float) override { return none<double>("vehicle.vt+0x124"); }
-  bool in_world(zgame::Handle) override { return none<bool>("vehicle+0x04"); }
-  void set_way(const float*, const float*, float, zgame::Handle) override { pm_hook_missing("steer.set_way"); }
+  double speed_at(zgame::Handle v, float share) override { return h.speed_at(v, share); }  // vt+0x124
+  bool in_world(zgame::Handle v) override { return h.entity_node(v) != 0; }               // +0x04
+  void set_way(const float* to, const float* from, float rate, zgame::Handle v) override {  // +0x210 vt+0: 0x004dc7a0
+    if (b.controls) pm_brain(b).steer.set(pm_walk(b, *b.controls), to, from, rate, v);
+  }
 
  private:
   template <class T>
@@ -336,6 +338,15 @@ bool pm_scan_aim(Brain& b) {
 void pm_died(Brain& b) {
   WiredSidePm side(b);
   died_pm(side, pm_brain(b).tick);
+}
+
+// Pirate's Moon 1.0 @ 0x004fbe90 (the brain's vt+0x0c, from the vehicle's placing 0x004a6a20): the way laid afresh
+// from where the vehicle stands, its +0x2b8 (the port's x298) that place, at the speed its +0x10c (xec) gives.
+void pm_way_reset(Brain& b) {
+  WiredSidePm side(b);
+  const zgame::Handle v = b.controls ? b.controls->vehicle() : 0;
+  const float spot[3] = {b.params.get<float>(0x08), b.params.get<float>(0x0c), b.params.get<float>(0x10)};  // +0x08
+  way_reset_pm(side, v, b.xec, spot, b.x298);
 }
 zgame::Handle pm_hardest_attacker(Brain& b) { return pm_brain(b).attackers.hardest(brain_hooks().now()); }
 zgame::Handle pm_latest_attacker(Brain& b) { return pm_brain(b).attackers.latest(brain_hooks().now()); }
