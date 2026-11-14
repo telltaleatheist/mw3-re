@@ -401,6 +401,7 @@ void pm_leg_reset();
 const char* pm_weapon_name(void* player, int i);
 bool pm_kill_only_leg_lost(void* mech, int leg);
 int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
+void pm_hold_down(void* mech);
 int pm_shot_flight(void* player, int since, float* travelled, float* expected, int* seen, char* name, size_t n);
 static float g_shot_travelled = 0, g_shot_expected = 0;
 static int g_shot_seen = 0, g_shot_result = 0;
@@ -510,6 +511,8 @@ static struct {
   zcls::Node* shot = nullptr; zcls::Node* walk = nullptr;
   float shot_at = 0, walk_at = 0;
   int deck_gone = -1;  // the frame hslid01 went inactive
+  int kill_frame = -1;  // the frame anhur04 was shot down
+  bool away = false;    // its loop has taken it past 400 m from the bridge (it starts near it)
   int solid = 0, unseen = 0;
   bool bridge_boxed_alive = false, bridge_boxed_dead = true;  // xslid01, a target (targets.zrd), as the deck goes  // anhur04's live collidable pieces after the fall; those with nothing drawable
 } g_anhur;
@@ -658,7 +661,8 @@ static void kill_run(const char* which, bool quick) {
       ++dead, ++at, since = 0, shots = 0, hits0 = pm_kill_on_part, off0 = pm_kill_off_part;
       pm_leg_reset();
     }
-    if (at >= targets.size() || (quick && at > 0)) {
+    // PM_ANHUR runs its own clock: a mech's death (MW3's AI kills one before the Anhur passes) doesn't end it.
+    if (at >= targets.size() || (quick && at > 0 && !std::getenv("PM_ANHUR"))) {
       done = true;
       return;
     }
@@ -1011,9 +1015,10 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
-    // pm-tests 37: the player on the land bridge where Owen stood, anhur04 shot down as it passes (frame 1500), the
-    // segments a shot and a walk take toward its fall 150 frames on. PM_ANHUR=frame kills it then; PM_ANHUR_TRACK logs
-    // to 2400, with the frame the deck (hslid01) gives way under the Anhur's fire.
+    // pm-tests 37: the player on the land bridge where Owen stood, anhur04 shot down as it passes (alive and back within 240 m
+    // of him after its loop, about frame 1500 on its scripted flight under either AI), the segments a shot and a walk take toward its
+    // fall 150 frames on. PM_ANHUR=frame kills it at that frame instead; PM_ANHUR_TRACK logs to 900 frames past the
+    // kill, with the frame the deck (hslid01) gives way under the Anhur's fire.
     if (std::getenv("PM_ANHUR")) {
       static int t = 0;
       ++t;
@@ -1022,7 +1027,11 @@ static void kill_run(const char* which, bool quick) {
         const float at[3] = {1958.6f, 0, -828.7f};
         mech3::chain_player_at(at);
       }
-      const int kill_at = std::atoi(std::getenv("PM_ANHUR")) > 1 ? std::atoi(std::getenv("PM_ANHUR")) : 1500;
+      // The AI mechs held powered down: their fire on the deck (random under MW3's AI, from frame 371 in some runs)
+      // dropped the player into the canyon and ended the mission before the Anhur came back.
+      if (t >= 5)
+        for (void* m : targets) pm_hold_down(m);
+      const int kill_at = std::atoi(std::getenv("PM_ANHUR")) > 1 ? std::atoi(std::getenv("PM_ANHUR")) : -1;
       if (zcls::Node* d = zcls::list_find_by_name(6, "hslid01"); d && !(d->flags() & 4) && g_anhur.deck_gone < 0) g_anhur.deck_gone = t;
       if (std::getenv("PM_ANHUR_TRACK") && t % 30 == 0) {
         float a[3] = {}, h[3] = {}, me[3] = {}, lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
@@ -1052,13 +1061,31 @@ static void kill_run(const char* which, bool quick) {
                     t, root ? root->flags() : 0, hn ? hn->flags() : 0, h[0], h[1], h[2], dn ? dn->flags() : 0, a[0], a[1], a[2], lo[0], hi[0], lo[1], hi[1], lo[2], hi[2],
                     me[0], me[1], me[2], g_anhur.deck_gone);
       }
-      if (zcls::Node* x = zcls::list_find_by_name(6, "xslid01")) {
-        if (t == 1590) g_anhur.bridge_boxed_alive = (x->flags() & 0x20) != 0;
-        if (t == 1650) g_anhur.bridge_boxed_dead = (x->flags() & 0x20) != 0;
+      const int k = g_anhur.kill_frame;
+      if (zcls::Node* x = zcls::list_find_by_name(6, "xslid01"); x && k >= 0) {
+        if (t == k + 90) g_anhur.bridge_boxed_alive = (x->flags() & 0x20) != 0;
+        if (t == k + 150) g_anhur.bridge_boxed_dead = (x->flags() & 0x20) != 0;
       }
-      if (t == kill_at - 1 && root) g_anhur.boxed_alive = (root->flags() & 0x20) != 0;
-      if (t == kill_at) g_anhur.killed = pm_kill_turret("anhur04");
-      if (t == 1650 && root) {
+      if (k < 0 && root && t > 5) {  // the kill: at PM_ANHUR's frame, else as it passes the bridge
+        float p[3] = {};
+        std::function<zcls::Node*(zcls::Node*)> flying = [&](zcls::Node* q) -> zcls::Node* {  // its "destroyed" follows the flight
+          if (std::strcmp(q->name(), "destroyed") == 0) return q;
+          for (int32_t i = 0; i < q->child_count(); ++i)
+            if (zcls::Node* r = flying(q->children[i])) return r;
+          return nullptr;
+        };
+        zcls::Node* body = flying(root);
+        zcls::node_world_point(body ? body : root, p);
+        const float dx = p[0] - 1958.6f, dz = p[2] + 828.7f;
+        if (dx * dx + dz * dz > 400.0f * 400.0f) g_anhur.away = true;
+        if (kill_at > 1 ? t == kill_at : g_anhur.away && (root->flags() & 4) && dx * dx + dz * dz < 240.0f * 240.0f) {
+          g_anhur.boxed_alive = (root->flags() & 0x20) != 0;
+          g_anhur.killed = pm_kill_turret("anhur04");
+          g_anhur.kill_frame = t;
+          std::printf("  anhur04 shot down at frame %d, %.0f m from the bridge\n", t, std::sqrt(dx * dx + dz * dz));
+        }
+      }
+      if (k >= 0 && t == k + 150 && root) {
         g_anhur.boxed_dead = (root->flags() & 0x20) != 0;
         auto* world = static_cast<zcls::Node*>(mech3::world_hooks().world);
         static zcls::LineHits r;
@@ -1087,7 +1114,7 @@ static void kill_run(const char* which, bool quick) {
         g_anhur.shot = first(eye, sky, &g_anhur.shot_at);
         g_anhur.walk = first(knee, ahead, &g_anhur.walk_at);
       }
-      if (t == (std::getenv("PM_ANHUR_TRACK") ? 2400 : 1650)) done = true;
+      if ((k >= 0 && t == k + (std::getenv("PM_ANHUR_TRACK") ? 900 : 150)) || t > 4000) done = true;  // 4000: it never came
       return;
     }
     // pm-tests 37's survey: every turret boxed by hand (PM's aim ray never boxes one; a data BOX would), then
