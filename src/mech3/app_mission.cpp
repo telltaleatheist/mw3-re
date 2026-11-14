@@ -2130,15 +2130,13 @@ struct WiredMissionHooks : MissionHooks {
     };
   }
   // 0x0050d2c0: zEffect's table from effects.zrd (an empty list in both games).
-  void effects_load(Handle, Handle, const char* file) override {
+  // The entries' calls stay zeff's defaults (unported: no shipped file has an entry; docs/weapon-effects.md).
+  void effects_load(Handle world, Handle camera, const char* file) override {
     zeff::EffectHooks& h = zeff::effect_hooks();
-    h.unported = [](const char* key, int32_t i) {
-      if (GameEngine* g = engine_of_hooks()) g->unported(key, {i});
-    };
     h.error = [](const char* f) {
       if (GameEngine* g = engine_of_hooks(); g && !g->quiet) std::fprintf(stderr, "mw3: Failed to read %s\n", f);
     };
-    zeff::effects_init(file);
+    zeff::effects_init(file, zeff::EffectHooks::p(world), zeff::EffectHooks::p(camera));
   }
   void world_params(const char* file, const char* block) override {
     read_world_params(file, block, mission_node(*e, e->mission_camera()), e->launch().type, e->launch().number);

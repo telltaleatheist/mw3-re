@@ -1740,10 +1740,6 @@
 0x00503c10	missing-mod	anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109)
 0x00503d50	missing-mod	anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109)
 0x00507970	missing-mod	anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109)
-0x0050d610	missing-mod	an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
-0x0050d6a0	missing-mod	an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
-0x0050d7a0	missing-mod	an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
-0x0050d880	missing-mod	an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
 0x0050da50	sdl	mech3.err (0x0050da50): the port's error reports go to stderr (app_engine.cpp:562)
 0x00516f00	folded	zImage's start, stop and per-mission entries, covered where named: shutdown (memory only, app_engine.cpp:324), the texture group begin (app_mission.cpp:1912), the textures' free (app_mission.cpp:1874), the texture directory as the 2D host's mounts (sdl_twod_host.cpp:205, FIX (A))
 0x00516f20	folded	zImage's start, stop and per-mission entries, covered where named: shutdown (memory only, app_engine.cpp:324), the texture group begin (app_mission.cpp:1912), the textures' free (app_mission.cpp:1874), the texture directory as the 2D host's mounts (sdl_twod_host.cpp:205, FIX (A))

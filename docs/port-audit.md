@@ -11,14 +11,15 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 3026 |
+| folded | 3024 |
 | replaced (SDL or the platform layer) | 221 |
 | software renderer | 111 |
 | debug or dev tool: PORT (preserve) | 82 |
 | unused: PORT (preserve) | 82 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 80 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 76 |
 | dev dialog (MFC), its logic: PORT (preserve) | 54 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
+| unlabelled | 1 |
 
 ## MISSING LOGIC
 
@@ -30,7 +31,6 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x004fd1e0, 0x004fd8c0** (2 functions, 54 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
 - **0x00503c10, 0x00503d50, 0x0050414d, 0x00505df0, 0x00507970** (5 functions, 210 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109)
 - **0x005076c0, 0x005a5400, 0x005a6650, 0x005a6760** (4 functions, 135 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
-- **0x0050d610, 0x0050d6a0, 0x0050d7a0, 0x0050d880** (4 functions, 124 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
 - **0x0051f390, 0x0051f750** (2 functions, 276 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
 - **0x00526aa0, 0x00526ac0, 0x0053b960, 0x0053bb50, 0x0053bd60** (5 functions, 191 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
 - **0x00542060** (1 functions, 255 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
@@ -705,8 +705,8 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00437820 | 11 | folded | covered by the port where it names it (src/mech3/pilot.h:207) |
 | 0x00437840 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x00437860 | 8 | folded | covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
-| 0x00437870 | 8 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2309) |
-| 0x00437880 | 8 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2309) |
+| 0x00437870 | 8 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2307) |
+| 0x00437880 | 8 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:2307) |
 | 0x00437890 | 8 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:842) |
 | 0x004378f0 | 8 | folded | covered by the port where it names it (src/mech3/app_menus.cpp:843) |
 | 0x00437910 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:369) |
@@ -2837,7 +2837,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00555ea0 | 15 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00555ec0 | 28 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:100) |
 | 0x00555f10 | 13 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
-| 0x00555f30 | 26 | folded | covered by the port where it names it (src/gamez/zreader/zreader.cpp:594) |
+| 0x00555f30 | 26 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:229) |
 | 0x00555f70 | 36 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00555fe0 | 16 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
 | 0x00556000 | 27 | folded | covered: the puffers' setters and wind (gmod_puff.cpp:136..157, world-params.md), their vector instances, the materials' free with the models (app_mission.cpp:1868), the reader's link pool (the port's C++ containers; startup.md) and RdrSetPath / RdrAddPath (zinterp.cpp:128, the mounts) |
@@ -3004,7 +3004,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 |---|---|---|---|
 | 0x004eb030 | 11 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
 | 0x004eb040 | 8 | folded | returns a constant or a global |
-| 0x004eb420 | 17 | folded | covered by the port where it names it (src/gamez/zclass/cls_zbd.cpp:310) |
+| 0x004eb420 | 17 | unlabelled |  |
 | 0x004eb6a0 | 17 | folded | covered by the port where it names it (src/gamez/zgeometry/zgeo_model.cpp:431) |
 | 0x004eb710 | 17 | folded | ported, by docs/symbols.csv: ported inline; node +0x24 bit 4 (the program's node_intersects) |
 | 0x004eb8a0 | 17 | folded | covered by the program's overrides or ports: immediate delete (app_mission.cpp:1567), node flags (app_mech.cpp:200), the node box (cls_di.cpp:1267), stamps frozen (app_mech.cpp:212), the scene walk's callbacks (app_mech.cpp:207), the HUD window's rect (app_hud.cpp:194), the deferred-delete list (list.cpp:189), zClass's start, reset and pool flag (list.cpp:338, :350; app_engine.cpp:853), the copy refusals for light and sound nodes (cls_util.cpp:208) |
@@ -3856,31 +3856,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00576ee0 | 24 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 | 0x00576f70 | 19 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 
-### zeffect (20 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00507dd0 | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x00508aa0 | 11 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.h:76) |
-| 0x00508c10 | 9 | folded | a thunk: one call to another function |
-| 0x00508da0 | 9 | folded | a thunk: one call to another function |
-| 0x00508ee0 | 9 | folded | a thunk: one call to another function |
-| 0x00508f20 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_callback: +0x6c |
-| 0x00508f30 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_record: +0x70 |
-| 0x0050b4e0 | 32 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x0050b600 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:239) |
-| 0x0050b620 | 8 | folded | empty: does nothing |
-| 0x0050b650 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_init.cpp:746) |
-| 0x0050d1e0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x0050d1f0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x0050d260 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_save.cpp:281) |
-| 0x0050d610 | 26 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x0050d6a0 | 45 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x0050d7a0 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x0050d820 | 22 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:50) |
-| 0x0050d880 | 37 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x0050da50 | 16 | replaced (SDL or the platform layer) | mech3.err (0x0050da50): the port's error reports go to stderr (app_engine.cpp:562) |
-
 ### zweapon (19 not ported)
 
 | Address | Lines | Class | Why |
@@ -3904,6 +3879,26 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00587370 | 31 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:96) |
 | 0x005873f0 | 33 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
 | 0x00587450 | 19 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+
+### zeffect (15 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00507dd0 | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x00508aa0 | 11 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.h:76) |
+| 0x00508c10 | 9 | folded | a thunk: one call to another function |
+| 0x00508da0 | 9 | folded | a thunk: one call to another function |
+| 0x00508ee0 | 9 | folded | a thunk: one call to another function |
+| 0x00508f20 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_callback: +0x6c |
+| 0x00508f30 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_record: +0x70 |
+| 0x0050b4e0 | 32 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0050b600 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:239) |
+| 0x0050b620 | 8 | folded | empty: does nothing |
+| 0x0050b650 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_init.cpp:746) |
+| 0x0050d1e0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0050d1f0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0050d260 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_save.cpp:281) |
+| 0x0050da50 | 16 | replaced (SDL or the platform layer) | mech3.err (0x0050da50): the port's error reports go to stderr (app_engine.cpp:562) |
 
 ### zgeometry (15 not ported)
 

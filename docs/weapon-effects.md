@@ -23,10 +23,35 @@ so weapons.zrd is read after the animations (0x490ab0's order).
 
 **The effect table is empty.** effects.zrd in both MW3 1.2 and Pirate's Moon
 is `EFFECTS ()`: 0x50d2c0 reads no record, every `EFFECT` name resolves to
--1 and 0x50d650 never spawns anything. The port reads the list's header and
-looks names up (`zeffect/zeff_init`); an entry's reading (its node, gfx data
-and texture cycles) and the spawn are recorded hooks that no shipped file
-reaches.
+-1 and 0x50d650 never spawns anything. Ported all the same, for
+preservation (`zeffect/zeff_init`, its calls out through `EffectHooks`, the
+game's left at their unported defaults):
+
+- **An entry** (0x50d2c0, 0x4c bytes each): its first item names a node
+  (list 6, 0x4f7fe0), then `NAME`, `MAPS` (the frames), `SPEED`, `LOOPING`
+  (`ON`). The node is hidden and out of the queries (0x4eb620, 0x4eb6d0,
+  0x4eb170); its gfx is the first model found on it or down its children,
+  depth first (0x50d610); the gfx is made a facade (0x539cc0, mode 1) with
+  a texture cycle of the frames (0x53bc30, 0x53bcf0, 0x53bcd0, 0x518c60,
+  0x53bd10). An entry without its node or gfx is reported and stays at -1.
+- **A spawn** (0x50d650): a copy from the free list of that entry's copies
+  (0x50d820, the first of its index), else a new one (0x50d880: the node
+  copied, its gfx found again). Placed (0x50d6a0): it grows for 0.3 s at 6 a
+  second from 5, then shrinks at 3.75 a second (not under 0.01) until 1 s.
+  By its squared distance to the camera (0x50d7a0): under 56.25 it isn't
+  placed or put in the world (and its first tick returns it); under 1600 its
+  size and growth are scaled by the distance over 1600. Then it is sized,
+  placed, its cycle restarted and put in the world; shown, with the tick
+  0x50d910 as its node's action.
+- **The tick** (0x50d910) ages the copy by the frame and grows or shrinks
+  it; at the end of its life it goes back on the free list, its action off,
+  hidden and out of the world. The free (0x50d570) destroys the free
+  copies' nodes.
+
+Four FIX (A)s for a hand-made file (fixes.md): no `EFFECTS`, an entry with
+a node and gfx but no `MAPS`, an entry without `NAME` when looked up, and a
+tick on a node with no copy, each read through 0 in the exe. Test:
+`test_effects.py` (300 made-up tables, about 23,000 calls out compared).
 
 ## 2. Firing
 
@@ -101,8 +126,6 @@ copied (0x4f9b50(node, 1, 1); `AnimHooks::copy_tree`).
   The port logs `0x00542060` if a modded script turns them on.
 - The lens-flare list (0x567420, 0x5674e0, 0x5675e0) and the software
   renderer's pixel plot 0x562d90.
-- zEffect's table entries and spawn (0x50d2c0's records, 0x50d650): never
-  reached by the shipped data.
 
 ## 6. In the program
 
