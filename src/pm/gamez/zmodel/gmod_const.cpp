@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <cstring>
+#include <initializer_list>
 
 #include "crt/msvc_math.h"
 #include "gamez/zclass/cls_node.h"
@@ -27,8 +28,10 @@ ModelPool g_pool;
 
 // malloc and an unchecked fread, as the exe; zeroed, so a short read leaves
 // zeros (the tests' allocator gives the exe zeroed memory too).
+// FIX (A): null when the shared bound refuses it (::zmod::ReadBound, docs/fixes.md).
 template <typename T>
 T* read_array(std::FILE* f, size_t bytes) {
+  if (!::zmod::read_bound().fits(f, bytes, "an array")) return nullptr;
   T* p = static_cast<T*>(std::calloc(bytes ? bytes : 1, 1));
   std::fread(p, bytes, 1, f);
   return p;
@@ -264,10 +267,19 @@ void sort_by_material(Model& m) {
 // Pirate's Moon 1.0 @ 0x005587e0. MW3's 0x00538a70 with PM's polygons: the
 // material lists, UVs per material, the model's material refs.
 void read_model_data(std::FILE* f, Model& m, int32_t base) {
-  if (m.count(0x14) > 0) m.vertices = read_array<float>(f, static_cast<size_t>(m.count(0x14)) * 12);
-  if (m.count(0x18) > 0) m.normals = read_array<float>(f, static_cast<size_t>(m.count(0x18)) * 12);
-  if (m.count(0x1c) > 0) m.morphs = read_array<float>(f, static_cast<size_t>(m.count(0x1c)) * 12);
+  ::zmod::ReadBound& bound = ::zmod::read_bound();
+  // FIX (A): a refused array (the bound) leaves its count and the later ones 0, so nothing walks what was not read.
+  const auto stop = [&](std::initializer_list<int> counts) {
+    for (int off : counts) std::memset(m.header + off, 0, 4);
+  };
+  if (m.count(0x14) > 0 && !(m.vertices = read_array<float>(f, static_cast<size_t>(m.count(0x14)) * 12)))
+    return stop({0x14, 0x18, 0x1c, 0x20, 0x10, 0x5c});
+  if (m.count(0x18) > 0 && !(m.normals = read_array<float>(f, static_cast<size_t>(m.count(0x18)) * 12)))
+    return stop({0x18, 0x1c, 0x20, 0x10, 0x5c});
+  if (m.count(0x1c) > 0 && !(m.morphs = read_array<float>(f, static_cast<size_t>(m.count(0x1c)) * 12)))
+    return stop({0x1c, 0x20, 0x10, 0x5c});
   if (const int32_t n = m.count(0x20); n > 0) {
+    if (!bound.fits(f, static_cast<uint64_t>(n) * 0x4c, "a light list")) return stop({0x20, 0x10, 0x5c});
     m.lights = static_cast<::zmod::Light*>(std::calloc(static_cast<size_t>(n), sizeof(::zmod::Light)));
     for (int32_t i = 0; i < n; ++i) std::fread(m.lights[i].raw, 0x4c, 1, f);  // one read of n * 0x4c in the exe
     for (int32_t i = 0; i < n; ++i) {
@@ -280,12 +292,16 @@ void read_model_data(std::FILE* f, Model& m, int32_t base) {
       l.color = zvid::pack_bytes(r, g, b);  // 0x005983e0
       int32_t k;
       std::memcpy(&k, l.raw + 0x0c, 4);
-      if (k > 0) l.vertices = read_array<float>(f, static_cast<size_t>(k) * 12);
+      if (k > 0 && !(l.vertices = read_array<float>(f, static_cast<size_t>(k) * 12))) {
+        for (int32_t j = i; j < n; ++j) std::memset(m.lights[j].raw + 0x0c, 0, 4);  // FIX (A): no points from here
+        return stop({0x10, 0x5c});
+      }
     }
   }
   const int32_t polys = m.count(0x10);
   if (polys > 0) {
     uint8_t* raw = read_array<uint8_t>(f, static_cast<size_t>(polys) * 0x28);
+    if (!raw) return stop({0x10, 0x5c});
     m.polygons = new Polygon[static_cast<size_t>(polys)]{};
     for (int32_t i = 0; i < polys; ++i) {
       const uint8_t* p = raw + i * 0x28;
@@ -296,32 +312,49 @@ void read_model_data(std::FILE* f, Model& m, int32_t base) {
     }
     std::free(raw);
     std::vector<std::vector<int32_t>> indices(static_cast<size_t>(polys));
-    for (int32_t i = 0; i < polys; ++i) {
+    int32_t read = polys;  // FIX (A): refused, the polygons before the one refused are the model's
+    for (int32_t i = 0; i < polys && read == polys; ++i) {
       Polygon& q = m.polygons[i];
       const uint32_t k = q.flags & 0x3ff;
-      if (k) {
-        q.vertex_indices = read_array<uint32_t>(f, k * 4);
-        if (q.flags & 0x1000) q.normal_indices = read_array<uint32_t>(f, k * 4);
-      }
       const size_t n = static_cast<size_t>(q.material_count > 0 ? q.material_count : 0);
-      indices[static_cast<size_t>(i)].assign(n, 0);
-      std::fread(indices[static_cast<size_t>(i)].data(), static_cast<size_t>(q.material_count) * 4, 1, f);
-      if (q.file_uvs) {
-        q.uvs = static_cast<float**>(std::calloc(n ? n : 1, sizeof(float*)));
-        for (size_t j = 0; j < n; ++j) q.uvs[j] = read_array<float>(f, k * 8);
+      bool ok = true;
+      if (k) {
+        ok = (q.vertex_indices = read_array<uint32_t>(f, k * 4)) != nullptr;
+        if (ok && (q.flags & 0x1000)) ok = (q.normal_indices = read_array<uint32_t>(f, k * 4)) != nullptr;
       }
-      q.colors = read_array<float>(f, k * 12);
-      q.scratch = static_cast<uint32_t*>(std::calloc(k ? k : 1, 4));
+      if (ok && !bound.fits(f, n * 4, "a polygon's material list")) ok = false;
+      if (ok) {
+        indices[static_cast<size_t>(i)].assign(n, 0);
+        std::fread(indices[static_cast<size_t>(i)].data(), static_cast<size_t>(q.material_count) * 4, 1, f);
+      }
+      if (ok && q.file_uvs) {
+        q.uvs = static_cast<float**>(std::calloc(n ? n : 1, sizeof(float*)));
+        for (size_t j = 0; j < n && ok; ++j) ok = (q.uvs[j] = read_array<float>(f, k * 8)) != nullptr;
+      }
+      if (ok) ok = (q.colors = read_array<float>(f, k * 12)) != nullptr;
+      if (ok) {
+        q.scratch = static_cast<uint32_t*>(std::calloc(k ? k : 1, 4));
+        continue;
+      }
+      std::free(q.vertex_indices), std::free(q.normal_indices);
+      if (q.uvs)
+        for (size_t j = 0; j < n; ++j) std::free(q.uvs[j]);
+      std::free(q.uvs);
+      q = Polygon{};
+      read = i;
     }
-    for (int32_t i = 0; i < polys; ++i) {
+    if (read != polys) std::memcpy(m.header + 0x10, &read, 4);
+    for (int32_t i = 0; i < read; ++i) {
       Polygon& q = m.polygons[i];
       const std::vector<int32_t>& idx = indices[static_cast<size_t>(i)];
       q.materials = static_cast<::zmod::Material**>(std::calloc(idx.empty() ? 1 : idx.size(), sizeof(void*)));
       for (size_t j = 0; j < idx.size(); ++j) q.materials[j] = take(idx[j], base);
     }
+    if (read != polys) return stop({0x5c});
   }
   if (const int32_t n = m.count(0x5c); n > 0) {
     uint8_t* raw = read_array<uint8_t>(f, static_cast<size_t>(n) * 12);
+    if (!raw) return stop({0x5c});
     m.refs = new MaterialRef[static_cast<size_t>(n)]{};
     int32_t first = 0;
     for (int32_t i = 0; i < n; ++i) {
@@ -423,6 +456,7 @@ Model* reread_model(std::FILE* f, int32_t index, int32_t material_base) {
   // FIX (bug): a node without a model (-1) has the exe read the 0x68 bytes before the table as one (its counts
   // garbage); the crater reset only re-reads ground nodes, which all have one (docs/fixes.md).
   if (index < 0) return nullptr;
+  ::zmod::read_bound().begin(f);
   std::fseek(f, static_cast<long>(index) * 0x68, SEEK_CUR);
   uint8_t raw[0x68];
   if (std::fread(raw, sizeof raw, 1, f) != 1) {
@@ -455,6 +489,7 @@ int read_models(std::FILE* f, int32_t material_base) {
     return -1;
   }
   if (size == 0) return 0;
+  ::zmod::read_bound().begin(f);
   if (base == 0) p.count = count, p.free_head = free_head;
   for (int32_t done = 0; done < size; done += p.block) {
     const int32_t b = static_cast<int32_t>(p.blocks.size());
