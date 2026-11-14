@@ -238,18 +238,20 @@ the time.
 - Radius and the three csin values: from + rate x t, truncated to
   integers; at the end the "to"s (2, done).
 
-They go to the weather manager (0x5a6760 -> 0x5a6650): five wave objects
-at +0x70 (vtable 0x5d04a8), the next one placed (0x5a5400: x, y, 0, the
-radius, csin x as an integer and csin y and z as floats) and shown for a
-frame. Past the fifth the fifth is reused; the manager's update counts
-from 0 again. Its draw calls 0x558dd0 with them for each manager rect, a
-ripple over the frame (the software 2D path; not ported, so nothing shows).
+They go to the weather manager (0x5a6760 -> 0x5a6650): five ripples at
++0x70 (vtable 0x5d04a8, the class of the main menu's button ripple,
+mainmenu.md), the next one placed (0x5a5400: x, y, inner radius 0, outer
+radius the radius, amplitude csin x as an integer, wavelength and phase
+csin y and z as floats) and shown for a frame. Past the fifth the fifth is
+reused; the manager's update counts from 0 again. Its draw calls zRender's
+ripple 0x558dd0 with each for each manager rect: a ring of the frame pushed
+out along a sine wave, as around a main menu button.
 
-Port: `zeff::anim_fbfx_wave`, `ztwod::ScreenWave` and `weather_wave`
-(`AnimRunHooks.screen_wave`; `WeatherHooks.wave` for 0x558dd0, which the
-program sends to the census). `test_screen_wave.py`: 3000 events against
-the exe, with the distance, the node's point and the projection stubbed,
-through the wave's draw, at 24 bits and with MW3_PRECISION=53.
+Port: `zeff::anim_fbfx_wave`, `ztwod::Ripple` (now a `ManagerObject`) and
+`weather_wave` (`AnimRunHooks.screen_wave`). `test_screen_wave.py`: 3000
+events against the exe, with the distance, the node's point and the
+projection stubbed, through the wave's draw with zRender's ripple recorded,
+at 24 bits and with MW3_PRECISION=53.
 
 ## Hooks (`AnimRunHooks`)
 

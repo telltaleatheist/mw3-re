@@ -39,17 +39,6 @@ struct WeatherStreak {
   int32_t shown = 0;                       // +0x1c  1 once set (the draw's 1-pixel offset)
 };
 
-// What the weather manager's objects share (ours; the exe shares the code):
-// a draw 0x005a5360 that calls +0x7c once for each of the manager's rects,
-// with +0x34 pointing at that rect.
-class ManagerObject : public Object2D {
- public:
-  using Object2D::Object2D;
-  void draw() override;                 // +0x04  0x005a5360
-  virtual void draw_in_rect() = 0;      // +0x7c
-  const Rect* rect = nullptr;           // +0x34  the rect drawn into (the manager's)
-};
-
 // The screen tint (vtable 0x005d0290, 0x48 bytes): the manager's +0x28,
 // hidden; the animations' event 36 shows it for a frame (0x005a6620).
 class ScreenTint : public ManagerObject {
@@ -58,22 +47,6 @@ class ScreenTint : public ManagerObject {
   void draw_in_rect() override;          // +0x7c  0x005a53c0
   uint16_t colour = 0;                   // +0x38  display-packed
   double alpha = 0;                      // +0x40
-};
-
-// A screen wave (vtable 0x005d04a8, 0x4c bytes, 0x005a53e0): five on the
-// manager (+0x70), placed by the animations' event 37 (0x005a6650) and shown
-// for a frame. The draw 0x00558dd0 (the ripple over the frame) is not ported:
-// WeatherHooks::wave answers it.
-class ScreenWave : public ManagerObject {
- public:
-  ScreenWave() : ManagerObject(0, 0) {}
-  void draw_in_rect() override;  // +0x7c  0x005a5440
-  void place(int32_t px, int32_t py, int32_t zero, int32_t radius, int32_t csin_x, float csin_y,
-             float csin_z);      // 0x005a5400
-  int32_t zero = 0;              // +0x38  (always 0)
-  int32_t radius = 0;            // +0x3c
-  int32_t csin_x = 0;            // +0x40
-  float csin_y = 0, csin_z = 0;  // +0x44, +0x48
 };
 
 // The base (vtable 0x005d0528, 0x98 bytes).
@@ -128,19 +101,20 @@ class Snow : public Weather {
 
 // The weather manager [0x00736328]: a Layer with two rects (+0x10, +0x14),
 // set each frame (0x005a6790), the 2D text target (+0x18, zvid's) and the
-// screen tint (+0x28) and the screen waves (+0x70).
+// screen tint (+0x28) and five screen waves (+0x70, Ripples placed by the
+// animations' event 37 and shown for a frame).
 struct WeatherLayer : Layer {
   WeatherLayer();  // 0x005a4590, at static init
   const Rect* rects[2] = {};
   ScreenTint tint;
-  ScreenWave waves[5];
+  Ripple waves[5];
   int32_t wave_count = 0;  // +0x1ec  this frame's, cleared by the update
 };
 WeatherLayer& weather_layer();
 void weather_tint(uint16_t colour, double alpha);  // 0x005a6730 -> 0x005a6620
 // 0x005a6760 -> 0x005a6650: the next wave placed and shown for this frame;
 // past the fifth, the fifth again.
-void weather_wave(int32_t x, int32_t y, int32_t zero, int32_t radius, int32_t csin_x, float csin_y, float csin_z);
+void weather_wave(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength, float phase);
 void weather_rect(int32_t i, const Rect* r);  // 0x005a6790 -> 0x005a66b0: i < 2 only
 void weather_tick(float dt);                  // 0x005a67c0 -> 0x005a6600: the layer's update
 
@@ -157,9 +131,6 @@ struct WeatherHooks {
   void (*draw)(int32_t count, const zvid::D3DTexture*, int32_t priority, float opacity, int32_t overlay) = nullptr;
   void (*reload)(zvid::D3DTexture*, const zimg::Texture*) = nullptr;
   void (*flush)() = nullptr;
-  // 0x00558dd0 (not ported): a wave's ripple at x, y into the rect.
-  void (*wave)(int32_t x, int32_t y, int32_t zero, int32_t radius, int32_t csin_x, float csin_y, float csin_z,
-               const Rect* rect) = nullptr;
 };
 WeatherHooks& weather_hooks();
 struct WeatherState {

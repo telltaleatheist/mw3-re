@@ -59,12 +59,12 @@ passes 0.
 The layer [0x00736328] is the render overlay (0x005a4590, built at static
 init by 0x005a6700): a Layer, active from the start, holding an object of
 its own at +0x28 (vtable 0x005d0290: the screen tint, anim-run.md) and five
-0x4c-byte screen waves at +0x70 (vtable 0x005d04a8, 0x005a53e0; the
-animations' event 37, anim-run.md), all hidden; its +0x18..+0x24 are the
-2D text target. The rects, the tick, the tint and the waves are ported
-(`WeatherLayer`, `ScreenTint`, `ScreenWave`); the waves' ripple draw
-0x00558dd0 is not. They all share the draw 0x005a5360 (`ManagerObject`,
-ours), and the tint is first in the list.
+0x4c-byte screen waves at +0x70 (Ripples, vtable 0x005d04a8, 0x005a53e0, the
+main menu's ripple class; the animations' event 37, anim-run.md), all
+hidden; its +0x18..+0x24 are the 2D text target. The rects, the tick, the
+tint and the waves are ported (`WeatherLayer`, `ScreenTint`, `Ripple`).
+They all share the draw 0x005a5360 (`ManagerObject`, ours), and the tint is
+first in the list.
 
 The rain's update 0x005a6110, unless hidden:
 

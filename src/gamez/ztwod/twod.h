@@ -484,13 +484,26 @@ class Movie2D : public Object2D {
   virtual void start();              // +0x7c  0x005a7d10
 };
 
-// A ring of the screen pushed out along a sine wave (vtable 0x005d04a8), 0x4c
-// bytes: the ripple around a main menu button (docs/mainmenu.md). It draws
-// through zRender (0x00558dd0, Host::ripple), from `inner` to `outer` pixels
-// around (x, y), shifted by up to `amplitude` pixels.
-class Ripple : public Object2D {
+// What the render overlay's objects share (ours; the exe shares the code):
+// a draw 0x005a5360 that calls +0x7c once for each of the overlay's rects
+// (twod_weather.h, WeatherLayer), with +0x34 pointing at that rect; with no
+// owner, +0x7c once as it is.
+class ManagerObject : public Object2D {
  public:
-  const Rect* clip = nullptr;        // +0x34  null: the whole target
+  using Object2D::Object2D;
+  void draw() override;                 // +0x04  0x005a5360 (twod_weather.cpp)
+  virtual void draw_in_rect() = 0;      // +0x7c
+  const Rect* rect = nullptr;           // +0x34  the rect drawn into; null: the whole target
+};
+
+// A ring of the screen pushed out along a sine wave (vtable 0x005d04a8), 0x4c
+// bytes: the ripple around a main menu button (docs/mainmenu.md), and the
+// render overlay's five screen waves (anim event 37, docs/anim-run.md). It
+// draws through zRender (0x00558dd0, Host::ripple), from `inner` to `outer`
+// pixels around (x, y), shifted by up to `amplitude` pixels. The menus call
+// +0x7c directly; in the overlay +0x04 draws it into each of its rects.
+class Ripple : public ManagerObject {
+ public:
   int32_t inner = 0;                 // +0x38  (not set by the constructor)
   int32_t outer = 0;                 // +0x3c
   int32_t amplitude = 0;             // +0x40
@@ -499,9 +512,8 @@ class Ripple : public Object2D {
 
   Ripple();                          // 0x005a53e0
   ~Ripple() override = default;      // 0x005a6860
-  // +0x04 (0x005a5360) draws it once for each view of the render overlay layer
-  // it belongs to (0x005a4590, not ported); the menus call +0x7c directly.
-  virtual void draw_ripple();        // +0x7c  0x005a5440
+  void draw_in_rect() override;      // +0x7c  0x005a5440
+  void place(int32_t px, int32_t py, int32_t in, int32_t out, int32_t amp, float wl, float ph);  // 0x005a5400
 };
 
 // ---- the edit bar (0x005a3830..0x005a3a40, 0x005a46a0..0x005a5340; docs/twod.md, The edit bar) ----

@@ -54,9 +54,10 @@ struct AnimRunHooks {
   float (*distance2)(void* ctx, zcls::Node* node) = nullptr;
   int32_t (*world_point)(void* ctx, zcls::Node* node, float p[3]) = nullptr;
   uint32_t (*project)(void* ctx, const float in[3], float out[3]) = nullptr;
-  // Its wave, 0x005a6760 (zTwoD's): the place, 0, the radius, csin x, y and z.
-  void (*screen_wave)(void* ctx, int32_t x, int32_t y, int32_t zero, int32_t radius, int32_t csin_x, float csin_y,
-                      float csin_z) = nullptr;
+  // Its wave, 0x005a6760 (zTwoD's ripple): the place, the inner radius (0), the
+  // radius, and csin x, y and z as the ripple's amplitude, wavelength and phase.
+  void (*screen_wave)(void* ctx, int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude,
+                      float wavelength, float phase) = nullptr;
   void (*message)(void* ctx, uint8_t* ev) = nullptr;                       // event 38, 0x00507970
 };
 AnimRunHooks& anim_run_hooks();
