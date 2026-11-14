@@ -3,6 +3,7 @@
 // the game table and telling PM's install from MW3's.
 #include <cstdio>
 #include <filesystem>
+#include <memory>
 #include <cstring>
 #include <fstream>
 #include <random>
@@ -12,6 +13,7 @@
 
 #include "check.h"
 #include "mech3/data_version.h"
+#include "mech3/mods.h"
 #include "gamez/zgame/zgame_table.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zsiscript/si_script.h"
@@ -41,6 +43,27 @@
 
 namespace {
 bool have(const char* dir) { return std::filesystem::exists(std::filesystem::path(dir) / "zbd" / "reader.zbd"); }
+
+// What the world tests set, put back when they end (tests restore what they set).
+struct WorldsKept {
+  zutl::Mounts mounts = zutl::mounts();
+  std::unique_ptr<::zimg::TextureTable> textures = std::make_unique<::zimg::TextureTable>(::zimg::textures());
+  ::zmod::MaterialTable materials = std::move(::zmod::materials());
+  pm::zmod::ModelPool models = std::move(pm::zmod::models());
+  ::zcls::NodePool nodes = std::move(::zcls::nodes());
+  ::zcls::Lists lists = std::move(::zcls::lists());
+  pm::zcls::ZbdState zbd = std::move(pm::zcls::zbd_state());
+  ~WorldsKept() {
+    zutl::mounts() = mounts;
+    ::zimg::textures() = *textures;
+    ::zmod::materials() = std::move(materials);
+    pm::zmod::models() = std::move(models);
+    ::zcls::nodes() = std::move(nodes);
+    ::zcls::lists() = std::move(lists);
+    pm::zcls::zbd_state() = std::move(zbd);
+    zgame::set_game(zgame::mw3_table());
+  }
+};
 }  // namespace
 
 TEST(pm_table_is_picked_at_run_time) {
@@ -278,6 +301,7 @@ TEST(pm_worlds_stack_through_the_table) {
     std::printf("  skipped: no PM install\n");
     return;
   }
+  WorldsKept keep;  // put back at the end (a later test's import found these worlds' pools and crashed)
   zutl::mounts() = {};
   zutl::mount(MW3PM_GAME_DIR);
   zgame::set_game(pm::table());
@@ -335,6 +359,44 @@ TEST(pm_worlds_stack_through_the_table) {
   EXPECT(zgame::game().zcls_read_zbd("zbd/none/gamez.zbd") == -1);
   EXPECT(pm::zcls::zbd_state().files.size() == 2 && ::zmod::materials().capacity == 2000);
   zgame::set_game(zgame::mw3_table());
+}
+
+// The mod check's anim.zbd read with a world up (the lab's in play, or one a test left): read unbound, as with
+// none. Bound, each def found the world's nodes and made lights, sounds and puffers in it through hooks unset
+// outside play (a crash in the anim reader).
+TEST(pm_mod_check_reads_anims_unbound_with_a_world_up) {
+  const std::string c1 = std::string(MW3PM_GAME_DIR) + "/zbd/c1";
+  if (!std::filesystem::exists(c1 + "/anim.zbd")) return;
+  WorldsKept keep;
+  zutl::mounts() = {};
+  zutl::mount(MW3PM_GAME_DIR);
+  zgame::set_game(pm::table());
+  ::zimg::textures().count = 0;
+  ::zmod::materials() = ::zmod::MaterialTable{};
+  pm::zmod::models() = pm::zmod::ModelPool{};
+  ::zcls::nodes() = ::zcls::NodePool{};
+  ::zcls::lists() = ::zcls::Lists{};
+  pm::zcls::zbd_state() = pm::zcls::ZbdState{};
+  EXPECT(zgame::game().zcls_read_zbd("zbd/c1/gamez.zbd") == 0);
+  auto live = [] {
+    int32_t n = 0;
+    for (int32_t i = 0; i < ::zcls::nodes().capacity; ++i) n += (::zcls::node_at(i)->link & ::zcls::kNodeLive) != 0;
+    return n;
+  };
+  const int32_t before = live();
+  const ::zcls::ListItem* head = ::zcls::lists().list[::zcls::kAllNodes].head;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/pm_anim_unbound";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir + "/zbd/c1", ec);
+  std::filesystem::copy_file(c1 + "/anim.zbd", dir + "/zbd/c1/anim.zbd", ec);
+  int errors = 0;
+  bool read = false;
+  for (const std::string& l : mech3::mod_check(dir, MW3PM_GAME_DIR, &errors))
+    read |= l.find("animations read") != std::string::npos;
+  EXPECT(read && errors == 0);
+  EXPECT(before > 1000 && live() == before && ::zcls::lists().list[::zcls::kAllNodes].head == head);
+  std::filesystem::remove_all(dir, ec);
 }
 
 // The material sweep (Pirate's Moon 0x00557990), each Instant Action and multiplayer frame with 10: by PM's
