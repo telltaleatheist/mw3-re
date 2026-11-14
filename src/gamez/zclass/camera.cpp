@@ -18,6 +18,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zgame/zgame_table.h"
+#include "gamez/zclass/light.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zmodel/gmod_draw.h"
@@ -230,6 +231,10 @@ int32_t render_object3d(Node* node, int32_t mode) {
       c.weight = d->get<float>(0x14);
       zmod::set_tint(c.rgb, c.weight);
     }
+    // Pirate's Moon 1.0 @ 0x00507f30: the node's own light on the sun for its subtree (the cockpit grills).
+    zcls::LightOverride light_saved;
+    const zgame::Table& game = zgame::game();
+    const bool lit = game.zcls_light_override && game.zcls_light_override(node, &light_saved);
     int32_t visible = 1;
     if (g_walk.hidden_surface && g_walk.ring > 0 && mode != 1 && !g_walk.overlay &&
         !model_has_lights(node))
@@ -242,6 +247,7 @@ int32_t render_object3d(Node* node, int32_t mode) {
     if (caster) zmod::set_shadows(saved_shadows);
     if (overlay) g_walk.overlay = 0, zmod::set_overlay(0);
     if (opacity) pop_opacity();
+    if (lit) game.zcls_light_restore(light_saved);
     if (color) {
       --g_walk.color_top;
       if (g_walk.color_top < 0)

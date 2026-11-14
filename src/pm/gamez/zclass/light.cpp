@@ -5,10 +5,24 @@
 #include "gamez/zclass/list.h"
 #include "gamez/zerror/zerr.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
+#include "gamez/zmodel/gmod_light.h"
 
 namespace pm::zcls {
 
 using ::zcls::Node;
+
+namespace {
+int32_t g_stale_hold = 0;  // [0x00630064]
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004ff730
+void set_stale_hold(int32_t on) { g_stale_hold = on; }
+// Pirate's Moon 1.0 @ 0x004ff740
+int32_t stale_hold() { return g_stale_hold; }
+// Pirate's Moon 1.0 @ 0x004ff750: a static light's change makes the world's bake stale, unless held.
+void stale() {
+  if (!g_stale_hold) ::zcls::node_touch_frame();
+}
 
 namespace {
 const char kFile[] = "C:\\zipper\\branchep1\\gamez\\zClass\\Light.c";
@@ -62,8 +76,6 @@ void set_flags(::zcls::Light& l, uint32_t f) { l.put<uint32_t>(0xb0, f); }
   return l;
 }
 
-// A static light's change makes the world's bake stale (0x004ff750).
-void stale() { ::zcls::node_touch_frame(); }
 
 void sum_colors(::zcls::Light& l) {
   Colors& c = colors(l);
@@ -280,6 +292,45 @@ int light_set_own_colors(Node* node, int on) {
   set_flags(*l, (f & ~kOwn) | (on & 1 ? kOwn : 0) | kRecalc);
   if (f & kStatic) stale();
   return 0;
+}
+
+}  // namespace pm::zcls
+
+namespace pm::zcls {
+
+// Pirate's Moon 1.0 @ 0x00507f30's light override (inline there; the bits 0x004fd040 / 0x004fd0d0 /
+// 0x004fd160 / 0x004fd1f0, the directed light 0x00563740): node +0x2c bit 7 sets the sun's ambient to
+// bits 9..16 / 255, bit 8 its diffuse to bits 17..24 / 255, the bake's stamp held meanwhile. 24 mechlib
+// nodes carry it, each mech's cockpit "grill" (an ambient of 0x59).
+bool light_override(Node* node, ::zcls::LightOverride* save) {
+  const uint32_t bits = node ? node->get<uint32_t>(0x2c) : 0;
+  const bool amb = (bits >> 7) & 1, dif = (bits >> 8) & 1;
+  if (!amb && !dif) return false;
+  const ::zmod::LightList& L = ::zmod::light_list();
+  Node* sun = L.directed >= 0 ? L.list[L.directed].node : nullptr;
+  if (!sun || !sun->data) return false;
+  auto* l = static_cast<::zcls::Light*>(sun->data);
+  *save = ::zcls::LightOverride{};
+  save->light = sun;
+  save->hold = stale_hold();
+  set_stale_hold(1);
+  if (amb) {
+    save->ambient = l->get<float>(0xa0), save->ambient_set = 1;
+    pm::zcls::light_set_ambient(sun, static_cast<float>((bits >> 9) & 0xff) * (1.0f / 255.0f));
+  }
+  if (dif) {
+    save->diffuse = l->get<float>(0x9c), save->diffuse_set = 1;
+    pm::zcls::light_set_diffuse(sun, static_cast<float>((bits >> 17) & 0xff) * (1.0f / 255.0f));
+  }
+  return true;
+}
+
+// The end of 0x00507f30: the ambient back, then the diffuse, then the hold.
+void light_restore(const ::zcls::LightOverride& save) {
+  if (!save.light) return;
+  if (save.ambient_set) pm::zcls::light_set_ambient(save.light, save.ambient);
+  if (save.diffuse_set) pm::zcls::light_set_diffuse(save.light, save.diffuse);
+  set_stale_hold(save.hold);
 }
 
 }  // namespace pm::zcls

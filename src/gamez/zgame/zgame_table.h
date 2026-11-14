@@ -17,6 +17,7 @@ struct AnimDef;
 struct SeqDef;
 }
 namespace zcls {
+struct LightOverride;
 struct Node;
 struct MechLib;
 struct Partition;
@@ -98,6 +99,10 @@ struct Table {
   // OBJECT_MOTION's ground query (zeff_anim_events.cpp, 0x00504520; PM 0x0051cd60): MW3 takes its anim's node out of
   // it (flag 8), PM the node it moves.
   bool anim_motion_ground_self;
+  // The model draw's per-node light override (camera.cpp render_object3d; PM 0x00507f30): node +0x2c bit 7
+  // sets the sun's ambient from bits 9..16, bit 8 its diffuse from bits 17..24, for the node's subtree. Null in MW3.
+  bool (*zcls_light_override)(zcls::Node* node, zcls::LightOverride* save);
+  void (*zcls_light_restore)(const zcls::LightOverride& save);
 };
 
 const Table& mw3_table();

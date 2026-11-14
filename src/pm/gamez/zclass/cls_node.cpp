@@ -9,6 +9,7 @@
 #include "gamez/zerror/zerr.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "pm/gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zclass/light.h"
 
 namespace pm::zcls {
 
@@ -61,7 +62,7 @@ int node_set_active(Node* node, int on) {
       auto* light = static_cast<::zcls::Light*>(node->data);
       if (light->get<uint32_t>(0xb0) & 0x200) {  // PM +0xe0
         const uint32_t f = on ? ~node->flags() : node->flags();
-        if ((f >> 2) & 1) ::zcls::node_touch_frame();  // 0x004ff750
+        if ((f >> 2) & 1) stale();  // 0x004ff750 (held by the model draw's light override)
       }
       break;
     }

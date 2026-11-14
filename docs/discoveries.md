@@ -3184,8 +3184,6 @@ From the weapons' effects (details: `weapon-effects.md`):
 
 ## Menus
 
-- **Leaving the pause menu with Escape silences the mission.** The pause stops every sound that is playing, and only the RESUME button starts them again. Press Escape to leave the pause instead and the wind, the ocean and your own mech's engine hum stay silent from then on; new sounds (weapons, footsteps, hits) still play. Pirate's Moon made Escape do exactly what RESUME does. The rebuild brings the sounds back either way. (0x00493250, 0x00492d70; measured in the rebuild with the original's logic: 5 sounds playing in Op 1 Mission 1 before the pause, none two seconds after Escape.)
-
 From the 2D front end, zTwoD (details: `twod.md`).
 
 - **Menus only redraw what changes.** Nothing clears the screen between menu
@@ -4721,6 +4719,7 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
 - **Under water, Pirate's Moon's murk swallows everything, the sky included.** With your view below the surface the expansion fogs every object into the water's colour. MechWarrior 3's water fog touches only the objects whose models are marked for fog, never the sky. (Read in the exe, compared in an emulator.)
 - **Pirate's Moon's lowest object detail goes further.** At Object Detail low, distant objects switch to their simpler models at about half the distance MechWarrior 3's low setting uses. (Read in the exe, compared in an emulator.)
 - **Pirate's Moon's HUD names your selected weapon from a list of its own**, not from the weapon's file as MechWarrior 3 does. That is why the ER Micro Laser and the heavy and light machine guns read 'ER Laser Micro', 'MGUN Heavy' and 'MGUN Lt.': the expansion's weapon file names messages that its text file lacks. (Read in the exe, compared in an emulator.)
+- **Pirate's Moon lights its cockpit frames by their own rule.** Every Pirate's Moon cockpit model marks its frame (the struts round the canopy and the dash) with an ambient light of its own, about a third, used instead of the mission's ambient while it is drawn (the sun's direct light still falls on it). MechWarrior 3's cockpit frames take the mission's ambient. (Read in the exe.)
 - **Pirate's Moon's Progression shows each map's own waves as you pick the map.** In Instant Action's Battle Progression, changing the map loads that map's waves and redraws the enemy line-up at once; the map's own waves were otherwise only taken when you pressed ACCEPT. (Read in the exe.)
 - **Changing your Instant Action mech in Pirate's Moon resets its loadout.** Pick a different commander mech and Pirate's Moon drops the loadout you had set up for the old one, so the new mech starts with its own; keep the same mech and the loadout stays. (Read in the exe.)
 - **Pirate's Moon's Instant Action starts you against an Annihilator and remembers enemy loadouts.** With nothing kept yet, Pirate's Moon's first enemy is the Annihilator with its first loadout; MechWarrior 3's is a copy of your own mech. Pirate's Moon keeps your enemies as mechs and each loadout by its place in that mech's list, so a pilot's enemies come back the same next time; a mech whose first loadout is a training one shows it as "Unknown". (Read in the exe.)
