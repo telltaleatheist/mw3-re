@@ -698,15 +698,27 @@ A mod's scripts would need them wired (`make_engine`); that is a decision for la
   counting removed items too), the walk by a name's first characters 0x4f8b80 (its length kept at 0x60be48; no
   name steps on), NodeSetLighting 0x4f9e50 (the model's +8 bit 0 by 0x539cf0, down the whole tree; the exe returns
   whatever EAX held).
+- Models and textures (`zmod`, gmod_const and gmod_init) and the anim debug frame (`zeff`): Object3DSetFacade
+  0x539cc0 (the model's +0), SetShowBackFace 0x53bb50 (each polygon's flag 0x100), Object3DSetColor 0x53bd60 (each
+  untextured polygon's material made a palette colour: +0x03 the number's low byte, red the number, green and blue
+  0, +0x18 1; the materials are shared, so every model using one changes), SetMorphVertex 0x53b960 (a morph per
+  vertex, (0, v, 0), or 0 for the vertices listed and those used by fewer polygons than the minimum; the weight
+  +0x24 1, flag 8; FIX (A): listed indices past the vertex count are skipped where the exe writes outside its
+  arrays), TextureSetWorldBase 0x526ac0 and TextureSetWorldPerMeter 0x526aa0 (0x74a29c.. and 0x74a2a4..; nothing in
+  the exe reads them), AnimDebugFrame 0x507dd0 (the next frame's number at 0x5ebbf4, which nothing reads).
+- Not ported, the software renderer's (CLAUDE.md, Rendering): SetPerspectiveTextureAdaptive 0x558120 (the span's
+  step, read at 0x55f8bc) and SetPaletteName 0x5975e0 (the 8-bit palette, through 0x597680).
 
 **Check: `tests/differential/test_script_cmds.py`** (probe `tests/probe_script_cmds.cpp`): 400 random calls each for
-the world, camera, sequence, window, list and lighting commands against the exe (grids of up to 3 by 3 with empty
+the world, camera, sequence, window, list, lighting and model commands against the exe (grids of up to 3 by 3 with empty
 and missing node lists, null nodes and data, wrong classes, insertions inside and at the end, full clear-polygon
 buffers, lists with removed items and repeated names, prefix walks started and stepped, trees of up to 8 nodes with
-and without models) and NewDisplay, comparing the data, the walk's globals, the outputs, the printed text, the
+and without models, models of up to 5 polygons and 11 vertices with shared, textured and untextured materials)
+and NewDisplay, the texture world setters and AnimDebugFrame, comparing the data, the walk's globals, the outputs, the printed text, the
 results and the reports' level and line. Breaks caught: the translate always the set place, the virtual partition
 not applying the size again, the max clamped at 254, the dynamic LoD's default 0.05, the insert moving one entry
 short, Repeat writing Loop's field, a clear vertex keeping its height, the close giving 0, the clear polygon on for
 any non-zero, the prefix walk comparing whole names, the print counting only live nodes, the lighting not going
-down the tree.
+down the tree, the colour changing textured materials, the morph ignoring the use count or the model flag, the
+backface from bit 1, the texture base written as the per-meter, the debug frame without the + 1.
 

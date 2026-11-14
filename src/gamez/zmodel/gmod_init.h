@@ -40,6 +40,15 @@ void gfx_flags_start(bool hardware);                       // 0x005266f0 (0x0052
 void use_gfx_flags(const char* name, uint32_t flags);     // 0x00526750 (ECX name, EDX flags)
 void set_opacity(float opacity);   // 0x00526a60
 void set_shadows(int32_t on);      // 0x00526a70
+// The texture world mapping the script commands TextureSetWorldBase / PerMeter set (ported for preservation; the
+// engine's entries are null). Nothing in the exe reads them; zModel's start sets the per-meter (0.2, 0.2).
+struct TextureWorld {
+  float base[2] = {0, 0};          // 0x0074a29c, 0x0074a2a0
+  float per_meter[2] = {0.2f, 0.2f};  // 0x0074a2a4, 0x0074a2a8
+};
+TextureWorld& texture_world();
+void texture_world_per_meter(float u, float v);  // 0x00526aa0
+void texture_world_base(float u, float v);       // 0x00526ac0
 int32_t shadows_on();              // 0x00526a80
 void set_overlay(int32_t on);      // 0x00526a90
 int32_t fog_on();                  // 0x00526b90

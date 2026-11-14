@@ -144,6 +144,12 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a);  // 0x0053c6c0 
 // what EAX holds; callers ignore it (0 here, for the script's engine table).
 int model_set_priority(Model* m, int32_t priority);  // 0x0053bb20 ECX m, EDX priority
 void model_set_lighting(Model* m, uint32_t on);      // 0x00539cf0 ECX m, EDX on: +8 bit 0
+// The script commands' (ported for preservation; the engine's entries are null): Object3DSetFacade, SetShowBackFace,
+// Object3DSetColor, SetMorphVertex.
+void model_set_facade(Model* m, uint32_t mode);       // 0x00539cc0: +0
+void model_set_show_backface(Model* m, uint32_t on);  // 0x0053bb50: the polygons' flag 0x100
+void model_set_color(Model* m, int32_t color);        // 0x0053bd60: the untextured materials' palette colour
+void model_set_morph(Model* m, const int32_t* fixed, float v, int32_t count, int32_t min_uses);  // 0x0053b960
 // `kept` (optional) loses the index of each point dropped.
 int drop_colinear(int32_t* n, float* points, std::vector<int32_t>* kept = nullptr);  // 0x0053a530 ECX n, EDX points
 int32_t find_vertex(Model& m, const float p[3]);                     // 0x00539d80

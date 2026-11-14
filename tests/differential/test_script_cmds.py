@@ -33,6 +33,9 @@ probe.probe_list_cmd.argtypes = [I32, I32, P, P, I32, P, P, I32, P, P, I32]
 probe.probe_list_cmd.restype = I32
 probe.probe_lighting.argtypes = [P, P, P, I32, I32]
 probe.probe_lighting.restype = I32
+probe.probe_model_cmd.argtypes = [I32, P, P, P, P, P, I32, P, I32, I32, F, P]
+probe.probe_misc_cmd.argtypes = [I32, F, F, ctypes.c_uint32, P]
+MALLOC, FREE = 0x5bb664, 0x5bb65c
 
 SEEN = collections.Counter()
 ZERR, GEO_REPORT, SPRINTF = 0x49bfd0, 0x50da70, 0x5bb658
@@ -64,6 +67,8 @@ class Exe:
         cpu.stub_function(PUSH_FRONT, lambda c: self.pushed.append((c.ecx, c.edx)) and 0)
         cpu.stub_function(NODE_LINK, lambda c: self.linked.append((c.ecx, c.edx)) and 0)
         cpu.stub_import(PRINTF, self.printf)
+        cpu.stub_import(MALLOC, lambda c: c.alloc(max(1, c.arg(0))))
+        cpu.stub_import(FREE, lambda c: 0)
         cpu.stub_import(STRNCMP, self.strncmp)
         self.printed = ''
         self.pushed, self.linked = [], []
@@ -462,6 +467,113 @@ def lighting_cases(exe, rng, count):
     return done
 
 
+def model_cases(exe, rng, count):
+    cpu, done = exe.cpu, 0
+    for _ in range(count):
+        which = rng.randrange(4)
+        npoly, verts, nmat = rng.randrange(0, 6), rng.randrange(0, 12), rng.randrange(1, 4)
+        header = bytearray(rng.randbytes(0x5c))
+        struct.pack_into('<II', header, 0x10, npoly, verts)
+        poly_flags = [(rng.getrandbits(32) & ~0xff) | (rng.randrange(0, 5) if verts else 0) for _ in range(npoly)]
+        indices = [rng.randrange(0, verts) for f in poly_flags for _ in range(f & 0xff)]
+        poly_mat = [rng.randrange(nmat) for _ in range(npoly)]
+        mats = [bytearray(rng.randbytes(0x20)) for _ in range(nmat)]
+        for m in mats:
+            m[1] = (m[1] & ~1) | rng.choice([0, 0, 1])
+        nfix = rng.randrange(0, 4)
+        fixed = [rng.randrange(0, verts) for _ in range(nfix)] if verts else []
+        nfix = len(fixed)
+        a = nfix if which == 3 else rng.choice([0, 1, 2, 3, 255, rng.getrandbits(31)])
+        b = rng.choice([0, -1, 1, 2, 3, 6])
+        v = f32(rng.uniform(-5, 5))
+        # The exe's model.
+        mdl = cpu.alloc(0x60)
+        cpu.write(mdl, header + bytes(4))
+        polys = cpu.alloc(0x24 * max(1, npoly))
+        cpu.write(polys, bytes(0x24 * max(1, npoly)))
+        mat_at = [cpu.alloc(0x2c) for _ in range(nmat)]
+        for i, m in enumerate(mats):
+            cpu.write(mat_at[i], bytes(m) + bytes(0xc))
+        k = 0
+        for i in range(npoly):
+            n = poly_flags[i] & 0xff
+            ia = cpu.alloc(4 * max(1, n))
+            cpu.write(ia, struct.pack(f'<{n}I', *indices[k:k + n]))
+            k += n
+            cpu.write(polys + 0x24 * i, struct.pack('<I', poly_flags[i]))
+            cpu.u32(polys + 0x24 * i + 8, ia)
+            cpu.u32(polys + 0x24 * i + 0x1c, mat_at[poly_mat[i]])
+        cpu.u32(mdl + 0x34, polys)
+        cpu.u32(mdl + 0x44, 0)
+        fa = cpu.alloc(4 * max(1, nfix))
+        cpu.write(fa, struct.pack(f'<{nfix}i', *fixed))
+        if which == 0:
+            cpu.call(0x539cc0, ecx=mdl, edx=a)
+        elif which == 1:
+            cpu.call(0x53bb50, ecx=mdl, edx=a)
+        elif which == 2:
+            cpu.call(0x53bd60, ecx=mdl, edx=a)
+        else:
+            cpu.call(0x53b960, ecx=mdl, edx=fa, stack_args=(bits(v), a, b & 0xffffffff))
+        wh = bytearray(cpu.read(mdl, 0x5c))
+        for off in (0x34, 0x44):
+            struct.pack_into('<I', wh, off, 0)
+        want_morph = b''
+        if which == 3 and verts:
+            want_morph = cpu.read(struct.unpack('<I', cpu.read(mdl + 0x44, 4))[0], 12 * verts)
+        want = (bytes(wh), [struct.unpack('<I', cpu.read(polys + 0x24 * i, 4))[0] for i in range(npoly)],
+                [cpu.read(m, 0x20) for m in mat_at], want_morph)
+        hb = ctypes.create_string_buffer(bytes(header), 0x5c)
+        pf = (ctypes.c_uint32 * max(1, npoly))(*poly_flags)
+        mb = ctypes.create_string_buffer(b''.join(bytes(m) for m in mats), 0x20 * nmat)
+        mo = (ctypes.c_float * max(1, 3 * verts))()
+        probe.probe_model_cmd(which, hb, pf, (ctypes.c_uint32 * max(1, len(indices)))(*indices),
+                              (ctypes.c_int32 * max(1, npoly))(*poly_mat), mb, nmat,
+                              (ctypes.c_int32 * max(1, nfix))(*fixed), a, b, v, mo)
+        gh = bytearray(hb.raw)
+        for off in (0x34, 0x44):
+            struct.pack_into('<I', gh, off, 0)
+        got = (bytes(gh), list(pf)[:npoly], [mb.raw[0x20 * i:0x20 * i + 0x20] for i in range(nmat)],
+               bytes(mo)[:12 * verts] if which == 3 and verts else b'')
+        # The materials past +0x10 (the texture pointer) are compared from +0x14.
+        if got[:2] != want[:2] or got[3] != want[3] or \
+                [m[:0x10] + m[0x14:] for m in got[2]] != [m[:0x10] + m[0x14:] for m in want[2]]:
+            raise SystemExit(f'model case {done} (command {which}, polygons {npoly}, vertices {verts}, a {a}, '
+                             f'b {b}): differs')
+        SEEN[f'model {which}'] += 1
+        done += 1
+    for which in range(3):
+        for _ in range(count // 10):
+            u, v = f32(rng.uniform(-10, 10)), f32(rng.uniform(-10, 10))
+            frame = rng.getrandbits(31)
+            cpu.u32(0x72f338, frame)
+            for a, val in ((0x74a29c, 1.5), (0x74a2a0, 2.5), (0x74a2a4, 0.2), (0x74a2a8, 0.2)):
+                cpu.u32(a, bits(val))
+            cpu.u32(0x5ebbf4, 7)
+            if which == 0:
+                cpu.call(0x526ac0, stack_args=(bits(u), bits(v)))
+            elif which == 1:
+                cpu.call(0x526aa0, stack_args=(bits(u), bits(v)))
+            else:
+                cpu.call(0x507dd0)
+            want = [struct.unpack('<I', cpu.read(a, 4))[0] for a in (0x74a29c, 0x74a2a0, 0x74a2a4, 0x74a2a8, 0x5ebbf4)]
+            out = (ctypes.c_uint32 * 5)()
+            # The port's starting values as the exe's above.
+            probe.probe_misc_cmd(3, 0, 0, 0, out)
+            start = list(out)
+            probe.probe_misc_cmd(which, u, v, frame, out)
+            got = list(out)
+            for i, val in enumerate((1.5, 2.5, 0.2, 0.2)):
+                if got[i] == start[i]:
+                    got[i] = bits(val)
+            if got[4] == start[4]:
+                got[4] = 7
+            if got != want:
+                raise SystemExit(f'misc command {which}: {got} != {want}')
+            done += 1
+    return done
+
+
 def main():
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 400
     exe = Exe()
@@ -472,7 +584,8 @@ def main():
     wn = window_cases(exe, rng, count)
     li = list_cases(exe, rng, count)
     lt = lighting_cases(exe, rng, count)
-    print(f'ok: {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} lighting commands '
+    mo = model_cases(exe, rng, count)
+    print(f'ok: {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} lighting, {mo} model and texture commands '
           f'as the original (data, globals, outputs, results, reports)')
     print(dict(sorted(SEEN.items())))
 

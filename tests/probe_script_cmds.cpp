@@ -14,7 +14,9 @@
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/seq.h"
 #include "gamez/zclass/window.h"
+#include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_init.h"
 #include "gamez/zerror/zerr.h"
 
 namespace {
@@ -276,6 +278,72 @@ int32_t probe_lighting(const int32_t* parent, const int32_t* has_model, uint32_t
   for (int32_t i = 0; i < count; ++i) std::memcpy(&model_flags[i], models[i].header + 8, 4);
   for (auto& n : nodes) n.children = nullptr;
   return r;
+}
+
+// One model command on a model whose header is `header` (0x5c bytes, written back) with npoly polygons: polygon i's
+// flags poly_flags[i] (written back), its vertex indices from `indices` (flags & 0xff of them, in order), its
+// material mats[poly_mat[i]] (0x20 bytes each of the exe's layout up to +0x20, written back). morphs: the vertex
+// count's three floats each, written. which: 0 facade (a), 1 show backface (a), 2 colour (a), 3 morph (fixed,
+// a = their count, f = v, b = min uses).
+void probe_model_cmd(int32_t which, uint8_t* header, uint32_t* poly_flags, const uint32_t* indices,
+                     const int32_t* poly_mat, uint8_t* mats, int32_t nmat, const int32_t* fixed, int32_t a, int32_t b,
+                     float f, float* morphs) {
+  zmod::Model m{};
+  std::memcpy(m.header, header, sizeof m.header);
+  const int32_t npoly = static_cast<int32_t>(m.count(0x10));
+  std::vector<zmod::Polygon> polys(npoly > 0 ? npoly : 0);
+  std::vector<zmod::Material> mt(nmat);
+  std::vector<std::vector<uint32_t>> vi(polys.size());
+  for (int32_t i = 0; i < nmat; ++i) {
+    const uint8_t* r = mats + 0x20 * i;
+    mt[i].alpha = r[0], mt[i].flags = r[1];
+    std::memcpy(&mt[i].rgb, r + 2, 2);
+    std::memcpy(&mt[i].r, r + 4, 12);
+    std::memcpy(mt[i].unk_14, r + 0x14, 12);
+  }
+  size_t at = 0;
+  for (int32_t i = 0; i < npoly; ++i) {
+    polys[i].flags = poly_flags[i];
+    vi[i].assign(indices + at, indices + at + (poly_flags[i] & 0xff));
+    at += poly_flags[i] & 0xff;
+    polys[i].vertex_indices = vi[i].data();
+    polys[i].material = &mt[poly_mat[i]];
+  }
+  m.polygons = polys.data();
+  switch (which) {
+    case 0: zmod::model_set_facade(&m, static_cast<uint32_t>(a)); break;
+    case 1: zmod::model_set_show_backface(&m, static_cast<uint32_t>(a)); break;
+    case 2: zmod::model_set_color(&m, a); break;
+    default: zmod::model_set_morph(&m, fixed, f, a, b); break;
+  }
+  std::memcpy(header, m.header, sizeof m.header);
+  for (int32_t i = 0; i < npoly; ++i) poly_flags[i] = polys[i].flags;
+  for (int32_t i = 0; i < nmat; ++i) {
+    uint8_t* r = mats + 0x20 * i;
+    r[0] = mt[i].alpha, r[1] = mt[i].flags;
+    std::memcpy(r + 2, &mt[i].rgb, 2);
+    std::memcpy(r + 4, &mt[i].r, 12);
+    std::memcpy(r + 0x14, mt[i].unk_14, 12);
+  }
+  if (which == 3 && m.morphs) std::memcpy(morphs, m.morphs, 12 * m.count(0x14));
+  std::free(m.morphs);
+  m.morphs = nullptr;
+  m.polygons = nullptr;
+}
+
+// The texture world setters and AnimDebugFrame: out = base u, v, per meter u, v, the debug frame.
+void probe_misc_cmd(int32_t which, float u, float v, uint32_t frame, uint32_t* out) {
+  const zmod::TextureWorld saved = zmod::texture_world();
+  const uint32_t saved_frame = zcls::frames().frame;
+  zcls::frames().frame = frame;
+  if (which == 0) zmod::texture_world_base(u, v);
+  else if (which == 1) zmod::texture_world_per_meter(u, v);
+  else if (which == 2) zeff::anim_debug_frame();  // 3: only read
+  std::memcpy(out, zmod::texture_world().base, 8);
+  std::memcpy(out + 2, zmod::texture_world().per_meter, 8);
+  out[4] = static_cast<uint32_t>(zeff::anim_debug_frame_at());
+  zmod::texture_world() = saved;
+  zcls::frames().frame = saved_frame;
 }
 
 }  // extern "C"

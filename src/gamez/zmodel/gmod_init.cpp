@@ -80,6 +80,14 @@ void set_shadows(int32_t on) { draw_state().shadows = on; }
 int32_t shadows_on() { return draw_state().shadows; }
 // Mech3.exe 1.2 @ 0x00526a90
 void set_overlay(int32_t on) { draw_state().overlay = on; }
+namespace {
+TextureWorld g_texture_world;
+}  // namespace
+TextureWorld& texture_world() { return g_texture_world; }
+// Mech3.exe 1.2 @ 0x00526aa0 (stack u, v)
+void texture_world_per_meter(float u, float v) { g_texture_world.per_meter[0] = u, g_texture_world.per_meter[1] = v; }
+// Mech3.exe 1.2 @ 0x00526ac0 (stack u, v)
+void texture_world_base(float u, float v) { g_texture_world.base[0] = u, g_texture_world.base[1] = v; }
 // Mech3.exe 1.2 @ 0x00526b90
 int32_t fog_on() { return fog().on; }
 // Mech3.exe 1.2 @ 0x00526bf0

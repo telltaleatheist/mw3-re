@@ -13,12 +13,12 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 |---|---|
 | folded | 3024 |
 | replaced (SDL or the platform layer) | 221 |
-| software renderer | 111 |
+| software renderer | 113 |
 | debug or dev tool: PORT (preserve) | 82 |
 | unused: PORT (preserve) | 82 |
 | dev dialog (MFC), its logic: PORT (preserve) | 54 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 43 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 34 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
@@ -26,12 +26,11 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x00410400, 0x004c0310** (2 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
 - **0x004bed90, 0x004bf4e0** (2 functions, 129 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file
 - **0x004fd1e0, 0x004fd8c0** (2 functions, 54 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
-- **0x004fe8e0, 0x00507dd0, 0x00539cc0, 0x00558120, 0x005975e0** (5 functions, 203 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
+- **0x004fe8e0** (1 functions, 115 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x00503c10, 0x00503d50, 0x0050414d, 0x00505df0, 0x00507970** (5 functions, 210 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109)
 - **0x005076c0, 0x005a5400, 0x005a6650, 0x005a6760** (4 functions, 135 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
 - **0x0050d610, 0x0050d6a0, 0x0050d7a0, 0x0050d880** (4 functions, 124 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
 - **0x0051f390, 0x0051f750** (2 functions, 276 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
-- **0x00526aa0, 0x00526ac0, 0x0053b960, 0x0053bb50, 0x0053bd60** (5 functions, 191 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped)
 - **0x00542060** (1 functions, 255 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
 - **0x00548250, 0x005484c0, 0x005485b0, 0x00548600, 0x00548650, 0x005487d0** (6 functions, 361 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it
 - **0x00579230** (1 functions, 11 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the script command VideoSetWireFrame: the engine entry is null in the port (hook_allow: counted) and no shipped script uses it
@@ -2673,7 +2672,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004eaab0 | 63 | replaced (SDL or the platform layer) | the start's video device picker: an MFC CDialog with a list box (0x004eaab0 and its constructor, destructor, data exchange and init); the SDL GPU device replaces it |
 | 0x004eaba0 | 44 | replaced (SDL or the platform layer) | the start's video device picker: an MFC CDialog with a list box (0x004eaab0 and its constructor, destructor, data exchange and init); the SDL GPU device replaces it |
 
-### zmodel (160 not ported)
+### zmodel (154 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -2681,8 +2680,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x005269d0 | 8 | folded | returns a constant or a global |
 | 0x005269e0 | 13 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x00526a00 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:325) |
-| 0x00526aa0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
-| 0x00526ac0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
 | 0x00526df0 | 14 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:326) |
 | 0x005273f0 | 100 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x005277d0 | 126 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
@@ -2716,18 +2713,14 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x005380e0 | 254 | debug or dev tool: PORT (preserve) | the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool |
 | 0x00539140 | 8 | folded | returns a constant or a global |
 | 0x00539c72 | 144 | folded | a piece of the ported function before it (Ghidra split it there) (0x005396c0) |
-| 0x00539cc0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00539d50 | 11 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:470) |
 | 0x00539d60 | 11 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:467) |
 | 0x00539d70 | 10 | folded | a getter of a member |
 | 0x0053a1a0 | 117 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0053a740 | 96 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0053b050 | 179 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
-| 0x0053b960 | 115 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
-| 0x0053bb50 | 24 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
 | 0x0053bb90 | 23 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0053bbd0 | 23 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
-| 0x0053bd60 | 28 | MISSING LOGIC (only data the shipped game lacks reaches it) | script engine commands for building models and textures at run time (Object3DSetColor, SetShowBackFace, SetMorphVertex, the texture world base and per meter): the engine entries are null in the port (hook_allow: counted) and no shipped script uses them (the census: 0 skipped) |
 | 0x0053ce20 | 17 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.h:131) |
 | 0x0053cf00 | 10 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:329) |
 | 0x0053d130 | 107 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
@@ -3381,73 +3374,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00581e40 | 8 | folded | returns a constant or a global |
 | 0x00583730 | 11 | folded | covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
 
-### zinterp (62 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00594dc0 | 9 | folded | a thunk: one call to another function |
-| 0x00594e50 | 9 | folded | a thunk: one call to another function |
-| 0x00594e90 | 9 | folded | a thunk: one call to another function |
-| 0x00594ec0 | 98 | folded | the script log line's formatter, covered where named (zinterp.cpp:288) |
-| 0x00594f90 | 33 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:303) |
-| 0x00595449 | 22 | folded | a piece of the ported function before it (Ghidra split it there) (0x00595440) |
-| 0x00595b10 | 27 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:405) |
-| 0x00595b60 | 26 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:406) |
-| 0x00595da0 | 19 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:267) |
-| 0x00595e20 | 16 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:271) |
-| 0x00595e40 | 15 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:407) |
-| 0x005960a0 | 27 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
-| 0x00596150 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00596170 | 14 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
-| 0x00596190 | 15 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
-| 0x005961d0 | 31 | replaced (SDL or the platform layer) | a text object's font set from a GDI font handle (GetObjectA into a LOGFONT; twod.h:319): the SDL text host keeps fonts by name |
-| 0x00596260 | 9 | folded | a thunk: one call to another function |
-| 0x00596270 | 9 | folded | a thunk: one call to another function |
-| 0x00596900 | 9 | folded | a thunk: one call to another function |
-| 0x00596910 | 9 | folded | a thunk: one call to another function |
-| 0x00596930 | 62 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00596a70 | 30 | unused: PORT (preserve) | list teardown helpers whose callers (0x00596930, 0x00596c60) nothing reaches |
-| 0x00596b00 | 45 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00596bd0 | 22 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00596c50 | 9 | folded | a thunk: one call to another function |
-| 0x00596c60 | 9 | folded | a thunk: one call to another function |
-| 0x00596c80 | 56 | unused: PORT (preserve) | list teardown helpers whose callers (0x00596930, 0x00596c60) nothing reaches |
-| 0x00596e10 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00596f70 | 316 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005974a0 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x00597530 | 48 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
-| 0x005975e0 | 49 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x00597680 | 92 | software renderer | SetPaletteName's palette brightness step for the 8-bit palette (0x005975e0's helper; only the software path uses a palette) |
-| 0x00597e60 | 25 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00597eb0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00597ed0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00597ef0 | 40 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00597f30 | 19 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00597f60 | 14 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00597fc0 | 55 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598100 | 25 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598150 | 11 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598160 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598190 | 16 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005981b0 | 8 | folded | returns a constant or a global |
-| 0x005981c0 | 17 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005981e0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598330 | 38 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598360 | 35 | folded | covered by the port where it names it (src/gamez/zutil/zutl_reg.h:42) |
-| 0x005983c0 | 59 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005984a0 | 10 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005984e0 | 8 | folded | returns a constant or a global |
-| 0x00598530 | 8 | folded | returns a constant or a global |
-| 0x00598580 | 35 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005985d0 | 56 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005986c0 | 48 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005987d0 | 59 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x005988c0 | 110 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598ae0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598b00 | 16 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598b30 | 66 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-| 0x00598c80 | 13 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
-
 ### zimage (62 not ported)
 
 | Address | Lines | Class | Why |
@@ -3514,6 +3440,73 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00519fa0 | 52 | unused: PORT (preserve) | zFont, the bitmap fonts from fonts.zrd: loaded at start-up (0x00519e50), split into glyphs, measured by id (0x0051a0d0), freed (0x00519f70), but nothing in 1.2 draws them (app_engine.cpp:318, twod.md section 4) |
 | 0x0051a080 | 30 | unused: PORT (preserve) | zFont, the bitmap fonts from fonts.zrd: loaded at start-up (0x00519e50), split into glyphs, measured by id (0x0051a0d0), freed (0x00519f70), but nothing in 1.2 draws them (app_engine.cpp:318, twod.md section 4) |
 | 0x0051a0d0 | 51 | unused: PORT (preserve) | zFont, the bitmap fonts from fonts.zrd: loaded at start-up (0x00519e50), split into glyphs, measured by id (0x0051a0d0), freed (0x00519f70), but nothing in 1.2 draws them (app_engine.cpp:318, twod.md section 4) |
+
+### zinterp (62 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00594dc0 | 9 | folded | a thunk: one call to another function |
+| 0x00594e50 | 9 | folded | a thunk: one call to another function |
+| 0x00594e90 | 9 | folded | a thunk: one call to another function |
+| 0x00594ec0 | 98 | folded | the script log line's formatter, covered where named (zinterp.cpp:288) |
+| 0x00594f90 | 33 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:303) |
+| 0x00595449 | 22 | folded | a piece of the ported function before it (Ghidra split it there) (0x00595440) |
+| 0x00595b10 | 27 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:405) |
+| 0x00595b60 | 26 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:406) |
+| 0x00595da0 | 19 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:267) |
+| 0x00595e20 | 16 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:271) |
+| 0x00595e40 | 15 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:407) |
+| 0x005960a0 | 27 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
+| 0x00596150 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x00596170 | 14 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
+| 0x00596190 | 15 | debug or dev tool: PORT (preserve) | the hidden GameZ Interpreter console (0x005960a0: a 2D console window that runs typed script lines through 0x00595510; its destructor and line runner; toggled by 0x004810d0, which nothing reaches: interp.md:532, discoveries.md:1532) |
+| 0x005961d0 | 31 | replaced (SDL or the platform layer) | a text object's font set from a GDI font handle (GetObjectA into a LOGFONT; twod.h:319): the SDL text host keeps fonts by name |
+| 0x00596260 | 9 | folded | a thunk: one call to another function |
+| 0x00596270 | 9 | folded | a thunk: one call to another function |
+| 0x00596900 | 9 | folded | a thunk: one call to another function |
+| 0x00596910 | 9 | folded | a thunk: one call to another function |
+| 0x00596930 | 62 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00596a70 | 30 | unused: PORT (preserve) | list teardown helpers whose callers (0x00596930, 0x00596c60) nothing reaches |
+| 0x00596b00 | 45 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00596bd0 | 22 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00596c50 | 9 | folded | a thunk: one call to another function |
+| 0x00596c60 | 9 | folded | a thunk: one call to another function |
+| 0x00596c80 | 56 | unused: PORT (preserve) | list teardown helpers whose callers (0x00596930, 0x00596c60) nothing reaches |
+| 0x00596e10 | 58 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00596f70 | 316 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005974a0 | 31 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x00597530 | 48 | folded | C++ library container code (a std::map, set or list instance); the port uses its own containers |
+| 0x005975e0 | 49 | software renderer | SetPaletteName: the 8-bit palette file into 0x00802918 and its brightness step 0x00597680 (only the software path uses a palette; interp.md, the commands the shipped scripts never use) |
+| 0x00597680 | 92 | software renderer | SetPaletteName's palette brightness step for the 8-bit palette (0x005975e0's helper; only the software path uses a palette) |
+| 0x00597e60 | 25 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597eb0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597ed0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597ef0 | 40 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597f30 | 19 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597f60 | 14 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00597fc0 | 55 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598100 | 25 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598150 | 11 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598160 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598190 | 16 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005981b0 | 8 | folded | returns a constant or a global |
+| 0x005981c0 | 17 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005981e0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598330 | 38 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598360 | 35 | folded | covered by the port where it names it (src/gamez/zutil/zutl_reg.h:42) |
+| 0x005983c0 | 59 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005984a0 | 10 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005984e0 | 8 | folded | returns a constant or a global |
+| 0x00598530 | 8 | folded | returns a constant or a global |
+| 0x00598580 | 35 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005985d0 | 56 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005986c0 | 48 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005987d0 | 59 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x005988c0 | 110 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598ae0 | 12 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598b00 | 16 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598b30 | 66 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
+| 0x00598c80 | 13 | replaced (SDL or the platform layer) | the machine probe (fixes.md:289, (A)): CPUID and its vendor, family and MMX tests, the MHz timing loops (QueryPerformanceCounter, RDTSC, the CMOS port, Intel's cpuspeed with its divide by zero: protection.md:140), GlobalMemoryStatus and the DirectDraw caps; the port fills zutl_reg's Machine itself (zutl_reg.cpp:48) |
 
 ### zclass (61 not ported)
 
@@ -3596,7 +3589,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00558070 | 14 | folded | start-up and stop plumbing with no effect in the port: zRender's two buffers freed at stop (app_engine.cpp:326), the pitch store that is only written (app_engine.cpp:311) |
 | 0x00558080 | 15 | replaced (SDL or the platform layer) | the render target's size for the FMV and 2D layers: the hosts give it (sdl_twod_host.cpp:380, app_fmv.cpp:79) |
 | 0x005580d0 | 23 | software renderer | the software renderer: zRender's reset and span table (0x00557b20/30), its perspective step (SetPerspectiveTextureDeltaX), the mip toggle on a debug key (0x00557f70, only software reads [0x00800814]), the span fillers and depth spans, the 8- and 16-bit polygon fills and blits, the pixel-plotted lights and flares (weapon-effects.md:61), the fog and light table picks, the span buffer's init, clear and free and its screen pick (software-path.md:28,46) |
-| 0x00558120 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
+| 0x00558120 | 16 | software renderer | SetPerspectiveTextureAdaptive: the software span's perspective step (read only at 0x0055f8bc), as its siblings 0x005580d0..0x00558170 (interp.md, the commands the shipped scripts never use) |
 | 0x00558140 | 13 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:125) |
 | 0x00558170 | 17 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:126) |
 | 0x00558250 | 16 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:329) |
@@ -3817,11 +3810,10 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00576ee0 | 24 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 | 0x00576f70 | 19 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 
-### zeffect (20 not ported)
+### zeffect (19 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
-| 0x00507dd0 | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00508aa0 | 11 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.h:76) |
 | 0x00508c10 | 9 | folded | a thunk: one call to another function |
 | 0x00508da0 | 9 | folded | a thunk: one call to another function |
