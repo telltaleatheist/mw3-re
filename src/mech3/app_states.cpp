@@ -1046,8 +1046,9 @@ bool MainState::enter() {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00486d40: 60 idle seconds push the attract movie; the
-// hotkeys press the screen's buttons.
+// Mech3.exe 1.2 @ 0x00486d40, Pirate's Moon 1.0 @ 0x004896e0: the hotkeys press the screen's
+// buttons. MW3 pushed the attract movie after 60 idle seconds; Pirate's Moon only starts the
+// minute again (0x00489370), so its main menu never plays it.
 bool MainState::update() {
   Engine& en = e();
   // Ours (upgrades/mods/entry_run.h): inside a MODS entry the main menu only
@@ -1107,15 +1108,12 @@ bool MainState::update() {
   const bool r = ShellState::update();
   idle_ = idle_ - en.frame_dt();
   const Handle s = screen_;
-  if (!(idle_ > 0.0f)) {
-    a().push(a().state(0), 0);
-    reset_idle();
-  }
+  if (!(idle_ > 0.0f)) reset_idle();
   static const struct {
     int32_t key;
     uint32_t button;
   } kKeys[] = {{0x18, kButtonOptions}, {0x2e, kButtonCampaign}, {0x32, kButtonMulti}, {0x17, kButtonInstantAction},
-               {0x14, kButtonTraining}, {0x10, kButtonQuit}, {0x13, kButtonCredits}};
+               {0x19, kButtonTraining}, {0x10, kButtonQuit}, {0x13, kButtonCredits}};  // P: Pirate Missions (MW3's T)
   for (const auto& k : kKeys) {
     if (en.key_state(k.key) & 1) {
       en.vcall(s + k.button, 0x30, {});
