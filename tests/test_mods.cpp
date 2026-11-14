@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <string>
@@ -33,6 +34,9 @@
 #include "upgrades/mods/anim_defs.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
+#include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zmodel/gmod_const.h"
+#include "gamez/zimage/zimg_texture.h"
 #include "gamez/zsave/zsave.h"
 #include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zeffect/zeff_anim_json.h"
@@ -3226,4 +3230,64 @@ TEST(mods_starter_mods_made_checked_and_loaded) {
   mech3::weapon_rows_clear();
   mech3::mod_worlds().clear(), mech3::mod_ia_worlds().clear(), mech3::mod_campaigns().clear();
   zwep::init_hooks() = hooks;
+}
+
+// The mod check's anim.zbd read with a world up (the lab's in play, or one a test left): read unbound, as with
+// none (FIX (A), fixes.md). Bound, each def found the world's nodes and made lights, sounds and puffers in it,
+// through hooks unset outside play (a crash in the anim reader at the first puffer).
+TEST(mod_check_reads_anims_unbound_with_a_world_up) {
+  const std::string install = MW3_GAME_DIR;
+  std::error_code ec;
+  if (!fs::exists(install + "/zbd/c1/anim.zbd", ec)) return;
+  struct Kept {
+    SavedMounts mounts;
+    std::unique_ptr<zimg::TextureTable> textures = std::make_unique<zimg::TextureTable>(zimg::textures());
+    zmod::MaterialTable materials = std::move(zmod::materials());
+    zmod::ModelPool models = std::move(zmod::models());
+    zcls::NodePool nodes = std::move(zcls::nodes());
+    zcls::Lists lists = std::move(zcls::lists());
+    ~Kept() {
+      zimg::textures() = *textures;
+      zmod::materials() = std::move(materials);
+      zmod::models() = std::move(models);
+      zcls::nodes() = std::move(nodes);
+      zcls::lists() = std::move(lists);
+    }
+  } keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(install);
+  zimg::textures().count = 0;
+  zmod::materials() = zmod::MaterialTable{};
+  zmod::models() = zmod::ModelPool{};
+  zcls::nodes() = zcls::NodePool{};
+  zcls::lists() = zcls::Lists{};
+  EXPECT(zcls::read_zbd((install + "/zbd/c1/gamez.zbd").c_str()) == 0);
+  auto live = [] {
+    int32_t n = 0;
+    for (int32_t i = 0; i < zcls::nodes().capacity; ++i) n += (zcls::node_at(i)->link & zcls::kNodeLive) != 0;
+    return n;
+  };
+  const int32_t before = live();
+  const zcls::ListItem* head = zcls::lists().list[zcls::kAllNodes].head;
+  // The running game's animation state (its defs, random table, level, switches) comes back as it was.
+  const zeff::AnimState anim_was = std::move(zeff::anim());
+  zeff::anim() = zeff::AnimState{};
+  static zeff::AnimDef running_defs[2];
+  zeff::anim().defs = running_defs;
+  zeff::anim().block.put<int16_t>(0x0a, 2);
+  zeff::anim().random[7] = 0.25f;
+  zeff::anim().level = 3;
+  zeff::anim().fix_prerequisites = false;
+  const std::string dir = tmp("mods_anim_unbound");
+  fs::create_directories(dir + "/zbd/c1", ec);
+  fs::copy_file(install + "/zbd/c1/anim.zbd", dir + "/zbd/c1/anim.zbd", ec);
+  int errors = 0;
+  bool read = false;
+  for (const std::string& l : mech3::mod_check(dir, install, &errors)) read |= l.find("animations read") != std::string::npos;
+  std::printf("  %d nodes up; read %d, errors %d, %d nodes after\n", before, read, errors, live());
+  EXPECT(read && errors == 0);
+  EXPECT(before > 1000 && live() == before && zcls::lists().list[zcls::kAllNodes].head == head);
+  EXPECT(zeff::anim().defs == running_defs && zeff::anim().def_count() == 2 && zeff::anim().random[7] == 0.25f &&
+         zeff::anim().level == 3 && !zeff::anim().fix_prerequisites);
+  zeff::anim() = anim_was;
 }
