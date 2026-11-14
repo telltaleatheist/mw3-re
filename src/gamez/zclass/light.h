@@ -4,6 +4,15 @@
 // zClass\Light.c
 namespace zcls {
 
+// Pirate's Moon's per-node light override (its model draw 0x00507f30): what a node's draw changed on the
+// sun, put back after its subtree (zgame::Table's zcls_light_override / zcls_light_restore; none in MW3).
+struct LightOverride {
+  Node* light = nullptr;           // the directed light (PM 0x00563740)
+  float ambient = 0, diffuse = 0;  // its values before
+  uint8_t ambient_set = 0, diffuse_set = 0;
+  int32_t hold = 0;                // the stale-bake hold before (0x004ff740)
+};
+
 Node* light_create();              // the running game's (zgame::Table): MW3's 0x004fa720
 Node* mw3_light_create();          // 0x004fa720
 // 1 while a world still lists it; a static light (0x100) bumps the frame stamp.

@@ -1,6 +1,8 @@
 #pragma once
 
-namespace zcls { struct Node; }
+#include <cstdint>
+
+#include "gamez/zclass/light.h"
 
 // C:\zipper\branchep1\gamez\zClass\Light.c (MW3's: gamez/zclass/light.cpp).
 namespace pm::zcls {
@@ -9,6 +11,16 @@ namespace pm::zcls {
 // its colours in pm_colors) with PM's defaults, active, on list 9. Shared
 // code reaches it as zcls::light_create.
 ::zcls::Node* light_create();
+
+// 0x004ff730 / 0x004ff740 / 0x004ff750: a hold on the bake's frame stamp. A static light's change makes
+// the world's bake stale unless held (the model draw's light override holds it while it borrows the sun).
+void set_stale_hold(int32_t on);
+int32_t stale_hold();
+void stale();
+
+// 0x00507f30's override (zgame::Table): the node's light bits on the directed light; and back.
+bool light_override(::zcls::Node* node, ::zcls::LightOverride* save);
+void light_restore(const ::zcls::LightOverride& save);
 
 // Pirate's Moon's light setters: each also keeps the mixed colours (+0xbc..+0xdc, pm_colors),
 // and the static bit is 0x200 (MW3's 0x100). 1 flags the light for its update.
