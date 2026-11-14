@@ -125,6 +125,12 @@ struct Table {
   // a disc of six tracks or more on to its end (CD mode 3) and keeps the mode for a -cd track and the resume; MW3
   // plays one track (6) every time.
   bool mission_music_to_disc_end;
+  // The lance command's target marker (mech3 app_pocket.cpp make_marker; PM 0x00469c80): PM leaves it on no side
+  // (team mask 1, nobody's ally or enemy); MW3 puts it on the player's side, an enemy to the enemy.
+  bool command_marker_no_side;
+  // The selected waypoint's arrow (mech3 mech_waynet.cpp Waynet::hud_arrow; PM 0x0047c1f0): PM sets the main
+  // camera's view (0x004b9620) before projecting the point; MW3 projects with the view last set.
+  bool waypoint_arrow_view;
 };
 
 const Table& mw3_table();

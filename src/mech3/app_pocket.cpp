@@ -13,6 +13,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zclass/object3d.h"
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/ztwod/twod_host.h"
 #include "mech3/app_mech.h"
@@ -33,6 +34,7 @@
 #include "mech3/veh_basic.h"
 
 namespace mech3 {
+void player_clear_60b56c();  // player.h ([0x0060b56c] = 0), not includable with mech.h
 
 const char* program_pilot_name();  // app_menus.cpp
 
@@ -197,7 +199,10 @@ void wire_pocket(const MechWiring* w) {
     n->owner = g_marker;
     n->put<uint32_t>(0x28, n->get<uint32_t>(0x28) | 0x10000);
     g_marker->name = ztwod::host().message_text(0x89d);  // 0x00576040
-    g_marker->set_team(static_cast<uint32_t>(ai::team_side(0)));
+    // Pirate's Moon 1.0 @ 0x00469c80: +0xc0 = 1 outright, no side's ally or enemy (AiTarget's own start), the
+    // sort flag cleared ([0x0062fc40]); MW3 puts it on the player's side.
+    if (zgame::game().command_marker_no_side) player_clear_60b56c();
+    else g_marker->set_team(static_cast<uint32_t>(ai::team_side(0)));
     const zgame::Handle h = handle(g_marker);
     ai::entity_list().push_back(h);
     return h;

@@ -754,6 +754,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_objectives.cpp
     tests/pm/test_pm_light_override.cpp
     tests/pm/test_pm_mission_music.cpp
+    tests/pm/test_pm_waypoint_arrow.cpp
     tests/pm/test_pm_options.cpp
     tests/pm/test_pm_sound_range.cpp
     tests/pm/test_pm_hud.cpp
