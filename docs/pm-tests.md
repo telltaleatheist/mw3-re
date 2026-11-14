@@ -1262,3 +1262,14 @@ the shared walk takes a node's `pm_model` to it. `test_pm_make_shadows.py`: PM's
 its exe (test_pm_gamez.py's bench) and by the port, MakeShadows with the stand-in query (PM's 0x501030, cdecl):
 150,715 segments, both ends in order, and every colour equal. Breaks caught: the walk without the PM model, a quarter
 for the fifth.
+
+## Today's preservation ports on PM, part 5: VideoSetWireFrame and the texture marks (2026-11-14)
+
+PM's VideoSetWireFrame is 0x5981f0 (its dispatcher's call at 0x5b656f): the device's FILLMODE set at once, 2 for any
+non-zero, else 3, where MW3's 0x579230 only stored the mode for the next scene (PM keeps that word, 0xb0615c, and
+nothing but the start-up writes it). `pm::zvid::set_wireframe` (pm/gamez/zvideo/zvid_tl); without a device (PM's
+software renderer, not ported) the exe does nothing. The texture-mark painter 0x548220 is MW3's 0x542060 at PM's
+places (the on flag through 0x548870, PM's globals, the entry's surface at +8, the lock, unlock and reload through
+0x8c4b90 / 0x8c4b94 / 0x8c4b9c), so the shared `zmod::mark_paint` is PM's too. `test_pm_script_cmds.py`: the
+wireframe on PM's exe with a fake device (its SetRenderState, vt+0x58), 10 calls, and 400 mark cases, 0 differ.
+Breaks: MW3's stored mode for the wireframe; the rows placed by u for the marks.

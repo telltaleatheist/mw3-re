@@ -9,6 +9,8 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zmodel/gmod_shadows.h"
 #include "pm/gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zvideo/zvid_tl.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 
 extern "C" {
 
@@ -87,6 +89,17 @@ int32_t probe_pm_node_lighting(const int32_t* parent, const int32_t* has_model, 
   const int32_t r = zcls::node_set_lighting(&nodes[0], on);
   for (int32_t i = 0; i < count; ++i) std::memcpy(&model_flags[i], models[i].header + 8, 4);
   for (auto& n : nodes) n.children = nullptr, n.pm_model = nullptr;
+  return r;
+}
+
+// PM's VideoSetWireFrame (0x005981f0): the GPU state's wireframe after, from `before`.
+int32_t probe_pm_wireframe(int32_t on, int32_t before) {
+  platform::DrawState& d = zvid::draw_state();
+  const bool saved = d.wireframe;
+  d.wireframe = before != 0;
+  pm::zvid::set_wireframe(on);
+  const int32_t r = d.wireframe ? 1 : 0;
+  d.wireframe = saved;
   return r;
 }
 
