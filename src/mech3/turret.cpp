@@ -1,5 +1,7 @@
 #include "mech3/turret.h"
 
+#include "mech3/dir_limits_pm.h"
+
 #include "mech3/zai_params.h"
 
 #include <cmath>
@@ -48,11 +50,8 @@ double dbits(uint64_t u) {
   std::memcpy(&d, &u, 8);
   return d;
 }
-const double kPi = dbits(0x400921fb54442eeaull);   // [0x005c82e0] 3.14159265359
-const double kTwoPi = dbits(0x401921fb54442eeaull);  // [0x005c82e8]
 const double kDegToRad = dbits(0x3f91df46a2529983ull);  // [0x005c8860] 0.01745329251994
-const float kPitch = zgame::from_bits(0x3fc90fd8u);             // 1.570796, the push in 0x004a4ac0's callers
-const float kHalfPi = zgame::from_bits(0x3fc90fdbu);
+const float kPitch = zgame::from_bits(0x3fc90fd8u);             // 1.570796 (PM's pushes at 0x004a92e0, 0x004a9ba7)
 const float kTwoPiF = zgame::from_bits(0x40c90fdbu);
 
 // The square root as the aim (0x004a71c0) and 0x004abea0 take it: the
@@ -64,8 +63,6 @@ float fake_sqrt(float x) {
 // The x87's "not equal to 0": unordered counts as equal.
 bool nonzero(float x) { return x < 0.0f || x > 0.0f; }
 
-float fsin(float a) { return static_cast<float>(std::sin(static_cast<double>(a))); }
-float fcos(float a) { return static_cast<float>(std::cos(static_cast<double>(a))); }
 }  // namespace
 
 void set_turret_hooks(TurretHooks* h) { g_hooks = h ? h : &g_default_hooks; }
@@ -92,74 +89,26 @@ int32_t TurretHooks::node_box(Handle node, float box[6]) {
   return static_cast<int32_t>(unported("0x004ebd50", {node}));
 }
 
-// --- The turn limits (0x004a3fc0..0x004a4b30) ----------------------------------------
+// --- The turn limits (Pirate's Moon's direction limits, mech3/dir_limits_pm) -----------------
 
-// Mech3.exe 1.2 @ 0x004a4a70 over 0x004a4000 (0x004a3fc0 twice).
-void TurnLimits::make_full(float lo, float hi) {
-  lo_sin = fsin(lo), lo_cos = fcos(lo);
-  hi_sin = fsin(hi), hi_cos = fcos(hi);
-  kind = LimitKind::Full;
-}
-
-// Mech3.exe 1.2 @ 0x004a4b30: the old one's destructor (vt+0, not freed:
-// it lives in the turret), then the kind by the yaw's range, compared in
-// the x87 against a float 0.001 and the double pi and 2 pi.
-void TurnLimits::make(float lo, float hi, float ylo, float yhi) {
-  const float range = yhi - ylo;
-  if (!(range > zgame::from_bits(0x3a83126fu))) {  // 0x004a42f0
-    lo_sin = fsin(lo), lo_cos = fcos(lo), hi_sin = fsin(hi), hi_cos = fcos(hi);
-    lo_edge[0] = fcos(ylo), lo_edge[1] = 0.0f, lo_edge[2] = -fsin(ylo);
-    kind = LimitKind::Fixed;
-    return;
-  }
-  if (static_cast<double>(range) >= kTwoPi) {
-    make_full(lo, hi);
-    return;
-  }
-  // 0x004a4580 / 0x004a4800 over 0x004a4270.
-  lo_sin = fsin(lo), lo_cos = fcos(lo), hi_sin = fsin(hi), hi_cos = fcos(hi);
-  lo_edge[0] = -fcos(ylo), lo_edge[1] = 0.0f, lo_edge[2] = fsin(ylo);
-  hi_edge[0] = fcos(yhi), hi_edge[1] = 0.0f, hi_edge[2] = -fsin(yhi);
-  kind = static_cast<double>(range) >= kPi ? LimitKind::Wide : LimitKind::Narrow;
-}
-
-// Mech3.exe 1.2 @ 0x004a4180 / 0x004a4330 / 0x004a45b0 / 0x004a4830 (vt+0x08).
-// Unordered compares pass the pitch and fail the edges.
-bool TurnLimits::within(const float d[3]) const {
-  if (lo_sin > d[1] || d[1] > hi_sin) return false;
-  switch (kind) {
-    case LimitKind::Fixed: {
-      const float across = d[0] * d[0] + d[2] * d[2];
-      const float off = d[0] * lo_edge[0] + d[2] * lo_edge[2];
-      return across * zgame::from_bits(0x3727c5acu) > off * off;  // [0x005c82d0] 1e-5
-    }
-    case LimitKind::Narrow:
-    case LimitKind::Wide: {
-      const float a = d[0] * lo_edge[0] + d[2] * lo_edge[2];
-      const float b = d[0] * hi_edge[0] + d[2] * hi_edge[2];
-      const bool in_a = a >= 0.0f, in_b = b >= 0.0f;
-      return kind == LimitKind::Narrow ? in_a && in_b : in_a || in_b;
-    }
-    case LimitKind::Full:
-      break;
-  }
-  return true;
-}
+// Pirate's Moon 1.0 @ 0x004a6ec0, 0x004a7420, 0x004a7390, 0x004a70c0 (the turret's vt+0x94 0x004aaf40).
+TurnLimits::TurnLimits() { pm_dir::unset(c); }
+void TurnLimits::make_turn(float pitch, float yaw) { pm_dir::set_turn(c, pitch, yaw); }
+void TurnLimits::make(float lo, float hi, float ylo, float yhi) { pm_dir::set_radians(c, lo, hi, ylo, yhi); }
+bool TurnLimits::within(const float d[3]) const { return pm_dir::within(c, d); }
 
 // --- The turret ----------------------------------------------------------------------
 
-// Mech3.exe 1.2 @ 0x004a5c60, over AiTarget 0x004d56e0(0, 0) (zEntity3d
-// 0x005a7e10(0), team 0). The team is the enemies' (0x004d5af0(1): 2); the
-// limits start a full turn on -pi/2..pi/2 (0x004a4af0), then -1.570796..
-// 1.570796 (0x004a4ac0).
+// Mech3.exe 1.2 @ 0x004a5c60, Pirate's Moon 1.0 @ 0x004a9010, over AiTarget 0x004d56e0(0, 0) (zEntity3d
+// 0x005a7e10(0), team 0). The team is the enemies' (0x004d5af0(1): 2); the limits a full turn within the pitch
+// -1.570796..1.570796 (PM's one call, where MW3 made them twice).
 Turret::Turret(Handle s, Handle n, Handle generic_anim, zrdr::Node* def) : self(s) {
   TurretHooks& h = *g_hooks;
   h.entity_init(self);
   set_team(0);
-  limits.make_full(-kHalfPi, kHalfPi);  // 0x004a4af0: 0x004a4a70(-pi/2, pi/2, -pi, pi)
   set_team(2);
   id = g_count++;
-  limits.make(-kPitch, kPitch, -kTwoPiF, kTwoPiF);  // 0x004a4ac0
+  limits.make_turn(kPitch, kTwoPiF);  // Pirate's Moon 0x004a92ea: 0x004a7420(1.570796, 2 pi)
   if (n) {
     set_node(n);
     h.entity_list(self);
@@ -243,7 +192,7 @@ void Turret::setup(Handle generic_anim, zrdr::Node* def) {
     if (zrdr::get_vec2(lim, "YAW", yaw)) {
       yaw_lo = static_cast<float>(static_cast<double>(yaw[0]) * kDegToRad);
       yaw_hi = static_cast<float>(static_cast<double>(yaw[1]) * kDegToRad);
-      limits.make(-kPitch, kPitch, yaw_lo, yaw_hi);
+      limits.make(-kPitch, kPitch, yaw_lo, yaw_hi);  // Pirate's Moon 0x004a9bb7: 0x004a7390
     }
   }
   zrdr::get_int(def, "BBOX", &box_hit);

@@ -229,6 +229,7 @@ add_library(mw3core STATIC
   src/mech3/mech_fieldbase_cut.cpp
   src/mech3/mech_waynet.cpp
   src/mech3/veh_controls.cpp
+  src/mech3/dir_limits_pm.cpp
   src/mech3/veh_move.cpp
   src/mech3/veh_stealth.cpp
   src/mech3/game_editor.cpp
