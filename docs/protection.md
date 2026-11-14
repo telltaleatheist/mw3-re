@@ -311,8 +311,8 @@ archives carry their CRCs too, but nothing checks them. mechlib, motion
 and the sounds hold 0.
 
 **Rebuild (PM):** the Intro state goes on to state 12 without either check
-(`FIX (trap)` when PM's Intro state is ported; mods of reader.zbd must
-work). The functions under it are ported for the tests and for tools: the
+(`FIX (trap)`, `IntroState::update` on pm since 2026-11-14; mods of
+reader.zbd must work). The functions under it are ported for the tests and for tools: the
 table reader 0x597610, the CRC 0x597a30, its check 0x597a10 and the file
 check 0x597af0 (`test_pm_zar.py`).
 

@@ -206,22 +206,20 @@ bool IntroState::enter() {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00482170
+// Mech3.exe 1.2 @ 0x00482170, Pirate's Moon 1.0 @ 0x004850a0: INTRO only (PM's ends on its splash
+// picture already), then the main menu; MW3 played SPLASH after it, even without movies. PM goes to
+// state 12 when the reader.zbd and self checks (0x004876e0, 0x004876f0) pass, else to Exit:
+// FIX (trap), always 12 (protection.md 6).
 bool IntroState::update() {
   Engine& en = e();
   en.input_poll(0);
-  if (intro_) {
-    if (en.movie_playing(intro_)) return false;
-    end_movie(en, intro_);
-    intro_ = 0;
+  if (intro_ == 0) {
+    a().replace(a().state(12), 0);
     return false;
   }
-  if (splash_ == 0 && !a().lobby_flow_) splash_ = start_movie(en, "SPLASH");
-  if (splash_ && !en.movie_playing(splash_)) {
-    end_movie(en, splash_);
-    splash_ = 0;
-  }
-  if (splash_ == 0) a().replace(a().state(12), 0);
+  if (en.movie_playing(intro_)) return false;
+  end_movie(en, intro_);
+  intro_ = 0;
   return false;
 }
 

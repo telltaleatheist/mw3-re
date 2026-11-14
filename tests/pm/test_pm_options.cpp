@@ -772,3 +772,75 @@ TEST(pm_main_menu_idles_without_the_attract_movie_and_p_opens_pirate_missions_he
   EXPECT(stage == kDone && stayed && refilled && t_stayed);
   EXPECT(after_p == "Pilot State");  // as the PIRATE MISSIONS button: the pilot screen first
 }
+
+namespace {
+struct MovieNames : mech3::GameEngine {
+  using mech3::GameEngine::GameEngine;
+  std::vector<std::string> names;
+  int32_t movie_load(mech3::Handle m, const char* file, const char* name) override {
+    names.emplace_back(name ? name : "");
+    return mech3::GameEngine::movie_load(m, file, name);
+  }
+};
+}  // namespace
+
+// Pirate's Moon's Intro state (0x004850a0) plays INTRO only, then the main menu (state 12; its
+// reader.zbd and self checks are the trap the rebuild drops); MW3's played SPLASH after it, with
+// movies off too. With and without -nofmv: the movies asked for between the start and the menu.
+TEST(pm_intro_plays_intro_only_and_no_splash_headless) {
+  std::error_code ec;
+  if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
+  std::vector<std::string> seen[2];
+  bool menu[2] = {};
+  for (int fmv = 0; fmv < 2; ++fmv) {
+    MountsBack back;
+    zgame::set_game(pm::table());
+    const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_intro_" + std::to_string(fmv);
+    fs::remove_all(wd, ec);
+    fs::create_directories(wd, ec);
+    zutl::mounts() = zutl::Mounts{};
+    zutl::set_write_dir(wd.c_str());
+    zutl::mount(MW3PM_GAME_DIR);
+    mech3::reset_states();
+    mech3::options() = mech3::Options{};
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files;
+    {
+      MovieNames engine(p, fmv ? "mech3.exe" : "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      Pump pump;
+      pump.limit = 3000;
+      pump.stop = [&] { return app.current() == &mech3::states().main && mech3::main_menu() != nullptr; };
+      app.run(pump);
+      menu[fmv] = app.current() == &mech3::states().main;
+      seen[fmv] = engine.names;
+      app.stop_game();
+      app.exit_instance();
+      mech3::set_app(nullptr);
+    }
+    zrdr::close_archives(true);
+    mech3::reset_states();
+    mech3::options() = mech3::Options{};
+  }
+  auto join = [](const std::vector<std::string>& v) {
+    std::string s;
+    for (const std::string& n : v) s += (s.empty() ? "" : " ") + n;
+    return s.empty() ? std::string("none") : s;
+  };
+  std::printf("  -nofmv: %s, the menu %d; movies on: %s, the menu %d\n", join(seen[0]).c_str(), menu[0], join(seen[1]).c_str(),
+              menu[1]);
+  EXPECT(menu[0] && menu[1]);
+  EXPECT(seen[0].empty());
+  EXPECT(seen[1] == std::vector<std::string>{"INTRO"});
+}
