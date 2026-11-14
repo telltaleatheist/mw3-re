@@ -204,6 +204,17 @@ void kill_all(WeaponDef* def) {
   }
 }
 
+// Pirate's Moon 1.0 @ 0x005a35f0. FIX (A): PM walks the beams' lists too, as if their beams were shots.
+int32_t forget_lock(Handle entity) {
+  int32_t n = 0;
+  for (WeaponDef& d : state().defs) {
+    if (d.flags & kBeam) continue;
+    for (auto* p = static_cast<Projectile*>(d.active); p; p = p->next)
+      if (p->lock_entity == entity) ++n, p->lock_entity = nullptr, p->target_at = nullptr, p->target_velocity = nullptr;
+  }
+  return n;
+}
+
 // Mech3.exe 1.2 @ 0x00584fe0. FIX (A): the original runs this on the BEAM
 // defs too, taking a firing beam (0x150 bytes) for a projectile (0x5d8):
 // it writes past the beam and stops its sound handles as animations. Beams

@@ -3,6 +3,7 @@
 #include "gamez/zclass/class.h"
 
 #include "gamez/zentity/zent_init.h"
+#include "mech3/mech_headlight.h"
 #include "mech3/mech_parts.h"
 
 #include <cfloat>
@@ -15,6 +16,7 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zutil/zfix.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
@@ -190,10 +192,12 @@ Mech* mech_new(MechData* data, MechControls* ctl, Config* cfg, const char* name)
 // type's first; its controls taken first (left off it when nothing is
 // made); the destructor (vt+0 with 0), then the constructor with `name`
 // (its vt+0xa4, the caller's); its old skin again by name; the HUD's fall
-// mode 0 (0x0041ca30, inline). Nothing without the type's data.
+// mode 0 (0x0041ca30, inline). Nothing without the type's data. Pirate's Moon 1.0 @ 0x00415190: rebuilt as its
+// own type with MASC on (+0x598), MASC is turned on again at the end (0x0041eec0(1)); MW3 left it off.
 void mech_rebuild(Mech& m, int32_t roster, const char* name) {
   const int32_t own = m.pilot ? m.pilot->roster : -2;
   const bool same = roster == own || roster == -1;
+  const bool masc_on = same && m.masc_time != 0.0f;
   Config* cfg = same ? m.config : nullptr;
   MechData* data = g_hooks->mech_data(same ? own : roster, 1);  // 0x00430d10
   if (!data) return;
@@ -212,6 +216,7 @@ void mech_rebuild(Mech& m, int32_t roster, const char* name) {
   const MechDfn* dfn = g_hooks->dfn(m.pilot ? m.pilot->roster : roster);  // 0x004846a0
   mech_set_skin(m, dfn && dfn->skins ? dfn->skins->named(skin) : nullptr);  // 0x00475b00, 0x00414390
   m.hud_fall = &m == world().mission_player ? 0 : 1;  // 0x0041ca30(0)
+  if (masc_on) m.masc(true);  // Pirate's Moon
 }
 
 // Mech3.exe 1.2 @ 0x00414f20 (vtable +0, 1)
@@ -230,6 +235,7 @@ void mech_delete(Mech* m) {
 // the node and its models, zEntity's entry, and the shadow.
 void Mech::release() {
   FreeCalls& f = free_calls();
+  zwep::forget_lock(this);  // Pirate's Moon 1.0 @ 0x00415940's first step (0x005a35f0)
   if (this == world().mission_player && f.player_object_free) f.player_object_free(*this);  // 0x0041e580
   for (Handle d : x6d0)  // 0x00413db0
     if (d && f.debris_free) f.debris_free(d);
@@ -265,9 +271,10 @@ void Mech::release() {
   delete ams, ams = nullptr;    // 0x005ac5c0
   for (MechAnim*& a : anims) delete a, a = nullptr;             // 0x004152c0 -> 0x005a9dc0
   for (MechAction*& a : action_objects) delete a, a = nullptr;  // +0x458, nine in the exe
-  if (pilot && --pilot->refs <= 0) {  // 0x00430e30
+  if (pilot && --pilot->refs <= 0) {  // 0x00430e30, Pirate's Moon 1.0 @ 0x00431120
     pilot->refs = 0;
-    mech_data_free(pilot);  // 0x00430580 and the delete
+    // PM keeps the type's data in its cache, at no holders, while a network game runs ([0x00629a88]).
+    if (!(f.net_running && f.net_running())) mech_data_free(pilot);  // 0x00430580 and the delete
   }
   pilot = nullptr;
   parts.clear();
@@ -575,11 +582,17 @@ bool mech_configure(Mech& m, Config* cfg) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00414390: a skin of the definition's (aiv.zrd `skin`).
+// Mech3.exe 1.2 @ 0x00414390, Pirate's Moon 1.0 @ 0x00414ba0: a skin of the definition's (aiv.zrd `skin`). PM takes
+// the torso's headlight out of the tree for the apply (0x00479c30) and puts it back after (0x00479c60), so the skin
+// doesn't reach the headlight's node. The result: PM answers 1 once the skins are there, whatever the apply says.
 bool mech_set_skin(Mech& m, Handle skin) {
   MechBuildHooks& h = *g_hooks;
-  if (!h.dfn(m.pilot->roster)->skins) return false;  // 0x00414370
-  return h.skins_apply(h.dfn(m.pilot->roster)->skins, m, skin) != 0;
+  if (!skin || !h.dfn(m.pilot->roster)->skins) return false;  // 0x00414b80
+  Headlight* light = m.torso ? m.torso->headlight : nullptr;  // the torso part's +0x7c
+  if (light) light->detach();
+  h.skins_apply(h.dfn(m.pilot->roster)->skins, m, skin);
+  if (light) light->attach(0.0f);
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x0041cf30: the control mode (3 keyboard and mouse, 6 a

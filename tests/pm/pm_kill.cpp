@@ -1,6 +1,7 @@
 #include "gamez/zsound/zsnd.h"
 // test_pm_mission.cpp's kill test, the parts and weapons it reaches: these headers don't sit with options.h.
 #include "mech3/mech.h"
+#include "mech3/mech_build.h"
 #include "mech3/mech_parts.h"
 #include "mech3/mech_headlight.h"
 #include "gamez/zclass/cls_di.h"
@@ -439,6 +440,15 @@ void pm_controls_read(void* mech, float out[7]) {
   auto* c = static_cast<PlayerControls*>(static_cast<Mech*>(mech)->controls);
   const float v[7] = {c->turn, c->twist, c->pitch, c->jj_forward, c->look_x, c->throttle, c->throttle_target};
   for (int i = 0; i < 7; ++i) out[i] = v[i];
+}
+
+// Pirate's Moon 0x00415190: the player's MASC on, the mech made again as its own type; whether MASC is on after.
+bool pm_rebuild_keeps_masc(void* player) {
+  auto* m = static_cast<Mech*>(player);
+  m->masc(true);
+  const bool before = m->masc_time != 0.0f;
+  mech_rebuild(*m, -1, nullptr);
+  return before && m->masc_time != 0.0f;
 }
 
 int pm_controls_view(void* mech) {

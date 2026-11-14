@@ -95,6 +95,7 @@ void part_delete(MechPart* p);
 // What tearing a part or a mech down calls outside the mech code (the
 // destructors 0x0045fd40.., 0x00414f40, 0x004152d0); unset ones do nothing.
 struct FreeCalls {
+  bool (*net_running)() = nullptr;                             // Pirate's Moon [0x00629a88]: a network game is up
   void (*stop_effect)(Handle effect) = nullptr;                // 0x00506ca0
   void (*ref_free)(Handle ref, Handle node) = nullptr;         // +0x68: 0x004e66a0, then 0x005ac5c0 and the delete
   void (*rename)(Handle node, const char* name) = nullptr;     // 0x004eb300

@@ -404,6 +404,8 @@ const char* pm_weapon_name(void* player, int i);
 bool pm_kill_only_leg_lost(void* mech, int leg);
 int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
 void pm_controls_hold(void* mech, float v);
+bool pm_rebuild_keeps_masc(void* player);
+static int g_masc_kept = -1;
 void pm_controls_read(void* mech, float out[7]);
 static float g_resume[3][7];
 static bool g_paused = false;
@@ -2091,6 +2093,10 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
+    if (std::getenv("PM_REBUILD")) {  // the player made again in place with MASC on (0x00415190)
+      if (++since == 5) g_masc_kept = pm_rebuild_keeps_masc(player) ? 1 : 0, done = true;
+      return;
+    }
     if (std::getenv("PM_RESUME")) {  // back from the pause: the Core state's resume(8) on the held inputs
       ++since;
       if (since == 5) {
@@ -2205,7 +2211,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT") && !std::getenv("PM_SHOT_FLIGHT") && !std::getenv("PM_RESUME") && !std::getenv("PM_HEADLIGHT_LOD")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT") && !std::getenv("PM_SHOT_FLIGHT") && !std::getenv("PM_RESUME") && !std::getenv("PM_HEADLIGHT_LOD") && !std::getenv("PM_REBUILD")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -2475,6 +2481,26 @@ TEST(pm_c1m1_resume_from_the_pause_lets_go_but_the_throttle) {
     EXPECT(g_paused);
     for (int i = 0; i < 5; ++i) EXPECT(esc[i] == 0.0f);
     EXPECT(esc[6] > 0.4f);  // kept (a frame of the controls has run since: no longer exactly the 0.5 set)
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  const int status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// Pirate's Moon's mech made again in place (0x00415190): as its own type with MASC on, MASC is turned on again
+// after (0x0041eec0(1)); MW3's rebuild left it off.
+TEST(pm_c1m1_rebuilt_mech_keeps_its_masc) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();
+  if (child == 0) {
+    setenv("PM_REBUILD", "1", 1);
+    setenv("PM_MECH", "19", 1);  // a mech whose loadout has MASC
+    kill_run("1,1,3", true);
+    std::printf("  MASC on after the rebuild: %d\n", g_masc_kept);
+    EXPECT(g_masc_kept == 1);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }

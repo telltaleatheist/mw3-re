@@ -284,6 +284,9 @@ void pool_release(WeaponDef* def, Projectile* p);                          // 0x
 void kill(WeaponDef* def, Projectile* p);                                  // 0x00584f40
 void kill_all(WeaponDef* def);                                             // 0x00584fb0
 void kill_all();                                                           // 0x00584fe0
+// Pirate's Moon 1.0 @ 0x005a35f0 (the mech's destructor): every live shot locked on `entity` forgets the lock
+// (+0x6c, +0x70, +0x74 cleared); the count. The beams' lists are passed over (not shots; FIX (A), as kill_all).
+int32_t forget_lock(Handle entity);
 int32_t pool_objects(int32_t create);                                      // 0x005847c0
 Handle model_take(WeaponDef* def);                                         // 0x005830b0
 void model_return(WeaponDef* def, Projectile* p);                          // 0x005830e0
