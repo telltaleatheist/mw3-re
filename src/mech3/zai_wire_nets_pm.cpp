@@ -24,6 +24,9 @@ PmVehicleNet::PmVehicleNet(zgame::Handle vehicle) : VehicleNet(vehicle) {
   }
 }
 
+NetPart* PmVehicleNet::make_part(Order& o) { return new PmVehiclePart(&o, this); }
+AiNet* PmVehiclePart::net() const { return target; }
+
 namespace {
 struct Slots : NetSlotsPmHooks {
   explicit Slots(const VehicleNet& n) : n(n) {}
