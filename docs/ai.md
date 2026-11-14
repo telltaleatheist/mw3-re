@@ -3889,6 +3889,13 @@ moves, and from 80 m the machine guns miss it.
   brain is not mapped beyond section 4).
 - Duplicate record names in a file: by number both are read, by name the
   first wins.
+- The lance command's target marker (cmd_target.flt, 0x00468100): its
+  AiTarget constructor (0x004d7f80) puts it on the targets list
+  ([0x0060b584..0x0060b588]) and the exe leaves it there, while the port's
+  PocketMarker sits only in zEntity's list (app_pocket.cpp make_marker), never
+  in zai_target's. What reads the targets list for it (the valves' and
+  targets.zrd's users) is unchecked; Pirate's Moon (0x00469c80) takes its own
+  marker off that list, as the port has it (pm-tests.md, 2026-11-14).
 
 ## The developer tools (decided with Owen, 2026-10-20)
 
