@@ -95,7 +95,7 @@ int probe_basic_controls(uint32_t ctl, uint32_t owner, uint32_t node, int32_t ne
   };
   out[n++] = static_cast<uint32_t>(c.state), out[n++] = static_cast<uint32_t>(c.net);
   out[n++] = c.record ? g_rec_addr[c.record] : 0, out[n++] = lo(c.net_node);
-  out[n++] = static_cast<uint32_t>(c.mode), out[n++] = c.xa18;
+  out[n++] = static_cast<uint32_t>(c.mode), out[n++] = bits(c.xa18);
   for (float f : {c.attack_dwell, c.not_pursuit_dwell, c.attack_rad, c.pursuit_far, c.pursuit_near, c.return_range, c.activate_rad})
     out[n++] = bits(f);
   out[n++] = v.xe0 == &v ? owner : lo(v.xe0);
