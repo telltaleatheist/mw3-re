@@ -1,3 +1,5 @@
+#include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_pm.h"
 #include "mech3/app_vehicle.h"
 #include "mech3/mech_lod.h"
 
@@ -671,6 +673,10 @@ void wire_vehicles(const MechWiring* w) {
 void program_vehicle_forget(void* v, uint32_t self, uint32_t x) {
   auto* b = static_cast<Vehicle*>(v);
   if (auto* w = static_cast<WeaponManager*>(b->ammo)) w->forget_target(g_w.object_of(g_w.engine, x));
+  // Pirate's Moon 1.0 @ 0x004b2d30: its AI controls' +0x64 lets the kept lance target go (0x004fbe10).
+  if (ai::pm_ai_on())
+    if (auto* c = dynamic_cast<ai::AiVehicleControls*>(static_cast<BasicVehicle*>(v)->controls); c && c->brain && c->brain->controls)
+      ai::pm_forget_target(c->brain->controls->vehicle(), x);
   ai::forget_entity(self, x);
 }
 
@@ -1015,7 +1021,7 @@ void program_vehicle_frame(void* v, float dt) {
 }
 namespace {
 ai::Brain* brain_of(void* v) {
-  auto* c = dynamic_cast<ai::AiVehicleControls*>(bv(v).controls);
+  auto* c = dynamic_cast<ai::AiVehicleControls*>(static_cast<BasicVehicle*>(v)->controls);
   return c ? c->brain.get() : nullptr;
 }
 }  // namespace

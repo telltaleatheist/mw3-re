@@ -646,6 +646,16 @@ FiringRecord& pm_firing(Brain& b, zgame::Handle vehicle) {
 
 void pm_firing_forget(zgame::Handle vehicle) { records().erase(vehicle); }
 
+// Pirate's Moon 1.0 @ 0x004fbe10 (AI controls' IControls +0x64, from a vehicle's 0x004b2d30 when an entity goes; MW3's
+// slot there, 0x004ea700, is empty), with 0x004bd280: the kept lance target and the next one (+0x8c, +0x90) let go
+// when they are `x`; then the base's slot (0x005c7a30, nothing).
+void pm_forget_target(zgame::Handle vehicle, zgame::Handle x) {
+  FiringRecord* r = record_of(vehicle);
+  if (!r) return;  // a firing not made yet keeps no target
+  if (r->pick.prefer == x) r->pick.prefer = 0;
+  if (r->pick.prefer_next == x) r->pick.prefer_next = 0;
+}
+
 // Pirate's Moon 1.0 @ 0x004bb6a0 (IControls vt+0x98 0x004fbc00): it hit an ally: the ally is kept (+0x28) for the
 // pick to pass over targets behind it, then the firing stands down.
 void pm_hit_an_ally(FiringRecord& r, zgame::Handle victim) {

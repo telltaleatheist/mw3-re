@@ -24,6 +24,7 @@ void pm_set_aim_floor(mech3::Weapon& w, float rate);  // 0x004b7a90: the volley'
 void pm_firing_forget(zgame::Handle vehicle);
 void pm_hit_an_ally(FiringRecord& r, zgame::Handle victim);  // 0x004bb6a0: the ally kept, then 0x004ba8c0
 void pm_stand_down(FiringRecord& r);                          // 0x004ba8c0
+void pm_forget_target(zgame::Handle vehicle, zgame::Handle x);  // 0x004fbe10 -> 0x004bd280: `x` gone
 void pm_firing_install();                                  // the hooks set; `PM_AI=1` only
 
 }  // namespace mech3::ai

@@ -2,6 +2,8 @@
 // section 9). Not original code: it stands where the exe's other modules
 // will be. zClass's nodes, the mech data (0x00430d10) and mechlib are the
 // ports; what has no port is logged once by address through the engine.
+#include "mech3/zai_wire_firing_pm.h"
+#include "mech3/zai_wire_pm.h"
 #include "mech3/entity_bind.h"
 #include "mech3/landmines.h"
 #include "mech3/pocket_panel.h"
@@ -2815,6 +2817,10 @@ void program_mech_forget(void* mech, uint32_t self, uint32_t x) {
   auto* m = static_cast<Mech*>(mech);
   void* gone = g_w.object_of(g_w.engine, x);
   if (auto* w = static_cast<WeaponManager*>(m->ammo)) w->forget_target(gone);
+  // Pirate's Moon 1.0 @ 0x004b2d30: its AI controls' +0x64 lets the kept lance target go (0x004fbe10).
+  if (ai::pm_ai_on())
+    if (auto* c = dynamic_cast<AiControls*>(m->controls); c && c->brain && c->brain->controls)
+      ai::pm_forget_target(c->brain->controls->vehicle(), x);
   if (m->attacker && m->attacker == gone) m->attacker = nullptr;
   ai::forget_entity(self, x);
 }

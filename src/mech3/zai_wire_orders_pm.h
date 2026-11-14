@@ -22,6 +22,11 @@ void pm_give_order(Brain& b, AiNet* net, Behaviour* beh);  // 0x004ea740 (0x004f
 void pm_push_behaviour(Brain& b, Behaviour* beh);          // 0x004ea7f0 (0x004fa170)
 void pm_pop_order(Brain& b);                               // 0x004ea220
 bool pm_order_leavable(Brain& b);                          // 0x004fa320: the refit order may take the pilot
+// The brain's object calls through PM's AI controls (IControls +0x68, +0x6c, +0x70; MW3's +0x64, +0x68, +0x6c), on a
+// net already cast from the object (vt+0x34).
+bool pm_clear_if_net(Brain& b, AiNet* n);  // 0x004fa770
+bool pm_push_net(Brain& b, AiNet* n);      // 0x004fa190 -> 0x004ea8a0 -> 0x004ea690
+bool pm_pop_if_net(Brain& b, AiNet* n);    // 0x004fa110 -> 0x004ea5c0 -> 0x004ea3a0
 // PM's lance orders (0x004fb420..0x004fb7f0 with their slots), for Brain::lance_order under PM's AI.
 int32_t pm_lance_order(Brain& b, int32_t order, Contact* c);
 

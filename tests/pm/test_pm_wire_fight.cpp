@@ -608,3 +608,35 @@ TEST(pm_wire_ally_hit_goes_to_pms_firing) {
     EXPECT(b.firing.obstacle == 0x99 && r.pick.aimed == 0 && !r.fire.busy);
   }
 }
+
+// The brain's command interface under PM's AI (docs/pm-tests.md, The brain's command interface): the object calls
+// (PM's IControls +0x6c push 0x004fa190, +0x70 pop-if 0x004fa110, +0x68 clear-if 0x004fa770) on PM's orders, and
+// +0x64's forget (0x004fbe10): the kept lance target and the next let go only when they are the entity going.
+TEST(pm_wire_brain_object_calls_and_forget) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  mech3::ai::VehicleNet base(9);
+  EXPECT(b.set_net(&base));
+  CompiledNet a(1, 2), other(2, 2);
+  const size_t n0 = b.orders.size();
+  EXPECT(b.push_object(&a) && b.orders.size() == n0 + 1 && b.current().net->net() == &a);
+  EXPECT(!b.pop_if_object(&other) && b.orders.size() == n0 + 1);  // the top is a's
+  EXPECT(b.pop_if_object(&a) && b.orders.size() == n0);
+  EXPECT(b.push_object(&a) && b.push_object(&other) && b.orders.size() == n0 + 2);
+  EXPECT(!b.pop_if_object(&a));                                        // not the top
+  EXPECT(!b.clear_if_object(nullptr) && b.orders.size() == n0 + 2);
+  EXPECT(b.clear_if_object(&a) && b.orders.empty());                   // a's under the top: every order goes
+  FiringRecord& r = pm_firing(b, 7);
+  r.pick.prefer = 0x44, r.pick.prefer_next = 0x45;
+  pm_forget_target(7, 0x46);
+  EXPECT(r.pick.prefer == 0x44 && r.pick.prefer_next == 0x45);
+  pm_forget_target(7, 0x44);
+  EXPECT(r.pick.prefer == 0 && r.pick.prefer_next == 0x45);
+  pm_forget_target(7, 0x45);
+  EXPECT(r.pick.prefer_next == 0);
+  pm_forget_target(8, 0x45);  // no firing made for 8: nothing
+}

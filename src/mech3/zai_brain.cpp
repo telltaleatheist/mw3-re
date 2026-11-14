@@ -1254,12 +1254,16 @@ AiNet* cast_net(znet::Object* o) {  // vt+0x34
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004e8660 (IControls side).
-bool Brain::pop_if_object(znet::Object* o) { return pop_if(cast_net(o)); }
+// Mech3.exe 1.2 @ 0x004e8660 (IControls side). PM's AI: its 0x004fa110 (pm_pop_if_net).
+bool Brain::pop_if_object(znet::Object* o) {
+  if (pm_ai_on()) return pm_pop_if_net(*this, cast_net(o));
+  return pop_if(cast_net(o));
+}
 
-// Mech3.exe 1.2 @ 0x004e8960 (IControls side).
+// Mech3.exe 1.2 @ 0x004e8960 (IControls side). PM's AI: its 0x004fa190 (pm_push_net).
 bool Brain::push_object(znet::Object* o) {
   AiNet* n = cast_net(o);
+  if (pm_ai_on()) return pm_push_net(*this, n);
   return n ? push_net(n) : false;
 }
 
@@ -1270,6 +1274,7 @@ bool Brain::push_object(znet::Object* o) {
 // stops at the last order (docs/fixes.md).
 bool Brain::clear_if_object(znet::Object* o) {
   AiNet* n = cast_net(o);
+  if (pm_ai_on()) return pm_clear_if_net(*this, n);  // PM's 0x004fa770, its IControls +0x68
   if (!n) return false;
   bool found = false;
   for (const Order& r : orders)
@@ -1698,7 +1703,7 @@ bool Brain::scan_aim() {
 }
 
 
-// Mech3.exe 1.2 @ 0x004ea500 (with 0x004b78d0)
+// Mech3.exe 1.2 @ 0x004ea500 (with 0x004b78d0), Pirate's Moon 1.0 @ 0x004fbc00
 void Brain::hit_an_ally(zgame::Handle victim) {
   if (pm_ai_on()) {
     if (const zgame::Handle v = controls ? controls->vehicle() : 0) pm_hit_an_ally(pm_firing(*this, v), victim);

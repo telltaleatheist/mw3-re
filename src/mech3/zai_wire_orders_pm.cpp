@@ -209,6 +209,40 @@ void pm_pop_order(Brain& b) {
   if (!h.popped) b.pop();  // an order without a state still goes
 }
 
+// Pirate's Moon 1.0 @ 0x004fa770 (MW3's 0x004e9100): when any order is on the net, every order goes, each by PM's pop
+// (0x004ea220, while the count +0x2c is not 0). FIX (bug), as MW3's: the exe's search for a net no order is on steps
+// past a full last block of the deque (31 orders a block here) into its map; here it stops at the last order.
+bool pm_clear_if_net(Brain& b, AiNet* n) {
+  if (!n) return false;
+  bool found = false;
+  for (const Order& r : b.orders)
+    if (r.net && r.net->net() == n) {
+      found = true;
+      break;
+    }
+  if (!found) return false;
+  while (!b.orders.empty()) pm_pop_order(b);
+  return true;
+}
+
+// Pirate's Moon 1.0 @ 0x004ea690 (by 0x004fa190, 0x004ea8a0; MW3's 0x004e8960): an order on the net over what runs,
+// with no behaviour of its own (0x004ea5f0, 0x004f9ec0 -> 0x004f9e70: the default state).
+bool pm_push_net(Brain& b, AiNet* n) {
+  if (!n) return false;
+  pm_give_order(b, n, nullptr);
+  return true;
+}
+
+// Pirate's Moon 1.0 @ 0x004ea3a0 (by 0x004fa110, 0x004ea5c0; MW3's 0x004e8660): the last order goes when it is on
+// the net, the one under it taking up again.
+bool pm_pop_if_net(Brain& b, AiNet* n) {
+  if (!n || b.orders.empty()) return false;
+  const Order& top = b.current();
+  if (!top.net || top.net->net() != n) return false;
+  pm_pop_order(b);
+  return true;
+}
+
 // Pirate's Moon 1.0 @ 0x004fa320: the pilot's +0xee bit 1 (+0xce here; on unless its aiv clears it), and the
 // current order's net part and state both answering yes: the part's vt+0x10 (no on the built-in net's, as its
 // vt+0x14) and the state's vt+0x1c (no for a jump).
