@@ -20,4 +20,9 @@ int read_materials(std::FILE* f);
 // 0x20 freed (0x00556ae0) and the marks cleared, the freed count returned.
 int32_t material_sweep(int32_t step);
 
+// Pirate's Moon 1.0 @ 0x00555ae0 (WriteZBD's; ported for preservation, docs/gamez.md, Writing a world back): MW3's
+// 0x005360c0 (the table's four numbers, every block whole) with the cycles in the table's order: each material
+// with flag 4, free or not, writes its cycle and its textures' rows. The block size, 0 after an error (reported).
+int write_materials(std::FILE* f);
+
 }  // namespace pm::zmod

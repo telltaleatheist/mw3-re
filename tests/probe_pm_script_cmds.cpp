@@ -10,6 +10,8 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zmodel/gmod_shadows.h"
 #include "pm/gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zclass/cls_zbd.h"
+#include "gamez/zutil/zutl_path.h"
 #include "pm/gamez/zvideo/zvid_tl.h"
 #include "gamez/zvideo/zvid_ddd3d.h"
 
@@ -162,6 +164,27 @@ int probe_pm_make_shadows(const char* path, uint8_t* out, int cap, uint32_t* sta
   if (static_cast<int>(b.size()) > cap) return -1;
   std::memcpy(out, b.data(), b.size());
   return static_cast<int>(b.size());
+}
+
+// test_pm_write_zbd.py: `path` read as probe_pm_gamez_stack does (nodes too), then written back as "out.zbd" in the
+// write folder `dir` (PM's 0x005168e0), every `drop`th node's bit 0x2000000 cleared first. reports: the write's result, the count of report words, then (level, line)
+// pairs.
+int probe_pm_write_zbd(const char* path, const char* dir, int32_t drop, int32_t* reports, int32_t cap) {
+  std::vector<uint8_t> scratch(64u << 20);
+  if (probe_pm_gamez_stack(path, 5, 6, 5, 2, scratch.data(), static_cast<int>(scratch.size())) < 0) return -3;
+  for (int32_t i = drop - 1; drop > 0 && i < zcls::nodes().capacity; i += drop)  // not written: lists name none
+    zcls::node_at(i)->link &= ~0x2000000u;
+  g_reports.clear();
+  zerr::set_sink([](int level, const char*, int line, const char*) { g_reports.push_back(level), g_reports.push_back(line); });
+  const zutl::Mounts saved = zutl::mounts();
+  zutl::mounts().write = dir;
+  const int r = pm::zcls::write_zbd("out.zbd");
+  zutl::mounts() = saved;
+  zerr::set_sink(nullptr);
+  reports[0] = r;
+  reports[1] = static_cast<int32_t>(g_reports.size());
+  for (size_t i = 0; i < g_reports.size() && static_cast<int32_t>(i) + 2 < cap; ++i) reports[2 + i] = g_reports[i];
+  return static_cast<int>(pm::zcls::zbd_state().files.size());
 }
 
 }  // extern "C"

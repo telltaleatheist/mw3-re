@@ -133,6 +133,16 @@ void read_model_data(std::FILE* f, Model& m, int32_t material_base);
 const char* model_inconsistent(const Model& m);  // FIX (A): ::zmod's on PM's model
 void model_empty(Model& m);                      // FIX (A): arrays freed, counts 0, slot kept
 
+// WriteZBD's (ported for preservation, docs/gamez.md, Writing a world back).
+// Pirate's Moon 1.0 @ 0x00557b30: a model's slot index, -1 for none or one outside the pool.
+int32_t model_index(const Model* m);
+// Pirate's Moon 1.0 @ 0x00557d50: the pool's three numbers, every slot's material refs rebuilt (0x0055c470), the
+// slots, then each slot's arrays as PM's reader takes them (points, normals, morphs, lights and their points, the
+// polygons with their point and normal indices, their materials as rows, a UV array a material when they have UVs,
+// their colours; then the material refs); a slot that had any but refs is given the offset they start at (+0x64,
+// in the pool too), and the slots are written again. The size, 0 after an error (reported).
+int write_models(std::FILE* f);
+
 // The script commands' on PM's models (ported for preservation; the engine's entries are null).
 void model_set_facade(Model* m, uint32_t mode);       // 0x00559910
 void model_set_lighting(Model* m, uint32_t on);       // 0x00559940

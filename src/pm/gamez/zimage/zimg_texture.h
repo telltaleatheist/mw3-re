@@ -22,4 +22,9 @@ void set_additive(::zimg::TextureEntry* texture);  // 0x005b6491: drawn adding l
 // Pirate's Moon 1.0 @ 0x00530810: MW3's 0x00516f30, and the light map gone.
 void textures_free();
 
+// Pirate's Moon 1.0 @ 0x00531870 (WriteZBD's; ported for preservation, docs/gamez.md, Writing a world back): the
+// table as PM's reader takes it, 0x2c bytes an entry (the name at +0xc, the state +0x20, the group +0x24, the mip
+// as its row at +0x28, 0x00531810). The count, 0 when none or not written (reported).
+int write_texture_directory(std::FILE* f);
+
 }  // namespace pm::zimg

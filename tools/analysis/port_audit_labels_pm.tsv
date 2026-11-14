@@ -12,14 +12,8 @@
 0x004d6a60	unused	as MW3 0x004cd810, whose class PM's changes keep: the brain's own step at +0x240 (0x004cd770, vtable 0x005cc290): built by the brain's constructor, but nothing orders it (only the constructor takes +0x240), so its make_state, state and run (path following toward a point, 98 lines) never run
 0x004eb070	devdialog-logic	as MW3 0x004d9fc0, whose class PM's changes keep: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic
 0x0050a750	software	as MW3 0x004f6dc0, whose class PM's changes keep: the camera's software scene walk (0x004f6dc0 without a device; hud.md: the software path)
-0x00515fb0	debug	as MW3 0x004fe6c0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
-0x00516260	debug	as MW3 0x004fe2d0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
-0x00516720	debug	as MW3 0x004fe210, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
-0x005168e0	missing-mod	as MW3 0x004fe8e0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 0x00520500	missing-mod	as MW3 0x005076c0, whose class PM's changes keep: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
 0x00530d90	sdl	as MW3 0x005174b0, whose class PM's changes keep: zimg_winfonts: the GDI fonts by name from fonts.zrd's WINDOWS_FONTS (list, find, addref, release, teardown); the SDL text host draws its own fonts (sdl_twod_host.h:36)
-0x00531810	debug	as MW3 0x00518050, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127)
-0x00531870	debug	as MW3 0x005180a0, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127)
 0x00531c50	sdl	as MW3 0x005184e0, whose class PM's changes keep: the texture table's start-up: zeroes the table and makes the Direct3D default texture record; the port's GPU textures make their own (zimg_texture.cpp:109, fixes.md puffer row)
 0x00532f20	software	as MW3 0x005195b0, whose class PM's changes keep: the software renderer's texture tables: the nth mip of a chain for 0x00563940 (module-starts.md:158) and the 32 light and fog levels of every paletted texture (software-path.md:30)
 0x0053d000	unused	as MW3 0x00523650, whose class PM's changes keep: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193)
@@ -30,8 +24,6 @@
 0x0054aea0	unused	as MW3 0x00530d90, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 0x0054be20	unused	as MW3 0x00531d90, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 0x0054d1c0	unused	as MW3 0x005331e0, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
-0x00555ae0	debug	as MW3 0x005360c0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool
-0x00557d50	debug	as MW3 0x005380e0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool
 0x00559db0	unused	as MW3 0x0053a1a0, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 0x0055ad60	unused	as MW3 0x0053b050, whose class PM's changes keep: large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 0x0055ece0	software	as MW3 0x00544060, whose class PM's changes keep: the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision)
@@ -103,7 +95,6 @@
 0x004b1ec0	missing-mod	called only from 0x004b2280, which are missing-mod
 0x004b51a0	unused	called only from 0x004b5040, which are unused
 0x004c7cf0	debug	called only from 0x004c7c80, which are debug
-0x00516800	debug	called only from 0x00516260, which are debug
 0x00533150	software	called only from 0x00580be0, 0x00587d50, which are software
 0x00548f50	software	called only from 0x00541a40, which are software
 0x005490e0	software	called only from 0x00541a40, which are software
@@ -113,7 +104,6 @@
 0x0054a3d0	software	called only from 0x00541a40, which are software
 0x0054a3f0	software	called only from 0x00541a40, which are software
 0x005502d0	software	called only from 0x0054a3b0, 0x0054a3d0, 0x0054a3f0, which are software
-0x00557b30	debug	called only from 0x00515fb0, which are debug
 0x005800e0	software	called only from 0x005883f0, 0x00588590, which are software
 0x00597f20	sdl	called only from 0x00598600, which are sdl
 0x00597f30	sdl	called only from 0x00598600, which are sdl

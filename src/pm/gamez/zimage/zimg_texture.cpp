@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 #include "gamez/zerror/zerr.h"
 
@@ -47,6 +48,29 @@ namespace {
 void set_light_map(::zimg::TextureEntry* texture) { g_light_map = texture; }
 void set_additive(::zimg::TextureEntry* texture) {
   if (texture->image) static_cast<::zimg::Texture*>(texture->image)->stretch |= 4;
+}
+
+// Pirate's Moon 1.0 @ 0x00531870. The exe writes the image, surface and +0x08 pointers as they are, which the reader
+// clears; 0 here.
+int write_texture_directory(std::FILE* f) {
+  const ::zimg::TextureTable& t = ::zimg::textures();
+  const int32_t count = t.count;
+  if (count == 0) return 0;
+  std::vector<uint8_t> raw(static_cast<size_t>(count) * 0x2c);
+  for (int32_t i = 0; i < count; ++i) {
+    const ::zimg::TextureEntry& e = t.entries[i];
+    uint8_t* r = raw.data() + static_cast<size_t>(i) * 0x2c;
+    std::memcpy(r + 0xc, e.name, 20);
+    std::memcpy(r + 0x20, &e.state, 4);
+    std::memcpy(r + 0x24, &e.group, 4);
+    const int32_t mip = ::zimg::texture_index(e.mip);  // 0x00531810
+    std::memcpy(r + 0x28, &mip, 4);
+  }
+  if (std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x11d, "Error writing texture directory.");
+    return 0;
+  }
+  return count;
 }
 
 void textures_free() {
