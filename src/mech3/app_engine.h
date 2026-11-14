@@ -495,6 +495,7 @@ class GameEngine : public Engine {
   void mechs_shutdown() override;                  // 0x00414000 (app_mech.cpp)
   void render_flush(Handle rect) override;         // 0x00558010
   bool world_up() override;                        // 0x004f8f50
+  void load_lab_world() override;                  // PM 0x00492830(6)
   void debrief_voice_play(Handle state) override;  // 0x0047abe0
   void anim_stop(int32_t a) override;              // 0x0050ace0 (zeff::anim_stop_all)
   void anim_reset() override;                      // 0x0050ad60 (zeff::anim_reset_all)

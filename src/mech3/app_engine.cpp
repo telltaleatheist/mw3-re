@@ -874,6 +874,7 @@ void GameEngine::render_flush(Handle rect) {
 // Mech3.exe 1.2 @ 0x004f8f50: [0x0060bf48], set by zClass's set-up
 // (0x004f8f70) and cleared by its reset: the node pool live (as the weapons' pool_live).
 bool GameEngine::world_up() { return !zcls::nodes().blocks.empty(); }
+void GameEngine::load_lab_world() { missions().load_world(6); }
 // 0x0050ace0 at the Core state's leave: every mission animation stopped.
 void GameEngine::anim_stop(int32_t a) { zeff::anim_stop_all(a); }
 // 0x0050ad60 with ECX 1, the debriefing's retry (0x0047d030) and Instant

@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4083 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 147 |
+| MISSING LOGIC | 146 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -100,7 +100,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x0047bd00, 0x0047bd60, 0x0047c8e0, 0x0047c920** (4 functions, 108 decomp lines; MISSING LOGIC): pm only, field bases, with 0x0047be40: the MCB waynet's next / prev (PM's vtable 0x005e5d2c +0x58 / +0x5c, MW3's 0x0047a5c0 / 0x0047a620, the port's McbWaynet::next / prev) step through PM's 0x0047bd00 / 0x0047bd60, which pass over points with no station (vt+0x78) or whose hidden byte (+0x11) is set; MW3's step (0x00479b10) is the next modulo the count. The feature compare passed the pair: each side has one unmapped call, the step helper (the unmapped-call hole, method)
 - **0x0047bdc0, 0x0047bde0** (2 functions, 34 decomp lines; MISSING LOGIC): the nearest-point search's start (the best distance FLT_MAX, the result cleared) and its per-point step (a point with a station, not hidden (+0x11), nearer than the best so far)
 - **0x0047be40** (1 functions, 29 decomp lines; MISSING LOGIC): pm only, field bases: the MCB waynet's nearest point (0x0047c960, MW3 0x0047a680, the port's McbWaynet::nearest, mech_waynet.cpp:312): PM walks the waynet's points itself (0x0047be40 with 0x0047bdc0 / 0x0047bde0) and takes the nearest whose hidden byte (+0x11) is clear, selecting nothing when none is; MW3's (0x00479b50, the port's Waynet::nearest, mech_waynet.cpp:195) asks the net's nearest step and falls back to the current point. PM hides the dock points that aren't static MFBs as it counts them (the port's dock_count, mech_waynet.cpp:417), so on PM the port can pick a hidden point where PM would not
-- **0x0047f7c0** (1 functions, 35 decomp lines; MISSING LOGIC): pm only: the Salvage State's enter (MW3's 0x0047d310, app_states.cpp:1355): with no world up (0x0050ca80, MW3's 0x004f8f50 world_up), PM first loads world 6 through the mission load (0x00492830(6), MW3's 0x0048faf0; world 6 is the mech lab's) before making the salvage screen (0x0047f870, 0x168a8 bytes); MW3 and the port make the screen only. PM opens Salvage from the briefing and the lobby too (pm-tests item 6c-3b); whether the port's salvage screen needs the world there is not checked
 - **0x00480260** (1 functions, 191 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's salvage screen set-up (MW3's 0x0047dcf0). Its room from the game (vt+0x5c bases, vt+0x60 tons) is ported (SalvageScreen::refill on Engine::salvage_bases / salvage_tons, with 0x00480840); its other differences, 191 lines, are still to read with the menus
 - **0x004943e0** (1 functions, 13 decomp lines; MISSING LOGIC): pm only, multiplayer: a network respawn's objectives reload. PM frees them (0x0045d530) and reads them again through the game's vt+0x3c (0x00435140 for the multiplayer game: objectives.zrd's mp<N>, vt+0x58 0x00436580, for every map), then clears the ended and aborting bytes; the port's objectives_again (mission.cpp:532) is MW3's 0x00491050, maps past 2 from mpinfo.zrd, which PM does not ship (no archive holds it), so on PM a respawn on map 3 or later reads no objectives
 - **0x004a3200** (1 functions, 83 decomp lines; MISSING LOGIC): pm only, vehicles, traced: PM's vehicle collision record (0x004a3cb0) puts hits on a mech's part nodes (0x0040f210, the part's owner) in a new list +0x358 and other entities' (0x0040f1a0) in +0x354, dropping one whose object's byte +8 is 0; the step (0x004a3200, MW3 0x004a09e0) answers either list with 0x004a4320, which runs the collision response 0x004a3e40 (MW3 0x004a0b40) on +0x354 only, and sets the hit flag (+0x374) for both. So in PM a vehicle that runs into a mech is flagged as hit but gets no response from the mech's parts (MW3 and the port respond to every entity hit: veh_move.cpp vehicle_collision_query, one list); the flag still keeps the ground step's own response (the end of 0x004a3200) from running
@@ -487,7 +486,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 
 ## By module
 
-### mech3ep1 (3283 not ported)
+### mech3ep1 (3282 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -775,7 +774,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x0040fa00 | 10 | folded | as MW3 0x0040f130: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x0040fa20 | 33 | debug or dev tool: PORT (preserve) | as MW3 0x0040f150: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x0040fac0 | 12 | folded | covered by the port where it names it (src/mech3/hud.h:62) |
-| 0x0040fae0 | 35 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:993) |
+| 0x0040fae0 | 35 | folded | covered by the port where it names it (src/mech3/app_engine.cpp:994) |
 | 0x0040fd00 | 75 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0040f410 with only offsets and sizes of PM's larger structures changed (0x600->0x608); calls, field counts and every other immediate and float constant as MW3's |
 | 0x00410030 | 12 | folded | covered by the port where it names it (src/mech3/message_panel.h:18) |
 | 0x00410050 | 32 | folded | MW3's twins by the order-aware compare and features (layout and helper instances only): 0x0040b310 (0x00408f40: PM's stack probe for its larger frame and a fld for a fmul by 1), 0x0040d810 (0x0040b720: a call MW3 left unmapped is PM's 0x0040b320), 0x0040e270 (0x0040ea60: the element 0x4b8 for 0x4b0), 0x0040f730 (0x00410050: the HudPanel destructor 0x0043b8f0), 0x00410700 (0x00410f80: equal) |
@@ -1749,7 +1748,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00475270 | 15 | folded | checked by test (block trace, 2026-11-13): test_pm_pilot's read 0x0047b2f0 runs it; the file read and written back compared byte for byte |
 | 0x004752a0 | 10 | folded | a constructor out of line: its base (0x00473240) then 0x00475270 with the argument |
 | 0x004754d0 | 47 | folded | group A, read: the salvage's have-enough check gives the same answer (false as soon as one item is short); MW3 reports each shortage (CONFIG: want %d %s, only have %d) and goes on, PM stops at the first without a report: a developer message only |
-| 0x004755f0 | 19 | folded | covered by the port where it names it (src/mech3/app_hooks.h:976) |
+| 0x004755f0 | 19 | folded | covered by the port where it names it (src/mech3/app_hooks.h:978) |
 | 0x00475630 | 32 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:148) |
 | 0x00475700 | 20 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:147) |
 | 0x00475750 | 9 | folded | a thunk: one call to another function |
@@ -1846,7 +1845,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x0047f740 | 9 | folded | a thunk: one call to another function |
 | 0x0047f750 | 10 | folded | covered by the port where it names it (src/mech3/app_states.h:239) |
 | 0x0047f770 | 9 | folded | a thunk: one call to another function |
-| 0x0047f7c0 | 35 | MISSING LOGIC | pm only: the Salvage State's enter (MW3's 0x0047d310, app_states.cpp:1355): with no world up (0x0050ca80, MW3's 0x004f8f50 world_up), PM first loads world 6 through the mission load (0x00492830(6), MW3's 0x0048faf0; world 6 is the mech lab's) before making the salvage screen (0x0047f870, 0x168a8 bytes); MW3 and the port make the screen only. PM opens Salvage from the briefing and the lobby too (pm-tests item 6c-3b); whether the port's salvage screen needs the world there is not checked |
 | 0x0047f870 | 206 | folded | MW3's 0x0047d3b0 (the salvage screen's constructor), read: the same controls; PM's multiplayer store beside the game's is in the pm port (salvage_screen.cpp:81) |
 | 0x0047ff80 | 12 | folded | covered by the port where it names it (src/mech3/salvage_screen.cpp:27) |
 | 0x0047ffa0 | 22 | folded | covered by the port where it names it (src/mech3/salvage_screen.cpp:27) |

@@ -1099,3 +1099,13 @@ in PM, so the option counts when a mech's data is first loaded.
 `pm_low_object_detail_loads_the_low_model_and_15_key_gaits_headless` (c1m1, the player's Mad Cat): at detail 2
 mech_madcat_1.flt, no second model, every gait 15 keys; at 0 mech_madcat.flt, both, 60. Breaks: the flag off,
 the gaits at 60 (each fails the detail-2 run).
+
+## The Salvage State's world (2026-11-14)
+
+PM opens Salvage from the briefing and the lobby too (item 6c-3b), and its enter (0x47f7c0) loads the mech lab's
+world (6, through the mission load 0x492830) when none is up (0x50ca80) before making the screen; MW3's 0x47d310
+makes the screen alone. The port does the same behind the table's `salvage_loads_world`, through the new Engine
+call `load_lab_world` (GameEngine: missions().load_world(6), as the lab's own world load does). Like PM, nothing
+unloads that world when Salvage closes; the next mission's load replaces it.
+`pm_salvage_loads_the_lab_world_when_none_is_up` (mw3pmtests): the calls in order with no world (the world, then
+the screen), with one up (the screen) and on MW3's table (the screen). Break: the flag off (1 failed check).
