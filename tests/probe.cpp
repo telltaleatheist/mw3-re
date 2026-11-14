@@ -934,6 +934,17 @@ int probe_destroy_op(int op, int a, int b, int c) {
     case 13: return classes_reset();
     case 14: return node_set_model(n, b >= 0 ? zmod::model_at(b) : nullptr);
     case 15: return reread(n, b);
+    case 16: {  // test_destroy's: an object3d added under n posing as class b (-1 its own), data null with c
+      Node* o = object3d_create();
+      const int32_t cls = n->cls();
+      void* data = n->data;
+      if (b >= 0) n->put<int32_t>(0x34, b);
+      if (c) n->data = nullptr;
+      const int r = node_add_child(n, o);
+      n->put<int32_t>(0x34, cls);
+      n->data = data;
+      return idx(o) * 8 + r;
+    }
     default: return -99;
   }
 }

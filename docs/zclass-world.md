@@ -231,6 +231,15 @@ dedicated function gwSequenceAddChild()...")` + fatal 0x50da70(1), 8
 0x4fd8c0, 11 0x4fd1e0, other: "Unrecognized node class type" + 0x50da70(1),
 return 1. The case returns the callee's EAX.
 
+The class add-childs past the camera's: the LoD's 0x4fe0a0 is a jump to
+0x4eba90; the animate's 0x4fd8c0 (Animate.c) checks both nodes (lines
+0x8d/0x8e) and the switch's 0x4fd1e0 (Switch.c) also its class data (0x80,
+0x81, 0x82 "Null class data pointer"), each then 0x4eba90. No class 8 or
+11 node exists in MW3 (nothing makes one); a sequence parent (7) is only
+reached through gwSequenceAddChild. All ported 2026-11-14 (`node_add_child`
+with every class; `test_destroy.py`'s op 16 adds under every class a world
+has and under nodes posing as 7, 8, 11 and unknown ones).
+
 ### 0x4fb7a0 `object3d_add_child(parent, child)` (ECX, EDX)
 
 Null checks (lines 0x1a2/0x1a3, parent data 0x1a4) -> 5; else tail-jumps to
@@ -315,7 +324,7 @@ if a test forces pool failure. Set [0x72f338] (frame) explicitly; set
 | 0x4f77d0, 0x4f78e0, 0x4f8080, 0x4f8140, 0x4f8220, 0x4f7980 | yes: compare list heads/tails and item chains |
 | 0x4ed990, 0x4ed8f0, 0x4ed8b0, 0x4fb600 | yes, pure on node graphs |
 | 0x4fb650, 0x4fb740 | yes |
-| 0x4eb9b0 (types 3/4/5/9/10), 0x4fb7a0, 0x4eba90, 0x4ebc30, 0x4fb7f0 | yes; other types call their class code |
+| 0x4eb9b0 (every class), 0x4fd8c0, 0x4fd1e0, 0x4fb7a0, 0x4eba90, 0x4ebc30, 0x4fb7f0 | yes |
 | 0x4eb050 / 0x4eaf90 / 0x4f84b0 | yes for object3d without a model; with a model needs gmod (0x539150) |
 | 0x4fcdc0 / 0x4fce50 | yes, done in scratch on all 1400 nodes (2.7 s) |
 
@@ -370,8 +379,10 @@ or item index), not raw pointers.
 3. **Ported**: 0x4ed990, 0x4ed8f0, 0x4ed8b0 (`cls_node`), 0x4fb600
    (`object3d`).
 4. **Ported**: 0x4fb650, 0x4fb740 (`object3d`).
-5. **Ported**: 0x4eba90, 0x4fb7a0, 0x4eb9b0 (classes 3/4/5/9/10; the others
-   stop the game with "not ported yet" until their classes are ported).
+5. **Ported**: 0x4eba90, 0x4fb7a0, 0x4eb9b0 (every class: the camera's
+   0x4f33a0, the LoD's jump, the animate's 0x4fd8c0 and the switch's
+   0x4fd1e0 since 2026-11-14; a sequence or unknown class reported as the
+   exe does).
 6. **Ported**: read_node 0x4fce50 / read_tree 0x4fcdc0 (`cls_mechlib`):
    `test_mechlib.py` reads all 57 trees with the original and the port and
    compares every node, its object3d data, links, and lists 6 and 7 with
