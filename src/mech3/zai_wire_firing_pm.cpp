@@ -102,6 +102,24 @@ WeaponLinePm line_of(const Weapon& w) {
   o.spread[0] = w.spread.x, o.spread[1] = w.spread.y, o.spread[2] = w.spread.z;
   return o;
 }
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x004b7a90: the volley's tolerance as the weapon's aim floor (+0x98), but a weapon with no
+// part, or one in the centre torso (its part's node, when it has one, id 1), keeps -1.
+void pm_set_aim_floor(Weapon& w, float rate) {
+  const auto& k = mech3::weapon_calls();
+  const mech3::Handle n = w.part && k.part_node ? k.part_node(w.part) : nullptr;
+  const bool off = w.part && (!n || !k.node_id || k.node_id(n) != 1);
+  w.aim_floor = off ? rate : -1.0f;
+}
+
+// The weapon's line (0x004b7800) for the port's Weapon::aim and set_enabled (weapon.cpp, Pirate's Moon's).
+bool pm_weapon_line(Weapon& w, const Vec3f* at, Vec3f* muzzle, Vec3f* dir, float* cos, float* kept) {
+  LineHooks h;
+  return weapon_line(h, line_of(w), at ? &at->x : nullptr, &muzzle->x, &dir->x, cos, kept);
+}
+
+namespace {
 bool weapon_line_cos(Weapon* w, WeaponManager* m, float* cos) {
   LineHooks h;
   float mz[3], dir[3], kept;
@@ -330,9 +348,10 @@ class WireShot : public ShotPmHooks {
     }
   }
   void group_add(zgame::Handle wm, zgame::Handle w, float rate) override {
-    (void)rate;  // PM's +0x98 on the weapon: its readers aren't ported
     pm_hook_missing("fired: group_add");  // as the trigger's
-    if (WeaponGroup* g = group_of(manager_group(wm))) g->add(weapon_of(w));
+    Weapon* wp = weapon_of(w);
+    if (WeaponGroup* g = group_of(manager_group(wm))) g->add(wp);
+    if (wp) pm_set_aim_floor(*wp, rate);  // 0x004b7a90
   }
   void set_mode(zgame::Handle wm, int32_t mode) override {
     if (WeaponManager* m = wm_of(wm)) m->mode = mode;

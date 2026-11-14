@@ -7,6 +7,10 @@
 #include "mech3/zai_brain.h"
 #include "mech3/zai_firing_pm.h"
 
+namespace mech3 {
+struct Weapon;
+}
+
 namespace mech3::ai {
 
 // One per vehicle that fires: the exe's firing object, split as the port's pieces take it.
@@ -16,6 +20,7 @@ struct FiringRecord {
   AimPm aim;
 };
 FiringRecord& pm_firing(Brain& b, zgame::Handle vehicle);  // made at the first ask
+void pm_set_aim_floor(mech3::Weapon& w, float rate);  // 0x004b7a90: the volley's tolerance on a weapon's +0x98
 void pm_firing_forget(zgame::Handle vehicle);
 void pm_firing_install();                                  // the hooks set; `PM_AI=1` only
 

@@ -565,3 +565,25 @@ TEST(pm_wire_lance_orders_on_the_brain) {
   delete f.self.net;
   delete f.enemy.net;
 }
+
+// Pirate's Moon's 0x004b7a90 (the AI's volley, through group_add): the tolerance becomes the weapon's aim floor
+// (+0x98, read by PM's aim 0x004b7ac0) but for a weapon with no part or one in the centre torso (node id 1).
+TEST(pm_wire_aim_floor_off_the_centre_torso) {
+  mech3::WeaponCalls& k = mech3::weapon_calls();
+  const mech3::WeaponCalls kept = k;
+  static int ct, arm, bare;
+  k.part_node = [](mech3::Handle p) -> mech3::Handle { return p == &bare ? nullptr : p; };
+  k.node_id = [](mech3::Handle n) -> int32_t { return n == &ct ? 1 : 5; };
+  zwep::WeaponDef def{};
+  mech3::WeaponManager m(nullptr);
+  mech3::Weapon w(&def, nullptr, &m, true);
+  const std::pair<void*, float> cases[] = {{nullptr, -1.0f}, {&ct, -1.0f}, {&arm, 0.6f}, {&bare, 0.6f}};
+  for (const auto& [part, want] : cases) {
+    w.part = part;
+    w.aim_floor = 7.0f;
+    pm_set_aim_floor(w, 0.6f);
+    EXPECT(w.aim_floor == want);
+  }
+  w.part = nullptr;
+  k = kept;
+}
