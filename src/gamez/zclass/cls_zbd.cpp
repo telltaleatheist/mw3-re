@@ -37,6 +37,12 @@ T* read_data(Node* node, std::FILE* f, bool* ok) {
   return d;
 }
 
+// FIX (A) memory safety (docs/fixes.md): `count` entries of `entry` bytes that the file can hold (zmod::ReadBound);
+// false, warned, when a broken count asks for more, and the caller's count is set to 0.
+bool list_fits(std::FILE* f, int64_t count, uint64_t entry, const char* what) {
+  return count < 1 || zmod::read_bound().fits(f, static_cast<uint64_t>(count) * entry, what);
+}
+
 // An index list after a count; the exe ignores the list's result.
 Node** read_list(int32_t count, std::FILE* f) {
   if (count < 1) return nullptr;
@@ -49,9 +55,14 @@ int read_world(Node* node, std::FILE* f) {
   bool ok;
   World* w = read_data<World>(node, f, &ok);
   if (!ok) return read_error(0x406, "Error reading node world data.");
+  if (!list_fits(f, w->get<int32_t>(0xa0), 4, "a world's light list")) w->put<int32_t>(0xa0, 0);  // FIX (A)
+  if (!list_fits(f, w->get<int32_t>(0xac), 4, "a world's sound list")) w->put<int32_t>(0xac, 0);
   const int32_t lights = w->get<int32_t>(0xa0), sounds = w->get<int32_t>(0xac);
   if ((w->lights = read_list(lights, f))) w->light_data = new void*[lights]();
   if ((w->sounds = read_list(sounds, f))) w->sound_data = new void*[sounds]();
+  if (w->get<int32_t>(0x8c) > 0 && w->get<int32_t>(0x88) > 0 &&
+      !list_fits(f, int64_t{w->get<int32_t>(0x8c)} * w->get<int32_t>(0x88), sizeof(Partition::raw), "a world's area grid"))
+    w->put<int32_t>(0x8c, 0), w->put<int32_t>(0x88, 0);  // FIX (A)
   const int32_t rows = w->get<int32_t>(0x8c), cols = w->get<int32_t>(0x88);
   w->rows = new Partition*[rows > 0 ? rows : 0]();
   for (int32_t z = 0; z < rows; ++z) w->rows[z] = new Partition[cols > 0 ? cols : 0]();
@@ -140,6 +151,7 @@ int read_node(Node* node, std::FILE* f) {
       result = 1;
       Light* l = read_data<Light>(node, f, &ok);
       if (!ok) return read_error(0x37f, "Error reading node light data.");
+      if (!list_fits(f, l->get<int32_t>(0xc8), 4, "a light's node list")) l->put<int32_t>(0xc8, 0);  // FIX (A)
       l->nodes = read_list(l->get<int32_t>(0xc8), f);
       push_front(kAllNodes, node), push_front(kLights, node);
       break;
@@ -150,6 +162,7 @@ int read_node(Node* node, std::FILE* f) {
       Sound* s = read_data<Sound>(node, f, &ok);
       if (!ok) return read_error(0x32e, "Error reading node sound data.");
       s->put<int32_t>(0, 0), s->put<int32_t>(4, 0);
+      if (!list_fits(f, s->get<int32_t>(0x8c), 4, "a sound's node list")) s->put<int32_t>(0x8c, 0);  // FIX (A)
       s->nodes = read_list(s->get<int32_t>(0x8c), f);
       push_front(kAllNodes, node), push_front(kSounds, node);
       break;
@@ -163,6 +176,8 @@ int read_node(Node* node, std::FILE* f) {
       return -1;
     }
   }
+  if (!list_fits(f, node->parent_count(), 4, "a node's parent list")) node->put<int32_t>(0x54, 0);  // FIX (A)
+  if (!list_fits(f, node->child_count(), 4, "a node's child list")) node->put<int32_t>(0x5c, 0);
   if ((node->parents = read_list(node->parent_count(), f))) result = 1;
   if ((node->children = read_list(node->child_count(), f))) return 1;
   return result;
@@ -171,6 +186,7 @@ int read_node(Node* node, std::FILE* f) {
 // Mech3.exe 1.2 @ 0x004ff200. All slots are read first, then each node's
 // data in slot order. Returns the capacity, 0 for an empty pool, -1 on error.
 int read_nodes(int32_t size, std::FILE* f) {
+  zmod::read_bound().begin(f);  // FIX (A): each section's read starts its own bound (no file's state carries over)
   NodePool& p = nodes();
   if (size == 0) return 0;
   const int32_t bs = p.block_size;
@@ -313,6 +329,7 @@ int reread(Node* node, int32_t recurse) {
   ZbdHeader h;
   std::FILE* f = open_zbd(zbd_path(), &h);
   if (!f) return 1;
+  zmod::read_bound().begin(f);
   const int r = reread_node(f, h, node, recurse);
   std::fclose(f);
   return r;
@@ -339,6 +356,7 @@ int read_zbd(const char* path) {
   ZbdHeader h;
   std::FILE* f = open_zbd(path, &h);
   if (!f) return -1;
+  zmod::read_bound().begin(f);  // FIX (A): this file's read starts its bound
   int line = 0;
   const char* msg = nullptr;
   std::fseek(f, h.textures_offset, SEEK_SET);

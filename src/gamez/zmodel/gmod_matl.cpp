@@ -279,6 +279,7 @@ int32_t materials_purge() {
 // Mech3.exe 1.2 @ 0x005363d0. FIX (A): owned blocks (MaterialTable); the
 // capacity is rounded up to whole blocks.
 int read_materials(std::FILE* f) {
+  read_bound().begin(f);  // FIX (A): each section's read starts its own bound (no file's state carries over)
   MaterialTable& t = g_table;
   int32_t size, count, free_head, used_head;
   if (!read4(f, &size) || !read4(f, &count) || !read4(f, &free_head) || !read4(f, &used_head)) {
@@ -287,6 +288,12 @@ int read_materials(std::FILE* f) {
   }
   t.capacity = size, t.count = count, t.free_head = free_head, t.used_head = used_head;
   if (size == 0) return 0;
+  // FIX (A) memory safety (zmod::ReadBound, docs/fixes.md): a table the file can't hold is not allocated.
+  if (size < 0 || !read_bound().fits(f, static_cast<uint64_t>(size) * 0x2c, "the material table")) {
+    t.capacity = 0;
+    zerr::report(0x200, kFile, 0, "Error reading GameZ Material buffer data.");
+    return -1;
+  }
   const int blocks = (size + kBlock - 1) / kBlock;
   // FIX (A), the owned blocks' other half: the exe reads over the blocks it has (0x0063fbc8, never freed here),
   // so its last-made material (0x0063fbd0) stays the same slot, now with the new file's contents. The blocks
@@ -333,6 +340,12 @@ int read_materials(std::FILE* f) {
       c->looping = at<uint32_t>(raw, 0), c->frame = at<uint32_t>(raw, 4);
       c->index = at<float>(raw, 8), c->speed = at<float>(raw, 0xc);
       c->texture_count = at<uint32_t>(raw, 0x10), c->added = at<uint32_t>(raw, 0x14);
+      if (!read_bound().fits(f, uint64_t{c->texture_count} * 4, "a material's texture cycle")) {  // FIX (A)
+        std::free(c);
+        m.flags &= ~4;  // no cycle: nothing may take this one's
+        zerr::report(0x200, kFile, 0x3c0, "Error reading GameZ Material cycle texture data.");
+        return -1;
+      }
       c->textures = static_cast<zimg::TextureEntry**>(std::malloc(c->texture_count * sizeof(void*)));
       for (uint32_t k = 0; k < c->texture_count; ++k) {
         int32_t idx;
