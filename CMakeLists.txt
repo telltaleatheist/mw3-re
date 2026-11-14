@@ -748,6 +748,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_objectives.cpp
     tests/pm/test_pm_options.cpp
     tests/pm/test_pm_hud.cpp
+    tests/pm/test_pm_volley.cpp
     tests/pm/test_pm_mods.cpp
     tests/pm/test_pm_entries.cpp
     tests/pm/test_pm_fixes.cpp

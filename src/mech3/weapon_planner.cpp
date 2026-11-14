@@ -8,6 +8,10 @@
 
 namespace mech3 {
 
+namespace ai {
+bool pm_ai_on();  // zai_wire_pm.h
+}
+
 namespace {
 constexpr int32_t kGroupFire = 2;  // manager +0x1c
 
@@ -82,11 +86,15 @@ struct Volley {
   std::vector<Shot> shots;  // +0x80
 };
 
+// Pirate's Moon 1.0 @ 0x004b8ce0: PM's ready test is only that the weapon has a definition; MW3's (0x004b4ba0,
+// type_ready) also waits for the weapon type's AI wait (0x004b4c70), which only MW3's firing step sets (PM has no
+// such wait). MW3's under PM_AI=0.
 bool in_range(const Weapon& w, float dist2) {
-  return w.type_ready() && w.can_fire() && !(w.min_range_sq() > dist2) && w.max_range_sq() >= dist2;
+  const bool ready = ai::pm_ai_on() ? w.def != nullptr : w.type_ready();
+  return ready && w.can_fire() && !(w.min_range_sq() > dist2) && w.max_range_sq() >= dist2;
 }
 
-// Mech3.exe 1.2 @ 0x004b1370: a burst of `hold` seconds' heat (type +0x08;
+// Mech3.exe 1.2 @ 0x004b1370, Pirate's Moon 1.0 @ 0x004b5230: a burst of `hold` seconds' heat (type +0x08;
 // times the hold for a timed-damage beam) and its damage (+0x18 a second
 // times the hold) when the weapon is ready and the target within its range.
 Shot shot_of(Weapon* w, float dist2, float hold) {
@@ -100,7 +108,7 @@ Shot shot_of(Weapon* w, float dist2, float hold) {
   return r;
 }
 
-// Mech3.exe 1.2 @ 0x004b1470: a weapon that deals damage, flies, is ready,
+// Mech3.exe 1.2 @ 0x004b1470, Pirate's Moon 1.0 @ 0x004b5330: a weapon that deals damage, flies, is ready,
 // in range and within the heat budget is a candidate; its group's sums grow
 // either way.
 void add_weapon(Volley& v, Weapon* w) {
