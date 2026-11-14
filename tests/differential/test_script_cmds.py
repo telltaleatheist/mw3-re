@@ -38,6 +38,12 @@ probe.probe_misc_cmd.argtypes = [I32, F, F, ctypes.c_uint32, P]
 probe.probe_wireframe.argtypes = [I32, P]
 probe.probe_mark_paint.argtypes = [I32, I32, I32, I32, P, I32, I32, I32, P, P, P, I32, I32, I32]
 probe.probe_mark_paint.restype = I32
+probe.probe_anim_camera.argtypes = [I32, P, I32, I32, P, I32, F, P]
+probe.probe_anim_camera.restype = I32
+probe.probe_anim_message.argtypes = [P, P, I32, P, P]
+probe.probe_anim_message.restype = I32
+probe.probe_anim_remove_child.argtypes = [ctypes.c_int16, ctypes.c_int16, I32]
+probe.probe_anim_remove_child.restype = I32
 MALLOC, FREE = 0x5bb664, 0x5bb65c
 
 SEEN = collections.Counter()
@@ -60,6 +66,7 @@ def bits(x):
 class Exe:
     def __init__(self):
         self.cpu = cpu = Original()
+        cpu.fpu_control(0x027f)  # the reference runtime's 53 bits (CLAUDE.md, FPU precision)
         self.reports = []
         cpu.stub_function(ZERR, lambda c: self.reports.extend((c.arg(0), c.arg(2))))
         cpu.stub_function(GEO_REPORT, lambda c: self.reports.extend((c.ecx, 0x23)))
@@ -666,6 +673,109 @@ def mark_cases(exe, rng, count):
     return done
 
 
+def anim_cases(exe, rng, count):
+    """Anim events 20 and 21 (the camera), 16 (delete child) and 38 (a message), none in a shipped anim.zbd."""
+    cpu, done = exe.cpu, 0
+    removed, shown = [], []
+    cpu.stub_function(0x4ebb40, lambda c: removed.append((c.ecx, c.edx)) and 0)
+    texts = {}
+
+    def text(c):
+        a = c.alloc(32)
+        c.write(a, f'text {c.ecx}'.encode() + b'\0')
+        return a
+    cpu.stub_function(0x576040, text)
+    cpu.stub_function(0x5a3fd0, lambda c: shown.append((exe.cstr(c.ecx).decode('latin1'), c.arg(0))) and 0,
+                      pop_bytes=4)
+    for _ in range(count):
+        which = rng.choice([20, 21])
+        raw = bytearray(rng.randbytes(0x1e8))
+        for off in (0xb0, 0xb4, 0xd0, 0xd8, 0xdc, 0xe0, 0xe4):  # clip, LoD, fov factors and base angles: sane floats
+            struct.pack_into('<f', raw, off, f32(rng.uniform(0.2, 3.0)))
+        cls = 1 if rng.random() < 0.9 else 3
+        null_node = rng.random() < 0.08
+        ev = bytearray(0x6c)
+        struct.pack_into('<I', ev, 0xc, rng.getrandbits(7))
+        struct.pack_into('<i', ev, 0x10, rng.choice([1, 1, 1, 1, 0, -1]))
+        for off in range(0x14, 0x68, 4):
+            struct.pack_into('<f', ev, off, f32(rng.uniform(0.3, 2.5)))
+        end = f32(rng.uniform(0.5, 4))
+        struct.pack_into('<f', ev, 0x68, end)
+        state = rng.choice([0, 0, 1])
+        time = f32(rng.choice([end * 0.5, end, end * 1.3, rng.uniform(0, 5)]))
+        left = f32(rng.uniform(0.01, 0.2))
+        # The exe's: the def's ref table (0x28 bytes an entry, the node at +0x24), the sequence, the camera node.
+        node, data, table, seq, evp = cpu.alloc(0xd4), cpu.alloc(0x1e8), cpu.alloc(0x28 * 3), cpu.alloc(0x40), cpu.alloc(0x6c)
+        cpu.write(node, bytes(0xd4)), cpu.u32(node + 0x34, cls), cpu.u32(node + 0x38, data)
+        cpu.write(data, raw)
+        cpu.write(table, bytes(0x78)), cpu.u32(table + 0x28 + 0x24, 0 if null_node else node)
+        defp = cpu.alloc(0x13c)
+        cpu.write(defp, bytes(0x13c)), cpu.u32(defp + 0x118, table)
+        cpu.write(seq, bytes(0x40)), cpu.write(seq + 0x20, bytes([state])), cpu.write(seq + 0x28, struct.pack('<f', time))
+        cpu.write(evp, ev)
+        cpu.write(0x73f760, struct.pack('<f', left))
+        cpu.call(0x503c10 if which == 20 else 0x503d50, ecx=defp, edx=seq, stack_args=(evp,))
+        want = (exe.eax(), cpu.read(data, 0x1e8), cpu.read(0x73f760, 4), exe.take())
+        rb = ctypes.create_string_buffer(bytes(raw), 0x1e8)
+        lb = (ctypes.c_float * 1)(left)
+        r = probe.probe_anim_camera(which, rb, cls, int(null_node), ctypes.create_string_buffer(bytes(ev), 0x6c),
+                                    state, time, lb)
+        got = (r, rb.raw, bytes(lb), want[3])
+        # The setters' derived words (camera_set_lod_scale's 1 / f^2 +0xd4, camera_set_fov's 1 / tan +0x1d4 /
+        # +0x1d8, ported before these events) round within 2 ulps of the x87's.
+        g, w = bytearray(got[1]), bytearray(want[1])
+        for off in (0xd4, 0x1d4, 0x1d8):
+            a, b = struct.unpack_from('<i', g, off)[0], struct.unpack_from('<i', w, off)[0]
+            if abs(a - b) <= 2:
+                g[off:off + 4] = w[off:off + 4]
+        got = (r, bytes(g), bytes(lb), want[3])
+        if got != want:
+            diff = [hex(i) for i in range(0x1e8) if got[1][i] != want[1][i]]
+            raise SystemExit(f'anim event {which} case {done} (flags {struct.unpack_from("<I", ev, 0xc)[0]:#x}, state '
+                             f'{state}, time {time}, end {end}, null {null_node}, class {cls}): result {r} vs '
+                             f'{want[0]}, data {diff}, left {got[2].hex()} vs {want[2].hex()}')
+        SEEN[f'anim {which} result {r}'] += 1
+        done += 1
+    # Event 16: ref +0x0e out of ref +0x0c, as given.
+    for parent, child in ((1, 2), (2, 1), (1, 3), (3, 3), (0, 2), (2, 0)):
+        table = cpu.alloc(0x28 * 4)
+        nodes = [0] + [cpu.alloc(0xd4) for _ in range(3)]
+        cpu.write(table, bytes(0xa0))
+        for i in range(1, 4):
+            cpu.u32(table + 0x28 * i + 0x24, nodes[i])
+        defp, evp = cpu.alloc(0x13c), cpu.alloc(0x10)
+        cpu.write(defp, bytes(0x13c)), cpu.u32(defp + 0x118, table)
+        cpu.write(evp, bytes(0xc) + struct.pack('<hh', parent, child))
+        removed.clear()
+        cpu.call(0x505df0, ecx=defp, edx=evp)
+        if removed != [(nodes[parent], nodes[child])] or exe.eax() != 2:
+            raise SystemExit(f'anim event 16 ({parent}, {child}): {removed}')
+        n = probe.probe_anim_remove_child(parent, child, 1)
+        if parent and child and parent != child and n != 0:
+            raise SystemExit(f'anim event 16 ({parent}, {child}): the port kept the child ({n})')
+        done += 1
+    # Event 38: the message's text (its id's, else its own name), shown for 3 s; none for a negative index.
+    for idx, mid in ((0, 0), (1, 7), (2, 0), (-1, 3), (1, 0x101)):
+        recs = bytearray()
+        for i in range(3):
+            recs += f'name{i}'.encode().ljust(0x20, b'\0') + struct.pack('<i', mid if i == idx else 0)
+        tbl, evp = cpu.alloc(len(recs)), cpu.alloc(0x10)
+        cpu.write(tbl, recs), cpu.u32(0x73f734, tbl)
+        cpu.write(evp, bytes(0xc) + struct.pack('<i', idx))
+        shown.clear()
+        cpu.call(0x507970, edx=evp)
+        want = (exe.eax(), shown[0] if shown else ('(none)', 0))
+        sb, sec = ctypes.create_string_buffer(64), (ctypes.c_float * 1)()
+        r = probe.probe_anim_message(ctypes.create_string_buffer(bytes(evp and cpu.read(evp, 0x10)), 0x10),
+                                     ctypes.create_string_buffer(bytes(recs), len(recs)), 3, sb, sec)
+        got = (r, (sb.value.decode(), struct.unpack('<I', struct.pack('<f', sec[0]))[0]) if sb.value != b'(none)'
+               else ('(none)', 0))
+        if got != want:
+            raise SystemExit(f'anim event 38 (index {idx}, id {mid}): {got} != {want}')
+        done += 1
+    return done
+
+
 def main():
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 400
     exe = Exe()
@@ -678,7 +788,8 @@ def main():
     lt = lighting_cases(exe, rng, count)
     mo = model_cases(exe, rng, count)
     mk = mark_cases(exe, rng, count)
-    print(f'ok: {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} lighting, {mo} model and texture commands and {mk} texture marks '
+    an = anim_cases(exe, rng, count)
+    print(f'ok: {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} lighting, {mo} model and texture commands {mk} texture marks and {an} anim events '
           f'as the original (data, globals, outputs, results, reports)')
     print(dict(sorted(SEEN.items())))
 

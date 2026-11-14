@@ -12,8 +12,11 @@
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/display.h"
 #include "gamez/zclass/list.h"
+#include "gamez/zclass/object3d.h"
 #include "gamez/zclass/seq.h"
 #include "gamez/zclass/window.h"
+#include "gamez/zeffect/zeff_anim_events.h"
+#include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_init.h"
@@ -398,6 +401,84 @@ int32_t probe_mark_paint(int32_t mflags, int32_t tw, int32_t th, int32_t tpal, u
   zrndr::target2d().format = saved_format;
   zimg::texture_hooks() = saved_hooks;
   return g_reloads;
+}
+
+// Anim events 20 and 21 (which) on a def whose node ref 1 is a camera of class `cls` with data `raw` (0x1e8 bytes,
+// written back; none with `null_node`), the event `ev` (0x6c bytes), a sequence in state `state` at time `time`,
+// the time left `left` (written back). Returns the result.
+int32_t probe_anim_camera(int32_t which, uint8_t* raw, int32_t cls, int32_t null_node, uint8_t* ev, int32_t state,
+                          float time, float* left) {
+  zcls::Node cam{};
+  cam.put<int32_t>(0x34, cls);
+  zcls::Camera data{};
+  std::memcpy(data.raw, raw, sizeof data.raw);
+  cam.data = &data;
+  zeff::NodeRef40 refs[3]{};
+  refs[1].node = null_node ? nullptr : &cam;
+  zeff::AnimDef def{};
+  def.nodes = refs;
+  zeff::SeqDef seq{};
+  seq.raw[0x20] = static_cast<uint8_t>(state);
+  std::memcpy(seq.raw + 0x28, &time, 4);
+  const float saved = zeff::anim().time_left();
+  zeff::anim().time_left() = *left;
+  const int32_t r = which == 20 ? zeff::ev_camera_state(def, &seq, ev) : zeff::ev_camera_from_to(def, &seq, ev);
+  *left = zeff::anim().time_left();
+  zeff::anim().time_left() = saved;
+  std::memcpy(raw, data.raw, sizeof data.raw);
+  return r;
+}
+
+namespace {
+std::string g_shown;
+float g_shown_for = 0;
+}  // namespace
+
+// Anim event 38 on a table of `count` message records (0x24 bytes each); out: the text shown and for how long
+// (an id's text is "text <id>"). Returns the result.
+int32_t probe_anim_message(uint8_t* ev, uint8_t* records, int32_t count, char* shown, float* seconds) {
+  zeff::AnimState& a = zeff::anim();
+  zeff::AnimMessage* saved = a.messages;
+  std::vector<zeff::AnimMessage> msgs(count > 0 ? count : 1);
+  for (int32_t i = 0; i < count; ++i) std::memcpy(msgs[i].raw, records + 0x24 * i, 0x24);
+  a.messages = msgs.data();
+  g_shown = "(none)", g_shown_for = 0;
+  const int32_t r = zeff::ev_message(
+      ev,
+      [](int32_t id) -> const char* {
+        static std::string t;
+        t = "text " + std::to_string(id);
+        return t.c_str();
+      },
+      [](const char* t, float s) { g_shown = t ? t : "(null)", g_shown_for = s; });
+  a.messages = saved;
+  std::strncpy(shown, g_shown.c_str(), 63);
+  shown[63] = 0;
+  *seconds = g_shown_for;
+  return r;
+}
+
+// Anim event 16 on a def whose refs 1..3 are nodes; ref `child` linked under ref `parent` first when `linked`.
+// Returns the parent's child count after (-1 with a null parent).
+int32_t probe_anim_remove_child(int16_t parent, int16_t child, int32_t linked) {
+  zcls::nodes() = zcls::NodePool{};
+  zcls::reset_lists();
+  zeff::NodeRef40 refs[4]{};
+  for (int i = 1; i < 4; ++i) {
+    refs[i].node = zcls::object3d_create();
+  }
+  if (linked && parent > 0 && child > 0 && parent != child) zcls::node_add_child(refs[parent].node, refs[child].node);
+  zeff::AnimDef def{};
+  def.nodes = refs;
+  uint8_t ev[0x10] = {};
+  std::memcpy(ev + 0xc, &parent, 2), std::memcpy(ev + 0xe, &child, 2);
+  zerr::set_sink([](int, const char*, int, const char*) {});
+  zeff::ev_object_remove_child(def, ev);
+  zerr::set_sink(nullptr);
+  const int32_t n = refs[parent].node ? refs[parent].node->child_count() : -1;
+  zcls::nodes() = zcls::NodePool{};
+  zcls::reset_lists();
+  return n;
 }
 
 }  // extern "C"

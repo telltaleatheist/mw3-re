@@ -11,14 +11,14 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 3021 |
+| folded | 3022 |
 | replaced (SDL or the platform layer) | 221 |
 | software renderer | 113 |
 | unused: PORT (preserve) | 82 |
 | debug or dev tool: PORT (preserve) | 73 |
 | dev dialog (MFC), its logic: PORT (preserve) | 54 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 25 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 20 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
@@ -26,7 +26,6 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x00410400, 0x004c0310** (2 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
 - **0x004bed90, 0x004bf4e0** (2 functions, 129 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file
 - **0x004fd1e0, 0x004fd8c0** (2 functions, 54 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
-- **0x00503c10, 0x00503d50, 0x0050414d, 0x00505df0, 0x00507970** (5 functions, 210 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109)
 - **0x005076c0, 0x005a5400, 0x005a6650, 0x005a6760** (4 functions, 135 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
 - **0x0050d610, 0x0050d6a0, 0x0050d7a0, 0x0050d880** (4 functions, 124 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
 - **0x0051f390, 0x0051f750** (2 functions, 276 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
@@ -3686,7 +3685,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0059ea20 | 9 | folded | a thunk: one call to another function |
 | 0x0059ed90 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 
-### zdeclient (30 not ported)
+### zdeclient (26 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -3707,19 +3706,15 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00502da0 | 11 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x00502db0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:236) |
 | 0x00502dd0 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:237) |
-| 0x00503c10 | 44 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
-| 0x00503d50 | 128 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
-| 0x0050414d | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | follows 0x00503d50: anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
+| 0x0050414d | 11 | folded | a piece of the ported function before it (Ghidra split it there) (0x00503d50) |
 | 0x00504d42 | 203 | folded | a piece of the ported function before it (Ghidra split it there) (0x00504520) |
 | 0x00505520 | 73 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x005056b0 | 25 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:602) |
 | 0x00505710 | 116 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x00505df0 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
 | 0x00507220 | 53 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x005073e0 | 18 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:1175) |
 | 0x005076c0 | 88 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x00507960 | 8 | folded | returns a constant or a global |
-| 0x00507970 | 18 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim events no shipped anim.zbd uses (anim-run.md:110-124): 16 delete child, 20 and 21 the camera's state and from-to, 38 a message; the hooks only log (app_mission.cpp:2096-2109) |
 
 ### zgame (26 not ported)
 

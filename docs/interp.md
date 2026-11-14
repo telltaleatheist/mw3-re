@@ -729,6 +729,8 @@ A mod's scripts would need them wired (`make_engine`); that is a decision for la
   (`platform::RenderState::wireframe`). Checked in `test_script_cmds.py` (break: the setter marking it dirty).
 - The texture marks' painter 0x542060 (`zmod::mark_paint`, what WriteTextureSetMap's marks do on a hit):
   weapon-effects.md, Surface marks.
+- The anim events no shipped anim.zbd uses (16 delete child, 20 and 21 the camera, 38 a message; the camera
+  getters 0x4f3d00 and 0x4f3f70 above are theirs): anim-run.md, The events no shipped file uses.
 - Not ported, the software renderer's (CLAUDE.md, Rendering): SetPerspectiveTextureAdaptive 0x558120 (the span's
   step, read at 0x55f8bc) and SetPaletteName 0x5975e0 (the 8-bit palette, through 0x597680).
 

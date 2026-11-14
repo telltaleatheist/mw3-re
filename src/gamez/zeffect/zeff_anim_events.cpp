@@ -1201,4 +1201,99 @@ int32_t ev_detonate_weapon(AnimDef& d, uint8_t* e) {
   return 2;
 }
 
+// The events no shipped anim.zbd uses (anim-run.md, The events no shipped file uses).
+
+// Mech3.exe 1.2 @ 0x00505df0 (ECX def, EDX event): ref +0x0e out of ref +0x0c (0x004ebb40), unchecked.
+int32_t ev_object_remove_child(AnimDef& d, uint8_t* e) {
+  zcls::node_remove_child(ref(d, get<int16_t>(e, 0xc)), ref(d, get<int16_t>(e, 0xe)));
+  return 2;
+}
+
+namespace {
+// The camera's clip, LoD and fov setters by the flags at +0x0c, each from the values at `at` (near, far, LoD scale,
+// fov angle h, v, fov factor h, v); a pair's other half as the camera has it. ECX's getters fill the pair in.
+struct CameraPair {
+  float a = 0, b = 0;  // the exe's two stack slots, carried from setter to setter
+};
+void camera_set(Node* cam, uint32_t f, CameraPair& p, const float v[7]) {
+  if (f & 1) zcls::camera_get_clip(cam, &p.a, &p.b), zcls::camera_set_clip(cam, v[0], p.b);
+  if (f & 2) zcls::camera_get_clip(cam, &p.a, &p.b), zcls::camera_set_clip(cam, p.a, v[1]);
+  if (f & 4) zcls::camera_set_lod_scale(cam, v[2]);
+  if (f & 8) zcls::camera_get_fov_angles(cam, &p.a, &p.b), zcls::camera_set_fov_angles(cam, v[3], p.b);
+  if (f & 0x10) zcls::camera_get_fov_angles(cam, &p.a, &p.b), zcls::camera_set_fov_angles(cam, p.a, v[4]);
+  if (f & 0x20) zcls::camera_get_fov(cam, &p.a, &p.b), zcls::camera_set_fov(cam, v[5], p.b);
+  if (f & 0x40) zcls::camera_get_fov(cam, &p.a, &p.b), zcls::camera_set_fov(cam, p.a, v[6]);
+}
+Node* camera_ref(AnimDef& d, uint8_t* e) { return get<int32_t>(e, 0x10) < 0 ? nullptr : ref(d, get<int32_t>(e, 0x10)); }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00503c10 (ECX def, EDX sequence, stack event): ref +0x10's camera set from +0x14.. by the flags
+// at +0x0c (clip near, far, LoD scale, fov angles h, v, fov factors h, v).
+int32_t ev_camera_state(AnimDef& d, SeqDef* s, uint8_t* e) {
+  if (!s || !e) return 2;
+  Node* cam = camera_ref(d, e);
+  if (!cam) return 2;
+  float v[7];
+  std::memcpy(v, e + 0x14, sizeof v);
+  CameraPair p;
+  camera_set(cam, get<uint32_t>(e, 0xc), p, v);
+  return 2;
+}
+
+// Mech3.exe 1.2 @ 0x00503d50 (ECX def, EDX sequence, stack event; 0x0050414d is a piece of it): ref +0x10's camera
+// from the start values (+0x14 near, +0x20 far, +0x2c LoD, +0x38 / +0x44 fov angles, +0x50 / +0x5c factors) on the
+// sequence's first run, then each stepped by its rate (the value after each start) times the time this event may
+// use, until +0x68, when the end values (the value after each rate) are set. 1 while it runs, 2 at the end.
+int32_t ev_camera_from_to(AnimDef& d, SeqDef* s, uint8_t* e) {
+  if (!s || !e || get<int32_t>(e, 0x10) < 0) return 2;
+  Node* cam = ref(d, get<int32_t>(e, 0x10));
+  const uint32_t f = get<uint32_t>(e, 0xc);
+  const float end = f32(e, 0x68);
+  const auto at = [&](int off) { return f32(e, off); };
+  CameraPair p;
+  if (cam && s->raw[0x20] == 0) {
+    const float start[7] = {at(0x14), at(0x20), at(0x2c), at(0x38), at(0x44), at(0x50), at(0x5c)};
+    camera_set(cam, f, p, start);
+  }
+  // On the x87, each step one rounding to a float (at its store).
+  const float dt = not_above(sf(*s, 0x28), end) ? left()
+                                                : static_cast<float>(double{left()} - (double{sf(*s, 0x28)} - end));
+  const auto by = [&](int rate, float v) { return static_cast<float>(double{at(rate)} * dt + v); };
+  if (cam) {
+    if (f & 1) zcls::camera_get_clip(cam, &p.a, &p.b), p.a = by(0x1c, p.a), zcls::camera_set_clip(cam, p.a, p.b);
+    if (f & 2) zcls::camera_get_clip(cam, &p.a, &p.b), p.b = by(0x28, p.b), zcls::camera_set_clip(cam, p.a, p.b);
+    if (f & 4) zcls::camera_get_lod_scale(cam, &p.a), p.a = by(0x34, p.a), zcls::camera_set_lod_scale(cam, p.a);
+    if (f & 8) {
+      zcls::camera_get_fov_angles(cam, &p.a, &p.b), p.a = by(0x40, p.a);
+      zcls::camera_set_fov_angles(cam, p.a, p.b);
+    }
+    if (f & 0x10) {
+      zcls::camera_get_fov_angles(cam, &p.a, &p.b), p.b = by(0x4c, p.b);
+      zcls::camera_set_fov_angles(cam, p.a, p.b);
+    }
+    if (f & 0x20) zcls::camera_get_fov(cam, &p.a, &p.b), p.a = by(0x58, p.a), zcls::camera_set_fov(cam, p.a, p.b);
+    if (f & 0x40) zcls::camera_get_fov(cam, &p.a, &p.b), p.b = by(0x64, p.b), zcls::camera_set_fov(cam, p.a, p.b);
+  }
+  left() = static_cast<float>(double{left()} - dt);
+  // x87 `test ah, 1`: the end once the time is not below it (NaN never ends).
+  if (!(sf(*s, 0x28) >= end)) return 1;
+  if (cam) {
+    const float stop[7] = {at(0x18), at(0x24), at(0x30), at(0x3c), at(0x48), at(0x54), at(0x60)};
+    camera_set(cam, f, p, stop);
+  }
+  return 2;
+}
+
+// Mech3.exe 1.2 @ 0x00507970 (EDX event): message +0x0c's text (its id's, 0x00576040, else the record's own name)
+// shown for 3 seconds (0x005a3fd0).
+int32_t ev_message(uint8_t* e, const char* (*text)(int32_t id), void (*show)(const char* text, float seconds)) {
+  const int32_t i = get<int32_t>(e, 0xc);
+  if (i < 0) return 2;
+  AnimMessage& m = A().messages[i];
+  const int32_t id = m.get<int32_t>(0x20);
+  const char* t = id != 0 ? (text ? text(id) : nullptr) : reinterpret_cast<const char*>(m.raw);
+  if (show) show(t, 3.0f);
+  return 2;
+}
+
 }  // namespace zeff
