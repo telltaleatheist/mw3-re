@@ -830,6 +830,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_attackers.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_window.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_refit.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_weapon_cones.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_attack.cpp tests/probe_pm_ai_aim.cpp tests/probe_pm_ai_brain.cpp
                  tests/probe_pm_lance_orders.cpp)
   target_sources(pmprobe PRIVATE tests/probe_twod.cpp tests/probe_lab_list.cpp tests/probe_menus.cpp tests/probe_lab.cpp tests/probe_weapon_labs.cpp)

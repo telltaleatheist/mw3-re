@@ -23,6 +23,13 @@
 #pragma STDC FP_CONTRACT OFF
 
 namespace mech3 {
+namespace ai {
+// Pirate's Moon's weapon line 0x004b7800 on the port's weapon (zai_wire_firing_pm.cpp).
+bool pm_weapon_line(Weapon& w, const Vec3f* at, Vec3f* muzzle, Vec3f* dir, float* cos, float* kept);
+}  // namespace ai
+namespace {
+bool pm_line(Weapon& w, const Vec3f* at, Vec3f* mz, Vec3f* dir, float* cos, float* kept);
+}  // namespace
 
 using zrdr::Node;
 
@@ -205,17 +212,6 @@ void weapon_fired(Handle part, Weapon* w) {
     if (g_calls.add_heat) g_calls.add_heat(mech, t->heat);
     if (g_calls.recoil) g_calls.recoil(part, t->recoil);
   }
-}
-
-float dot(const Vec3f& a, const Vec3f& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-
-// 0x0051e3d0: out = b - a, normalised; returns the length.
-float direction_to(const Vec3f& a, const Vec3f& b, Vec3f* out) {
-  *out = {b.x - a.x, b.y - a.y, b.z - a.z};
-  float v[3] = {out->x, out->y, out->z};
-  const float len = zmod::normalize(v);
-  *out = {v[0], v[1], v[2]};
-  return len;
 }
 
 }  // namespace
@@ -1305,12 +1301,20 @@ bool Weapon::set_group(int32_t g) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x004b2f90: under water only beams fire; `side` (2 or 3)
-// keeps one arm. Returns whether it changed.
+// Mech3.exe 1.2 @ 0x004b2f90, Pirate's Moon 1.0 @ 0x004b6e80: under water only beams fire; `side` (2 or 3)
+// keeps one arm. Returns whether it changed. PM adds a cone for the player's own weapons: one whose line to the aim
+// point is clamped to its part's facing (the line's cosine not the kept one) is off.
 bool Weapon::set_enabled(int32_t side, bool force) {
+  bool bears = true;
+  if (manager->owner == g_world.mission_player) {  // the manager's +0x84 against [0x0062c40c]+0x14, the pilot's
+    Vec3f mz, dir;
+    float cos = 0, kept = 0;
+    // The cosines differ (x87: unordered reads as equal, so a NaN keeps it on).
+    if (pm_line(*this, &manager->aim, &mz, &dir, &cos, &kept) && (cos < kept || cos > kept)) bears = false;
+  }
   const bool under = !(def->flags & zwep::kBeam) && in_water(part);
   const bool match = side == -1 || firepoint->part == side;
-  const bool on = (!under && match) || force;
+  const bool on = (!under && match && bears) || force;
   const bool changed = on != enabled;
   enabled = on;
   return changed;
@@ -1494,66 +1498,21 @@ bool Weapon::aim_and_fire(const Vec3f* at, bool force) {
   return fire(vel);
 }
 
-// The cone's cosine (0.89, about 27 degrees). FIX (bug): wider than 4:3, the
-// player's reticle reaches past it, and beams snapped to the part's line at
-// the old 4:3 edge; the cone widens with the view so the snap starts at the
-// same place on screen (fixes.md).
-static double cone_cos(Handle owner) {
-  constexpr double kCos = 0.89;
-  const float r = zfix::options().fixed && is_player(owner) && g_calls.view_width ? g_calls.view_width() : 1.0f;
-  if (!(r > 1.0f)) return kCos;
-  const double t = std::sqrt(1.0 - kCos * kCos) / kCos * r;
-  return 1.0 / std::sqrt(1.0 + t * t);
+// Pirate's Moon 1.0 @ 0x004b7ac0 / 0x004b7b10 (its wrapper): the muzzle and the direction by the weapon's line
+// (0x004b7800: its facing test the firepoint's own aim limit, default cosine 0.4735, where MW3's 0x004b36e0 kept
+// within 0.89 of the part's facing, the centre torso excepted), and the kept cosine at least the weapon's floor
+// (+0x98, -1 but for the AI's volley). The velocity is unused, as MW3's.
+bool Weapon::aim(Vec3f* at, Vec3f* mz, Vec3f* dir, const Vec3f*) {
+  float cos = 0, kept = 0;
+  if (!pm_line(*this, at, mz, dir, &cos, &kept)) return false;
+  return !(aim_floor > kept);  // fcomp, C0 or C3: below, equal or unordered
 }
 
-// Mech3.exe 1.2 @ 0x004b36e0: the muzzle (the firepoint, spread out, in the
-// world) and the direction to `at`. Weapons off the centre torso keep within
-// about 27 degrees (cos 0.89) of their part's facing.
-bool Weapon::aim(Vec3f* at, Vec3f* mz, Vec3f* dir, const Vec3f*) {
-  Handle n;
-  if (part && firepoint) {
-    n = node_of(part);
-    *mz = {firepoint->position[0], firepoint->position[1], firepoint->position[2]};
-  } else {
-    n = node;
-    *mz = {0.0f, 0.0f, 0.0f};
-  }
-  if (salvo_left != 0 && firepoint) {
-    mz->x = firepoint->radius * rand_unit() + mz->x;
-    mz->y = firepoint->radius * rand_unit() + mz->y;
-  } else {
-    *mz = {mz->x + spread.x, mz->y + spread.y, mz->z + spread.z};
-  }
-  if (g_calls.node_position && g_calls.node_position(n, mz) != 0) return false;
-  Handle owner = manager->owner;
-  if (firepoint && owner) {
-    Handle p2 = part_of(owner, firepoint);
-    Handle n2 = node_of(p2);
-    if (!p2 || !n2) return true;
-    const Vec3f ax = *g_calls.node_axis(n2);
-    const Vec3f back{-ax.x, -ax.y, -ax.z};
-    if (at) {
-      direction_to(*mz, *at, dir);
-      if (!part) return true;
-      Handle pn = node_of(part);
-      const int32_t id = pn && g_calls.node_id ? g_calls.node_id(pn) : -1;
-      if (id == 1) return true;
-      const float d = dot(back, *dir);
-      if (static_cast<double>(d) < cone_cos(owner)) *dir = back;
-      return true;
-    }
-    *dir = back;
-    return true;
-  }
-  if (at) {
-    direction_to(*mz, *at, dir);
-    return true;
-  }
-  if (!node) return false;
-  const Vec3f ax = *g_calls.node_axis(node);
-  *dir = {-ax.x, -ax.y, -ax.z};
-  return true;
+namespace {
+bool pm_line(Weapon& w, const Vec3f* at, Vec3f* mz, Vec3f* dir, float* cos, float* kept) {
+  return g_calls.pm_line ? g_calls.pm_line(w, at, mz, dir, cos, kept) : ai::pm_weapon_line(w, at, mz, dir, cos, kept);
 }
+}  // namespace
 
 void Weapon::out_of_ammo_note(bool fired) {
   if (bin && !fired && !bin->warned && bin->left() == 0 && is_player(manager->owner)) {

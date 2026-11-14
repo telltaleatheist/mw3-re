@@ -170,6 +170,9 @@ struct Weapon {
   Vec3f spread{};                      // +0x84  offset from a weapon sharing the firepoint
   WeaponItem* item = nullptr;          // +0x90
   WeaponManager* manager = nullptr;    // +0x94
+  // Pirate's Moon's +0x98: the least facing cosine its aim takes (0x004b7ac0), -1 from the constructor; the AI's
+  // volley sets its tolerance on each weapon off the centre torso (0x004b7a90).
+  float aim_floor = -1.0f;
 
   Weapon(WeaponItem* item, WeaponManager* m, bool beam);   // 0x004b2530
   Weapon(WeaponDef* def, Handle node, WeaponManager* m, bool beam);  // 0x004b28d0 (other vehicles)
@@ -188,7 +191,7 @@ struct Weapon {
   virtual void held();                                     // +0x30, 0x004b3280
   virtual float ready() const;                             // +0x34, 0x004b2840
 
-  bool aim(Vec3f* at, Vec3f* muzzle, Vec3f* dir, const Vec3f* velocity);  // 0x004b36e0
+  bool aim(Vec3f* at, Vec3f* muzzle, Vec3f* dir, const Vec3f* velocity);  // 0x004b36e0, PM's 0x004b7ac0
   bool type_ready() const;                                 // 0x004b4ba0, the AI's LRM wait
   bool can_fire() const;                                   // 0x004b3a20
   float min_range_sq() const;                              // 0x004b3990
@@ -362,6 +365,9 @@ WeaponWorld& weapon_world();
 
 // Calls into code that is not ported yet. Unset ones do nothing and return 0.
 struct WeaponCalls {
+  // Pirate's Moon's weapon line 0x004b7800 (at, muzzle, direction, the cosine and the kept one); null: the port's
+  // (zai_wire_firing_pm.cpp). Tests stand in for it (test_pm_weapon_cones.py).
+  bool (*pm_line)(struct Weapon& w, const Vec3f* at, Vec3f* mz, Vec3f* dir, float* cos, float* kept) = nullptr;
   Handle (*vehicle_mech)(Handle vehicle) = nullptr;           // vt+0x2c then vt+0x50: the mech, 0 if none
   Handle (*vehicle_entity)(Handle vehicle) = nullptr;         // vt+0x2c
   Handle (*vehicle_node)(Handle vehicle) = nullptr;           // +0x04
