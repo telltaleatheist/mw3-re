@@ -250,6 +250,10 @@ class VehBasicHooks : public zgame::Unported {
   virtual void segments(float* segs, int32_t points, zcls::SegmentHits* out);
   virtual void node_set_intersect(Handle node, int32_t on);
   virtual Handle hit_object(Handle node);
+  // Pirate's Moon's 0x0040f210 (MW3's 0x0040e9d0): a vehicle's node its owner, a part's its mech; null else. And
+  // whether that game object is active (its byte +8; 0x0040f1a0's answer's too).
+  virtual Handle hit_mover(Handle node);
+  virtual bool object_active(Handle object);
   virtual uint32_t frame();
   virtual void wall_response(BasicVehicle& v, const CollisionHit& hit);  // 0x004a0b40 (vehicle_wall_response, veh_move)
   // The wall response's touch: a hit node with its own handler table

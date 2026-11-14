@@ -305,6 +305,7 @@ class TurretHooks : public zgame::Unported {
   // (+0x1a4: the player, the picked place, no velocity); off: none.
   virtual void shooter_set(Turret& t, bool on) { unported("0x00581f60", {on ? t.self + 0x1a0 : 0u, on ? t.self + 0x1a4 : 0u}); }
   virtual void attach_fire(Handle def, Handle node) { unported("0x00581fb0", {def, node}); }
+  virtual void fire_animation(Handle def, int32_t choice) { unported("0x00581f90", {def, static_cast<uint32_t>(choice)}); }  // Pirate's Moon 0x005a3680
   virtual void beam_start(Handle beam) { unported("0x00581230", {beam, 0}); }
   virtual void weapon_fire(Handle def, Handle node, const float* from, const float* dir, const float* velocity,
                            int32_t hostile) {

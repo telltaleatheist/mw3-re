@@ -184,6 +184,7 @@ struct WiredTurrets : tur::TurretHooks {
     zwep::set_lock(&t.x1a0, &l);
   }
   void attach_fire(Handle d, Handle n) override { zwep::attach_fire(def(d), zn(n)); }
+  void fire_animation(Handle d, int32_t c) override { zwep::set_fire_animation(def(d), c); }
   void weapon_fire(Handle d, Handle n, const float* from, const float* dir, const float* v, int32_t hostile) override {
     spawn_projectile(def(d), zn(n), nullptr, reinterpret_cast<const Vec3f*>(from), reinterpret_cast<const Vec3f*>(dir),
                      reinterpret_cast<const Vec3f*>(v), 0, 0, hostile != 0);

@@ -658,8 +658,16 @@ bool vehicle_collision_query(BasicVehicle& v, float* segs, int32_t points) {
     for (int j = 0; j < r.count; ++j) {
       const zcls::SegmentHit& hit = r.hit[j];
       std::vector<CollisionHit>* list = nullptr;
-      if (h.hit_object(hit.node)) list = &c.objects;
-      else if (!(hit.normal[1] >= -0.9f)) list = &c.ceilings;
+      // Pirate's Moon 1.0 @ 0x004a3cb0: a vehicle's or a mech part's node (0x0040f210) to the movers (+0x358) and any
+      // other entity (0x0040f1a0) to the objects, each only while its object is active (+8); MW3 put every
+      // entity in the objects.
+      if (Handle mover = h.hit_mover(hit.node)) {
+        if (!h.object_active(mover)) continue;
+        list = &c.movers;
+      } else if (Handle o = h.hit_object(hit.node)) {
+        if (!h.object_active(o)) continue;
+        list = &c.objects;
+      } else if (!(hit.normal[1] >= -0.9f)) list = &c.ceilings;
       else if (!(hit.normal[1] >= 0.71f)) list = &c.walls;
       else if (hit.material && hit.material->soil == 5) {
         // FIX (bug): the exe sets the flag, then adds the crossing to no
@@ -676,7 +684,7 @@ bool vehicle_collision_query(BasicVehicle& v, float* segs, int32_t points) {
       list->push_back(e);
     }
   }
-  return c.walls.empty() && c.objects.empty() && c.ceilings.empty();
+  return c.walls.empty() && c.objects.empty() && c.ceilings.empty() && c.movers.empty();  // PM's 0x004a3bd0
 }
 
 // Mech3.exe 1.2 @ 0x004a0180
@@ -739,6 +747,14 @@ void vehicle_collisions(BasicVehicle& v) {
   c.hit_object = c.hit_ceiling = c.hit_wall = 0;
   vehicle_collision_sweep(v);
   if (!c.clear) {
+    // Pirate's Moon 1.0 @ 0x004a3200: the movers and the objects each answered by 0x004a4320, the response on the
+    // objects' latest (0x004a3e40 on +0x354), each setting the hit flag; so a vehicle or mech hit is flagged with
+    // no response of its own. FIX (bug): with movers and no object the exe responds through an empty list (a null
+    // record: a crash); here the flag alone. docs/fixes.md.
+    if (!c.movers.empty()) {
+      if (!c.objects.empty()) h.wall_response(v, c.objects.back());
+      c.hit_object = 1;
+    }
     if (!c.objects.empty()) {
       h.wall_response(v, c.objects.back());  // 0x004a1020
       c.hit_object = 1;
@@ -751,7 +767,7 @@ void vehicle_collisions(BasicVehicle& v) {
       h.wall_response(v, c.walls.back());  // 0x004a0b00
       c.hit_wall = 1;
     }
-    c.objects.clear(), c.ceilings.clear(), c.walls.clear();  // 0x004a0100
+    c.objects.clear(), c.ceilings.clear(), c.walls.clear(), c.movers.clear();  // 0x004a0100 (PM's 0x004a33a0)
   }
   const NetCollision* n = v.net_collision;
   if (c.hit_object || c.hit_wall || !n || !n->on || !n->active) return;

@@ -29,6 +29,8 @@ namespace mech3 {
 
 int32_t game_intensity();  // options.h (its Handle clashes with mech.h's)
 void* node_entity(void* node);  // app_mech.h's 0x0040e920
+void* node_owner(void* node);   // app_weapons.cpp's 0x0040e9d0 (Pirate's Moon's 0x0040f210)
+bool hud_object_active(const void* o);  // app_sensors.h: zEntity's +0x08
 float player_dt();         // player.h's [0x005e8110] and [0x005e8114] (likewise)
 float player_inv_dt();
 
@@ -52,6 +54,8 @@ void VehBasicHooks::segments(float* segs, int32_t points, zcls::SegmentHits* out
 }
 void VehBasicHooks::node_set_intersect(Handle node, int32_t on) { zcls::node_set_intersect(static_cast<zcls::Node*>(node), on); }
 Handle VehBasicHooks::hit_object(Handle node) { return node_entity(node); }
+Handle VehBasicHooks::hit_mover(Handle node) { return node_owner(node); }
+bool VehBasicHooks::object_active(Handle object) { return hud_object_active(object); }
 uint32_t VehBasicHooks::frame() { return zcls::frames().frame; }
 void VehBasicHooks::node_set_active(Handle node, int32_t on) { zcls::node_set_active(static_cast<zcls::Node*>(node), on); }
 void VehBasicHooks::node_set_rotation(Handle node, float x, float y, float z) {
