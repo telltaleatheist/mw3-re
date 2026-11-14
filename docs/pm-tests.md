@@ -1297,3 +1297,17 @@ follower; the breadcrumb's "now + 1" written as now - -1 in MW3). The port names
 function is all that changes. Read, not run: test_basic_controls.py and test_basic_follow.py need the address map's
 missing twins (0x401050 -> 0x401000, the reader's find 0x5569e0) and PM's shifted controls and vehicle offsets laid out
 in their emulated objects, which pm_moved.py's field tables don't cover yet.
+
+## Today's preservation ports on PM: the built-in net and the version-105 nets (2026-11-14)
+
+The built-in net is PM's 0x627c68, made by 0x4c7300 (0x410ec0 at start-up): MW3's 0x4c0310 with PM's znet
+(0x5acbe0, cdecl, the same range [10000, 10100) from [0x616458]), base 0x4c67f0, vtable 0x5df998 and default
+behaviour 0x627cc8. `test_pm_builtin_net.py` runs PM's start-up on the exe and holds it to what
+`test_builtin_net.py` holds the shared port to: one step, the default behaviour, the id asked once. Breaks: a wrong
+default behaviour, MW3's argument order for the id (both caught).
+
+The 105 reload (0x4c5cb0, MW3's 0x4bed90) differs only in the vehicles' vtable slots (+0x48, +0x14c, +0x68 for
+MW3's +0x40, +0x140, +0x64), which the port reaches through NetHooks. The reader 0x402610 (thunk 0x4025f0), its
+link step 0x402370 / 0x402350, the net 0x402170 / 0x402140, the node's link methods 0x403d30 .. 0x403ef0, the frees
+0x402500 / 0x402540 / 0x4025c0 and the null node 0x4b2230 are MW3's (zainet105.cpp) with cdecl calls and loops
+compiled the other way round. Read, not run: test_net105.py's bench uses MW3's register calls and import stubs.

@@ -76,15 +76,13 @@ produces; the label names the compared value. Reaching a function, or running a 
 | dev dialog (MFC), its logic: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 80 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 39 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 36 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
 
 - **0x0056b230, 0x0056b2d0, 0x0056b540, 0x0056b580, 0x0056b980, 0x0056d040 ...** (87 functions, 6719 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 - **0x00570b70** (1 functions, 722 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions; not MW3's 0x00552540 on PM's polygons: 700 features against 287, 44 of 51 kinds differ): a model of type 0 with polygons made into strips (0x2000) under Direct3D. It reaches nothing at load: mechlib's post-pass 0x00510ab0 and the world reader 0x005587e0 skip a model with 0x80, every type-0 mechlib model has it (1015 of 1017; the 2 others are facades, type 1, on which it returns at once) and so does every type-0 world model; the world's facades return at once too (test_pm_strips.py, tools/analysis/pm_strip_reach.py). Its only reach on shipped data is the crater reset's model re-read 0x00558440 (from 0x00517b30 / 0x00517ac0, ported), which passes 0x7fffffff, 4 with no 0x80 test: every ground model a crater reset reads again. The reset runs only from the craters' save restore 0x00519020, a zSave section the start-up switches off (0x0051a3e0(0) from 0x004826e0, as MW3's), so never in play: a preservation port at the end, not wired in (docs/pm-map.md, the models' form)
-- **0x004025f0** (1 functions, 9 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): called only from 0x004c5cb0, which are missing-mod
-- **0x00410ec0, 0x004c7300** (2 functions, 98 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004c0310, whose class PM's changes keep: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
 - **0x004356c0** (1 functions, 14 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only, campaign: an objective's persist name is kept across missions and gates mechs. On completion (0x0045fcf0) PM adds the objective's persist (+0x30; the port reads it, mech_objective.cpp:436, and never uses it) to the campaign's string list (+0xc4, the port's Campaign::strings, read and written with the save, pilot.h:343), and the vehicle loader (0x004a19c0, MW3 0x0049e810, player.cpp) makes a mech whose record has flag bit 4 (p12's second value, zrdraiv.cpp:381) only when its name is in that list (0x004356c0). The port does neither: it makes every such mech. No shipped PM objective has persist (raw search of the reader archives; MW3's c1 has two). Checked (2026-11-13): of the 424 p12 records in every shipped PM aiv.zrd (campaign, standalone and Instant Action), none sets bit 4 (99 set bit 5, the field after it), so no shipped mission is gated; only a mod with persist objectives and bit-4 placements would show the difference
 - **0x00465a60** (1 functions, 56 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): ported otherwise: src/mech3/mech_part_update.cpp Torso::setup (MW3's 0x00464290) with PM's headlight (0x00465b8c) and fields at +0x148..+0x164 and +0x84/+0x88 (layout); one difference: when the base set-up fails PM returns before the cockpit call (0x00465e20(0)), where MW3 and the port make it either way; a failing set-up needs a part the shipped data lacks
 - **0x00467d10** (1 functions, 62 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): ported otherwise: src/mech3/mech_part_update.cpp Arm::setup (MW3's 0x004663e0); one difference: a hand whose set-up fails has its items taken off first (0x0041c380, MW3's 0x0041b5f0 with a -1 check) before it is deleted, where MW3 and the port only delete it; a failing set-up needs a part the shipped data lacks
@@ -357,7 +355,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 
 ## By module
 
-### mech3ep1 (3181 not ported)
+### mech3ep1 (3178 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -367,7 +365,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00402250 | 8 | folded | covered by the port where it names it (src/mech3/weapon.h:396) |
 | 0x00402280 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004e5500, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00402570 | 23 | folded | as MW3 0x00402510: covered: array and list helpers, destructors (unwind callers), the loading bar and the briefing's map (app_menus.cpp:964 overrides briefing_map_image; the hook's 'not ported yet' comment is stale), the vehicle path's entries drop (app_vehicle.h:145) |
-| 0x004025f0 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | called only from 0x004c5cb0, which are missing-mod |
 | 0x00402bd0 | 32 | folded | covered by the port where it names it (src/mech3/game_editor_tree.cpp:77) |
 | 0x00402c50 | 9 | folded | frees the object (a destructor's release) |
 | 0x00402ec0 | 12 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:311) |
@@ -669,7 +666,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00410e40 | 10 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:171) |
 | 0x00410e60 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004b21c0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00410e80 | 9 | folded | a thunk: one call to another function |
-| 0x00410ec0 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | follows 0x004c7300: as MW3 0x004c0310, whose class PM's changes keep: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour) |
 | 0x00410ed0 | 9 | folded | a thunk: one call to another function |
 | 0x00410f00 | 10 | folded | as MW3 0x004106d0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00410f10 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00410f00, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
@@ -2243,7 +2239,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004b2980 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004b29a0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004b29a0 | 26 | folded | as MW3 0x004c5090: the AI's mission boundary and region views (zainet_inout, zainet_inout_view; ai.md section 11): vector and list instances, the polygon and area constructors and destructors, the walks the port does as loops, getters, start-up templates |
 | 0x004b2a00 | 27 | folded | ported: mech_control.h IControls::on_hit (MW3's 0x004aec90): the attacker recorded (PM's 0x004b2740 with the weapon, collision and damage, zai_attackers_pm), then an allied attacker's controls told it hit an ally (vt+0x90, MW3's +0x98), PM checking the controls for null first; the vtables' slots shifted |
-| 0x004b2a70 | 17 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1645) |
+| 0x004b2a70 | 17 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1646) |
 | 0x004b2ab0 | 11 | folded | ported, by docs/symbols.csv: ported: MechControls::on_death (vt+0xa8: the tick once more) |
 | 0x004b2ac0 | 10 | folded | covered by the port where it names it (src/mech3/mech.h:162) |
 | 0x004b2ad0 | 11 | folded | as MW3 0x004aed70: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
@@ -2361,7 +2357,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004ba5d0 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_pm.cpp:265) |
 | 0x004ba5f0 | 15 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:528) |
 | 0x004ba630 | 10 | folded | ported, by docs/symbols.csv: ported; LookAround::start |
-| 0x004ba890 | 10 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1020) |
+| 0x004ba890 | 10 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1021) |
 | 0x004ba970 | 12 | folded | covered by the port where it names it (src/mech3/zai_firing.cpp:303) |
 | 0x004ba990 | 19 | folded | as MW3 0x004b6ac0: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004ba9c0 | 9 | folded | read: small node wrappers (a child added, 0x00506200; a node shown or hidden by +0x14, 0x0050a9e0 / 0x0050a750; a node holder's constructor and destructor, vtable 0x005e82d0, its node made 0x0050e470 and freed 0x0050e5f0; a slot passed on to the +0x14 object's vt+0x15c); the port's nodes do these themselves |
@@ -2574,7 +2570,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004c7280 | 10 | folded | as MW3 0x004c02d0: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004c7290 | 9 | folded | a thunk: one call to another function |
 | 0x004c72a0 | 22 | folded | read: steps' make_state factories (a state built when the order is given: 0x004c78c0 / 0x004c7ad0 behind a null test, 0x004c6ef0 under the vtables 0x005ed4a0 / 0x005ed518); the port's make_state (zai_steps.h) |
-| 0x004c7300 | 89 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004c0310, whose class PM's changes keep: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour) |
 | 0x004c7520 | 14 | folded | read: steps' make_state factories (a state built when the order is given: 0x004c78c0 / 0x004c7ad0 behind a null test, 0x004c6ef0 under the vtables 0x005ed4a0 / 0x005ed518); the port's make_state (zai_steps.h) |
 | 0x004c7560 | 89 | folded | read after the feature compare's flags: MW3's twin (0x004da570, zrdrainet.cpp:541, the net reader's record; 0x004bf910, zai_steps.cpp:121, a step's slots reserved; 0x004c0570, zai_attack.cpp:62) with PM's layout (record offsets +0x118/+0x128, element sizes that are not a power of two) and the STL's growth and element copy (0x00438800, 0x004d7810) as calls; the one-sided statements are only those |
 | 0x004c77a0 | 10 | folded | as MW3 0x004c07a0: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
@@ -2586,7 +2581,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004c7a40 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004c7a60, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004c7a60 | 10 | folded | read: small pieces: a slot calling 0x004e5640 with its vt+0x18; getters (+0x08); a valve record's two ranges squared at its end (0x004e9260); destructors putting the vtable back (0x004c7a60, 0x004c7b10) |
 | 0x004c7a70 | 22 | folded | read: steps' make_state factories (a state built when the order is given: 0x004c78c0 / 0x004c7ad0 behind a null test, 0x004c6ef0 under the vtables 0x005ed4a0 / 0x005ed518); the port's make_state (zai_steps.h) |
-| 0x004c7ad0 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:256) |
+| 0x004c7ad0 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:257) |
 | 0x004c7af0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004c7b10, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004c7b10 | 10 | folded | read: small pieces: a slot calling 0x004e5640 with its vt+0x18; getters (+0x08); a valve record's two ranges squared at its end (0x004e9260); destructors putting the vtable back (0x004c7a60, 0x004c7b10) |
 | 0x004c7c80 | 11 | debug or dev tool: PORT (preserve) | as MW3 0x0058f2d0, whose class PM's changes keep: the AI net editor's net view (znet_view.h: only the AI net editor makes one): its pieces the port's editor does not use (element and link drawing helpers, picking, its lists) |
@@ -2742,7 +2737,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004d2710 | 8 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:78) |
 | 0x004d2720 | 9 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:83) |
 | 0x004d2740 | 9 | folded | a thunk: one call to another function |
-| 0x004d2750 | 20 | folded | covered by the port where it names it (src/mech3/zainet.cpp:130) |
+| 0x004d2750 | 20 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:250) |
 | 0x004d2780 | 55 | folded | read after the feature compare's flags: MW3's 0x004c7340 (zainet.cpp) with the rounding written the other way round (0.5 - x * -10 as x * 10 + 0.5, the same constants by sign) |
 | 0x004d2960 | 19 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:110) |
 | 0x004d29a0 | 18 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:117) |
@@ -3217,7 +3212,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004ea8d0 | 99 | folded | the lance stop's pop to the first order (0x004fbbc0): 0x004fa1d0 -> 0x004eab10 the deque's first order (begin's current), 0x004fa1b0 -> 0x004ea8d0 every order above it popped, each pop resuming the next; the port's LancePmHooks first_order / pop_to (zai_wire_orders_pm.cpp, OnLance), checked by test_pm_lance_orders.py (the calls) and pm_wire_lance_orders_on_the_brain (the orders left) |
 | 0x004eab10 | 8 | folded | the lance stop's pop to the first order (0x004fbbc0): 0x004fa1d0 -> 0x004eab10 the deque's first order (begin's current), 0x004fa1b0 -> 0x004ea8d0 every order above it popped, each pop resuming the next; the port's LancePmHooks first_order / pop_to (zai_wire_orders_pm.cpp, OnLance), checked by test_pm_lance_orders.py (the calls) and pm_wire_lance_orders_on_the_brain (the orders left) |
 | 0x004eab40 | 23 | folded | covered by the port where it names it (src/mech3/zai_attack_pm.cpp:17) |
-| 0x004eac00 | 34 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1079) |
+| 0x004eac00 | 34 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1080) |
 | 0x004eac90 | 17 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004d9d80: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic |
 | 0x004eacd0 | 44 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004d9dc0: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic |
 | 0x004eade0 | 27 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x004d9ed0: an AI parameters dialog (MFC): what it reads into its list (the net's records) and positions; preserve as logic |
