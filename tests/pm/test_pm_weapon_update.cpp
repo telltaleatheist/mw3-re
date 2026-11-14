@@ -102,3 +102,45 @@ TEST(pm_chain_release_refreshes_the_hud_for_an_off_weapon) {
     EXPECT(t.m.state == 3 && g_huds == (enabled ? 0 : 1));
   }
 }
+
+#include "mech3/mech_reader.h"
+
+namespace {
+int g_released = 0;
+struct Counted : Scripted {
+  using Scripted::Scripted;
+  void release() override { ++g_released; }
+};
+}  // namespace
+
+// 0x004b4fe0: the mech's death lets every weapon go (vt+0x38) and stops a firing beam (0x004b82a0; not built here: a
+// beam weapon needs its type's data), but destroys none: their damage stays. MW3's 0x004b1110 destroyed each.
+TEST(pm_death_lets_the_weapons_go_without_destroying_them) {
+  Bench t;
+  Counted c(&t.m), d(&t.m);
+  t.m.weapons[0] = &c, t.m.weapons[1] = &d, t.m.weapons[2] = &t.b, t.m.count = 3;
+  c.damage = 0.25f, d.damage = 0.0f, t.b.damage = 1.0f;
+  g_released = 0;
+  t.m.destroyed = 0;
+  t.m.destroy_all();
+  EXPECT(c.damage == 0.25f && d.damage == 0.0f && t.b.damage == 1.0f);
+  EXPECT(t.m.destroyed == 2 && g_released == 2);
+  t.m.weapons[0] = &t.a, t.m.weapons[1] = &t.b, t.m.count = 2;
+  c.bin = d.bin = nullptr;
+}
+
+// 0x004b4f10: a part lost after the owner is down (0x0041ade0) keeps its weapons.
+TEST(pm_part_lost_after_death_keeps_its_weapons) {
+  for (const bool down : {false, true}) {
+    Bench t;
+    static bool s_down;
+    s_down = down;
+    mech3::weapon_calls().owner_down = [](mech3::Handle) { return s_down; };
+    mech3::Firepoint fp{};
+    fp.part = 4;
+    t.a.firepoint = &fp;
+    t.m.part_lost(4);
+    EXPECT(t.a.damage == (down ? 0.0f : 1.0f));
+    t.a.firepoint = nullptr;
+  }
+}

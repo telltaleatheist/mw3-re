@@ -243,6 +243,7 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   c.node_name = [](Handle node) { return zn(node)->name(); };
   c.config = [](Handle owner) { return mech_of(owner)->config; };                         // +0x3ec
   c.heat = [](Handle owner) { return mech_of(owner)->heat; };                             // vt+0x9c
+  c.owner_down = [](Handle owner) { const Mech* m = mech_of(owner); return !m->active || m->anim_state == 10; };  // 0x0041ade0
   c.add_heat = [](Handle owner, float h) {  // 0x00419e40
     if (owner) mech_of(owner)->add_heat(h);
   };                // 0x00419e40

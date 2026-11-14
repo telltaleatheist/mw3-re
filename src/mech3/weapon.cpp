@@ -905,8 +905,10 @@ bool WeaponManager::critical(int32_t part, bool ammo) {
   return result;
 }
 
-// Mech3.exe 1.2 @ 0x004b1040: every weapon on a part that came off.
+// Mech3.exe 1.2 @ 0x004b1040, Pirate's Moon 1.0 @ 0x004b4f10: every weapon on a part that came off. PM skips it
+// whole when the owner is down (0x0041ade0: not active, or dead), so a part lost after death keeps its weapons.
 void WeaponManager::part_lost(int32_t part) {
+  if (owner && g_calls.owner_down && g_calls.owner_down(owner)) return;
   for (uint32_t i = 0; i < count; ++i) {
     Weapon* w = weapons[i];
     if (w->firepoint && w->firepoint->part == part && w->damage != 1.0f) {
@@ -919,12 +921,16 @@ void WeaponManager::part_lost(int32_t part) {
   release();
 }
 
-// Mech3.exe 1.2 @ 0x004b1110
+// Mech3.exe 1.2 @ 0x004b1110, Pirate's Moon 1.0 @ 0x004b4fe0 (from the mech's death): each weapon not yet
+// destroyed is counted and let go (vt+0x38, the port's release), a firing beam stopped (0x004b82a0, MW3's 0x004b4140)
+// but not destroyed: it keeps its damage. MW3 ran the full destroy (0x004b3020: damage 1, the HUD).
 void WeaponManager::destroy_all() {
   for (uint32_t i = 0; i < count; ++i) {
-    if (weapons[i]->damage != 1.0f) {
+    Weapon* w = weapons[i];
+    if (w->damage != 1.0f) {
       ++destroyed;
-      weapons[i]->destroy();
+      w->release();
+      if (w->is_firing()) static_cast<BeamWeapon*>(w)->stop();
     }
   }
   release();
