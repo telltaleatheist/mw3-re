@@ -6494,11 +6494,13 @@ TEST(sdl_importer_progress_is_followed_while_it_pauses) {
   {
     std::ofstream sh(importer);
     sh << "#!/bin/sh\nS=; W=\nwhile [ $# -gt 0 ]; do case \"$1\" in --install) S=$2; shift;; --write-dir) W=$2; shift;; esac; shift; done\n"
-          "mkdir -p \"$W/video\"; sleep 0.3; echo progress 0 3; K=0\nfor N in a b c; do sleep 0.3; : > \"$W/video/$N.fmv\"; "
+          "mkdir -p \"$W/video\"; : > \"$W/stand-in-ran\"; sleep 0.3; echo progress 0 3; K=0\nfor N in a b c; do sleep 0.3; : > \"$W/video/$N.fmv\"; "
           "K=$((K+1)); echo progress $K 3 $N; done\n";
   }
   std::filesystem::permissions(importer, std::filesystem::perms::owner_all, ec);
-  setenv("MW3_IMPORTER", importer.c_str(), 1);
+  // In SDL's own environment: importer_path reads SDL_getenv, whose copy an earlier test in the same
+  // process has already made (a setenv then goes unseen, and build/mw3import ran on the fake AVIs).
+  SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "MW3_IMPORTER", importer.c_str(), true);
   std::vector<std::string> heard;
   EXPECT(sdlfe::movies_missing(root + "/cd", root + "/wd") == 3);
   const int all = sdlfe::run_importer(root + "/cd", root + "/wd", [&](int done, int total, const std::string& name) {
@@ -6508,6 +6510,7 @@ TEST(sdl_importer_progress_is_followed_while_it_pauses) {
   std::string said;
   for (const std::string& h : heard) said += (said.empty() ? "" : ", ") + h;
   std::printf("  the whole import: %d, heard %s\n", all, said.c_str());
+  EXPECT(std::filesystem::exists(root + "/wd/stand-in-ran"));  // the stand-in, not a real mw3import
   EXPECT(all == 0 && heard == (std::vector<std::string>{"0/3", "1/3 a", "2/3 b", "3/3 c"}));
   EXPECT(sdlfe::movies_missing(root + "/cd", root + "/wd") == 0);
   std::filesystem::remove_all(root + "/wd/video", ec);
@@ -6522,7 +6525,7 @@ TEST(sdl_importer_progress_is_followed_while_it_pauses) {
   std::printf("  stopped at the first: %d, heard %zu, %llu ms, the last made %d\n", stopped, heard.size(),
               static_cast<unsigned long long>(took), c_made);
   EXPECT(stopped == 1 && heard.size() == 2 && !c_made && took < 2000);  // (the stand-in shell's sleep holds the pipe a moment)
-  unsetenv("MW3_IMPORTER");
+  SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(), "MW3_IMPORTER");
   std::filesystem::remove_all(root, ec);
 }
 
