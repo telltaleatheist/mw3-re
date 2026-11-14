@@ -830,6 +830,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_attackers.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_window.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_refit.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_weapon_lights.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mech_repair.cpp tests/probe_mech_repair_store.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_weapon_cones.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai_attack.cpp tests/probe_pm_ai_aim.cpp tests/probe_pm_ai_brain.cpp

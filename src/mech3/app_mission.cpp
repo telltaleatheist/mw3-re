@@ -2321,6 +2321,10 @@ struct WiredMissionHooks : MissionHooks {
     };
     w.hardware = true;
     if (callback != 0x004b3eb0) unported("0x00583880", {world, file, a, callback});
+    // Pirate's Moon's mission load (0x00492830, at 0x00492f4c): at object detail 2 no FIRE EFFECT and no impact animations.
+    const bool full = mech3::object_lod() != 2;
+    zwep::set_fire_effects(full);
+    zwep::set_impact_animations(full);
     zwep::init(e->object_of(world), file, a, mech3::make_weapon_type);
   }
   // 0x0049e810: the mission's vehicles (mech3/player).

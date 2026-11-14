@@ -83,27 +83,49 @@ WeaponDef* find_def(const char* name) {
   return nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x00584bb0
+// Pirate's Moon 1.0 @ 0x005a52c0
+void set_fire_effects(bool on) { g_state.fire_effects = on; }
+// Pirate's Moon 1.0 @ 0x005a52d0
+void set_impact_animations(bool on) { g_state.impact_animations = on; }
+
+// Mech3.exe 1.2 @ 0x00584bb0, Pirate's Moon 1.0 @ 0x005a6700. PM reads a FIRE block's EFFECT and animations only
+// with its switch on (object detail not 2; else only the MODEL, the rotation and the sounds), and takes the
+// ANIMATION entry's names into two slots (a third ends the entry) and each number into the flag, where MW3 took one
+// name and one number.
 void read_effect(Node* parent, Effect* e, const char* key) {
+  const bool effect_ok = std::strcmp(key, "FIRE") != 0 || g_state.fire_effects;
   e->attach_node = nullptr;
   Node* b = zrdr::find(parent, key);
   if (!b) return;
-  if (Node* n = zrdr::find(b, "EFFECT")) {
+  Node* fx = effect_ok ? zrdr::find(b, "EFFECT") : nullptr;
+  if (Node* n = fx) {
     if (count(n) > 1) e->effect = g_hooks.effect ? g_hooks.effect(item(n, 1).s) : 0;
   } else if ((n = zrdr::find(b, "MODEL")) && count(n) > 1) {
     e->model = g_hooks.find_node ? g_hooks.find_node(6, item(n, 1).s) : nullptr;
   }
+  if (effect_ok) {  // PM: with the FIRE block's switch off, no animation either
   if (Node* n = zrdr::find(b, "ANIMATION_ATTACHED"); n && count(n) > 1) e->animation_attached = anim(item(n, 1).s);
   if (Node* n = zrdr::find(b, "ANIMATION_MIN_RANGE"); n && count(n) > 1) e->animation_min_range = anim(item(n, 1).s);
   if (Node* n = zrdr::find(b, "MODEL_ANIMATION"); n && count(n) > 1) e->model_animation = anim(item(n, 1).s);
   if (Node* n = zrdr::find(b, "SURFACE_ANIMATION"); n && count(n) > 1) e->surface_animation = anim(item(n, 1).s);
   if (Node* n = zrdr::find(b, "ANIMATION")) {
-    if (count(n) > 1) e->animation = anim(item(n, 1).s);
-    // FIX (bug): the Small Pulse Laser's muzzle flash names an animation no
-    // world has; the Small Laser's blue one, as its beam is (fixes.md).
-    if (count(n) > 1 && !e->animation && zfix::options().fixed && std::strcmp(item(n, 1).s, "plaser_blue_muz.flt") == 0)
-      e->animation = anim("laser_blue_muz.flt");
-    if (count(n) > 2) set_bit(e->flags, 1, item(n, 2).i);
+    Handle* slot[2] = {&e->animation, &e->animation2};
+    int k = 0;
+    for (int i = 1; i < count(n); ++i) {
+      const Node& it = item(n, i);
+      if (it.type == zrdr::String) {
+        if (k >= 2) break;
+        *slot[k] = anim(it.s);
+        // FIX (bug): the Small Pulse Laser's muzzle flash names an animation no
+        // world has; the Small Laser's blue one, as its beam is (fixes.md).
+        if (!*slot[k] && zfix::options().fixed && std::strcmp(it.s, "plaser_blue_muz.flt") == 0)
+          *slot[k] = anim("laser_blue_muz.flt");
+        ++k;
+      } else if (it.type == zrdr::Int) {
+        set_bit(e->flags, 1, it.i);
+      }
+    }
+  }
   }
   if (Node* n = zrdr::find(b, "RANDOM_ROTATE")) set_bit(e->flags, 0, item(n, 1).i);
   // FIX (bug): each sound list has room for 4; the original writes on past

@@ -16,9 +16,9 @@ using Handle = void*;  // an object of a system not ported yet (sound, animation
 // What plays when a weapon fires (def +0x84), in flight (+0xe0) and where it
 // hits, per soil kind (+0x13c). 0x5c bytes, read by 0x00584bb0.
 struct Effect {
-  uint32_t flags = 0;                   // +0x00  bit 0 RANDOM_ROTATE, bit 1 ANIMATION's second value
+  uint32_t flags = 0;                   // +0x00  bit 0 RANDOM_ROTATE, bit 1 ANIMATION's number (attach)
   Handle animation = nullptr;           // +0x04
-  Handle animation2 = nullptr;          // +0x08  the second animation choice (0x00581f90): never read in
+  Handle animation2 = nullptr;          // +0x08  ANIMATION's second name (PM: its weapon light, 0x005a6700)
   Handle animation_attached = nullptr;  // +0x0c
   Handle model_animation = nullptr;     // +0x10
   Handle surface_animation = nullptr;   // +0x14
@@ -32,6 +32,9 @@ struct Effect {
   int32_t sound_choice = 0;             // +0x4c  the sound to play, -1 none (0x00581f70)
   int32_t animation_choice = 0;         // +0x50  likewise the animation (0x00581f90)
   Handle attach_node = nullptr;         // +0x54  cleared by the reader; the firepoint's node (0x00581fd0)
+  // Pirate's Moon (its +0x0c, +0x10): a beam's running FIRE animations, one for each of the two above
+  // (0x005a27b0, freed by 0x005a2a00); MW3 kept its one in +0x08.
+  Handle running[2] = {};
   const void* attach_offset = nullptr;  // +0x58  and its offset
 };
 
@@ -209,12 +212,19 @@ struct State {
   Handle trigger_inactive = nullptr;   // 0x009a1798
   Handle weapon_inactive = nullptr;    // 0x009a179c
   float max_crater_radius = 30;        // 0x009a1784  30 from the startup 0x00583750
+  // Pirate's Moon's two detail switches, on from the startup (0x005a5170), both off at object detail 2 by the
+  // mission load (0x00492830): a FIRE block's EFFECT read ([0x00b0e434], 0x005a52c0) and the impact animations
+  // played ([0x00b0e438], 0x005a52d0).
+  bool fire_effects = true;
+  bool impact_animations = true;
   std::vector<WeaponDef> defs;         // 0x009a0eac, count 0x009a0ea8
   std::vector<Projectile> pool;        // 0x009a0eb4, count 0x009a0eb0
   Projectile* free_list = nullptr;     // 0x009a0eb8
   Handle tick = nullptr;               // 0x009a0ea4  the weapon_tick object
 };
 State& state();
+void set_fire_effects(bool on);        // Pirate's Moon 0x005a52c0
+void set_impact_animations(bool on);   // Pirate's Moon 0x005a52d0
 
 // The calls the reader makes into systems not ported here. Unset ones do
 // nothing and return 0.
