@@ -21,18 +21,15 @@ namespace mech3 {
 // 0x004a4a70 over 0x004a4000 (0x14 bytes, vtable 0x005c8340): a turret's
 // limits as sines and cosines (0x004a3fc0), made with -pi/2 and pi/2 (the
 // other two arguments, -pi and pi, are not kept).
+// Pirate's Moon: the gun's limits are PM's direction limits (mech3/dir_limits_pm, 0x48 bytes at the controls'
+// +0x28): made unset with the controls (0x004a6ec0), then the gun's pitch over a full turn (0x004a7390). MW3's
+// pitch-only class (0x004a3fc0, its clamp's hypot(x, y) bug) has no place here.
 struct TurretLimits {
-  explicit TurretLimits(float lo, float hi);
-  virtual ~TurretLimits() = default;
-  // vt+0x08 0x004a4180: the direction's y not past either sine (NaN within).
-  virtual bool within(const float d[3]) const;
-  // vt+0x04 0x004a41b0: within, the direction itself (true); else the
-  // limit it passed, at the direction's heading (false). FIX (bug), behind
-  // zfix small_fixes: the exe takes the heading's length as hypot(x, y), not
-  // hypot(x, z); its only vehicle caller drops the answer (docs/vehicles.md).
-  virtual bool clamp(const float d[3], float out[3]) const;
-  float lo_sin, lo_cos;  // +0x04
-  float hi_sin, hi_cos;  // +0x0c
+  TurretLimits();                       // 0x004a6ec0: never within until set
+  TurretLimits(float lo, float hi);     // 0x004a7390(lo, hi, -2 pi, 2 pi)
+  bool within(const float d[3]) const;  // 0x004a70c0
+  bool clamp(const float d[3], float out[3]) const;  // 0x004a71f0
+  float c[18];
 };
 
 struct Vec3c {
@@ -256,7 +253,7 @@ struct VehicleControls {
   Vec3c heading;              // +0x748  a heading to turn to while x760 (0x004a28c0)
   uint32_t x760 = 0;          // +0x760  turning to `heading`
   VehicleMotion motion;       // +0x764
-  TurretLimits turret;        // +0x790 (the pointer to it at +0x78c), the gun's pitch (0x004a4b30)
+  TurretLimits turret;        // +0x790 (the pointer to it at +0x78c; PM's +0x28 in place), the gun's limits
   void* owner = nullptr;      // IControls +0x10: the vehicle (SetOwner, vt+0x08)
 };
 

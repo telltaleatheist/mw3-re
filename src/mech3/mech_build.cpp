@@ -1,5 +1,7 @@
 #include "mech3/mech_build.h"
 
+#include "mech3/dir_limits_pm.h"
+
 #include "gamez/zclass/class.h"
 
 #include "gamez/zentity/zent_init.h"
@@ -656,56 +658,12 @@ Config* mech_data_config(MechData& p, int32_t i) {
 namespace {
 constexpr float kHalfPi = 1.5707964f;  // 0x005ea7b0
 
-// Pirate's Moon 1.0 @ 0x004a6d40: a yaw band as its middle's direction and the cosine of its half width.
-void cone_yaw(float* o, float lo, float hi) {
-  if (lo > hi) {
-    o[3] = FLT_MAX;
-    return;
-  }
-  o[1] = 0.0f;
-  const double mid = (static_cast<double>(lo) + hi) * 0.5;
-  const float half = (hi - lo) * 0.5f;
-  o[0] = static_cast<float>(-std::sin(mid));
-  o[2] = static_cast<float>(-std::cos(mid));
-  o[3] = half < 3.14159265359 ? static_cast<float>(std::cos(static_cast<double>(half))) : -1.0f;
-}
-
-// Pirate's Moon 1.0 @ 0x004a6e30
-void cone_pitch(float* o, float lo, float hi) {
-  if (!(lo < hi)) {
-    o[0] = o[1] = FLT_MAX;
-    o[2] = o[3] = 0.0f;
-    return;
-  }
-  const double a = kHalfPi;
-  o[0] = static_cast<float>(std::cos(a - lo));
-  o[1] = static_cast<float>(std::cos(a - hi));
-  o[2] = static_cast<float>(std::sin(a - lo));
-  o[3] = static_cast<float>(std::sin(a - hi));
-}
-
-// Pirate's Moon 1.0 @ 0x004a6ee0: a band that crosses 0 is split there.
+// Pirate's Moon 1.0 @ 0x004a6ee0 on the firepoint's aim limits (mech3/dir_limits_pm). Quirk, left as the original
+// (Owen, 2026-11-10): a pitch out of range takes any top to pi/2 (fixes.md, A firepoint's aim cone).
 void cone_set(Firepoint& fp) {
-  float min_pitch = fp.aim[1], max_pitch = fp.aim[2];
-  const float min_yaw = fp.aim[3], max_yaw = fp.aim[4];
-  if (max_yaw < 0.0f) {
-    cone_yaw(fp.cone + 4, min_yaw, max_yaw);
-    cone_yaw(fp.cone, 0.0f, max_yaw);
-  } else if (min_yaw > 0.0f) {
-    cone_yaw(fp.cone + 4, min_yaw, 0.0f);
-    cone_yaw(fp.cone, min_yaw, max_yaw);
-  } else {
-    cone_yaw(fp.cone + 4, min_yaw, 0.0f);
-    cone_yaw(fp.cone, 0.0f, max_yaw);
-  }
-  if (!(-kHalfPi <= min_pitch && max_pitch <= kHalfPi)) {
+  if (!(-kHalfPi <= fp.aim[1] && fp.aim[2] <= kHalfPi))
     g_hooks->report(0x100, 0x72, "Requires version of CZValidateDir that handles angles outside the range");
-    if (min_pitch < -kHalfPi) min_pitch = -kHalfPi;
-    // Quirk, left as the original (Owen, 2026-11-10): the exe compares the top with -pi/2 here (0x005ea7b4, a
-    // slip for 0x005ea7b0), so any top is taken to pi/2 (fixes.md, A firepoint's aim cone).
-    if (max_pitch > -kHalfPi) max_pitch = kHalfPi;
-  }
-  cone_pitch(fp.cone + 14, min_pitch, max_pitch);
+  pm_dir::set(fp.cone, fp.aim[1], fp.aim[2], fp.aim[3], fp.aim[4]);
 }
 }  // namespace
 

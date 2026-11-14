@@ -24,33 +24,16 @@ namespace mech3::tur {
 
 using zgame::Handle;
 
-// A turret's turn limits (+0x210, built in place by 0x004a4b30; +0x20c
-// points at it): the gun's pitch as sines and cosines (0x004a4000), and by
-// the yaw's range one of four kinds. The kind is the exe's vtable. A new
-// kind is built over the old one: fields it does not set keep their bytes.
-// The aim asks within (vt+0x08); nothing in the turret asks clamp (vt+0x04).
-enum class LimitKind : uint32_t {
-  Fixed = 0x005c8310,   // 0x004a42f0: a range of 0.001 or less (or NaN): the low yaw alone
-  Narrow = 0x005c8320,  // 0x004a4580 over 0x004a4270: under pi
-  Wide = 0x005c8330,    // 0x004a4800 over 0x004a4270: under 2 pi
-  Full = 0x005c8340,    // 0x004a4a70: a full turn (veh_controls' TurretLimits)
-};
+// A turret's turn limits: on Pirate's Moon its direction limits (mech3/dir_limits_pm, in place at +0x20c), made
+// unset by the constructor (0x004a6ec0), then a full turn within the pitch 1.570796 (0x004a7420), then the yaw
+// of LIMITS YAW (0x004a7390). MW3's four kinds by the yaw's range (0x004a4b30, vtables 0x005c8310..0x005c8340)
+// are not PM's. The aim asks within (vt+0x94, 0x004aaf40).
 struct TurnLimits {
-  LimitKind kind = LimitKind::Full;
-  float lo_sin = 0, lo_cos = 0;  // +0x04
-  float hi_sin = 0, hi_cos = 0;  // +0x0c
-  // Fixed: (cos yaw, 0, -sin yaw). Narrow and Wide: the low edge
-  // (-cos lo, 0, sin lo), then the high one (cos hi, 0, -sin hi).
-  float lo_edge[3] = {};  // +0x14
-  float hi_edge[3] = {};  // +0x20
-  // Mech3.exe 1.2 @ 0x004a4b30: the pitch from lo to hi, the yaw from ylo to yhi.
-  void make(float lo, float hi, float ylo, float yhi);
-  void make_full(float lo, float hi);  // 0x004a4a70
-  // vt+0x08: the direction's pitch inside the limits (0x004a4180, NaN
-  // within), then its heading: Fixed 0x004a4330 (along the one heading,
-  // either way), Narrow 0x004a45b0 (inside both edges), Wide 0x004a4830
-  // (inside either).
-  bool within(const float d[3]) const;
+  float c[18];
+  TurnLimits();                                         // 0x004a6ec0
+  void make_turn(float pitch, float yaw);              // 0x004a7420: -pitch..pitch, -yaw..yaw
+  void make(float lo, float hi, float ylo, float yhi);  // 0x004a7390
+  bool within(const float d[3]) const;                  // 0x004a70c0
 };
 
 // The pick's turn by game time (FIX (B), behind per_second): one turn in `n`
@@ -124,7 +107,7 @@ class Turret : public ai::AiTarget {
   int64_t turn_seen = -1;    // ours: the last 1/30 s step the pick asked at (the turn by time, FIX (B))
   float yaw_lo = -6.2831855f;  // +0x204  LIMITS' YAW in radians
   float yaw_hi = 6.2831855f;   // +0x208
-  TurnLimits limits;         // +0x210 (+0x20c points at it)
+  TurnLimits limits;         // PM +0x20c (MW3's +0x210, +0x20c pointing at it)
   Handle destroy_anim = 0;   // +0x23c  DESTROY_ANIM, else GENERIC_DESTROY_ANIM's
   float health = 1.0f;       // +0x240  a fraction
   float per_damage = 1.0f;   // +0x244  1 / HEALTH

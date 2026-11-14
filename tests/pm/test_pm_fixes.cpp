@@ -29,7 +29,6 @@ TEST(pm_small_fixes_list_matches_its_gates) {
   const std::vector<Line> table = {
       {"A turret's charge or glow goes out when it dies.", {{"mech3/turret.cpp", 1}}},
       {"Tripod turrets aim when facing straight up or down.", {{"mech3/turret.cpp", 1}}},
-      {"A vehicle's gun stops at its true aiming limit.", {{"mech3/veh_controls.cpp", 1}}},
       {"A vehicle file with pitch and no roll keeps its pitch.", {{"mech3/veh_controls.cpp", 1}}},
       {"TAG's strike lands where the target is, not was.", {{"mech3/weapon.cpp", 1}}},
       {"A held beam stays on a moving mech after release.", {{"mech3/weapon.cpp", 1}}},

@@ -1,5 +1,7 @@
 #include "mech3/veh_controls.h"
 
+#include "mech3/dir_limits_pm.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -119,45 +121,18 @@ void VehControlsHooks::owner_weapons(void* owner, zrdr::Node* def) {
   v->ammo = build_vehicle_weapons(owner, static_cast<WeaponManager*>(v->ammo), def);
 }
 
-// Mech3.exe 1.2 @ 0x004a3fc0 (through 0x004a4a70, 0x004a4000).
-TurretLimits::TurretLimits(float lo, float hi)
-    : lo_sin(static_cast<float>(std::sin(static_cast<double>(lo)))),
-      lo_cos(static_cast<float>(std::cos(static_cast<double>(lo)))),
-      hi_sin(static_cast<float>(std::sin(static_cast<double>(hi)))),
-      hi_cos(static_cast<float>(std::cos(static_cast<double>(hi)))) {}
-
-// Mech3.exe 1.2 @ 0x004a4180 (the vehicles' 0x004a4a90): "not past" either
-// sine, so a NaN is within.
-bool TurretLimits::within(const float d[3]) const { return !(lo_sin > d[1]) && !(d[1] > hi_sin); }
-
-// Mech3.exe 1.2 @ 0x004a41b0 (the vehicles' 0x004a4aa0). Unordered compares
-// count as past the limit, the low one first.
-bool TurretLimits::clamp(const float d[3], float out[3]) const {
-  float s, co;
-  if (!(d[1] >= lo_sin)) {
-    s = lo_sin, co = lo_cos;
-  } else if (!(hi_sin >= d[1])) {
-    s = hi_sin, co = hi_cos;
-  } else {
-    out[0] = d[0], out[1] = d[1], out[2] = d[2];
-    return true;
-  }
-  // FIX (bug): hypot(x, y) in the exe; the heading's length is hypot(x, z).
-  const double len = zfix::options().small_fixes ? std::hypot(double{d[0]}, double{d[2]}) : std::hypot(double{d[0]}, double{d[1]});
-  if (len == 0.0 || std::isnan(len)) {
-    out[0] = 0.0f, out[1] = s, out[2] = -co;
-    return false;
-  }
-  const float f = static_cast<float>(co / len);
-  out[0] = f * d[0];
-  out[1] = s;
-  out[2] = d[2] * f;
-  return false;
+// Pirate's Moon 1.0 @ 0x004a6ec0, 0x004a7390 (from the controls' set-up 0x004a25e8), 0x004a70c0, 0x004a71f0.
+TurretLimits::TurretLimits() { pm_dir::unset(c); }
+TurretLimits::TurretLimits(float lo, float hi) {
+  pm_dir::unset(c);
+  pm_dir::set_radians(c, lo, hi, -6.2831855f, 6.2831855f);
 }
+bool TurretLimits::within(const float d[3]) const { return pm_dir::within(c, d); }
+bool TurretLimits::clamp(const float d[3], float out[3]) const { return pm_dir::clamp(c, d, out); }
 
-// Mech3.exe 1.2 @ 0x004ac750 (0x004ac740 on +0x764 -> 0x004a4af0: the
-// turret limits of -pi/2 and pi/2).
-VehicleControls::VehicleControls() : turret(-1.57079637f, 1.57079637f) {}
+// Mech3.exe 1.2 @ 0x004ac750, Pirate's Moon 1.0 @ 0x004b00f0 (0x004b00e0: the gun's limits made unset, 0x004a6ec0;
+// MW3's were -pi/2..pi/2).
+VehicleControls::VehicleControls() = default;
 
 // Mech3.exe 1.2 @ 0x004ab990. The x87's fsin/fcos range check (|a| over
 // 9.22e18 skips nothing here: both branches compute the same).
@@ -366,7 +341,7 @@ void vehicle_motion_read(VehicleControls& c, void* node, zrdr::Node* mode, const
   m.mass = one(mode, "mass", 1.0f);
   m.inv_mass = 1.0f / m.mass;
   pair(mode, "gun_pitch", &m.gun_lo, &m.gun_hi, zgame::from_bits(0xbe84816f), 0.5f);  // -sin(15 degrees)
-  c.turret = TurretLimits(m.gun_lo, m.gun_hi);  // 0x004a4b30 with the full turn (-2 pi, 2 pi): 0x004a4a70
+  c.turret = TurretLimits(m.gun_lo, m.gun_hi);  // Pirate's Moon 0x004a25e8: 0x004a7390 with the full turn (-2 pi, 2 pi)
   if (zrdr::Node* n = h.reader_find(mode, "mode")) {
     const std::string s = n->list[1].s;  // copied to 20 bytes in the exe
     if (std::strncmp(s.c_str(), "basic", 2) == 0) m.mode = VehicleMotion::kBasic;
