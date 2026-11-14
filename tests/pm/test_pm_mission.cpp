@@ -691,8 +691,9 @@ static void kill_run(const char* which, bool quick) {
       ++dead, ++at, since = 0, shots = 0, hits0 = pm_kill_on_part, off0 = pm_kill_off_part;
       pm_leg_reset();
     }
-    // PM_ANHUR runs its own clock: a mech's death (MW3's AI kills one before the Anhur passes) doesn't end it.
-    if (at >= targets.size() || (quick && at > 0 && !std::getenv("PM_ANHUR"))) {
+    // PM_ANHUR and PM_REPAIR run their own clocks: a mech's death (MW3's AI kills one before the Anhur passes; the
+    // lance kills one during the player's repair, about 1 run in 10) doesn't end them.
+    if (at >= targets.size() || (quick && at > 0 && !std::getenv("PM_ANHUR") && !std::getenv("PM_REPAIR"))) {
       done = true;
       return;
     }

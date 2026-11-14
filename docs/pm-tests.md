@@ -999,6 +999,8 @@ does the same (pm-map.md, The unused models). The light animation event (5) stil
 Pirate's Moon light through MW3's range and colour setters (its mixed colours are not kept up); it made no
 difference to these pictures.
 
+**The lancemate dock test's flake (2026-11-14).** `pm_c1m1_lancemate_repairs_at_the_dock` failed about 1 run in 10 under PM_AI=1, alone too: in its mobile case the lance killed thor_01 before the player's own repair was through (frame 7490 of about 9900), kill_run's quick end took the death as the run's end, and her order never came (order -1). PM_REPAIR now runs its own clock as PM_ANHUR does: a death doesn't end it. 12/12 after, one of them with the kill. Why the fight differs at all: the hits vary from run to run with the frames the same, under PM_AI=0 as much as 1 (c1m1's three cases: 169..299, 86..417 hits over four runs), with the test's fixed clock and seed. So something in the shared combat code is not repeatable (an address-ordered container, an unread value or a real clock are the candidates); open.
+
 ## The two-process tests at their limits (2026-11-12)
 
 **The walk's frames.** `sdl_two_processes_a_walk_seen_from_the_other` failed on Pirate's Moon every time (alone too:
