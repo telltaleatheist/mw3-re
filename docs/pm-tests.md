@@ -1019,6 +1019,8 @@ does the same (pm-map.md, The unused models). The light animation event (5) stil
 Pirate's Moon light through MW3's range and colour setters (its mixed colours are not kept up); it made no
 difference to these pictures.
 
+**The lancemate dock test's flake (2026-11-14).** `pm_c1m1_lancemate_repairs_at_the_dock` failed about 1 run in 10 under PM_AI=1, alone too: in its mobile case the lance killed thor_01 before the player's own repair was through (frame 7490 of about 9900), kill_run's quick end took the death as the run's end, and her order never came (order -1). PM_REPAIR now runs its own clock as PM_ANHUR does: a death doesn't end it. 12/12 after, one of them with the kill. Why the fight differed at all: kill_run never fixed the game's rand seed, so the mission's own srand (time(), as the exe) seeded every run from the time of day; the first draw (zeff::anim_init) already differed. The shadow cats' and the knockdown's runs had a seed, the rest of test_pm_mission.cpp's mission runs did not (kill_run, the werewolf, the cow level, the IA waves and screens, the PPC jolt, the get-up, the lock drop, the cheat box). Each now takes one (`FixedSeed`, 1, or PM_SEED=n), and two runs of the dock test trace identically frame by frame (every mech's place and the rand state). Nothing in the game is unrepeatable. Main's mission tests were seeded all along (test_program.cpp's reset_process_state).
+
 ## The two-process tests at their limits (2026-11-12)
 
 **The walk's frames.** `sdl_two_processes_a_walk_seen_from_the_other` failed on Pirate's Moon every time (alone too:

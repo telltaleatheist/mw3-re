@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <optional>
 #include <functional>
 #include <string>
 #include <vector>
@@ -113,6 +114,16 @@ struct Window : platform::Window {
 };
 struct Alert : platform::Alert {
   void abort_message(const std::string& m) override { std::fprintf(stderr, "abort: %s\n", m.c_str()); }
+};
+// The clock seeds the game's rand (time(), as the exe): a fixed seed makes two runs repeat; PM_SEED=n another.
+// Every run that plays or builds a mission takes one; without it a run drew from the time of day (pm-tests,
+// the lancemate dock's flake).
+struct FixedSeed {
+  std::optional<uint32_t> was = crt::rand_fixed_seed();
+  explicit FixedSeed(uint32_t seed) {
+    crt::rand_fixed_seed() = std::getenv("PM_SEED") ? static_cast<uint32_t>(std::atoi(std::getenv("PM_SEED"))) : seed;
+  }
+  ~FixedSeed() { crt::rand_fixed_seed() = was; }
 };
 struct Clock : platform::Clock {
   uint32_t now = 0;
@@ -610,6 +621,7 @@ static void kill_run(const char* which, bool quick) {
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
+  FixedSeed seed(1u);
   NoKeys keys;
   Window window;
   Alert alert;
@@ -691,8 +703,9 @@ static void kill_run(const char* which, bool quick) {
       ++dead, ++at, since = 0, shots = 0, hits0 = pm_kill_on_part, off0 = pm_kill_off_part;
       pm_leg_reset();
     }
-    // PM_ANHUR runs its own clock: a mech's death (MW3's AI kills one before the Anhur passes) doesn't end it.
-    if (at >= targets.size() || (quick && at > 0 && !std::getenv("PM_ANHUR"))) {
+    // PM_ANHUR and PM_REPAIR run their own clocks: a mech's death (MW3's AI kills one before the Anhur passes; the
+    // lance kills one during the player's repair, about 1 run in 10) doesn't end them.
+    if (at >= targets.size() || (quick && at > 0 && !std::getenv("PM_ANHUR") && !std::getenv("PM_REPAIR"))) {
       done = true;
       return;
     }
@@ -2894,6 +2907,7 @@ static void werewolf_run() {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -3031,6 +3045,7 @@ static void cow_run(int when) {
     NoKeys keys;
     Window window;
     Alert alert;
+    FixedSeed seed(1u);
     Clock clock;
     MovieClock movies;
     Screen screen;
@@ -3167,6 +3182,7 @@ TEST(pm_unused_models_stay_at_the_wave_and_the_purge) {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -3216,6 +3232,7 @@ static void ia32_spawn_run() {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -3317,6 +3334,7 @@ TEST(pm_ia_wave_rows_show_the_waves_loadout_headless) {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -3438,6 +3456,7 @@ TEST(pm_ia_screen_keeps_mechs_and_offers_the_labs_lineup_headless) {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -3525,6 +3544,7 @@ TEST(pm_ia_world_list_gives_the_game_its_world_and_progression_refreshes_headles
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -3613,6 +3633,7 @@ TEST(pm_ia_accept_drops_the_commanders_loadout_only_for_a_new_mech_headless) {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -3698,6 +3719,7 @@ TEST(pm_ia_custom_enemies_kept_by_mech_and_loadout_place_headless) {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -3917,6 +3939,7 @@ static PpcJolt ppc_run() {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -4072,6 +4095,7 @@ static float getup_run(int who) {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -4212,6 +4236,7 @@ static void lock_drop_run() {
   NoKeys keys;
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
@@ -4404,6 +4429,7 @@ TEST(pm_cheat_box_keeps_the_reticle) {
   zin::set_host(&host);
   Window window;
   Alert alert;
+  FixedSeed seed(1u);
   Clock clock;
   MovieClock movies;
   Screen screen;
