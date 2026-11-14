@@ -103,6 +103,9 @@ struct Table {
   // sets the sun's ambient from bits 9..16, bit 8 its diffuse from bits 17..24, for the node's subtree. Null in MW3.
   bool (*zcls_light_override)(zcls::Node* node, zcls::LightOverride* save);
   void (*zcls_light_restore)(const zcls::LightOverride& save);
+  // gwNodeUpdate's light nodes (class.cpp, 0x004eca00; PM 0x004fe510): PM updates one as the node walk reaches it
+  // (0x0050f270, the shared light_update), also a light no world lists; MW3 reports its class unknown.
+  bool node_update_lights;
 };
 
 const Table& mw3_table();
