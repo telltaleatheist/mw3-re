@@ -259,9 +259,10 @@ of a campaign, Instant Action or training run) or the static check (the data and
 
 | Hook | Original | Reached by | The original does | In the port | Seen in play | Shown by |
 |---|---|---|---|---|---|---|
-| DamageCalls.zaps_hud (mech.h) | 0x0043cf50 (MW3 0x0043be70) | the hit wrappers on the player's mech | the HUD static from the hitting weapon's ZAPS_HUD | a census stand-in, as in MW3: nothing shown | yes: PM's weapons.zrd gives ZAPS_HUD to the ER PPC only (0.5 2.0), as MW3's | static (MW3's row) |
 
 Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills:99, PM_AI=1, seed 1999, 33 ms) reached 0 functions outside the known table and skipped 0 script calls, but for one report: the mech build's CZMechFirePoint::CFixup message (mech.cpp line 0xee, rows c1sa3 and c3sa3) goes through the unported() report hook instead of zerr::report. The port's fixup itself runs (mech_build.cpp:699); only the report's routing is missing, with no effect in play.
+
+Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x0043cf50, MW3 0x0043be70): Hud::zap_static, ported and wired for both games by MW3's BROKEN row 3 (8bf594ef, app_hud.cpp); PM's 0x0043cf50 is the same logic (its audit row, folded).
 
 ## PORT (preserve)
 
