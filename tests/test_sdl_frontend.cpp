@@ -42,6 +42,8 @@
 #include "frontend/sdl/sdl_fit.h"
 #include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher.h"
+#include "frontend/sdl/movie_import.h"
+#include "frontend/sdl/vulkan_check.h"
 #include "frontend/sdl/launcher_notes.h"
 #include "frontend/sdl/log_start.h"
 #include "frontend/sdl/text_fit.h"
@@ -6474,6 +6476,130 @@ TEST(sdl_program_launcher_converts_the_movies_before_the_game) {
   EXPECT(r.log.find("work: CONVERTING THE MOVIES") < r.log.find("the game's first frame"));
   EXPECT(std::filesystem::exists(wd + "/video/c1.fmv") && std::filesystem::exists(wd + "/video/intro.fmv"));
   std::filesystem::remove_all(root, ec);
+}
+
+// The importer's progress as it comes (seen on Arch Linux, 1.1.1: "converting movies kinda gets
+// stuck"): SDL's process pipes are non-blocking, and the reader took the first empty read for the
+// end, then waited for the importer to finish with the bar where it stood and CANCEL deaf. A
+// stand-in importer pausing between its lines: every line heard; a stop at the first movie kills
+// it before the last is made.
+TEST(sdl_importer_progress_is_followed_while_it_pauses) {
+  const std::string root = std::string(MW3_TEST_TMP) + "/importer_pauses";
+  std::error_code ec;
+  std::filesystem::remove_all(root, ec);
+  std::filesystem::create_directories(root + "/cd/VIDEO", ec);
+  std::filesystem::create_directories(root + "/wd", ec);
+  for (const char* m : {"A.AVI", "B.AVI", "C.AVI"}) std::ofstream(root + "/cd/VIDEO/" + m) << "x";
+  const std::string importer = root + "/mw3import";
+  {
+    std::ofstream sh(importer);
+    sh << "#!/bin/sh\nS=; W=\nwhile [ $# -gt 0 ]; do case \"$1\" in --install) S=$2; shift;; --write-dir) W=$2; shift;; esac; shift; done\n"
+          "mkdir -p \"$W/video\"; sleep 0.3; echo progress 0 3; K=0\nfor N in a b c; do sleep 0.3; : > \"$W/video/$N.fmv\"; "
+          "K=$((K+1)); echo progress $K 3 $N; done\n";
+  }
+  std::filesystem::permissions(importer, std::filesystem::perms::owner_all, ec);
+  setenv("MW3_IMPORTER", importer.c_str(), 1);
+  std::vector<std::string> heard;
+  EXPECT(sdlfe::movies_missing(root + "/cd", root + "/wd") == 3);
+  const int all = sdlfe::run_importer(root + "/cd", root + "/wd", [&](int done, int total, const std::string& name) {
+    heard.push_back(std::to_string(done) + "/" + std::to_string(total) + (name.empty() ? "" : " " + name));
+    return true;
+  });
+  std::string said;
+  for (const std::string& h : heard) said += (said.empty() ? "" : ", ") + h;
+  std::printf("  the whole import: %d, heard %s\n", all, said.c_str());
+  EXPECT(all == 0 && heard == (std::vector<std::string>{"0/3", "1/3 a", "2/3 b", "3/3 c"}));
+  EXPECT(sdlfe::movies_missing(root + "/cd", root + "/wd") == 0);
+  std::filesystem::remove_all(root + "/wd/video", ec);
+  heard.clear();
+  const uint64_t t0 = SDL_GetTicks();
+  const int stopped = sdlfe::run_importer(root + "/cd", root + "/wd", [&](int done, int, const std::string&) {
+    heard.push_back(std::to_string(done));
+    return done < 1;  // CANCEL as the first movie is done
+  });
+  const uint64_t took = SDL_GetTicks() - t0;
+  const bool c_made = std::filesystem::exists(root + "/wd/video/c.fmv");
+  std::printf("  stopped at the first: %d, heard %zu, %llu ms, the last made %d\n", stopped, heard.size(),
+              static_cast<unsigned long long>(took), c_made);
+  EXPECT(stopped == 1 && heard.size() == 2 && !c_made && took < 2000);  // (the stand-in shell's sleep holds the pipe a moment)
+  unsetenv("MW3_IMPORTER");
+  std::filesystem::remove_all(root, ec);
+}
+
+// An install's VIDEO beside the converted movies' video on a case-sensitive disk (the install and
+// the data in one folder): every case of the folder is read, by the launcher's count and by
+// mw3import, so a movie left over after a stopped or failed run is still found (zutl::any_case
+// took the exact "video", the converted ones, and the AVIs were never seen again).
+TEST(sdl_movies_found_in_every_case_of_the_video_folder) {
+  const char* cs = SDL_getenv("MW3_CASE_TMP");  // a case-sensitive folder (a disk image on the Mac)
+  const std::string root = (cs ? std::string(cs) : std::string(MW3_TEST_TMP)) + "/video_cases";
+  std::error_code ec;
+  std::filesystem::remove_all(root, ec);
+  std::filesystem::create_directories(root + "/VIDEO", ec);
+  std::filesystem::create_directories(root + "/video", ec);
+  for (const char* m : {"A.AVI", "B.AVI"}) std::ofstream(root + "/VIDEO/" + m) << "not an avi";
+  std::ofstream(root + "/video/a.fmv") << "x";
+  const bool two = std::filesystem::exists(root + "/VIDEO/A.AVI") && std::filesystem::exists(root + "/video/a.fmv") &&
+                   !std::filesystem::equivalent(root + "/VIDEO", root + "/video", ec);
+  if (!two) {  // a case-insensitive disk (the Mac's usual): one folder, nothing to check
+    std::printf("  this disk folds case: skipped\n");
+    std::filesystem::remove_all(root, ec);
+    return;
+  }
+  const int missing = sdlfe::movies_missing(root, root);
+  std::printf("  folders %zu, missing %d\n", sdlfe::video_dirs(root).size(), missing);
+  EXPECT(sdlfe::video_dirs(root).size() == 2 && missing == 1);
+#ifdef MW3_IMPORT_BIN
+  const std::string cmd = std::string(MW3_IMPORT_BIN) + " --install '" + root + "' --write-dir '" + root + "' --missing 2>/dev/null";
+  std::string out;
+  if (FILE* p = popen(cmd.c_str(), "r")) {
+    char line[256];
+    while (std::fgets(line, sizeof line, p)) out += line;
+    pclose(p);
+  }
+  std::printf("  mw3import: %s", out.substr(0, out.find('\n') + 1).c_str());
+  EXPECT(out.rfind("progress 0 1\n", 0) == 0);  // b alone (it fails to convert: not an AVI)
+#endif
+  std::filesystem::remove_all(root, ec);
+}
+
+// No Vulkan on Linux (a player on Arch, 1.1.1: the game's fatal box, "No supported SDL_GPU backend
+// found!", until lib32-vulkan-intel brought the 64-bit driver along): the launcher, whose window needs
+// no Vulkan, says what to install at its start and on PLAY, and never starts the game without it;
+// TRY AGAIN checks again. MW3_VULKAN_CHECK answers for the checks (any system).
+TEST(sdl_vulkan_help_names_the_packages) {
+  const std::string none = sdlfe::vulkan_help(sdlfe::Vulkan::kOk);
+  const std::string loader = sdlfe::vulkan_help(sdlfe::Vulkan::kNoLoader), driver = sdlfe::vulkan_help(sdlfe::Vulkan::kNoDriver);
+  auto has = [](const std::string& t, const char* w) { return t.find(w) != std::string::npos; };
+  EXPECT(none.empty());
+  for (const std::string* t : {&loader, &driver})
+    for (const char* w : {"64-bit", "not the lib32", "vulkan-icd-loader", "vulkan-intel", "vulkan-radeon", "nvidia-utils",
+                          "libvulkan1", "mesa-vulkan-drivers", "vulkan-loader"})
+      EXPECT(has(*t, w));
+  EXPECT(has(loader, "no Vulkan library") && has(driver, "no Vulkan driver"));
+  setenv("MW3_VULKAN_CHECK", "noloader", 1);
+  EXPECT(sdlfe::vulkan_check() == sdlfe::Vulkan::kNoLoader);
+  setenv("MW3_VULKAN_CHECK", "nodriver", 1);
+  EXPECT(sdlfe::vulkan_check() == sdlfe::Vulkan::kNoDriver);
+  unsetenv("MW3_VULKAN_CHECK");
+#if !defined(__linux__)
+  EXPECT(sdlfe::vulkan_check() == sdlfe::Vulkan::kOk);  // only Linux draws through Vulkan
+#endif
+}
+
+TEST(sdl_program_launcher_says_what_vulkan_needs_and_holds_play) {
+  auto count = [](const std::string& log, const std::string& w) {
+    int n = 0;
+    for (size_t at = 0; (at = log.find(w, at)) != std::string::npos; ++at) ++n;
+    return n;
+  };
+  const auto env = std::vector<std::pair<std::string, std::string>>{
+      {"MW3_VULKAN_CHECK", "nodriver"}, {"MW3_LAUNCHER_FRAMES", "60"}, {"MW3_LAUNCHER_NAV", "next,press"}};
+  const LauncherRun r = run_launcher_with("launcher_vulkan", "READY\nsleep 1", nullptr, env);
+  const int said = count(r.log, "needs Vulkan graphics"), again = count(r.log, "Vulkan checked again: still missing");
+  std::printf("  said %d times, checked again %d, the game started %d, exited %d\n", said, again, !r.args.empty(), r.exited);
+  EXPECT(r.exited && r.args.empty() && !r.game_finished);  // the game never started
+  EXPECT(said >= 2 && again == 1);                           // at the start, on PLAY and on TRY AGAIN
 }
 
 // The system's picker blocks while it comes up (about a second on the Mac, 9 s

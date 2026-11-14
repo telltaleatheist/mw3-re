@@ -150,3 +150,38 @@ missing, FFmpeg's x86 assembly.
 
 Checked under WSL (2026-10-31): the AppImage's `--import --movie INTRO`
 converted the 19 movies in 35 s (0.22 GB) and played the intro.
+
+## The movies' conversion on a player's machine (2026-11-14, for 1.1.2)
+
+A player on Arch with 1.1.1: "converting movies kinda gets stuck, but I don't think it really changes
+anything". SDL's process pipes are non-blocking (SDL_PROP_PROCESS_STDOUT_POINTER), and the launcher's
+reader (`run_importer`, movie_import.cpp) and mw3's first-run reader (first_run_import.cpp) took the
+first empty read, SDL_IO_STATUS_NOT_READY, for the end: then they sat in SDL_WaitProcess until
+mw3import was done. The bar stayed where it was (often at the start), CANCEL did nothing, and every
+movie was still converted. `read_child` now waits on NOT_READY and stops only at the end
+(`sdl_importer_progress_is_followed_while_it_pauses`: a stand-in pausing between its lines, every
+line heard and a stop at the first movie kills it; 1.1.1's read heard nothing and could not stop it).
+The importer itself was fine there: the 1.1.1 AppImage's mw3import converted the 19 movies in 36 s
+under WSL (ext4), progress lines and all.
+
+Second, on a case-sensitive disk an install's VIDEO and the converted movies' video can sit in one
+folder (the install and the data in one place). `zutl::any_case` takes an exact "video", so with one
+there both the launcher's count and mw3import saw no AVIs: 1.1.1's importer converted 0 of 2 in such a
+folder. Both now read every folder named video in any case (`video_dirs`; mw3import inline), a movie
+in two counted once (`sdl_movies_found_in_every_case_of_the_video_folder`, skipped on a disk that
+folds case; run under WSL, and the fixed importer converted both).
+
+## Vulkan
+
+The game draws through SDL_GPU, which on Linux is Vulkan. Without it mw3's window fails ("No
+supported SDL_GPU backend found!"); a player fixed it by installing lib32-vulkan-intel, which brought
+the 64-bit driver with it. The launcher draws with SDL's renderer and needs no Vulkan, so it checks at
+its start (`vulkan_check`, vulkan_check.cpp): libvulkan.so.1 not loading is the loader missing,
+SDL_GPUSupportsShaderFormats(SPIRV, "vulkan") false is no usable driver. Either way it shows what to
+install (64-bit, not lib32: Arch vulkan-icd-loader with vulkan-intel, vulkan-radeon or nvidia-utils;
+Debian or Ubuntu libvulkan1 and mesa-vulkan-drivers; Fedora vulkan-loader and mesa-vulkan-drivers)
+with TRY AGAIN and BACK, and PLAY checks again before starting the game. mw3's fatal box adds the same
+text. Nothing is bundled (no lavapipe). MW3_VULKAN_CHECK=noloader|nodriver|ok answers for the checks
+(`sdl_vulkan_help_names_the_packages`, `sdl_program_launcher_says_what_vulkan_needs_and_holds_play`).
+Under WSL the real check found Vulkan, and with VK_ICD_FILENAMES pointing at nothing said "no Vulkan
+driver".
