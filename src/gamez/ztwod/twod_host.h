@@ -5,6 +5,7 @@
 #include "gamez/zgame/unported.h"
 
 namespace zimg { struct Texture; }
+namespace zfmv { class Stream; }
 
 // What zTwoD (docs/twod.md) calls outside itself: zImage's image cache and the
 // named fonts of fonts.zrd, zVideo's 2D blit and screen grabs, zSound, the
@@ -74,6 +75,8 @@ class Host : public zgame::Unported {
   // 0x0055b1f0: ECX image, EDX x; y, the colour key, the source rectangle
   // (null: all). Ported: zrndr::blit16 into zrndr::target2d().
   virtual void blit(zimg::Texture* image, int32_t x, int32_t y, int32_t flags, const Rect* src);
+  // 0x0059aaf0 (ECX stream): a dialog movie's frame decoded into its image (zfmv::Stream::frame).
+  virtual int32_t movie_frame(zfmv::Stream* stream, int32_t frame);
   // [0x0072f394] / [0x0072f398]: a DC on the text image's pixels.
   virtual Handle image_dc(zimg::Texture* image);
   virtual void image_dc_release(zimg::Texture* image, Handle dc);

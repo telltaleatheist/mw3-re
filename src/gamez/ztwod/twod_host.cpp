@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "gamez/zfmv/fmv_stream.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zinput/zinput.h"
 #include "gamez/zutil/zutl_msg.h"
@@ -65,6 +66,7 @@ zimg::Texture* Host::screen_grab_rect(int32_t buffer, Rect* r, zimg::Texture* in
 void Host::blit(zimg::Texture* image, int32_t x, int32_t y, int32_t flags, const Rect* src) {
   if (image) zrndr::blit16(image, x, y, static_cast<uint16_t>(flags), reinterpret_cast<const zrndr::BlitRect*>(src));
 }
+int32_t Host::movie_frame(zfmv::Stream* stream, int32_t frame) { return stream ? stream->frame(frame) : 0; }
 Handle Host::image_dc(zimg::Texture* image) { return unported("[0x0072f394]", {ptr(image)}); }
 void Host::image_dc_release(zimg::Texture* image, Handle dc) { unported("[0x0072f398]", {ptr(image), dc}); }
 uint32_t Host::format_message(char* buf, uint32_t size, uint32_t id, va_list) {
