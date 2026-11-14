@@ -441,8 +441,10 @@ void DockContact::end() { field_bases_quiet_until() = 0.0f; }  // 0x0045acd0
 // Mech3.exe 1.2 @ 0x0045ade0: "cancelled", to the reset.
 void DockContact::abort() {
   field_bases_quiet_until() = 0.0f;
-  sound = reg->sounds[5];  // +0xa0 mcb_pos_cancel
-  say_soon();
+  if (reg->alive() != 0) {  // Pirate's Moon 1.0 @ 0x0045bb30: said only while a base is alive (0x0045b0d0)
+    sound = reg->sounds[5];  // +0xa0 mcb_pos_cancel
+    say_soon();
+  }
   hk().marker_clear();
   cancel(&reg->reset);
 }
@@ -700,7 +702,7 @@ Handle DockRepair::message(Handle m) {  // 0x0045b770
 }
 // Mech3.exe 1.2 @ 0x0045b3b0: to the close, its line not said.
 void DockRepair::abort() {
-  sound = reg->sounds[9];
+  if (reg->alive() != 0) sound = reg->sounds[9];  // Pirate's Moon 1.0 @ 0x0045c720: only while a base is alive
   hk().marker_clear();
   cancel(&reg->close);
 }

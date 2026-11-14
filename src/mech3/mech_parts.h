@@ -95,6 +95,7 @@ void part_delete(MechPart* p);
 // What tearing a part or a mech down calls outside the mech code (the
 // destructors 0x0045fd40.., 0x00414f40, 0x004152d0); unset ones do nothing.
 struct FreeCalls {
+  bool (*net_running)() = nullptr;                             // Pirate's Moon [0x00629a88]: a network game is up
   void (*stop_effect)(Handle effect) = nullptr;                // 0x00506ca0
   void (*ref_free)(Handle ref, Handle node) = nullptr;         // +0x68: 0x004e66a0, then 0x005ac5c0 and the delete
   void (*rename)(Handle node, const char* name) = nullptr;     // 0x004eb300
@@ -226,6 +227,7 @@ class Torso : public MechPart {
   Handle death_effect2 = nullptr;  // +0x78
   class Headlight* headlight = nullptr;  // Pirate's Moon's +0x7c (0x00465ba3), from the dfn's config
   ~Torso() override;                // Pirate's Moon 0x00465a2a: the headlight
+  void switch_lod(int32_t lod) override;  // Pirate's Moon 0x00468d50: the base's, then the headlight under the new node
   float half_width = 0;            // +0x7c
   float half_depth = 0;            // +0x80
   int32_t mode = 0;                // +0x084  0 the AI aims, 1 the player's controls, else frozen

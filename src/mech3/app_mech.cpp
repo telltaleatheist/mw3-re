@@ -649,6 +649,16 @@ Sound pilot_play(Mech& m, int id, float volume, const Vec3* at) {
   return pilot_sound(m.pilot->sounds, id, volume, at ? &at->x : nullptr, nullptr);
 }
 
+
+// Pirate's Moon 1.0 @ 0x00432e40: every animation using a node of the tree stopped (0x0051f750 = MW3's
+// 0x00506bc0, zeff::anim_stop_using, with 1, 1), before the tree is freed. MW3 stopped none: an animation on a
+// deleted mech's nodes ran on (docs/pm-tests.md).
+static void anims_stop_tree(zcls::Node* n) {
+  if (!n) return;
+  zeff::anim_stop_using(n, 1, 1);
+  for (int32_t i = 0; i < n->child_count(); ++i) anims_stop_tree(n->children[i]);
+}
+
 // The parts' outside calls in the game (PartCalls, mech_parts.h; the parts'
 // share of DamageCalls; the collider's touch): the engine's ports.
 void wire_mech_parts() {
@@ -826,8 +836,10 @@ void wire_mech_parts() {
     };
     Clear::run(zn(n));
   };
-  fr.debris_free = [](Handle n) {  // 0x00413db0
+  fr.net_running = [] { return program_net_running(); };  // Pirate's Moon [0x00629a88]
+  fr.debris_free = [](Handle n) {  // 0x00413db0, Pirate's Moon 1.0 @ 0x004335c0: its animations stopped first
     if (zn(n)->parent_count() != 0) zcls::node_remove_child(zn(n)->parents[0], zn(n));
+    anims_stop_tree(zn(n));
     zcls::tree_destroy(zn(n));
   };
   fr.decals_free = [](Handle d) { delete static_cast<Skin*>(d); };  // 0x00473f40
@@ -859,6 +871,9 @@ void wire_mech_parts() {
       if (c == zn(m.model_node) || c == zn(m.lod_node)) zcls::node_remove_child(n, c);
     }
     zcls::node_set_name(n, "deletedmech");  // 0x005a84c0
+    anims_stop_tree(n);  // Pirate's Moon 1.0 @ 0x00415940 by 0x00432e40: each tree's animations stopped first
+    anims_stop_tree(zn(m.model_node));
+    anims_stop_tree(zn(m.lod_node));
     zcls::tree_destroy(n);
     zcls::tree_destroy(zn(m.model_node));
     zcls::tree_destroy(zn(m.lod_node));

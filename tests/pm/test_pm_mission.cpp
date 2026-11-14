@@ -390,6 +390,8 @@ float pm_tag_muzzle(void* player, const float at[3], bool* mounted);
 float pm_mech_toughness(void* mech, bool* invincible);
 bool pm_cheat(void* player, const char* text);
 bool pm_headlight(void* player, bool on, float at[3]);
+int pm_headlight_lod(void* player, int lod);
+static int g_lod_light[2] = {-2, -2};
 float pm_knock(void* mech, float* threshold, int* state);
 void pm_command(void* player, int32_t cmd);
 void pm_kill_left(void* mech, char* out, size_t n);
@@ -403,6 +405,8 @@ bool pm_kill_only_leg_lost(void* mech, int leg);
 int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
 void pm_hold_down(void* mech);
 void pm_controls_hold(void* mech, float v);
+bool pm_rebuild_keeps_masc(void* player);
+static int g_masc_kept = -1;
 void pm_controls_read(void* mech, float out[7]);
 static float g_resume[3][7];
 static bool g_paused = false;
@@ -928,6 +932,16 @@ static void kill_run(const char* which, bool quick) {
         std::printf("\n");
       }
       if (t > 12000) done = true;
+      return;
+    }
+    if (std::getenv("PM_HEADLIGHT_LOD")) {  // the headlight on, the torso to its low detail and back (0x00468d50)
+      static int t = 0;
+      float at[3] = {};
+      ++t;
+      if (t == 2) pm_headlight(player, true, at);
+      if (t == 10) g_lod_light[0] = pm_headlight_lod(player, 1);
+      if (t == 20) g_lod_light[1] = pm_headlight_lod(player, 0);
+      if (t == 22) done = true;
       return;
     }
     if (std::getenv("PM_HEADLIGHT")) {  // the player's headlight on at frame 2, its light's place at 2 and 60
@@ -2106,6 +2120,10 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
+    if (std::getenv("PM_REBUILD")) {  // the player made again in place with MASC on (0x00415190)
+      if (++since == 5) g_masc_kept = pm_rebuild_keeps_masc(player) ? 1 : 0, done = true;
+      return;
+    }
     if (std::getenv("PM_RESUME")) {  // back from the pause: the Core state's resume(8) on the held inputs
       ++since;
       if (since == 5) {
@@ -2220,7 +2238,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT") && !std::getenv("PM_SHOT_FLIGHT") && !std::getenv("PM_RESUME")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT") && !std::getenv("PM_SHOT_FLIGHT") && !std::getenv("PM_RESUME") && !std::getenv("PM_HEADLIGHT_LOD") && !std::getenv("PM_REBUILD")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -2448,6 +2466,25 @@ TEST(pm_tag_fires_from_the_mech) {
 // A round under the real loop (the frame counter moved by the program, not by hand): the player's first round-firing
 // weapon in c1m1, one shot followed. It must cover most of its speed times its age (PM's first-frame hold is a
 // millionth of a second once, 0x005a79a0); a counter stuck at the shot's stamp would hold it at the muzzle.
+// Pirate's Moon's torso level-of-detail switch (0x00468d50): the headlight goes under the torso's node now shown
+// (0x004798d0), to the low detail and back. MW3's torso had no override: the headlight stayed on the other node.
+TEST(pm_c1m1_headlight_follows_the_torso_detail) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();
+  if (child == 0) {
+    setenv("PM_HEADLIGHT_LOD", "1", 1);
+    kill_run("1,1,3", true);
+    std::printf("  headlight under the shown torso node: to low detail %d, back %d\n", g_lod_light[0], g_lod_light[1]);
+    EXPECT(g_lod_light[0] == 1 && g_lod_light[1] == 1);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  const int status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
 // Back from the pause (Pirate's Moon 0x00496220 pops 8; the Core state's resume 0x00483de0 case 8): the player's held
 // turn, twist, pitch, jets and look go to 0 (controls vt+0x1c, 0x004289d0), the throttle and its target stay; any
 // other resume keeps them all, as MW3's.
@@ -2471,6 +2508,26 @@ TEST(pm_c1m1_resume_from_the_pause_lets_go_but_the_throttle) {
     EXPECT(g_paused);
     for (int i = 0; i < 5; ++i) EXPECT(esc[i] == 0.0f);
     EXPECT(esc[6] > 0.4f);  // kept (a frame of the controls has run since: no longer exactly the 0.5 set)
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  const int status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// Pirate's Moon's mech made again in place (0x00415190): as its own type with MASC on, MASC is turned on again
+// after (0x0041eec0(1)); MW3's rebuild left it off.
+TEST(pm_c1m1_rebuilt_mech_keeps_its_masc) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();
+  if (child == 0) {
+    setenv("PM_REBUILD", "1", 1);
+    setenv("PM_MECH", "19", 1);  // a mech whose loadout has MASC
+    kill_run("1,1,3", true);
+    std::printf("  MASC on after the rebuild: %d\n", g_masc_kept);
+    EXPECT(g_masc_kept == 1);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }

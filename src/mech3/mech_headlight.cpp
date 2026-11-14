@@ -96,6 +96,18 @@ bool Headlight::set_active(bool active_on) {
   return r == 0;
 }
 
+// Pirate's Moon 1.0 @ 0x004798d0 (its +0x18's vt+4 is the add under the parent, as set_active's; 0x00510300 is
+// MW3's object3d_set_translation 0x004fc0b0, on the new parent).
+void Headlight::reattach(zcls::Node* to, const float* offset) {
+  if (node->parent_count() == 1) zcls::node_remove_child(parent, node);
+  parent = to;
+  if (!to || !active()) return;
+  zcls::node_add_child(parent, node);
+  static const float kNone[3] = {0, 0, 0};  // [0x0066f5e0]
+  const float* o = offset ? offset : kNone;
+  zcls::object3d_set_translation(parent, o[0], o[1], o[2]);
+}
+
 // Pirate's Moon 1.0 @ 0x004799b0
 void Headlight::turn(bool turn_on, bool fading) {
   on = turn_on;

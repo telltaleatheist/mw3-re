@@ -37,6 +37,8 @@ class Headlight {                   // 0x40 bytes, vtable 0x005e5bd8
   void detach();                    // 0x00479c30, the mech's vt+0x34: out of the tree for the mech's update
   void attach(float dt);            // 0x00479c60, the mech's vt+0x3c: back, and the fade
   void show_beam(bool on);          // 0x00479c20's +0x20, vt+0xc: the HUD's view of the mech hides it
+  // 0x004798d0: out of its parent, onto `to`; while active, the new parent placed at `offset` (0,0,0 for none).
+  void reattach(zcls::Node* to, const float* offset);
 
   zcls::Node* node = nullptr;       // +0x04  `spotlight`
   bool on = false;                  // +0x08
