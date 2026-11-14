@@ -220,6 +220,7 @@ add_library(mw3core STATIC
   src/mech3/veh_controls.cpp
   src/mech3/veh_move.cpp
   src/mech3/veh_stealth.cpp
+  src/mech3/veh_basic_controls.cpp
   src/mech3/game_editor.cpp
   src/mech3/game_editor_net.cpp
   src/mech3/game_editor_tree.cpp
@@ -565,6 +566,7 @@ add_library(mw3probe SHARED
   tests/probe_veh_basic.cpp
   tests/probe_veh_fieldbase.cpp
   tests/probe_veh_stealth.cpp
+  tests/probe_basic_controls.cpp
   tests/probe_veh_dock.cpp
   tests/probe_veh_waynet.cpp
   tests/probe_bz2.cpp

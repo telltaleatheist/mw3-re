@@ -247,7 +247,7 @@ void vehicle_construct(BasicVehicle& v, Handle ctl, Handle node) {
   } else {
     h.controls_set_owner(v.controls, v);
   }
-  v.xe0 = 0;
+  v.xe0 = nullptr;
   h.cameras_once();
   if (node) {
     h.entity_set_node(v, node);
