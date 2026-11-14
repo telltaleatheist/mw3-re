@@ -109,6 +109,16 @@ Texture* find_in_list(int list, const char* name) {
   return nullptr;
 }
 
+bool has_texture(const char* name) {
+  for (int list = 0; list < 2; ++list)
+    for (Library* lib : g_libraries[list]) {
+      if (!lib || !open(*lib) || !lib->entries) continue;
+      for (int i = 0; i < lib->header.texture_count; ++i)
+        if (crt::msvc_stricmp(lib->entries[i].name, name) == 0) return true;
+    }
+  return false;
+}
+
 // Mech3.exe 1.2 @ 0x00518a30. Tries <name>.zbd for variant 0, else
 // <name><variant>.zbd and down to 0; a missing plain name also tries 8 down.
 void resolve_name(Library& lib) {

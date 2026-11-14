@@ -240,7 +240,15 @@ SkinEntry::SkinEntry(const SkinEntry& from) {
 bool SkinEntry::load(bool by_name, bool use_alt) {
   if (texture) return true;
   if (!name) return false;
-  const bool use = std::strcmp(name, "vult_d03_c") == 0 ? true : use_alt;  // 0x005e5790
+  // 0x005e5790: "vult_d03_c" takes its alternate. FIX (bug): no entry has that name; the Vulture's DESERT
+  // camo makes "vultur_d03_c" (its canopy top), which MW3's libraries lack, so the game drew its
+  // missing-texture checks there. Under SMALL FIXES the special case also takes that name when no library
+  // has it, as meant: its alternate "vult06_c" (dfn_vulture.zrd's ("vultur_d03" "vult06") with "_c").
+  // Pirate's Moon's rmechtex.zbd has vultur_d03_c, so there (and with a mod that adds it) nothing changes.
+  const bool special = std::strcmp(name, "vult_d03_c") == 0 ||
+                       (zfix::options().small_fixes && std::strcmp(name, "vultur_d03_c") == 0 &&
+                        !zimg::has_texture(name));
+  const bool use = special ? true : use_alt;
   const char* n = use ? alt : name;
   if (!by_name) {
     texture = g_skins.fetch_texture ? g_skins.fetch_texture(n) : zimg::cache_fetch(n);  // 0x005179d0

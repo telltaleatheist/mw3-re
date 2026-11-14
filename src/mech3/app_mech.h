@@ -577,6 +577,7 @@ struct MechTextures {
   std::vector<std::string> lod;    // the low-detail copy's
   std::string skin;                // the mech's skin's name
   int loaded = 0;                  // polygons whose texture has an image
+  int stand_in = 0;                // of them, the missing-texture checks (zimg::default_image, 0x005ecbc0)
 };
 bool mech_textures(void* mech, MechTextures* out);
 // For the tests: the mech's ceiling response (0x00423600) to `node` as the

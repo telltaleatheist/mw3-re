@@ -1773,7 +1773,8 @@ SUNFIRE, DESERT, WASP, SLATE, JUNGLE, ARCTIC and SPECTRE.
   0x005ecb40). Seen from outside (the mech lab, an external view, an enemy
   Vulture), the canopy looks like a placeholder. The other camos are whole.
   The developers seem to have meant the special case for this texture and
-  misspelt its name.
+  misspelt its name. The rebuild's SMALL FIXES makes it work as meant (the
+  canopy takes `vult06_c`).
 - **Five primary textures are missing from every library**: `bushwacker14`,
   `blkhwk16`, `cauldron01`, `cauldron08`, `owens13` (not in `rmechtex*.zbd` or
   `rimage.zbd`). Probably unused by the models; not checked.
