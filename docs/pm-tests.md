@@ -1190,3 +1190,11 @@ Salvage entered cold (the item above, 0x47f7c0, now with the real mission load):
 `pm_salvage_entered_cold_loads_the_lab_world_headless` pushes the Salvage State from the main menu with no world
 up: after its enter world 6 is up (Missions::current 6) and the screen made. Break: the load dropped (no world).
 
+## The pending tint's clear (2026-11-14)
+
+The audit's 0x57a770 (PM's tint clear, MW3's 0x5587b0, which MW3 never calls) is called only on the software
+path: PM's core frame (0x4838b0) and 0x483470, 0x483f30, 0x484530 call it after the software finish 0x57a5d0
+(MW3's 0x558610), and only when [0x62cf29] is clear. That byte copies [0x8c4b70], the Direct3D flag, at
+0x483700. Their hardware branch draws the tint ([0x8c4c14]) and leaves it pending, as MW3 does and as the port's
+GPU path does. So no tint lingers in the port that would not in PM's hardware mode. The row is labelled
+`software` (the software renderer is not ported).
