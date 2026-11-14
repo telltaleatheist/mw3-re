@@ -320,7 +320,7 @@ void VehBasicHooks::set_position(BasicVehicle& v, const float pos[3]) {
   unported("veh.vt+0x18", {ref(&v), zgame::bits(pos[0]), zgame::bits(pos[1]), zgame::bits(pos[2])});
 }
 
-// Mech3.exe 1.2 @ 0x004a3630. The exe writes the controls without asking
+// Mech3.exe 1.2 @ 0x004a3630, Pirate's Moon 1.0 @ 0x004a6a20 (its brain's way laid afresh at the end). The exe writes the controls without asking
 // whether there are any (a vehicle always has them unless their block could
 // not be had).
 void vehicle_place(BasicVehicle& v, const float pos[3], float yaw) {
@@ -338,6 +338,7 @@ void vehicle_place(BasicVehicle& v, const float pos[3], float yaw) {
   c.x20 = 0, c.x24 = 0;
   if (c.serial)
     for (int32_t i = 0; i < c.point_count && i < 15; ++i) c.points[i] = {p[0], p[1], p[2]};
+  h.brain_way_reset(v);  // Pirate's Moon
 }
 
 // --- the speeds and turns -----------------------------------------------------

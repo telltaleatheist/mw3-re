@@ -68,12 +68,12 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 4079 |
+| folded | 4081 |
 | replaced (SDL or the platform layer) | 263 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 121 |
 | software renderer | 112 |
-| MISSING LOGIC | 97 |
 | debug or dev tool: PORT (preserve) | 95 |
+| MISSING LOGIC | 94 |
 | dev dialog (MFC), its logic: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 80 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
@@ -83,8 +83,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 - **0x0045bcb0** (1 functions, 9 decomp lines; MISSING LOGIC): pm only, multiplayer, field bases: PM's dock idle state's +0x90 (its vtable 0x005e4b9c, MW3's 0x005c2540 +0x90 0x0045add0, which returns its argument): in a network game (the game's vt+0x28 is 3) with the player's mech powered down (vt+0xac), the nearest field base point to it (0x004e5580) is taken and, when the mech can dock there (0x0045be50), selected and the contact started (vt+0x10 with the mech); not powered down, the state's time is set to now (0x0045bcb0). So in PM's multiplayer powering down beside a field base starts the dock; the port has MW3's nothing
 - **0x00480260** (1 functions, 191 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's salvage screen set-up (MW3's 0x0047dcf0). Its room from the game (vt+0x5c bases, vt+0x60 tons) is ported (SalvageScreen::refill on Engine::salvage_bases / salvage_tons, with 0x00480840); its other differences, 191 lines, are still to read with the menus
-- **0x004a6a20** (1 functions, 76 decomp lines; MISSING LOGIC): pm only: MW3's 0x004a3630 (veh_basic_object.cpp vehicle_place: on the ground from 10 up plus 0.1, the heading, the commands cleared, the motion and the points reset) with one step at the end: the vehicle's controls (vt+0x14c), their pilot (vt+0x58) told to reset (vt+0x0c), so a basic vehicle placed (a script's move) restarts its AI's state; the port's vehicle_place stops before it. Constants by sign (x - (-10) written x + 10); the order-aware compare (tools/analysis/pm_shape_compare.py) finds nothing else
-- **0x004c78f0, 0x004c7910** (2 functions, 22 decomp lines; MISSING LOGIC): pm only, AI (read, pairs corrected: the address map gave MW3's 0x004c07d0 / ~AttackNet 0x004c0a60 / FormationNet's part): PM's vehicle-net part (vtable 0x005ed538; made by 0x004c72a0; constructor 0x004c78c0, deleting 0x004c78f0, destructor 0x004c7910) is a bare part: the order, the net at +0x18, a byte at +0x1c cleared, an empty run (0x005c7a30). MW3's VehiclePart (0x004c0ba0 / 0x004c0dc0 / run 0x004c0d60, zai_brain.h:363) keeps a home point for the leash, stacked on the brain's +0xe4 and taken off on the way out, and picks the mode's behaviour; PM's brain leashes from its own home (zai_brain_pm.h, BrainTickPm). The shared port builds MW3's VehiclePart for both games
 - **0x0056b230, 0x0056b2d0, 0x0056b540, 0x0056b580, 0x0056b980, 0x0056d040 ...** (87 functions, 6719 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
 - **0x00570b70** (1 functions, 722 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions; not MW3's 0x00552540 on PM's polygons: 700 features against 287, 44 of 51 kinds differ): a model of type 0 with polygons made into strips (0x2000) under Direct3D. It reaches nothing at load: mechlib's post-pass 0x00510ab0 and the world reader 0x005587e0 skip a model with 0x80, every type-0 mechlib model has it (1015 of 1017; the 2 others are facades, type 1, on which it returns at once) and so does every type-0 world model; the world's facades return at once too (test_pm_strips.py, tools/analysis/pm_strip_reach.py). Its only reach on shipped data is the crater reset's model re-read 0x00558440 (from 0x00517b30 / 0x00517ac0, ported), which passes 0x7fffffff, 4 with no 0x80 test: every ground model a crater reset reads again. The reset runs only from the craters' save restore 0x00519020, a zSave section the start-up switches off (0x0051a3e0(0) from 0x004826e0, as MW3's), so never in play: a preservation port at the end, not wired in (docs/pm-map.md, the models' form)
 - **0x0057a170** (1 functions, 30 decomp lines; MISSING LOGIC): pm only, minor, visual: PM's finish set-up (MW3's 0x005581c0, zrndr_tint.cpp:189 finish_init) fills the static's random table with 40000 bytes ([0x008c1a28] = 0x9c40) where MW3 and the port use 0x6400 (25600; static_fill's size, :204), so the static's noise repeats on another period; its scratch buffer is 0x3a9800 bytes (1600 x 1200 x 2) for MW3's 0x180000 (1024 x 768), which the port sizes its own way. Found by the layout-shift rule's use check (earlier labelled a layout shift)
@@ -447,7 +445,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 
 ## By module
 
-### mech3ep1 (3227 not ported)
+### mech3ep1 (3226 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -1101,7 +1099,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00431da0 | 26 | folded | covered by the port where it names it (src/mech3/mech_data.cpp:344) |
 | 0x00431e20 | 182 | folded | MW3's 0x00431a70 (load_animations), read: the same canned (0..2) and motion (2..6, 0, 1) reads, the transition checks with their error lines, the two animations' starting frames by the same branches (the compiler's order differs), and the action reads 2, 1, 6, 5, 4, 3, 7, 8 |
 | 0x00432a40 | 75 | folded | as MW3 0x004326d0: covered where the port does it: src/mech3/mech_data.cpp:219 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
-| 0x00432cd0 | 11 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:586) |
+| 0x00432cd0 | 11 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:590) |
 | 0x00432dd0 | 9 | folded | a thunk: one call to another function |
 | 0x00432de0 | 9 | folded | a thunk: one call to another function |
 | 0x004331c0 | 41 | folded | read after the feature compare's flags: MW3's 0x0041e350 (mech_dead.cpp) with the node's flag 8 set through a call (0x004fcf20), which the port's hook names for PM (mech_dead.h:25 set_flag8) |
@@ -2233,12 +2231,11 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004a6810 | 71 | debug or dev tool: PORT (preserve) | debug or dev tool: PORT (preserve): PM's app key handler's dev cases (0x0040ba30, its table over commands 0x69..0xaf, registered by 0x0040b9f0): 0x004a65a0 prints a numbered marker with the view mech's place and heading ("Marker %3d", "V: pos ..."); 0x004a6810 runs every one of the 25 slots of 0x006203f0 (vt+0x7c) and walks the entities' list for the view's; the port's app_key carries the game's three (0x69, 0x74, 0x78) |
 | 0x004a6940 | 32 | debug or dev tool: PORT (preserve) | as MW3 0x004a3550: debug key commands of 0x0040dba0, never registered in the release: a position marker printed to the console (0x004a3220), the mechs listed into the developer lines (0x004a33f0, command 0x89; hud.md), a vehicle picked in a dialog (0x004a3550, its destructor 0x004a35e0) |
 | 0x004a69d0 | 20 | debug or dev tool: PORT (preserve) | as MW3 0x004a35e0: debug key commands of 0x0040dba0, never registered in the release: a position marker printed to the console (0x004a3220), the mechs listed into the developer lines (0x004a33f0, command 0x89; hud.md), a vehicle picked in a dialog (0x004a3550, its destructor 0x004a35e0) |
-| 0x004a6a20 | 76 | MISSING LOGIC | pm only: MW3's 0x004a3630 (veh_basic_object.cpp vehicle_place: on the ground from 10 up plus 0.1, the heading, the commands cleared, the motion and the points reset) with one step at the end: the vehicle's controls (vt+0x14c), their pilot (vt+0x58) told to reset (vt+0x0c), so a basic vehicle placed (a script's move) restarts its AI's state; the port's vehicle_place stops before it. Constants by sign (x - (-10) written x + 10); the order-aware compare (tools/analysis/pm_shape_compare.py) finds nothing else |
 | 0x004a6d30 | 9 | folded | helpers inside the aim cone's constructor 0x004a6ec0 (checked by test_pm_firepoints there): a bound set to FLT_MAX (0x7f7fffff) |
 | 0x004a6e20 | 9 | folded | helpers inside the aim cone's constructor 0x004a6ec0 (checked by test_pm_firepoints there): a bound set to FLT_MAX (0x7f7fffff) |
 | 0x004a6e90 | 11 | folded | covered by the port where it names it (src/mech3/dir_limits_pm.cpp:76) |
-| 0x004a70e0 | 26 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:674) |
-| 0x004a7300 | 26 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:674) |
+| 0x004a70e0 | 26 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:675) |
+| 0x004a7300 | 26 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:675) |
 | 0x004a7480 | 22 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:237) |
 | 0x004a74e0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0040bf30, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004a7500 | 9 | debug or dev tool: PORT (preserve) | as MW3 0x004a4ca0: the stealth object (the developers' fly camera; back burner in CLAUDE.md): a slot of its |
@@ -2246,15 +2243,15 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004a7530 | 29 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:238) |
 | 0x004a75e0 | 20 | folded | covered by the port where it names it (src/mech3/game_editor_net.h:27) |
 | 0x004a7630 | 72 | folded | read with the order-aware compare (tools/analysis/pm_shape_compare.py): MW3's 0x004a4de0 (veh_stealth.cpp), ported; the same calls, tests and constants in order |
-| 0x004a77f0 | 12 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:1117) |
+| 0x004a77f0 | 12 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:1121) |
 | 0x004a7900 | 9 | debug or dev tool: PORT (preserve) | as MW3 0x004a50b0: the stealth object (the developers' fly camera; back burner in CLAUDE.md): a slot of its |
 | 0x004a7930 | 28 | debug or dev tool: PORT (preserve) | as MW3 0x004a50e0: the debug command 0x7e (0x004abbc0, 121 lines: a console of keyboard text and the network session; registered, but no key reaches it: app_keys.h:14, hud.md) and the stealth object's key handler (0x004a50e0: the fly camera, back burner) |
-| 0x004a79c0 | 20 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:522) |
+| 0x004a79c0 | 20 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:526) |
 | 0x004a7a00 | 27 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
 | 0x004a7e70 | 22 | folded | covered by the port where it names it (src/mech3/veh_stealth.cpp:190) |
 | 0x004a8090 | 26 | folded | covered by the port where it names it (src/mech3/veh_stealth.cpp:99) |
 | 0x004a8110 | 50 | folded | read with the order-aware compare: MW3's 0x004a58d0 (veh_stealth.h, the cursor's ray into the world), ported; the same calls and tests, the hits' 11-word stride for MW3's 10 (PM's longer ground hit) |
-| 0x004a82a0 | 20 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:451) |
+| 0x004a82a0 | 20 | folded | covered by the port where it names it (src/mech3/app_vehicle.cpp:455) |
 | 0x004a8370 | 13 | folded | covered by the port where it names it (src/mech3/veh_stealth.h:22) |
 | 0x004a83a0 | 8 | folded | returns a constant or a global |
 | 0x004a83c0 | 9 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.cpp:263) |
@@ -2493,7 +2490,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004ba190 | 73 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm) |
 | 0x004ba340 | 100 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm) |
 | 0x004ba5c0 | 9 | folded | as MW3 0x004b6370: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004ba5d0 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_pm.cpp:263) |
+| 0x004ba5d0 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_pm.cpp:265) |
 | 0x004ba5f0 | 15 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:528) |
 | 0x004ba630 | 10 | folded | ported, by docs/symbols.csv: ported; LookAround::start |
 | 0x004ba890 | 10 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1002) |
@@ -2716,8 +2713,8 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004c77a0 | 10 | folded | as MW3 0x004c07a0: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004c77b0 | 14 | folded | read: steps' make_state factories (a state built when the order is given: 0x004c78c0 / 0x004c7ad0 behind a null test, 0x004c6ef0 under the vtables 0x005ed4a0 / 0x005ed518); the port's make_state (zai_steps.h) |
 | 0x004c77e0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004c6f10, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x004c78f0 | 12 | MISSING LOGIC | pm only, AI (read, pairs corrected: the address map gave MW3's 0x004c07d0 / ~AttackNet 0x004c0a60 / FormationNet's part): PM's vehicle-net part (vtable 0x005ed538; made by 0x004c72a0; constructor 0x004c78c0, deleting 0x004c78f0, destructor 0x004c7910) is a bare part: the order, the net at +0x18, a byte at +0x1c cleared, an empty run (0x005c7a30). MW3's VehiclePart (0x004c0ba0 / 0x004c0dc0 / run 0x004c0d60, zai_brain.h:363) keeps a home point for the leash, stacked on the brain's +0xe4 and taken off on the way out, and picks the mode's behaviour; PM's brain leashes from its own home (zai_brain_pm.h, BrainTickPm). The shared port builds MW3's VehiclePart for both games |
-| 0x004c7910 | 10 | MISSING LOGIC | pm only, AI (read, pairs corrected: the address map gave MW3's 0x004c07d0 / ~AttackNet 0x004c0a60 / FormationNet's part): PM's vehicle-net part (vtable 0x005ed538; made by 0x004c72a0; constructor 0x004c78c0, deleting 0x004c78f0, destructor 0x004c7910) is a bare part: the order, the net at +0x18, a byte at +0x1c cleared, an empty run (0x005c7a30). MW3's VehiclePart (0x004c0ba0 / 0x004c0dc0 / run 0x004c0d60, zai_brain.h:363) keeps a home point for the leash, stacked on the brain's +0xe4 and taken off on the way out, and picks the mode's behaviour; PM's brain leashes from its own home (zai_brain_pm.h, BrainTickPm). The shared port builds MW3's VehiclePart for both games |
+| 0x004c78f0 | 12 | folded | read: PM's vehicle-net part's deleting destructor (0x004c7910, then the delete when bit 0): the port's PmVehiclePart's virtual destructor (zai_wire_nets_pm.h), nothing more to do |
+| 0x004c7910 | 10 | folded | read: PM's vehicle-net part's destructor: its vtable back to the base's (0x004c6f10, 0x005ecd6c) and nothing else; MW3's took the home off the brain, PM's part has none (PmVehiclePart, zai_wire_nets_pm.h) |
 | 0x004c7a10 | 11 | folded | covered by the port where it names it (src/mech3/zai_steps.h:279) |
 | 0x004c7a40 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004c7a60, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x004c7a60 | 10 | folded | read: small pieces: a slot calling 0x004e5640 with its vt+0x18; getters (+0x08); a valve record's two ranges squared at its end (0x004e9260); destructors putting the vtable back (0x004c7a60, 0x004c7b10) |
