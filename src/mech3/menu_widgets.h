@@ -15,39 +15,40 @@
 // Outside zTwoD they call the options and the app through mech3::Engine.
 namespace mech3 {
 
-// The background of the menus (vtable 0x005bc1b0), 0x13c bytes: unless
-// FastMenu, the image scrolls by (step_x, step_y) a frame and wraps, drawn as
-// up to four pieces cut at its edges.
+// The background of the menus, Pirate's Moon's (vtable 0x005e6ea8, 0x144 bytes; MW3's 0x005bc1b0):
+// unless FastMenu, the image scrolls by (step_x, step_y) pixels a second and wraps, drawn as up to
+// four pieces cut at its edges. MW3's moved a pixel a frame.
 class ScrollImage : public ztwod::Image {
  public:
-  explicit ScrollImage(Engine& e);   // in the screens' constructor 0x0040a110
-  void draw() override;              // +0x04  0x0040a490
-  void update(float dt) override;    // +0x24  0x0040a210
+  explicit ScrollImage(Engine& e);   // Pirate's Moon 0x00488470 (MW3's inline in 0x0040a110)
+  void draw() override;              // +0x04  0x00488880 (MW3's 0x0040a490)
+  void update(float dt) override;    // +0x24  0x004885b0 (MW3's 0x0040a210)
 
-  int32_t step_x = 1, step_y = 1;    // +0xbc
-  uint8_t piece[4] = {};             // +0xc4  draw this piece next (never set by the constructor)
-  int32_t piece_pos[4][2] = {};      // +0xc8  where each piece goes; the first at (0, 0)
-  ztwod::Rect view;                  // +0xe8  the image's part at the screen's top left
-  ztwod::Rect piece_src[4];          // +0xf8
-  uint8_t moving = 0;                // +0x138  not FastMenu
+  float step_x = 22.0f, step_y = 22.0f;  // +0xbc, +0xc0  pixels a second
+  float carry_x = 0.0f, carry_y = 0.0f;  // +0xc4, +0xc8  the step's fraction kept
+  uint8_t piece[4] = {};             // +0xcc  draw this piece next: the view, its right, the corner, its bottom
+  int32_t piece_pos[4][2] = {};      // +0xd0  where each piece goes; the first at (0, 0)
+  ztwod::Rect view;                  // +0xf0  the image's part at the screen's top left
+  ztwod::Rect piece_src[4];          // +0x100
+  uint8_t moving = 0;                // +0x140  not FastMenu
 
  private:
   Engine& e_;
-  float steps_ = 0.0f;               // FIX (B): frames of scrolling owed (not in the original)
 };
 
-// The main menu's title (MECH3TEXT, vtable 0x005bd988): unless FastMenu it
-// slides left `speed` pixels a frame and comes back in at the screen's right.
+// The main menu's title (MECH3TEXT, Pirate's Moon's vtable 0x005e6e28; MW3's 0x005bd988): unless
+// FastMenu it slides left `speed` pixels a second and comes back in at the screen's right. MW3's
+// slid 2 pixels a frame.
 class Marquee : public ztwod::Image {
  public:
-  explicit Marquee(Engine& e);       // in the main menu's constructor 0x00486260
-  void update(float dt) override;    // +0x24  0x0042fb30
+  explicit Marquee(Engine& e);       // Pirate's Moon 0x00488370 (MW3's inline in 0x00486260)
+  void update(float dt) override;    // +0x24  0x004883a0 (MW3's 0x0042fb30)
 
-  float speed = 2.0f;                // +0xbc
+  float speed = 50.0f;               // +0xbc
+  float carry = 0.0f;                // +0xc0  the step's fraction kept
 
  private:
   Engine& e_;
-  float steps_ = 0.0f;               // FIX (B): pixels owed (not in the original)
 };
 
 // A menu screen (vtable 0x005bc190): a dialog with the shell state that owns

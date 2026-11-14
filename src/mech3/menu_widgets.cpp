@@ -5,6 +5,7 @@
 #include "mech3/mech_salvage.h"
 #include "mech3/pilot.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <map>
 #include <cstring>
@@ -33,18 +34,31 @@ int32_t frames_due(float dt, float* owed) {
   *owed -= static_cast<float>(n);
   return n;
 }
+
+// Pirate's Moon's timed step (0x004885b0, 0x004883a0): speed x dt plus the fraction kept, rounded
+// (+ 0.5 from 0x005de818, then _ftol's truncation), what is left kept for the next frame.
+int32_t timed_step(float dt, float speed, float* carry) {
+  const double x = static_cast<double>(dt) * static_cast<double>(speed) + static_cast<double>(*carry);
+  const int32_t n = static_cast<int32_t>(x + 0.5);
+  *carry = static_cast<float>(x - static_cast<double>(n));
+  return n;
+}
+
+bool empty(const Rect& r) { return r.right <= r.left || r.bottom <= r.top; }  // IsRectEmpty
 }  // namespace
 
 // ---- the background ----
 
+// Pirate's Moon 1.0 @ 0x00488470: 22 pixels a second each way; the view one row short of the
+// screen ([0x0062d87c] its height - 1).
 ScrollImage::ScrollImage(Engine& e) : Image(0), e_(e) {
   const int32_t h = e_.display_height();
   const int32_t w = e_.display_width();
-  view = Rect{0, 0, w, h};
+  view = Rect{0, 0, w, h - 1};
   moving = e_.fast_menu() ? 0 : 1;
 }
 
-// Mech3.exe 1.2 @ 0x0040a490
+// Mech3.exe 1.2 @ 0x0040a490, Pirate's Moon 1.0 @ 0x00488880 (the same: [0x00609588]'s 4 pieces)
 void ScrollImage::draw() {
   if (!moving) {
     Image::draw();
@@ -59,55 +73,53 @@ void ScrollImage::draw() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0040a210: the view moves and wraps at the image's size;
-// piece 0 is the view cut at the image's right and bottom edges, pieces 1 and 2
-// fill the screen past them from the image's left and top, piece 3 the corner.
+// Pirate's Moon 1.0 @ 0x004885b0 (MW3's 0x0040a210 moved a pixel a frame): the step is taken
+// whether or not the image moves; the view wraps at the image's size. Piece 0 is the view inside
+// the image, 1 the rest of its right from the image's left, 2 the corner, 3 its bottom from the
+// image's top, full width (the blit cuts it to the image; MW3's stopped at piece 0's right).
 void ScrollImage::update(float dt) {
+  const int32_t nx = timed_step(dt, step_x, &carry_x);
+  const int32_t ny = timed_step(dt, step_y, &carry_y);
   if (moving) {
-    const int32_t n = frames_due(dt, &steps_);
-    view.left += step_x * n;
-    view.right += step_x * n;
-    view.bottom += step_y * n;
-    view.top += step_y * n;
-    if (view.left >= width_of(image)) {
-      view.left -= width_of(image);
-      view.right = e_.display_width() + view.left;
+    const int32_t iw = width_of(image), ih = height_of(image);
+    view.left += nx;
+    view.right += nx;
+    view.top += ny;
+    view.bottom += ny;
+    if (iw <= view.left) {
+      view.left -= iw;
+      view.right = view.left + e_.display_width();
     }
-    if (view.top >= height_of(image)) {
-      view.top -= height_of(image);
-      view.bottom = e_.display_height() + view.top;
+    if (ih <= view.top) {
+      view.top -= ih;
+      view.bottom = view.top + e_.display_height() - 1;
     }
+    Rect& p0 = piece_src[0];  // IntersectRect with the image
+    p0 = Rect{std::max(view.left, 0), std::max(view.top, 0), std::min(view.right, iw), std::min(view.bottom, ih)};
+    if (empty(p0)) p0 = Rect{0, 0, 0, 0};
+    const int32_t w = p0.right - p0.left, h = p0.bottom - p0.top;
+    Rect& right = piece_src[1];
+    Rect& corner = piece_src[2];
+    Rect& bottom = piece_src[3];
+    right = Rect{p0.right, p0.top, view.right, p0.bottom};
+    corner = Rect{p0.right, p0.bottom, view.right, view.bottom};
+    bottom = Rect{view.left, p0.bottom, view.right, view.bottom};
+    piece_pos[0][0] = piece_pos[0][1] = 0;
     piece[0] = 1;
-    Rect& p0 = piece_src[0];
-    p0 = view;
-    // (a second test, right < right, follows each of these: never true)
-    piece[1] = 0;
-    if (p0.right > width_of(image)) {
-      p0.right = width_of(image);
-      piece[1] = 1;
-    }
-    piece[2] = 0;
-    if (p0.bottom > height_of(image)) {
-      p0.bottom = height_of(image);
-      piece[2] = 1;
-    }
-    piece[3] = piece[1] && piece[2] ? 1 : 0;
-    const int32_t w = p0.right - p0.left;
-    const int32_t h = p0.bottom - p0.top;
+    piece[1] = !empty(right);
     if (piece[1]) {
-      piece_src[1] = Rect{0, p0.top, e_.display_width() - w, p0.bottom};
-      piece_pos[1][0] = w;
-      piece_pos[1][1] = 0;
+      right = Rect{0, right.top, right.right - right.left, right.bottom};
+      piece_pos[1][0] = w, piece_pos[1][1] = 0;
     }
+    piece[2] = !empty(corner);
     if (piece[2]) {
-      piece_src[2] = Rect{p0.left, 0, p0.right, e_.display_height() - h};
-      piece_pos[2][0] = 0;
-      piece_pos[2][1] = h;
+      corner = Rect{0, 0, corner.right - corner.left, corner.bottom - corner.top};
+      piece_pos[2][0] = w, piece_pos[2][1] = h;
     }
+    piece[3] = !empty(bottom);
     if (piece[3]) {
-      piece_src[3] = Rect{piece_src[1].left, piece_src[2].top, piece_src[1].right, piece_src[2].bottom};
-      piece_pos[3][0] = w;
-      piece_pos[3][1] = h;
+      bottom = Rect{bottom.left, 0, bottom.right, bottom.bottom - bottom.top};
+      piece_pos[3][0] = 0, piece_pos[3][1] = h;
     }
   }
   Object2D::update(dt);
@@ -117,15 +129,11 @@ void ScrollImage::update(float dt) {
 
 Marquee::Marquee(Engine& e) : Image(0), e_(e) {}
 
-// Mech3.exe 1.2 @ 0x0042fb30
+// Pirate's Moon 1.0 @ 0x00488370 (the constructor: 50 pixels a second) and 0x004883a0 (MW3's
+// 0x0042fb30 slid 2 pixels a frame)
 void Marquee::update(float dt) {
   if (!e_.fast_menu()) {
-    int32_t step = static_cast<int32_t>(speed);
-    if (zfix::options().per_second) {
-      steps_ += speed * zfix::frame_steps(dt);
-      step = static_cast<int32_t>(steps_);
-      steps_ -= static_cast<float>(step);
-    }
+    const int32_t step = timed_step(dt, speed, &carry);
     const int32_t py = get_y();
     set_pos(get_x() - step, py);
     if (get_x() + width_of(image) <= 0) {
