@@ -3,6 +3,7 @@
 
 #include "gamez/zgame/unported.h"
 #include "mech3/veh_controls.h"
+#include "mech3/zainet105.h"
 
 // The basic vehicle's own controls (docs/vehicles.md, The basic vehicle's own controls): what a vehicle made
 // without AI controls makes for itself (0x004ac860(0xa70), then 0x004ae270). Ported for preservation, not wired
@@ -10,21 +11,8 @@
 // Original file unknown: these sit after the basic vehicle (0x004ac750..) and before mech3\weapon.cpp.
 namespace mech3 {
 
-// A record of the version-105 AI nets ([0x005f4c4c], 0x5c bytes, made by 0x004021c0; docs/ai.md 17.9), as the
-// basic controls read it. A stand-in until that group (dev 1's ai::Net105, zainet105.h) lands: only the fields
-// these controls read, by its names.
-struct Net105Record {
-  int32_t id = 0;                 // +0x18  the net's number, the controls' +0xa04
-  int32_t kind = 0;               // +0x30  type "ST" 0 (the waypoints, mode 0), "HI" 1 (mode 2), "FI" 2 (mode 3)
-  float activate_rad = 0;         // +0x38  each of these 0: the vehicle definition's, else the default
-  float attack_rad = 0;           // +0x3c
-  float attack_dwell = 0;         // +0x40
-  float not_pursuit_dwell = 0;    // +0x44
-  float pursuit_range[2] = {};    // +0x48, +0x4c  the larger first
-  float return_range = 0;         // +0x50
-  Net105Record* next = nullptr;   // +0x58
-};
-Net105Record*& net105_records();  // [0x005f4c4c], the list's head
+// The record a net number names: a version-105 AI net (mech3/zainet105.h, ai::Net105) on [0x005f4c4c].
+using Net105Record = ai::Net105;
 
 struct BasicControls;
 

@@ -61,26 +61,20 @@ extern "C" {
 int probe_basic_controls(uint32_t ctl, uint32_t owner, uint32_t node, int32_t net, uint32_t head, int32_t state0,
                          uint32_t rec0, uint32_t def, uint32_t arg2, int32_t net2, uint32_t* out) {
   m3::set_basic_controls_hooks(&g_hooks);
-  std::vector<std::unique_ptr<m3::Net105Record>> recs;
   g_rec_addr.clear();
-  m3::Net105Record* prev = nullptr;
-  m3::Net105Record* first = nullptr;
+  m3::ai::nets105_free();
   std::map<uint32_t, m3::Net105Record*> by_addr;
   for (uint32_t a = head; a; a = peek(a + 0x58)) {
-    auto r = std::make_unique<m3::Net105Record>();
-    r->id = static_cast<int32_t>(peek(a + 0x18));
+    auto* r = new m3::Net105Record;
+    r->x18 = static_cast<int32_t>(peek(a + 0x18));
     r->kind = static_cast<int32_t>(peek(a + 0x30));
     r->activate_rad = peekf(a + 0x38), r->attack_rad = peekf(a + 0x3c), r->attack_dwell = peekf(a + 0x40);
-    r->not_pursuit_dwell = peekf(a + 0x44), r->pursuit_range[0] = peekf(a + 0x48), r->pursuit_range[1] = peekf(a + 0x4c);
+    r->not_pursuit_dwell = peekf(a + 0x44), r->pursuit_far = peekf(a + 0x48), r->pursuit_near = peekf(a + 0x4c);
     r->return_range = peekf(a + 0x50);
-    g_rec_addr[r.get()] = a;
-    by_addr[a] = r.get();
-    if (prev) prev->next = r.get();
-    else first = r.get();
-    prev = r.get();
-    recs.push_back(std::move(r));
+    g_rec_addr[r] = a;
+    by_addr[a] = r;
+    m3::ai::nets105_append(r);
   }
-  m3::net105_records() = first;
   m3::BasicVehicle v;
   v.node = hd(node);
   g_v = &v;
@@ -108,7 +102,7 @@ int probe_basic_controls(uint32_t ctl, uint32_t owner, uint32_t node, int32_t ne
   out[n++] = static_cast<uint32_t>(c.path_mode());
   out[n++] = c.net_node ? static_cast<uint32_t>(c.path_goal()) : 0;
   out[n++] = c.destroyed() ? 1 : 0;
-  m3::net105_records() = nullptr;
+  m3::ai::nets105_free();
   g_c = nullptr, g_v = nullptr;
   m3::set_basic_controls_hooks(nullptr);
   return n;

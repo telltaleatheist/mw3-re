@@ -9,7 +9,6 @@
 namespace mech3 {
 
 namespace {
-Net105Record* g_records = nullptr;  // [0x005f4c4c]
 BasicControlsHooks g_default;
 BasicControlsHooks* g_hooks = &g_default;
 BasicControlsHooks& hk() { return *g_hooks; }
@@ -17,7 +16,6 @@ BasicControlsHooks& hk() { return *g_hooks; }
 bool zero(float f) { return !(f < 0.0f || f > 0.0f); }
 }  // namespace
 
-Net105Record*& net105_records() { return g_records; }
 BasicControlsHooks& basic_controls_hooks() { return *g_hooks; }
 void set_basic_controls_hooks(BasicControlsHooks* h) { g_hooks = h ? h : &g_default; }
 
@@ -26,8 +24,8 @@ void BasicControlsHooks::base_setup(BasicControls& c, zrdr::Node* def, uint32_t)
 
 // Mech3.exe 1.2 @ 0x004022c0: the record whose +0x18 is the number.
 Net105Record* BasicControlsHooks::record(int32_t id) {
-  for (Net105Record* r = net105_records(); r; r = r->next)
-    if (r->id == id) return r;
+  for (Net105Record* r = ai::nets105(); r; r = r->next)
+    if (r->x18 == id) return r;
   return nullptr;
 }
 
@@ -64,8 +62,8 @@ void BasicControls::init() {
   activate_rad = sq(record->activate_rad, 102400.0f);   // [0x005c8c90]
   attack_rad = sq(record->attack_rad, 1500.0f);                   // [0x005c8c98]
   attack_dwell = zero(record->attack_dwell) ? 10.0f : record->attack_dwell;
-  pursuit_near = sq(record->pursuit_range[1], 4624.0f);
-  pursuit_far = sq(record->pursuit_range[0], 4900.0f);
+  pursuit_near = sq(record->pursuit_near, 4624.0f);
+  pursuit_far = sq(record->pursuit_far, 4900.0f);
   not_pursuit_dwell = zero(record->not_pursuit_dwell) ? 3.0f : record->not_pursuit_dwell;
   return_range = sq(record->return_range, 62500.0f);
   xa18 = 0;
@@ -88,11 +86,11 @@ void BasicControls::setup_with(zrdr::Node* def, uint32_t arg2, int32_t net_numbe
     activate_rad = f * f;
   }
   if ((n = h.reader_find(def, "pursuit_range"))) {
-    if (zero(record->pursuit_range[1])) {
+    if (zero(record->pursuit_near)) {
       const float f = h.reader_float(n, 1);
       pursuit_near = f * f;
     }
-    if (zero(record->pursuit_range[0])) {
+    if (zero(record->pursuit_far)) {
       const float f = h.reader_float(n, 2);
       pursuit_far = f * f;
     }
