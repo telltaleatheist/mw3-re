@@ -975,6 +975,7 @@ int pick_cells(Node* world, Camera* cam) {
   const int32_t cols = w->get<int32_t>(0x88) - 1, rows = w->get<int32_t>(0x8c) - 1;
   auto clamp = [](int32_t v, int32_t hi) { return v > hi ? hi : (v < 0 ? 0 : v); };
   x0 = clamp(x0, cols), x1 = clamp(x1, cols), z0 = clamp(z0, rows), z1 = clamp(z1, rows);
+  g_walk.picked[0] = x0, g_walk.picked[1] = z0, g_walk.picked[2] = x1, g_walk.picked[3] = z1;  // PM 0x005092a0 keeps them
   const uint32_t cam_mask = cell_at(w, cx, cz).get<uint32_t>(4);
   for (int32_t x = x0; x <= x1; ++x) {
     for (int32_t z = z0; z <= z1; ++z) {
@@ -1011,6 +1012,7 @@ int pick_cells_virtual(Node* world, Camera* cam) {
   world_cell_wrapped(world, &x0, min_x, min_z, &z0, &a, &b, &inside);
   world_cell_wrapped(world, &x1, max_x, max_z, &z1, &c, &e, &inside);
   if (z0 > z1) std::swap(z0, z1);  // (the exe also swaps the unused wrapped rows)
+  g_walk.picked[0] = x0, g_walk.picked[1] = z0, g_walk.picked[2] = x1, g_walk.picked[3] = z1;  // PM 0x00509830 keeps them
   const uint32_t cam_mask = cell_at(w, wx, wz).get<uint32_t>(4);
   for (int32_t x = x0; x <= x1; ++x) {
     for (int32_t z = z0; z <= z1; ++z) {
@@ -1153,14 +1155,26 @@ int render_cells(Node* world, Node* camera_node, Camera* cam) {
 
 // Mech3.exe 1.2 @ 0x004f6c00 (ECX world node): the world's direct children
 // with all six planes, EDX 2.
+// Pirate's Moon 1.0 @ 0x0050a550: a child spanning cells is drawn only when
+// its range (PM's world_add_child: +0x4c, +0x50, the far corner after) meets the picked cells.
 int render_world_children(Node* world) {
   if (zmod::shadows_on()) zmod::use_all_casters();
   zmod::mask_top() = 0x3f;
-  for (int32_t i = 0; i < world->child_count(); ++i) render_node(world->children[i], 2);
+  const bool by_cells = zgame::game().world_children_by_cells;
+  const int32_t* r = g_walk.picked;
+  for (int32_t i = 0; i < world->child_count(); ++i) {
+    Node* c = world->children[i];
+    if (by_cells && !(c->flags() & 0x80) &&
+        !(c->get<int32_t>(0x4c) <= r[2] && r[0] <= c->pm_virtual[0] && c->get<int32_t>(0x50) <= r[3] &&
+          r[1] <= c->pm_virtual[1]))
+      continue;
+    render_node(c, 2);
+  }
   return 0;
 }
 
 // Mech3.exe 1.2 @ 0x004f6c50 (ECX world node, EDX camera node, stack camera data)
+// Pirate's Moon 1.0 @ 0x0050a5d0
 int render_scene(Node* world, Node* camera_node, Camera* cam) {
   render_cells(world, camera_node, cam);
   return render_world_children(world);

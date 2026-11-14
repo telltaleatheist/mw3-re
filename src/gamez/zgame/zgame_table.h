@@ -106,6 +106,9 @@ struct Table {
   // gwNodeUpdate's light nodes (class.cpp, 0x004eca00; PM 0x004fe510): PM updates one as the node walk reaches it
   // (0x0050f270, the shared light_update), also a light no world lists; MW3 reports its class unknown.
   bool node_update_lights;
+  // The scene render's world children (camera.cpp render_world_children; PM 0x0050a550): PM draws one only
+  // when flagged 0x80 or its cell range meets the cells just picked; MW3 draws them all.
+  bool world_children_by_cells;
 };
 
 const Table& mw3_table();

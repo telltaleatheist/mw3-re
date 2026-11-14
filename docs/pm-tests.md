@@ -981,3 +981,15 @@ session row at a fixed frame (`pm_mode_pair`: 100,143 at frame 420 past the shif
 filled by LAN discovery in real time and the hidden runs go faster than that: when the answer comes after the
 click, nothing clicks again. The run is at fault, not the limit. A click that waits for the list (as
 `--click-players` waits for players) would end the race for every pair test; not done here.
+
+## The scene render's cell cull (2026-11-14)
+
+PM's scene render (0x50a5d0) draws the world's direct children through 0x50a550, which skips a child
+whose cell range (PM's world_add_child keeps x0, z0, x1, z1 as shorts at +0x4c..+0x52) misses the cells the
+picker just chose ([0x639020..0x63902c], kept by 0x5092a0 clamped and by the virtual picker 0x509830
+unwrapped); a child flagged 0x80 is always drawn. MW3's 0x4f6c00 draws every one. The port keeps the range in
+the walk state (`SceneWalk::picked`, both pickers) and culls behind the table's `world_children_by_cells`.
+`test_pm_scene_children.py` runs 0x50a550 against the port on crafted edges (touching, one past, every side)
+and 300 random ranges: 301 scenes, the drawn children in order. Breaks: the flag off (247 differ), `<` for
+`<=` (42), the 0x80 test dropped (219). `test_pm_walk.py` (the whole world render on the four worlds) still
+matches draw for draw. Not visible in play: a culled child lies outside the camera's footprint.
