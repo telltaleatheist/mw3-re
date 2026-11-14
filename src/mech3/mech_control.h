@@ -105,6 +105,9 @@ struct MechControls {
     jump_held = hold;
   }
   virtual void zero();           // vt+0x18, 0x00428910
+  // Pirate's Moon 1.0 @ 0x00428940 (vt+0x1c, new): every input but the throttle and its target to 0 (the resume
+  // from the pause, the Core state's 8); the player's 0x004289d0 the look's too.
+  virtual void zero_held();
   void stop();                   // 0x00428490 (IControls +0x14): throttle, turn, jump and both jump-jet axes 0
   // 0x00426c10 (IControls +0x4c, Stop; its argument unused): the turn, pitch
   // and jump-jet axes zeroed at once, the throttle, turn and jump targets 0,
@@ -125,6 +128,7 @@ struct PlayerControls : MechControls {
   float look_dx = 0, look_dy = 0;  // +0x138, +0x13c  the mouse look's motion (view 2)
   float look_x = 0, look_y = 0;    // +0x140, +0x144  its position
   void zero() override;           // 0x004289a0: the look's too
+  void zero_held() override;      // Pirate's Moon 1.0 @ 0x004289d0: the look's too (PM's +0x158..+0x164)
   // +0x5c: the pilot's AI settings (0x004d9840: the defaults, vtable
   // 0x005cd348), the launch's aiv.zrd "player" record (IControls vt+0x88);
   // only its vlist (+0x12c) is read, by the tick.

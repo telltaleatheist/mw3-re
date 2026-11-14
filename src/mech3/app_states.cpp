@@ -824,6 +824,9 @@ void CoreState::resume(uint32_t arg) {
     if (id != en.field32(en.field32(mech, 0x684), 0xc)) en.pilot_set_mech(en.pilot(), id);
     const Handle cfg2 = en.vcall(en.field32(en.pilot(), 0x6c), 0x34, {0});
     en.mech_apply_config(en.field32(en.pilot(), 0x14), en.field32(cfg2, 0x8));
+  } else if (arg == 8) {  // PM's 8 (Pirate's Moon 1.0 @ 0x00483de0): back from the pause's RESUME
+    en.input_reset();                                 // 0x005349d0
+    en.mech_controls_settle(en.field32(en.pilot(), 0x14));  // its controls' vt+0x1c: the held inputs but the throttle
   } else if (arg == 7) {  // PM's 9 (Pirate's Moon 1.0 @ 0x00483de0)
     en.input_reset();
     en.mission_started();  // 0x004f9960: the listeners' slot +0x10

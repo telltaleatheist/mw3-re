@@ -74,13 +74,14 @@ void PauseScreen::on_button(int32_t id, int32_t a, int32_t b) {
   Engine& e = engine();
   const int32_t kind = e.game_kind();
   switch (id) {
-    case kResume:
-      state_escape();
+    case kResume:  // Pirate's Moon 1.0 @ 0x00496220, 0x00496650 (its thunk): the sounds back, then the pop with 8 (MW3's 6), which the Core
+                   // state's resume takes as back from the pause (the held inputs but the throttle zeroed)
       e.sound_resume_all(sounds);
       e.sound_release_all(sounds);
       sounds = 0;
       e.sound_restore_playing(groups);
       groups = 0;
+      e.pop_state(8);
       return;
     case kQuit:
       break;
