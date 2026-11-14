@@ -89,7 +89,7 @@ struct LineHooks : WeaponLinePmHooks {
     return a ? &a->x : kZeros;
   }
   int32_t rand() override { return brain_hooks().rand(); }
-  bool quiet() override { return false; }  // [0x0062f86c], a debug switch, off
+  bool quiet() override { return pm_line_quiet(); }  // [0x0062f86c]: set only around a forced start's line
 };
 WeaponLinePm line_of(const Weapon& w) {
   WeaponLinePm o;
@@ -112,6 +112,12 @@ void pm_set_aim_floor(Weapon& w, float rate) {
   const bool off = w.part && (!n || !k.node_id || k.node_id(n) != 1);
   w.aim_floor = off ? rate : -1.0f;
 }
+
+namespace {
+bool g_line_quiet = false;  // [0x0062f86c]
+}  // namespace
+bool pm_line_quiet() { return g_line_quiet; }
+void pm_set_line_quiet(bool on) { g_line_quiet = on; }
 
 // The weapon's line (0x004b7800) for the port's Weapon::aim and set_enabled (weapon.cpp, Pirate's Moon's).
 bool pm_weapon_line(Weapon& w, const Vec3f* at, Vec3f* muzzle, Vec3f* dir, float* cos, float* kept) {

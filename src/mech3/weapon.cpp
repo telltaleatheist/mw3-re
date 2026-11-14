@@ -26,9 +26,18 @@ namespace mech3 {
 namespace ai {
 // Pirate's Moon's weapon line 0x004b7800 on the port's weapon (zai_wire_firing_pm.cpp).
 bool pm_weapon_line(Weapon& w, const Vec3f* at, Vec3f* muzzle, Vec3f* dir, float* cos, float* kept);
+void pm_set_line_quiet(bool on);
 }  // namespace ai
 namespace {
 bool pm_line(Weapon& w, const Vec3f* at, Vec3f* mz, Vec3f* dir, float* cos, float* kept);
+// Pirate's Moon's forced start (0x004b7600, 0x004b8030): the line run with [0x0062f86c] set, no facing test, its
+// answer and its cosines unread.
+void forced_line(Weapon& w, const Vec3f* at, Vec3f* mz, Vec3f* dir) {
+  float cos = 0, kept = 0;
+  ai::pm_set_line_quiet(true);
+  pm_line(w, at, mz, dir, &cos, &kept);
+  ai::pm_set_line_quiet(false);
+}
 }  // namespace
 
 using zrdr::Node;
@@ -1504,12 +1513,17 @@ bool Weapon::fire(const Vec3f* velocity) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x004b3660
+// Mech3.exe 1.2 @ 0x004b3660, Pirate's Moon 1.0 @ 0x004b7600: forced (the network's fire), the weapon fires
+// whatever its line says, the line not facing-tested (MW3's forced fire still returned on a failed aim).
 bool Weapon::aim_and_fire(const Vec3f* at, bool force) {
   if (!force && !can_fire()) return false;
   const Vec3f* vel = g_calls.vehicle_velocity ? g_calls.vehicle_velocity(manager->vehicle) : nullptr;
   target = *at;
-  if (!aim(&target, &muzzle, &direction, vel)) return false;
+  if (!force) {
+    if (!aim(&target, &muzzle, &direction, vel)) return false;
+  } else {
+    forced_line(*this, &target, &muzzle, &direction);
+  }
   x6c = 0;
   return fire(vel);
 }
@@ -1614,11 +1628,16 @@ float BeamWeapon::ready() const {
   return static_cast<float>(bin->left()) / static_cast<float>(bin->capacity());
 }
 
-// Mech3.exe 1.2 @ 0x004b3f40
-bool BeamWeapon::aim_and_fire(const Vec3f* at, bool) {
-  if (!can_fire()) return false;
+// Mech3.exe 1.2 @ 0x004b3f40, Pirate's Moon 1.0 @ 0x004b8030: forced, as the projectile's (MW3's beam had no forced
+// path). Nothing forces a beam in PM: the network's fire sends beams to trigger, held and release (0x004b4750).
+bool BeamWeapon::aim_and_fire(const Vec3f* at, bool force) {
+  if (!force && !can_fire()) return false;
   aim_at = at;
-  if (!aim(const_cast<Vec3f*>(at), &muzzle, &direction, nullptr)) return false;
+  if (!force) {
+    if (!aim(const_cast<Vec3f*>(at), &muzzle, &direction, nullptr)) return false;
+  } else {
+    forced_line(*this, at, &muzzle, &direction);
+  }
   if (!beam) {
     Handle owner_node = g_calls.vehicle_node ? g_calls.vehicle_node(manager->vehicle) : nullptr;
     if (g_calls.beam_create) beam = g_calls.beam_create(def, owner_node, node, &muzzle, &direction);

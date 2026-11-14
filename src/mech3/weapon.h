@@ -185,7 +185,7 @@ struct Weapon {
   virtual void update(float dt);                           // +0x18, 0x004b2c20
   virtual bool lock_on(Handle target, bool* fcs);          // +0x1c, 0x004b3370
   virtual bool try_lock(Handle record, bool* fcs);         // +0x20, 0x004b3330
-  virtual bool aim_and_fire(const Vec3f* at, bool force);  // +0x24, 0x004b3660
+  virtual bool aim_and_fire(const Vec3f* at, bool force);  // +0x24, 0x004b3660 (PM +0x30, 0x004b7600)
   virtual bool trigger();                                  // +0x28, 0x004b3190
   virtual void release();                                  // +0x2c, 0x004b3260
   virtual void held();                                     // +0x30, 0x004b3280
@@ -222,7 +222,7 @@ struct BeamWeapon : Weapon {           // vtable 0x005c90c0, 0xa4 bytes
   float dps() const override;                              // 0x004b4e50
   int32_t ammo() const override { return -1; }             // 0x004a5260
   void update(float dt) override;                          // 0x004b4230
-  bool aim_and_fire(const Vec3f* at, bool force) override; // 0x004b3f40
+  bool aim_and_fire(const Vec3f* at, bool force) override; // 0x004b3f40 (PM 0x004b8030)
   bool trigger() override;                                 // 0x004b3fc0
   void release() override;                                 // 0x004b4180
   void held() override;                                    // 0x004b41b0
