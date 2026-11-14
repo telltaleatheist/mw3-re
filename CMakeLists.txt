@@ -748,6 +748,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mission.cpp tests/pm/pm_kill.cpp
     tests/pm/test_pm_model_users.cpp
     tests/pm/test_pm_model_bound.cpp  # the model reader's bound on PM's reader (FIX (A) memory safety)
+    tests/pm/test_pm_weapon_update.cpp  # PM's weapon manager frame (0x004b4a90)
     tests/test_model_bound.cpp  # (main's, shared) the same bound on MW3's reader
     tests/test_child_limits.cpp  # (main's, shared) a forked test child's own memory and time caps
     tests/pm/test_pm_objectives.cpp

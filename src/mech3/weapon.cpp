@@ -798,9 +798,17 @@ void WeaponManager::set_online(bool on) {
   online = on;
 }
 
-// Mech3.exe 1.2 @ 0x004b0c30. Chain fire (mode 0) steps to the group's next
-// weapon on release; an alpha strike holds everything for its time.
+// Mech3.exe 1.2 @ 0x004b0c30, Pirate's Moon 1.0 @ 0x004b4a90. Chain fire (mode 0) steps to the group's next
+// weapon on release; an alpha strike holds everything for its time. PM: nothing runs without weapons; the fire mode
+// is spoken (0x004b46c0, the port's mode_sound) once a second has passed since the key (mode_until, set by
+// 0x004b4690); in chain fire a failed first trigger stays held when the current weapon is off (+0x78, the port's
+// enabled), and a release refreshes the view player's HUD when it is.
 void WeaponManager::update(float dt) {
+  if (count == 0) return;
+  if (mode_until != 0.0f && mode_until < g_world.clock) {
+    mode_sound();
+    mode_until = 0.0f;
+  }
   for (uint32_t i = 0; i < count; ++i) weapons[i]->update(dt);
   // FIX (bug): without a selected group the original calls through a null
   // group (a crash); here nothing fires (docs/fixes.md).
@@ -810,7 +818,10 @@ void WeaponManager::update(float dt) {
     if (trigger_down) {
       if (!trigger_was) {
         state = 1;
-        if (!g || !g->trigger()) trigger_down = false;
+        if (!g || !g->trigger()) {
+          const bool held = mode == 0 && g && g->current_weapon && !g->current_weapon->enabled;
+          if (!held) trigger_down = false;
+        }
       } else {
         state = 2;
         if (g) g->held();
@@ -819,7 +830,11 @@ void WeaponManager::update(float dt) {
       state = 3;
       if (g) {
         g->release();
-        if (mode == 0) g->next();
+        if (mode == 0) {
+          const bool off = g->current_weapon && !g->current_weapon->enabled;
+          g->next();
+          if (off) refresh_hud();
+        }
       }
     }
   } else if (!(g_world.clock < alpha_end)) {
