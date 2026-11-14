@@ -653,6 +653,7 @@ add_executable(mw3tests
   tests/test_mod_copy_report.cpp
   tests/test_net_save.cpp
   tests/test_save_entry.cpp
+  tests/test_weapon_save.cpp
   tests/test_new_weapon.cpp
   tests/test_salvage_chance.cpp
   tests/test_loadout_fallback.cpp
