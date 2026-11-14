@@ -260,6 +260,51 @@ int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemi
 }
 int pm_missile_hits() { return g_missile_hits; }
 
+// pm-tests, a shot's flight under the real loop (PM_SHOT_FLIGHT): the player's first weapon that fires rounds fired
+// once, its newest round followed while it lives (at most 30 frames): the distance it covered against its speed times
+// its age, and its frame stamp against the counter. 0 while following, 1 measured, -1 no such weapon.
+int pm_shot_flight(void* player, int since, float* travelled, float* expected, int* seen, char* name, size_t n) {
+  static zwep::Projectile* shot = nullptr;
+  static float from[3], speed = 0;
+  static int frames = 0;
+  static Weapon* w = nullptr;
+  auto* me = static_cast<Mech*>(player);
+  auto* wm = static_cast<WeaponManager*>(me->ammo);
+  me->heat = 0.0f;
+  if (since == 1) {
+    shot = nullptr, w = nullptr, frames = 0;
+    for (uint32_t i = 0; wm && i < wm->count && !w; ++i)
+      if (Weapon* c = wm->weapons[i]; c && !c->is_beam() && c->def) w = c;
+    if (!w) return -1;
+    std::snprintf(name, n, "%s", w->def->desc ? w->def->desc : "?");
+  }
+  if (!w) return -1;
+  if (!shot) {
+    if (w->can_fire()) w->trigger();
+    zwep::Projectile* newest = nullptr;
+    for (auto* p = static_cast<zwep::Projectile*>(w->def->active); p; p = p->next) newest = p;
+    if (!newest) return since > 600 ? -1 : 0;
+    shot = newest;
+    from[0] = shot->position.x, from[1] = shot->position.y, from[2] = shot->position.z;
+    std::printf("  shot of %s: stamp %u, frame %u, velocity %.1f\n", name, shot->frame_stamp, zcls::frames().frame,
+                std::sqrt(shot->velocity.x * shot->velocity.x + shot->velocity.y * shot->velocity.y + shot->velocity.z * shot->velocity.z));
+    return 0;
+  }
+  bool alive = false;
+  for (auto* p = static_cast<zwep::Projectile*>(w->def->active); p; p = p->next) alive = alive || p == shot;
+  if (alive) {
+    const float dx = shot->position.x - from[0], dy = shot->position.y - from[1], dz = shot->position.z - from[2];
+    *travelled = std::sqrt(dx * dx + dy * dy + dz * dz);
+    speed = std::sqrt(shot->velocity.x * shot->velocity.x + shot->velocity.y * shot->velocity.y + shot->velocity.z * shot->velocity.z);
+    *expected = speed * shot->age;
+    ++frames;
+    if (frames <= 3 || frames % 10 == 0)
+      std::printf("  frame %u: age %.3f travelled %.1f (speed x age %.1f), stamp %u\n", zcls::frames().frame, shot->age, *travelled, *expected, shot->frame_stamp);
+  }
+  *seen = frames;
+  return !alive || frames >= 30 ? 1 : 0;
+}
+
 // The ground under a point, from above.
 float pm_kill_ground(float x, float y, float z) {
   float probe[3] = {x, y, z};

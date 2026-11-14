@@ -401,6 +401,9 @@ void pm_leg_reset();
 const char* pm_weapon_name(void* player, int i);
 bool pm_kill_only_leg_lost(void* mech, int leg);
 int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
+int pm_shot_flight(void* player, int since, float* travelled, float* expected, int* seen, char* name, size_t n);
+static float g_shot_travelled = 0, g_shot_expected = 0;
+static int g_shot_seen = 0, g_shot_result = 0;
 int pm_controls_view(void* mech);
 void pm_controls_set_view(void* mech, int view);
 bool pm_kill_turret(const char* name);
@@ -2050,6 +2053,13 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
+    if (std::getenv("PM_SHOT_FLIGHT")) {  // a round's flight under the real loop (pm_shot_flight)
+      char name[64] = "";
+      ++since;
+      g_shot_result = pm_shot_flight(player, since, &g_shot_travelled, &g_shot_expected, &g_shot_seen, name, sizeof name);
+      if (g_shot_result != 0) done = true;
+      return;
+    }
     int missile[5] = {-1, 0, 0, 300, 0};
     if (const char* e = std::getenv("PM_MISSILE")) std::sscanf(e, "%d,%d,%d,%d,%d", &missile[0], &missile[1], &missile[2], &missile[3], &missile[4]);
     if (missile[0] >= 0 && static_cast<int>(at) < missile[4]) { ++at; return; }
@@ -2129,7 +2139,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT") && !std::getenv("PM_SHOT_FLIGHT")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -2350,6 +2360,29 @@ TEST(pm_tag_fires_from_the_mech) {
   }
   int status = 1;
   status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// A round under the real loop (the frame counter moved by the program, not by hand): the player's first round-firing
+// weapon in c1m1, one shot followed. It must cover most of its speed times its age (PM's first-frame hold is a
+// millionth of a second once, 0x005a79a0); a counter stuck at the shot's stamp would hold it at the muzzle.
+TEST(pm_c1m1_a_round_flies_under_the_real_loop) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();
+  if (child == 0) {
+    setenv("PM_SHOT_FLIGHT", "1", 1);
+    kill_run("1,1,3", true);
+    std::printf("  result %d: %d frames seen, travelled %.1f of speed x age %.1f\n", g_shot_result, g_shot_seen, g_shot_travelled, g_shot_expected);
+    EXPECT(g_shot_result == 1);
+    EXPECT(g_shot_seen >= 3);
+    EXPECT(g_shot_expected > 10.0f);
+    EXPECT(g_shot_travelled > 0.5f * g_shot_expected);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  const int status = check::wait_child(child);
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
