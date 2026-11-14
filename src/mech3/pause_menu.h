@@ -18,6 +18,7 @@ class PauseScreen : public MenuScreen {
   PauseScreen(Engine& e, Handle state);  // 0x00492750
   ~PauseScreen() override;               // 0x00492ae0
   void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x00492d70
+  void restore_sounds();  // RESUME's half (0x00492d70 case 0): the paused sounds and the groups given back
 
   SlideButton resume;                    // +0x111ec  RESUME
   SlideButton quit;                      // +0x113d8  QUIT

@@ -599,6 +599,8 @@ class Engine : public zgame::AppHooks {
   virtual void lab_start(Handle cfg, int32_t a) { unported("0x005a2ba0", {cfg, a}); }
   virtual void mech_apply_config(Handle mech, uint32_t cfg) { unported("0x00414430", {mech, cfg}); }
   virtual void mech_set_mode_a(Handle mech, int32_t a) { unported("0x0041ca30", {mech, a}); }
+  // Ours (the pause's Escape FIX): the pause screen's RESUME sounds given back (PauseScreen::restore_sounds).
+  virtual void pause_restore_sounds(Handle screen) { (void)screen; }
   virtual void mech_set_mode_b(Handle mech, int32_t a) { unported("0x0041cc30", {mech, a}); }
   virtual void mech_draw_cockpit(Handle mech) { unported("0x0041ab90", {mech}); }
   // The draw paths' HUD calls after the HUD frame: the pilot's HUD (MechData

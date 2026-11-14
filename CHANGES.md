@@ -24,6 +24,7 @@ it is clear what the designers meant.
 
 ## Bug fixes that change play
 
+- **Leaving the pause menu with Escape no longer silences the mission.** The pause stops every sound and only the RESUME button started them again: leaving with Escape left the wind, the ocean and your mech's engine hum silent for the rest of the mission. Escape now brings them back as RESUME does (the expansion did the same).
 - **The Sunder's Alternate B loadout carries all its LRM 20 missiles.** A misplaced word in its file left 240 of the 360 unloaded. Under SMALL FIXES.
 - **The Strider has its recoil slide.** Its file gave the number as text ("1.5.0"), so it had none; it now has the 1.5 of the mechs beside it. Under SMALL FIXES.
 - **The Firefly's fifth camo is named SLATE.** It was labelled WASP like the fourth. Always on.
