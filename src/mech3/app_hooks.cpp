@@ -379,9 +379,14 @@ void Engine::vmode_toggle() {
     const int32_t cur = vmode();
     int32_t next = next_vmode(cur);
     if (next == cur) return;
+    uint32_t tried = 0;
     while (set_screen_mode(next) != next) {
+      tried |= 1u << (next & 31);
       next = next_vmode(next);
       if (next == cur) return;
+      // FIX (bug): a round that never reaches the current mode again (3 on a card, a mode past the top) with
+      // every mode refused spun for good; one round and it gives up, as when it comes back (fixes.md).
+      if (zfix::options().fixed && (tried >> (next & 31) & 1)) return;
     }
     set_in_game_vmode(next);
     return;

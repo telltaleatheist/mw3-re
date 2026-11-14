@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "gamez/zgame/zgame_table.h"
+#include "gamez/zutil/zfix.h"
 #include "mech3/app_hooks.h"
 #include "pm/pm_game.h"
 
@@ -52,4 +53,6 @@ int probe_pm_screen_modes(int which, int32_t device, int32_t current, uint32_t l
   for (uint32_t v : g_log) out[n++] = v;
   return n;
 }
+// The always-on fixes (zfix fixed: the endless round given up), for the test's second part.
+void probe_pm_screen_modes_fixed(int on) { zfix::options().fixed = on != 0; }
 }  // extern "C"

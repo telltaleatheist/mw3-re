@@ -594,6 +594,7 @@ Noted but not yet ported:
   Whether modern Windows reports this correctly is unchecked; the rebuild asks
   its `directx_version` hook and ignores the answer.
 
+- **Pirate's Moon's Shift+V gives up after one round** (FIX (bug), `fixed`; `Engine::vmode_toggle`, 0x4af360): the exe retries the next mode while the switch refuses one and stops only when the round comes back to the current mode, which never happens when that mode is outside the round (3 on a card, a mode past the top); with every mode refused it spins for good. The port stops once a mode repeats. `test_pm_screen_modes.py` builds such rounds: the exe still switching after 1000 tries, the port ending. `docs/pm-tests.md`, The screen modes.
 - **The AppImage's launcher outlives the game** (FIX (A), ours; `Launcher::watch_game`): closing it unmounted the image under the running game, SIGBUS at the end of the intro. `docs/linux.md`, Packaging.
 - **A crash says why** (ours; `crash_report.cpp`): the log and a box. `docs/program.md`, The log.
 - **An install in any letter case** (FIX (A); `zutl::any_case`): the original's names meet Windows, where case does not matter. On a case-sensitive disk each part of a path is taken exact if it is there, else by its letters; each mount keeps its place in the order. `docs/assets-layer.md`.
