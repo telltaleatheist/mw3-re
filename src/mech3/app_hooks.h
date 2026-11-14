@@ -631,6 +631,9 @@ class Engine : public zgame::AppHooks {
   // objects' update and draw, the rain and snow (0x005a67c0).
   virtual void weather_rect(int32_t i, Handle rect) { unported("0x005a6790", {i, rect}); }
   virtual void weather_tick(float dt) { unported("0x005a67c0", {zgame::bits(dt)}); }
+  // Pirate's Moon: the mission's fade from black (the weather layer's second tint, twod_weather.h).
+  virtual void weather_fade_start(bool present) { unported("0x00483700 fade", {present}); }
+  virtual bool weather_fade_step(float dt) { return unported("0x00483470", {zgame::bits(dt)}) != 0; }
   virtual void lists_update() { unported("0x004f7d80", {}); }
   virtual void view_reset(Handle view) { unported("0x0040ad90", {view}); }
   virtual void view_draw_node(Handle cam, Handle node, Handle world) { unported("0x004f73f0", {cam, node, world}); }

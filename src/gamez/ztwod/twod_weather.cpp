@@ -315,6 +315,8 @@ WeatherLayer::WeatherLayer() {
   add(&tint);
   tint.hide();
   set_active(1);
+  fade_tint.show_for(-1.0f);  // Pirate's Moon 0x00483340: vt+0x60(-1), black (+0x240 0), added
+  add(&fade_tint);
 }
 
 // Mech3.exe 1.2 @ 0x005a6730 -> 0x005a6620: the colour and alpha kept and
@@ -329,6 +331,25 @@ void weather_tint(uint16_t colour, double alpha) {
 // Mech3.exe 1.2 @ 0x005a6790 -> 0x005a66b0
 void weather_rect(int32_t i, const Rect* r) {
   if (i < 2) g_layer.rects[i] = r;
+}
+
+void weather_fade_start(bool present) {
+  WeatherLayer& w = g_layer;
+  w.fade_rate = -1.0, w.fade_value = 1.0, w.fade_done = false, w.fade_present = present;
+}
+
+bool weather_fade_step(float dt) {
+  WeatherLayer& w = g_layer;
+  if (w.fade_done) return false;
+  w.fade_value = double{dt} * w.fade_rate * 0.3 + w.fade_value;  // [0x00608100], a double
+  bool done = true;
+  if (w.fade_value > 1.0) w.fade_value = 1.0;
+  else if (!(w.fade_value >= 0.0)) w.fade_value = 0.0;  // x87's C0: below or unordered (a NaN ends it at 0)
+  else done = false;
+  w.fade_done = done;
+  w.fade_tint.alpha = w.fade_value;
+  w.fade_tint.draw_in_rect();  // vt+0x7c, into the rect the layer last drew
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x005a67c0 -> 0x005a6600: the layer's update (0x0059fd20);

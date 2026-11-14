@@ -2884,6 +2884,8 @@ void GameEngine::weather_tick(float dt) {
   for (ProgramWeather* w : g_weathers) weather_sync(*w);
   ztwod::weather_tick(dt);
 }
+void GameEngine::weather_fade_start(bool present) { ztwod::weather_fade_start(present); }
+bool GameEngine::weather_fade_step(float dt) { return ztwod::weather_fade_step(dt); }
 
 // 0x004f7350 on the player camera's data (the program's camera node's).
 void GameEngine::camera_draw_scene(Handle, Handle first) {

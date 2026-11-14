@@ -114,14 +114,28 @@ class Snow : public Weather {
 // set each frame (0x005a6790), the 2D text target (+0x18, zvid's) and the
 // screen tint (+0x28). Its five texts (+0x70) are not ported.
 struct WeatherLayer : Layer {
-  WeatherLayer();  // 0x005a4590, at static init
+  WeatherLayer();  // 0x005a4590, at static init; Pirate's Moon 0x00483340 adds the fade's tint
   const Rect* rects[2] = {};
   ScreenTint tint;
+  // Pirate's Moon 1.0 @ 0x00483340, 0x00483540, 0x004835c0 (the layer at 0x0062cd38, built and destroyed): the
+  // mission's fade from black, a second tint (+0x208, black, shown for good) whose alpha the fade's value sets each
+  // frame until it reaches 0 or 1.
+  bool fade_done = true;     // +0x1f0
+  bool fade_present = false; // +0x1f1  the hardware path: the tint drawn in a scene of its own
+  double fade_rate = 1.0;    // +0x1f8
+  double fade_value = 0.0;   // +0x200
+  ScreenTint fade_tint;      // +0x208
 };
 WeatherLayer& weather_layer();
 void weather_tint(uint16_t colour, double alpha);  // 0x005a6730 -> 0x005a6620
 void weather_rect(int32_t i, const Rect* r);  // 0x005a6790 -> 0x005a66b0: i < 2 only
 void weather_tick(float dt);                  // 0x005a67c0 -> 0x005a6600: the layer's update
+// Pirate's Moon 1.0 @ 0x00483700's part: the fade from black begun (value 1, rate -1); `present` the hardware path.
+void weather_fade_start(bool present);
+// Pirate's Moon 1.0 @ 0x00483470 (also inline in the frames 0x00484530, 0x00483f30 and 0x004838b0): unless done,
+// the value steps by dt x rate x 0.3 ([0x00608100]), held to 0..1 (done at either), the tint's alpha follows and it
+// draws. True when it drew: the caller then shows it (a scene of its own on the hardware path).
+bool weather_fade_step(float dt);
 
 // What the update asks of the engine. Unset: zClass's (the camera node's
 // world place and angles, 0x004ed530 / 0x004ed5d0) and the display's rect
