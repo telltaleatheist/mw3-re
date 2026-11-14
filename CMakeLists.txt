@@ -761,6 +761,7 @@ if(MW3_BUILD_PM)
     tests/test_child_limits.cpp  # (main's, shared) a forked test child's own memory and time caps
     tests/pm/test_pm_objectives.cpp
     tests/pm/test_pm_light_override.cpp
+    tests/pm/test_pm_mission_music.cpp
     tests/pm/test_pm_options.cpp
     tests/pm/test_pm_sound_range.cpp
     tests/pm/test_pm_hud.cpp

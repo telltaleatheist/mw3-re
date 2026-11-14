@@ -81,6 +81,9 @@ class Mech3App : public zgame::App {
   uint8_t block_[0x30] = {};
   State* post_intro_ = nullptr;   // +0x1dc 0x00608e64  where the Intro state goes
   Handle field_1e0_ = 0, field_1e4_ = 0;  // +0x1e0 +0x1e4
+  // PM 0x00607f28 (not in the app object): the mission music's CD mode, 6 one track or 3 on to the disc's end,
+  // which a -cd track and the attract's resume reuse (zgame::Table mission_music_to_disc_end).
+  int32_t pm_music_mode_ = 6;
 
   uint8_t& byte_at(int off) { return block_[off - 0x1ac]; }
   int32_t cd_track() const;

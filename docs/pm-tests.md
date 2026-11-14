@@ -1090,3 +1090,22 @@ mode it has. The test's second part runs the 127 rounds again: the exe still swi
 there), the port ending after its first round, trying the exe's first round's modes in the exe's order, the mode
 and the in-game mode untouched. Breaks: stopping at the first refusal (67 differ), no guard (the port spins, the
 run killed at its memory cap).
+
+## The mission music's CD mode (2026-11-14)
+
+PM's mission start (0x4838b0, after the fade from black and the overlay rect, which were ported) picks the music
+as MW3 does but plays a disc of six tracks or more from its random track on to the disc's end (CD mode 3); 2..5
+tracks play one track by mission (mode 6; PM's mission number is its game's vt+0x48, which the HUD prints with
+message 0x236: MW3's vt+0x4c, the port's call). The mode stays in [0x607f28] (6 at the start): a -cd track
+plays in it, and the attract movie's end (0x485280, which had been labelled folded) resumes the CD in it where
+MW3 passes 6. The port does the same behind the table's `mission_music_to_disc_end`, the mode in
+`Mech3App::pm_music_mode_`. Pirate's Moon's own disc has one music track (two in all), so it always takes the
+one-track path; the to-the-end mode needs more tracks in the music folder. `pm_mission_music_plays_to_the_discs_end_and_keeps_the_mode`
+(mw3pmtests) runs the picks, a -cd track before and after, and the attract's resume, on PM's table and MW3's.
+Breaks: the flag off (3 failed checks), the resume in 6 (1), the -cd track not taking the kept mode (1).
+
+The test crashed after the whole suite at first: `pm_cheat_box_keeps_the_reticle` destroys its GameEngine and
+the stack platform it was built on, and the engine left ztimer's clock (and zsnd_cd's files and music) pointing
+there; `pm_model_reader_refuses_a_count_past_the_file` reused the stack, and the next timer read jumped through
+it. GameEngine's destructor now drops the clock and the CD backend it installed (app_engine.cpp), as it does its
+hooks.

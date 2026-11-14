@@ -15,6 +15,7 @@
 #include <cstdio>
 
 #include "crt/msvc_math.h"
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "mech3/app.h"
 #include "mech3/pilot.h"
@@ -85,12 +86,13 @@ bool AttractState::enter() {
 }
 
 // Mech3.exe 1.2 @ 0x00482430
+// Pirate's Moon 1.0 @ 0x00485280: the CD resumes in the mission music's mode.
 bool AttractState::update() {
   Engine& en = e();
   en.input_poll(0);
   if (movie_ == 0 || !en.movie_playing(movie_)) {
     a().pop(1);
-    en.cd_resume(6);
+    en.cd_resume(zgame::game().mission_music_to_disc_end ? a().pm_music_mode_ : 6);  // PM 0x00485280
   }
   return false;
 }
@@ -377,20 +379,27 @@ void CoreState::start_mission() {
   for (uint32_t i = 0; i < 0x19; ++i) {  // the 25 HUD text lines at 0x005fc848
     en.hud_text_clear(0x5fc848 + i * 0x4b0);
   }
+  // Pirate's Moon 1.0 @ 0x004838b0's music: a disc of six tracks or more plays on from its random track to the
+  // end (mode 3), kept in 0x00607f28 for a -cd track and the attract's resume; its mission number is vt+0x48.
+  const bool pm_modes = zgame::game().mission_music_to_disc_end;
+  int32_t mode = 6;
   const int32_t tracks = en.cd_track_count();
   const int32_t forced = a().cd_track();
   int32_t track;
   if (forced > 0 && forced < tracks) {
     track = forced;
+    if (pm_modes) mode = a().pm_music_mode_;
   } else if (tracks <= 1) {
     track = 0;
   } else if (tracks <= 5) {
     const int32_t mission = static_cast<int32_t>(en.vcall(en.field32(en.pilot(), 0x6c), 0x4c, {}));
     track = mission % (tracks - 1) + 2;
+    if (pm_modes) a().pm_music_mode_ = 6;
   } else {
     track = static_cast<int32_t>(en.rand()) % tracks + 1;
+    if (pm_modes) a().pm_music_mode_ = mode = 3;
   }
-  if (track > 0) en.music_play(track, 6);
+  if (track > 0) en.music_play(track, mode);
   if (en.video_mode() != 0) {  // the Direct3D fog colour
     en.poke32(0x72f3f4, zgame::bits(25.5f));
     en.poke32(0x72f3f8, zgame::bits(51.0f));
