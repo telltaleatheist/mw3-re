@@ -3280,8 +3280,11 @@ static int knock_run(int cause) {
         done = f > 600;
         return;
       }
-      if ((f - 30) % 500 == 0) {
-        if (++drops > 5) {
+      // A hard landing's fall is a 20% roll (the landing keeps the mech up at 0.8); which rolls the drops meet moves
+      // with the start's timing (PM has no fade state: play starts two seconds sooner), so 24 drops, one every 250
+      // frames (a 150 m drop lands in about 165), where six every 500 missed one time in four.
+      if ((f - 30) % 250 == 0) {
+        if (++drops > 24) {
           done = true;
           return;
         }
