@@ -25,6 +25,18 @@ original.
 
 Nothing yet.
 
+**1.1.1 (2026-11-13)** (the full notes are in
+[docs/release-notes-1.1.1.md](docs/release-notes-1.1.1.md)):
+
+- **Pirate's Moon plays by its own rules** where 1.1.0 still used
+  MechWarrior 3's: multiplayer salvage, field base repairs, which weapons can
+  bear, weapon lights, group fire, and the AI's firing and lance orders.
+- **MechWarrior 3:** the radar's view wedge on the mission map, the ER PPC's
+  HUD static, equipment and engine-hit callouts, and the zoom window's range
+  when aimed at the sky.
+- Two crash fixes: a laser turret firing as a mission ends, and a lance order
+  on something with no vehicle behind it (Pirate's Moon).
+
 **1.1.0 (2026-11-12)** (the full notes are in
 [docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)):
 
