@@ -12,6 +12,7 @@
 
 #include "check.h"
 #include "gamez/zmodel/gmod_const.h"
+#include "gamez/zmodel/gmod_matl.h"
 
 namespace {
 // The process's peak resident size in MB (0 where it isn't known).
@@ -93,4 +94,73 @@ TEST(model_reader_reads_a_cut_files_arrays_as_zeros) {
   EXPECT(!zmod::read_bound().refused);
   EXPECT(m.vertices != nullptr && m.count(0x14) == 4 && m.count(0x18) == 4);
   zmod::models() = std::move(saved);
+}
+
+// A model whose data the code would walk past its own lists is left empty (FIX (A), zmod::model_inconsistent).
+TEST(model_reader_empties_a_model_with_more_morphs_than_points) {
+  zmod::ModelPool saved = std::move(zmod::models());
+  zmod::models() = zmod::ModelPool{};
+  std::vector<uint8_t> slots(0x60, 0);
+  put(slots, 0x0c, 1), put(slots, 0x14, 1), put(slots, 0x1c, 4);  // 1 point, 4 morphs
+  std::FILE* f = models_file(slots, 1, 12 + 48);
+  EXPECT(zmod::read_models(f) == 1);
+  std::fclose(f);
+  const zmod::Model& m = zmod::models().slots[0];
+  EXPECT(m.count(0x14) == 0 && m.count(0x1c) == 0 && m.vertices == nullptr && m.morphs == nullptr);
+  zmod::models() = std::move(saved);
+}
+
+TEST(model_reader_empties_a_model_whose_polygon_names_a_missing_point) {
+  zmod::ModelPool saved = std::move(zmod::models());
+  zmod::models() = zmod::ModelPool{};
+  std::vector<uint8_t> slots(0x60, 0);
+  put(slots, 0x0c, 1), put(slots, 0x14, 3), put(slots, 0x10, 1);  // 3 points, 1 polygon
+  std::vector<uint8_t> data(36 + 0x24 + 12 + 36, 0);                 // the points, the polygon, its 3 indices, colours
+  put(data, 36, 3);                                                   // 3 points, untextured
+  put(data, 36 + 0x1c, 0xffffffffu);                                  // no material
+  put(data, 36 + 0x24 + 8, 5);                                        // its third point: 5, past the 3
+  std::FILE* f = std::tmpfile();
+  const int32_t head[3] = {1, 1, -1};
+  std::fwrite(head, 4, 3, f), std::fwrite(slots.data(), 1, slots.size(), f), std::fwrite(data.data(), 1, data.size(), f);
+  std::rewind(f);
+  EXPECT(zmod::read_models(f) == 1);
+  std::fclose(f);
+  const zmod::Model& m = zmod::models().slots[0];
+  EXPECT(m.count(0x10) == 0 && m.polygons == nullptr && m.vertices == nullptr);
+  zmod::models() = std::move(saved);
+}
+
+TEST(material_reader_refuses_a_table_past_the_file) {
+  zmod::MaterialTable saved = std::move(zmod::materials());
+  zmod::materials() = zmod::MaterialTable{};
+  const double before = peak_mb();
+  std::FILE* f = std::tmpfile();
+  const int32_t head[4] = {0x7fffffff, 1, -1, -1};
+  std::fwrite(head, 4, 4, f);
+  std::rewind(f);
+  zmod::read_bound().begin(f);
+  EXPECT(zmod::read_materials(f) == -1);
+  std::fclose(f);
+  EXPECT(zmod::materials().blocks.empty());
+  EXPECT(peak_mb() - before < 256.0);
+  zmod::materials() = std::move(saved);
+}
+
+// A refusal doesn't carry over: a section read on a file at the same address as a refused one (here the same FILE*,
+// rewritten) begins its own bound.
+TEST(material_reader_is_not_refused_by_an_earlier_read) {
+  zmod::MaterialTable saved = std::move(zmod::materials());
+  zmod::materials() = zmod::MaterialTable{};
+  std::FILE* f = std::tmpfile();
+  zmod::read_bound().begin(f);
+  EXPECT(!zmod::read_bound().fits(f, 1ull << 40, "a test's huge list"));  // refused
+  const int32_t head[4] = {1, 1, -1, 0};
+  std::vector<uint8_t> mat(0x2c, 0);
+  const int16_t none = -1;
+  std::memcpy(mat.data() + 0x28, &none, 2), std::memcpy(mat.data() + 0x2a, &none, 2);
+  std::fwrite(head, 4, 4, f), std::fwrite(mat.data(), 1, mat.size(), f);
+  std::rewind(f);
+  EXPECT(zmod::read_materials(f) > 0);
+  std::fclose(f);
+  zmod::materials() = std::move(saved);
 }

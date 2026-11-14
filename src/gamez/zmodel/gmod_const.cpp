@@ -149,9 +149,23 @@ Model* model_alloc() {
   return m;
 }
 
+namespace {
+// FIX (A): a model read whole is checked (model_inconsistent) and emptied, warned, when it fails; 0 either way.
+int checked(std::FILE* f, Model& m) {
+  if (const char* why = model_inconsistent(m)) {
+    std::printf("mw3: a model file at byte %ld: a model whose %s. The rebuild: left this model empty. The original "
+                "game: reads past the model's own lists when it draws or tests it (can crash).\n", std::ftell(f), why);
+    std::fflush(stdout);
+    model_empty(m);
+  }
+  return 0;
+}
+}  // namespace
+
 // Mech3.exe 1.2 @ 0x00538a70. Every read error returns -1, which the caller
 // ignores.
-int read_model_data(std::FILE* f, Model& m) {
+namespace {
+int read_model_body(std::FILE* f, Model& m) {
   bool ok = true;
   const uint32_t polys = m.count(0x10), verts = m.count(0x14), norms = m.count(0x18);
   const uint32_t morphs = m.count(0x1c), lights = m.count(0x20);
@@ -222,6 +236,45 @@ int read_model_data(std::FILE* f, Model& m) {
     q.scratch = static_cast<uint32_t*>(std::malloc(k * 4));
   }
   return 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x00538a70 (the body above); FIX (A): whatever it read, the model is checked on every way out.
+int read_model_data(std::FILE* f, Model& m) {
+  const int r = read_model_body(f, m);
+  checked(f, m);
+  return r;
+}
+
+// FIX (A) (docs/fixes.md, ours): what a model read from a file must hold for the code that walks it: no more morphs
+// than points (the bounds and the draw morph point by point), every polygon's points and normals in their lists.
+// Null when it holds; else what is wrong, in the warning's words.
+const char* model_inconsistent(const Model& m) {
+  const uint32_t verts = m.vertices ? m.count(0x14) : 0, norms = m.normals ? m.count(0x18) : 0;
+  if (static_cast<int32_t>(m.count(0x1c)) > 0 && m.count(0x1c) > verts) return "morph list is longer than its points";
+  for (uint32_t i = 0; m.polygons && i < m.count(0x10); ++i) {
+    const Polygon& q = m.polygons[i];
+    const uint32_t k = q.flags & 0xff;
+    for (uint32_t j = 0; j < k; ++j) {
+      if (!q.vertex_indices || q.vertex_indices[j] >= verts) return "polygon names a point past its point list";
+      if ((q.flags & 0x200) && (!q.normal_indices || q.normal_indices[j] >= norms)) return "polygon names a normal past its normal list";
+    }
+  }
+  return nullptr;
+}
+
+// FIX (A): a model's arrays freed and its counts 0, its slot kept (unlike model_release).
+void model_empty(Model& m) {
+  for (uint32_t i = 0; m.polygons && i < m.count(0x10); ++i) {
+    Polygon& q = m.polygons[i];
+    std::free(q.vertex_indices), std::free(q.normal_indices), std::free(q.uvs), std::free(q.colors), std::free(q.scratch);
+  }
+  delete[] m.polygons;
+  std::free(m.vertices), std::free(m.normals), std::free(m.morphs);
+  for (uint32_t i = 0; m.lights && i < m.count(0x20); ++i) std::free(m.lights[i].vertices);
+  std::free(m.lights);
+  m.polygons = nullptr, m.vertices = m.normals = m.morphs = nullptr, m.lights = nullptr;
+  std::memset(m.header + 0x10, 0, 0x14);
 }
 
 // Mech3.exe 1.2 @ 0x00538e30. FIX (A): a vector of slots; the data arrays are
