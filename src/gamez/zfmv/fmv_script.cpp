@@ -108,6 +108,8 @@ Handle Host::sound_find(const char* name) { return unported("0x0056f6f0", {name}
 Handle Host::sound_play(Handle sound, float volume) { return unported("0x0056e3d0", {sound, zgame::bits(volume)}); }
 void Host::sound_stop(Handle voice) { unported("0x0056e9f0", {voice}); }
 void Host::input_clear() { unported("0x0051a300", {}); }
+void Host::cd_play(int32_t track, int32_t mode) { unported("0x005937a0", {track, mode}); }
+void Host::cd_stop() { unported("0x00593940", {}); }
 uint32_t Host::key_state(int32_t dik) { return unported("0x0051a9b0", {dik}); }
 int32_t Host::file_stat(const char* path) { return static_cast<int32_t>(unported("_stat", {path})); }
 double Host::now() { return zgame::from_bits(unported("timeGetTime", {})); }
@@ -529,6 +531,7 @@ const zrdr::Node* item(const zrdr::Node* e, int32_t i) {
 }
 }  // namespace
 
+// Pirate's Moon 1.0 @ 0x005ba110's body (the loader 0x00598d80's on MW3).
 int32_t Script::load_tree(zrdr::Node* root, const char* name) {
   if (const char* p = zrdr::get_string(root, "FMV_PATH")) path = p;
   host().image_path(zrdr::get_string(root, "IMAGE_PATH"));
@@ -558,10 +561,10 @@ int32_t Script::load_tree(zrdr::Node* root, const char* name) {
       const zrdr::Node* rgb = item(entry, 2);
       auto c = [&](int32_t k) { return static_cast<uint8_t>(rgb->type == zrdr::List ? item(rgb, k)->i : 0); };
       a = new FadeAction(c(1), c(2), c(3), real(3), verb[4] == 'O', real(4));
-    } else if (!std::strcmp(verb, "PLAYAVI")) {
-      a = new AviAction(path.c_str(), arg, count > 3 ? word(3) != 0 : true);
-    } else if (!std::strcmp(verb, "PLAYMCI")) {
-      a = new MciAction(hwnd, path.c_str(), arg);
+    } else if (!std::strcmp(verb, "PLAYCD")) {  // Pirate's Moon: PLAYAVI and PLAYMCI gone, the CD's two added
+      a = new CdAction(word(2), false);
+    } else if (!std::strcmp(verb, "STOPCD")) {
+      a = new CdAction(0, true);
     } else if (!std::strcmp(verb, "BLUR")) {
       a = new BlurAction(1, word(2), 3);
     } else if (!std::strcmp(verb, "BLURH")) {
@@ -576,6 +579,12 @@ int32_t Script::load_tree(zrdr::Node* root, const char* name) {
     if (known) append(a);
   }
   return entries;
+}
+
+// Pirate's Moon 1.0 @ 0x005bb1d0
+void CdAction::start(double) {
+  if (stop) host().cd_stop();
+  else host().cd_play(track, 6);
 }
 
 // Mech3.exe 1.2 @ 0x005995b0: the finish target on the 2D target, the FMV
@@ -598,18 +607,28 @@ bool Script::play_at(double t) {
 // (held, pressed or let go) skips the rest and stops the sounds playing; else
 // the current action steps, and the next starts when it is done. True while
 // it runs, and once more on the poll the last action ends.
+// Pirate's Moon 1.0 @ 0x005ba960: the key ends only a skippable action, and the script goes on
+// from the next one that is not (the next picture: one logo a press); with none left the sounds
+// stop and it ends. MW3 ended the whole script on the key.
 bool Script::playing_at(double t) {
   if (!current) return false;
   Host& h = host();
-  for (int32_t key : {0x39, 0x01, 0x1c, 0x9c}) {
-    if (h.key_state(key) != 0) {
-      current->end();
-      h.sound_stop_snapshot(h.sound_snapshot());
-      current = nullptr;
-      return false;
-    }
-  }
   t = static_cast<double>(static_cast<float>(t - started));  // the x87 at 24 bits
+  bool key = false;
+  for (int32_t k : {0x39, 0x01, 0x1c, 0x9c}) key = key || h.key_state(k) != 0;
+  if (key && current->skippable()) {
+    h.input_clear();  // 0x00533b90
+    current->end();
+    current = current->next;
+    while (current && current->skippable()) current = current->next;
+    if (current) {
+      current->start(t);
+      return true;
+    }
+    h.sound_stop_snapshot(h.sound_snapshot());
+    current = nullptr;
+    return false;
+  }
   if (!current->step(t)) {
     current->end();
     current = current->next;

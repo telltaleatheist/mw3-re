@@ -844,3 +844,55 @@ TEST(pm_intro_plays_intro_only_and_no_splash_headless) {
   EXPECT(seen[0].empty());
   EXPECT(seen[1] == std::vector<std::string>{"INTRO"});
 }
+
+// Pirate's Moon's FMV loader (0x005ba110) on its own fmv.zrd: INTRO is PLAYCD 2 (a CD action,
+// 0x005bb190) and the logos (pictures, waits, fades): 15 actions; the CD action starts track 2
+// in mode 6 (0x005bb1d0); only the pictures are not skippable.
+#include "gamez/zfmv/fmv_script.h"
+namespace {
+struct CdHost : zfmv::Host {
+  std::vector<std::pair<int32_t, int32_t>> played;
+  int stops = 0;
+  void image_path(const char*) override {}
+  void cd_play(int32_t track, int32_t mode) override { played.emplace_back(track, mode); }
+  void cd_stop() override { ++stops; }
+};
+}  // namespace
+
+TEST(pm_fmv_intro_opens_with_its_cd_track_and_only_pictures_hold_a_key) {
+  std::error_code ec;
+  const fs::path reader = fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd";
+  if (!fs::exists(reader, ec)) return;
+  zgame::set_game(pm::table());
+  zrdr::init();
+  zrdr::close_archives(true);
+  EXPECT(zrdr::open_archive(fs::canonical(reader, ec).string().c_str(), true));
+  zrdr::Node* root = zrdr::load("fmv.zrd");
+  EXPECT(root != nullptr);
+  CdHost h;
+  zfmv::set_host(&h);
+  if (root) {
+    zfmv::Script s(nullptr, nullptr, 0);
+    const int32_t n = s.load_tree(root, "INTRO");
+    int32_t count = 0, pictures = 0, held = 0;
+    for (zfmv::Action* a = s.head; a; a = a->next) {
+      ++count;
+      const bool picture = dynamic_cast<zfmv::ImageAction*>(a) != nullptr;
+      pictures += picture;
+      held += !a->skippable();
+    }
+    auto* cd = dynamic_cast<zfmv::CdAction*>(s.head);
+    std::printf("  INTRO: %d entries, %d actions, %d pictures, %d not skippable; first a CD action %d (track %d)\n", n, count,
+                pictures, held, cd != nullptr, cd ? cd->track : -1);
+    EXPECT(n == 15 && count == 15 && pictures == 5 && held == 5);
+    EXPECT(cd && cd->track == 2 && !cd->stop && cd->skippable());
+    if (cd) cd->start(0.0);
+    EXPECT(h.played.size() == 1 && h.played[0] == std::make_pair(2, 6) && h.stops == 0);
+    zfmv::CdAction stop(0, true);
+    stop.start(0.0);
+    EXPECT(h.stops == 1 && !stop.skippable());
+    zrdr::free_node(root);
+  }
+  zfmv::set_host(nullptr);
+  zrdr::close_archives(true);
+}

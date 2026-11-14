@@ -105,6 +105,8 @@ class GameFmvHost : public zfmv::Host {
   }
   void sound_stop(Handle voice) override { e_->voice_stop(voice); }
   void input_clear() override { e_->input_clear(); }
+  void cd_play(int32_t track, int32_t mode) override { zsnd_cd::play_track(track, mode); }
+  void cd_stop() override { zsnd_cd::stop(); }
   uint32_t key_state(int32_t dik) override { return e_->key_state(dik); }
   // The movies are the importer's files (app_movie.h): "found" when the
   // The AVI through the helper's Video for Windows, else the imported .fmv.
