@@ -10,6 +10,8 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/object3d.h"
 #include "gamez/zinput/zinput.h"
+#include "gamez/zutil/zfix.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/mech_anim.h"
 #include "mech3/mech_config.h"
 #include "mech3/mech_control.h"
@@ -217,6 +219,9 @@ void mech_delete(Mech* m) {
 // the node and its models, zEntity's entry, and the shadow.
 void Mech::release() {
   FreeCalls& f = free_calls();
+  // FIX (A): the shots locked on this mech forget it (the exe left them pointing into it; Pirate's Moon's
+  // destructor does this first, 0x005a35f0). docs/fixes.md.
+  if (zfix::options().fixed) zwep::forget_lock(this);
   if (this == world().mission_player && f.player_object_free) f.player_object_free(*this);  // 0x0041e580
   for (Handle d : x6d0)  // 0x00413db0
     if (d && f.debris_free) f.debris_free(d);

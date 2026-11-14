@@ -607,6 +607,7 @@ target_link_libraries(mw3probe PRIVATE mw3core)
 enable_testing()
 add_executable(mw3tests
   tests/main.cpp
+  tests/test_forget_lock.cpp
   tests/test_model_bound.cpp
   tests/test_znet.cpp
   tests/test_cue.cpp
