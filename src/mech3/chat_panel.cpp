@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "gamez/zgame/zgame_table.h"
+#include "gamez/zinput/zinput.h"
 #include "gamez/znetwork/znet_dplay.h"
 #include "gamez/znetwork/znet_session.h"
 #include "gamez/zutil/zutl_msgdll.h"
@@ -34,6 +36,7 @@ ChatPanel::ChatPanel(const char* title, Mech* m) : to_all(1), mech(m) {
 
 // Mech3.exe 1.2 @ 0x0041e660: the text after the prompt's '>', trimmed; a
 // new line; sent unless empty (and kept, " %s"); the panel closed.
+// Pirate's Moon 1.0 @ 0x0041f1f0: the input reset after the new line, keys held while typing let go.
 void ChatPanel::line_entered() {
   std::string t = line_text();
   const size_t gt = t.find('>');
@@ -41,6 +44,7 @@ void ChatPanel::line_entered() {
   const size_t a = t.find_first_not_of(" \t\r\n");
   t = a == std::string::npos ? "" : t.substr(a, t.find_last_not_of(" \t\r\n") - a + 1);
   new_line();
+  if (zgame::game().chat_resets_input) zin::reset();  // PM 0x005349d0
   if (!t.empty()) {
     std::snprintf(kept, sizeof kept, " %s", t.c_str());  // [0x005e2370]
     net_chat_send(t.c_str(), to_all != 0);

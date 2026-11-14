@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4083 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 146 |
+| MISSING LOGIC | 145 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -84,7 +84,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00414ba0** (1 functions, 25 decomp lines; MISSING LOGIC): pm only, minor, effect to check: PM's mech_set_skin (MW3's 0x00414390, mech_build.cpp mech_set_skin; unpaired by the diff), from the mech build 0x00415190, the network (0x0046f510, 0x004701d0), the mission launch 0x00494500 and the player 0x004a0e10 / 0x004a17d0: when the torso's headlight (torso part +0x7c) is there, its node's only child is detached before the skin is applied (0x00479c30, kept at +0x38) and put back after (0x00479c60); the port applies the skin with the child in place. Whether the skin apply (0x004773e0) touches that child is not read; 0x0041b900 (a vt slot) also detaches it
 - **0x00415190** (1 functions, 112 decomp lines; MISSING LOGIC): pm only, minor: the mech made again in place (MW3's 0x004148c0, mech_rebuild, mech_build.cpp:188), read: the same steps (the type's data, the controls kept, destroyed and constructed again, the skin by name, the HUD's fall mode 0); and when it is rebuilt as its own type with MASC on (+0x598 not 0), PM turns MASC on again afterwards (0x0041eec0(1), MW3's masc 0x0041df50); the port's rebuild leaves MASC off
 - **0x00415940, 0x005a35f0** (2 functions, 206 decomp lines; MISSING LOGIC): pm only, minor (a mech deleted mid-mission: a network player leaving): PM's mech destructor (0x00415940, MW3's 0x00414f40, mech_build.cpp:225) first clears the owner (+0x6c, +0x70, +0x74) of every live shot that mech fired (0x005a35f0 over zWeapon's pools); MW3 and the port do not (all three free the node's handler table: MW3 0x00583400, PM 0x005a4de0, the port app_mech.cpp:848), so a shot outliving its mech keeps the gone owner. To check: whether the port's shot reads that owner afterwards (its hit credit, its tether)
-- **0x0041f1f0** (1 functions, 42 decomp lines; MISSING LOGIC): MW3's 0x0041e660 (chat_panel.cpp ChatPanel::line_entered) plus one call: after the line's new line PM resets the input (0x005349d0 = MW3's 0x0051b1c0, zin::reset), so keys held while typing are released; the send's to-all flag (+0x720) passed explicitly as the port does. The port leaves the input as MW3 does
 - **0x00431120** (1 functions, 38 decomp lines; MISSING LOGIC): pm only, minor (network games, memory only): the mech data's release, MW3's 0x00430e30 with the free its caller (the mech destructor, mech_build.cpp:268) does, folded into one; PM skips the free while a network game runs ([0x00629a88], set by net_start 0x0046ef80), so a type whose last mech goes keeps its data cached at no holders; MW3 frees it. The port frees as MW3 for both games
 - **0x00432e40** (1 functions, 20 decomp lines; MISSING LOGIC): pm only, with PM's mech destructor (0x00415940's row): before the mech's node trees are freed, PM stops every animation using any node of them (this walk, each node through 0x0051f750 = MW3's 0x00506bc0 with 1, 1: zeff::anim_stop_using), on the mech's own tree and its +0x6b8 / +0x6bc trees, and in 0x004335c0 (MW3's 0x00413db0); MW3's destructor and the port's mech teardown stop none (the field base does, mech_fieldbase.cpp:333). Effect: an animation on a deleted mech's nodes (a network player leaving, a mech removed) runs on in MW3 and the port
 - **0x004335c0** (1 functions, 36 decomp lines; MISSING LOGIC): pm only, with PM's mech destructor (0x00432e40's row): PM's debris free (MW3's 0x00413db0, the port's debris_free, app_mech.cpp:827) stops every animation on each debris tree (0x00432e40) before it is taken off its parent and freed; the port frees it without (the auto 'covered' label it had came from MW3's comment there)
@@ -486,7 +485,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 
 ## By module
 
-### mech3ep1 (3282 not ported)
+### mech3ep1 (3281 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -931,7 +930,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x0041f000 | 38 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0041e4e0 with only offsets and sizes of PM's larger structures changed (0x720->0x728); calls, field counts and every other immediate and float constant as MW3's |
 | 0x0041f180 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:81) |
 | 0x0041f1c0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x005c7380, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x0041f1f0 | 42 | MISSING LOGIC | MW3's 0x0041e660 (chat_panel.cpp ChatPanel::line_entered) plus one call: after the line's new line PM resets the input (0x005349d0 = MW3's 0x0051b1c0, zin::reset), so keys held while typing are released; the send's to-all flag (+0x720) passed explicitly as the port does. The port leaves the input as MW3 does |
 | 0x0041f740 | 9 | folded | a thunk: one call to another function |
 | 0x0041f760 | 8 | folded | returns a constant or a global |
 | 0x0041f790 | 9 | folded | covered by the port where it names it (src/mech3/app_mech.cpp:1325) |

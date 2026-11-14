@@ -1109,3 +1109,11 @@ call `load_lab_world` (GameEngine: missions().load_world(6), as the lab's own wo
 unloads that world when Salvage closes; the next mission's load replaces it.
 `pm_salvage_loads_the_lab_world_when_none_is_up` (mw3pmtests): the calls in order with no world (the world, then
 the screen), with one up (the screen) and on MW3's table (the screen). Break: the flag off (1 failed check).
+
+## The chat panel's line and the input (2026-11-14)
+
+PM's chat panel line (0x41f1f0) is MW3's 0x41e660 with one call more: after the line's new line it resets the
+input (0x5349d0, MW3's 0x51b1c0, zin::reset), so a key held while typing is let go (a fire or a turn key does not
+stay down when the panel shuts). Behind the table's `chat_resets_input`. `pm_chat_line_resets_the_input`
+(mw3pmtests): a panel's empty line with the keyboard up and A held: on PM the keyboard read once and A let go, on
+MW3's table neither. Break: the flag off (2 failed checks).
