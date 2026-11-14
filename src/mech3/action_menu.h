@@ -31,18 +31,27 @@ constexpr int32_t kActionScenarioCount = 6;  // 0x005e7010
 // SCENARIO_DESC and ENEMY_TITLE (0x005c57c8), 0x42c bytes.
 class ActionCycle : public CycleButton {
  public:
-  explicit ActionCycle(Engine& e) : CycleButton(e, -1) {}
+  explicit ActionCycle(Engine& e, int32_t id = -1) : CycleButton(e, id) {}
   bool read_control(zrdr::Node* node, ztwod::Dialog* dialog) override;  // +0x84  0x00489320
 
   Handle font = 0;                   // +0x424
   Handle inactive_font = 0;          // +0x428
 };
 
+// Pirate's Moon's DATABASE_LIST (vtable 0x005e78f8): choosing a world gives it to the pilot's game.
+class WorldList : public ActionCycle {
+ public:
+  explicit WorldList(Engine& e) : ActionCycle(e, 1) {}  // Pirate's Moon 0x0048d5c8: 0x00489c70(1), its notice's id
+  void select(int32_t i) override;   // +0xa0  0x0048dca0
+  void step(int32_t by) override;    // +0xa4  0x0048dd60
+  void set_world_of_game();
+};
+
 // SCENARIO_LIST (vtable 0x005c5720): stepping keeps the old scenario's line-up
 // in [0x00605820..], steps SCENARIO_DESC with it and fills the enemies anew.
 class ScenarioList : public ActionCycle {
  public:
-  explicit ScenarioList(Engine& e) : ActionCycle(e) {}
+  explicit ScenarioList(Engine& e) : ActionCycle(e, 2) {}  // Pirate's Moon: 0x00489c70(2)
   void step(int32_t by) override;    // +0xa4  0x00489390
 };
 
@@ -112,13 +121,14 @@ class ActionScreen : public MenuScreen {
   void on_button(int32_t id, int32_t a, int32_t b) override;  // +0x14  0x0048a680
   void update(float dt) override;    // ours: the MODS tab's hover line; the original's update otherwise
 
-  void reset();                      // 0x0048aac0: on entering, from the pilot's game and [0x00605820..]
+  void reset();                      // 0x0048aac0 / PM 0x0048fd90: on entering, from the pilot's game and [0x00605820..]
+  void refresh_lineup();             // the rest of 0x0048aac0 / PM 0x0048f970
   void accept();                     // 0x0048a140: the ActionGame filled, the pilot saved, the briefing
   void show_wave(int32_t wave);      // 0x0048a810: the enemies of the wave (0-based), fixed
   void show_custom();                // 0x0048a930: every mech for each enemy, chosen
   void keep_lineup();                // inline in 0x00489390 and 0x0048a140: the choices into [0x00605820..]
 
-  ActionCycle worlds;                // +0x111ec  DATABASE_LIST (c1..c4, 0xe33..0xe36)
+  WorldList worlds;                  // +0x111ec  DATABASE_LIST (c1..c4, 0xe33..0xe36)
   ScenarioList scenarios;            // +0x11618  SCENARIO_LIST
   ActionCycle descriptions;          // +0x11a44  SCENARIO_DESC
   ShellButton ally_title;            // +0x11e70  ALLY_TITLE

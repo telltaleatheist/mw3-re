@@ -204,6 +204,21 @@ void WaveList::hide() {
   CycleButton::hide();
 }
 
+// Pirate's Moon 1.0 @ 0x0048dca0 / 0x0048dd60: chosen or stepped, the pilot's game takes the world
+// (vt+0x4c, 0x0040c340), its Progression waves loaded again; MW3 set it only at ACCEPT.
+void WorldList::select(int32_t i) {
+  ActionCycle::select(i);
+  set_world_of_game();
+}
+void WorldList::step(int32_t by) {
+  ActionCycle::step(by);
+  set_world_of_game();
+}
+void WorldList::set_world_of_game() {
+  ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
+  if (g && item(index)) g->set_world(value_at(index));
+}
+
 // Mech3.exe 1.2 @ 0x00489710
 void WaveList::step(int32_t by) {
   CycleButton::step(by);
@@ -363,9 +378,14 @@ void ActionScreen::update(float dt) {
 
 // Mech3.exe 1.2 @ 0x0048a680: CANCEL back to the pilot screen's state (1),
 // ACCEPT on to the briefing; everything drawn again either way.
+// Pirate's Moon 1.0 @ 0x0048f130: 1 and 2, the world and scenario lists' notices: in Progression the
+// line-up again for the world just chosen (whose waves its list's select loaded, 0x0048dca0).
 void ActionScreen::on_button(int32_t id, int32_t a, int32_t b) {
   (void)a, (void)b;
-  if (id == 3) {
+  if (id == 1 || id == 2) {
+    const ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
+    if (g && g->mode == 2) refresh_lineup();
+  } else if (id == 3) {
     engine().pop_state(1);
   } else if (id == 4) {
     accept();
@@ -476,11 +496,9 @@ void ActionScreen::show_custom() {
   enemies[0].refill(0);
 }
 
-// Mech3.exe 1.2 @ 0x0048aac0, Pirate's Moon 1.0 @ 0x0048fd90 / 0x0048f970 (compared line by line, 2026-11-14). Quirk: the commander's mech is chosen by its
-// number, not its row (mech 7 has no row), so past it the next mech shows;
-// the kept choice ([0x00605820]) replaces it when there is one.
+// Mech3.exe 1.2 @ 0x0048aac0's head, Pirate's Moon 1.0 @ 0x0048fd90: the world and the scenario
+// from the pilot's game, then the line-up (refresh_lineup).
 void ActionScreen::reset() {
-  Engine& e = engine();
   if (mods_tab) {  // ours: the line as this run stands, said in the log as the screen opens
     const std::string line = ia_mods_line(mods_menu_write_dir());
     mods_text_say(mods_tab->line, line);
@@ -493,6 +511,18 @@ void ActionScreen::reset() {
   // Pirate's Moon 0x0048de20 (the scenario cycle's select): the pilot's game takes its mode (0x0040c390).
   if (ActionGame* a = current_pilot() ? current_pilot()->action() : nullptr) a->set_mode(mode_of(scenarios.value_at(scenarios.index)));
   descriptions.select(k.g878);
+  refresh_lineup();
+}
+
+// Mech3.exe 1.2 @ 0x0048aac0's rest, Pirate's Moon 1.0 @ 0x0048f970 (compared line by line, 2026-11-14):
+// the line-up from the pilot's game and its setup. Quirk: the commander's mech is chosen by its
+// number, not its row (mech 7 has no row), so past it the next mech shows; the kept choice
+// ([0x00605820]) replaces it when there is one. PM runs it again for a world or scenario chosen
+// in Progression (0x0048f130).
+void ActionScreen::refresh_lineup() {
+  Engine& e = engine();
+  const ActionSetup& k = action_setup();
+  GameSlot* slot = player_slot();
   for (AllyList& l : allies) l.clear_items();
   for (EnemyList& l : enemies) l.clear_items();
   int32_t chosen = 0, row = 0;

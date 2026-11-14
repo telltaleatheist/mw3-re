@@ -3450,6 +3450,94 @@ TEST(pm_ia_screen_keeps_mechs_and_offers_the_labs_lineup_headless) {
   mech3::action_setup() = mech3::ActionSetup{};
 }
 
+TEST(pm_ia_world_list_gives_the_game_its_world_and_progression_refreshes_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_ia_world_" + std::to_string(getpid());
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    int stage = 0;
+    bool checked = false;
+    engine.on_present = [&](int) {
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[0].on_left_up();  // INSTANT ACTION
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+        if (!ps || !ps->screen) return;
+        ps->screen->new_bar.set_text("Cartographer");
+        ps->screen->new_bar.on_return();
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 2;
+      } else if (stage == 2) {
+        auto* st = dynamic_cast<mech3::GameMenuState*>(app.current());
+        auto* a = st && st->kind == mech3::GameMenuState::kAction ? dynamic_cast<mech3::ActionScreen*>(engine.screen_of(st->screen_)) : nullptr;
+        mech3::ActionGame* g = mech3::current_pilot() ? mech3::current_pilot()->action() : nullptr;
+        if (!a || !g || !app.pending_list().empty()) return;
+        // Battle Progression (mode 2) chosen, the line-up as the screen shows it.
+        int32_t progression = 0;  // stepped as a player does, until Battle Progression (mode 2)
+        while (g->mode != 2 && progression++ < 6) a->scenarios.step(1);
+        const int32_t before = g->x74;
+        a->worlds.step(1);
+        const int32_t chosen = a->worlds.value_at(a->worlds.index);
+        std::printf("  world ids %d / %d; Progression row %d, mode %d; world %d -> %d (list %d)\n", a->worlds.cycle_id,
+                    a->scenarios.cycle_id, progression, g->mode, before, g->x74, chosen);
+        EXPECT(progression <= 6 && g->mode == 2 && g->x74 == chosen && chosen != before);
+        // Its notice rebuilds the line-up in Progression (the waves listed again) ...
+        a->waves.clear_items();
+        a->on_button(a->worlds.cycle_id, 1, 0);
+        const int32_t waves_after = a->waves.count();
+        // ... and not in a custom scenario.
+        while (g->mode == 2) a->scenarios.step(1);  // on to a custom scenario
+        a->waves.clear_items();
+        a->on_button(a->worlds.cycle_id, 1, 0);
+        const int32_t waves_custom = a->waves.count();
+        std::printf("  waves listed after the notice: Progression %d, custom %d\n", waves_after, waves_custom);
+        EXPECT(a->worlds.cycle_id == 1 && a->scenarios.cycle_id == 2 && waves_after > 0 && waves_custom == 0);
+        checked = true;
+        stage = 3;
+      }
+    };
+    Pump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    EXPECT(checked);
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
+}
+
 TEST(pm_ia_accept_drops_the_commanders_loadout_only_for_a_new_mech_headless) {
   if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
   zgame::set_game(pm::table());
