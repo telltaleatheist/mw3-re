@@ -146,6 +146,7 @@ TEST(small_fixes_list_matches_its_gates) {
       {"c2 mission 3's objective waits for its two Fireflies.", {{"mech3/mech_objective.cpp", 1}}},
       {"The Sunder Alternate B loads all 360 LRM 20 missiles.", {{"mech3/mech_reader.cpp", 1}}},
       {"The Strider has its recoil slide (a number typed as text).", {{"mech3/mech_reader.cpp", 1}}},
+      {"The Vulture's DESERT camo has its cockpit canopy.", {{"mech3/mech_skin.cpp", 1}}},
   };
   // The page's list and the table, line for line.
   const std::vector<const char*>& list = upgrades::small_fixes_list();

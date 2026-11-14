@@ -70,6 +70,7 @@ const std::vector<const char*>& small_fixes_list() {
       "c2 mission 3's objective waits for its two Fireflies.",
       "The Sunder Alternate B loads all 360 LRM 20 missiles.",
       "The Strider has its recoil slide (a number typed as text).",
+      "The Vulture's DESERT camo has its cockpit canopy.",
   };
   return l;
 }

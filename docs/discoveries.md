@@ -1766,7 +1766,15 @@ SUNFIRE, DESERT, WASP, SLATE, JUNGLE, ARCTIC and SPECTRE.
 - **Elementals never show bullet holes**: their damage list is all zeros.
 - **A dead special case**: the texture loader treats an entry named
   `vult_d03_c` specially, but no file makes that name (the Vulture's is
-  `vultur_d03_c`), and no texture library has it.
+  `vultur_d03_c`), and no texture library has it. **What it shows:** a
+  Vulture in its third camo, DESERT, asks for `vultur_d03_c`, the top of its
+  cockpit canopy; no library has it, so the game draws its built-in stand-in
+  for a missing texture there, red and green checks (0x00518f70, the image at
+  0x005ecb40). Seen from outside (the mech lab, an external view, an enemy
+  Vulture), the canopy looks like a placeholder. The other camos are whole.
+  The developers seem to have meant the special case for this texture and
+  misspelt its name. The rebuild's SMALL FIXES makes it work as meant (the
+  canopy takes `vult06_c`).
 - **Five primary textures are missing from every library**: `bushwacker14`,
   `blkhwk16`, `cauldron01`, `cauldron08`, `owens13` (not in `rmechtex*.zbd` or
   `rimage.zbd`). Probably unused by the models; not checked.
