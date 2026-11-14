@@ -373,7 +373,9 @@ void ActionScreen::on_button(int32_t id, int32_t a, int32_t b) {
 // Progression or else the enemies' and their loadouts'.
 void ActionScreen::keep_lineup() {
   ActionSetup& k = action_setup();
-  for (int i = 0; i < 5; ++i) k.g820[i] = allies[i].index;
+  // Pirate's Moon 0x0048ded0 / 0x0048eaf0: the allies' mechs (the rows' values, 0x00439620),
+  // where MW3 kept the rows.
+  for (int i = 0; i < 5; ++i) k.g820[i] = allies[i].value_at(allies[i].index);
   if (mode_of(scenarios.value_at(scenarios.index)) == 2) {
     k.g87c = waves.index;
   } else {
@@ -481,7 +483,7 @@ void ActionScreen::reset() {
   }
   allies[0].select(chosen);
   allies[1].add_item(e.message(0x28a), -1);  // Mobile Field Base: off
-  allies[1].add_item(e.message(0x28b), 10);  // on
+  allies[1].add_item(e.message(0x28b), 15);  // on (Pirate's Moon 0x0048fa6b: 0xf, MW3's 10)
   for (int i = 2; i < 5; ++i) {
     for (int32_t mech = -1; mech < mech_count(); ++mech) {  // ours: the mods' mechs after Pirate's Moon's
       if (mech == kMechCount) continue;  // none (0x19)
@@ -501,8 +503,8 @@ void ActionScreen::reset() {
   } else {
     show_custom();
   }
-  for (int i = 0; i < 5; ++i) {
-    if (k.g820[i] >= 0) allies[i].select(k.g820[i]);
+  for (int i = 0; i < 5; ++i) {  // Pirate's Moon 0x0048f970: by mech (0x0048a2e0), not by row
+    if (k.g820[i] >= 0) allies[i].select_value(k.g820[i]);
   }
   if (mode_of(scenarios.value_at(scenarios.index)) == 2) {
     ActionGame* a = current_pilot() ? current_pilot()->action() : nullptr;

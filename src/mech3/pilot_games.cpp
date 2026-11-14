@@ -52,6 +52,31 @@ ActionSetup& action_setup() {
   return p && p->action_game ? p->action_game->setup : g_action_setup;
 }
 
+// Pirate's Moon 1.0 @ 0x0040ca80 (the game's vt+0x38): the slots on the player's side, the
+// player's and the lancemates' (allies come first in the line-up).
+int32_t ActionGame::ally_count() {
+  int32_t i = 1;
+  for (; i < slot_count(); ++i)
+    if (!ally(i)) return i;
+  return slot_count();
+}
+
+// Pirate's Moon 1.0 @ 0x00407fb0's Instant Action half: the player's mech in the first entry,
+// the lancemates' from the third (the second is the Mobile Field Base's), the rest of the five
+// -1. Mech numbers, as PM's Action screen keeps them (0x0048ded0) and finds them (0x0048a2e0).
+// Past three lancemates PM writes on into the enemies' entries (+0x54.., g838), which follow.
+void action_setup_from_lineup(ActionGame& a) {
+  ActionSetup& k = a.setup;
+  auto entry = [&k](int32_t i) -> int32_t& { return i < 5 ? k.g820[i] : k.g838[i - 5]; };
+  k.g820[0] = a.slot_at(0)->mech;
+  int32_t at = 2;
+  for (int32_t i = 1; i < a.ally_count() && at < 11; ++i, ++at) {
+    const GameSlot* s = a.slot_at(i);
+    entry(at) = s ? s->mech : -1;
+  }
+  for (; at < 5; ++at) k.g820[at] = -1;
+}
+
 Config* PilotHooks::config_load(const char* name, std::FILE* f) { return Config::from_file(name, f); }
 void PilotHooks::save_world(const char* path, int32_t kind) { zsave::save(path, kind); }
 bool PilotHooks::load_world(const char* path, int32_t kind) {

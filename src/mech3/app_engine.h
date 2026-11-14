@@ -507,6 +507,7 @@ class GameEngine : public Engine {
   int32_t sound_init(uint32_t window) override;
   void sound_set_mode(int32_t v) override;
   void sound_load(uint32_t window, const char* name, uint32_t callback, uint32_t a) override;
+  void sound_range_scale(float s) override;
   void sound_shutdown_groups(uint32_t callback) override;
   void sound_shutdown() override;
   void light_init() override;

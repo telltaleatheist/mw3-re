@@ -258,8 +258,8 @@ void Mech3App::destroy() {
   e.settings_free();
 }
 
-// Mech3.exe 1.2 @ 0x00480570, zGameApp start (+0xac): the engine modules, the
-// video mode, then the data the menus need.
+// Mech3.exe 1.2 @ 0x00480570, Pirate's Moon 1.0 @ 0x00482ca0, zGameApp start (+0xac): the
+// engine modules, the video mode, then the data the menus need.
 bool Mech3App::start_game(uint32_t window) {
   Engine& e = *engine_;
   e.remove_debug_menu(main_window());  // FIX (A): GetMenu / SetMenu(0) / DestroyMenu
@@ -285,6 +285,9 @@ bool Mech3App::start_game(uint32_t window) {
   e.render_load(hw3d ? "GfxFlags_HW" : "GfxFlags_SW", e.gfx_flags());
   e.light_init();
   e.fonts_init("fonts.zrd", 1);
+  // Pirate's Moon 0x00482ee3 (and the Load State's 0x00408120): at the lowest object detail every
+  // sound's RANGE is halved; the scale starts at 0 in the exe, so it is always set first.
+  e.sound_range_scale(e.object_lod() == 2 ? 0.5f : 1.0f);
   e.sound_load(window, "sounds.zrd", 0x4e6b00, 0);
   e.input_start(window, cmd_show_);
   if (!e.joystick_present()) {

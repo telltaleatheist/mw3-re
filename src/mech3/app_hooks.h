@@ -282,6 +282,8 @@ class Engine : public zgame::AppHooks {
   virtual void render_load(const char* flags_name, int32_t flags) { unported("0x00557ae0", {flags_name, flags}); }
   virtual void light_init();                           // 0x00542bb0, ported: zmod::shadows_init
   virtual void fonts_init(const char* name, int32_t a) { unported("0x00516e90", {name, a}); }
+  // Pirate's Moon 1.0 @ 0x00591830: RANGE's scale for the sounds read next (0.5 at the lowest object detail).
+  virtual void sound_range_scale(float s) { unported("0x00591830", {zgame::bits(s)}); }
   virtual void sound_load(uint32_t window, const char* name, uint32_t callback, uint32_t a) {
     unported("0x005705e0", {window, name, callback, a});
   }
