@@ -1310,7 +1310,9 @@ The 105 reload (0x4c5cb0, MW3's 0x4bed90) differs only in the vehicles' vtable s
 MW3's +0x40, +0x140, +0x64), which the port reaches through NetHooks. The reader 0x402610 (thunk 0x4025f0), its
 link step 0x402370 / 0x402350, the net 0x402170 / 0x402140, the node's link methods 0x403d30 .. 0x403ef0, the frees
 0x402500 / 0x402540 / 0x4025c0 and the null node 0x4b2230 are MW3's (zainet105.cpp) with cdecl calls and loops
-compiled the other way round. Read, not run: test_net105.py's bench uses MW3's register calls and import stubs.
+compiled the other way round. `MW3_EXE=pm test_net105.py 2000` runs them on PM's exe (calltrace moves MW3's
+register arguments onto PM's stack; the stubs read the exe's strings at PM's addresses): 2000 blocks, 0 differ
+(11,964 nodes, 22,839 measures, 7,493 link operations). Break: the default path width (caught, 103 of 400).
 
 ## Today's preservation ports on PM: WriteZBD (2026-11-14)
 

@@ -9,6 +9,8 @@ the elements (the nodes by number, the null node where a number is missing). The
 no node has and on remeasuring a slot without a record; neither is generated (the port's FIX (A)s keep them safe).
 
     cmake --build build --target mw3probe && .venv/bin/python tests/differential/test_net105.py [cases]
+
+On Pirate's Moon's exe (0x402610 / 0x4025f0 cdecl, the link methods 0x403d30..0x403ef0): MW3_EXE=pm with pmprobe.
 """
 import ctypes
 import os
@@ -20,10 +22,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from calltrace import Emu, Trace, load_probe  # noqa: E402
 from ai_world import ser  # noqa: E402
+from original import to_exe  # noqa: E402
 
 NONE_PTR = 0x5e8654
 HEAD, TAIL = 0x5f4c4c, 0x5f4c50
 I32, U32 = ctypes.c_int32, ctypes.c_uint32
+
+
+def raw_cstr(em, p):
+    """A string at a run-time pointer, read as it is (on PM's exe the exe's own strings are PM's addresses)."""
+    out = bytearray()
+    while True:
+        b = bytes(em.cpu._uc.mem_read(p + len(out), 64))
+        i = b.find(b'\0')
+        if i >= 0:
+            return (out + b[:i]).decode('latin-1')
+        out += b
 
 
 def u(f):
@@ -87,18 +101,18 @@ class Exe:
 
         def strupr(em, key, a, pop):
             p = a[0]
-            t = em.cstr(p)
-            em.cpu.write(p, t.upper().encode('latin-1'))
+            t = raw_cstr(em, p)
+            em.cpu._uc.mem_write(p, t.upper().encode('latin-1'))
             em._ret(p, 0)
 
         def strncmp(em, key, a, pop):
-            x, y = em.cstr(a[0]).encode('latin-1')[:a[2]], em.cstr(a[1]).encode('latin-1')[:a[2]]
+            x, y = raw_cstr(em, a[0]).encode('latin-1')[:a[2]], raw_cstr(em, a[1]).encode('latin-1')[:a[2]]
             em._ret(0 if x == y else (-1 if x < y else 1), 0)
 
         def sprintf(em, key, a, pop):  # "node_%02d" only
-            fmt = em.cstr(a[1])
+            fmt = raw_cstr(em, a[1])
             text = fmt.replace('%02d', f'{a[2]:02d}').encode('latin-1') + b'\0'
-            em.cpu.write(a[0], text)
+            em.cpu._uc.mem_write(a[0], text)
             em._ret(len(text) - 1, 0)
         e.import_stub(0x5bb650, '_strupr', 's0', 0, strupr)
         e.import_stub(0x5bb654, 'strncmp', 's0,s1,s2', 0, strncmp)
@@ -115,7 +129,7 @@ class Exe:
             em._ret(0, pop)
         e.stub(0x4023d0, 'fill', 'c,d,s0,s1', None, fill)
         self.none = e.r32(NONE_PTR)
-        e.call(0x4c7b80, ecx=0x603fd8)  # znet's registry, as the AI tests make it
+        e.call(0x4c7b80, ecx=to_exe(0x603fd8))  # znet's registry, as the AI tests make it
         e.call(0x4ae8b0)  # the null node's static constructor ([0x005e8654] -> 0x0060b160)
 
     def who(self, p, by_addr):
