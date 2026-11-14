@@ -4516,6 +4516,7 @@ TEST(pm_command_marker_is_on_no_side_headless) {
   std::fflush(nullptr);
   const pid_t child = check::fork_child();  // a mission of its own, as the other runs
   if (child == 0) {
+    FixedSeed seed(1u);
     zgame::set_game(pm::table());
     zutl::mounts() = zutl::Mounts{};
     zutl::mount(MW3PM_GAME_DIR);
@@ -4585,6 +4586,7 @@ TEST(pm_low_object_detail_loads_the_low_model_and_15_key_gaits_headless) {
     std::fflush(nullptr);
     const pid_t child = check::fork_child();
     if (child == 0) {
+      FixedSeed seed(1u);
       zgame::set_game(pm::table());
       zutl::mounts() = zutl::Mounts{};
       zutl::mount(MW3PM_GAME_DIR);
@@ -4657,6 +4659,7 @@ TEST(pm_salvage_screen_by_the_game_headless) {
     std::fflush(nullptr);
     const pid_t child = check::fork_child();
     if (child == 0) {
+      FixedSeed seed(1u);
       zgame::set_game(pm::table());
       zutl::mounts() = zutl::Mounts{};
       zutl::mount(MW3PM_GAME_DIR);
@@ -4670,7 +4673,6 @@ TEST(pm_salvage_screen_by_the_game_headless) {
       mech3::mech_types_forget();
       mech3::player_controls_instance() = nullptr;
       mech3::options() = mech3::Options{};
-      crt::rand_fixed_seed() = 1u;
       NoKeys keys;
       Window window;
       Alert alert;
@@ -4758,6 +4760,7 @@ TEST(pm_salvage_entered_cold_loads_the_lab_world_headless) {
   std::fflush(nullptr);
   const pid_t child = check::fork_child();
   if (child == 0) {
+    FixedSeed seed(1u);
     zgame::set_game(pm::table());
     zutl::mounts() = zutl::Mounts{};
     zutl::mount(MW3PM_GAME_DIR);
@@ -4772,7 +4775,6 @@ TEST(pm_salvage_entered_cold_loads_the_lab_world_headless) {
     mech3::player_controls_instance() = nullptr;
     mech3::options() = mech3::Options{};
     zcls::nodes() = zcls::NodePool{};  // cold: no world left by the tests before (the child inherits their nodes)
-    crt::rand_fixed_seed() = 1u;
     NoKeys keys;
     Window window;
     Alert alert;
