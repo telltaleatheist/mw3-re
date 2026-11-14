@@ -5,6 +5,7 @@
 #include <cstring>
 #include <new>
 
+#include "gamez/zclass/camera.h"
 #include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_mechlib.h"
@@ -177,22 +178,50 @@ int node_link(Node* parent, Node* child) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004eb9b0. By the parent's class; the classes whose own
-// add-child is not ported yet stop the game rather than guess.
+namespace {
+// Mech3.exe 1.2 @ 0x004fd8c0. Animate.c's add-child: null checks, then linked.
+int animate_add_child(Node* parent, Node* child) {
+  const char* file = "C:\\zipper\\GameZMech3\\zClass\\Animate.c";
+  if (!parent) return zerr::report(0x400, file, 0x8d, "Null node pointer."), 5;
+  if (!child) return zerr::report(0x400, file, 0x8e, "Null node pointer."), 5;
+  return node_link(parent, child);
+}
+
+// Mech3.exe 1.2 @ 0x004fd1e0. Switch.c's: the same, and the class data set.
+int switch_add_child(Node* parent, Node* child) {
+  const char* file = "C:\\zipper\\GameZMech3\\zClass\\Switch.c";
+  if (!parent) return zerr::report(0x400, file, 0x80, "Null node pointer."), 5;
+  if (!child) return zerr::report(0x400, file, 0x81, "Null node pointer."), 5;
+  if (!parent->data) return zerr::report(0x400, file, 0x82, "Null class data pointer"), 5;
+  return node_link(parent, child);
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004eb9b0. By the parent's class. A sequence (7) or an
+// unknown class is reported (0x0050da70) and refused, as the removal does.
 int node_add_child(Node* parent, Node* child) {
   if (!child) return zerr::report(0x400, kClassFile, 0x78f, "Null node pointer."), 5;
   if (!parent) return zerr::report(0x400, kClassFile, 0x790, "Null node pointer."), 5;
   if (parent == child) return 1;
+  const char* fmt;
+  int line;
   switch (parent->cls()) {
+    case 1: return camera_add_child(parent, child);
     case 2: return world_add_child(parent, child);
     case 3: case 4: case 9: case 10: return node_link(parent, child);
     case 5: return object3d_add_child(parent, child);
-    default: {
-      char msg[80];
-      std::snprintf(msg, sizeof msg, "node_add_child: class %d is not ported yet", parent->cls());
-      gamez_abort(msg);
-    }
+    case 6: return node_link(parent, child);  // the LoD's 0x004fe0a0, a jump to it
+    case 7:
+      fmt = "%s: Line %d: ERROR: Please use dedicated function gwSequenceAddChild() for node: %s\n", line = 0x7b3;
+      break;
+    case 8: return animate_add_child(parent, child);
+    case 11: return switch_add_child(parent, child);
+    default: fmt = "%s: Line %d: ERROR: Unrecognized node class type for node: %s\n", line = 0x7cb; break;
   }
+  char msg[160];
+  std::snprintf(msg, sizeof msg, fmt, kClassFile, line, parent->name());
+  zerr::report(1, "C:\\zipper\\GameZMech3\\zError\\zerr_old.c", 0x23, msg);
+  return 1;
 }
 
 // Mech3.exe 1.2 @ 0x004ed960
