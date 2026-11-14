@@ -25,6 +25,7 @@
 #include "mech3/zai_steps.h"
 #include "mech3/mech_control.h"
 #include "mech3/cheats.h"
+#include "mech3/mech_anim.h"
 #include <typeinfo>
 
 #include <cstdio>
@@ -611,4 +612,19 @@ void pm_water_survey(void* player, const char* label, float low, float high, flo
     std::printf("WATER %s:   %-22s wadeable water %5.0f m away (the tallest's: %s)\n", label, q.name.c_str(), q.near_low,
                 q.near_high > 1e8f ? "none" : (std::to_string(static_cast<int>(q.near_high)) + " m").c_str());
   }
+}
+
+// The mech's data at low object detail (test_pm_mission.cpp): its model's name, whether the second (low) model is
+// loaded, whether the model is models[0], and the gaits' fewest and most keys.
+bool pm_mech_data_detail(void* mech, std::string* model, bool* second, uint32_t* keys_min, uint32_t* keys_max) {
+  auto* m = static_cast<mech3::Mech*>(mech);
+  if (!m || !m->pilot) return false;
+  const mech3::MechData& d = *m->pilot;
+  const auto* n = static_cast<const zcls::Node*>(d.model);
+  *model = n ? n->name() : "";
+  *second = d.models[1] != nullptr;
+  *keys_min = ~0u, *keys_max = 0;
+  for (const mech3::MechAnim* a : d.anims)
+    if (a) *keys_min = std::min(*keys_min, a->frame_count), *keys_max = std::max(*keys_max, a->frame_count);
+  return d.model == d.models[0];
 }

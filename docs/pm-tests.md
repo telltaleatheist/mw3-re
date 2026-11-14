@@ -1081,3 +1081,21 @@ the table's `lab_head_with_torso` (a discoveries.md line). `pm_lab_highlight_lig
 (mw3pmtests) checks every part's blend after each section 0..8 on both tables; `test_pm_lab_highlight.py` runs
 PM's 0x451730 in the emulator (the per-part setter 0x4516d0 stubbed) and gets the same PM table. Break: the flag
 off (4 failed checks).
+
+## The mech data's target sound and its low object detail (2026-11-14)
+
+PM's mech data sounds (0x430a70) find slot 24 (+0x88, the target sound a newly targeted mech plays,
+app_hud.cpp's program_hud_target_set) as "mech_targeting" (PM's reader.zbd, 0064.wav) for every mech, where MW3's
+0x4306d0 builds "mech_<name>"; with MW3's name the port's PM never played it. Behind the table's
+`targeting_sound`. `test_pm_mech_sounds.py` runs 0x430a70 with zsnd's find (0x590a70) stubbed: the 25 names in
+order and the slot each lands in, for three mechs, against the port (and MW3's table still building
+mech_<name>): 4 runs, 0 differ. Break: the flag off (3 differ).
+
+At low object detail ([0x6293a8], the port's lod_table().low, set by 0x414430 from the option at 2) PM's mech data
+(0x430c10) loads only mechlib's low model (variant 1, mech_<name>_1) into the model's slot and clears the
+second, and resamples each gait to 15 keys (0x431730, MW3 60) and passes 10 for the actions (0x431a00, MW3 20,
+unused by the action load). Behind `mech_data_low_detail`. The data is cached by mech for the program's run, as
+in PM, so the option counts when a mech's data is first loaded.
+`pm_low_object_detail_loads_the_low_model_and_15_key_gaits_headless` (c1m1, the player's Mad Cat): at detail 2
+mech_madcat_1.flt, no second model, every gait 15 keys; at 0 mech_madcat.flt, both, 60. Breaks: the flag off,
+the gaits at 60 (each fails the detail-2 run).

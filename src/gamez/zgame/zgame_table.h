@@ -134,6 +134,13 @@ struct Table {
   // The mech lab's part highlight (mech3 lab_view.cpp lab_highlight; PM 0x00451730): PM lights the head with the
   // torso (sections 1, 7, 8) and nothing for the head (6); MW3 the head for 6 only.
   bool lab_head_with_torso;
+  // A mech's target sound, its data's slot 24 (mech3 mech_data.cpp load_sounds; PM 0x00430a70): PM finds
+  // "mech_targeting" for every mech, MW3 "mech_<name>".
+  bool targeting_sound;
+  // A mech's data at low object detail (mech3 mech_data.cpp mech_data_load, the gait and action loads; PM 0x00430c10,
+  // 0x00431730, 0x00431a00): PM loads only the low model and resamples the gaits to 15 keys (actions 10); MW3 loads
+  // both models and 60 keys at every detail.
+  bool mech_data_low_detail;
 };
 
 const Table& mw3_table();

@@ -4489,3 +4489,75 @@ TEST(pm_command_marker_is_on_no_side_headless) {
   EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }
+
+bool pm_mech_data_detail(void* mech, std::string* model, bool* second, uint32_t* keys_min, uint32_t* keys_max);
+// Pirate's Moon's mech data at low object detail (0x00430c10, 0x00431730, 0x00431a00; the port's mech_data_load and
+// gait loads with the table's mech_data_low_detail): only the low model (mechlib's variant 1, mech_<name>_1) is
+// loaded, as the model, and the gaits are resampled to 15 keys; at full detail both models and 60 keys, as MW3.
+TEST(pm_low_object_detail_loads_the_low_model_and_15_key_gaits_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  for (const int lod : {2, 0}) {
+    std::fflush(nullptr);
+    const pid_t child = check::fork_child();
+    if (child == 0) {
+      zgame::set_game(pm::table());
+      zutl::mounts() = zutl::Mounts{};
+      zutl::mount(MW3PM_GAME_DIR);
+      const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_lowdata_write";
+      std::filesystem::create_directories(wd);
+      zutl::set_write_dir(wd.c_str());
+      mech3::reset_states();
+      if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+      mech3::missions() = mech3::Missions{};
+      mech3::mech_types_forget();
+      mech3::player_controls_instance() = nullptr;
+      mech3::options() = mech3::Options{};
+      NoKeys keys;
+      Window window;
+      Alert alert;
+      Clock clock;
+      MovieClock movies;
+      Screen screen;
+      platform::SilentSoundOutput sound;
+      mech3::MountFiles files;
+      mech3::Platform p;
+      p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+      p.sound = &sound, p.files = &files, p.input = &keys;
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::options().object_lod[0] = mech3::options().object_lod[1] = lod;
+      mech3::GameEngine::Launch l;
+      engine.set_launch(l);
+      app.post_intro_ = &mech3::states().load;
+      bool done = false, first = false, second = true;
+      std::string model;
+      uint32_t keys_min = 0, keys_max = 0;
+      engine.on_present = [&](int) {
+        if (app.current() != &mech3::states().core) return;
+        void* me = mech3::mission_player_mech();
+        if (!me) return;
+        first = pm_mech_data_detail(me, &model, &second, &keys_min, &keys_max);
+        done = true;
+      };
+      Pump pump;
+      pump.limit = 20000;
+      pump.stop = [&] { return done; };
+      app.run(pump);
+      std::printf("  object detail %d: model %s, second %s, gait keys %u..%u\n", lod, model.c_str(),
+                  second ? "loaded" : "none", keys_min, keys_max);
+      const bool low_name = model.find("_1.") != std::string::npos;  // mech_<name>_1.flt
+      EXPECT(done && first);
+      if (lod == 2) EXPECT(low_name && !second && keys_min == 15 && keys_max == 15);
+      else EXPECT(!low_name && second && keys_min == 60 && keys_max == 60);
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    const int status = check::wait_child(child);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
+#endif
+}
