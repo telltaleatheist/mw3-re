@@ -476,7 +476,7 @@ void ActionScreen::show_custom() {
   enemies[0].refill(0);
 }
 
-// Mech3.exe 1.2 @ 0x0048aac0. Quirk: the commander's mech is chosen by its
+// Mech3.exe 1.2 @ 0x0048aac0, Pirate's Moon 1.0 @ 0x0048fd90 / 0x0048f970 (compared line by line, 2026-11-14). Quirk: the commander's mech is chosen by its
 // number, not its row (mech 7 has no row), so past it the next mech shows;
 // the kept choice ([0x00605820]) replaces it when there is one.
 void ActionScreen::reset() {
@@ -538,7 +538,7 @@ void ActionScreen::reset() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0048a140. The scenario's mission is looked for (its AI
+// Mech3.exe 1.2 @ 0x0048a140, Pirate's Moon 1.0 @ 0x0048eaf0 (compared line by line, 2026-11-14). The scenario's mission is looked for (its AI
 // paths or reader); without one an earlier scenario is taken, whose reader is
 // looked for without ".zbd" (never found). Then the line-up: the commander's
 // mech, the field base, the lancemates on the player's side and, unless in
@@ -565,7 +565,15 @@ void ActionScreen::accept() {
   g->set_text(&g->x3c, e.message(kActionScenarios[sc].name));
   g->set_text(&g->x40, e.message(kActionScenarios[sc].desc));
   g->field_bases = allies[1].value_at(allies[1].index) != -1;
-  if (GameSlot* s = player_slot()) s->mech = allies[0].value_at(allies[0].index);
+  // Pirate's Moon 0x0048eaf0: the commander's mech set only when it changed, and then its loadout
+  // dropped first (0x00434880(0, 0, 0)), so a loadout made for the old mech does not ride on the new one.
+  if (GameSlot* s = player_slot()) {
+    const int32_t mech = allies[0].value_at(allies[0].index);
+    if (s->mech != mech) {
+      if (s->config) s->set_config(nullptr);
+      s->mech = mech;
+    }
+  }
   for (int i = 2; i < 5; ++i) {
     const int32_t mech = allies[i].value_at(allies[i].index);
     if (mech != -1) g->add(mech, 1, nullptr, 0);
