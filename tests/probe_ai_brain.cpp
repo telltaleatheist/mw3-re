@@ -537,3 +537,27 @@ uint32_t probe_ab_vslot(uint32_t addr, int slot, uint32_t arg) {
 
 }  // extern "C"
 
+
+extern "C" {
+
+// test_builtin_net.py: the built-in net (0x004c0310) made with znet holding nets of the ids in `taken`; out: its id,
+// its step count and capacity, whether step 0 is the default behaviour, and whether BrainHooks' default builtin_net
+// (with ask_hook) gives one, the same one on a second ask.
+void probe_builtin_net(const int32_t* taken, int32_t n, int32_t ask_hook, int32_t* out) {
+  std::vector<std::unique_ptr<ai::CompiledNet>> held;
+  for (int32_t i = 0; i < n; ++i) held.push_back(std::make_unique<ai::CompiledNet>(taken[i], 0));
+  {
+    ai::BuiltinNet net;
+    out[0] = net.get_id();
+    out[1] = net.count();
+    out[2] = static_cast<int32_t>(net.elems.capacity());
+    out[3] = net.count() > 0 && net.elems[0] == ai::default_behaviour();
+  }
+  out[4] = 1;
+  if (!ask_hook) return;  // the hook's net stays in znet (made once, as the exe's at start-up)
+  ai::BrainHooks plain;
+  ai::AiNet* a = plain.builtin_net();
+  out[4] = a != nullptr && dynamic_cast<ai::BuiltinNet*>(a) != nullptr && plain.builtin_net() == a;
+}
+
+}  // extern "C"

@@ -156,6 +156,7 @@ struct Display {
 };
 Display& display();
 int set_dither(int on);  // 0x00579240 ECX on (VideoSetDither): [0x00802700] only
+int set_wireframe(int mode);  // 0x00579230 ECX mode (VideoSetWireFrame): [0x008026fc] only
 // ECX which: bit 1 the multiply blend, bit 2 clamped addressing. 1 when the
 // display is not fullscreen.
 int32_t has_caps(int32_t which);  // 0x00579b70

@@ -452,7 +452,7 @@ void wire_weapons(uint32_t (*log)(const char* key)) {
   };
   h.impact_effect = [](int32_t e, const zwep::Vec3f3*) { zeff::effect_spawn(e); };        // 0x0050d650
   // 0x00542060: nothing unless a script gave a mark image (none ships); the
-  // painting into the hit texture is not ported (weapon-effects.md).
+  // painting (zmod::mark_paint) is ported for preservation, not wired in (weapon-effects.md).
   h.surface_mark = [](zwep::HitRecord*) {
     if (zmod::mark_on()) unported("0x00542060");
   };

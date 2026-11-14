@@ -47,9 +47,9 @@ class BrainHooks : public zgame::Unported {
   virtual uint32_t ref(const void* p) { return low(p); }
   // A net by number: znet's object (0x0058b160), then the AI's casts.
   virtual znet::Object* net_find(int32_t id);
-  // The built-in net at 0x00604008 (made at start-up by 0x004c0310, not
-  // ported): the pilot's net when its own is missing.
-  virtual AiNet* builtin_net() { return nullptr; }
+  // The built-in net at 0x00604008 (made at start-up by 0x004c0310): the pilot's net when its own is missing.
+  // The port's BuiltinNet, made on first ask, as formation_net.
+  virtual AiNet* builtin_net();
   // The default behaviour at 0x00604068 (zai_steps): an order's without one.
   virtual Behaviour* default_behaviour();
   // The handle the hooks know a vehicle by (the program's object table).
@@ -430,12 +430,13 @@ Behaviour* hold_behaviour();
 // The shared behaviour at 0x0060b460, made at start-up.
 Behaviour* shared_behaviour();
 
-// The built-in net at 0x00604008 (0x004c0310 over the seven-behaviour net,
-// not ported): what an order without a net goes on. Its part is the
-// built-in kind (0x004c0520).
+// The built-in net at 0x00604008 (0x004c0310, run at start-up by 0x00410400): what an order without a net goes on.
+// A compiled net with an id from znet's kept range and one step, the default behaviour; its part is the built-in
+// kind (0x004c0520). Its destructor (0x004106d0) is the compiled net's, which leaves the default behaviour.
 class BuiltinNet : public CompiledNet {
  public:
   using CompiledNet::CompiledNet;
+  BuiltinNet();  // 0x004c0310
   NetPart* make_part(Order& o) override;
 };
 

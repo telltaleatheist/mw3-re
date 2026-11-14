@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 
 #include "mech3/zainet.h"
 #include "mech3/zrdrainet.h"
@@ -25,6 +26,13 @@ struct NetHooks {
   // 0x004be5a0 over the vehicles (0x0073655c): the ones following a net
   // that is rebuilt are let go of it, then given the new one.
   void (*rebuilt)(AiNet* old_net, AiNet* new_net) = nullptr;
+  // A version-105 net's reload (0x004bed90): the vehicles on zEntity's list ([0x0073655c], each entry's vt+0x2c
+  // then vt+0x40) whose controls (vt+0x140) use `net` (vt+0x64), kept in order (0x004bf4e0); then each kept
+  // vehicle's controls given the new one (vt+0x04). None: no vehicle is moved over.
+  void (*users105)(AiNet* net, std::vector<void*>& vehicles) = nullptr;
+  void (*give105)(void* vehicle, AiNet* net) = nullptr;
+  // The reader it builds with (0x00402590 -> 0x004025b0); a test may stand in. None: net105_read.
+  AiNet* (*read105)(zrdr::Node* tree, const char* name, int32_t x18) = nullptr;
 };
 NetHooks& net_hooks();
 
@@ -75,6 +83,7 @@ class CZAiNetEdit : public AiNet {
   Region* build_region();                   // 0x004bf3f0 (version 108)
   AiNet* build_compiled();                  // 0x004be670 (version 106; zainet_compile.cpp)
   AiNet* build_waynet();                    // 0x004be690 (version 107): a nav waynet (mech_waynet)
+  AiNet* build_105();                       // 0x004bed90 (version 105): the older net class (zainet105)
 
   NetHeader header;               // +0x18
   AiNet* net = nullptr;           // +0x34  what was built

@@ -144,6 +144,18 @@ AiNet* BrainHooks::formation_net() {
   return net;
 }
 
+// 0x00604008, made at start-up in the exe (0x00410400): here on first ask, and again should znet have let it go.
+// Without it an order of a vehicle with no net called through a null net (Order::reset, Brain::push).
+AiNet* BrainHooks::builtin_net() {
+  static BuiltinNet* net = nullptr;
+  static int32_t id = -1;
+  if (!net || znet::find(id) != net) {
+    net = new BuiltinNet;
+    id = net->get_id();
+  }
+  return net;
+}
+
 Behaviour* BrainHooks::follow_behaviour(AiNet* n) {  // 0x004c0de0
   auto* vn = dynamic_cast<VehicleNet*>(n);
   return vn ? vn->follow() : nullptr;
@@ -235,6 +247,12 @@ bool Order::set_behaviour(Behaviour* b) {
 
 // Mech3.exe 1.2 @ 0x004c0070 -> 0x004c0010
 NetPart* CompiledNet::make_part(Order& o) { return new NetLink(&o, this, false); }
+// Mech3.exe 1.2 @ 0x004c0310 (0x00410400 runs it on 0x00604008 at start-up): an id from 10000 (0x0058b1c0 over
+// [0x005f2a48]), the base (0x004bf910) holding one, the default behaviour pushed on.
+BuiltinNet::BuiltinNet() : CompiledNet(znet::alloc_id(znet::kKeptIds, znet::kKeptIds, znet::kKeptIds + 100), 1) {
+  elems.push_back(default_behaviour());
+}
+
 // Mech3.exe 1.2 @ 0x004c0520 -> 0x004c0540
 NetPart* BuiltinNet::make_part(Order& o) { return new NetLink(&o, this, true); }
 

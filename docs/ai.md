@@ -395,7 +395,9 @@ waynet_N.zrd is 107 (c1's waynet_1: node_00 Start, node_01 Able, node_02
 Baker), and those auxnames are the nav points the objectives' "nav" keys
 name (0x4797c0 through 0x4bcba0 with the build flag, filling the missions
 object's +0xb0; mac 2, 2026-10-21; ported in step 4b3b, vehicles.md, The
-nav waynet). 105 (0x4bed90, not ported on purpose: section 17.9) is the
+nav waynet). 105 (0x4bed90, ported for preservation 2026-11-14 as
+`CZAiNetEdit::build_105`, the vehicles through `NetHooks` users105 / give105, not
+wired; `test_net105_reload.py`) is the
 editor's reload: with records, the file's data (0x4dc6f0) and, when a net
 was built before (+0x34), every vehicle on zEntity's list whose controls
 (vt+0x140) use it (vt+0x64) kept (0x4bf4e0), the old net freed (0x4bf4b0),
@@ -851,9 +853,12 @@ byte stays 0 from the allocation.
 
 Then: without a net, znet's object of the record's first item (0x58b160,
 vt+0x28, vt+0x34), else **the built-in net** at 0x604008 (made at start-up
-by 0x4c0310 over the seven-behaviour net, not ported: the port has none,
-so a pilot whose net is missing gets no order; player.cpp never asks for
-one without a net). Then **the first order** (0x4e9380): the net as
+by 0x410400 -> 0x4c0310: a compiled net, its id znet's first free from
+10000, holding one step, the default behaviour 0x604068, under its own
+vtable 0x5bcc68 whose part is the built-in kind 0x4c0520 and whose
+destructor 0x4106d0 is the compiled one's; ported 2026-11-14 as
+`BuiltinNet`, made on the hooks' first ask as the formation net is, so a
+pilot whose net is missing goes on it as in the exe; `test_builtin_net.py`). Then **the first order** (0x4e9380): the net as
 compiled (vt+0x34; not compiled: nothing more, no order at all), every order
 popped (none at first; each destroyed in place, a block freed as it empties,
 the map with the last), and one pushed (0x4e9d90: an empty deque takes a

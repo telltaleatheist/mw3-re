@@ -352,6 +352,9 @@ PointLight& point_light() { return g_light; }
 ChannelMasks& channel_masks() { return g_masks; }
 Display& display() { return g_display; }
 
+// Mech3.exe 1.2 @ 0x00579230 (ECX mode; VideoSetWireFrame, a script command: ported for preservation, the engine's
+// entry left null): the fill mode only, sent at the next scene once something marks it dirty (begin_scene).
+int set_wireframe(int mode) { return g_display.fill_mode = mode, 0; }
 // Mech3.exe 1.2 @ 0x00579240
 int set_dither(int on) { return g_display.dither = on, 0; }
 D3DTexture*& default_texture() { return g_default; }

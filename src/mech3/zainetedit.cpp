@@ -1,4 +1,5 @@
 #include "mech3/zainetedit.h"
+#include "mech3/zainet105.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -71,7 +72,8 @@ CZAiNetEdit::CZAiNetEdit(int32_t net_no, const char* name_in, int32_t build)
       case 0x6a: net = build_compiled(); break;
       case 0x6b: net = build_waynet(); break;
       case 0x6c: net = build_region(); break;
-      // 105 (0x004bed90) is not ported: no shipped file is one.
+      // 105 (0x004bed90): no shipped file is one (the header reads a "mech3" 105 as 106).
+      case 0x69: net = build_105(); break;
       default: break;
     }
   }
@@ -439,6 +441,26 @@ AiNet* CZAiNetEdit::build_compiled() {
   for (size_t i = 0; i < cn->elems.size(); ++i) static_cast<AiElem*>(cn->elems[i])->as_behaviour()->attach(cn);
   if (net_hooks().rebuilt) net_hooks().rebuilt(old, cn);
   return cn;
+}
+
+// Mech3.exe 1.2 @ 0x004bed90 (0x004bf4e0 its list's push): with the file's data, the vehicles on the net built before
+// kept and the net let go (0x004bf4b0), the older net class read from the file's tree (0x00402590 -> 0x004025b0:
+// its name the file's, the header's number its +0x18), and the kept vehicles handed it. Ported for preservation
+// (docs/ai.md 9, 17.9): no shipped net file is version 105.
+AiNet* CZAiNetEdit::build_105() {
+  if (header.version != 0x69 || !ref) return nullptr;
+  zrdr::Node* tree = ref->file ? ref->file->tree : nullptr;  // 0x004dc6f0
+  if (!tree) return nullptr;
+  std::vector<void*> kept;
+  if (net) {
+    if (net_hooks().users105) net_hooks().users105(net, kept);
+    drop_net();
+  }
+  const auto read = net_hooks().read105;
+  net = read ? read(tree, ref->file->name, header.net) : net105_read(tree, ref->file->name, header.net);  // 0x004dc680: the name
+  if (net && net_hooks().give105)
+    for (void* v : kept) net_hooks().give105(v, net);
+  return net;
 }
 
 // Mech3.exe 1.2 @ 0x004bf3f0

@@ -107,11 +107,11 @@ def's own node.
 | 13 opacity | 0x505bf0 | the opacity flag and value |
 | 14 opacity from-to | 0x505c60 | at a rate until +0x20 |
 | 15 add child | 0x505d90 | unless already a child |
-| 16 delete child | 0x505df0 | not shipped; hooked |
+| 16 delete child | 0x505df0 | not shipped; hooked (ported for preservation: ref +0x0e out of ref +0x0c, unchecked) |
 | 17 cycle texture | 0x505e20 | the model's texture cycle to its start, then frame +0x12 |
 | 18 connector | 0x505e80 | a node stretched between two points (its z scale is the distance, a fast square root), growing over time |
 | 19 call connector | 0x506290 | starts a def as a connector (0x508dc0) |
-| 20, 21 camera | 0x503c10, 0x503d50 | not shipped; hooked |
+| 20, 21 camera | 0x503c10, 0x503d50 | not shipped; hooked (ported for preservation, below) |
 | 22, 23 call / stop sequence | 0x5064e0, 0x506590 | a waiting sequence (3) starts; a sequence stops |
 | 24 call animation | 0x506640 | starts a def plainly, at a node's pose (flag 1, with the node's world angles for 4), or as a connector (8), at node +0x2c; the anim ref +0x32 keeps it; with 0x10 the event waits while it runs |
 | 25, 26, 27 | 0x506d60, 0x506e00, 0x506ea0 | stop, reset, invalidate a def by name |
@@ -121,7 +121,7 @@ def's own node.
 | 35 callback | 0x507410 | the def's callback hears +0x0c |
 | 36 fbfx colour | 0x5074b0 | the screen tint (below), ported |
 | 37 fbfx wave | 0x5076c0 | a screen wave (the 2D layer); hooked |
-| 38 | 0x507970 | a message (the 2D layer); hooked |
+| 38 | 0x507970 | a message (the 2D layer); hooked (ported for preservation, below) |
 | 39, 40 | 0x507960 | nothing |
 | 41 detonate | 0x507430 | the weapon named +0x0c goes off at +0x18 in node +0x16's frame; hooked |
 | 42 puffer | 0x5035b0 | `puffers.md` |
@@ -261,3 +261,26 @@ and a taken damage slot overwritten (shipped data never registers twice).
 
 The FIX (bug) for a missing prerequisite node is checked in `test_anim.py`
 (exe path exact on a doctored c2 file; the fix keeps the other entries).
+
+## The events no shipped file uses (ported for preservation, 2026-11-14)
+
+Events 16, 20, 21 and 38 are in no shipped anim.zbd. They are ported in zeff_anim_events (`ev_object_remove_child`,
+`ev_camera_state`, `ev_camera_from_to`, `ev_message`). The dispatcher still hands them to the program's hooks,
+which only log.
+- 20 (0x503c10): ref +0x10's camera gets values from +0x14 according to the flags at +0x0c: clip near and far, LoD
+  scale, the fov angles h and v (0x4f3d90), the fov factors h and v (0x4f3b90). For each pair, the half that isn't
+  set is read back from the camera first.
+- 21 (0x503d50; 0x50414d is a piece of it): on the sequence's first run the start values are set (+0x14 near, +0x20
+  far, +0x2c LoD, +0x38 and +0x44 the angles, +0x50 and +0x5c the factors). Then each value steps by its rate (the
+  word after its start) times the time this event may use, which is the time left less any overrun past +0x68.
+  That time is taken off the time left. Once the sequence's time reaches +0x68, the end values (the word after each
+  rate) are set and the event ends (2); until then it gives 1.
+- 38 (0x507970): message +0x0c's text is its id's Mech3Msg string (0x576040), or the record's own name when the id
+  is 0. It is shown for 3 seconds on the 2D text layer (0x5a3fd0, not ported: the caller's).
+
+`test_script_cmds.py` runs 400 events 20 and 21 against the exe at the reference runtime's 53 bits: random flags,
+values, states and times, a missing node, wrong classes. The setters' derived words (1/f² and the fovs' 1/tan) are
+allowed 2 ulps. It also runs event 16 on six ref pairs and event 38 on five records. Breaks caught: the end values
+taken from the starts, the starts set on every run, no overrun cut, the time left kept, event 20's far written as
+near, a record's name shown for an id.
+

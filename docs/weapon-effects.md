@@ -98,7 +98,19 @@ copied (0x4f9b50(node, 1, 1); `AnimHooks::copy_tree`).
   pixel format [0x74a738], or a colour-keyed copy) into the hit material's
   texture centred on the coordinates (wrapped to 0..1), locking the
   texture through [0x72f368] and reloading it ([0x72f36c], [0x72f374](0)).
-  The port logs `0x00542060` if a modded script turns them on.
+  Ported for preservation (2026-11-14, `zmod::mark_paint`), not wired in: the
+  weapons' hook still logs `0x00542060` if a modded script turns the marks on.
+  The material must be textured, flag 2 and not cycled. A mark larger than
+  the image is centred (its middle part drawn); one past the near edge is
+  drawn from the edge, not cut; past the far edge it is moved back inside.
+  A mark larger by an odd count is drawn one column and one row too large:
+  the extra column lands at the next row's start, and the exe writes past
+  the image's end, which the port drops (FIX (A)). The port paints the image
+  and hands it to the reload hook (FIX (A)) where the exe locks the Direct3D
+  surface. `test_script_cmds.py`: 400 random images, marks, UVs, materials,
+  formats and surfaces against the exe (178 painted); breaks caught: the
+  near edge cut, 555 over 3, an unmasked copy of zeros, the wrap not written
+  back, the rows placed by u, no reload.
 - The lens-flare list (0x567420, 0x5674e0, 0x5675e0) and the software
   renderer's pixel plot 0x562d90.
 - zEffect's table entries and spawn (0x50d2c0's records, 0x50d650): never
