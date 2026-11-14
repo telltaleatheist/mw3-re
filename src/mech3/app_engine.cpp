@@ -270,6 +270,8 @@ GameEngine::~GameEngine() {
   delete_screens();
   if (g_engine == this) {
     g_engine = nullptr;
+    ztimer::set_clock(nullptr);  // the platform's clock and music go with the engine that installed them
+    zsnd_cd::set_backend(nullptr, nullptr, "music");
     set_options_hooks(nullptr);
     wire_mission_hooks(nullptr);
     wire_pilot_hooks(nullptr);
