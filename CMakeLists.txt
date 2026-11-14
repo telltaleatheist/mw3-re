@@ -753,6 +753,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_fieldbase.cpp  # PM's field bases: the last one's death, the aborts' lines
     tests/pm/test_pm_waynet.cpp  # PM's MCB waynet: hidden points skipped, the nearest shown
     tests/pm/test_pm_mech_free.cpp  # PM's mech destructor: shots locked on it forget the lock
+    tests/pm/test_pm_vehicle.cpp  # PM's basic vehicles: damage, place, clamp
     tests/test_model_bound.cpp  # (main's, shared) the same bound on MW3's reader
     tests/test_child_limits.cpp  # (main's, shared) a forked test child's own memory and time caps
     tests/pm/test_pm_objectives.cpp
@@ -850,6 +851,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_group_fire.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_weapon_select.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_controls_zero.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_clamp.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_fade.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_view_ground.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_object_lod.cpp)

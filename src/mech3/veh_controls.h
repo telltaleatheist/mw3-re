@@ -217,6 +217,7 @@ struct VehicleControls {
   // prepended: their head is the back here), none crossed (+0x36c), and
   // which responses ran.
   std::vector<CollisionHit> objects;  // +0x354
+  std::vector<CollisionHit> movers;   // Pirate's Moon's +0x358: a vehicle's or a mech part's node (0x0040f210)
   std::vector<CollisionHit> ceilings; // +0x35c
   std::vector<CollisionHit> walls;    // +0x360
   int32_t clear = 1;          // +0x36c

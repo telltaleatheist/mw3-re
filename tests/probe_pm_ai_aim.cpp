@@ -513,3 +513,19 @@ extern "C" void probe_pm_weapon_line(const int32_t* in, const float* f, float* o
   out[0] = weapon_line(h, w, in[4] ? f + 9 : nullptr, mz, dir, &c, &k) ? 1.0f : 0.0f;
   out[1] = mz[0], out[2] = mz[1], out[3] = mz[2], out[4] = dir[0], out[5] = dir[1], out[6] = dir[2], out[7] = c, out[8] = k;
 }
+
+// The same inputs to the muzzle alone (0x004b76d0): out the answer and the muzzle.
+extern "C" void probe_pm_weapon_muzzle(const int32_t* in, const float* f, float* out) {
+  Line h;
+  h.in = in, h.f = f;
+  WeaponLinePm w;
+  w.damage = f[0];
+  w.part_node = in[0] ? 0x41 : 0;
+  w.node = in[1] ? 0x42 : 0;
+  if (in[2]) w.fp_place = f + 1, w.fp_radius = f[4], w.fp_tolerance = f + 5;
+  w.salvo_left = in[3];
+  w.spread[0] = f[6], w.spread[1] = f[7], w.spread[2] = f[8];
+  float mz[3] = {-7, -7, -7};
+  out[0] = weapon_muzzle(h, w, mz) ? 1.0f : 0.0f;
+  out[1] = mz[0], out[2] = mz[1], out[3] = mz[2];
+}

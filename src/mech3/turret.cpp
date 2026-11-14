@@ -516,7 +516,15 @@ void Turret::frame() {
         }
       } else {
         if (weapon) {
-          if ((h.weapon_fire_flags(weapon) >> 1) & 1) h.attach_fire(weapon, fire_node[firepoint]);
+          // Pirate's Moon 1.0 @ 0x004aa080: with a firing node the weapon's FIRE choice 0 (0x005a3680) and, flag 2,
+          // the node; without one the choice -1. MW3 (0x004a6be0) only attached the node, and left the choice as
+          // the last setter did (a salvo's rest: -1).
+          if (fire_node[firepoint]) {
+            h.fire_animation(weapon, 0);
+            if ((h.weapon_fire_flags(weapon) >> 1) & 1) h.attach_fire(weapon, fire_node[firepoint]);
+          } else {
+            h.fire_animation(weapon, -1);
+          }
           h.shooter_set(*this, true);
           // 0x004b4a40's last: the shot hostile to the player (the player's
           // team among the turret's enemies, as a mech's shots are marked).

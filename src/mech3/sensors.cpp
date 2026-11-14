@@ -83,6 +83,11 @@ uint8_t sees(uint8_t a, uint8_t b, Handle hidden) {
 }
 // The x87's "below": NaN counts as in range.
 bool in_range(float d2, const AiTarget& t) { return g_see_all || !(d2 >= t.range2); }
+// Pirate's Moon 1.0 @ 0x004acec0 / 0x004acf00 and in 0x004ad2b0 / 0x004ac7b0: `a` senses `b` in range, with
+// everything shown, or when a is a C3 master (flags 8) and b a C3 slave (0x10), at any range. MW3: range only.
+bool reaches(float d2, const SensorRecord& a, const SensorRecord& b) {
+  return in_range(d2, *a.t) || ((a.flags & 8) && (b.flags & 0x10));
+}
 
 struct Vec {
   float x, y, z;
@@ -237,7 +242,7 @@ Contact* make_contact(SensorRecord& r, Handle target, const Vec& d, float d2, ui
   if (wt && vis && (wt->enemies & H().team(vt(r.self, 0x28)))) wt->xbc |= 2;
   if (target == r.target_was) {
     r.target = c;
-    if (wt) wt->xbc |= 1;
+    if (wt && (wt->xbc & 2)) wt->xbc |= 1;  // Pirate's Moon 1.0 @ 0x004aca30: only an enemy seen (MW3: always)
   }
   if (target == r.ally_was) r.ally = c;
   if (target == r.enemy_was) r.enemy = c;
@@ -262,14 +267,14 @@ Contact* make_contact(SensorRecord& r, Handle target, const Vec& d, float d2, ui
 // Mech3.exe 1.2 @ 0x004a9980: b's vehicle senses a's when in its range (d
 // turned to point at a); none otherwise, d left.
 Contact* senses_back(SensorRecord& b, SensorRecord& a, Vec& d, float d2) {
-  if (!in_range(d2, *b.t)) return nullptr;
+  if (!reaches(d2, b, a)) return nullptr;  // Pirate's Moon 0x004acf00
   negate(d);
   const Handle v = veh(a.self);
   const uint8_t vis = g_see_all ? 1 : sees(b.flags, a.flags, v);
   return make_contact(b, a.self, d, d2, vis);
 }
 
-// Mech3.exe 1.2 @ 0x004a9680: the player (the first record) and another.
+// Mech3.exe 1.2 @ 0x004a9680, Pirate's Moon 1.0 @ 0x004acb90: the player (the first record) and another.
 // The other's contact on the player is kept at +0x98 and +0x80, made and
 // owned (+0x94) when the player is out of its range.
 void player_pair(SensorRecord& a, SensorRecord& b) {
@@ -277,7 +282,7 @@ void player_pair(SensorRecord& a, SensorRecord& b) {
   const Vec pb = centroid(b.self);  // 0x004a98c0
   Vec d;
   const float d2 = delta(pa, pb, d);
-  if (in_range(d2, *a.t)) {
+  if (reaches(d2, a, b)) {  // Pirate's Moon 0x004acec0
     const Handle v = veh(b.self);  // 0x004a9910
     const uint8_t vis = g_see_all ? 1 : sees(a.flags, b.flags, v);
     make_contact(a, b.self, d, d2, vis);
@@ -299,13 +304,13 @@ Contact* senses(SensorRecord& a, SensorRecord& b, Vec& d, float& d2) {
   const Vec pa = centroid(a.self);
   const Vec pb = centroid(b.self);
   d2 = delta(pa, pb, d);
-  if (!in_range(d2, *a.t)) return nullptr;
+  if (!reaches(d2, a, b)) return nullptr;  // Pirate's Moon 0x004ad2b0
   const Handle v = veh(b.self);
   const uint8_t vis = g_see_all ? 1 : sees(a.flags, b.flags, v);
   return make_contact(a, b.self, d, d2, vis);
 }
 
-// Mech3.exe 1.2 @ 0x004a9a60: a lancemate under the player's orders and
+// Mech3.exe 1.2 @ 0x004a9a60, Pirate's Moon 1.0 @ 0x004acff0: a lancemate under the player's orders and
 // another; the other's +0x80 becomes the nearer of what it had and this
 // lancemate, made and owned (+0x7c, reused) when out of its range.
 void lance_pair(SensorRecord& a, SensorRecord& b) {
@@ -326,18 +331,18 @@ void lance_pair(SensorRecord& a, SensorRecord& b) {
   if (closer) b.t->nearest_lance = c;
 }
 
-// Mech3.exe 1.2 @ 0x004a92c0: two others, each sensing the other in its range.
+// Mech3.exe 1.2 @ 0x004a92c0, Pirate's Moon 1.0 @ 0x004ac7b0: two others, each sensing the other in its range.
 void pair(SensorRecord& a, SensorRecord& b) {
   const Vec pa = centroid(a.self);
   const Vec pb = centroid(b.self);
   Vec d;
   const float d2 = delta(pa, pb, d);
-  if (in_range(d2, *a.t)) {
+  if (reaches(d2, a, b)) {  // Pirate's Moon 0x004ac7b0, both ways
     const Handle v = veh(b.self);
     const uint8_t vis = g_see_all ? 1 : sees(a.flags, b.flags, v);
     make_contact(a, b.self, d, d2, vis);
   }
-  if (in_range(d2, *b.t)) {
+  if (reaches(d2, b, a)) {
     negate(d);
     const Handle v = veh(a.self);
     const uint8_t vis = g_see_all ? 1 : sees(b.flags, a.flags, v);
@@ -370,7 +375,8 @@ void c3_merge(SensorRecord& m) {
   Frame& f = *g_frame;
   for (const Ref& ref : f.c3) {
     SensorRecord& x = ref.r();
-    if (m.self == x.self || (x.flags & 0x20) || !(x.flags & 0x18)) continue;
+    // Pirate's Moon 1.0 @ 0x004ad5c0: a C3 slave's (0x10) only; MW3's every C3 unit's, masters too (0x18).
+    if (m.self == x.self || (x.flags & 0x20) || !(x.flags & 0x10)) continue;
     if (!(x.t->allies & H().team(vt(m.self, 0x28)))) continue;
     ++f.merges;
     if (m.sorted_by_seen != 1) {
@@ -481,12 +487,10 @@ void sensors_update() {
       vt(x, 0xc8);
     }
   }
-  if (f.view != f.player && f.view != f.stealth) {
-    if (const Handle x = veh(f.view)) vt(x, 0xcc);  // 0x004a8960, not used
-    add(f.view);
-  }
+  // Pirate's Moon 1.0 @ 0x004abc60 / 0x004ac6c0: no view second (MW3's 0x004a8960 added it whatever it answered):
+  // a viewed vehicle comes in the list's order, and only when it answers vt+0xcc (PM's vt+0xd8).
   for (Handle e : list) {  // 0x004a91b0
-    if (e == f.view || e == f.player || e == f.stealth) continue;
+    if (e == f.player || e == f.stealth) continue;
     const Handle x = veh(e);
     if (x && (vt(x, 0xcc) & 0xff)) add(e);
     else forget(e);

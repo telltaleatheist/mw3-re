@@ -448,11 +448,13 @@ void pm_controls_read(void* mech, float out[7]) {
 }
 
 // Pirate's Moon 0x00415190: the player's MASC on, the mech made again as its own type; whether MASC is on after.
+// Through the game's own caller (0x0047a6d0), which takes the mech off the view's target while it is made
+// again and resets the HUD after: a bare rebuild of the player leaves the HUD on the freed weapon list.
 bool pm_rebuild_keeps_masc(void* player) {
   auto* m = static_cast<Mech*>(player);
   m->masc(true);
   const bool before = m->masc_time != 0.0f;
-  mech_rebuild(*m, -1, nullptr);
+  program_pilot_set_mech(m->pilot ? m->pilot->roster : -1);
   return before && m->masc_time != 0.0f;
 }
 
