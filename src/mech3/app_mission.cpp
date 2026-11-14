@@ -2774,7 +2774,7 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
     return 0;
   }
   // The view's +0x04 runs its camera: the world drawn by the scene walk
-  // (0x004f7030), the frame counted as the class lists' pass counts it.
+  // (0x004f7030). The frame is counted at the flip (GameEngine::video_flip).
   // +0x08 its update (0x0040ada0, the port's).
   if (obj && obj == view_ && slot == 0x08 && program_view()) {
     program_view()->update(zgame::from_bits(args.begin()->v));
@@ -2783,7 +2783,6 @@ uint32_t GameEngine::vcall(Handle obj, uint32_t slot, std::initializer_list<Arg>
   }
   if (obj && obj == view_ && slot == 0x04) {
     if (zcls::Node* cam = mission_node(*this, camera_)) {
-      ++zcls::frames().frame;
       zcls::render_world(cam, 0);
       scene_drawn_ = true;
     }

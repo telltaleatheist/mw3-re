@@ -784,9 +784,12 @@ void GameEngine::video_lock() {
   zrndr::set_finish_target(buffer_.data(), width_, height_, width_ * 2);  // 0x00558290, as 0x00576de0 sets it
 }
 void GameEngine::video_clear(Handle) { std::fill(buffer_.begin(), buffer_.end(), uint16_t{0}); }
-// 0x00576ea0: the back buffer to the screen.
+// 0x00576ea0: the back buffer to the screen, and zClass's frame counted
+// ([0x0072f338], PM's [0x008c4b60]; `inc` after the flip, every flip, menus
+// too; the exe skips both while the app is suspended, which the port never is).
 // A frame whose 3D scene was drawn (the Core state's) shows that instead.
 void GameEngine::video_flip(int32_t, int32_t, int32_t, int32_t) {
+  ++zcls::frames().frame;
   // FIX (B), playtest W25: a message box over a GPU frame shows over that
   // frame at its own size, not over the 16-bit buffer's copy of it (the
   // buffer's size: the menus' 640x480, low-res at 16:9 or in the lab).

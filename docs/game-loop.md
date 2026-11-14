@@ -182,6 +182,21 @@ The drawing path (0x00480bf0), re-picked whenever VMode changes: Direct3D
 6. The message box updates (vt+0x00(dt)); the frame is flipped
    (0x00576ea0(0, 0, 0, 0)).
 
+zClass's frame counter ([0x0072f338], PM's [0x008c4b60]) is raised by the flip
+itself (`inc` at 0x00576eb9), on every flip: the menus, the briefing and the
+loading screens count too. Only a suspended app (0x00579b40's count
+[0x00802708] above 0) skips the flip and the count. The port counts in
+GameEngine::video_flip (2026-11-14). Until then it counted when the view's
+camera ran (vt+0x04, before world_tick), so within a mission frame every
+reader saw the exe's value plus one, uniformly; nothing compares across the
+frame boundary, so play is unchanged. Outside a mission the port's counter
+stood still: the once-a-frame guards (a material's texture cycle, a model's UV
+scroll +0x30, the camera's listener) then ran only once there, but mechlib's
+materials have no cycles, so the mech lab looked the same. The readers: the
+class lists' expiry (frame + 0xa0, list.cpp, object3d.cpp), the mechs'
+collision expiry (mech_collide.cpp), the static-only queries (node +0xc4,
+cls_di.cpp), the draws' node test (gmod_draw.cpp), PM's shot stamps.
+
 The software path (0x00481290): the window cleared, the render target set;
 the cockpit hidden; the scene begun and the view's camera run (vt+0x04),
 drawn; the mech's AI ticks (0x00430aa0 +0x144c vt+0x28); Escape is checked
