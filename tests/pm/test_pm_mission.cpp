@@ -3338,6 +3338,123 @@ TEST(pm_ia_screen_keeps_mechs_and_offers_the_labs_lineup_headless) {
   mech3::action_setup() = mech3::ActionSetup{};
 }
 
+TEST(pm_ia_custom_enemies_kept_by_mech_and_loadout_place_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+  zgame::set_game(pm::table());
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3PM_GAME_DIR);
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_ia_enemies_" + std::to_string(getpid());
+  std::filesystem::create_directories(wd);
+  zutl::set_write_dir(wd.c_str());
+  mech3::reset_states();
+  if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
+  NoKeys keys;
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    int stage = 0;
+    bool checked = false;
+    engine.on_present = [&](int) {
+      if (stage == 0 && app.current() == &mech3::states().main && mech3::main_menu()) {
+        const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[0].on_left_up();  // INSTANT ACTION
+        stage = 1;
+      } else if (stage == 1) {
+        auto* ps = dynamic_cast<mech3::PilotState*>(app.current());
+        if (!ps || !ps->screen) return;
+        ps->screen->new_bar.set_text("Raider");
+        ps->screen->new_bar.on_return();
+        ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+        stage = 2;
+      } else if (stage == 2) {
+        auto* st = dynamic_cast<mech3::GameMenuState*>(app.current());
+        auto* a = st && st->kind == mech3::GameMenuState::kAction ? dynamic_cast<mech3::ActionScreen*>(engine.screen_of(st->screen_)) : nullptr;
+        mech3::ActionGame* g = mech3::current_pilot() ? mech3::current_pilot()->action() : nullptr;
+        if (!a || !g || !app.pending_list().empty()) return;
+        const auto hidden = [](ztwod::Object2D& o) { return (o.flags & ztwod::kHidden) != 0; };
+        const auto loadouts = [&](int32_t mech) { return engine.mech_loadouts(mech); };
+        const auto chosen = [&](int i) { return a->enemy_configs[i].config_at(a->enemy_configs[i].index); };
+        // A mech with three loadouts or more, none of the first three a training one.
+        int32_t m = -1;
+        for (int32_t c = 1; c < 25 && m < 0; ++c)
+          if (const mech3::ConfigList* l = loadouts(c); l && l->configs.size() >= 3 && !l->configs[0]->training &&
+                                                        !l->configs[1]->training && !l->configs[2]->training)
+            m = c;
+        EXPECT(m > 0);
+        if (m <= 0) return;
+        mech3::ActionSetup& k = g->setup;
+        // A new pilot: nothing kept, the first enemy is mech 0 with its first loadout, the rest none.
+        for (int i = 0; i < 6; ++i) k.g838[i] = -1, k.g858[i] = -1;
+        a->show_custom();
+        std::printf("  new pilot: first enemy %d, its loadout %s; second %d, its loadouts hidden %d\n",
+                    a->enemies[0].selected_value(), chosen(0) ? chosen(0)->name : "(none)", a->enemies[1].selected_value(),
+                    hidden(a->enemy_configs[1]));
+        EXPECT(a->enemies[0].selected_value() == 0 && chosen(0) == loadouts(0)->configs[0] && !hidden(a->enemy_configs[0]));
+        EXPECT(a->enemies[1].selected_value() == -1 && hidden(a->enemy_configs[1]));
+        // Kept as mechs and places: the second enemy mech m, its third loadout.
+        a->enemies[1].select_value(m);
+        a->enemies[1].refill(2);
+        a->keep_lineup();
+        std::printf("  kept: %d/%d %d/%d %d/%d\n", k.g838[0], k.g858[0], k.g838[1], k.g858[1], k.g838[2], k.g858[2]);
+        EXPECT(k.g838[0] == 0 && k.g858[0] == 0 && k.g838[1] == m && k.g858[1] == 2 && k.g838[2] == -1);
+        // Found again by mech and place; a place past the mech's loadouts (or -1) is its first.
+        k.g838[0] = m, k.g858[0] = -1;
+        k.g838[2] = m, k.g858[2] = 1;
+        k.g838[3] = m, k.g858[3] = 99;
+        a->show_custom();
+        EXPECT(a->enemies[0].selected_value() == m && chosen(0) == loadouts(m)->configs[0]);
+        EXPECT(a->enemies[1].selected_value() == m && chosen(1) == loadouts(m)->configs[2]);
+        EXPECT(a->enemies[2].selected_value() == m && chosen(2) == loadouts(m)->configs[1]);
+        EXPECT(a->enemies[3].selected_value() == m && chosen(3) == loadouts(m)->configs[0]);
+        // Stepping lists the next mech's loadouts with its first chosen.
+        a->enemies[2].step(1);
+        const int32_t next = a->enemies[2].selected_value();
+        EXPECT(next != m && (!loadouts(next) || chosen(2) == loadouts(next)->configs[0]));
+        // Hiding an enemy hides its loadouts; the wave list shows and hides ENEMYLINES.
+        a->enemies[3].hide();
+        EXPECT(hidden(a->enemy_configs[3]));
+        EXPECT(a->waves.lines == &a->enemy_lines);
+        a->waves.show_for(-1.0f);
+        const bool lines_up = !hidden(a->enemy_lines);
+        a->waves.hide();
+        std::printf("  ENEMYLINES bound %d, with the wave list %d, hidden with it %d\n", a->waves.lines != nullptr, lines_up,
+                    hidden(a->enemy_lines));
+        EXPECT(lines_up && hidden(a->enemy_lines));
+        checked = true;
+        stage = 3;
+      }
+    };
+    Pump pump;
+    pump.limit = 400;
+    pump.stop = [&] { return stage == 3; };
+    app.run(pump);
+    EXPECT(checked);
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  mech3::action_setup() = mech3::ActionSetup{};
+}
+
 // pm-tests item 23 on Pirate's Moon, as mission_c1m1_player_knocked_down_headless on MW3: the player knocked down
 // in c1m1. (1) Hits of the weapon with the largest IMPACT_FORCE from 50 m ahead build the knock past the threshold
 // (0x00417a80): Stagger, a fall. (2) Dropped from 150 m, a hard landing (0x004162c0: the fall's speed over 80 m/s)
