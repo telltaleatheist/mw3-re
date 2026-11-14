@@ -8030,9 +8030,11 @@ constexpr const char* kSettingsKey = "MechWarrior 3 EP1";  // settings.reg's key
 #else
 constexpr const char* kSettingsKey = "MechWarrior 3";
 #endif
-// The opening's still (SPLASH's image, after INTRO) on a 16:9 mode, in both games, with
+// The opening's still (SPLASH's image, after INTRO) on a 16:9 mode, with
 // the wide menus and without: 4:3 at the screen's height, black sides, never
-// stretched (pm-tests.md front-end item 2). No movies needed (-nofmv).
+// stretched (pm-tests.md front-end item 2). No movies needed (-nofmv). MW3 only: Pirate's Moon
+// plays no SPLASH (0x004850a0; its INTRO ends on its own picture, sdl_pm_logos_ below).
+#if !defined(MW3_PM_SUITE)
 TEST(sdl_program_splash_keeps_its_shape_on_a_wide_screen) {
   const std::string install = MW3_GAME_DIR;
   std::error_code ec;
@@ -8058,6 +8060,7 @@ TEST(sdl_program_splash_keeps_its_shape_on_a_wide_screen) {
     EXPECT(ok && b[0] >= 230 && b[2] <= 1690 && b[1] <= 30 && b[3] >= 1050);  // 1440 wide in the middle
   }
 }
+#endif  // !MW3_PM_SUITE
 #endif
 
 #if defined(MW3_PM_SUITE) && !defined(_WIN32)  // posix_spawn
