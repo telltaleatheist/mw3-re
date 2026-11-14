@@ -568,6 +568,7 @@ add_library(mw3probe SHARED
   tests/probe_veh_fieldbase.cpp
   tests/probe_veh_stealth.cpp
   tests/probe_basic_controls.cpp
+  tests/probe_basic_follow.cpp
   tests/probe_veh_dock.cpp
   tests/probe_veh_waynet.cpp
   tests/probe_bz2.cpp

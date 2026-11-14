@@ -11,18 +11,18 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 3026 |
+| folded | 3025 |
 | replaced (SDL or the platform layer) | 221 |
 | software renderer | 111 |
 | debug or dev tool: PORT (preserve) | 82 |
 | unused: PORT (preserve) | 82 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 80 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 68 |
 | dev dialog (MFC), its logic: PORT (preserve) | 54 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
+| unlabelled | 1 |
 
 ## MISSING LOGIC
 
-- **0x00401050, 0x00401100, 0x00401400, 0x00401500, 0x00401620, 0x00401680 ...** (12 functions, 761 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move
 - **0x00410400, 0x004c0310** (2 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
 - **0x004bed90, 0x004bf4e0** (2 functions, 129 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file
 - **0x004f1cd0, 0x004f3d00, 0x004f3f70** (3 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): under null script commands: WorldSetVirtualPartition's partition rebuild (0x004f1cd0) and the camera commands' setters (0x004f3d00, 0x004f3f70, from 0x00503c10 / 0x00503d50); no shipped script uses them
@@ -124,7 +124,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 
 ## By module
 
-### mech3 (2557 not ported)
+### mech3 (2545 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -132,20 +132,8 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00401020 | 8 | folded | returns a constant or a global |
 | 0x00401030 | 9 | dev dialog (MFC), its window plumbing: replaced | MFC dialog plumbing of dev dialogs (CDialog constructors and destructors, EnableWindow): resource 0x67 and the teleport and net dialogs' destructors |
 | 0x00401040 | 9 | dev dialog (MFC), its window plumbing: replaced | MFC dialog plumbing of dev dialogs (CDialog constructors and destructors, EnableWindow): resource 0x67 and the teleport and net dialogs' destructors |
-| 0x00401050 | 32 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401100 | 132 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401400 | 52 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401500 | 71 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401620 | 38 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401680 | 121 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401940 | 54 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401bf0 | 19 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401c30 | 105 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401e30 | 60 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
-| 0x00401f50 | 45 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x004020b0 | 14 | folded | covered by the port where it names it (src/mech3/app_mission.cpp:1095) |
 | 0x00402140 | 14 | folded | the hardware mode's triangle stripper's small helpers and its std::map / std::list code, folded into zmod::strip_model (gmod_strip.cpp): edge and record copies and compares, the UV shift, the zone compare, the map and lists as std::map / std::list in the same order |
-| 0x004023d0 | 32 | MISSING LOGIC (only data the shipped game lacks reaches it) | the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00402510 | 28 | folded | covered: array and list helpers, destructors (unwind callers), the loading bar and the briefing's map (app_menus.cpp:964 overrides briefing_map_image; the hook's 'not ported yet' comment is stale), the vehicle path's entries drop (app_vehicle.h:145) |
 | 0x00402590 | 9 | folded | a thunk: one call to another function |
 | 0x00402b20 | 16 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:286) |
@@ -1470,7 +1458,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0049ec90 | 11 | folded | a thunk: one call to another function |
 | 0x0049fe30 | 14 | folded | covered by the port where it names it (src/mech3/player.cpp:321) |
 | 0x0049fe70 | 10 | folded | covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
-| 0x004a0100 | 31 | folded | covered by the port where it names it (src/mech3/veh_move.cpp:754) |
+| 0x004a0100 | 31 | unlabelled |  |
 | 0x004a0b00 | 9 | folded | a thunk: one call to another function |
 | 0x004a0b20 | 9 | folded | a thunk: one call to another function |
 | 0x004a1020 | 9 | folded | a thunk: one call to another function |
@@ -1594,10 +1582,10 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004ade70 | 14 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.cpp:257) |
 | 0x004ade90 | 20 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aded0 | 156 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004ae340 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:67) |
+| 0x004ae340 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:84) |
 | 0x004ae360 | 12 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
-| 0x004ae380 | 16 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:63) |
-| 0x004ae6a0 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:69) |
+| 0x004ae380 | 16 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:80) |
+| 0x004ae6a0 | 8 | folded | covered by the port where it names it (src/mech3/veh_basic_controls.h:89) |
 | 0x004ae8b0 | 9 | folded | a thunk: one call to another function |
 | 0x004ae8c0 | 9 | folded | a thunk: one call to another function |
 | 0x004aeb30 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
