@@ -718,7 +718,7 @@ int mw3_area_update(World*, uint32_t* entry) {
 // The script engine's world commands (docs/interp.md, The commands the shipped scripts never use): ported for
 // preservation, the engine's entries left null (no shipped script calls them).
 
-// Mech3.exe 1.2 @ 0x004f1dc0: the virtual block (w, h) (+0x54, +0x58) and the grid's cells past it (+0x5c, +0x60).
+// Mech3.exe 1.2 @ 0x004f1dc0, Pirate's Moon 1.0 @ 0x00504f80: the virtual block (w, h) (+0x54, +0x58) and the grid's cells past it (+0x5c, +0x60).
 int world_set_virtual_map_size(Node* world, int32_t w, int32_t h) {
   World* d = world_of(world);
   d->put<int32_t>(0x54, w), d->put<int32_t>(0x58, h);
@@ -726,7 +726,7 @@ int world_set_virtual_map_size(Node* world, int32_t w, int32_t h) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f1cd0: the changed nodes updated (0x004f7e50), then every node in the grid marked 0x8000.
+// Mech3.exe 1.2 @ 0x004f1cd0, Pirate's Moon 1.0 @ 0x00504e70: the changed nodes updated (0x004f7e50), then every node in the grid marked 0x8000.
 // No grid: reported (0x0050da70, level 5) and 5.
 int world_mark_partitions(Node* world) {
   World* w = world_of(world);
@@ -734,7 +734,7 @@ int world_mark_partitions(Node* world) {
     char msg[160];
     std::snprintf(msg, sizeof msg,
                   "%s: Line %d: ERROR initializing virtual area partition; NULL area partitions encountered.\n",
-                  kWorldFile, 0x2db);
+                  kWorldFile, 0x3a5);  // PM's line; MW3's 0x2db
     return zerr::report(5, "C:\\zipper\\GameZMech3\\zError\\zerr_old.c", 0x23, msg), 5;
   }
   update_changed();
@@ -747,7 +747,7 @@ int world_mark_partitions(Node* world) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f1d90: +0x50; on, the grid's nodes marked and the block's size applied again.
+// Mech3.exe 1.2 @ 0x004f1d90, Pirate's Moon 1.0 @ 0x00504f50: +0x50; on, the grid's nodes marked and the block's size applied again.
 int world_set_virtual_partition(Node* world, int32_t on) {
   World* w = world_of(world);
   w->put<int32_t>(0x50, on);
@@ -758,21 +758,18 @@ int world_set_virtual_partition(Node* world, int32_t on) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f2860: +0x80, +0x84 (world_make_grid's eighth of a cell).
-int world_set_partition_tolerance(Node* world, float a, float b) {
-  World* w = world_of(world);
-  w->put(0x80, a), w->put(0x84, b);
-  return 0;
-}
+// Mech3.exe 1.2 @ 0x004f2860: +0x80, +0x84 (world_make_grid's eighth of a cell). Pirate's Moon 1.0's is 0x00505bf0,
+// which sets PM's second area from them too: world_set_margins.
+int world_set_partition_tolerance(Node* world, float a, float b) { return world_set_margins(world, a, b); }
 
-// Mech3.exe 1.2 @ 0x004f2880: the byte +0x4c; over 255 reported and 255.
+// Mech3.exe 1.2 @ 0x004f2880, Pirate's Moon 1.0 @ 0x00505c40: the byte +0x4c; over 255 reported and 255.
 int world_set_partition_max_dec(Node* world, int32_t count) {
   World* w = world_of(world);
   if (count > 0xff) {
     char msg[120];
     std::snprintf(msg, sizeof msg, "ERROR setting Partition Max DEC Feature count to %d:\noverflow limit at 255.\n",
                   count);
-    zerr::report(0x200, kWorldFile, 0xdff, msg);
+    zerr::report(0x200, kWorldFile, 0xe51, msg);  // PM's line; MW3's 0xdff
     count = 0xff;
   }
   w->raw[0x4c] = static_cast<uint8_t>(count);

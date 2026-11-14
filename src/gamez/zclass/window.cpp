@@ -66,14 +66,14 @@ int window_set_origin(Node* node, int32_t x, int32_t y) {
 // preservation, the engine's entries left null. The clear polygons: data +0xe0 the polygon being added (bit 31 the
 // polygons on), up to four of 0x34 bytes from +0x10, each four vertices then their count (+0x30, bit 31 set).
 
-// Mech3.exe 1.2 @ 0x004fa1c0: +0xe4.
+// Mech3.exe 1.2 @ 0x004fa1c0, Pirate's Moon 1.0 @ 0x0050ded0: +0xe4.
 int window_set_buffer(Node* node, int32_t buffer) {
   if (int r = check_class(node, 3, kFile, 0x137)) return r;
   static_cast<Window*>(node->data)->put<int32_t>(0xe4, buffer);
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004fa230: +0xe0 bit 31, on only for 1.
+// Mech3.exe 1.2 @ 0x004fa230, Pirate's Moon 1.0 @ 0x0050df50: +0xe0 bit 31, on only for 1.
 int window_set_clear_polygon(Node* node, int32_t on) {
   if (int r = check_class(node, 3, kFile, 0x150)) return r;
   auto* d = static_cast<Window*>(node->data);
@@ -82,7 +82,7 @@ int window_set_clear_polygon(Node* node, int32_t on) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004fa2c0: a vertex onto the polygon being added, its height 100; 1 (reported) with four
+// Mech3.exe 1.2 @ 0x004fa2c0, Pirate's Moon 1.0 @ 0x0050dff0: a vertex onto the polygon being added, its height 100; 1 (reported) with four
 // polygons or four vertices.
 int window_add_clear_vertex(Node* node, const float* xyz) {
   if (int r = check_class(node, 3, kFile, 0x170)) return r;
@@ -104,7 +104,7 @@ int window_add_clear_vertex(Node* node, const float* xyz) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004fa3e0: the polygon closed: the next one is added, bit 31 set; the result the closed one's
+// Mech3.exe 1.2 @ 0x004fa3e0, Pirate's Moon 1.0 @ 0x0050e110: the polygon closed: the next one is added, bit 31 set; the result the closed one's
 // index (1, reported, with four). The exe also hands the polygon to the software renderer's clear list
 // (0x00564660), not ported (CLAUDE.md, Rendering).
 int window_close_clear_polygon(Node* node) {

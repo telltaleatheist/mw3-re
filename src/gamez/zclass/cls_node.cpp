@@ -675,7 +675,7 @@ int check_class(const Node* node, int cls, const char* file, int line) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f9e50 (ECX node, EDX on): the node's model's and every descendant's lighting bit (0x00539cf0).
+// Mech3.exe 1.2 @ 0x004f9e50, Pirate's Moon 1.0 @ 0x0050db40 (ECX node, EDX on): the node's model's and every descendant's lighting bit (0x00539cf0).
 // The script command NodeSetLighting's (ported for preservation; the engine's entry is null). The exe returns
 // whatever EAX held; 0 here.
 int node_set_lighting(Node* node, int32_t on) {
