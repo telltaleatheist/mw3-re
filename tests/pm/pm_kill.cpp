@@ -427,6 +427,20 @@ float pm_mech_toughness(void* mech, bool* invincible) {
   for (MechPart* p : m->parts) sum += p->armor + p->internal;
   return sum;
 }
+// The player's held inputs for the resume test: set (turn, pitch, twist, jets, look and the throttle) or read back
+// (turn, twist, pitch, jj_forward, look_x, throttle, throttle_target).
+void pm_controls_hold(void* mech, float v) {
+  auto* c = static_cast<PlayerControls*>(static_cast<Mech*>(mech)->controls);
+  c->turn = c->turn_target = c->pitch = c->twist = c->jj_forward = c->jj_strafe = v;
+  c->look_x = c->look_y = v;
+  c->throttle = c->throttle_target = v;
+}
+void pm_controls_read(void* mech, float out[7]) {
+  auto* c = static_cast<PlayerControls*>(static_cast<Mech*>(mech)->controls);
+  const float v[7] = {c->turn, c->twist, c->pitch, c->jj_forward, c->look_x, c->throttle, c->throttle_target};
+  for (int i = 0; i < 7; ++i) out[i] = v[i];
+}
+
 int pm_controls_view(void* mech) {
   const Mech* m = static_cast<Mech*>(mech);
   return m && m->controls ? m->controls->view : -1;
