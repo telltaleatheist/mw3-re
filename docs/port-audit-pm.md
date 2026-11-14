@@ -1778,7 +1778,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00475270 | 15 | folded | checked by test (block trace, 2026-11-13): test_pm_pilot's read 0x0047b2f0 runs it; the file read and written back compared byte for byte |
 | 0x004752a0 | 10 | folded | a constructor out of line: its base (0x00473240) then 0x00475270 with the argument |
 | 0x004754d0 | 47 | folded | group A, read: the salvage's have-enough check gives the same answer (false as soon as one item is short); MW3 reports each shortage (CONFIG: want %d %s, only have %d) and goes on, PM stops at the first without a report: a developer message only |
-| 0x004755f0 | 19 | folded | covered by the port where it names it (src/mech3/app_hooks.h:969) |
+| 0x004755f0 | 19 | folded | covered by the port where it names it (src/mech3/app_hooks.h:971) |
 | 0x00475630 | 32 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:148) |
 | 0x00475700 | 20 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:147) |
 | 0x00475750 | 9 | folded | a thunk: one call to another function |
