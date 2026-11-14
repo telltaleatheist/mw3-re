@@ -51,6 +51,7 @@ void push_front(::zmod::MaterialTable& t, int32_t& head, int32_t i) {
 // Pirate's Moon 1.0 @ 0x00555e00, MW3's 0x005363d0 appending. FIX (A): owned
 // blocks, as zmod's.
 int read_materials(std::FILE* f) {
+  ::zmod::read_bound().begin(f);  // FIX (A): each section's read starts its own bound (no file's state carries over)
   ::zmod::MaterialTable& t = ::zmod::materials();
   const int32_t base = t.capacity;
   ::zmod::material_sweep_reset();  // [0x006114f8] = -1
@@ -99,6 +100,12 @@ int read_materials(std::FILE* f) {
     c->looping = at<uint32_t>(raw, 0), c->frame = at<uint32_t>(raw, 4);
     c->index = at<float>(raw, 8), c->speed = at<float>(raw, 0xc);
     c->texture_count = at<uint32_t>(raw, 0x10), c->added = at<uint32_t>(raw, 0x14);
+    if (!::zmod::read_bound().fits(f, uint64_t{c->texture_count} * 4, "a material's texture cycle")) {  // FIX (A)
+      std::free(c);
+      m.cycle = nullptr;
+      m.flags &= ~4;  // no cycle: nothing may take this one's
+      return error(0x289, "Error reading GameZ Material cycle texture data.");
+    }
     std::unique_ptr<int32_t[]> idx(new int32_t[c->texture_count ? c->texture_count : 1]);
     c->textures = static_cast<::zimg::TextureEntry**>(std::malloc(c->texture_count * sizeof(void*)));
     if (std::fread(idx.get(), static_cast<size_t>(c->texture_count) * 4, 1, f) != 1)

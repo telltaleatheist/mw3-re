@@ -67,10 +67,16 @@ struct ReadBound {
   int64_t end = 0;
   uint64_t past = 0;
   bool refused = false;
-  void begin(std::FILE* file);          // a read starts: the file's end measured, nothing past it yet
+  // A read starts: the file's end measured, nothing past it yet. Every section reader (materials, models, nodes, a
+  // re-read) calls it, so a refusal never carries over to another file opened at the same address.
+  void begin(std::FILE* file);
   bool fits(std::FILE* file, uint64_t bytes, const char* what);  // false (and warned once) when refused
 };
 ReadBound& read_bound();
+// FIX (A) (docs/fixes.md): what in a read model would be walked past its own lists (more morphs than points, a
+// polygon's point or normal past its list), or null; and the model emptied (arrays freed, counts 0, slot kept).
+const char* model_inconsistent(const Model& m);
+void model_empty(Model& m);
 int read_model_data(std::FILE* f, Model& m);  // 0x00538a70
 int model_release(Model* m);                  // 0x00539150, 1 while used (+0xc)
 int32_t models_free_unused();                 // 0x005392c0: the models nothing holds released; their count

@@ -130,5 +130,7 @@ Model* model_copy(const Model& m, int32_t own_materials, int32_t shared);  // 0x
 // Pirate's Moon 1.0 @ 0x005587e0: one model's arrays, its material indices
 // offset by `material_base`. The exe checks no read.
 void read_model_data(std::FILE* f, Model& m, int32_t material_base);
+const char* model_inconsistent(const Model& m);  // FIX (A): ::zmod's on PM's model
+void model_empty(Model& m);                      // FIX (A): arrays freed, counts 0, slot kept
 
 }  // namespace pm::zmod

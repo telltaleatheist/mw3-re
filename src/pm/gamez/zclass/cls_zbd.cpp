@@ -117,6 +117,12 @@ void read_partition_nodes(::zcls::Partition& p, int32_t count, std::FILE* f, int
   }
 }
 
+// FIX (A) memory safety (docs/fixes.md): `count` entries of `entry` bytes that the file can hold (::zmod::ReadBound);
+// false, warned, when a broken count asks for more, and the caller's count is set to 0.
+bool list_fits(std::FILE* f, int64_t count, uint64_t entry, const char* what) {
+  return count < 1 || ::zmod::read_bound().fits(f, static_cast<uint64_t>(count) * entry, what);
+}
+
 Node** read_list(int32_t count, std::FILE* f, int32_t base) {
   if (count < 1) return nullptr;
   Node** out = new Node*[static_cast<size_t>(count)]();
@@ -134,6 +140,11 @@ int read_world(Node* node, std::FILE* f, int32_t base) {
   std::memcpy(w->pm_area2, pm + 0x4c, 0x10);
   std::memcpy(w->raw + 0x4c, pm + 0x5c, 0xbc - 0x4c);
   if (!ok) return read_error(0x51d, "Error reading node world data.");
+  if (!list_fits(f, w->get<int32_t>(0xa0), 4, "a world's light list")) w->put<int32_t>(0xa0, 0);  // FIX (A)
+  if (!list_fits(f, w->get<int32_t>(0xac), 4, "a world's sound list")) w->put<int32_t>(0xac, 0);
+  if (w->get<int32_t>(0x8c) > 0 && w->get<int32_t>(0x88) > 0 &&
+      !list_fits(f, int64_t{w->get<int32_t>(0x8c)} * w->get<int32_t>(0x88), 0x58, "a world's area grid"))
+    w->put<int32_t>(0x8c, 0), w->put<int32_t>(0x88, 0);
   const int32_t lights = w->get<int32_t>(0xa0), sounds = w->get<int32_t>(0xac);  // PM +0xb0, +0xbc
   if ((w->lights = read_list(lights, f, base))) w->light_data = new void*[static_cast<size_t>(lights)]();
   if ((w->sounds = read_list(sounds, f, base))) w->sound_data = new void*[static_cast<size_t>(sounds)]();
@@ -247,6 +258,7 @@ int read_node(Node* node, std::FILE* f, int32_t base) {
       std::memcpy(l->pm_colors, pm + 0xb0, 0x30);
       std::memcpy(l->raw + 0xb0, pm + 0xe0, 0x20);
       if (!ok) return read_error(0x48e, "Error reading node light data.");
+      if (!list_fits(f, l->get<int32_t>(0xc8), 4, "a light's node list")) l->put<int32_t>(0xc8, 0);  // FIX (A)
       l->nodes = read_list(l->get<int32_t>(0xc8), f, base);  // PM +0xf8
       push_front(kAllNodes, node), push_front(kLights, node);
       break;
@@ -257,6 +269,7 @@ int read_node(Node* node, std::FILE* f, int32_t base) {
       Sound* s = read_data<Sound>(node, f, &ok);
       if (!ok) return read_error(0x43d, "Error reading node sound data.");
       s->put<int32_t>(0, 0), s->put<int32_t>(4, 0);
+      if (!list_fits(f, s->get<int32_t>(0x8c), 4, "a sound's node list")) s->put<int32_t>(0x8c, 0);  // FIX (A)
       s->nodes = read_list(s->get<int32_t>(0x8c), f, base);
       push_front(kAllNodes, node), push_front(kSounds, node);
       break;
@@ -277,6 +290,7 @@ int read_node(Node* node, std::FILE* f, int32_t base) {
 
 // Pirate's Moon 1.0 @ 0x00516e90, MW3's 0x004ff200 appending.
 int read_nodes(int32_t size, std::FILE* f, int32_t model_base) {
+  ::zmod::read_bound().begin(f);  // FIX (A): each section's read starts its own bound (no file's state carries over)
   ::zcls::NodePool& p = ::zcls::nodes();
   const int32_t bs = p.block_size;
   const int32_t base = static_cast<int32_t>(p.blocks.size()) * bs;
@@ -367,6 +381,7 @@ int reread(::zcls::Node* node, int32_t recurse) {
   uint8_t header[0x28];
   std::FILE* f = open_zbd(z.files[0].path.c_str(), header);
   if (!f) return 1;
+  ::zmod::read_bound().begin(f);
   const int r = reread_node(f, header, node, recurse);
   std::fclose(f);
   return r;
@@ -402,6 +417,7 @@ int read_zbd(const char* path) {
   std::FILE* f = open_zbd(path, entry.header);
   g_state.file = f;
   if (!f) return -1;
+  ::zmod::read_bound().begin(f);  // FIX (A): this file's read starts its bound
   entry.path = path;
   g_state.current = static_cast<int32_t>(g_state.files.size());
   g_state.files.push_back(entry);

@@ -265,6 +265,7 @@ zmod::Model* read_model(std::FILE* f) {
   std::memcpy(m->header, header, sizeof header);
   uint32_t polys = u32_at(header, 0x10), verts = u32_at(header, 0x14);
   uint32_t norms = u32_at(header, 0x18), morphs = u32_at(header, 0x1c);
+  if (g_end >= 0 && static_cast<int32_t>(morphs) > 0 && morphs > verts) g_broken = true;  // ours: more morphs than points
   if (g_end >= 0 && (g_broken || !fits(f, static_cast<uint64_t>(polys) * 0x24))) {  // ours: none of them read
     polys = verts = norms = morphs = 0;
     std::memset(m->header + 0x10, 0, 16);
