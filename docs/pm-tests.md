@@ -1221,3 +1221,20 @@ stage state 0x2e (MIPMAPLODBIAS). The port's `zvid::set_mip_bias` clamps the sam
 x87's unordered compare reads as below) and holds the value in `DeviceState::mip_bias`; it is not applied, as the
 GPU path makes every texture with one mip level (fixes.md). `test_pm_mip_bias.py`: 213 values (edges,
 infinities, a NaN, random) against the exe, bit for bit, the dirty bit set. Break: no upper clamp (74 differ).
+
+## Today's preservation ports on PM, part 1: the zClass script commands (2026-11-14)
+
+MW3's ports from main (test_script_cmds.py's part 1) read against PM's twins and run on PM's exe. The logic is MW3's
+in all 26; what PM changes is said on each function (`, Pirate's Moon 1.0 @` on its line):
+- the report lines: Camera.c's CameraGetTranslate 0x37f, CameraGetFov 0x471, CameraGetLodScale 0x4ec (MW3's 0x562,
+  0x64f, 0x6ca; CameraGetClip's 0x412 was on pm already), cls_world.c's grid mark 0x3a5 and max-dec 0xe51 (MW3's
+  0x2db, 0xdff);
+- WorldSetPartitionTolerance's twin is 0x505bf0, `world_set_margins`, which also sets PM's second area; on pm the
+  command is that;
+- the address map paired NewSEQ with NewDisplay (0x50e1f0); NewSEQ's twin is 0x515730 (as MW3's), NewDisplay's
+  0x50e1f0;
+- PM's layouts (the World's second area at +0x4c, a cell's 12-byte entries, a node's short child count) are the ones
+  pm already translates into the shared types, so the port's walks are PM's.
+`test_pm_script_cmds.py`: the shared probes against PM's twins (each cdecl), 2,401 cases as test_script_cmds.py's
+(world with grids, camera, sequences, windows and NewDisplay, lists, lighting), 0 differ. Breaks: CameraGetFov's and
+max-dec's MW3 lines (caught); the grid mark's line is in its sprintf'd text, which the test doesn't read.

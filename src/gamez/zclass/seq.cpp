@@ -141,7 +141,7 @@ int animate_delete(Node* node) {
 // The script engine's sequence commands (docs/interp.md, The commands the shipped scripts never use): ported for
 // preservation, the engine's entries left null.
 
-// Mech3.exe 1.2 @ 0x004fdc70: a sequence node (class 7), stepping forward, on list 11.
+// Mech3.exe 1.2 @ 0x004fdc70, Pirate's Moon 1.0 @ 0x00515730: a sequence node (class 7), stepping forward, on list 11.
 Node* seq_create() {
   Node* node = node_alloc();
   if (!node) return zerr::report(0x400, kSeqFile, 0x41, "Null node pointer."), nullptr;
@@ -154,7 +154,7 @@ Node* seq_create() {
   return node;
 }
 
-// Mech3.exe 1.2 @ 0x004fdcd0: the child linked (0x004eba90), then its entry {child, time} put in at `at`, the ones
+// Mech3.exe 1.2 @ 0x004fdcd0, Pirate's Moon 1.0 @ 0x00515790: the child linked (0x004eba90), then its entry {child, time} put in at `at`, the ones
 // from there on moved up.
 int seq_add_child(Node* node, Node* child, int32_t at, float time) {
   if (!node) return zerr::report(0x400, kSeqFile, 0x94, "Null node pointer."), 5;
@@ -182,9 +182,9 @@ int seq_set(Node* node, int line, int off, int32_t v) {
 }
 }  // namespace
 
-int seq_set_active(Node* node, int32_t v) { return seq_set(node, 0x113, 0x0, v); }  // Mech3.exe 1.2 @ 0x004fde50
-int seq_set_repeat(Node* node, int32_t v) { return seq_set(node, 0x133, 0x4, v); }  // Mech3.exe 1.2 @ 0x004fde90
-int seq_set_loop(Node* node, int32_t v) { return seq_set(node, 0x153, 0x8, v); }    // Mech3.exe 1.2 @ 0x004fded0
-int seq_set_pause(Node* node, int32_t v) { return seq_set(node, 0x173, 0xc, v); }   // Mech3.exe 1.2 @ 0x004fdf10
+int seq_set_active(Node* node, int32_t v) { return seq_set(node, 0x113, 0x0, v); }  // Mech3.exe 1.2 @ 0x004fde50, Pirate's Moon 1.0 @ 0x00515910
+int seq_set_repeat(Node* node, int32_t v) { return seq_set(node, 0x133, 0x4, v); }  // Mech3.exe 1.2 @ 0x004fde90, Pirate's Moon 1.0 @ 0x00515960
+int seq_set_loop(Node* node, int32_t v) { return seq_set(node, 0x153, 0x8, v); }    // Mech3.exe 1.2 @ 0x004fded0, Pirate's Moon 1.0 @ 0x005159b0
+int seq_set_pause(Node* node, int32_t v) { return seq_set(node, 0x173, 0xc, v); }   // Mech3.exe 1.2 @ 0x004fdf10, Pirate's Moon 1.0 @ 0x00515a00
 
 }  // namespace zcls

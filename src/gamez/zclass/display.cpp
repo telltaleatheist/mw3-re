@@ -38,7 +38,7 @@ int display_set_clear_color(Node* node, float r, float g, float b) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004fa4c0: a display node (class 4), 1 x 1, clear colour (0.392, 0.392, 1), on list 15 (the
+// Mech3.exe 1.2 @ 0x004fa4c0, Pirate's Moon 1.0 @ 0x0050e1f0: a display node (class 4), 1 x 1, clear colour (0.392, 0.392, 1), on list 15 (the
 // script command NewDisplay; on pm wired for the lab's world.gw). Refused by the list: deleted.
 Node* display_create() {
   Node* node = node_alloc();

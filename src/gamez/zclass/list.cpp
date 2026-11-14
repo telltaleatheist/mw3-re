@@ -489,7 +489,7 @@ void frame_update() {
 // The script engine's list commands (docs/interp.md, The commands the shipped scripts never use): ported for
 // preservation, the engine's entries left null.
 
-// Mech3.exe 1.2 @ 0x004f7fa0 (ECX list): each live node's index (removed items counted too) and name, by printf.
+// Mech3.exe 1.2 @ 0x004f7fa0, Pirate's Moon 1.0 @ 0x0050b8b0 (ECX list): each live node's index (removed items counted too) and name, by printf.
 void list_print(int list, void (*out)(const char* line)) {
   int32_t i = 0;
   for (ListItem* it = g_lists.list[list].head; it; it = it->next, ++i) {
@@ -507,7 +507,7 @@ bool prefix_matches(Node* node) {  // 0x004f8bb0
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004f8b80 (ECX name, EDX list): as list_walk_by_name, by the name's first characters; a name
+// Mech3.exe 1.2 @ 0x004f8b80, Pirate's Moon 1.0 @ 0x0050c660 (ECX name, EDX list): as list_walk_by_name, by the name's first characters; a name
 // starts the walk (its length kept), none steps on.
 Node* list_walk_prefix(const char* name, int list) {
   if (name) g_walk.prefix_len = std::strlen(name);

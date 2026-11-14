@@ -1125,7 +1125,7 @@ int model_scroll_tick(Model* m) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x00539cf0 (ECX m, EDX on): +8 bit 0 from on's bit 0; none, nothing (zClass's set_lighting, a
+// Mech3.exe 1.2 @ 0x00539cf0, Pirate's Moon 1.0 @ 0x00559940 (ECX m, EDX on): +8 bit 0 from on's bit 0; none, nothing (zClass's set_lighting, a
 // script command's).
 void model_set_lighting(Model* m, uint32_t on) {
   if (!m) return;
