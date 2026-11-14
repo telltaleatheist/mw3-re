@@ -750,6 +750,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_hud.cpp
     tests/pm/test_pm_volley.cpp
     tests/pm/test_pm_shots.cpp
+    tests/pm/test_pm_fetch.cpp
     tests/pm/test_pm_mods.cpp
     tests/pm/test_pm_entries.cpp
     tests/pm/test_pm_fixes.cpp

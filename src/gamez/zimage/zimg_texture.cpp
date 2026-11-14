@@ -166,14 +166,17 @@ void clear_transparent(Texture& t) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00518ee0. The list switch sticks even when neither has it.
+// Mech3.exe 1.2 @ 0x00518ee0, Pirate's Moon 1.0 @ 0x005327d0. The list switch sticks even when neither has it.
+// PM's never clears the colour of an alpha texture's transparent texels (MW3's clear_transparent here): its flag
+// [0x0066a27c] lets the clear (0x00532740) run only after both lists missed, when there is nothing to clear, so
+// filtered edges keep the texels' own colour instead of blending toward black. Its second argument (skip the other
+// list) only the software mip chain passes (0x00532b60).
 Texture* fetch_image(const char* name) {
   Texture* t = find_in_list(g_load.list, name);
   if (!t) {
     g_load.list = (g_load.list + 1) % 2;
     t = find_in_list(g_load.list, name);
   }
-  if (t && (t->flags & kAlpha) && t->alpha) clear_transparent(*t);
   return t;
 }
 
