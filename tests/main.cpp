@@ -27,6 +27,7 @@
 #include <cstring>
 
 #include "check.h"
+#include "gamez/zgame/zgame_table.h"
 
 namespace check {
 std::vector<Test>& registry() {
@@ -243,7 +244,11 @@ int main() {
     ++ran;
     if (std::getenv("MW3_TEST_TRACE")) std::fprintf(stderr, "start %s\n", t.name);
     const int before = check::failures;
+    // The game table (MW3's or PM's) each test starts with, put back after it: a PM test sets PM's, and a
+    // later MW3-format writer (the new weapon form's reader.zbd) wrote PM's archives.
+    const zgame::Table& game = zgame::game();
     t.fn();
+    zgame::set_game(game);
     std::printf("%s %s\n", check::failures == before ? "ok  " : "FAIL", t.name);
 #if !defined(_WIN32)
     // Ours: MW3_TEST_FDS=1, the open files after each test (a leak would
