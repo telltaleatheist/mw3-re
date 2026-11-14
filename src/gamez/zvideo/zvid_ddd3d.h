@@ -87,8 +87,13 @@ struct DeviceState {
   int32_t z_write = 0;             // 0x008093a8  ZWRITEENABLE (14)
   int32_t fog = 0;                 // 0x008093b0  FOGENABLE (28) as 0x0057bb70 last sent it
   int32_t fog_mode = 0;            // 0x008093b8  the light state FOGMODE (4)
+  // PM [0x00b06164], texture stage state 0x2e (MIPMAPLODBIAS), sent by PM 0x0059b680 when [0x00b06158] bit 4 is
+  // set. Held, not applied: the GPU path's textures have one mip level (docs/fixes.md, MipBias).
+  float mip_bias = 0.0f;
 };
 DeviceState& device_state();
+// Pirate's Moon 1.0 @ 0x00598230 (the script's MipBias, common.gw's -1): the bias clamped to -1..1.
+void set_mip_bias(float bias);
 
 // FIX (A): the device the calls go to, and the state it holds (what the
 // original's SetRenderState / SetTextureStageState / SetTexture calls left).
