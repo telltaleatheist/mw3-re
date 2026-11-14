@@ -3269,6 +3269,15 @@ TEST(mod_check_reads_anims_unbound_with_a_world_up) {
   };
   const int32_t before = live();
   const zcls::ListItem* head = zcls::lists().list[zcls::kAllNodes].head;
+  // The running game's animation state (its defs, random table, level, switches) comes back as it was.
+  const zeff::AnimState anim_was = std::move(zeff::anim());
+  zeff::anim() = zeff::AnimState{};
+  static zeff::AnimDef running_defs[2];
+  zeff::anim().defs = running_defs;
+  zeff::anim().block.put<int16_t>(0x0a, 2);
+  zeff::anim().random[7] = 0.25f;
+  zeff::anim().level = 3;
+  zeff::anim().fix_prerequisites = false;
   const std::string dir = tmp("mods_anim_unbound");
   fs::create_directories(dir + "/zbd/c1", ec);
   fs::copy_file(install + "/zbd/c1/anim.zbd", dir + "/zbd/c1/anim.zbd", ec);
@@ -3278,4 +3287,7 @@ TEST(mod_check_reads_anims_unbound_with_a_world_up) {
   std::printf("  %d nodes up; read %d, errors %d, %d nodes after\n", before, read, errors, live());
   EXPECT(read && errors == 0);
   EXPECT(before > 1000 && live() == before && zcls::lists().list[zcls::kAllNodes].head == head);
+  EXPECT(zeff::anim().defs == running_defs && zeff::anim().def_count() == 2 && zeff::anim().random[7] == 0.25f &&
+         zeff::anim().level == 3 && !zeff::anim().fix_prerequisites);
+  zeff::anim() = anim_was;
 }

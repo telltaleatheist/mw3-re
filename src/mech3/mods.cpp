@@ -1103,9 +1103,11 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
     if (name == "anim.zbd") {  // a world's animations: the read (its binding needs the world)
       // FIX (A): read unbound. With a world up (the lab's, or one a test left) each def would bind to its nodes and
       // make lights, sounds and puffers in it through hooks that are unset outside play. With the node
-      // lists set aside nothing is found, as with no world.
+      // lists set aside nothing is found, as with no world. The animation state is set aside too: the
+      // running game's defs, its random table (0x00508fc0) and switches come back as they were.
       zcls::Lists live = std::move(zcls::lists());
       zcls::lists() = zcls::Lists{};
+      zeff::AnimState running = std::move(zeff::anim());
       zeff::anim() = zeff::AnimState{};
       zeff::anim_allow_loading(1);
       zeff::anim().host_path = host;  // a folder anywhere: 0x005090f0's 127 would refuse a long one
@@ -1113,7 +1115,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       if (zeff::anim().defs == nullptr && zeff::anim().def_count() == 0) leave(rel, "its animations cannot be read");
       else out.push_back("  " + std::to_string(zeff::anim().def_count()) + " animations read (bound to the world in play)");
       zeff::anim_free_all();
-      zeff::anim() = zeff::AnimState{};
+      zeff::anim() = std::move(running);
       zcls::lists() = std::move(live);
       continue;
     }
