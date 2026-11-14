@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4082 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 157 |
+| MISSING LOGIC | 154 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -120,7 +120,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x004acec0** (1 functions, 18 decomp lines; MISSING LOGIC): pm only, sensors, the same rule as 0x004ad2b0: the range test of the player's and the lancemates' passes (0x004acb90 / 0x004acff0, MW3 0x004a9680 / 0x004a9a60): sensed when everything is shown, or within range, or when the sensing record has bit 8 (a C3 master) and the other bit 0x10 (a C3 slave), at any range; the port's in_range (sensors.cpp:85) has the first two only
 - **0x004acf00** (1 functions, 43 decomp lines; MISSING LOGIC): pm only, sensors, the same rule as 0x004ad2b0 for the other direction (the other vehicle sensing the player or the lancemate): within range, everything shown, or C3 master and slave at any range; then MW3's side tests for the contact's kind
 - **0x004ad5c0** (1 functions, 108 decomp lines; MISSING LOGIC): pm only, sensors, with 0x004ad2b0's C3 rules: PM's C3 merge (0x004ad5c0, MW3 0x004a9fd0) puts into a master's list only what its C3 slaves saw (the other record's bit 0x10); MW3's merges every C3 unit's, masters too (bits 0x18), and the port does as MW3 (c3_merge, sensors.cpp:373)
-- **0x004af210, 0x004af2d0, 0x004af360** (3 functions, 112 decomp lines; MISSING LOGIC): pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus)
 - **0x004b0d90** (1 functions, 71 decomp lines; MISSING LOGIC): pm only: MW3's 0x004ad3f0 (veh_basic_object.cpp vehicle_damage) without its heat and freeze branches: every hit takes health - damage, so on PM a heat weapon (every laser's IMPACT HEAT) no longer warms the basic vehicle's glow by the share lost (0x00586a30), a freeze weapon damages instead of chilling, and the frozen extra damage is gone; the health's glow step (0x005a5150 = MW3's 0x00583730), the jolt over 5 and the death and kill credit as MW3's. The port keeps MW3's branches
 - **0x004b10b0** (1 functions, 9 decomp lines; MISSING LOGIC): MW3's 0x004ad7c0 (veh_basic_object.cpp, the vehicles' vt+0x90: the turret's limit clamp) as a direct call to PM's clamp 0x004a71f0 (labelled there: the limit's direction along the heading's own length)
 - **0x004b76d0** (1 functions, 54 decomp lines; MISSING LOGIC): pm only, PM's AI: a weapon's muzzle (from the firing 0x004baae0 and the brain 0x004e7210): the firepoint's local offset (its +0x70..+0x78, or the origin without one) plus the weapon's spread (+0x88..), or for a salvo weapon (+0x6c) a random jitter by the firepoint's share (+0x60), put into the part node's frame (0x004ff3c0); none for a destroyed weapon. The pm port's hooks for it (zai_wire_firing_pm.cpp muzzle, weapon_place) answer the weapon node's world origin (app_mech.cpp weapon_node_position), without the firepoint's offset or the spread
@@ -494,7 +493,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## By module
 
-### mech3ep1 (3292 not ported)
+### mech3ep1 (3289 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -1760,7 +1759,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00475270 | 15 | folded | checked by test (block trace, 2026-11-13): test_pm_pilot's read 0x0047b2f0 runs it; the file read and written back compared byte for byte |
 | 0x004752a0 | 10 | folded | a constructor out of line: its base (0x00473240) then 0x00475270 with the argument |
 | 0x004754d0 | 47 | folded | group A, read: the salvage's have-enough check gives the same answer (false as soon as one item is short); MW3 reports each shortage (CONFIG: want %d %s, only have %d) and goes on, PM stops at the first without a report: a developer message only |
-| 0x004755f0 | 19 | folded | covered by the port where it names it (src/mech3/app_hooks.h:971) |
+| 0x004755f0 | 19 | folded | covered by the port where it names it (src/mech3/app_hooks.h:976) |
 | 0x00475630 | 32 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:148) |
 | 0x00475700 | 20 | folded | covered by the port where it names it (src/mech3/mech_salvage.cpp:147) |
 | 0x00475750 | 9 | folded | a thunk: one call to another function |
@@ -2418,9 +2417,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004aee80 | 18 | folded | covered by the port where it names it (src/mech3/sensors.cpp:403) |
 | 0x004aeeb0 | 75 | folded | as MW3 0x004ab500: covered where the port does it: src/crt/msvc_sort.h:7 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004aefe0 | 124 | replaced (SDL or the platform layer) | replaced (SDL or the platform layer): MW3's 0x004ab6b0, the screen mode switch (app_hooks.cpp, resolution.md step 3, on the port's zVideo), with PM's light-map set unloaded before the D3D surfaces are remade and reloaded after (its name kept from [0x00683cb0], 0x00532300 / 0x00532450 / 0x005329e0); the port's GPU textures survive a mode change, so it has no such step |
-| 0x004af210 | 44 | MISSING LOGIC | pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus) |
-| 0x004af2d0 | 43 | MISSING LOGIC | pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus) |
-| 0x004af360 | 25 | MISSING LOGIC | pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus) |
 | 0x004af510 | 22 | folded | covered by the port where it names it (src/mech3/mech_build.cpp:327) |
 | 0x004af6b0 | 9 | folded | inside its ported callers (0x004af590): a small helper their ports do their own way |
 | 0x004af770 | 57 | folded | ported, checked by test: the ground pick (MW3's 0x004abd90, mech3/veh_basic.h ground_pick); tests/differential/test_pm_ai_nets.py runs 0x004af770 against the port's on every node it grounds and compares the compiled nets as text, the nodes' heights in them (9,892 nodes grounded, 0 differ, 2026-11-13) |
@@ -4951,7 +4947,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00593be0 | 14 | replaced (SDL or the platform layer) | as MW3 0x00572ec0: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
 | 0x00593c00 | 37 | replaced (SDL or the platform layer) | as MW3 0x00572ee0, whose class PM's changes keep: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
 | 0x00593cb0 | 35 | folded | folded, by the feature compare and the order-aware compare (the same calls, tests and constants in order) against its MW3 twin, ported; the only immediates that differ are source line numbers passed with the source file's path to a report (the network's and sound's checks, 0x005ac130 and others) |
-| 0x00593d60 | 8 | folded | covered by the port where it names it (src/mech3/app_hooks.h:519) |
+| 0x00593d60 | 8 | folded | covered by the port where it names it (src/mech3/app_hooks.h:524) |
 | 0x00593d80 | 40 | replaced (SDL or the platform layer) | as MW3 0x00573060: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
 | 0x00593e60 | 18 | replaced (SDL or the platform layer) | as MW3 0x00573140, whose class PM's changes keep: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |
 | 0x00593e90 | 28 | replaced (SDL or the platform layer) | as MW3 0x00573170, whose class PM's changes keep: the CD music volume through the Windows mixer and aux API (sound.md:264: the music output's own volume stands in) |

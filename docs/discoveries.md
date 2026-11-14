@@ -4589,6 +4589,12 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   is Mission Failed. It's what makes the canyons deadly: the haze isn't only scenery.
   MechWarrior 3 has no such rule. How sure this is: read from the code, checked against the game's
   own instructions in an emulator, and walked in the rebuild on the real canyon mission.
+- **Pirate's Moon's screen sizes go up to 1600x1200:** the in-game screen-size key (Shift+V) and the
+  graphics screen offer every 4:3 size the card lists, 640x480 up to 1600x1200, where MechWarrior 3
+  stops at 1024x768 (its larger sizes are named but never offered). The highest is picked from the list
+  without ever asking for 1152x864, though the key still steps through it, and a size the card refuses
+  is skipped for the next. How sure this is: read from the code and checked against the game's own
+  instructions in an emulator.
 - **Pirate's Moon's overhead camera is tilted:** the god's-eye view of your mech no longer looks
   straight down from 150 m as in MechWarrior 3; it hangs 120 m away pitched 81 degrees, so you see a
   little ahead of the mech. A vehicle's overhead camera gets the same tilt and keeps 150 m. How sure

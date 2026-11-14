@@ -141,6 +141,11 @@ class Engine : public zgame::AppHooks {
   virtual void video_mode_range(int32_t device, int32_t* lo, int32_t* hi);
   virtual int32_t video_memory_total() { return static_cast<int32_t>(unported("0x00579a10", {})); }
   virtual int32_t video_memory_used() { return static_cast<int32_t>(unported("0x00579a40", {})); }
+  // PM 0x00598c90: the card's display mode list has the mode's size (5..10).
+  virtual bool video_mode_listed(int32_t device, int32_t mode) {
+    return unported("0x00598c90", {static_cast<uint32_t>(device), static_cast<uint32_t>(mode)}) != 0;
+  }
+  int32_t next_vmode(int32_t cur);                      // PM 0x004af2d0
   virtual uint32_t video_has_cap(int32_t cap) { return unported("0x00579b70", {cap}); }
   virtual uint32_t video_device_count() { return unported("0x00579aa0", {}); }
   virtual const char* video_device_name(uint32_t i) {  // 0x00579a70

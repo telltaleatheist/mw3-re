@@ -502,6 +502,8 @@ class GameEngine : public Engine {
   // the GPU, reported as 256 MB with none used (as video_card_memory).
   int32_t video_memory_total() override { return 256 << 20; }
   int32_t video_memory_used() override { return 0; }
+  // PM 0x00598c90: today's card lists every 4:3 size of 640x480..1600x1200 (the window scales any).
+  bool video_mode_listed(int32_t, int32_t mode) override { return mode >= 5 && mode <= 10; }
   uint32_t video_device_count() override { return 1; }
   const char* video_device_name(uint32_t) override { return video_driver_label(); }
   void reader_shutdown() override;                 // 0x00556210 (zrdr::shutdown)

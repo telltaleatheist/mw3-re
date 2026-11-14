@@ -117,6 +117,10 @@ struct Table {
   // (veh_basic_object.cpp; PM 0x004b0790): PM pitches both -81 degrees and brings the god camera to 120 m;
   // MW3 looks straight down from 150 m.
   bool top_cameras_tilted;
+  // The screen modes (mech3 app_hooks.cpp video_mode_range, vmode_toggle; PM 0x004af210, 0x004af2d0, 0x004af360):
+  // PM offers a card up to the highest of its listed sizes (1600x1200 down) and Shift+V steps through them,
+  // skipping a refused one; MW3 measures the card's memory up to 1024x768 and wraps after it.
+  bool screen_modes_listed;
 };
 
 const Table& mw3_table();

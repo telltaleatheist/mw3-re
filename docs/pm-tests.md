@@ -1013,3 +1013,18 @@ The port picks them by the table's `top_cameras_tilted`. `test_pm_top_cameras.py
 angles from PM's instructions (0x4314ee / 0x4314f3, 0x4b08bf / 0x4b08c4), makes the rotations with PM's
 quat_pitch (0x53ea70) and compares the port's cameras bit for bit, and MW3's table against MW3's values.
 Breaks: the flag off, the god camera's 150 m kept, the above pitch one ulp off (each caught).
+
+## The screen modes (2026-11-14)
+
+PM's range 0x4af210 drops MW3's memory test: software 3..5, a card from 5 up to the first of 10, 9, 7, 6, 5 on
+its display mode list (0x598c90; 8 is never asked), else 5. Shift+V (0x4af360) steps 3, 5, 6 .. 10, then the
+range's first (0x4af2d0: a mode off that list stays put, past the top the first), and a mode the switch
+(0x4aefe0) refuses is skipped for the next until the round comes back; only a mode taken becomes the in-game
+one. MW3 wraps after 7 and writes whatever the switch returned. The port takes PM's path behind the table's
+`screen_modes_listed`; the list is the hook `video_mode_listed`, which the app answers as a card of today
+(640x480..1600x1200, the window scaling any). With any_resolution on, 10 steps on to 11..16 as MW3's 7 does.
+`test_pm_screen_modes.py`: the range and Shift+V against the exe, the device, current mode, list and switch
+stubbed and logged on both sides: 1614 cases, 0 differ. Left out: 127 rounds that never end, in the exe too, when
+the current mode is outside the round (3 on a card, or past the top) and the switch refuses every mode in it;
+not met in the port, whose switch takes every listed mode in practice. Breaks: the flag off (1186 differ), 8 asked (403),
+no retry (310).
