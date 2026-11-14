@@ -3184,6 +3184,8 @@ From the weapons' effects (details: `weapon-effects.md`):
 
 ## Menus
 
+- **Leaving the pause menu with Escape silences the mission.** The pause stops every sound that is playing, and only the RESUME button starts them again. Press Escape to leave the pause instead and the wind, the ocean and your own mech's engine hum stay silent from then on; new sounds (weapons, footsteps, hits) still play. Pirate's Moon made Escape do exactly what RESUME does. The rebuild brings the sounds back either way. (0x00493250, 0x00492d70; measured in the rebuild with the original's logic: 5 sounds playing in Op 1 Mission 1 before the pause, none two seconds after Escape.)
+
 From the 2D front end, zTwoD (details: `twod.md`).
 
 - **Menus only redraw what changes.** Nothing clears the screen between menu
