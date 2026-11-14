@@ -520,6 +520,23 @@ bool pm_headlight(void* player, bool on, float at[3]) {
   return true;
 }
 
+// The torso's level-of-detail switch (Pirate's Moon 0x00468d50): the player's torso switched to `lod`; 1 when the
+// headlight's parent is the torso's node now shown and the headlight's node is that node's child, 0 when not, -1 no
+// headlight (or the switch had nothing to change to).
+int pm_headlight_lod(void* player, int lod) {
+  auto* me = static_cast<Mech*>(player);
+  Torso* t = me ? me->torso : nullptr;
+  Headlight* h = t ? t->headlight : nullptr;
+  if (!h) return -1;
+  const Handle was = t->node;
+  t->switch_lod(lod);
+  if (t->node == was) return -1;
+  auto* n = static_cast<zcls::Node*>(t->node);
+  bool child = false;
+  for (int32_t i = 0; i < n->child_count(); ++i) child = child || n->children[i] == h->node;
+  return h->parent == n && child ? 1 : 0;
+}
+
 // pm-tests item 23: a mech's knock (+0x53c), its threshold (the gait's, 0x00418850) and its state.
 float pm_knock(void* mech, float* threshold, int* state) {
   auto* m = static_cast<Mech*>(mech);

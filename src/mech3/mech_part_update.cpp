@@ -206,6 +206,13 @@ bool Foot::setup() {
 // off the torso (0x00464580(0)), whether or not the base set-up worked.
 Torso::~Torso() { delete headlight; }
 
+// Pirate's Moon 1.0 @ 0x00468d50: the parts' level-of-detail switch (0x00468cd0, MW3's 0x00467290), then the
+// headlight moved under the torso's node now shown (0x004798d0, no offset). MW3's torso has no override.
+void Torso::switch_lod(int32_t lod) {
+  MechPart::switch_lod(lod);
+  if (headlight) headlight->reattach(static_cast<zcls::Node*>(node), nullptr);
+}
+
 bool Torso::setup() {
   const bool ok = MechPart::setup();
   if (ok) {
