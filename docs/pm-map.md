@@ -585,10 +585,39 @@ functions PM changed, and PM's new ones.
        without 0x80 that has polygons is a facade (type 1; 645 in the 4
        worlds), so it returns at once. `test_pm_strips.py` runs PM's own
        0x570b70 on all of them in the emulator (0 changed) and fails if a
-       type-0 model ever reaches it. Its other callers run later, on
-       models made or copied at run time (0x5587bf with a vertex limit of
-       4, 0x510ae2 in cls_clutter's range): to check when those are ported
-       (a type-0 model without 0x80 there would be stripped in PM).
+       type-0 model ever reaches it. Its other two callers, measured
+       (2026-11-13, dev 1; `tools/analysis/pm_strip_reach.py mechlib`
+       and `reread`, the numbers here so nobody re-measures):
+       - mechlib's post-pass 0x510ab0 (MW3's 0x4fc8b0) skips a model with
+         0x80 and passes (model, 0x7fffffff, 0x7fffffff), MW3's (0x7fffffff,
+         4). Every PM mechlib model with polygons has 0x80 (1015 of 1017,
+         type 0); the other 2 are facades (type 1), on which it returns at
+         once. PM's 0x570b70 run on them in the emulator: 0 changed. So it
+         reaches no mech at load (MW3's strips 302 of 770), and PM's
+         cls_mechlib fork, which never strips, matches.
+       - the model re-read 0x558440 (MW3's 0x538640), from the node re-read
+         0x517b30 / 0x517ac0 of the crater reset 0x518b70 (ported
+         2026-11-13: `pm::zcls::reread`, `pm::zmod::reread_model`,
+         `test_pm_reread.py`): (model, 0x7fffffff, 4) under Direct3D, with
+         no 0x80 test, and 0x570b70 tests none either (it starts: a model,
+         type 0, polygons). Its only reach on shipped data: every ground
+         model a crater reset reads again goes down its strip path. Type-0
+         models with polygons, all with 0x80: c1 2282, c2 1696, c3 1585,
+         c4 1788; the re-read test hands the exe's stripper 277 models in
+         255 re-reads. But the crater reset runs only from the craters' save
+         restore 0x519020 (MW3's 0x500c20), a zSave section ("zDEClient")
+         registered only while [0x60f0e8] is set; it is 1 in the data and the
+         start-up 0x4826e0 sets it to 0 (0x51a3e0(0), as MW3's 0x501f90 does
+         its [0x5eba1c]). So the reset, the re-read and this call never run
+         in PM's play, and the stripper reaches nothing in play: a
+         preservation port, not wired in (the lead, 2026-11-13). Not
+         measured further: the bench faults in its type-0 path after the
+         image load (0x5329e0 stubbed; an unmapped fetch).
+       - PM's 0x570b70 is not MW3's 0x552540 on PM's polygons: the feature
+         compare gives 700 features against 287, 44 of 51 kinds different
+         (three times the field reads, the 0x3ff vertex mask, per-material
+         UVs).
+
      - What reads model polygons for play, in PM: the segment tests
        0x569290, 0x569b00, 0x56a600 (MW3 0x54e2b0, 0x54ea30, 0x54f450:
        the weapons' hits, sight lines, the ground and ray queries), which

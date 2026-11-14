@@ -15,6 +15,7 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "pm/gamez/zclass/cls_clutter.h"
+#include "pm/gamez/zclass/cls_zbd.h"
 #include "pm/gamez/zmodel/gmod_const.h"
 
 #pragma STDC FP_CONTRACT OFF
@@ -359,12 +360,15 @@ int32_t crater_make(const zwep::CraterOrder* order) {
 // only ever holds ground nodes (flag 0x10000), which are re-read, never the
 // crater nodes deleted below (object3d's 0x0108001c plus 0x8000 and 0x20000:
 // kept clear, never cut), so a second reset reads only live nodes.
+// Pirate's Moon 1.0 @ 0x00518b70: its own re-read (0x00517ac0, the world's file in PM's formats; MW3's returns at
+// once on PM's), and the cell cleared only for a node within one cell (its range's two corners equal, 0x005054e0).
 void craters_reset() {
   for (zcls::Node* node : g_craters.touched) {
     if (!node) continue;
-    zcls::reread(node, 1);  // 0x004ff730
+    pm::zcls::reread(node, 1);
     const int32_t x = node->get<int32_t>(0x4c), z = node->get<int32_t>(0x50);
-    if (x < 0 || z < 0) continue;
+    if (x != node->pm_virtual[0] || z != node->pm_virtual[1]) continue;
+    if (x < 0 || z < 0) continue;  // the exe has no test here; a ground node is always in a cell
     zcls::Node* world = node->parents[0];
     zcls::World* w = world ? static_cast<zcls::World*>(world->data) : nullptr;
     if (w) w->rows[z][x].raw[0x39] = 0;  // 0x004f22f0

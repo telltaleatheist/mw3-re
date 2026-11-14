@@ -173,6 +173,7 @@ it is clear what the designers meant.
 
 ## Crashes and broken data that no longer break the game
 
+- **Pirate's Moon: re-reading a part of the world that has no model of its own reads nothing.** When the craters are reset, the original reads the touched ground again from the world's file; asked for a node without a model, its reader would take the bytes before the model table as one. Only ground with a model is ever re-read in the shipped game, so this never happened in play.
 - Pirate's Moon: an attack or defend order to a lancemate on something that has no vehicle behind it is answered "disregard" instead of crashing the game.
 - Pirate's Moon: an Instant Action Progression wave written with more than six mechs, or a wave line without its loadout, no longer reads past the end (the screen shows the first six; the line is skipped).
 - When the game turns a mech's triangles into strips as it loads it (in 3D-card mode), it no longer reads past its own list of the mech's faces. In the original that read was harmless in practice (the shipped mechs never join there); the rebuild skips it, and the mechs come out the same.

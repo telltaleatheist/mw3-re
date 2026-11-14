@@ -49,6 +49,12 @@ int read_zbd(const char* path);
 // Pirate's Moon 1.0 @ 0x005179e0: the file open past its 0x28-byte header
 // (signature 0x02971222, version 41), null on an error.
 std::FILE* open_zbd(const char* path, uint8_t header[0x28]);
+// Pirate's Moon 1.0 @ 0x00517ac0 (MW3's 0x004ff730): `node`'s model read again from the world's file, only when
+// exactly one gamez.zbd was read (its first in the list); 1 when nothing was read.
+int reread(::zcls::Node* node, int32_t recurse);
+// Pirate's Moon 1.0 @ 0x00517b30 (MW3's 0x004ff7a0): the node's model as the file has it into a new slot, the old one
+// let go; with `recurse` its children's too. 1 when the node is not in the file or its record is unreadable.
+int reread_node(std::FILE* f, const uint8_t header[0x28], ::zcls::Node* node, int32_t recurse);
 
 // Pirate's Moon 1.0 @ 0x00516e90: `size` node slots appended to zcls's pool
 // in new blocks, then each one's data (0x005171a0), its model index offset

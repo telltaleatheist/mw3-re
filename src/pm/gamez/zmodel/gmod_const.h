@@ -122,6 +122,9 @@ void model_unstrip(Model* m);
 // read (0x005587e0) with the file's material base. The first one's index, 0
 // for none, -1 on a read error.
 int read_models(std::FILE* f, int32_t material_base);
+// Pirate's Moon 1.0 @ 0x00558440 (MW3's 0x00538640): model `index` of the file at its models' table read again
+// into a new slot (0x68-byte records, the data at the record's +0x64); null when the file has no such model.
+Model* reread_model(std::FILE* f, int32_t index, int32_t material_base);
 int model_changes(const Model& m);                                       // 0x0055b0b0
 Model* model_copy(const Model& m, int32_t own_materials, int32_t shared);  // 0x00559340
 // Pirate's Moon 1.0 @ 0x005587e0: one model's arrays, its material indices

@@ -5,6 +5,7 @@
 #include "gamez/zclass/camera.h"
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zclass/cls_zbd.h"
 #include "gamez/zclass/cls_world.h"
 #include "gamez/zclass/display.h"
 #include "gamez/zclass/list.h"
@@ -359,6 +360,40 @@ int load_error(std::FILE* f, int line, const char* msg) {
   return -1;
 }
 }  // namespace
+
+int reread(::zcls::Node* node, int32_t recurse) {
+  ZbdState& z = zbd_state();
+  if (z.files.size() != 1) return 1;
+  uint8_t header[0x28];
+  std::FILE* f = open_zbd(z.files[0].path.c_str(), header);
+  if (!f) return 1;
+  const int r = reread_node(f, header, node, recurse);
+  std::fclose(f);
+  return r;
+}
+
+int reread_node(std::FILE* f, const uint8_t header[0x28], ::zcls::Node* node, int32_t recurse) {
+  auto get = [&](int off) { int32_t v; std::memcpy(&v, header + off, 4); return v; };
+  const int32_t index = ::zcls::node_index_of(node);  // 0x00515ea0
+  if (index < 0 || index >= get(0x1c)) return 1;
+  std::fseek(f, get(0x24) + index * 0xd4, SEEK_SET);
+  uint8_t record[0xd4];
+  if (std::fread(record, sizeof record, 1, f) != 1) return read_error(0x775, "Error reading GameZ Node buffer."), 1;
+  std::fseek(f, get(0x18), SEEK_SET);
+  pm::zmod::Model* old = node->pm_model;  // 0x004fcd10
+  ::zcls::node_set_pm_model(node, nullptr);
+  int32_t model;
+  std::memcpy(&model, record + 0x3c, 4);
+  if (pm::zmod::Model* m = pm::zmod::reread_model(f, model, 0)) {
+    ::zcls::node_set_pm_model(node, m);
+    if (old) pm::zmod::model_release(old);  // 0x005590f0
+  } else {
+    ::zcls::node_set_pm_model(node, old);
+  }
+  if (recurse)
+    for (int32_t i = 0; i < node->child_count(); ++i) reread_node(f, header, node->children[i], recurse);
+  return 0;
+}
 
 // Pirate's Moon 1.0 @ 0x00516bc0
 int read_zbd(const char* path) {

@@ -408,6 +408,38 @@ void model_unstrip(Model* m) {
   if (appended) sort_by_material(*m);
 }
 
+Model* reread_model(std::FILE* f, int32_t index, int32_t material_base) {
+  int32_t size, count, free_head;
+  int line = 0;
+  if (std::fread(&size, 4, 1, f) != 1) line = 0x2e1;
+  else if (std::fread(&count, 4, 1, f) != 1) line = 0x2ee;
+  else if (std::fread(&free_head, 4, 1, f) != 1) line = 0x2fb;
+  if (line) {
+    zerr::report(0x200, kFile, line, "Error reading GameZ Model3D buffer data.");
+    zerr::report(0x200, kFile, 0x529, "Error reading GameZ Model3D buffer header data.");
+    return nullptr;
+  }
+  if (size == 0 || size <= index) return nullptr;
+  // FIX (bug): a node without a model (-1) has the exe read the 0x68 bytes before the table as one (its counts
+  // garbage); the crater reset only re-reads ground nodes, which all have one (docs/fixes.md).
+  if (index < 0) return nullptr;
+  std::fseek(f, static_cast<long>(index) * 0x68, SEEK_CUR);
+  uint8_t raw[0x68];
+  if (std::fread(raw, sizeof raw, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x542, "Error reading GameZ Model3D buffer data.");
+    return nullptr;
+  }
+  Model* m = model_alloc();  // grows the pool: never null here (the exe's 0x00558f50 can answer none)
+  std::memcpy(m->header, raw, 0x64);
+  uint32_t offset;
+  std::memcpy(&offset, raw + 0x64, 4);
+  std::fseek(f, static_cast<long>(offset), SEEK_SET);
+  read_model_data(f, *m, material_base);  // 0x005587e0 always answers 0: the exe's clean-up after it never runs
+  // Under Direct3D (0x00572ae0) the exe strips the model here (0x00570b70 with 0x7fffffff, 4; no 0x80 test), the
+  // only shipped-data reach of PM's stripper; not ported (docs/pm-map.md, the models' form).
+  return m;
+}
+
 // Pirate's Moon 1.0 @ 0x00558ba0, MW3's 0x00538e30 appending.
 int read_models(std::FILE* f, int32_t material_base) {
   ModelPool& p = g_pool;

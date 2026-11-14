@@ -379,7 +379,8 @@ def write_doc(o, g, rows):
     for why, rs in groups.items():
         out.append(f'- {", ".join(x["addr"] for x in rs)} ({len(rs)} functions, {sum(x["lines"] for x in rs)} decomp lines): {why}')
     out += ['', '## By module', '']
-    mods = sorted({r['module'] for r in un}, key=lambda m: -sum(1 for r in un if r['module'] == m))
+    # ties by name: a set's order is the string hash's, different on every run
+    mods = sorted({r['module'] for r in un}, key=lambda m: (-sum(1 for r in un if r['module'] == m), m))
     for m in mods:
         rs = [(r, lab, why) for r, lab, why in done if r['module'] == m]
         out += [f'### {m} ({len(rs)} not ported)', '', '| Address | Lines | Class | Why |', '|---|---|---|---|']
@@ -595,7 +596,7 @@ def main():
         by[r['module']][r['status']] += 1
     print(f'{o.game}: {len(every)} functions, {len(game)} below the C runtime (0x{crt:08x})')
     tot = Counter()
-    for m in sorted(by, key=lambda m: -sum(by[m].values())):
+    for m in sorted(by, key=lambda m: (-sum(by[m].values()), m)):
         c = by[m]
         tot += c
         print(f'  {m:12} {sum(c.values()):5}  ported {c["ported"]:5}  named {c["named"]:5}  none {c["none"]:5}')

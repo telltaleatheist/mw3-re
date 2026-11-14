@@ -562,6 +562,29 @@ int probe_pm_gamez_stack(const char* paths, int rb, int gb, int bb, int with_mod
   return static_cast<int>(b.size());
 }
 
+// test_pm_reread.py: a world loaded as probe_pm_gamez_stack does (nodes too), then each node re-read from it
+// (pm::zcls::reread, PM's 0x00517ac0) as "index,recurse|...": each answer, then every model and node.
+extern "C" int probe_pm_gamez_reread(const char* world, const char* list, uint8_t* out, int cap) {
+  std::vector<uint8_t> scratch(64u << 20);
+  if (probe_pm_gamez_stack(world, 5, 6, 5, 2, scratch.data(), static_cast<int>(scratch.size())) < 0) return -3;
+  std::string b;
+  for (const char* p = list; *p;) {
+    int index = 0, recurse = 0, used = 0;
+    if (std::sscanf(p, "%d,%d%n", &index, &recurse, &used) != 2) return -4;
+    p += used;
+    if (*p == '|') ++p;
+    ::zcls::NodePool& np = ::zcls::nodes();
+    ::zcls::Node* node = &np.blocks[static_cast<size_t>(index / np.block_size)][index % np.block_size];
+    const int32_t r = pm::zcls::reread(node, recurse);
+    b.append(reinterpret_cast<const char*>(&r), 4);
+  }
+  put_models(b, 1 << 30);
+  put_world_nodes(b, 1 << 30, true);  // +0xcc as set or not: a re-read node goes on the changed list
+  if (static_cast<int>(b.size()) > cap) return -1;
+  std::memcpy(out, b.data(), b.size());
+  return static_cast<int>(b.size());
+}
+
 // test_pm_mechlib.py: a world loaded as probe_pm_gamez_stack does (or none:
 // empty pools), then mechlib.zbd opened through the game table and the trees
 // `names` ('|'-separated) loaded in order. Out: the open's result, each
