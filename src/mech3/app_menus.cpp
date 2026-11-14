@@ -1527,4 +1527,9 @@ void GameEngine::multiplayer_resume(Handle screen) {
   }
 }
 
+// Ours: the pause screen's sounds back (PauseState::escape's FIX (bug)).
+void GameEngine::pause_restore_sounds(Handle screen) {
+  if (auto* p = dynamic_cast<PauseScreen*>(screen_of(screen))) p->restore_sounds();
+}
+
 }  // namespace mech3

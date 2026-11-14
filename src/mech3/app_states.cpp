@@ -1175,8 +1175,13 @@ void PauseState::leave() {
   en.poke32(0x609870, 0);
 }
 
-// Mech3.exe 1.2 @ 0x00493250: Escape returns to the mission (resume arg 6).
-void PauseState::escape() { a().pop(6); }
+// Mech3.exe 1.2 @ 0x00493250: Escape returns to the mission (resume arg 6). FIX (bug): the exe leaves the
+// sounds the pause stopped and zSound's groups it took held for good (only RESUME gives them back); here Escape
+// gives them back as RESUME does (Pirate's Moon's Escape is its RESUME, 0x00496650). docs/fixes.md.
+void PauseState::escape() {
+  if (zfix::options().fixed) e().pause_restore_sounds(screen_);
+  a().pop(6);
+}
 
 // FIX (B), playtest W36: back from the options (which switch to the menus'
 // mode 5, 0x00438c90), the pause shows over the mission again in its mode,

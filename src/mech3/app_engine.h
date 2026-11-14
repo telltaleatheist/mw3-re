@@ -133,6 +133,7 @@ class GameEngine : public Engine {
   // Core's resume(7) on the pilot's mech: the HUD's fall flag, then the
   // power-up (the spawn left it powered down).
   void mech_set_mode_a(Handle mech, int32_t a) override;  // 0x0041ca30
+  void pause_restore_sounds(Handle screen) override;      // ours: the pause's Escape FIX
   void pilot_update(Handle p, float dt) override;  // 0x004783a0
   int32_t weapons_init() override;                // 0x00583750: zwep::startup
   void save_init() override;                      // 0x005a8b30: zsave::init

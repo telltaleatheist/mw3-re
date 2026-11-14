@@ -63,6 +63,16 @@ PauseScreen::~PauseScreen() {
   }
 }
 
+// RESUME's sounds (0x00492d70 case 0): the paused ones resumed and released, zSound's groups given back.
+void PauseScreen::restore_sounds() {
+  Engine& e = engine();
+  e.sound_resume_all(sounds);
+  e.sound_release_all(sounds);
+  sounds = 0;
+  e.sound_restore_playing(groups);
+  groups = 0;
+}
+
 // Mech3.exe 1.2 @ 0x00492d70: RESUME gives the sounds and groups back; QUIT
 // drops them and leaves the mission by the game's kind; OPTIONS pushes the
 // game options; REPLAY ends the mission as a failure (0x0048fa80), so its
@@ -74,11 +84,7 @@ void PauseScreen::on_button(int32_t id, int32_t a, int32_t b) {
   switch (id) {
     case kResume:
       state_escape();
-      e.sound_resume_all(sounds);
-      e.sound_release_all(sounds);
-      sounds = 0;
-      e.sound_restore_playing(groups);
-      groups = 0;
+      restore_sounds();
       return;
     case kQuit:
       break;
