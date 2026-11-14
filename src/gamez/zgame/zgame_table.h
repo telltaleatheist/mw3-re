@@ -141,6 +141,12 @@ struct Table {
   // 0x00431730, 0x00431a00): PM loads only the low model and resamples the gaits to 15 keys (actions 10); MW3 loads
   // both models and 60 keys at every detail.
   bool mech_data_low_detail;
+  // The Salvage State's enter (mech3 app_states.cpp; PM 0x0047f7c0): PM loads the mech lab's world (6) first when
+  // none is up, as it opens Salvage from the briefing and the lobby; MW3 makes the screen only.
+  bool salvage_loads_world;
+  // The chat panel's entered line (mech3 chat_panel.cpp ChatPanel::line_entered; PM 0x0041f1f0): PM resets the
+  // input after the line (zin::reset), so keys held while typing are let go; MW3 leaves them.
+  bool chat_resets_input;
 };
 
 const Table& mw3_table();

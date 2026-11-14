@@ -794,6 +794,8 @@ class Engine : public zgame::AppHooks {
     return nullptr;
   }
   virtual bool world_up() { return unported("0x004f8f50", {}) != 0; }
+  // PM 0x00492830(6): the mech lab's world loaded through the mission load (the Salvage State's, 0x0047f7c0).
+  virtual void load_lab_world() { unported("0x00492830", {6}); }
   // 0x0049bfd0: the game's report, an empty function in the release build.
   virtual void report(int32_t level, const char* file, int32_t line, const char* text, const char* arg) {
     (void)level, (void)file, (void)line, (void)text, (void)arg;

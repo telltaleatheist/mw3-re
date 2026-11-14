@@ -764,6 +764,8 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mission_music.cpp
     tests/pm/test_pm_waypoint_arrow.cpp
     tests/pm/test_pm_lab_highlight.cpp
+    tests/pm/test_pm_salvage_world.cpp
+    tests/pm/test_pm_chat_reset.cpp
     tests/pm/test_pm_options.cpp
     tests/pm/test_pm_sound_range.cpp
     tests/pm/test_pm_hud.cpp

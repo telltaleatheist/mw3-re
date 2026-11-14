@@ -1383,7 +1383,9 @@ void WinState::leave() {
 // Salvage
 
 // Mech3.exe 1.2 @ 0x0047d310
+// Pirate's Moon 1.0 @ 0x0047f7c0: with no world up (from the briefing or the lobby), the mech lab's (6) first.
 bool SalvageState::enter() {
+  if (zgame::game().salvage_loads_world && !e().world_up()) e().load_lab_world();
   screen_ = e().construct(0x47d3b0, {addr()});  // new(0x166a8)
   return ShellState::enter();
 }
