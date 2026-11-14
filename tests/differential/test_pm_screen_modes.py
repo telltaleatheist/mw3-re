@@ -9,6 +9,9 @@ probe library (the original's path).
     cmake --build build --target pmprobe && .venv/bin/python -P tests/differential/test_pm_screen_modes.py
 
 Compared: the range, or the mode after and the in-game mode, then every list ask and switch in order.
+Then the rounds left out, with the port's FIX (bug) on (zfix fixed, fixes.md): the exe still switching after
+1000 tries (stopped there), the port ending after one round with the mode and the in-game mode untouched,
+each mode of the exe's first round tried once, in its order.
 """
 import ctypes
 import os
@@ -25,6 +28,7 @@ RANGE, TOGGLE, DEVICE, CURRENT, LISTED, SWITCH, IN_GAME = 0x4af210, 0x4af360, 0x
     0x4aefe0, 0x6187d0
 
 probe = ctypes.CDLL(str(next((ROOT / 'build').glob('libpmprobe.*'))))
+probe.probe_pm_screen_modes_fixed.argtypes = [ctypes.c_int]
 probe.probe_pm_screen_modes.argtypes = [ctypes.c_int, ctypes.c_int32, ctypes.c_int32, ctypes.c_uint32,
                                         ctypes.c_uint32, ctypes.c_void_p]
 OUT = (ctypes.c_uint32 * 256)()
@@ -79,6 +83,9 @@ def main():
     def switch(c):
         m = c.arg(0)
         st['log'] += [2, m]
+        st['switches'] = st.get('switches', 0) + 1
+        if st.get('cap') and st['switches'] >= st['cap']:
+            u.emu_stop()
         if not (st['refused'] >> m) & 1:
             st['cur'] = m
         return st['cur']
@@ -116,6 +123,33 @@ def main():
                     print(f'FAIL {"toggle" if which else "range"} dev {dev} cur {cur} listed {lst:#x} '
                           f'refused {refused:#x}\n  exe  {e}\n  port {p}')
     print(f'{runs} cases ({skipped} endless left out), {bad} differ')
+    # The endless rounds: the exe never gives up; the fixed port stops after one round.
+    probe.probe_pm_screen_modes_fixed(1)
+    hangs = ends = 0
+    for dev, cur, lst, refused in sorted({(d, c, l, r) for d, c, l, r in cases() if endless(d, c, l, r)}):
+        st.update(dev=dev, cur=cur, listed=lst, refused=refused, log=[], switches=0, cap=1000)
+        u.mem_write(cells, struct.pack('<i', -1))
+        try:
+            z.call(TOGGLE, args=())
+        except Exception:  # noqa: BLE001 - stopped inside the stub
+            pass
+        exe_hung = st['switches'] >= 1000
+        exe_tries = [st['log'][i + 1] for i in range(0, len(st['log']), 2) if st['log'][i] == 2]
+        first_round = exe_tries[:next((i for i, m in enumerate(exe_tries) if m in exe_tries[:i]), len(exe_tries))]
+        st['cap'] = 0
+        k = probe.probe_pm_screen_modes(1, dev, cur, lst, refused, OUT)
+        p = list(OUT[:k])
+        tries = [p[i + 1] for i in range(2, len(p), 2) if p[i] == 2]
+        ended = p[0] == cur and p[1] == 0xffffffff and tries == first_round
+        hangs += exe_hung
+        ends += bool(ended)
+        if not exe_hung or not ended:
+            bad += 1
+            if bad <= 5:
+                print(f'FAIL endless dev {dev} cur {cur} listed {lst:#x} refused {refused:#x}: exe '
+                      f'{st["switches"]} switches, port {p}')
+    probe.probe_pm_screen_modes_fixed(0)
+    print(f'endless rounds: the exe still switching after 1000 in {hangs}, the port ending in {ends}; {bad} differ')
     sys.stdout.flush()
     os._exit(1 if bad else 0)
 

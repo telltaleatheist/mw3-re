@@ -1028,3 +1028,9 @@ stubbed and logged on both sides: 1614 cases, 0 differ. Left out: 127 rounds tha
 the current mode is outside the round (3 on a card, or past the top) and the switch refuses every mode in it;
 not met in the port, whose switch takes every listed mode in practice. Breaks: the flag off (1186 differ), 8 asked (403),
 no retry (310).
+
+The port gives such a round up (FIX (bug), `fixed`, fixes.md): once a mode repeats, Shift+V stops and keeps the
+mode it has. The test's second part runs the 127 rounds again: the exe still switching after 1000 tries (stopped
+there), the port ending after its first round, trying the exe's first round's modes in the exe's order, the mode
+and the in-game mode untouched. Breaks: stopping at the first refusal (67 differ), no guard (the port spins, the
+run killed at its memory cap).
