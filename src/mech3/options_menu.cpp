@@ -61,7 +61,7 @@ void GameOptionsScreen::UpgradesButton::on_left_up() {
   if (const Handle s = options_upgrades_state()) e_.push_state(s, 0);
 }
 
-// Mech3.exe 1.2 @ 0x004379f0
+// Mech3.exe 1.2 @ 0x004379f0, Pirate's Moon 1.0 @ 0x00438c10 (its background as borrow_background says)
 GameOptionsScreen::GameOptionsScreen(Engine& e, Handle s)
     : MenuScreen(e, s), accept(e), back(e), difficulty(e), camera(e), invincible(e, 1), infinite_ammo(e, 1),
       heat(e, 0), torso(e), throttle(e), jump_jets(e), invert_y(e), gfx_audio(e, 0x60986c),
@@ -401,7 +401,7 @@ void GfxAudioScreen::AcceptButton::on_left_up() {
   e_.menu_mode_picked();  // ours: a new shape for the menus at once
 }
 
-// Mech3.exe 1.2 @ 0x00438f60
+// Mech3.exe 1.2 @ 0x00438f60, Pirate's Moon 1.0 @ 0x00439a30 (its background as borrow_background says)
 GfxAudioScreen::GfxAudioScreen(Engine& e, Handle s)
     : MenuScreen(e, s), music(e, true), sfx(e, false), shadows(e), self_shadows(e), lighting(e), resolution(e),
       device(e), textures(e), sound(e), detail(e), effects(e), accept(e), back(e) {

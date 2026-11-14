@@ -581,3 +581,90 @@ TEST(pm_upgrades_page_has_five_switches_headless) {
   zfix::options() = fix_was;
   fs::remove_all(wd, ec);
 }
+
+// Pirate's Moon's option screens from a running mission (0x0042bb80, 0x00438c10, 0x00439a30): the
+// background scrolls as in the menus, where MW3 stopped it (0x0047fb70); and the graphics and audio
+// state (0x0043b7c0 / 0x0043b790) keeps the effects and music volumes on entering and puts them back
+// on BACK, while ACCEPT keeps what the sliders set (MW3 keeps them either way).
+TEST(pm_gfx_audio_back_undoes_the_volumes_and_backgrounds_scroll_in_a_mission_headless) {
+  std::error_code ec;
+  if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_gfx_back";
+  fs::remove_all(wd, ec);
+  fs::create_directories(wd, ec);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd.c_str());
+  zutl::mount(MW3PM_GAME_DIR);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files;
+  enum { kMain, kOptions, kBack, kAfterBack, kAccept, kAfterAccept, kDone };
+  int stage = kMain, scrolling = 0, screens = 0;
+  uint8_t menu_moving = 0;
+  float entered[2] = {}, after_back[2] = {}, after_accept[2] = {};
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      auto* os = dynamic_cast<mech3::OptionsState*>(now);
+      auto* game = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+      auto* g = os ? dynamic_cast<mech3::GfxAudioScreen*>(engine.screen_of(os->screen_)) : nullptr;
+      if (app.pending()) return;
+      if (stage == kMain && now == &mech3::states().main && mech3::main_menu()) {
+        zimg::Texture* img = nullptr;
+        engine.main_menu_background(&img, &menu_moving);
+        mech3::states().core.active_ = 1;  // as from the pause
+        for (uint32_t ctor : {0x4379f0u, 0x438f60u}) {
+          const mech3::Handle h = engine.construct(ctor, {0});
+          if (auto* s = engine.screen_of(h)) ++screens, scrolling += s->background.moving == menu_moving;
+          engine.vcall(h, 0x08, {1});
+        }
+        mech3::states().core.active_ = 0;
+        mech3::main_menu()->buttons[mech3::MainMenuButton::kOptions].on_left_up();
+        stage = kOptions;
+      } else if ((stage == kOptions || stage == kAfterBack) && game) {
+        game->gfx_audio.on_left_up();
+        stage = stage == kOptions ? kBack : kAccept;
+      } else if ((stage == kBack || stage == kAccept) && g) {
+        if (stage == kBack) entered[0] = engine.sound_frequency(), entered[1] = engine.cd_volume();
+        g->sfx.set_raw(0.25f), g->music.set_raw(0.75f);  // the sliders moved, each setting its volume
+        engine.set_sound_frequency(g->sfx.value), engine.set_cd_volume(g->music.value);
+        if (stage == kBack) g->back.on_left_up();
+        else g->accept.on_left_up();
+        stage = stage == kBack ? kAfterBack : kAfterAccept;
+        if (stage == kAfterBack) after_back[0] = engine.sound_frequency(), after_back[1] = engine.cd_volume();
+        else after_accept[0] = engine.sound_frequency(), after_accept[1] = engine.cd_volume(), stage = kDone;
+      }
+    };
+    Pump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == kDone; };
+    app.run(pump);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  std::printf("  in a mission: %d of %d screens scroll as the menu (%d); volumes %g %g, after BACK %g %g, after ACCEPT %g %g\n",
+              scrolling, screens, menu_moving, entered[0], entered[1], after_back[0], after_back[1], after_accept[0], after_accept[1]);
+  EXPECT(stage == kDone && screens == 2 && scrolling == 2 && menu_moving == 1);
+  EXPECT(after_back[0] == entered[0] && after_back[1] == entered[1] && (entered[0] != 0.25f || entered[1] != 0.75f));
+  EXPECT(after_accept[0] == 0.25f && after_accept[1] == 0.75f);
+}

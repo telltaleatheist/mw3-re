@@ -393,7 +393,7 @@ void LoadSavePopupState::finish() {
 
 // ---- the screen ----
 
-// Mech3.exe 1.2 @ 0x0042a590
+// Mech3.exe 1.2 @ 0x0042a590, Pirate's Moon 1.0 @ 0x0042bb80 (its background as borrow_background says)
 ControlsScreen::ControlsScreen(Engine& e, Handle s, Handle self)
     : MenuScreen(e, s), accept(e, ControlsButton::kAccept), cancel(e, ControlsButton::kCancel),
       reset_mouse(e, ControlsButton::kResetMouse), reset_joy(e, ControlsButton::kResetJoy), group_cycle(e),
