@@ -287,6 +287,7 @@ add_library(mw3core STATIC
   src/mech3/zai_node.cpp
   src/mech3/zai_path.cpp
   src/mech3/zainet.cpp
+  src/mech3/zainet105.cpp
   src/mech3/zainetedit.cpp
   src/mech3/zainet_inout.cpp
   src/mech3/zainet_inout_view.cpp
