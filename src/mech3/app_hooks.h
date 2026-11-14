@@ -614,6 +614,8 @@ class Engine : public zgame::AppHooks {
   virtual void mech_set_mode_a(Handle mech, int32_t a) { unported("0x0041ca30", {mech, a}); }
   // Pirate's Moon: the mech's controls (+0x38c) vt+0x1c, 0x00428940 / 0x004289d0: the held inputs but the throttle 0.
   virtual void mech_controls_settle(Handle mech) { unported("0x00428940", {mech}); }
+  // Pirate's Moon 0x00496650: the pause state's Escape is its screen's RESUME (0x00496220); false: no such screen.
+  virtual bool pause_resume(Handle screen) { (void)screen; return false; }
   virtual void mech_set_mode_b(Handle mech, int32_t a) { unported("0x0041cc30", {mech, a}); }
   virtual void mech_draw_cockpit(Handle mech) { unported("0x0041ab90", {mech}); }
   // The draw paths' HUD calls after the HUD frame: the pilot's HUD (MechData

@@ -404,7 +404,8 @@ int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemi
 void pm_hold_down(void* mech);
 void pm_controls_hold(void* mech, float v);
 void pm_controls_read(void* mech, float out[7]);
-static float g_resume[2][7];
+static float g_resume[3][7];
+static bool g_paused = false;
 int pm_shot_flight(void* player, int since, float* travelled, float* expected, int* seen, char* name, size_t n);
 static float g_shot_travelled = 0, g_shot_expected = 0;
 static int g_shot_seen = 0, g_shot_result = 0;
@@ -2114,8 +2115,16 @@ static void kill_run(const char* which, bool quick) {
         pm_controls_hold(player, 0.5f);
         mech3::states().core.resume(8);
         pm_controls_read(player, g_resume[1]);
+      }
+      if (since == 10) {  // the pause itself, left by Escape (PM's 0x00496650: the RESUME)
+        pm_controls_hold(player, 0.5f);
+        app.push(app.state(3), 0);  // the pause (as the Core state's Escape pushes it), current from the next frame
+      }
+      if (g_paused) {  // the first frame back from the pause
+        pm_controls_read(player, g_resume[2]);
         done = true;
       }
+      if (since > 400) done = true;  // the pause never came
       return;
     }
     if (std::getenv("PM_SHOT_FLIGHT")) {  // a round's flight under the real loop (pm_shot_flight)
@@ -2193,7 +2202,14 @@ static void kill_run(const char* which, bool quick) {
   };
   Pump pump;
   pump.limit = 60000;
-  pump.stop = [&] { return done; };
+  pump.stop = [&] {
+    // PM_RESUME: the pause's Escape (PM's 0x00496650, its RESUME) once it is current; its frames present nothing.
+    if (std::getenv("PM_RESUME") && !g_paused && app.current() == app.state(3)) {
+      g_paused = true;
+      if (auto* ps = dynamic_cast<mech3::PauseState*>(app.state(3))) ps->escape();
+    }
+    return done;
+  };
   app.run(pump);
   std::printf("  %s: %zu AI mechs, %d killed, %d not; hits on a part %d, off a part %d; frames %d\n", which, targets.size(), dead, stuck,
               pm_kill_on_part, pm_kill_off_part, frames);
@@ -2449,6 +2465,12 @@ TEST(pm_c1m1_resume_from_the_pause_lets_go_but_the_throttle) {
     for (int i = 0; i < 7; ++i) EXPECT(kept[i] == 0.5f);
     for (int i = 0; i < 5; ++i) EXPECT(after[i] == 0.0f);
     EXPECT(after[5] == 0.5f && after[6] == 0.5f);
+    const float* esc = g_resume[2];
+    std::printf("  paused %d; after Escape: %.2f %.2f %.2f %.2f %.2f throttle %.4f/%.4f\n", g_paused, esc[0], esc[1], esc[2], esc[3], esc[4],
+                esc[5], esc[6]);
+    EXPECT(g_paused);
+    for (int i = 0; i < 5; ++i) EXPECT(esc[i] == 0.0f);
+    EXPECT(esc[6] > 0.4f);  // kept (a frame of the controls has run since: no longer exactly the 0.5 set)
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);
   }

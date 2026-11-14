@@ -1192,8 +1192,11 @@ void PauseState::leave() {
   en.poke32(0x609870, 0);
 }
 
-// Mech3.exe 1.2 @ 0x00493250: Escape returns to the mission (resume arg 6).
-void PauseState::escape() { a().pop(6); }
+// Mech3.exe 1.2 @ 0x00493250, Pirate's Moon 1.0 @ 0x00496650: Escape is the screen's RESUME (0x00496220 on +0x0c):
+// the sounds back and the pop with 8, the Core state's back from the pause. MW3 popped 6 and kept the sounds' hold.
+void PauseState::escape() {
+  if (!e().pause_resume(screen_)) a().pop(8);
+}
 
 // FIX (B), playtest W36: back from the options (which switch to the menus'
 // mode 5, 0x00438c90), the pause shows over the mission again in its mode,
