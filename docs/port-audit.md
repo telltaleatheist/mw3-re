@@ -11,20 +11,18 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 
 | Class | Functions |
 |---|---|
-| folded | 3022 |
+| folded | 3024 |
 | replaced (SDL or the platform layer) | 221 |
 | software renderer | 113 |
 | unused: PORT (preserve) | 82 |
 | debug or dev tool: PORT (preserve) | 73 |
 | dev dialog (MFC), its logic: PORT (preserve) | 54 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 20 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 16 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
 
-- **0x00410400, 0x004c0310** (2 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour)
-- **0x004bed90, 0x004bf4e0** (2 functions, 129 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file
 - **0x004fd1e0, 0x004fd8c0** (2 functions, 54 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
 - **0x005076c0, 0x005a5400, 0x005a6650, 0x005a6760** (4 functions, 135 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
 - **0x0050d610, 0x0050d6a0, 0x0050d7a0, 0x0050d880** (4 functions, 124 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
@@ -114,7 +112,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 
 ## By module
 
-### mech3 (2545 not ported)
+### mech3 (2543 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -354,7 +352,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00410370 | 9 | folded | a thunk: one call to another function |
 | 0x004103b0 | 9 | folded | a thunk: one call to another function |
 | 0x004103c0 | 9 | folded | a thunk: one call to another function |
-| 0x00410400 | 9 | MISSING LOGIC (only data the shipped game lacks reaches it) | follows 0x004c0310: the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour) |
+| 0x00410400 | 9 | folded | a thunk: one call to another function |
 | 0x00410410 | 9 | folded | a thunk: one call to another function |
 | 0x00410450 | 9 | folded | a thunk: one call to another function |
 | 0x00410460 | 9 | folded | a thunk: one call to another function |
@@ -367,11 +365,11 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00410540 | 9 | folded | covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00410560 | 18 | folded | covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x004105d0 | 12 | folded | covered by the port where it names it (src/mech3/zai_steps.cpp:8) |
-| 0x004105f0 | 16 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:115) |
+| 0x004105f0 | 16 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:117) |
 | 0x00410610 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.h:413) |
 | 0x00410630 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.h:415) |
-| 0x00410650 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:155) |
-| 0x00410680 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:155) |
+| 0x00410650 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:167) |
+| 0x00410680 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:167) |
 | 0x004106a0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004106d0 | 12 | folded | covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x004106e0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
@@ -1582,12 +1580,12 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004aec00 | 13 | folded | ported, by docs/symbols.csv: ported: IControls +0x04 zeroed |
 | 0x004aec70 | 10 | folded | ported, by docs/symbols.csv: ported: HitRecord::run |
 | 0x004aec80 | 9 | folded | ported, by docs/symbols.csv: ported: HitRecord::within(1) (the manoeuvre's direct call) |
-| 0x004aed10 | 21 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1599) |
+| 0x004aed10 | 21 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1617) |
 | 0x004aed50 | 13 | folded | ported, by docs/symbols.csv: ported: MechControls::on_death (vt+0xa8: the tick once more) |
 | 0x004aed60 | 10 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aed70 | 11 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aed80 | 10 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
-| 0x004aed90 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain.h:755) |
+| 0x004aed90 | 11 | folded | covered by the port where it names it (src/mech3/zai_brain.h:756) |
 | 0x004aeda0 | 10 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aedb0 | 10 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004aedc0 | 10 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
@@ -1674,7 +1672,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004b6390 | 17 | folded | covered by the port where it names it (src/mech3/zai_brain.h:25) |
 | 0x004b63d0 | 10 | folded | ported, by docs/symbols.csv: ported; LookAround::start |
 | 0x004b6500 | 25 | folded | covered by the port where it names it (src/mech3/zai_firing.h:111) |
-| 0x004b6660 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:992) |
+| 0x004b6660 | 12 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1010) |
 | 0x004b6aa0 | 14 | folded | covered by the port where it names it (src/mech3/zai_firing.cpp:303) |
 | 0x004b6ac0 | 20 | folded | covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004b6b10 | 15 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
@@ -1762,11 +1760,11 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004bcb30 | 11 | folded | the AI net files' classes (zrdrainet/zrdraiv): the record cache, its edit (the editor's, ported in zrdrainet.cpp 0x004dc2b0), lookups, constructors, destructors and std::map code; the editor's net writer 0x004db8d0 replaced by the port's exact one (net_save) |
 | 0x004bcb50 | 9 | dev dialog (MFC), its logic: PORT (preserve) | follows 0x004bc9f0: the AI tester dialog (0x004b7d80..0x004bcb70, docs/ai.md: a developer tool over a vehicle's AI and net): its helpers' logic |
 | 0x004bcb70 | 22 | dev dialog (MFC), its logic: PORT (preserve) | the AI tester dialog (0x004b7d80..0x004bcb70, docs/ai.md: a developer tool over a vehicle's AI and net): its helpers' logic |
-| 0x004bcf80 | 14 | folded | covered by the port where it names it (src/mech3/zainetedit.h:52) |
+| 0x004bcf80 | 14 | folded | covered by the port where it names it (src/mech3/zainetedit.h:60) |
 | 0x004bcf90 | 14 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004bcfa0 | 14 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004bcfb0 | 14 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
-| 0x004bcfc0 | 14 | folded | covered by the port where it names it (src/mech3/zainetedit.h:53) |
+| 0x004bcfc0 | 14 | folded | covered by the port where it names it (src/mech3/zainetedit.h:61) |
 | 0x004bcfd0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004bd000 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004bd330 | 9 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:558) |
@@ -1774,9 +1772,9 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004bd360 | 28 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:249) |
 | 0x004bd3d0 | 28 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:538) |
 | 0x004bd440 | 50 | folded | ported, by docs/symbols.csv: ported: zainetedit (vtable 0x005ca480) |
-| 0x004bd640 | 18 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:427) |
-| 0x004bd740 | 25 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:423) |
-| 0x004bdd70 | 13 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:365) |
+| 0x004bd640 | 18 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:429) |
+| 0x004bd740 | 25 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:425) |
+| 0x004bdd70 | 13 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:367) |
 | 0x004be230 | 63 | folded | covered where the port does it: src/mech3/zainetedit.cpp:254 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004be300 | 124 | folded | ported, by docs/symbols.csv: ported: zainetedit Compiler (ai.md section 9) |
 | 0x004be5a0 | 60 | folded | covered where the port does it: src/mech3/zainetedit.cpp:463 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
@@ -1785,11 +1783,10 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004beb90 | 42 | folded | covered where the port does it: src/mech3/zainetedit.cpp:451 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004bec10 | 69 | folded | covered where the port does it: src/mech3/zainetedit.cpp:450 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x004bed60 | 14 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
-| 0x004bed90 | 97 | MISSING LOGIC (only data the shipped game lacks reaches it) | the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file |
-| 0x004bef80 | 17 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:81) |
+| 0x004bef80 | 17 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:83) |
 | 0x004beff0 | 10 | folded | a getter of a member |
-| 0x004bf4d0 | 8 | folded | covered by the port where it names it (src/mech3/zainetedit.h:51) |
-| 0x004bf4e0 | 32 | MISSING LOGIC (only data the shipped game lacks reaches it) | the version-105 nets: the editor's reload over them (0x004bed90, the vehicles using the old net kept and handed the new one) and its kept list; not ported on purpose (ai.md 9, 17.9): no shipped 105 file |
+| 0x004bf4d0 | 8 | folded | covered by the port where it names it (src/mech3/zainetedit.h:59) |
+| 0x004bf4e0 | 32 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:438) |
 | 0x004bf530 | 14 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004bf540 | 9 | folded | a thunk: one call to another function |
 | 0x004bf550 | 22 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:569) |
@@ -1822,7 +1819,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004c02b0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004c02d0 | 12 | folded | AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004c02e0 | 9 | folded | a thunk: one call to another function |
-| 0x004c0310 | 104 | MISSING LOGIC (only data the shipped game lacks reaches it) | the built-in net 0x00604008 (one behaviour: the default one, 0x00604068): what an order goes on when its vehicle has no net and the record's net is not found. The port's builtin_net() is null in the game (WiredBrainHooks does not give one), so Order::reset/Brain::push would call through a null net. Not reached by the shipped missions (every AI has a net; the mission tests pass); a mod's vehicle without a net would. Port: small (a CompiledNet holding the default behaviour) |
 | 0x004c0540 | 13 | folded | AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x004c07a0 | 12 | folded | covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x004c07d0 | 13 | folded | ported, by docs/symbols.csv: ported: FormationPart |
@@ -1964,7 +1960,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004c6d00 | 12 | folded | covered by the port where it names it (src/mech3/zainet_node.h:9) |
 | 0x004c6d10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x004c6e10 | 22 | folded | covered by the port where it names it (src/mech3/zainet.h:59) |
-| 0x004c6e60 | 27 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:91) |
+| 0x004c6e60 | 27 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:93) |
 | 0x004c6fa0 | 9 | folded | covered by the port where it names it (src/mech3/zainet.cpp:61) |
 | 0x004c7080 | 9 | folded | covered by the port where it names it (src/mech3/zainet.cpp:84) |
 | 0x004c70a0 | 27 | folded | covered by the port where it names it (src/mech3/zainet.cpp:85) |
@@ -1973,7 +1969,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004c7240 | 14 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:67) |
 | 0x004c7260 | 9 | folded | a thunk: one call to another function |
 | 0x004c72c0 | 8 | folded | covered by the port where it names it (src/mech3/game_editor_net.cpp:70) |
-| 0x004c72d0 | 9 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:81) |
+| 0x004c72d0 | 9 | folded | covered by the port where it names it (src/mech3/zainetedit.cpp:83) |
 | 0x004c72f0 | 9 | folded | a thunk: one call to another function |
 | 0x004c7300 | 15 | folded | covered by the port where it names it (src/mech3/zainet.cpp:130) |
 | 0x004c7530 | 20 | folded | covered by the port where it names it (src/mech3/zainet_node.cpp:106) |
@@ -3685,37 +3681,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0059ea20 | 9 | folded | a thunk: one call to another function |
 | 0x0059ed90 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 
-### zgame (26 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x005900f9 | 11 | folded | a piece of the ported function before it (Ghidra split it there) (0x0058fd70) |
-| 0x00590120 | 58 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005901ba | 11 | replaced (SDL or the platform layer) | follows 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590780 | 43 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x00590850 | 16 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x00590880 | 26 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005908e0 | 8 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005908f0 | 8 | folded | returns a constant or a global |
-| 0x005908f5 | 8 | folded | follows 0x005908f0: returns a constant or a global |
-| 0x00590900 | 8 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590910 | 8 | folded | returns a constant or a global |
-| 0x00590920 | 17 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590960 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00590980 | 28 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x005909f0 | 14 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590a10 | 9 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x00590a50 | 52 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590b40 | 10 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590b60 | 15 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590b80 | 22 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590bd0 | 15 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
-| 0x00590c70 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
-| 0x00590ca0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00590cc0 | 21 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-| 0x00590d10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x00590d30 | 21 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
-
 ### zdeclient (26 not ported)
 
 | Address | Lines | Class | Why |
@@ -3747,6 +3712,37 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x005076c0 | 88 | MISSING LOGIC (only data the shipped game lacks reaches it) | anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0) |
 | 0x00507960 | 8 | folded | returns a constant or a global |
 
+### zgame (26 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x005900f9 | 11 | folded | a piece of the ported function before it (Ghidra split it there) (0x0058fd70) |
+| 0x00590120 | 58 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005901ba | 11 | replaced (SDL or the platform layer) | follows 0x00590120: the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590780 | 43 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x00590850 | 16 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x00590880 | 26 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005908e0 | 8 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005908f0 | 8 | folded | returns a constant or a global |
+| 0x005908f5 | 8 | folded | follows 0x005908f0: returns a constant or a global |
+| 0x00590900 | 8 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590910 | 8 | folded | returns a constant or a global |
+| 0x00590920 | 17 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590960 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x00590980 | 28 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x005909f0 | 14 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590a10 | 9 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x00590a50 | 52 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590b40 | 10 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590b60 | 15 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590b80 | 22 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590bd0 | 15 | replaced (SDL or the platform layer) | the MFC frame window: its class and message-map getters, constructor (frame_new) and destructor, OnPaint, OnSize (the video resize), OnCreate (the GAMEBMP icon, the mouse), OnDestroy (net, video, CD stop), the window test, and the top-level catch that names the exception in a message box; the SDL window and the port's crash box stand in |
+| 0x00590c70 | 14 | folded | covered by the port where it names it (src/gamez/zgame/zgameapp.cpp:182) |
+| 0x00590ca0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x00590cc0 | 21 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+| 0x00590d10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x00590d30 | 21 | folded | zGameApp's small helpers inside ported callers or static teardown: a buffer cursor's init (0x00590850, from 0x00590250 / 0x00590400 / 0x005905a0), its drain at exit, the registry company name 'Zipper Interactive' (zutl_reg's company), two destructors |
+
 ### zutil (25 not ported)
 
 | Address | Lines | Class | Why |
@@ -3777,30 +3773,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00576ee0 | 24 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 | 0x00576f70 | 19 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 
-### zweapon (19 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00584920 | 9 | folded | a thunk: one call to another function |
-| 0x00584de0 | 12 | folded | sets members (a setter or a small constructor) |
-| 0x00584f42 | 24 | folded | a piece of the ported function before it (Ghidra split it there) (0x00584f40) |
-| 0x00586ba0 | 29 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
-| 0x00586d70 | 9 | folded | follows 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x00586d80 | 9 | folded | a thunk: one call to another function |
-| 0x00586db0 | 9 | folded | follows 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
-| 0x00586dc0 | 9 | folded | a thunk: one call to another function |
-| 0x00586de0 | 15 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
-| 0x00586e00 | 8 | folded | returns a constant or a global |
-| 0x00586ed0 | 21 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:64) |
-| 0x00586f30 | 18 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
-| 0x005870c0 | 32 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
-| 0x00587140 | 80 | folded | the game list's search, ours in the ENet transport (net_enet.cpp:441) |
-| 0x005872a0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:59) |
-| 0x00587300 | 29 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
-| 0x00587370 | 31 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:96) |
-| 0x005873f0 | 33 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
-| 0x00587450 | 19 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
-
 ### zeffect (19 not ported)
 
 | Address | Lines | Class | Why |
@@ -3824,6 +3796,30 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0050d820 | 22 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:50) |
 | 0x0050d880 | 37 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
 | 0x0050da50 | 16 | replaced (SDL or the platform layer) | mech3.err (0x0050da50): the port's error reports go to stderr (app_engine.cpp:562) |
+
+### zweapon (19 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00584920 | 9 | folded | a thunk: one call to another function |
+| 0x00584de0 | 12 | folded | sets members (a setter or a small constructor) |
+| 0x00584f42 | 24 | folded | a piece of the ported function before it (Ghidra split it there) (0x00584f40) |
+| 0x00586ba0 | 29 | folded | covered by the port where it names it (src/mech3/app_engine.h:59) |
+| 0x00586d70 | 9 | folded | follows 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
+| 0x00586d80 | 9 | folded | a thunk: one call to another function |
+| 0x00586db0 | 9 | folded | follows 0x0042a570: the controls screen (controls_menu, menus.md's table names each): its buttons' handlers ported in its switch, its controls' destructors (CRT callers: exception unwinds), vector and string helpers |
+| 0x00586dc0 | 9 | folded | a thunk: one call to another function |
+| 0x00586de0 | 15 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+| 0x00586e00 | 8 | folded | returns a constant or a global |
+| 0x00586ed0 | 21 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:64) |
+| 0x00586f30 | 18 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+| 0x005870c0 | 32 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+| 0x00587140 | 80 | folded | the game list's search, ours in the ENet transport (net_enet.cpp:441) |
+| 0x005872a0 | 34 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:59) |
+| 0x00587300 | 29 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+| 0x00587370 | 31 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:96) |
+| 0x005873f0 | 33 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+| 0x00587450 | 19 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
 
 ### zgeometry (15 not ported)
 

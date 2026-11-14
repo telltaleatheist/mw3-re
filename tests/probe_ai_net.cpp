@@ -391,3 +391,67 @@ int probe_waynets_run(const char* archive, const char* const* names, int n, uint
 }
 
 }  // extern "C"
+
+namespace {
+// test_net105_reload.py's log: the kept vehicles (1, index), the old net let go (2), the reader's call (3, its x18,
+// the name's length), the hand-overs (4, index), then the result (5, 1 the reader's net, 0 none) and +0x34 the same.
+std::vector<int32_t> g_reload;
+int32_t g_uses[16];
+int32_t g_vehicles = 0;
+int32_t g_read_fails = 0;
+mech3::ai::AiNet* g_read = nullptr;
+struct LoggedNet : mech3::ai::CompiledNet {
+  LoggedNet() : CompiledNet(znet::alloc_id(600, 600, 700), 0) {}
+  ~LoggedNet() override { g_reload.push_back(2); }
+};
+}  // namespace
+
+extern "C" {
+
+// The editor's version-105 build (0x004bed90) on an editor of `version` whose file has a tree (has_tree), with a net
+// built before (had_net), its header number x18, and `vehicles` vehicles of which uses[i] answer that they use it.
+int probe_build_105(int32_t version, int32_t has_tree, int32_t had_net, int32_t x18, int32_t vehicles,
+                    const int32_t* uses, int32_t read_fails, int32_t* out, int cap) {
+  using mech3::ai::AiNet;
+  using mech3::ai::net_hooks;
+  g_reload.clear();
+  g_vehicles = vehicles;
+  g_read_fails = read_fails;
+  for (int32_t i = 0; i < vehicles && i < 16; ++i) g_uses[i] = uses[i];
+  auto* edit = new CZAiNetEdit(9, "net105test", 0);
+  edit->header.version = version;
+  edit->header.net = x18;
+  zrdr::Node tree{};
+  zrdr::Node* saved_tree = edit->ref->file->tree;
+  edit->ref->file->tree = has_tree ? &tree : nullptr;
+  if (had_net) edit->net = new LoggedNet;
+  const auto saved = net_hooks();
+  net_hooks().users105 = [](AiNet*, std::vector<void*>& kept) {
+    for (int32_t i = 0; i < g_vehicles; ++i)
+      if (g_uses[i]) kept.push_back(reinterpret_cast<void*>(static_cast<uintptr_t>(i + 1))), g_reload.push_back(1),
+                     g_reload.push_back(i);
+  };
+  net_hooks().give105 = [](void* v, AiNet* n) {
+    g_reload.push_back(4), g_reload.push_back(static_cast<int32_t>(reinterpret_cast<uintptr_t>(v)) - 1);
+    (void)n;
+  };
+  net_hooks().read105 = [](zrdr::Node*, const char* name, int32_t x) -> AiNet* {
+    g_reload.push_back(3), g_reload.push_back(x), g_reload.push_back(static_cast<int32_t>(std::strlen(name)));
+    g_read = g_read_fails ? nullptr : new mech3::ai::CompiledNet(znet::alloc_id(700, 700, 800), 0);
+    return g_read;
+  };
+  AiNet* r = edit->build_105();
+  g_reload.push_back(5), g_reload.push_back(r != nullptr && r == g_read), g_reload.push_back(edit->net == r);
+  const std::vector<int32_t> logged = g_reload;  // before the clean-up's deletes log
+  net_hooks() = saved;
+  edit->ref->file->tree = saved_tree;
+  if (edit->net != r) delete edit->net;
+  delete r;
+  edit->net = nullptr;
+  delete edit;
+  const int n = static_cast<int>(logged.size());
+  for (int i = 0; i < n && i < cap; ++i) out[i] = logged[i];
+  return n;
+}
+
+}  // extern "C"
