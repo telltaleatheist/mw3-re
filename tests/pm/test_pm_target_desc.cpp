@@ -1,8 +1,11 @@
 // PM's target description (0x004e2820): a record with an mpoption gives its description only when the network
 // game counts that base (0x00437920); otherwise the target is made with the defaults (0x004e3190 makes it).
+#include <algorithm>
 #include <cstdint>
+#include <list>
 
 #include "check.h"
+#include "mech3/zai_anim_owner.h"
 #include "mech3/zai_target.h"
 #include "mech3/zrdraiv.h"
 
@@ -62,4 +65,33 @@ TEST(pm_target_collision_spares_a_multiplayer_base) {
     delete t;
   }
   set_target_hooks(&old);
+}
+
+namespace {
+struct Binder : AnimOwnerHooks {
+  int sets = 0;
+  AnimCallback anim_callback(Handle) override { return AnimCallback::none; }
+  void anim_set_record(Handle, AnimOwnerRec*) override { ++sets; }
+};
+}  // namespace
+
+// Pirate's Moon 0x004e50b0 (MW3's 0x004d4c80): an animation whose callback events are none of the owner (0, 0x38)
+// or valve (0x2a..0x31) ones still gets a record, unless they are 0x32..0x34; MW3 gave one only for 0x39..0x3c.
+TEST(pm_anim_binder_takes_any_other_event) {
+  Binder h;
+  AnimOwnerHooks& old = anim_owner_hooks();
+  set_anim_owner_hooks(&h);
+  const std::list<AnimOwnerRec*> kept = anim_owner_records();
+  struct Case { int32_t value; bool taken; };
+  for (const Case c : {Case{0x39, true}, Case{0x10, true}, Case{0x45, true}, Case{0x32, false}, Case{0x34, false}}) {
+    AnimBinding b;
+    h.sets = 0;
+    anim_owner_bind_event(b, 0x500, c.value);
+    EXPECT(anim_owner_bind_commit(b) == c.taken);
+    EXPECT(h.sets == (c.taken ? 1 : 0));
+  }
+  for (AnimOwnerRec* r : anim_owner_records())
+    if (std::find(kept.begin(), kept.end(), r) == kept.end()) delete r;
+  anim_owner_records() = kept;
+  set_anim_owner_hooks(&old);
 }

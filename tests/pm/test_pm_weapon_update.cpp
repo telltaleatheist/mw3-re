@@ -4,6 +4,8 @@
 #include <vector>
 
 #include "check.h"
+#include "gamez/zweapon/zweapon.h"
+#include "gamez/zweapon/zwep_init.h"
 #include "mech3/weapon.h"
 
 namespace {
@@ -168,4 +170,29 @@ TEST(pm_beam_trigger_fills_a_remote_mechs_charge) {
     b.firing = false;  // no beam to stop
   }
   mech3::weapon_calls() = saved;
+}
+
+// Pirate's Moon 0x005a6650 (beam_free): a beam still linked on its def's list beside another is stopped first
+// (0x005a2a00, beam_stop: the FIRE animations freed, off the list); a lone beam at the head, which PM's test
+// misses, is only taken off (FIX (bug)); one off the list is freed as it is.
+TEST(pm_beam_free_stops_a_beam_still_listed) {
+  zwep::RunHooks& rh = zwep::run_hooks();
+  const zwep::RunHooks kept = rh;
+  static int freed;
+  freed = 0;
+  rh.anim_free = [](zwep::Handle) { ++freed; };
+  zwep::WeaponDef def{};
+  def.flags = zwep::kBeam;
+  auto* a = new zwep::Beam{};
+  auto* b = new zwep::Beam{};
+  for (zwep::Beam* x : {a, b}) x->def = &def;
+  def.beams = a, a->next = b, b->prev = a;
+  def.fire.running[0] = reinterpret_cast<zwep::Handle>(0x11);
+  zwep::beam_free(b);  // linked: stopped
+  EXPECT(freed == 1 && def.fire.running[0] == nullptr);
+  EXPECT(def.beams == a && a->next == nullptr);
+  def.fire.running[0] = reinterpret_cast<zwep::Handle>(0x22);
+  zwep::beam_free(a);  // alone at the head: off the list, not stopped
+  EXPECT(def.beams == nullptr && freed == 1 && def.fire.running[0] != nullptr);
+  rh = kept;
 }
