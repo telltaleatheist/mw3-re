@@ -18,13 +18,10 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | debug or dev tool: PORT (preserve) | 73 |
 | dev dialog (MFC), its logic: PORT (preserve) | 54 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 4 |
 | unlabelled | 2 |
 
 ## MISSING LOGIC
 
-- **0x005a6a10** (1 functions, 45 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): Line2D's reader from a dialog .zrd (its COLOR and its end), shared by the line classes' vtables; inferred unused by shipped data (the dialog reader matches the exe on every shipped dialog without it), not checked file by file
-- **0x005a7c50, 0x005a7ca0, 0x005a7cd0** (3 functions, 47 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
 
 ## BROKEN (null hook)
 
@@ -196,12 +193,12 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00409c60 | 13 | folded | covered by the port where it names it (src/mech3/briefing.cpp:145) |
 | 0x00409d80 | 12 | folded | sets members (a setter or a small constructor) |
 | 0x00409da0 | 10 | folded | a getter of a member |
-| 0x00409db0 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:584) |
+| 0x00409db0 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:590) |
 | 0x00409e00 | 11 | folded | sets members (a setter or a small constructor) |
 | 0x00409e10 | 10 | folded | a getter of a member |
-| 0x00409e20 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:695) |
-| 0x00409e30 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:696) |
-| 0x00409e40 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:694) |
+| 0x00409e20 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:702) |
+| 0x00409e30 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:703) |
+| 0x00409e40 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:701) |
 | 0x00409e60 | 14 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:200) |
 | 0x00409e80 | 10 | folded | a getter of a member |
 | 0x00409e90 | 13 | folded | covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
@@ -2701,7 +2698,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0053b050 | 179 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0053bb90 | 23 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0053bbd0 | 23 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
-| 0x0053ce20 | 17 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.h:131) |
+| 0x0053ce20 | 17 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.h:134) |
 | 0x0053cf00 | 10 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:329) |
 | 0x0053d130 | 107 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0053d360 | 119 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
@@ -3121,84 +3118,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x005762b0 | 48 | folded | zUtil's search path lists: each user keeps its own path string (zsnd_init.cpp:223, mech_fieldbase.h:295, zinterp.cpp:240) and the file finder is the platform's (zimg_library.h:75, zsnd_parm.cpp:17, FIX (A)); the default list's free has nothing to free (mission-frame.md:184) |
 | 0x005763b0 | 17 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.cpp:240) |
 
-### ztwod (73 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x0059fa80 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x0059fab0 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod_control.cpp:21) |
-| 0x005a0050 | 16 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
-| 0x005a0660 | 11 | folded | a thunk: one virtual call |
-| 0x005a15f0 | 31 | folded | covered by the port where it names it (src/mech3/debriefing.cpp:461) |
-| 0x005a1cd0 | 9 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a1cf0 | 13 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a22c0 | 9 | folded | a thunk: one call to another function |
-| 0x005a2b90 | 11 | folded | sets members (a setter or a small constructor) |
-| 0x005a31e0 | 32 | folded | covered by the port where it names it (src/mech3/briefing.cpp:220) |
-| 0x005a3a40 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a3ba0 | 10 | folded | a getter of a member |
-| 0x005a3bb0 | 11 | folded | sets members (a setter or a small constructor) |
-| 0x005a3c40 | 9 | debug or dev tool: PORT (preserve) | follows 0x005a3cd0: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
-| 0x005a3c50 | 9 | folded | a thunk: one call to another function |
-| 0x005a3cd0 | 46 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
-| 0x005a3de0 | 15 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
-| 0x005a3e30 | 18 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
-| 0x005a3e80 | 69 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
-| 0x005a3fd0 | 11 | folded | a thunk: one call to another function |
-| 0x005a4000 | 9 | folded | a thunk: one call to another function |
-| 0x005a4010 | 9 | folded | a thunk: one call to another function |
-| 0x005a4210 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a4670 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:29) |
-| 0x005a4690 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:525) |
-| 0x005a47f0 | 10 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:547) |
-| 0x005a4938 | 8 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a4880) |
-| 0x005a4b90 | 25 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a4f80 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a4fa0 | 13 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
-| 0x005a5280 | 9 | folded | a thunk: one call to another function |
-| 0x005a5310 | 9 | folded | a thunk: one call to another function |
-| 0x005a5620 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a5b10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a5e10 | 109 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a60e0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a6100 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a6600 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:77) |
-| 0x005a6620 | 14 | folded | ported, by docs/symbols.csv: ported: the tint's +0x38 colour, +0x40 alpha, shown for 0 s (vt+0x60) |
-| 0x005a6650 | 18 | folded | covered by the port where it names it (src/gamez/ztwod/twod_weather.cpp:334) |
-| 0x005a66b0 | 13 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:66) |
-| 0x005a66d0 | 14 | folded | sets members (a setter or a small constructor) |
-| 0x005a6700 | 9 | folded | a thunk: one call to another function |
-| 0x005a6710 | 9 | folded | a thunk: one call to another function |
-| 0x005a6860 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a69e8 | 8 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a68b0) |
-| 0x005a6a10 | 45 | MISSING LOGIC (only data the shipped game lacks reaches it) | Line2D's reader from a dialog .zrd (its COLOR and its end), shared by the line classes' vtables; inferred unused by shipped data (the dialog reader matches the exe on every shipped dialog without it), not checked file by file |
-| 0x005a6b20 | 11 | folded | sets members (a setter or a small constructor) |
-| 0x005a7130 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a7288 | 97 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a7280) |
-| 0x005a7560 | 12 | folded | sets members (a setter or a small constructor) |
-| 0x005a7580 | 12 | folded | sets members (a setter or a small constructor) |
-| 0x005a7640 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:857) |
-| 0x005a7670 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a7690 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a76b0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a76d0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a76f0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a7710 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a7730 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:834) |
-| 0x005a77d0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a7ac0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a7c50 | 20 | MISSING LOGIC (only data the shipped game lacks reaches it) | Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
-| 0x005a7ca0 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
-| 0x005a7cd0 | 12 | MISSING LOGIC (only data the shipped game lacks reaches it) | Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679) |
-| 0x005a7dd0 | 9 | folded | follows 0x005a8750: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
-| 0x005a7de0 | 9 | folded | a thunk: one call to another function |
-| 0x005a7e10 | 47 | folded | zEntity's base constructor (frames, and with a parent the registration 0x005a8390 + 0x005a7f50); the port's AiTarget initialisers stand in (app_engine.cpp:312). targets.zrd's CZAiTargets are not on the port's entity list (ai.md:1537), so their vt+0x34 (0x005a8000, the step by velocity +0x30 and spin +0x58) does not run; checked harmless: both start as the zero vector [0x0063d870] (BSS), targets.zrd has no velocity or spin key (ai.md:153) and no script command sets an entity's (interp.md: only CameraSetRotate and GlobalWindStaticVelocity) |
-| 0x005a7f30 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
-| 0x005a7f50 | 11 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a7f70 | 11 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
-| 0x005a7f90 | 25 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
-| 0x005a80c0 | 9 | folded | a thunk: one call to another function |
-
 ### zrender (69 not ported)
 
 | Address | Lines | Class | Why |
@@ -3272,6 +3191,80 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0056ef90 | 28 | replaced (SDL or the platform layer) | DirectSound: a sound's buffer duplicated or reused for another play (0x0056e180, 0x0056e4d0) and the buffer's volume and frequency calls (0x0056ef90); SDL's audio layer replaces them (zsnd_play) |
 | 0x0056f010 | 31 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:118) |
 | 0x0056f230 | 19 | folded | covered: a sound's play with the master volume (zsnd_play.cpp:134), the playing list's node |
+
+### ztwod (69 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x0059fa80 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x0059fab0 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod_control.cpp:21) |
+| 0x005a0050 | 16 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a0660 | 11 | folded | a thunk: one virtual call |
+| 0x005a15f0 | 31 | folded | covered by the port where it names it (src/mech3/debriefing.cpp:461) |
+| 0x005a1cd0 | 9 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a1cf0 | 13 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a22c0 | 9 | folded | a thunk: one call to another function |
+| 0x005a2b90 | 11 | folded | sets members (a setter or a small constructor) |
+| 0x005a31e0 | 32 | folded | covered by the port where it names it (src/mech3/briefing.cpp:220) |
+| 0x005a3a40 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a3ba0 | 10 | folded | a getter of a member |
+| 0x005a3bb0 | 11 | folded | sets members (a setter or a small constructor) |
+| 0x005a3c40 | 9 | debug or dev tool: PORT (preserve) | follows 0x005a3cd0: the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a3c50 | 9 | folded | a thunk: one call to another function |
+| 0x005a3cd0 | 46 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a3de0 | 15 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a3e30 | 18 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a3e80 | 69 | debug or dev tool: PORT (preserve) | the text console layer (Arial) behind the developer lines and the interp console: its line objects, their font, colour and position setters, the line maker (twod.md:38, 683) |
+| 0x005a3fd0 | 11 | folded | a thunk: one call to another function |
+| 0x005a4000 | 9 | folded | a thunk: one call to another function |
+| 0x005a4010 | 9 | folded | a thunk: one call to another function |
+| 0x005a4210 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a4670 | 11 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:29) |
+| 0x005a4690 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:531) |
+| 0x005a47f0 | 10 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:553) |
+| 0x005a4938 | 8 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a4880) |
+| 0x005a4b90 | 25 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a4f80 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a4fa0 | 13 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
+| 0x005a5280 | 9 | folded | a thunk: one call to another function |
+| 0x005a5310 | 9 | folded | a thunk: one call to another function |
+| 0x005a5620 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a5b10 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a5e10 | 109 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a60e0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a6100 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a6600 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:77) |
+| 0x005a6620 | 14 | folded | ported, by docs/symbols.csv: ported: the tint's +0x38 colour, +0x40 alpha, shown for 0 s (vt+0x60) |
+| 0x005a6650 | 18 | folded | covered by the port where it names it (src/gamez/ztwod/twod_weather.cpp:334) |
+| 0x005a66b0 | 13 | folded | covered by the port where it names it (src/gamez/ztwod/twod_console.cpp:66) |
+| 0x005a66d0 | 14 | folded | sets members (a setter or a small constructor) |
+| 0x005a6700 | 9 | folded | a thunk: one call to another function |
+| 0x005a6710 | 9 | folded | a thunk: one call to another function |
+| 0x005a6860 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a69e8 | 8 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a68b0) |
+| 0x005a6b20 | 11 | folded | sets members (a setter or a small constructor) |
+| 0x005a7130 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a7288 | 97 | folded | a piece of the ported function before it (Ghidra split it there) (0x005a7280) |
+| 0x005a7560 | 12 | folded | sets members (a setter or a small constructor) |
+| 0x005a7580 | 12 | folded | sets members (a setter or a small constructor) |
+| 0x005a7640 | 9 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:864) |
+| 0x005a7670 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a7690 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a76b0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a76d0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a76f0 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a7710 | 12 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a7730 | 12 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:841) |
+| 0x005a77d0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a7ac0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a7dd0 | 9 | folded | follows 0x005a8750: zEntity's list and its entries, covered where named: by name (app_vehicle.h:188), the position getters, the node's name (app_mech.cpp:831), the moved slot vt+0x1c (Mech::entity_moved, app_sensors.cpp:219, app_mech.cpp:526; the sensors' mech fallback at app_sensors.cpp:133 only logs and no port code calls it), the manager's set-up (zent_manager.h:18), add and remove (app_mission.cpp:1822-1826) |
+| 0x005a7de0 | 9 | folded | a thunk: one call to another function |
+| 0x005a7e10 | 47 | folded | zEntity's base constructor (frames, and with a parent the registration 0x005a8390 + 0x005a7f50); the port's AiTarget initialisers stand in (app_engine.cpp:312). targets.zrd's CZAiTargets are not on the port's entity list (ai.md:1537), so their vt+0x34 (0x005a8000, the step by velocity +0x30 and spin +0x58) does not run; checked harmless: both start as the zero vector [0x0063d870] (BSS), targets.zrd has no velocity or spin key (ai.md:153) and no script command sets an entity's (interp.md: only CameraSetRotate and GlobalWindStaticVelocity) |
+| 0x005a7f30 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
+| 0x005a7f50 | 11 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a7f70 | 11 | folded | covered where named or as one function: TextBox's set-by-message-id slots (FontText's run instead, twod.h:398), the edit bar's split piece (0x005a38a0's caller), the snow update's tail (twod_weather.cpp:290), the weather object's destructor, the message box's button handlers (one per button, twod_msgbox.cpp:7), zEntity's list add and remove (app_mech.cpp:314, 840) |
+| 0x005a7f90 | 25 | folded | a destructor (the exception unwinds call it; it resets the vtable) |
+| 0x005a80c0 | 9 | folded | a thunk: one call to another function |
 
 ### zvideo (64 not ported)
 
@@ -3659,10 +3652,10 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0059b200 | 19 | replaced (SDL or the platform layer) | cutscenes through MCI MPEGVideo (0x0059b080 open, 0x0059b200 stop, 0x0059b280 the error text) and the end that grabs and clears the screen (0x0059a3d0, fmv.md:181); the port's zFMV plays Indeo itself |
 | 0x0059b250 | 15 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
 | 0x0059b280 | 43 | replaced (SDL or the platform layer) | cutscenes through MCI MPEGVideo (0x0059b080 open, 0x0059b200 stop, 0x0059b280 the error text) and the end that grabs and clears the screen (0x0059a3d0, fmv.md:181); the port's zFMV plays Indeo itself |
-| 0x0059b4d0 | 40 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:643) |
-| 0x0059b610 | 21 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
-| 0x0059b640 | 40 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:643) |
-| 0x0059b780 | 21 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:159) |
+| 0x0059b4d0 | 40 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:650) |
+| 0x0059b610 | 21 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:184) |
+| 0x0059b640 | 40 | folded | covered by the port where it names it (src/gamez/ztwod/twod.h:650) |
+| 0x0059b780 | 21 | folded | covered by the port where it names it (src/gamez/ztwod/twod_shapes.cpp:184) |
 | 0x0059b8c0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0059bdb0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |
 | 0x0059d8b0 | 14 | folded | the scalar deleting destructor (the destructor, then delete) |

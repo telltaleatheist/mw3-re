@@ -2,7 +2,9 @@
 // file name unknown, named after what it holds): built and set up only, their
 // drawing not ported yet (docs/twod.md).
 #include "crt/msvc_math.h"
+#include "gamez/zreader/zreader.h"
 #include "gamez/ztwod/twod.h"
+#include "gamez/zvideo/zvid_format.h"
 
 #include <cmath>
 
@@ -45,6 +47,29 @@ void Line2D::set(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
   set_pos(x0, y0);
   end_x = x1;
   end_y = y1;
+}
+
+// Mech3.exe 1.2 @ 0x005a6a10: a line from a dialog's .zrd (no shipped dialog has
+// one; ClipLine2D's too). COLOR (r g b) packed for the display (0x00579370);
+// ENDP_REL the end from where the line stands, ENDP_ABS where it is; then the
+// base's POSITION, which moves the start only: an ENDP_REL end is from the place
+// before it (docs/twod.md, Lines in a dialog). FIX (A): a list shorter than its
+// values reads 0 for the missing ones (the exe read past it). FIX (B): ENDP_ABS
+// in the dialog's frame, as POSITION (resolution.md step 5).
+bool Line2D::read(zrdr::Node* n, Dialog* d) {
+  if (!n) return false;
+  auto item = [](const zrdr::Node* v, int k) { return k < v->list[0].i ? v->list[k].i : 0; };
+  if (const zrdr::Node* c = zrdr::find(n, "COLOR"))
+    color = zvid::pack_bytes(static_cast<uint8_t>(item(c, 1)), static_cast<uint8_t>(item(c, 2)),
+                             static_cast<uint8_t>(item(c, 3))) & 0xffff;
+  if (const zrdr::Node* e = zrdr::find(n, "ENDP_REL")) {
+    const int32_t ey = get_y() + item(e, 2), ex = get_x() + item(e, 1);
+    set(get_x(), get_y(), ex, ey);
+  }
+  if (const zrdr::Node* e = zrdr::find(n, "ENDP_ABS"))
+    set(get_x(), get_y(), item(e, 1) + (d ? d->origin_x : 0), item(e, 2) + (d ? d->origin_y : 0));
+  Object2D::read(n, d);
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x005a6ae0

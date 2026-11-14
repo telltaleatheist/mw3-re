@@ -469,19 +469,25 @@ class Cursor : public Image {
   void grab_at(int32_t px, int32_t py);  // 0x005a7970
 };
 
-// A movie in a dialog (vtable 0x005d0e28), 0x144 bytes. Its zFMV stream is not
-// ported: open, colour key and start are hooks (docs/twod.md).
+// A movie in a dialog (vtable 0x005d0e28), 0x144 bytes: a zFMV stream (no
+// sound) drawn where the object stands, looping at the movie's own rate by the
+// time it has been shown (docs/twod.md, Movies in a dialog). No shipped dialog
+// has one (BACKGROUND_VIDEOS).
 class Movie2D : public Object2D {
  public:
-  Handle stream = 0;                 // +0x34
-  uint32_t u38 = 0;                  // +0x38
-  uint8_t u3e = 0;                   // +0x3e
+  zfmv::Stream* stream = nullptr;    // +0x34  new(0x1e4); null when the file is not found
+  float time = 0.0f;                 // +0x38  seconds shown
+  uint16_t color_key = 0;            // +0x3c  display-packed
+  char name[0x104] = {};             // +0x3e
 
   Movie2D();                         // 0x005a7a90
   ~Movie2D() override;               // 0x005a7ae0
-  void open(const char* name);       // 0x005a7b50
+  void draw() override;              // +0x04  0x005a7ca0
+  void erase() override;             // +0x08  0x005a7cd0
+  void update(float dt) override;    // +0x24  0x005a7c50
+  void open(const char* file);       // 0x005a7b50
   void set_color_key(uint16_t c);    // 0x005a7c30
-  virtual void start();              // +0x7c  0x005a7d10
+  virtual void start();              // +0x7c  0x005a7d10: the background rect the movie's size
 };
 
 // What the render overlay's objects share (ours; the exe shares the code):
@@ -607,6 +613,7 @@ class Line2D : public Object2D {
   Line2D(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c);  // 0x005a67e0
   void set(int32_t x0, int32_t y0, int32_t x1, int32_t y1);  // 0x005a6880
   void draw() override;              // +0x04  0x005a68b0
+  bool read(zrdr::Node* node, Dialog* dialog) override;  // +0x78  0x005a6a10: COLOR, ENDP_REL, ENDP_ABS, POSITION
   int32_t end_x = 0, end_y = 0;      // +0x34
   uint32_t color = 0;                // +0x3c  a pixel
   int32_t clipped = 0;               // +0x40
