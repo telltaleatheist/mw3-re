@@ -993,3 +993,14 @@ the walk state (`SceneWalk::picked`, both pickers) and culls behind the table's 
 and 300 random ranges: 301 scenes, the drawn children in order. Breaks: the flag off (247 differ), `<` for
 `<=` (42), the 0x80 test dropped (219). `test_pm_walk.py` (the whole world render on the four worlds) still
 matches draw for draw. Not visible in play: a culled child lies outside the camera's footprint.
+
+## The camera's setters mark what hangs under it moved (2026-11-14)
+
+PM's camera setters and adders of rotation and position (0x506ae0, 0x506cd0, 0x506c10, 0x506d90) end, after
+MW3's logic, by marking a camera with children and everything below it moved (0x4ff6d0: an object3d's world
+matrix stale, +0x2c bit 1, flag 0x2000000; a child already flagged is not entered), and its add_child
+(0x506760) marks the camera after the link. The port does the same behind the table's
+`camera_setters_mark_moved` (`node_mark_moved`, once file-local in cls_node.cpp). `test_pm_camera_moved.py`
+runs all five against the exe on 202 trees: 1010 calls, every node's flags, +0x2c and object3d word (the link's
+changed-list push stubbed). Breaks: the flag off (962 differ), add_child unmarked (202), add_rotation unmarked
+(190).

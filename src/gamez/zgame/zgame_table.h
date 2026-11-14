@@ -109,6 +109,10 @@ struct Table {
   // The scene render's world children (camera.cpp render_world_children; PM 0x0050a550): PM draws one only
   // when flagged 0x80 or its cell range meets the cells just picked; MW3 draws them all.
   bool world_children_by_cells;
+  // The camera's setters and adders of rotation and position, and its add_child (camera.cpp; PM 0x00506ae0,
+  // 0x00506cd0, 0x00506c10, 0x00506d90, 0x00506760): PM marks a camera with children (add_child: any) and everything
+  // below it moved (0x004ff6d0), so what hangs under it follows at once; MW3 does not.
+  bool camera_setters_mark_moved;
 };
 
 const Table& mw3_table();
