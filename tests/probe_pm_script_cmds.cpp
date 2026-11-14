@@ -6,6 +6,7 @@
 
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zclass/cls_di.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zmodel/gmod_shadows.h"
 #include "pm/gamez/zmodel/gmod_const.h"
@@ -100,6 +101,23 @@ int32_t probe_pm_wireframe(int32_t on, int32_t before) {
   pm::zvid::set_wireframe(on);
   const int32_t r = d.wireframe ? 1 : 0;
   d.wireframe = saved;
+  return r;
+}
+
+int32_t probe_anim_camera(int32_t which, uint8_t* raw, int32_t cls, int32_t null_node, uint8_t* ev, int32_t state,
+                          float time, float* left);
+namespace {
+std::vector<int32_t> g_reports;
+}  // namespace
+// probe_anim_camera with the reports (level, line) kept: out their count, then the pairs.
+int32_t probe_pm_anim_camera(int32_t which, uint8_t* raw, int32_t cls, int32_t null_node, uint8_t* ev, int32_t state,
+                             float time, float* left, int32_t* reports, int32_t cap) {
+  g_reports.clear();
+  zerr::set_sink([](int level, const char*, int line, const char*) { g_reports.push_back(level), g_reports.push_back(line); });
+  const int32_t r = probe_anim_camera(which, raw, cls, null_node, ev, state, time, left);
+  zerr::set_sink(nullptr);
+  reports[0] = static_cast<int32_t>(g_reports.size());
+  for (size_t i = 0; i < g_reports.size() && static_cast<int32_t>(i) + 1 < cap; ++i) reports[1 + i] = g_reports[i];
   return r;
 }
 

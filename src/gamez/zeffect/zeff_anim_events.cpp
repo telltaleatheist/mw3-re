@@ -1246,7 +1246,7 @@ int32_t ev_detonate_weapon(AnimDef& d, uint8_t* e) {
 
 // The events no shipped anim.zbd uses (anim-run.md, The events no shipped file uses).
 
-// Mech3.exe 1.2 @ 0x00505df0 (ECX def, EDX event): ref +0x0e out of ref +0x0c (0x004ebb40), unchecked.
+// Mech3.exe 1.2 @ 0x00505df0, Pirate's Moon 1.0 @ 0x0051e620 (ECX def, EDX event): ref +0x0e out of ref +0x0c (0x004ebb40), unchecked.
 int32_t ev_object_remove_child(AnimDef& d, uint8_t* e) {
   zcls::node_remove_child(ref(d, get<int16_t>(e, 0xc)), ref(d, get<int16_t>(e, 0xe)));
   return 2;
@@ -1270,7 +1270,7 @@ void camera_set(Node* cam, uint32_t f, CameraPair& p, const float v[7]) {
 Node* camera_ref(AnimDef& d, uint8_t* e) { return get<int32_t>(e, 0x10) < 0 ? nullptr : ref(d, get<int32_t>(e, 0x10)); }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00503c10 (ECX def, EDX sequence, stack event): ref +0x10's camera set from +0x14.. by the flags
+// Mech3.exe 1.2 @ 0x00503c10, Pirate's Moon 1.0 @ 0x0051c370 (ECX def, EDX sequence, stack event): ref +0x10's camera set from +0x14.. by the flags
 // at +0x0c (clip near, far, LoD scale, fov angles h, v, fov factors h, v).
 int32_t ev_camera_state(AnimDef& d, SeqDef* s, uint8_t* e) {
   if (!s || !e) return 2;
@@ -1283,7 +1283,7 @@ int32_t ev_camera_state(AnimDef& d, SeqDef* s, uint8_t* e) {
   return 2;
 }
 
-// Mech3.exe 1.2 @ 0x00503d50 (ECX def, EDX sequence, stack event; 0x0050414d is a piece of it): ref +0x10's camera
+// Mech3.exe 1.2 @ 0x00503d50, Pirate's Moon 1.0 @ 0x0051c4d0 (ECX def, EDX sequence, stack event; 0x0050414d is a piece of it): ref +0x10's camera
 // from the start values (+0x14 near, +0x20 far, +0x2c LoD, +0x38 / +0x44 fov angles, +0x50 / +0x5c factors) on the
 // sequence's first run, then each stepped by its rate (the value after each start) times the time this event may
 // use, until +0x68, when the end values (the value after each rate) are set. 1 while it runs, 2 at the end.
@@ -1327,7 +1327,7 @@ int32_t ev_camera_from_to(AnimDef& d, SeqDef* s, uint8_t* e) {
   return 2;
 }
 
-// Mech3.exe 1.2 @ 0x00507970 (EDX event): message +0x0c's text (its id's, 0x00576040, else the record's own name)
+// Mech3.exe 1.2 @ 0x00507970, Pirate's Moon 1.0 @ 0x005207c0 (EDX event): message +0x0c's text (its id's, 0x00576040, else the record's own name)
 // shown for 3 seconds (0x005a3fd0).
 int32_t ev_message(uint8_t* e, const char* (*text)(int32_t id), void (*show)(const char* text, float seconds)) {
   const int32_t i = get<int32_t>(e, 0xc);

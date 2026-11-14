@@ -41,6 +41,8 @@ probe.probe_pm_model_cmd.argtypes = [I32, P, P, P, P, P, P, I32, P, I32, I32, F,
 MALLOC, FREE = 0x5de664, 0x5de65c
 probe.probe_mark_paint.argtypes = [I32, I32, I32, I32, P, I32, I32, I32, P, P, P, I32, I32, I32]
 probe.probe_mark_paint.restype = I32
+probe.probe_pm_anim_camera.argtypes = [I32, P, I32, I32, P, I32, F, P, P, I32]
+probe.probe_pm_anim_camera.restype = I32
 probe.probe_pm_wireframe.argtypes = [I32, I32]
 probe.probe_pm_wireframe.restype = I32
 MODEL = {0: 0x559910, 1: 0x55b810, 2: 0x55be00, 3: 0x55b630, 4: 0x559940}
@@ -573,6 +575,57 @@ def mark_cases(exe, rng, count):
     return done
 
 
+def anim_cases(exe, rng, count):
+    """Anim events 20 (0x51c370) and 21 (0x51c4d0) on PM's exe: the def's node refs at +0xe8 (0x2c bytes each, the
+    node at +0x28), PM's time left 0x8d3f68, PM's camera setters with PM's report lines."""
+    cpu, done = exe.cpu, 0
+    for _ in range(count):
+        which = rng.choice([20, 21])
+        raw = bytearray(rng.randbytes(0x1e8))
+        for off in (0xb0, 0xb4, 0xd0, 0xd8, 0xdc, 0xe0, 0xe4):
+            struct.pack_into('<f', raw, off, f32(rng.uniform(0.2, 3.0)))
+        cls, null_node = (1 if rng.random() < 0.9 else 3), rng.random() < 0.08
+        ev = bytearray(0x6c)
+        struct.pack_into('<I', ev, 0xc, rng.getrandbits(7))
+        struct.pack_into('<i', ev, 0x10, rng.choice([1, 1, 1, 1, 0, -1]))
+        for off in range(0x14, 0x68, 4):
+            struct.pack_into('<f', ev, off, f32(rng.uniform(0.3, 2.5)))
+        end = f32(rng.uniform(0.5, 4))
+        struct.pack_into('<f', ev, 0x68, end)
+        state = rng.choice([0, 0, 1])
+        time = f32(rng.choice([end * 0.5, end, end * 1.3, rng.uniform(0, 5)]))
+        left = f32(rng.uniform(0.01, 0.2))
+        node, data, table, seq, evp = exe.zeroed(0xe0), cpu.alloc(0x1e8), exe.zeroed(0x2c * 3), exe.zeroed(0x40), \
+            cpu.alloc(0x6c)
+        cpu.u32(node + 0x34, cls), cpu.u32(node + 0x38, data)
+        cpu.write(data, raw)
+        cpu.u32(table + 0x2c + 0x28, 0 if null_node else node)
+        defp = exe.zeroed(0x140)
+        cpu.u32(defp + 0xe8, table)
+        cpu.write(seq + 0x20, bytes([state])), cpu.write(seq + 0x28, struct.pack('<f', time))
+        cpu.write(evp, ev)
+        cpu.write(0x8d3f68, struct.pack('<f', left))
+        r = exe.call(0x51c370 if which == 20 else 0x51c4d0, defp, seq, evp)
+        want = (r & 0xffffffff, cpu.read(data, 0x1e8), cpu.read(0x8d3f68, 4), exe.take())
+        rb, lb = ctypes.create_string_buffer(bytes(raw), 0x1e8), (ctypes.c_float * 1)(left)
+        rep = (ctypes.c_int32 * 512)()
+        k = probe.probe_pm_anim_camera(which, rb, cls, int(null_node), ctypes.create_string_buffer(bytes(ev), 0x6c),
+                                       state, time, lb, rep, 512)
+        g, w = bytearray(rb.raw), bytearray(want[1])
+        for off in (0xd4, 0x1d4, 0x1d8):  # the setters' derived words, within 2 ulps (test_script_cmds.py's)
+            if abs(struct.unpack_from('<i', g, off)[0] - struct.unpack_from('<i', w, off)[0]) <= 2:
+                g[off:off + 4] = w[off:off + 4]
+        got = (k & 0xffffffff, bytes(g), bytes(lb), [rep[1 + i] for i in range(rep[0])])
+        if got != want:
+            diff = [hex(i) for i in range(0x1e8) if got[1][i] != want[1][i]]
+            raise SystemExit(f'anim event {which} case {done} (flags {struct.unpack_from("<I", ev, 0xc)[0]:#x}, state '
+                             f'{state}, class {cls}, null {null_node}): {k} vs {want[0]}, {diff}, reports {got[3]} '
+                             f'{want[3]}')
+        SEEN[f'anim {which} result {k}'] = SEEN.get(f'anim {which} result {k}', 0) + 1
+        done += 1
+    return done
+
+
 def main():
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 400
     exe = Exe()
@@ -581,8 +634,9 @@ def main():
     wn, li, lt = window_cases(exe, rng, count), list_cases(exe, rng, count), lighting_cases(exe, rng, count)
     mo = model_cases(exe, rng, count)
     mk = mark_cases(exe, rng, count)
+    an = anim_cases(exe, rng, count)
     print(f'ok: on PM\'s exe {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} '
-          f'lighting and {mo} model commands and {mk} texture marks as the port (data, globals, outputs, results, report lines)')
+          f'lighting and {mo} model commands {mk} texture marks and {an} anim camera events as the port (data, globals, outputs, results, report lines)')
     print(dict(sorted(SEEN.items())))
 
 

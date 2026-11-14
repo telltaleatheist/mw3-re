@@ -1273,3 +1273,15 @@ places (the on flag through 0x548870, PM's globals, the entry's surface at +8, t
 0x8c4b90 / 0x8c4b94 / 0x8c4b9c), so the shared `zmod::mark_paint` is PM's too. `test_pm_script_cmds.py`: the
 wireframe on PM's exe with a fake device (its SetRenderState, vt+0x58), 10 calls, and 400 mark cases, 0 differ.
 Breaks: MW3's stored mode for the wireframe; the rows placed by u for the marks.
+
+## Today's preservation ports on PM, part 6: the anim events no shipped file uses (2026-11-14)
+
+PM dispatches the events through a table it fills at start-up ([0x639d8c], 0x521cxx): event 16 is 0x51e620, 20 is
+0x51c370, 21 is 0x51c4d0 and 38 is 0x5207c0, each MW3's (0x505df0, 0x503c10, 0x503d50, 0x507970) over PM's def
+(its node refs at +0xe8, 0x2c bytes each) and PM's time left (0x8d3f68). The camera setters they call carry PM's
+report lines on pm now (Camera.c: set_clip 0x3ec, set_fov 0x436, set_fov_angles 0x495, get_fov_angles 0x4ca,
+set_lod_scale 0x50d; MW3's 0x5ca, 0x614, 0x673, 0x6a8, 0x6eb), and PM's set_fov_angles stores the vertical angle as a
+float before halving it for its tangent (+0x1d8), where MW3 kept it on the x87: on pm the port does as PM.
+`test_pm_script_cmds.py`: 400 events 20 and 21 on PM's exe with the reports compared, 0 differ (the setters' derived
+words within 2 ulps, as test_script_cmds.py). Breaks: set_clip's MW3 line, MW3's vertical angle (caught). Events
+16 and 38 read in PM's asm, the same as MW3's (the remove 0x4fd7a0; the text 0x596e50, shown for 3 s by 0x5c7180).
