@@ -742,6 +742,7 @@ if(MW3_BUILD_PM)
     src/pm/gamez/zmodel/gmod_projected.cpp
     src/pm/gamez/zvideo/zvid_tl.cpp
     src/pm/gamez/zmodel/gmod_const.cpp
+    src/pm/gamez/zmodel/gmod_shadows.cpp
     src/pm/gamez/zclass/cls_mechlib.cpp
   )
   add_library(pmcore ALIAS mw3core)

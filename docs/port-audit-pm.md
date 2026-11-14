@@ -76,7 +76,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 | dev dialog (MFC), its logic: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 80 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 46 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 45 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
@@ -111,7 +111,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00539200** (1 functions, 143 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x0051f750: billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
 - **0x0053f310** (1 functions, 35 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only: PM's quaternion log (MW3's 0x005259c0, zmth_vector.cpp:353) takes the square root by the float bit trick ((bits >> 1) + 0x1fc00000, an approximation) where MW3 used fsqrt; its one caller is the IF condition 0x200 (0x0051fce0 at 0x0051ff5f), which no shipped PM animation uses (see 0x0051fce0's label)
 - **0x00548220** (1 functions, 243 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00542060, whose class PM's changes keep: the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
-- **0x00563760** (1 functions, 157 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x00548250, whose class PM's changes keep: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it
 - **0x005981f0** (1 functions, 15 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the script command VideoSetWireFrame, as MW3's 0x00579230 (missing-mod there: the engine entry is null, no shipped script uses it); PM sets the device's fill mode at once (render state 8: 2 wireframe, 3 solid) where MW3 stored a flag
 - **0x005c58b0** (1 functions, 15 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a5400: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
 - **0x005c6b90** (1 functions, 18 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x005a6650: anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
@@ -3825,7 +3824,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x005168e0 | 113 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fe8e0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
 | 0x00517960 | 30 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_zbd.cpp:105) |
 
-### zmodel (262 not ported)
+### zmodel (261 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -3908,7 +3907,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00561540 | 434 | software renderer | as MW3 0x005465c0, whose class PM's changes keep: the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
 | 0x005625e0 | 23 | folded | covered by the port where it names it (src/pm/gamez/zmodel/gmod_draw.cpp:719) |
 | 0x00563740 | 11 | folded | inside its ported callers (0x00507f30): a small helper their ports do their own way |
-| 0x00563760 | 157 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x00548250, whose class PM's changes keep: the script command MakeShadows (0x005487d0) and the baked shadow builder under it (0x00548250..0x00548650): the script engine's make_shadows entry is null in the port (hook_allow: counted) and no shipped script uses it |
 | 0x00563da0 | 50 | unused: PORT (preserve) | as MW3 0x00548840, whose class PM's changes keep: the puffers' wind step with a dt argument: dead code, never called (puffers.md) |
 | 0x00563f10 | 214 | folded | checked by test: test_pm_puffers calls the particle draw 0x00563f10 on random particles, view matrices and priorities, comparing the cull and each sprite's screen point, size, texture, alpha and colour |
 | 0x00564460 | 17 | folded | as MW3 0x00548d90: covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code |

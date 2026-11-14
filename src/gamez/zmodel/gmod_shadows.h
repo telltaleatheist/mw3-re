@@ -20,6 +20,7 @@ BakeShadowState& bake_shadow_state();
 // The segment query each point asks (zcls::segment_list, 0x004eed90); a test may stand in for it. Null: the port.
 using ShadowQuery = int (*)(zcls::Node* world, const float from[3], const float to[3], zcls::LineHits* out);
 void set_shadow_query(ShadowQuery q);
+ShadowQuery shadow_query();  // the query in use (PM's builder asks it too)
 
 void shadow_model(Model& m);              // 0x00548250
 void shadow_object(zcls::Node* node);     // 0x005484c0

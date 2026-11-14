@@ -1251,3 +1251,14 @@ NodeSetLighting (0x50db40) sets a node's PM model too (`pm_model`). TextureSetWo
 exe (with the setters and the debug frame), and the lighting cases through both a node's MW3 model and its PM one,
 0 differ. Breaks caught: MW3's back face bit, MW3's colour test, the lighting without the PM model; MW3's 8-bit count
 not (no random polygon has 256 points).
+
+## Today's preservation ports on PM, part 4: MakeShadows (2026-11-14)
+
+PM's MakeShadows 0x563d20 and its walk (0x563b80, 0x5639e0, 0x563b30) are MW3's over pm's translated layouts (the
+same names, -1000, first crossings, column by column); the object step hands its model to PM's builder 0x563760,
+which is MW3's over PM's models: 0x28-byte polygons, the count the low 10 bits, the colours at +0x1c (the same 0.2,
+the weight test, the 1,024-word array: FIX (A) as MW3's). `pm::zmod::shadow_model` (pm/gamez/zmodel/gmod_shadows);
+the shared walk takes a node's `pm_model` to it. `test_pm_make_shadows.py`: PM's four worlds read by PM's loader on
+its exe (test_pm_gamez.py's bench) and by the port, MakeShadows with the stand-in query (PM's 0x501030, cdecl):
+150,715 segments, both ends in order, and every colour equal. Breaks caught: the walk without the PM model, a quarter
+for the fifth.

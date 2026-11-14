@@ -9,6 +9,7 @@
 #include "gamez/zclass/cls_data.h"
 #include "gamez/zclass/list.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "pm/gamez/zmodel/gmod_shadows.h"
 
 namespace zmod {
 
@@ -34,6 +35,7 @@ zmth::Mat34* matrix_at(zcls::Object3d* d, int off) { return reinterpret_cast<zmt
 
 BakeShadowState& bake_shadow_state() { return g_state; }
 void set_shadow_query(ShadowQuery q) { g_query = q ? q : zcls::segment_list; }
+ShadowQuery shadow_query() { return g_query; }
 
 // Mech3.exe 1.2 @ 0x00548250 (ECX the model): with +0 clear and polygons, its points (morphed by +0x24 when flag 8
 // and a weight and morphs) through the stack's top; each point's segment to the point plus the offset, and a
@@ -73,7 +75,7 @@ void shadow_model(Model& m) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x005484c0 (ECX node): unless its data's flag 8, its matrix onto the stack (with node flag
+// Mech3.exe 1.2 @ 0x005484c0, Pirate's Moon 1.0 @ 0x005639e0 (ECX node): unless its data's flag 8, its matrix onto the stack (with node flag
 // 0x80000 and no data flag 0x20, its world matrix +0x60 as it is; else +0x60 made from the top and its local
 // +0x30, flag 0x20 cleared after unless flag 1); its model, then its children; the matrix off.
 void shadow_object(zcls::Node* node) {
@@ -94,11 +96,12 @@ void shadow_object(zcls::Node* node) {
     }
   }
   if (node->model) shadow_model(*node->model);
+  if (node->pm_model) pm::zmod::shadow_model(*node->pm_model);  // PM's 0x005639e0 hands its model to 0x00563760
   for (int32_t i = 0; i < node->child_count(); ++i) visit(node->children[i]);
   if (pushed) zmth::pop();
 }
 
-// Mech3.exe 1.2 @ 0x00548600 (ECX node): the walk's test, then an object3d, or a LoD's children again.
+// Mech3.exe 1.2 @ 0x00548600, Pirate's Moon 1.0 @ 0x00563b30 (ECX node): the walk's test, then an object3d, or a LoD's children again.
 void bake_shadow_node(zcls::Node* node) { visit(node); }
 
 // Mech3.exe 1.2 @ 0x005485b0 (ECX node): each walked child, an object3d or a LoD's children again. Nothing in the
@@ -112,7 +115,7 @@ void shadow_lod_children(zcls::Node* node) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00548650 (ECX world): the changed nodes updated, an identity on the stack, first crossings only
+// Mech3.exe 1.2 @ 0x00548650, Pirate's Moon 1.0 @ 0x00563b80 (ECX world): the changed nodes updated, an identity on the stack, first crossings only
 // (0x004ed9c0); every cell's nodes, column by column, then the world's children.
 void shadow_world(zcls::Node* world) {
   if (zcls::list_head(zcls::kChanged)) zcls::update_changed();
@@ -131,7 +134,7 @@ void shadow_world(zcls::Node* world) {
   zmth::pop();
 }
 
-// Mech3.exe 1.2 @ 0x005487d0 (MakeShadows): the light "sunlight" on list 9 (its direction +0x84 times -1000 the
+// Mech3.exe 1.2 @ 0x005487d0, Pirate's Moon 1.0 @ 0x00563d20 (MakeShadows): the light "sunlight" on list 9 (its direction +0x84 times -1000 the
 // segments' offset) and "world1" on list 13. The exe returns whatever EAX held; 0 here.
 int make_shadows() {
   zcls::Node* light = zcls::list_find_by_name(zcls::kLights, "sunlight");
