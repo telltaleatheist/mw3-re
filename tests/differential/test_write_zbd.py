@@ -19,6 +19,7 @@ from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 probe = tg.probe
 probe.probe_write_zbd.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int]
 probe.probe_write_zbd.restype = ctypes.c_int
+probe.probe_write_zbd_cycle0.argtypes = probe.probe_write_zbd.argtypes
 WRITE_ZBD = 0x4fe8e0
 # The exe's heap where no float or count of the data falls (0x7a000000 is about 1.7e35), so a word there is one of
 # its pointers; test_gamez's 0x40000000 is the floats 2..512.
@@ -35,7 +36,9 @@ class Writer:
 
     def fwrite(self, c):
         p, size, n = c.arg(0), c.arg(1), c.arg(2)
-        data = c.read(p, size * n) if size * n else b''
+        if size * n == 0:
+            return 0  # MSVC's fwrite: nothing written counts 0
+        data = c.read(p, size * n)
         end = self.pos + len(data)
         if end > len(self.out):
             self.out.extend(bytes(end - len(self.out)))
@@ -109,7 +112,37 @@ def main():
             raise SystemExit(f'{w}: the written files read back differently')
         print(f'{w}: {len(got)} bytes as the original ({pointers} of its own pointers left out), read back alike')
         worlds += 1
-    print(f'ok: {worlds} worlds written back as the original')
+    # A cycle of no textures (none in a file: the reader refuses one), the first used cycled material's made so
+    # after the read: its 0-byte fwrite fails in the exe (MSVC's), reported, the write's materials 0.
+    cycled = 0
+    for w in tg.WORLDS:
+        path = tg.ZBD / w / 'gamez.zbd'
+        emu.read_zbd(path.read_bytes(), str(path).encode())
+        r32 = lambda a: struct.unpack('<I', emu.cpu.read(a, 4))[0]  # noqa: E731
+        blocks, block, i = r32(0x63fbc8), r32(0x5edd50), struct.unpack('<i', emu.cpu.read(0x5edd58, 4))[0]
+        while i >= 0:
+            m = r32(blocks + 4 * (i // block)) + 0x2c * (i % block)
+            if emu.cpu.read(m + 1, 1)[0] & 4:
+                break
+            i = struct.unpack('<h', emu.cpu.read(m + 0x2a, 2))[0]
+        if i < 0:
+            continue
+        emu.cpu.u32(r32(m + 0x24) + 0x10, 0)
+        res, want, want_reports = Writer(emu).run(b'out.zbd')
+        rep = (ctypes.c_int32 * 64)()
+        n = probe.probe_write_zbd_cycle0(str(path).encode(), str(scratch).encode(), rep, 64)
+        got = (scratch / 'out.zbd').read_bytes()
+        if rep[1] != res or list(rep[2:2 + n]) != want_reports or (0x200, 0x2f5) != tuple(want_reports[:2]):
+            raise SystemExit(f'{w} with a cycle of no textures: {rep[1]} vs {res}, reports {list(rep[2:2 + n])} vs '
+                             f'{want_reports}')
+        mw, mg, _ = masked(want, got)
+        if mw != mg:
+            raise SystemExit(f'{w} with a cycle of no textures: the files differ ({len(want)} vs {len(got)} bytes)')
+        print(f'{w}: a cycle of no textures reported (0x2f5) and the write gone on, as the original')
+        cycled += 1
+    if cycled == 0:
+        raise SystemExit('no world has a cycled material')
+    print(f'ok: {worlds} worlds written back as the original; {cycled} with a cycle of no textures')
 
 
 if __name__ == '__main__':

@@ -517,7 +517,8 @@ int write_materials(std::FILE* f) {
     }
     std::vector<int32_t> rows(c->texture_count);
     for (uint32_t k = 0; k < c->texture_count; ++k) rows[k] = zimg::texture_index(c->textures[k]);
-    if (!rows.empty() && std::fwrite(rows.data(), rows.size() * 4, 1, f) != 1) {
+    // A cycle of no textures fails here as in the exe: its fwrite of 0 bytes returns 0 (MSVC's).
+    if (rows.empty() || std::fwrite(rows.data(), rows.size() * 4, 1, f) != 1) {
       zerr::report(0x200, kFile, 0x2f5, "Error writing material buffer.");
       return 0;
     }

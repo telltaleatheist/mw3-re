@@ -411,6 +411,10 @@ not 0, the camera's nodes one index on, the slots' offsets not given, the models
 left out, a textured material's texture as the file had it, a mip one row back. (Leaving out the conversions
 alone is not seen on the shipped worlds: their files already hold the indices, offsets and zeros the writer
 makes.)
+A cycle of no textures stops the materials as the exe's does: its `fwrite` of 0 bytes returns 0 (MSVC's), so it
+reports 0x2f5 and the materials' result is 0, the rest of the file written as before. No file has such a cycle (the
+reader refuses one); the test makes each world's first used cycled material so after the read, the exe and the port
+alike (the earlier port wrote nothing for it and went on: caught).
 
 ## Re-reading part of the file (0x4ff730, 0x4ff7a0, 0x538640)
 
