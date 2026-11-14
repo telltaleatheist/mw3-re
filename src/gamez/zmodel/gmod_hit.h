@@ -79,6 +79,9 @@ int32_t mark_on();                             // 0x005426d0
 void mark_set_uv(float u, float v);            // 0x005426e0
 void mark_enable(int32_t on);                  // 0x00542700, never called
 bool mark_is_map(const zimg::TextureEntry* e); // 0x00542710: one of the three (kept as an image when loaded)
+// The hit's mark painted into its material's texture (ported for preservation; the marks are never on in the
+// shipped game). FIX (A): through the image and the reload hook, not a locked Direct3D surface.
+void mark_paint(Material* m);                  // 0x00542060 (ECX the hit; its +0x20)
 // 0x00542730 (ECX `target`, EDX `from`, stack `cookie`): the cookie's alpha
 // stamps `from` into the target entry's image, centred at the captured UV
 // (wrapped into -0.01..1.01 and written back), kept inside the image. Mask

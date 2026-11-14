@@ -724,6 +724,11 @@ A mod's scripts would need them wired (`make_engine`); that is a decision for la
   caught: a quarter for a fifth, the rows outer, the offset away from the light, the LoDs' children skipped (the
   shipped worlds have no morphing model and no object taking its world matrix as it is, so those two branches are
   not reached by them).
+- VideoSetWireFrame 0x579230 (`zvid::set_wireframe`): the fill mode 0x8026fc only. The scene's start sends it as
+  the device's FILLMODE once something marks it dirty, and the GPU path already draws that as a wireframe pipeline
+  (`platform::RenderState::wireframe`). Checked in `test_script_cmds.py` (break: the setter marking it dirty).
+- The texture marks' painter 0x542060 (`zmod::mark_paint`, what WriteTextureSetMap's marks do on a hit):
+  weapon-effects.md, Surface marks.
 - Not ported, the software renderer's (CLAUDE.md, Rendering): SetPerspectiveTextureAdaptive 0x558120 (the span's
   step, read at 0x55f8bc) and SetPaletteName 0x5975e0 (the 8-bit palette, through 0x597680).
 

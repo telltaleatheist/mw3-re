@@ -1032,7 +1032,6 @@
 0x0053d360	unused	large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 0x0053de50	unused	large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
 0x0053df00	unused	large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers
-0x00542060	missing-mod	the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
 0x00537520	sdl	the used textures' system surfaces released after the launch (DirectDraw; the port's record is one Render3D handle: app_engine.cpp no effect)
 0x00536830	folded	covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code
 0x00548d90	folded	covered: zModel's reset of its materials (module-starts.md: the port's initialisers), small helpers and list initialisers beside ported code
@@ -1289,7 +1288,6 @@
 0x0056ef90	sdl	DirectSound: a sound's buffer duplicated or reused for another play (0x0056e180, 0x0056e4d0) and the buffer's volume and frequency calls (0x0056ef90); SDL's audio layer replaces them (zsnd_play)
 0x0056eea0	folded	covered: a sound's play with the master volume (zsnd_play.cpp:134), the playing list's node
 0x0056f230	folded	covered: a sound's play with the master volume (zsnd_play.cpp:134), the playing list's node
-0x00579230	missing-mod	the script command VideoSetWireFrame: the engine entry is null in the port (hook_allow: counted) and no shipped script uses it
 0x005799f0	folded	covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171)
 0x00579040	folded	covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171)
 0x0057a3c0	folded	covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171)

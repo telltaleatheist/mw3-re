@@ -17,6 +17,11 @@
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zmodel/gmod_init.h"
+#include "gamez/zmodel/gmod_hit.h"
+#include "gamez/zimage/zimg_library.h"
+#include "gamez/zimage/zimg_texture.h"
+#include "gamez/zrender/zrndr_blit.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 #include "gamez/zerror/zerr.h"
 
 namespace {
@@ -344,6 +349,55 @@ void probe_misc_cmd(int32_t which, float u, float v, uint32_t frame, uint32_t* o
   out[4] = static_cast<uint32_t>(zeff::anim_debug_frame_at());
   zmod::texture_world() = saved;
   zcls::frames().frame = saved_frame;
+}
+
+// VideoSetWireFrame: the fill mode after, the display's dirty bits unchanged.
+void probe_wireframe(int32_t mode, int32_t* out) {
+  zvid::Display& d = zvid::display();
+  const zvid::Display saved = d;
+  d.dirty = 0x54;
+  out[0] = zvid::set_wireframe(mode);
+  out[1] = d.fill_mode, out[2] = static_cast<int32_t>(d.dirty);
+  d = saved;
+}
+
+namespace {
+int32_t g_reloads = 0;
+}  // namespace
+
+// The texture marks' painter (0x00542060): a material of `mflags` whose texture's image is tw x th (palette count
+// tpal) with pixels `tpix` (written back), the mark image mw x mh (mpal) with `mpix` and `malpha` (null: none) as
+// the impact type's map; the capture on (`on`) at uv (written back); the display format; a surface or not.
+// Returns the reload hook's calls.
+int32_t probe_mark_paint(int32_t mflags, int32_t tw, int32_t th, int32_t tpal, uint16_t* tpix, int32_t mw,
+                         int32_t mh, int32_t mpal, uint16_t* mpix, uint8_t* malpha, float* uv, int32_t on,
+                         int32_t format, int32_t surface) {
+  zmod::UvCapture& cap = zmod::uv_capture();
+  const zmod::UvCapture saved = cap;
+  const int32_t saved_format = zrndr::target2d().format;
+  auto saved_hooks = zimg::texture_hooks();
+  zimg::Texture timg{}, mimg{};
+  timg.width = static_cast<int16_t>(tw), timg.height = static_cast<int16_t>(th);
+  timg.palette_count = static_cast<int16_t>(tpal), timg.pixels = tpix;
+  mimg.width = static_cast<int16_t>(mw), mimg.height = static_cast<int16_t>(mh);
+  mimg.palette_count = static_cast<int16_t>(mpal), mimg.pixels = mpix, mimg.alpha = malpha;
+  zimg::TextureEntry target{}, map{};
+  target.image = &timg;
+  target.surface = surface ? &timg : nullptr;
+  map.image = &mimg;
+  zmod::Material m{};
+  m.flags = static_cast<uint8_t>(mflags);
+  m.texture = &target;
+  cap.on = on, cap.type = 1, cap.maps[1] = &map, cap.uv[0] = uv[0], cap.uv[1] = uv[1];
+  zrndr::target2d().format = format;
+  g_reloads = 0;
+  zimg::texture_hooks().reload = [](void*, zimg::Texture*) { ++g_reloads; };
+  zmod::mark_paint(&m);
+  uv[0] = cap.uv[0], uv[1] = cap.uv[1];
+  cap = saved;
+  zrndr::target2d().format = saved_format;
+  zimg::texture_hooks() = saved_hooks;
+  return g_reloads;
 }
 
 }  // extern "C"

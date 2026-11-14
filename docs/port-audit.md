@@ -18,7 +18,7 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 | debug or dev tool: PORT (preserve) | 73 |
 | dev dialog (MFC), its logic: PORT (preserve) | 54 |
 | dev dialog (MFC), its window plumbing: replaced | 50 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 27 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 25 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
@@ -30,8 +30,6 @@ container code, or covered where the port names it); **replaced** (SDL or the pl
 - **0x005076c0, 0x005a5400, 0x005a6650, 0x005a6760** (4 functions, 135 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): anim event 37, the fbfx screen wave (0x005076c0 -> 0x005a6760 -> 0x005a6650 / 0x005a5400: up to four 2D waves): the port's hook only logs (app_mission.cpp:2108); no shipped anim.zbd has event 37 (anim_walk: c1..t1 have 0; 38 also 0)
 - **0x0050d610, 0x0050d6a0, 0x0050d7a0, 0x0050d880** (4 functions, 124 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test
 - **0x0051f390, 0x0051f750** (2 functions, 276 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): billboard modes 2 (about x) and 3 (about z): no shipped world uses them; they draw as default models (gmod_draw.cpp:759, render-modeldraw.md:27)
-- **0x00542060** (1 functions, 255 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on
-- **0x00579230** (1 functions, 11 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): the script command VideoSetWireFrame: the engine entry is null in the port (hook_allow: counted) and no shipped script uses it
 - **0x005a6a10** (1 functions, 45 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): Line2D's reader from a dialog .zrd (its COLOR and its end), shared by the line classes' vtables; inferred unused by shipped data (the dialog reader matches the exe on every shipped dialog without it), not checked file by file
 - **0x005a7c50, 0x005a7ca0, 0x005a7cd0** (3 functions, 47 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): Movie2D's update, draw and erase (a movie playing inside a dialog): no shipped dialog has one (twod.md:674-679)
 
@@ -2667,7 +2665,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x004eaab0 | 63 | replaced (SDL or the platform layer) | the start's video device picker: an MFC CDialog with a list box (0x004eaab0 and its constructor, destructor, data exchange and init); the SDL GPU device replaces it |
 | 0x004eaba0 | 44 | replaced (SDL or the platform layer) | the start's video device picker: an MFC CDialog with a list box (0x004eaab0 and its constructor, destructor, data exchange and init); the SDL GPU device replaces it |
 
-### zmodel (144 not ported)
+### zmodel (143 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -2723,7 +2721,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0053df00 | 66 | unused: PORT (preserve) | large zModel functions nothing calls or tables (no static reference anywhere): clippers and matrix work beside the software path, material flag setters over a model's materials, light helpers |
 | 0x0053e050 | 754 | software renderer | the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
 | 0x00540082 | 1125 | folded | a piece of the ported function before it (Ghidra split it there) (0x0053f2e0) |
-| 0x00542060 | 255 | MISSING LOGIC (only data the shipped game lacks reaches it) | the scripts' texture marks (0x00542060: a hit painted into the hit texture's image) only when a script gives a mark image; none ships (weapon-effects.md); the port logs 0x00542060 if a mod's script turns them on |
 | 0x00544060 | 647 | software renderer | the software model draw's projection and clippers, its own lighting, the span buffer's pick and hidden-surface test, the small polygon reject, palette shading (software-path.md, render-clip3d.md, render-lighting.md: the software renderer, not ported by decision) |
 | 0x00545245 | 408 | folded | a piece of the ported function before it (Ghidra split it there) (0x00544ed0) |
 | 0x005465c0 | 462 | software renderer | the software model draw (0x0053e050, gmod_init.h: [0x0074a2e0] in software), its lighting (0x005465c0 with 0x00544060) and its third fog routine (0x005557f0, render-fogsort.md) |
@@ -3289,7 +3286,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x0056f010 | 31 | folded | covered by the port where it names it (src/gamez/zsound/zsnd_play.cpp:118) |
 | 0x0056f230 | 19 | folded | covered: a sound's play with the master volume (zsnd_play.cpp:134), the playing list's node |
 
-### zvideo (65 not ported)
+### zvideo (64 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -3312,7 +3309,7 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00578670 | 32 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x005786f0 | 18 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00578740 | 72 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
-| 0x005788b0 | 34 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:980) |
+| 0x005788b0 | 34 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:983) |
 | 0x00578960 | 16 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00578c00 | 36 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00578f60 | 12 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
@@ -3320,11 +3317,10 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00579010 | 8 | folded | returns a constant or a global |
 | 0x00579040 | 11 | folded | covered by the program's overrides: the load screen's driver and mode lines (app_mission.cpp:1896), ClearScreenBuffer (app_engine.h:508), video shutdown and restore (app_engine.h:547, :549), a weapon hit's health after (zweapon.h:171) |
 | 0x00579210 | 14 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
-| 0x00579230 | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | the script command VideoSetWireFrame: the engine entry is null in the port (hook_allow: counted) and no shipped script uses it |
 | 0x00579260 | 14 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00579280 | 14 | folded | covered by the port where it names it (src/gamez/zfmv/fmv_stream.cpp:92) |
 | 0x005792a0 | 14 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
-| 0x00579430 | 30 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:933) |
+| 0x00579430 | 30 | folded | covered by the port where it names it (src/gamez/zvideo/zvid_ddd3d.cpp:936) |
 | 0x00579500 | 85 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00579660 | 105 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
 | 0x00579840 | 24 | replaced (SDL or the platform layer) | DirectDraw and Direct3D: the mode, surfaces, blits, back buffer locks and grabs, the device and its memory queries, the render states' set-up, the textures' system surfaces, the cursor and window calls, the DirectX version and its error names; the SDL GPU layer replaces them (render.md, fixes.md (A)) |
@@ -3786,30 +3782,6 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00576ee0 | 24 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 | 0x00576f70 | 19 | replaced (SDL or the platform layer) | DirectDraw's back buffer: lock and unlock (app_engine.h:560, app_fmv.cpp:53), their raw forms, the flip (sdl_platform.h:68), the restore, the window's style for full screen, the size clamp |
 
-### zeffect (19 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00508aa0 | 11 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.h:76) |
-| 0x00508c10 | 9 | folded | a thunk: one call to another function |
-| 0x00508da0 | 9 | folded | a thunk: one call to another function |
-| 0x00508ee0 | 9 | folded | a thunk: one call to another function |
-| 0x00508f20 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_callback: +0x6c |
-| 0x00508f30 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_record: +0x70 |
-| 0x0050b4e0 | 32 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x0050b600 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:239) |
-| 0x0050b620 | 8 | folded | empty: does nothing |
-| 0x0050b650 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_init.cpp:746) |
-| 0x0050d1e0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x0050d1f0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
-| 0x0050d260 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_save.cpp:281) |
-| 0x0050d610 | 26 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x0050d6a0 | 45 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x0050d7a0 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x0050d820 | 22 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:50) |
-| 0x0050d880 | 37 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
-| 0x0050da50 | 16 | replaced (SDL or the platform layer) | mech3.err (0x0050da50): the port's error reports go to stderr (app_engine.cpp:562) |
-
 ### zweapon (19 not ported)
 
 | Address | Lines | Class | Why |
@@ -3833,6 +3805,30 @@ Fixed 2026-11-13 (mac5/broken-five), the five rows this table had: the radar's v
 | 0x00587370 | 31 | folded | covered by the port where it names it (src/gamez/znetwork/znet_session.cpp:96) |
 | 0x005873f0 | 33 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
 | 0x00587450 | 19 | replaced (SDL or the platform layer) | DirectPlay's session description and player list (multiplayer-port.md:59-60): the ENet transport stands in |
+
+### zeffect (19 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00508aa0 | 11 | folded | covered by the port where it names it (src/gamez/zdeclient/zdec_crater.h:76) |
+| 0x00508c10 | 9 | folded | a thunk: one call to another function |
+| 0x00508da0 | 9 | folded | a thunk: one call to another function |
+| 0x00508ee0 | 9 | folded | a thunk: one call to another function |
+| 0x00508f20 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_callback: +0x6c |
+| 0x00508f30 | 10 | folded | ported, by docs/symbols.csv: ported as the hooks' anim_record: +0x70 |
+| 0x0050b4e0 | 32 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0050b600 | 13 | folded | covered by the port where it names it (src/mech3/zai_target.h:239) |
+| 0x0050b620 | 8 | folded | empty: does nothing |
+| 0x0050b650 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_init.cpp:746) |
+| 0x0050d1e0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0050d1f0 | 13 | folded | small helpers inside ported code: the crater set's static constructor and its STL copy and fill (craters.md:126), the effect lookups and the animation records' flags (app_mission.cpp:1248, app_engine.h:506-507), the cockpit flag (app_view.cpp:206), the key player (zeff_anim_events.cpp:627) and its split piece, the ground probe (zeff_anim_events.cpp:1109), the movie objects' destructors and the stream's rect setter, a list's vector-deleting destructor |
+| 0x0050d260 | 13 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_save.cpp:281) |
+| 0x0050d610 | 26 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
+| 0x0050d6a0 | 45 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
+| 0x0050d7a0 | 16 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
+| 0x0050d820 | 22 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_init.cpp:50) |
+| 0x0050d880 | 37 | MISSING LOGIC (only data the shipped game lacks reaches it) | an effect entry's node and gfx data (zeff_init.cpp:24: no shipped effects file has one): the node made, placed and ticking, its distance test |
+| 0x0050da50 | 16 | replaced (SDL or the platform layer) | mech3.err (0x0050da50): the port's error reports go to stderr (app_engine.cpp:562) |
 
 ### zgeometry (15 not ported)
 

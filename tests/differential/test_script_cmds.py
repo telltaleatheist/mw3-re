@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from original import ROOT, Original  # noqa: E402
+from original import FTOL, IAT_FTOL, ROOT, Original  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libmw3probe.*'))
@@ -35,6 +35,9 @@ probe.probe_lighting.argtypes = [P, P, P, I32, I32]
 probe.probe_lighting.restype = I32
 probe.probe_model_cmd.argtypes = [I32, P, P, P, P, P, I32, P, I32, I32, F, P]
 probe.probe_misc_cmd.argtypes = [I32, F, F, ctypes.c_uint32, P]
+probe.probe_wireframe.argtypes = [I32, P]
+probe.probe_mark_paint.argtypes = [I32, I32, I32, I32, P, I32, I32, I32, P, P, P, I32, I32, I32]
+probe.probe_mark_paint.restype = I32
 MALLOC, FREE = 0x5bb664, 0x5bb65c
 
 SEEN = collections.Counter()
@@ -67,6 +70,7 @@ class Exe:
         cpu.stub_function(PUSH_FRONT, lambda c: self.pushed.append((c.ecx, c.edx)) and 0)
         cpu.stub_function(NODE_LINK, lambda c: self.linked.append((c.ecx, c.edx)) and 0)
         cpu.stub_import(PRINTF, self.printf)
+        cpu.import_code(IAT_FTOL, FTOL)
         cpu.stub_import(MALLOC, lambda c: c.alloc(max(1, c.arg(0))))
         cpu.stub_import(FREE, lambda c: 0)
         cpu.stub_import(STRNCMP, self.strncmp)
@@ -571,6 +575,94 @@ def model_cases(exe, rng, count):
             if got != want:
                 raise SystemExit(f'misc command {which}: {got} != {want}')
             done += 1
+    # VideoSetWireFrame 0x579230: [0x8026fc] only (the dirty bits [0x8026f8] untouched).
+    for mode in (0, 1, 2, -1, rng.getrandbits(31)):
+        cpu.u32(0x8026fc, 7), cpu.u32(0x8026f8, 0x54)
+        cpu.call(0x579230, ecx=mode)
+        want = [struct.unpack('<i', cpu.read(a, 4))[0] for a in (0x8026fc, 0x8026f8)]
+        out = (ctypes.c_int32 * 3)()
+        probe.probe_wireframe(mode - (1 << 32) if mode >= 1 << 31 else mode, out)
+        if [out[1], out[2]] != [want[0] if mode < (1 << 31) else want[0], want[1]] or out[0] != 0:
+            raise SystemExit(f'VideoSetWireFrame {mode}: {list(out)} != {want}')
+        done += 1
+    return done
+
+
+def mark_cases(exe, rng, count):
+    """The texture marks' painter 0x542060 on random images, marks, UVs and materials."""
+    cpu, done = exe.cpu, 0
+    reloads = []
+    lock_at, unlock_at, reload_at = cpu.code(b'\xc3'), cpu.code(b'\xc3'), cpu.code(b'\xc3')
+    state = {}
+
+    def lock(c):  # ECX surface, EDX &pixels, stack &pitch: the target image's own pixels, its row in bytes
+        c.u32(c.edx, state['pixels'])
+        c.u32(c.arg(0), state['pitch'])
+        return 1
+    cpu.stub_function(lock_at, lock, pop_bytes=4)
+    cpu.stub_function(unlock_at, lambda c: 0)
+    cpu.stub_function(reload_at, lambda c: reloads.append(c.ecx) and 0, pop_bytes=4)
+    cpu.u32(0x72f368, lock_at), cpu.u32(0x72f36c, unlock_at), cpu.u32(0x72f374, reload_at)
+    for _ in range(count):
+        tw, th = rng.randrange(1, 13), rng.randrange(1, 13)
+        mw, mh = rng.randrange(1, 15), rng.randrange(1, 15)
+        tpal = 0 if rng.random() < 0.9 else 4
+        mpal = 0 if rng.random() < 0.9 else 4
+        mflags = rng.choice([3, 3, 3, 3, 1, 2, 7, 0x13])
+        on = int(rng.random() < 0.92)
+        has_map = rng.random() < 0.95
+        has_alpha = rng.random() < 0.6
+        fmt = rng.choice([5, 6])
+        surface = int(rng.random() < 0.3)
+        uv = [f32(rng.uniform(-2.6, 2.6)), f32(rng.uniform(-2.6, 2.6))]
+        tpix = [rng.getrandbits(16) for _ in range(tw * th)]
+        mpix = [rng.choice([0, rng.getrandbits(16)]) for _ in range(mw * mh)]
+        malpha = bytes(rng.choice([0, 2, 5, 9, 100, 200, 0xfb, 0xfc, 0xff]) for _ in range(mw * mh))
+        # The exe's records.
+        tex, mark = cpu.alloc(0x38), cpu.alloc(0x38)
+        tp, mp, ma = cpu.alloc(2 * tw * th), cpu.alloc(2 * mw * mh), cpu.alloc(mw * mh)
+        cpu.write(tp, struct.pack(f'<{tw * th}H', *tpix))
+        cpu.write(mp, struct.pack(f'<{mw * mh}H', *mpix))
+        cpu.write(ma, malpha)
+        for t, w, h, pal, px, al in ((tex, tw, th, tpal, tp, 0), (mark, mw, mh, mpal, mp, ma if has_alpha else 0)):
+            cpu.write(t, bytes(0x38))
+            cpu.write(t + 4, struct.pack('<hh', w, h))
+            cpu.write(t + 0xe, struct.pack('<h', pal))
+            cpu.u32(t + 0x10, px), cpu.u32(t + 0x14, al)
+        entry, mentry, mat, hit = cpu.alloc(0x28), cpu.alloc(0x28), cpu.alloc(0x2c), cpu.alloc(0x28)
+        cpu.write(entry, bytes(0x28)), cpu.write(mentry, bytes(0x28)), cpu.write(mat, bytes(0x2c))
+        cpu.u32(entry, tex), cpu.u32(entry + 4, 0x5000 if surface else 0)
+        cpu.u32(mentry, mark)
+        cpu.write(mat + 1, bytes([mflags]))
+        cpu.u32(mat + 0x10, entry)
+        cpu.u32(hit + 0x20, mat)
+        cpu.u32(0x74a2ac, on), cpu.u32(0x74a2b0, 1), cpu.u32(0x74a2b8, mentry if has_map else 0)
+        cpu.write(0x74a2c0, struct.pack('<2f', *uv))
+        cpu.u32(0x74a738, fmt)
+        state.update(pixels=tp, pitch=2 * tw)
+        reloads.clear()
+        cpu.call(0x542060, ecx=hit)
+        want = (cpu.read(tp, 2 * tw * th), cpu.read(0x74a2c0, 8), len(reloads))
+        tb = (ctypes.c_uint16 * (tw * th))(*tpix)
+        mb = (ctypes.c_uint16 * (mw * mh))(*mpix)
+        ab = ctypes.create_string_buffer(malpha, mw * mh)
+        ub = (ctypes.c_float * 2)(*uv)
+        # The port's map: none when the exe's type has none (the probe sets type 1's; a null image stands for it).
+        n = probe.probe_mark_paint(mflags, tw, th, tpal, tb, mw, mh, mpal, mb, ab if has_alpha else None, ub, on,
+                                   fmt, surface) if has_map else \
+            probe.probe_mark_paint(mflags if not on else 0, tw, th, tpal, tb, mw, mh, mpal, mb, None, ub, on, fmt,
+                                   surface)
+        got = (bytes(tb), bytes(ub), n)
+        if not has_map and on and mflags & 3 == 3 and not mflags & 4:
+            # Without a map the exe still wraps the UV, then stops; the probe's stand-in (no texture flag) does not
+            # wrap: compare the pixels and the reloads only.
+            got, want = got[::2], want[::2]
+        if got != want:
+            raise SystemExit(f'mark case {done} (target {tw}x{th}, mark {mw}x{mh}, uv {uv}, flags {mflags:#x}, on '
+                             f'{on}, map {has_map}, alpha {has_alpha}, format {fmt}, surface {surface}): differs '
+                             f'{got[1:]} {want[1:]}')
+        SEEN['mark ' + ('painted' if want[0] != bytes(struct.pack(f'<{tw * th}H', *tpix)) else 'left')] += 1
+        done += 1
     return done
 
 
@@ -585,7 +677,8 @@ def main():
     li = list_cases(exe, rng, count)
     lt = lighting_cases(exe, rng, count)
     mo = model_cases(exe, rng, count)
-    print(f'ok: {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} lighting, {mo} model and texture commands '
+    mk = mark_cases(exe, rng, count)
+    print(f'ok: {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} lighting, {mo} model and texture commands and {mk} texture marks '
           f'as the original (data, globals, outputs, results, reports)')
     print(dict(sorted(SEEN.items())))
 
