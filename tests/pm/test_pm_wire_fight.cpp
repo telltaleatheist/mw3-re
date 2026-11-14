@@ -587,3 +587,24 @@ TEST(pm_wire_aim_floor_off_the_centre_torso) {
   w.part = nullptr;
   k = kept;
 }
+
+// PM's ally hit (0x004fbc00 -> 0x004bb6a0, 0x004ba8c0; test_pm_ally_hit.py against the exe): under PM's AI the brain's
+// ally hit goes to its vehicle's firing record: the ally kept for the pick, the firing busy with its wait the rest and
+// the pick's hold over; MW3's firing untouched. Under PM_AI=0 MW3's (the obstacle, the stand-down).
+TEST(pm_wire_ally_hit_goes_to_pms_firing) {
+  Fake f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  FiringRecord& r = pm_firing(b, 7);
+  r.fire.rest = 3.0f, r.fire.wait = 9.0f, r.fire.busy = false, r.pick.until = 50.0f;
+  b.hit_an_ally(0x99);
+  if (pm_ai_on()) {
+    EXPECT(r.pick.aimed == 0x99 && r.fire.busy && r.fire.wait == 3.0f && r.pick.until == 0.0f);
+    EXPECT(b.firing.obstacle == 0);
+  } else {
+    EXPECT(b.firing.obstacle == 0x99 && r.pick.aimed == 0 && !r.fire.busy);
+  }
+}

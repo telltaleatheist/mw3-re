@@ -526,6 +526,7 @@ class WireStep : public StepPmHooks {
   zgame::Handle pick(zgame::Handle v) override {
     FiringRecord* r = record_of(v);
     if (r) r->pick.reach = r->fire.range;
+    if (r && r->pick.aimed) r->pick.aimed_up = brain_hooks().entity_active(r->pick.aimed);  // its +0x08, read at the pick
     PlanPm* p = r ? plan_pick(r->pick) : nullptr;
     if (p) p->seen = p->in_sight;  // one byte in the exe, +0x0d
     return pm_id(p);
@@ -644,6 +645,35 @@ FiringRecord& pm_firing(Brain& b, zgame::Handle vehicle) {
 }
 
 void pm_firing_forget(zgame::Handle vehicle) { records().erase(vehicle); }
+
+// Pirate's Moon 1.0 @ 0x004bb6a0 (IControls vt+0x98 0x004fbc00): it hit an ally: the ally is kept (+0x28) for the
+// pick to pass over targets behind it, then the firing stands down.
+void pm_hit_an_ally(FiringRecord& r, zgame::Handle victim) {
+  r.pick.aimed = victim;
+  pm_stand_down(r);
+}
+
+// Pirate's Moon 1.0 @ 0x004ba8c0: with the +0x94 byte set (always: zai_firing_pm.h) the plan is kept, the firing
+// busy and its wait the rest, and the pick's hold over (+0x4c) so it picks again; else (never in the exe) it rests:
+// the trigger off, the time the rest from now, the plan dropped, the vehicle's weapons' aim cleared, the brain's
+// vt+0x20, phase 5.
+void pm_stand_down(FiringRecord& r) {
+  FiringPm& f = r.fire;
+  if (f.keeps_plan) {
+    f.busy = true;
+    f.wait = f.rest;
+    r.pick.until = 0;
+    return;
+  }
+  StepPmHooks& h = step_pm_hooks();
+  h.trigger(f.brain, false);
+  f.time = h.now() + f.rest;
+  if (f.plan) h.plan_free(f.plan);
+  f.plan = 0, r.pick.plan = nullptr;
+  if (const zgame::Handle wm = plan_pm_hooks().wm(f.vehicle)) plan_pm_hooks().wm_aim_at(wm, nullptr);
+  h.brain_x20(f.brain);
+  f.phase = 5;
+}
 
 void pm_firing_install() {
   static WireAim aim;

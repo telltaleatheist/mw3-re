@@ -1,4 +1,5 @@
 #include "mech3/zai_brain.h"
+#include "mech3/zai_wire_firing_pm.h"
 #include "mech3/zai_wire_pm.h"
 #include "mech3/zai_wire_orders_pm.h"
 #include "mech3/zai_wire_states_pm.h"
@@ -1696,4 +1697,14 @@ bool Brain::scan_aim() {
   return true;
 }
 
+
+// Mech3.exe 1.2 @ 0x004ea500 (with 0x004b78d0)
+void Brain::hit_an_ally(zgame::Handle victim) {
+  if (pm_ai_on()) {
+    if (const zgame::Handle v = controls ? controls->vehicle() : 0) pm_hit_an_ally(pm_firing(*this, v), victim);
+    return;
+  }
+  firing.obstacle = victim;
+  firing.stand_down();
+}
 }  // namespace mech3::ai

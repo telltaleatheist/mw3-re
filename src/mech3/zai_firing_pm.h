@@ -323,6 +323,9 @@ struct FiringPm {
   float x54 = 0;              // +0x54  what `rate` answers
   float cool_for = 0, cool_until = 0, cool_below = 0;  // +0x58, +0x5c, +0x60
   float shot_every = 0, shot_next = 0;  // +0x64, +0x68
+  // +0x94: a one-byte object made with the firing (0x004ba750, 0x004be1a0) from [0x0060b70c], 1 in the exe's
+  // data; nothing writes either, so an ally hit always keeps the plan (0x004ba8c0).
+  bool keeps_plan = true;
   void seed();                // 0x004ba750's copy of the start-up's numbers (0x004ba660)
   void step(float dt);        // 0x004bb700
 };

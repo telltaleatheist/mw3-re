@@ -628,11 +628,9 @@ class Brain {
   void killed(zgame::Handle owner, zgame::Handle victim);
   void died();
   // 0x004ea500 -> 0x004b78d0 (IControls vt+0x98): it hit an ally: the firing
-  // passes over targets behind that one and stands down.
-  void hit_an_ally(zgame::Handle victim) {
-    firing.obstacle = victim;
-    firing.stand_down();
-  }
+  // passes over targets behind that one and stands down. PM's AI: its firing's
+  // (0x004fbc00 -> 0x004bb6a0, zai_wire_firing_pm.cpp).
+  void hit_an_ally(zgame::Handle victim);
   bool may_fire();                                 // 0x004e9070
   // The vlist triggers (docs/ai.md 17.5): 0x004e9550 -> 0x004d9290 over the
   // settings' list, the nearest enemy picked once between them and the frame.
