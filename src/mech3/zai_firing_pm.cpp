@@ -919,8 +919,11 @@ bool can_hit(zgame::Handle w, const float at[3]) {
 // Pirate's Moon 1.0 @ 0x004b7800. FIX (bug): without a node to place the muzzle by, the exe leaves `dir` and the
 // cosines unwritten and its callers read their stack; here the muzzle stays where it was put, `dir` is the zero
 // way and the cosines 1 (fixes.md, The weapon's line with no node).
-bool weapon_line(WeaponLinePmHooks& h, const WeaponLinePm& w, const float* at, float muzzle[3], float dir[3],
-                 float* cos, float* cos_kept) {
+// Pirate's Moon 1.0 @ 0x004b76d0: a weapon's muzzle in the world: the firepoint's local place (+0x70, the origin
+// without a part and a firepoint) plus the weapon's spread (+0x88), or in a salvo's rest a jitter by the firepoint's
+// radius (+0x60), put by the part's node (or the weapon's) through 0x004ff3c0. False (the exe's null) for a
+// destroyed weapon (muzzle untouched) or when the node can't place it (muzzle holding the local point).
+bool weapon_muzzle(WeaponLinePmHooks& h, const WeaponLinePm& w, float muzzle[3]) {
   constexpr float kMiddle = 16383.5f, kScale = 6.103701889514923e-05f;  // 0x00605ee4, 0x00605ee0
   if (w.damage == 1.0f || std::isnan(w.damage)) return false;
   const bool mounted = w.part_node && w.fp_place;
@@ -935,7 +938,13 @@ bool weapon_line(WeaponLinePmHooks& h, const WeaponLinePm& w, const float* at, f
   } else {
     for (int i = 0; i < 3; ++i) muzzle[i] = muzzle[i] + w.spread[i];
   }
-  if (h.node_place(node, muzzle)) {
+  return !h.node_place(node, muzzle);
+}
+
+bool weapon_line(WeaponLinePmHooks& h, const WeaponLinePm& w, const float* at, float muzzle[3], float dir[3],
+                 float* cos, float* cos_kept) {
+  if (w.damage == 1.0f || std::isnan(w.damage)) return false;
+  if (!weapon_muzzle(h, w, muzzle)) {  // 0x004b76d0 (the dead case answered above)
     dir[0] = dir[1] = dir[2] = 0.0f;
     *cos = *cos_kept = 1.0f;
     return false;

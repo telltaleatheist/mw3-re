@@ -70,10 +70,7 @@ struct LeadHooks : LeadPmHooks {
   void aim_point(zgame::Handle e, float out[3]) override { brain_hooks().entity_lock_position(e, out); }
   uint32_t weapon_flags(zgame::Handle w) override { return brain_hooks().weapon_flags(w); }
   float weapon_speed(zgame::Handle w) override { return brain_hooks().weapon_speed(w); }
-  const float* muzzle(zgame::Handle w) override {
-    brain_hooks().weapon_node_position(w, m_);
-    return m_;
-  }
+  const float* muzzle(zgame::Handle w) override;  // Pirate's Moon 0x004b76d0, below
 };
 // The weapon's line, 0x004b7800 (weapon_line), on what the port's weapon holds.
 struct LineHooks : WeaponLinePmHooks {
@@ -101,6 +98,13 @@ WeaponLinePm line_of(const Weapon& w) {
   o.salvo_left = w.salvo_left;
   o.spread[0] = w.spread.x, o.spread[1] = w.spread.y, o.spread[2] = w.spread.z;
   return o;
+}
+
+// Pirate's Moon 1.0 @ 0x004b76d0 for the lead (0x004e7210): the weapon's muzzle, none when it can't be placed.
+const float* LeadHooks::muzzle(zgame::Handle w) {
+  LineHooks h;
+  Weapon* x = weapon_of(w);
+  return x && weapon_muzzle(h, line_of(*x), m_) ? m_ : nullptr;
 }
 }  // namespace
 
@@ -381,8 +385,9 @@ class WirePlan : public PlanPmHooks {
     LeadHooks h;
     return lead_point_pm(h, v, brain_hooks().contact_entity(c), weapon, out);
   }
-  void weapon_place(zgame::Handle weapon, float out[3]) override {
-    brain_hooks().weapon_node_position(weapon, out);
+  void weapon_place(zgame::Handle weapon, float out[3]) override {  // Pirate's Moon 0x004b76d0, its answer unread
+    LineHooks h;
+    if (Weapon* x = weapon_of(weapon)) weapon_muzzle(h, line_of(*x), out);
   }
   const float* position(zgame::Handle e) override {
     brain_hooks().position(e, buf_);

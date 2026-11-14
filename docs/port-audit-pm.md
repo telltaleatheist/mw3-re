@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4079 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 158 |
+| MISSING LOGIC | 157 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -110,7 +110,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x004af210, 0x004af2d0, 0x004af360** (3 functions, 112 decomp lines; MISSING LOGIC): pm only, the screen modes: PM's Shift+V (command 0x74, key handler registered by 0x0040b9f0) cycles 3, 5, 6, 7, 8, 9, 10 up to the card's highest supported mode (0x004af210 asks 0x00598c90 for 10, 9, 7, 6, 5), retrying until the switch 0x004aefe0 takes; MW3's 0x004ab910 wraps after 7 (modes 8..10 named but never in range, resolution.md). The port's Engine::vmode_toggle (app_hooks.cpp) is MW3's, with any_resolution stepping on by its own range; 0x004af210 is also the graphics screen's range (0x0043b540, with the menus)
 - **0x004b0790** (1 functions, 76 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the vehicle's above camera pitched -81 degrees (-1.413716) in PM, -90 in MW3; its 150 m the same in both (veh_basic_object.cpp:500)
 - **0x004b10b0** (1 functions, 9 decomp lines; MISSING LOGIC): MW3's 0x004ad7c0 (veh_basic_object.cpp, the vehicles' vt+0x90: the turret's limit clamp) as a direct call to PM's clamp 0x004a71f0 (labelled there: the limit's direction along the heading's own length)
-- **0x004b76d0** (1 functions, 54 decomp lines; MISSING LOGIC): pm only, PM's AI: a weapon's muzzle (from the firing 0x004baae0 and the brain 0x004e7210): the firepoint's local offset (its +0x70..+0x78, or the origin without one) plus the weapon's spread (+0x88..), or for a salvo weapon (+0x6c) a random jitter by the firepoint's share (+0x60), put into the part node's frame (0x004ff3c0); none for a destroyed weapon. The pm port's hooks for it (zai_wire_firing_pm.cpp muzzle, weapon_place) answer the weapon node's world origin (app_mech.cpp weapon_node_position), without the firepoint's offset or the spread
 - **0x004b80f0** (1 functions, 81 decomp lines; MISSING LOGIC): pm only, multiplayer: MW3's 0x004b3fc0 (weapon.cpp: a recharging weapon fires only from a full charge) with one step first: when the owner's vt+0x64 answers non-zero, which only the network mech's vtable 0x005e59a8 does (0x00402250; every other vehicle's is 0x00406ce0, 0), the bin is set to its capacity (0x004b8d30 / 0x004b8d40), so a remote mech's recharging weapons always fire full; the rest as MW3's. The port's recharge fire has no such step (how its replicas' bins are kept not traced)
 - **0x004c78c0, 0x004c78f0, 0x004c7910** (3 functions, 34 decomp lines; MISSING LOGIC): pm only, AI (read, pairs corrected: the address map gave MW3's 0x004c07d0 / ~AttackNet 0x004c0a60 / FormationNet's part): PM's vehicle-net part (vtable 0x005ed538; made by 0x004c72a0; constructor 0x004c78c0, deleting 0x004c78f0, destructor 0x004c7910) is a bare part: the order, the net at +0x18, a byte at +0x1c cleared, an empty run (0x005c7a30). MW3's VehiclePart (0x004c0ba0 / 0x004c0dc0 / run 0x004c0d60, zai_brain.h:363) keeps a home point for the leash, stacked on the brain's +0xe4 and taken off on the way out, and picks the mode's behaviour; PM's brain leashes from its own home (zai_brain_pm.h, BrainTickPm). The shared port builds MW3's VehiclePart for both games
 - **0x004e2820** (1 functions, 73 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's target description build (MW3's 0x004d25c0, zai_target.cpp desc_build) makes a target with an mpoption (targets.zrd's, +0x38 >= 0) only in a multiplayer game (the pilot's game of type 3, 0x0047b710) whose option allows it (0x00437920: the game's +0x98 is 4, or 1/2 and its vt+0x48 the same); otherwise none is made. The port reads mpoption (zrdraiv.cpp:585) and builds the target always. Shipped mpoption targets are only in the multiplayer readers (readermp1/2's targets.zrd, two on each of c1..c4), so single play is the same
@@ -489,7 +488,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## By module
 
-### mech3ep1 (3276 not ported)
+### mech3ep1 (3275 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -510,7 +509,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00402170 | 36 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004021c0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them |
 | 0x00402210 | 18 | folded | MW3's 0x00402b20 (the game editor net's vt+0x04, game_editor_net.cpp:294), read: the same two virtual calls |
 | 0x00402230 | 11 | folded | covered by the port where it names it (src/gamez/znetwork/znet_object.h:32) |
-| 0x00402250 | 8 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:270) |
+| 0x00402250 | 8 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:274) |
 | 0x00402280 | 12 | folded | read: the scalar deleting destructor (the destructor 0x004e5500, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00402330 | 18 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004022c0: the basic vehicle's own controls (a vehicle made without AI controls: 0x004ac860(0xa70), 0x004ae270, vtables 0x005c8c50 / IControls 0x005c8b98): its path follower 0x00401050 (mode 0 follows the waypoints at +0xa0c; modes 1..3 other approaches; 4 stops) and its vtable's methods. Deferred (docs/vehicles.md, The basic vehicle's own controls): no shipped mission makes such a vehicle (48 missions checked by a log line kept for community missions); a mod's mission would get a vehicle that does not move |
 | 0x00402350 | 15 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004022e0: the version-105 AI nets: the older net class (0x004021c0, 0x5c bytes, vtable 0x005bb8d0) and its reader and builder (0x004025b0, ~1,800 decompiled lines in all) with their helpers. Not ported on purpose (docs/ai.md 17.9): no shipped net file is version 105; a hand-made 105 file would reach them |
@@ -2304,9 +2303,9 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004a69d0 | 20 | debug or dev tool: PORT (preserve) | as MW3 0x004a35e0: debug key commands of 0x0040dba0, never registered in the release: a position marker printed to the console (0x004a3220), the mechs listed into the developer lines (0x004a33f0, command 0x89; hud.md), a vehicle picked in a dialog (0x004a3550, its destructor 0x004a35e0) |
 | 0x004a6a20 | 76 | MISSING LOGIC | pm only: MW3's 0x004a3630 (veh_basic_object.cpp vehicle_place: on the ground from 10 up plus 0.1, the heading, the commands cleared, the motion and the points reset) with one step at the end: the vehicle's controls (vt+0x14c), their pilot (vt+0x58) told to reset (vt+0x0c), so a basic vehicle placed (a script's move) restarts its AI's state; the port's vehicle_place stops before it. Constants by sign (x - (-10) written x + 10); the order-aware compare (tools/analysis/pm_shape_compare.py) finds nothing else |
 | 0x004a6d30 | 9 | folded | helpers inside the aim cone's constructor 0x004a6ec0 (checked by test_pm_firepoints there): a bound set to FLT_MAX (0x7f7fffff) |
-| 0x004a6dd0 | 17 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:972) |
+| 0x004a6dd0 | 17 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:981) |
 | 0x004a6e20 | 9 | folded | helpers inside the aim cone's constructor 0x004a6ec0 (checked by test_pm_firepoints there): a bound set to FLT_MAX (0x7f7fffff) |
-| 0x004a6e90 | 11 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:972) |
+| 0x004a6e90 | 11 | folded | covered by the port where it names it (src/mech3/zai_firing_pm.cpp:981) |
 | 0x004a6ec0 | 11 | folded | checked by test (block trace, 2026-11-13): test_pm_firepoints calls it (an aim cone's constructor, two vectors and the cone set) with the aim cone 0x004a6ee0, floats compared within 1e-5; test_pm_archives / config run it in the loadout reads |
 | 0x004a70c0 | 11 | MISSING LOGIC (only data the shipped game lacks reaches it) | pm only, measured: PM's turn limits are a new class (promote1.cpp's CZValidateDir: set 0x004a7390 / 0x004a7420, made by 0x004a6ee0, tested by 0x004a7000 and its thunk 0x004a70c0) in MW3's TurnLimits' place (turret.cpp make/within, MW3 0x004a4b30 and vt+0x08). Run in the emulator against a float copy of the port's (which agrees with MW3's on all 3,000 cases), PM's test differs on 457 of 3,000 (narrow and wide yaw ranges only; the full and fixed kinds agree), and agrees on 2,999 once the yaw range is negated: a turret's yaw arc is mirrored left to right from MW3's (0x004a7390 passes -yhi, -ylo). No shipped PM turret has LIMITS YAW (aiTurrets.zrd: 42 turrets, none; FIRE_LIMITS is the bursts'), the constructor's full turn and the vehicles' full-yaw gun pitch agree, so only a mod's turret with an uneven YAW shows it. tests/differential/explore/pm_limits_cmp.py (2026-11-13) |
 | 0x004a70e0 | 26 | folded | covered by the port where it names it (src/mech3/veh_basic_object.cpp:671) |
@@ -2512,7 +2511,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004b6f60 | 8 | folded | returns a constant or a global |
 | 0x004b72d0 | 14 | folded | by the slot pairing, read: PM's weapon vtable 0x005eb618 +0x2c is MW3's 0x005c9088 +0x20 0x004b3330 (weapon.cpp Weapon::try_lock), the vtable 0xc longer before it; the same, the manager's flag at +0x8c for +0x88 |
 | 0x004b73f0 | 94 | folded | read: MW3's 0x004b3450 (weapon.cpp Weapon::fire, one projectile): the same steps on PM's layout, the vtable slots +0x20 / +0x58 at +0x2c / +0x60, the part's lookup 0x00462020(3, firepoint +0x68) for MW3's 0x00460c10(3, +0x0c) |
-| 0x004b76d0 | 54 | MISSING LOGIC | pm only, PM's AI: a weapon's muzzle (from the firing 0x004baae0 and the brain 0x004e7210): the firepoint's local offset (its +0x70..+0x78, or the origin without one) plus the weapon's spread (+0x88..), or for a salvo weapon (+0x6c) a random jitter by the firepoint's share (+0x60), put into the part node's frame (0x004ff3c0); none for a destroyed weapon. The pm port's hooks for it (zai_wire_firing_pm.cpp muzzle, weapon_place) answer the weapon node's world origin (app_mech.cpp weapon_node_position), without the firepoint's offset or the spread |
 | 0x004b7da0 | 44 | folded | group A, read: a weapon's constructor as the shared port; the per-second numbers MW3 works out inline PM keeps in helpers (0x004b8e70 the damage, 0x004b8f10 the heat by the second at +0x1c), covered with PM's firing (zai_wire_firing_pm.cpp:111) |
 | 0x004b7e70 | 8 | folded | covered by the port where it names it (src/mech3/weapon.h:221) |
 | 0x004b7e80 | 12 | folded | covered by the port where it names it (src/mech3/weapon.h:219) |
@@ -2579,7 +2577,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004ba340 | 100 | folded | checked by test (block trace, 2026-11-13): test_pm_ai_pick runs it real inside the pick 0x004bc2e0, at 53 bits, exact; every target asked for, what faces and sight are asked of, the plan made (its contact, score, flags, part) and the firing's fields compared against the port (zai_firing_pm) |
 | 0x004ba5c0 | 9 | folded | as MW3 0x004b6370: covered: the stealth's controls (app_vehicle.cpp:604), the turret's slots, the sensors' vector instances (ai.md 15), the vehicles' list instances, the controls' constant virtuals (controls.md), the weapon lists, the firing's thunks, start-up statics |
 | 0x004ba5d0 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_pm.cpp:263) |
-| 0x004ba5f0 | 15 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:523) |
+| 0x004ba5f0 | 15 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:528) |
 | 0x004ba630 | 10 | folded | ported, by docs/symbols.csv: ported; LookAround::start |
 | 0x004ba890 | 10 | folded | covered by the port where it names it (src/mech3/zai_brain.cpp:1002) |
 | 0x004ba970 | 12 | folded | covered by the port where it names it (src/mech3/zai_firing.cpp:303) |
@@ -2599,7 +2597,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004bc2a0 | 12 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |
 | 0x004bc8c0 | 10 | folded | inside its ported callers (0x004bb700): a small helper their ports do their own way |
 | 0x004bc8e0 | 8 | folded | returns a constant or a global |
-| 0x004bc8f0 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:338) |
+| 0x004bc8f0 | 11 | folded | covered by the port where it names it (src/mech3/zai_wire_firing_pm.cpp:342) |
 | 0x004bc910 | 9 | folded | a thunk: one call to another function |
 | 0x004bc920 | 8 | folded | returns a constant or a global |
 | 0x004bc930 | 76 | folded | PM's firing, covered by its port (zai_firing_pm.cpp: the step 0x004bb700 at :636, the volley pick 0x004bcd40 at :553, the plan 0x004bc2e0 at :444, the contact 0x004bbe30 at :335, the record 0x004bc930 at :502 and its counts, the shooter's numbers at zai_firing_pm.h:146) and its container code (vector insert and erase, find_if, remove_copy_if, std::sort 0x004bd920) |

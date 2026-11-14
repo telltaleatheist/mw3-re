@@ -541,6 +541,38 @@ def line_cases(x, r, lib):
     return bad, len(seen)
 
 
+def muzzle_cases(x, r, lib):
+    """0x4b76d0 real (the muzzle the AI's lead and planner take; 0x4b7800 has it written inline): a weapon with or
+    without a part, node and firepoint, a salvo or not; the answer (a pointer or null) and the muzzle."""
+    z, w = x.z, x.w
+    wp, fp, part, n41, n42, mz = (z.alloc(0xa0) for _ in range(6))
+    rolls = []
+    z.native_stub(0x4ff3c0, lambda u: line_place(x, u), 0)
+    w(0x5de668, x.ret(lambda u: rolls.pop(0)))
+    pack = lambda v: struct.pack(f'<{len(v)}f', *v)  # noqa: E731
+    bad = 0
+    for i in range(2000):
+        ints = [r.randrange(2), r.choice([0, 1, 1]), r.randrange(2), r.choice([0, 0, 1]), 0, 0, r.randrange(32768), r.randrange(32768)]
+        f = [r.choice([0.0, 0.5, 1.0]), *[r.uniform(-2, 2) for _ in range(3)], r.uniform(0, 3), 0.47,
+             *[r.uniform(-1, 1) for _ in range(3)]] + [0.0] * 9
+        rolls[:] = ints[6:8]
+        w(wp + 0x74, fb(f[0])), w(wp + 0x28, part if ints[0] else 0), w(part + 8, n41), w(wp + 0x24, n42 if ints[1] else 0)
+        w(wp + 0x84, fp if ints[2] else 0), x.uc.mem_write(fp + 0x60, pack([f[4]]))
+        x.uc.mem_write(fp + 0x70, pack(f[1:4])), w(wp + 0x6c, ints[3]), x.uc.mem_write(wp + 0x88, pack(f[6:9]))
+        x.uc.mem_write(mz, pack([-7.0] * 3))
+        ans = 1 if z.call(0x4b76d0, ecx=wp, args=(mz,)) else 0
+        a = [ans] + [z.r32(mz + 4 * k) for k in range(3)]
+        o = (ctypes.c_float * 4)()
+        rolls[:] = []
+        lib.probe_pm_weapon_muzzle((ctypes.c_int32 * 8)(*ints), (ctypes.c_float * 18)(*f), o)
+        b = [int(o[0])] + [fb(v) for v in o[1:]]
+        if a != b:
+            bad += 1
+            if bad < 4:
+                print(f'muzzle {ints} {f[:9]}\n  exe  {[hex(v) for v in a]}\n  port {[hex(v) for v in b]}')
+    return bad
+
+
 def line_place(x, u):
     node, v = u.arg(0), u.arg(1)
     if not node:
@@ -721,6 +753,9 @@ def main():
     lb, kinds = line_cases(nx, r, lib)
     print(f'weapon line: 3000 cases, {kinds} kinds: {lb} differ')
     bad += lb
+    mb = muzzle_cases(nx, r, lib)
+    print(f'weapon muzzle (0x4b76d0): 2000 cases: {mb} differ')
+    bad += mb
     nx.z.call(0x4ba660)
     a = [nx.z.r32(0x60b688 + i * 4) for i in range(27)]
     b = (ctypes.c_uint32 * 27)()

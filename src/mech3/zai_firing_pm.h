@@ -245,6 +245,8 @@ class WeaponLinePmHooks {
   virtual int32_t rand() = 0;
   virtual bool quiet() = 0;                                       // [0x0062f86c]: no facing asked
 };
+bool weapon_muzzle(WeaponLinePmHooks& h, const WeaponLinePm& w, float muzzle[3]);  // 0x004b76d0
+
 bool weapon_line(WeaponLinePmHooks& h, const WeaponLinePm& w, const float* at, float muzzle[3], float dir[3],
                  float* cos, float* cos_kept);  // 0x004b7800
 bool firepoint_reaches(const float cone[18], const float dir[3]);       // 0x004a7000, a firepoint's aim cone
