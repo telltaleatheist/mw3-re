@@ -68,7 +68,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 4081 |
+| folded | 4080 |
 | replaced (SDL or the platform layer) | 263 |
 | MISSING LOGIC | 176 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
@@ -77,7 +77,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 | dev dialog (MFC), its logic: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 79 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
-| UNSURE | 2 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
@@ -505,11 +504,10 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## UNSURE
 
-- 0x0048eaf0, 0x0048f970 (2 functions, 465 decomp lines): pm only: the kept line-up's difference (allies and enemies by mech, each enemy's loadout by its place 0x004279e0, a new pilot's first enemy mech 0) is ported on pm (action_menu.cpp keep_lineup, reset, show_custom 0x0048f660; mac4/pm-loadstate and mac4/pm-ia-enemies); the rest of this function is not yet compared line by line with its MW3 twin (it was put on the missing row for that difference alone)
 
 ## By module
 
-### mech3ep1 (3302 not ported)
+### mech3ep1 (3299 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -2110,14 +2108,11 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0048e840 | 20 | folded | destructor bodies (unwind and deleting callers) of the Instant Action lists: a text and a cycle's base (0x0048e5b0), two cycles (0x0048e840); the port's members destroy themselves |
 | 0x0048e890 | 12 | folded | covered by the port where it names it (src/mech3/action_menu.h:111) |
 | 0x0048e8b0 | 81 | folded | MW3's 0x00489ee0 (the Instant Action screen's destructor), read: the same members torn down, PM calling the destructors MW3 inlined |
-| 0x0048eaf0 | 291 | UNSURE | pm only: the kept line-up's difference (allies and enemies by mech, each enemy's loadout by its place 0x004279e0, a new pilot's first enemy mech 0) is ported on pm (action_menu.cpp keep_lineup, reset, show_custom 0x0048f660; mac4/pm-loadstate and mac4/pm-ia-enemies); the rest of this function is not yet compared line by line with its MW3 twin (it was put on the missing row for that difference alone) |
 | 0x0048f130 | 33 | MISSING LOGIC | pm only, minor: the Instant Action screen's buttons (MW3's 0x0048a680, ActionScreen::on_button, action_menu.cpp:358): as MW3 for 3 (back) and 4 (accept), and PM adds 1 and 2 (the world and scenario lists' notices): in Progression (the game's mode 2) the line-up display is refreshed (0x0048f970, MW3's 0x0048aac0) for the world just chosen, which the world list's own step loaded (0x0048dca0); the port refreshes nothing there |
 | 0x0048f1c0 | 31 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0048a6c0 with only offsets and sizes of PM's larger structures changed (0x17730->0x17988); calls, field counts and every other immediate and float constant as MW3's |
 | 0x0048f240 | 17 | folded | the pilot menu states' enter and resume (MW3's 0x0048a750 / 0x0048a7b0, pilot_menu.cpp:600 / 680), read: the same; PM's screen mode setter (0x00491ea0, MW3's 0x00488ad0) has no training branch (PM's pilot screen has no training mode) and the Instant Action screen's refresh (0x0048fd90) selects the world and scenario lists from the pilot's own setup, the port's action_setup() (pilot_games.cpp:50) |
 | 0x0048f2a0 | 24 | folded | the pilot menu states' enter and resume (MW3's 0x0048a750 / 0x0048a7b0, pilot_menu.cpp:600 / 680), read: the same; PM's screen mode setter (0x00491ea0, MW3's 0x00488ad0) has no training branch (PM's pilot screen has no training mode) and the Instant Action screen's refresh (0x0048fd90) selects the world and scenario lists from the pilot's own setup, the port's action_setup() (pilot_games.cpp:50) |
-| 0x0048f970 | 174 | UNSURE | pm only: the kept line-up's difference (allies and enemies by mech, each enemy's loadout by its place 0x004279e0, a new pilot's first enemy mech 0) is ported on pm (action_menu.cpp keep_lineup, reset, show_custom 0x0048f660; mac4/pm-loadstate and mac4/pm-ia-enemies); the rest of this function is not yet compared line by line with its MW3 twin (it was put on the missing row for that difference alone) |
 | 0x0048fd60 | 13 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:142) |
-| 0x0048fd90 | 19 | folded | read: before the Instant Action screen's reset, the world and scenario cycles (and the descriptions) select the pilot's kept world and scenario (its game's +0x38, +0x3c); the port's reset does the same first from action_setup(), which is the pilot's in PM (action_menu.cpp ActionScreen::reset) |
 | 0x0048fe80 | 9 | folded | follows 0x0048fe90: the lab file box name bar's focus setter: the edit bar's 0x005c80c0 plus a byte at +0x68c that none of the bar's 80 virtual methods reads (written only); the port's set_focus (lab_filebox.cpp:41); not run under a test (trace) |
 | 0x0048fe90 | 10 | folded | the lab file box name bar's focus setter: the edit bar's 0x005c80c0 plus a byte at +0x68c that none of the bar's 80 virtual methods reads (written only); the port's set_focus (lab_filebox.cpp:41); not run under a test (trace) |
 | 0x0048fef0 | 36 | folded | PM's LOADSAVE_DIALOG (dlgLoadSave.zrd) for the mech lab's Ctrl+X / Ctrl+I, ported in lab_filebox (lab_filebox.cpp; docs/fixes.md 'The mech lab's Ctrl+X / Ctrl+I on Pirate's Moon', test_pm_lab_filebox.py): its modal runs for export and import (0x0048fef0 / 0x00490120, the dialog 0x00490270 with 0 or 1), its destructor (0x00490040) and its buttons' dispatch (0x004906f0: accept, cancel) |
