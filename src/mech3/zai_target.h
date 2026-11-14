@@ -227,6 +227,7 @@ class TargetHooks : public zgame::Unported {
   virtual bool have_pilot() { return unported("[0x0060861c]", {}) != 0; }
   virtual Handle player_vehicle() { return unported("[0x0060861c]+0x14", {}); }
   virtual int32_t game_type() { return static_cast<int32_t>(unported("game.vt+0x2c", {})); }
+  virtual bool mp_radar() { return unported("0x0047b710+0xa8", {}) != 0; }  // PM: the network game's RADAR
   virtual void sorted_clear() {}  // [0x0060b56c] = 0
   // The records (mech3/zrdraiv's targets and traps files).
   virtual void records_open(bool traps) { unported(traps ? "0x004deb50/traps" : "0x004deb50", {}); }

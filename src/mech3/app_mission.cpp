@@ -1305,6 +1305,10 @@ struct WiredTargetHooks : ai::TargetHooks {
   Handle self_vehicle(Handle self) override { return entity_is_mech(e->object_of(self)) ? self : 0; }
   Handle self_x58(Handle) override { return 0; }
   int32_t game_type() override { return e->launch().type; }
+  bool mp_radar() override {
+    const MultiplayerGame* g = mission_multiplayer_game();
+    return g && g->radar != 0;
+  }
   void sorted_clear() override { player_clear_60b56c(); }
   // zClass's list 6 by name (0x004f8c30) or by prefix (0x004f8b80).
   static bool prefixed(zcls::Node* n) {

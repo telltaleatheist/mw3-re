@@ -336,9 +336,9 @@ void AiTarget::set_range(float r) {
   range2 = r * r;
 }
 
-// Mech3.exe 1.2 @ 0x004d6d20: the player's own vehicle (or one whose vt+0x58
-// answers) in Instant Action or multiplayer sees 50000 (0x005e8d8c); every
-// other range is capped at 1000 (0x005e8d84); a NaN is kept (C0|C3).
+// Mech3.exe 1.2 @ 0x004d6d20, Pirate's Moon 1.0 @ 0x004e7170: the player's own vehicle (or one whose vt+0x58
+// answers) in Instant Action or multiplayer sees 50000 (0x005e8d8c); every other range is capped at 1000
+// (0x005e8d84); a NaN is kept (C0|C3). PM: in multiplayer only with the game's RADAR on (+0xa8, 0x0047b710).
 void AiTarget::set_sensor_range(Handle self, float r) {
   TargetHooks& h = *g_hooks;
   bool wide = false;
@@ -346,7 +346,7 @@ void AiTarget::set_sensor_range(Handle self, float r) {
   if (h.have_pilot()) {
     if (h.self_vehicle(self) == h.player_vehicle() || h.self_x58(self) != 0) {
       const int32_t type = h.game_type();
-      wide = type == 3 || type == 2;
+      wide = type == 2 || (type == 3 && h.mp_radar());  // PM: multiplayer only with the lobby's RADAR
     }
   }
   if (wide) r = 50000.0f;
