@@ -5,6 +5,9 @@ ECX and EDX). rand is a stub both sides log; the x87 at 24 bits, as in play.
 
     cmake --build build --target pmprobe && MW3_EXE=pm .venv/bin/python tests/differential/test_pm_static.py [cases]
 
+About 4 s a case (the emulator fills up to six targets of up to 700 x 500): 20 by default, about 80 s; more as
+the argument.
+
 Each case: a fresh table, then up to 6 fills on a target of 16..700 x
 8..500 pixels (pitch at least its width) of random pixels: a rect inside
 it (sometimes empty or one pixel wide) or none (the target less its last
@@ -103,7 +106,7 @@ def main():
     probe.probe_static_noise_size.restype = I32
     probe.probe_static_fill.argtypes = [ctypes.POINTER(U16), I32, I32, I32, ctypes.POINTER(I32), I32, U32, U32,
                                         U32, U32, U32]
-    count = int(sys.argv[1]) if len(sys.argv) > 1 else 300
+    count = int(sys.argv[1]) if len(sys.argv) > 1 else 20
     for seed in range(count):
         run_case(probe, seed)
     print(f'ok: {count} cases ({", ".join(f"{v} {k}" for k, v in COUNT.items())}), as the original')
