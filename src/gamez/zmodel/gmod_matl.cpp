@@ -475,7 +475,7 @@ int32_t material_sweep(int32_t step) {
 
 // The world's writers (WriteZBD's; ported for preservation, docs/gamez.md, Writing a world back).
 
-// Mech3.exe 1.2 @ 0x00535ff0 (ECX m): its index in the table, -1 for none or one outside it; it is marked
+// Mech3.exe 1.2 @ 0x00535ff0 (ECX m), Pirate's Moon 1.0 @ 0x00555a10 (cdecl): its index in the table, -1 for none or one outside it; it is marked
 // referenced (flag 0x10) either way.
 int32_t material_index(Material* m) {
   if (!m) return -1;

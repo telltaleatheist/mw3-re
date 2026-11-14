@@ -4,8 +4,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <vector>
 
 #include "gamez/zerror/zerr.h"
+#include "gamez/zimage/zimg_texture.h"
 #include "gamez/zvideo/zvid_format.h"
 #include "pm/gamez/zclass/cls_zbd.h"
 #include "pm/gamez/zmodel/gmod_const.h"
@@ -156,6 +158,62 @@ int32_t material_sweep(int32_t step) {
   }
   cursor = 0;
   return freed;
+}
+
+// Pirate's Moon 1.0 @ 0x00555ae0. As MW3's, a cycled material's +0x24 and a cycle's +0x18 are written as the file
+// had them (the exe's pointers, which the reader replaces). A cycle of no textures stops the write as the exe's does:
+// its fwrite of 0 bytes counts as failed (MW3's port writes nothing for it).
+int write_materials(std::FILE* f) {
+  ::zmod::MaterialTable& t = ::zmod::materials();
+  const struct {
+    const int32_t* v;
+    int line;
+  } head[] = {{&t.capacity, 0x106}, {&t.count, 0x113}, {&t.free_head, 0x120}, {&t.used_head, 0x12d}};
+  for (const auto& h : head)
+    if (std::fwrite(h.v, 4, 1, f) != 1) zerr::report(0x200, kFile, h.line, "Error writing material buffer.");
+  int32_t result = kMaterialBlock;
+  std::vector<uint8_t> raw(static_cast<size_t>(kMaterialBlock) * 0x2c);
+  for (size_t b = 0; b < t.blocks.size(); ++b) {
+    for (int32_t i = 0; i < kMaterialBlock; ++i) {
+      const Material& m = t.blocks[b][i];
+      uint8_t* r = raw.data() + static_cast<size_t>(i) * 0x2c;
+      r[0] = m.alpha, r[1] = m.flags;
+      std::memcpy(r + 2, &m.rgb, 2);
+      std::memcpy(r + 4, &m.r, 4), std::memcpy(r + 8, &m.g, 4), std::memcpy(r + 0xc, &m.b, 4);
+      const uint32_t tex =
+          (m.flags & 1) ? static_cast<uint32_t>(::zimg::texture_index(m.texture)) : m.texture_index;  // 0x00531810
+      std::memcpy(r + 0x10, &tex, 4);
+      std::memcpy(r + 0x14, m.unk_14, 12);
+      std::memcpy(r + 0x20, &m.soil, 4);
+      std::memcpy(r + 0x24, &m.file_cycle, 4);
+      std::memcpy(r + 0x28, &m.prev, 2), std::memcpy(r + 0x2a, &m.next, 2);
+    }
+    if (std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+      zerr::report(0x200, kFile, 0x150, "Error writing material buffer.");
+      result = 0;
+    }
+  }
+  for (int32_t i = 0; i < t.capacity; ++i) {
+    const Material& m = t.at(i);
+    if (!(m.flags & 4)) continue;
+    const ::zmod::Cycle* c = m.cycle;
+    uint8_t cr[0x1c] = {};
+    std::memcpy(cr, &c->looping, 4), std::memcpy(cr + 4, &c->frame, 4), std::memcpy(cr + 8, &c->index, 4);
+    std::memcpy(cr + 0xc, &c->speed, 4), std::memcpy(cr + 0x10, &c->texture_count, 4), std::memcpy(cr + 0x14, &c->added, 4);
+    if (std::fwrite(cr, sizeof cr, 1, f) != 1) {
+      zerr::report(0x200, kFile, 0x166, "Error writing material buffer.");
+      result = 0;
+      break;
+    }
+    std::vector<int32_t> rows(c->texture_count);
+    for (uint32_t k = 0; k < c->texture_count; ++k) rows[k] = ::zimg::texture_index(c->textures[k]);
+    if (rows.empty() || std::fwrite(rows.data(), rows.size() * 4, 1, f) != 1) {
+      zerr::report(0x200, kFile, 0x183, "Error writing material buffer.");
+      result = 0;
+      break;
+    }
+  }
+  return result;
 }
 
 }  // namespace pm::zmod

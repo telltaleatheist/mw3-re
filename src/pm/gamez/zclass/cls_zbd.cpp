@@ -1,5 +1,6 @@
 #include "pm/gamez/zclass/cls_zbd.h"
 
+#include <ctime>
 #include <vector>
 
 #include "gamez/zclass/camera.h"
@@ -437,6 +438,258 @@ int read_zbd(const char* path) {
   if (read_nodes(z.get(0x1c), f, models) < 0) return load_error(f, 0x746, "Error reading GameZ node data.");
   std::fclose(f);
   g_state.file = nullptr, g_state.current = -1, g_state.own_textures = false;
+  return 0;
+}
+
+// The world's writers (WriteZBD's; ported for preservation, docs/gamez.md, Writing a world back).
+
+namespace {
+int32_t written_index(const Node* node, const int32_t* remap) {
+  const int32_t i = ::zcls::node_index_of(node);  // 0x00515ea0
+  return i >= 0 && remap ? remap[i] : i;
+}
+
+int write_error(int line, const char* msg) {
+  zerr::report(0x200, kFile, line, msg);
+  return -1;
+}
+
+// The shared Node back into PM's slot: translate_node turned the other way. The exe copies its slot whole; the
+// pointers it holds (+0x38 data, +0x58 parents, +0x5c children) are the file's values here.
+void pm_record(const Node& n, uint8_t* pm) {
+  std::memset(pm, 0, 0xd4);
+  std::memcpy(pm, n.raw, 0x4c);
+  const int16_t area[2] = {static_cast<int16_t>(n.get<int32_t>(0x4c)), static_cast<int16_t>(n.get<int32_t>(0x50))};
+  std::memcpy(pm + 0x4c, area, 4);
+  std::memcpy(pm + 0x50, n.pm_virtual, 4);
+  const int16_t links[2] = {static_cast<int16_t>(n.parent_count()), static_cast<int16_t>(n.child_count())};
+  std::memcpy(pm + 0x54, links, 4);
+  std::memcpy(pm + 0x58, n.raw + 0x58, 4);
+  std::memcpy(pm + 0x5c, n.raw + 0x60, 4);
+  std::memcpy(pm + 0x60, n.raw + 0x64, 0x10);
+  std::memcpy(pm + 0x74, n.raw + 0x74, 0xd0 - 0x74);
+  std::memcpy(pm + 0xd0, &n.link, 4);
+}
+}  // namespace
+
+// Pirate's Moon 1.0 @ 0x00516720. The exe's buffer is kept between calls ([0x00639c38], freed by 0x00515fb0).
+int write_node_list(Node* const* list, int32_t count, std::FILE* f, const int32_t* remap) {
+  if (count == 0) return 0;
+  std::vector<int32_t> index(static_cast<size_t>(count > 0 ? count : 0));
+  for (int32_t i = 0; i < count; ++i) index[static_cast<size_t>(i)] = written_index(list[i], remap);
+  if (std::fwrite(index.data(), index.size() * 4, 1, f) != 1) return write_error(0x146, "Error writing node data.");
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x00516800 ([0x00639c40] its buffer)
+int write_cell_list(const ::zcls::Partition& p, int32_t count, std::FILE* f, const int32_t* remap) {
+  if (count == 0) return 0;
+  std::vector<uint8_t> raw(static_cast<size_t>(count > 0 ? count : 0) * 12);
+  for (int32_t i = 0; i < count; ++i) {
+    const int32_t at = written_index(p.nodes[i], remap);
+    std::memcpy(raw.data() + static_cast<size_t>(i) * 12, &at, 4);
+    if (p.pm_y) std::memcpy(raw.data() + static_cast<size_t>(i) * 12 + 4, p.pm_y[i], 8);
+  }
+  if (std::fwrite(raw.data(), raw.size(), 1, f) != 1)
+    return write_error(0x17d, "Error writing area partition child data.");
+  return 0;
+}
+
+// Pirate's Moon 1.0 @ 0x00516260
+int write_node(const Node* node, uint8_t record[0xd4], std::FILE* f, const int32_t* remap) {
+  using namespace ::zcls;
+  int result = 0;
+  if (node->action) {
+    char msg[96];
+    std::snprintf(msg, sizeof msg, "Writing gamez.zbd; node %s has action callback defined.", node->name());
+    zerr::report(0x200, kFile, 0x198, msg);
+  }
+  const uint32_t at = static_cast<uint32_t>(std::ftell(f));
+  const auto data = [&](const void* d, size_t n) { return std::fwrite(d, n, 1, f) == 1; };
+  switch (node->cls()) {
+    case 0:
+      break;
+    case 1: {
+      result = 1;
+      const auto* c = static_cast<const Camera*>(node->data);
+      uint8_t raw[sizeof c->raw];
+      std::memcpy(raw, c->raw, sizeof raw);
+      for (int i = 0; i < 4; ++i) {
+        const int32_t k = written_index(c->nodes[i], remap);
+        std::memcpy(raw + 4 * i, &k, 4);
+      }
+      if (!data(raw, sizeof raw)) return write_error(0x212, "Error writing node camera data.");
+      break;
+    }
+    case 2: {
+      result = 1;
+      const auto* w = static_cast<const World*>(node->data);
+      uint8_t pm[0xcc];
+      std::memcpy(pm, w->raw, 0x4c);
+      std::memcpy(pm + 0x4c, w->pm_area2, 0x10);
+      std::memcpy(pm + 0x5c, w->raw + 0x4c, 0xbc - 0x4c);
+      if (!data(pm, sizeof pm)) return write_error(0x244, "Error writing node world data.");
+      if (w->get<int32_t>(0xa0) > 0) write_node_list(w->lights, w->get<int32_t>(0xa0), f, remap);  // PM +0xb0
+      if (w->get<int32_t>(0xac) > 0) write_node_list(w->sounds, w->get<int32_t>(0xac), f, remap);  // PM +0xbc
+      for (int32_t z = 0; z < w->get<int32_t>(0x8c); ++z)
+        for (int32_t x = 0; x < w->get<int32_t>(0x88); ++x) {
+          const Partition& p = w->rows[z][x];
+          uint8_t pr[0x58];
+          std::memcpy(pr, p.raw, 0x48);
+          std::memcpy(pr + 0x48, p.pm_tail, 0x10);
+          if (!data(pr, sizeof pr)) return write_error(0x260, "Error writing world area partition data.");
+          if (p.get<int16_t>(0x3a) > 0) write_cell_list(p, p.get<int16_t>(0x3a), f, remap);
+        }
+      break;
+    }
+    case 3:
+      result = 1;
+      if (!data(static_cast<const Window*>(node->data)->raw, 0xf8)) return write_error(0x231, "Error writing node window data.");
+      break;
+    case 4:
+      result = 1;
+      if (!data(static_cast<const Display*>(node->data)->raw, 0x1c)) return write_error(0x222, "Error writing node display data.");
+      break;
+    case 5:
+      result = 1;
+      if (!data(static_cast<const Object3d*>(node->data)->raw, 0x90)) return write_error(0x1c4, "Error writing node object3d data.");
+      break;
+    case 6: {
+      result = 1;
+      const auto* l = static_cast<const Lod*>(node->data);
+      uint8_t pm[0x5c];
+      std::memcpy(pm, l->raw, 0x34);
+      std::memcpy(pm + 0x34, l->pm_tail, 0xc);
+      std::memcpy(pm + 0x40, l->raw + 0x34, 0x1c);
+      if (!data(pm, sizeof pm)) return write_error(0x1d3, "Error writing node lod data.");
+      break;
+    }
+    case 9: {
+      result = 1;
+      const auto* l = static_cast<const Light*>(node->data);
+      uint8_t pm[0x100];
+      std::memcpy(pm, l->raw, 0xb0);
+      std::memcpy(pm + 0xb0, l->pm_colors, 0x30);
+      std::memcpy(pm + 0xe0, l->raw + 0xb0, 0x20);
+      if (!data(pm, sizeof pm)) return write_error(0x1e2, "Error writing node light data.");
+      if (l->get<int32_t>(0xc8) > 0) write_node_list(l->nodes, l->get<int32_t>(0xc8), f, remap);  // PM +0xf8
+      break;
+    }
+    case 10: {
+      result = 1;
+      zerr::report(0x200, kFile, 0x1a6, "Writing sound node data: Must complete software.");
+      const auto* s = static_cast<const Sound*>(node->data);
+      if (!data(s->raw, 0x94)) return write_error(0x1af, "Error writing node sound data.");
+      if (s->get<int32_t>(0x8c) > 0) write_node_list(s->nodes, s->get<int32_t>(0x8c), f, remap);
+      break;
+    }
+    default: {
+      char msg[160];
+      std::snprintf(msg, sizeof msg, "gClsWriteNode(): Unrecognized node class type:\n  node = %s class_type = %d\n",
+                    node->name(), node->cls());
+      zerr::report(0x400, kFile, 0x275, msg);
+      return 0;
+    }
+  }
+  if (node->parent_count() > 0) {
+    result = 1;
+    write_node_list(node->parents, node->parent_count(), f, remap);
+  }
+  if (node->child_count() > 0) {
+    result = 1;
+    write_node_list(node->children, node->child_count(), f, remap);
+  }
+  std::memcpy(record + 0x38, &at, 4);
+  return result;
+}
+
+// Pirate's Moon 1.0 @ 0x00515fb0. The box pointer at +0x70 becomes which box it is (0 the node's, 1 the model's, 2
+// the children's), as read_nodes takes it; a node with none writes 0, as the exe's null pointer.
+// FIX (bug) (docs/fixes.md): the exe's list of where each node went is set only for the live ones, so a list naming
+// one that is not written takes whatever that memory held; here -1, none.
+int write_nodes(std::FILE* f) {
+  ::zcls::NodePool& p = ::zcls::nodes();
+  const int32_t cap = p.capacity;
+  if (cap == 0) return 0;
+  std::vector<int32_t> remap(static_cast<size_t>(cap), -1);
+  std::vector<const Node*> live;
+  std::vector<uint8_t> raw;
+  for (int32_t i = 0; i < cap; ++i) {
+    const Node* n = ::zcls::node_at(i);
+    if (!(n->link & 0x2000000u)) continue;
+    remap[static_cast<size_t>(i)] = static_cast<int32_t>(live.size());
+    live.push_back(n);
+    raw.resize(raw.size() + 0xd4);
+    uint8_t* r = raw.data() + raw.size() - 0xd4;
+    pm_record(*n, r);
+    const float* box = n->pm_box;
+    const int32_t which = box == box_pointer(*n, 0) ? 0 : box == box_pointer(*n, 1) ? 1 : box == box_pointer(*n, 2) ? 2 : 0;
+    std::memcpy(r + 0x70, &which, 4);
+  }
+  int32_t result = static_cast<int32_t>(live.size());
+  for (int32_t i = 0; i < result; ++i) {
+    uint8_t* r = raw.data() + static_cast<size_t>(i) * 0xd4;
+    int16_t parents, children;
+    std::memcpy(&parents, r + 0x54, 2), std::memcpy(&children, r + 0x56, 2);
+    if (parents == 0) std::memset(r + 0x58, 0, 4);
+    if (children == 0) std::memset(r + 0x5c, 0, 4);
+    const int32_t model = pm::zmod::model_index(live[static_cast<size_t>(i)]->pm_model);  // 0x00557b30
+    std::memcpy(r + 0x3c, &model, 4);
+    std::memset(r + 0x48, 0, 4);
+  }
+  const long slots_at = std::ftell(f);
+  if (!raw.empty() && std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x2f6, "Error writing node data.");
+    result = 0;
+  }
+  for (int32_t i = 0; i < result; ++i)
+    write_node(live[static_cast<size_t>(i)], raw.data() + static_cast<size_t>(i) * 0xd4, f, remap.data());
+  const long end = std::ftell(f);
+  std::fseek(f, slots_at, SEEK_SET);
+  if (std::fwrite(raw.data(), static_cast<size_t>(result) * 0xd4, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x316, "Error writing node data.");
+    result = 0;
+  }
+  std::fseek(f, end, SEEK_SET);
+  return result;
+}
+
+// Pirate's Moon 1.0 @ 0x005168e0
+int write_zbd(const char* path) {
+  if (!path[0]) return -1;
+  std::FILE* f = zutl::open(path, "wb");
+  if (!f) return -1;
+  uint8_t h[0x28] = {};
+  const int32_t sig = 0x02971222, version = 0x29;
+  const uint32_t stamp = static_cast<uint32_t>(std::time(nullptr));  // time(): its low word stays at +0x08
+  std::memcpy(h, &sig, 4), std::memcpy(h + 4, &version, 4), std::memcpy(h + 8, &stamp, 4);
+  const auto put = [&](int off, int32_t v) { std::memcpy(h + off, &v, 4); };
+  if (std::fwrite(h, sizeof h, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x35f, "Error writing GameZ header data.");
+    std::fclose(f);  // the exe leaves it open
+    return -1;
+  }
+  put(0x10, static_cast<int32_t>(std::ftell(f)));
+  put(0xc, pm::zimg::write_texture_directory(f));
+  put(0x14, static_cast<int32_t>(std::ftell(f)));
+  pm::zmod::write_materials(f);
+  put(0x18, static_cast<int32_t>(std::ftell(f)));
+  pm::zmod::write_models(f);
+  ::zcls::deferred_flush();  // 0x0050bb20
+  put(0x20, ::zcls::nodes().free_head);
+  put(0x24, static_cast<int32_t>(std::ftell(f)));
+  put(0x1c, write_nodes(f));
+  std::fseek(f, 0, SEEK_SET);
+  if (std::fwrite(h, sizeof h, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x384, "Error writing GameZ header data.");
+    std::fclose(f);  // the exe leaves it open
+    return -1;
+  }
+  std::fclose(f);
+  ZbdFile entry;
+  entry.path = path;
+  std::memcpy(entry.header, h, sizeof h);
+  g_state.files.push_back(entry);
   return 0;
 }
 

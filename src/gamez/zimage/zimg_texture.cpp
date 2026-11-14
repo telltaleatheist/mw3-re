@@ -370,7 +370,7 @@ int32_t textures_free() {
 
 // The world's writers (WriteZBD's; ported for preservation, docs/gamez.md, Writing a world back).
 
-// Mech3.exe 1.2 @ 0x00518050: an entry's row, -1 for none.
+// Mech3.exe 1.2 @ 0x00518050, Pirate's Moon 1.0 @ 0x00531810 (its 0x2c-byte entries): an entry's row, -1 for none.
 int32_t texture_index(const TextureEntry* e) {
   return e ? static_cast<int32_t>(e - g_table.entries) : -1;
 }

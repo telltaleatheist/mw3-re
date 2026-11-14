@@ -412,6 +412,45 @@ left out, a textured material's texture as the file had it, a mip one row back. 
 alone is not seen on the shipped worlds: their files already hold the indices, offsets and zeros the writer
 makes.)
 
+### Pirate's Moon (0x5168e0; pm branch, ported for preservation, 2026-11-14)
+
+PM's `GameZWriteZBDFile` (`pm::zcls::write_zbd`) writes a version-41 file the way its stacking reader takes it, and
+differs from MW3's in these places:
+
+- **The header** carries a time stamp: `time()` fills +0x08..+0x0f, and the texture count then overwrites +0x0c.
+  The path is not remembered. Instead the written file is added to the list of files read ([0x639c28]).
+- **The texture directory** (0x531870) has 0x2c-byte entries: the name at +0xc, the state at +0x20, the group at
+  +0x24, and the mip as its row at +0x28 (0x531810).
+- **The materials** (0x555ae0) write their cycles in table order, every material with flag 4. MW3's go by the used
+  list. An error stops the cycles (`break`) rather than returning. A cycle of no textures counts as a failed write,
+  because MSVC's `fwrite` of 0 bytes returns 0. MW3's port writes nothing for such a cycle; its exe reports the
+  same error.
+- **The models** (0x557d50) first rebuild every slot's material refs (0x55c470). The polygons go whole (0x28 bytes);
+  their +0x18 being set is what has the reader take UVs, one array per material. After the colours each slot's
+  refs follow (a material row, a usage count, a pointer). The offset of a slot's data goes in +0x64. The exe turns
+  the refs' materials into rows in memory; the port does not (fixes.md, FIX (bug)).
+- **The nodes** (0x515fb0) write only the live ones (link bit 0x2000000), in pool order. Every node index in the
+  file is the node's place among them (a remap; a node not written is -1 in the port, uninitialised memory in the
+  exe, fixes.md). The node's box pointer at +0x70 becomes 0, 1 or 2. An empty link list's pointer becomes 0, the
+  model its row (0x557b30), the action 0. Each node's data (0x516260) is in PM's layout: the world 0xcc with its
+  second area, partitions 0x58 with 12-byte cell entries carrying the y range (0x516800), the LoD 0x5c, the light
+  0x100. Its offset goes in the slot's +0x38, the data pointer; MW3 put it in +0xd0's low 24 bits. An unknown class
+  writes nothing, its link lists included. The header's node count is the number written.
+
+**Check: `tests/differential/test_pm_write_zbd.py`**: each of PM's four worlds read by test_pm_gamez's bench and
+the port, then written back by both.
+
+- The files are equal byte for byte, except the time stamp and the words where the exe wrote one of its own heap
+  pointers (its heap at 0x7a000000). The results, the reports and the list of files read are equal too.
+- Each side then reads its own file back to the same world.
+- c1 and c3 also run with every 97th node's live bit cleared: every shipped node is live, so the remap is reached
+  only this way. On those runs the exe's mallocs are filled with 0xff, so its unset entries read -1.
+
+Breaks caught: MW3's cycle order, no remap, the boxes 1 and 2 swapped, a polygon's UV word 0 (seen on reading back
+the models), the nodes' data offset not kept, the light's colours after its tail. Not seen: the models' offsets not
+kept (+0x64). As in MW3's test, a shipped world read and written back puts each model's data where the file had
+it, so the offsets the file held are already right.
+
 ## Re-reading part of the file (0x4ff730, 0x4ff7a0, 0x538640)
 
 0x4ff730(node, recurse) re-opens the remembered file (0x60bf50) through

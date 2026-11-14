@@ -71,12 +71,12 @@ produces; the label names the compared value. Reaching a function, or running a 
 | folded | 4070 |
 | replaced (SDL or the platform layer) | 263 |
 | software renderer | 115 |
-| debug or dev tool: PORT (preserve) | 94 |
 | MISSING LOGIC | 88 |
 | dev dialog (MFC), its logic: PORT (preserve) | 85 |
+| debug or dev tool: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 80 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
-| MISSING LOGIC (only data the shipped game lacks reaches it) | 36 |
+| MISSING LOGIC (only data the shipped game lacks reaches it) | 35 |
 | unlabelled | 1 |
 
 ## MISSING LOGIC
@@ -91,7 +91,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x0050cb90, 0x0055b850, 0x0055b8f0** (3 functions, 92 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only, part of anim event types 44 and 45 (see 0x0051e750's label): a node tree's models given a per-vertex vector (0x0050cb90 down the children when asked; 0x0055b8f0 over a range of polygons; 0x0055b850 one polygon's array of vectors, made on first use, +0x1c); called only from those two events and itself
 - **0x00515380** (1 functions, 22 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fd8c0: zClass's add-child for an animate (0x004fd8c0) or switch (0x004fd1e0) parent: the port's node_add_child (cls_node.cpp:186) handles worlds, links and object3d and aborts ('not ported yet') for cameras, LoDs, animate and switch parents, though the camera's own add-child is ported (camera.cpp, 0x004f33a0). No shipped data adds such a child at run time (every mission plays); a mod's scripts or data would abort the game
 - **0x00515c00** (1 functions, 98 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): read: PM's LoD fade values (+0x34, +0x38, +0x3c from the ranges +8, +0x10..+0x18, the switches +0x1c..+0x24 and the floors +0x28..+0x30, +0x50 one for all), computed by the LoD copy 0x0050d4e0 (MW3's 0x004f9840, cls_util.cpp copy_lod); the port leaves them zero, which is what every shipped tree computes (docs/pm-map.md, the node copies' Left): only a mod's LoD with those fields set would differ
-- **0x005168e0** (1 functions, 113 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as MW3 0x004fe8e0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts
 - **0x0051b2c0** (1 functions, 20 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): as 0x0051b340's label: PM's damage handler on an animation (MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832), otherwise the same with PM's def layout (+0xa1, +0xb8, +0xbc), first runs 0x0051b340, which starts a def's second sequence; no shipped PM animation has one
 - **0x0051b340** (1 functions, 17 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only, traced: PM's damage handler on an animation (0x0051b2c0, MW3's 0x00502df0, anim_on_collide zeff_anim_run.cpp:832) first runs 0x0051b340 on every hit: when the def has its second sequence (+0xd4, with events) it stamps the time ([0x008d3f68]), clears +0xb0 and runs that sequence from its start (0x0051fc00, 0x00520800: MW3's 0x00506f40, 0x005079b0); the port reads the sequence (AnimDef::pm_seq2, pm/gamez/zeffect/zeff_anim_init.cpp:126) but never runs it, and no shipped PM animation has one, so only a mod's would show it
 - **0x0051e720, 0x0051e750, 0x0051e890** (3 functions, 104 decomp lines; MISSING LOGIC (only data the shipped game lacks reaches it)): pm only: two new animation event types in PM's handler table (0x00521c70: slot 44 is 0x0051e750, slot 45 is 0x0051e890; the port's run dispatch stops at 42, zeff_anim_run.cpp:113, and marks others bad). 44 moves an object ref (0x0051e720: the def's ref by index, or -100 for the def's own node) by a position, velocity and acceleration integrated each frame from the event's start values; 45 the same for one vector with a rate and its change; both apply through 0x0050cb90 and end at the event's time. No shipped PM anim.zbd uses either (a scan of every sequence in c1..c4, 2026-11-13: types 1..42 only, no 21, 28, 43, 44 or 45), so only a mod's would show them
@@ -155,12 +154,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 - 1 functions, 9 decomp lines (0x004f38c0): as MW3 0x004e2310: the valve reader's print method (a vtable slot that fprintf's a value); nothing in the game prints a reader
 - 1 functions, 9 decomp lines (0x004f7250): as MW3 0x004e53b0: the valve reader's print method (a vtable slot that fprintf's a value); nothing in the game prints a reader
 - 1 functions, 35 decomp lines (0x00511180): the node class names for PM's mechlib trace lines (0x00511640 to stderr, 'read node: %s type %s'), its only use; the port leaves the trace lines out (pm/gamez/zclass/cls_mechlib.cpp:15)
-- 1 functions, 125 decomp lines (0x00515fb0): as MW3 0x004fe6c0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
-- 1 functions, 189 decomp lines (0x00516260): as MW3 0x004fe2d0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
-- 1 functions, 48 decomp lines (0x00516720): as MW3 0x004fe210, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70)
-- 1 functions, 53 decomp lines (0x00516800): called only from 0x00516260, which are debug
-- 1 functions, 11 decomp lines (0x00531810): as MW3 0x00518050, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127)
-- 1 functions, 53 decomp lines (0x00531870): as MW3 0x005180a0, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127)
 - 1 functions, 19 decomp lines (0x00533320): read: PM's screenshot grab (the back buffer grabbed through 0x00598600(2), the pixel format's masks and shifts taken, converted by 0x005333e0), from 0x004af600 (not a Ghidra function: mw3%08x.bmp, the first free name), the handler of command 0x86 (MW3's 0x7e plus 8; 0x0040b9f0 registers it); no key reaches it (docs/controls.md, docs/editor.md), as its siblings 0x00533380..0x00533580
 - 1 functions, 26 decomp lines (0x00533380): as MW3 0x005199e0: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 1 functions, 12 decomp lines (0x005333c0): as MW3 0x00519a20: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
@@ -168,9 +161,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 - 1 functions, 63 decomp lines (0x005334d0): as MW3 0x00519b30: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 1 functions, 19 decomp lines (0x00533580): as MW3 0x00519be0: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
 - 1 functions, 24 decomp lines (0x005335c0): as MW3 0x00519c20: the screenshot writer of the debug command 0x7e (0x004abbc0): copies the front buffer to 24-bit, flips it and saves a .bmp through a save dialog (0x00519cc0); no key reaches it
-- 1 functions, 137 decomp lines (0x00555ae0): as MW3 0x005360c0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool
-- 1 functions, 20 decomp lines (0x00557b30): called only from 0x00515fb0, which are debug
-- 1 functions, 302 decomp lines (0x00557d50): as MW3 0x005380e0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool
 - 2 functions, 21 decomp lines (0x00596510, 0x005c0340): pm only, debug, unreachable in the release: setters called only from cases of the key handler 0x0040ba30 that no registered command reaches (0x0040b9f0 registers it for commands 0x69, 0x74 and 0x78 only, whose cases are 0x0040bb31, 0x0040bcaa and 0x0040bcaf): a flag the timer's frame (0x00596430, MW3's 0x00575a00) reads at [0x006141b4], toggled (0x00596510, from the case at 0x0040ba7c, beside two that step a time scale through 0x005964e0), and the 2D-through-Direct3D flag [0x008d3aa9] set, returning the old (0x005c0340, from the case at 0x0040bc1b)
 - 1 functions, 224 decomp lines (0x00596590): as MW3 0x00575b00: the developer's stdout redirect (freopen to a log; editor.md:214)
 - 1 functions, 34 decomp lines (0x0059d3a0): pm only, debug: every Direct3D render state printed (states 1..0x40, 0x80..0x87 and the texture stage states, "Render State %d = %d"), from 0x0059eef5; a debugging dump of the D3D device (no render states under SDL; port for preservation as a print of the port's own state if wanted)
@@ -3538,7 +3528,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x004fc4d0 | 15 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x00432da0: the mech list dialog's MFC plumbing (constructor, destructor, DDX, OnOK, DoModal) |
 | 0x004fc650 | 30 | replaced (SDL or the platform layer) | group A, read: the fatal abort's message box and exit (PM's console mode flushes and exits at once); the port's crash box stands in |
 
-### zmodel (260 not ported)
+### zmodel (257 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -3580,7 +3570,6 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x005502d0 | 1161 | software renderer | called only from 0x0054a3b0, 0x0054a3d0, 0x0054a3f0, which are software |
 | 0x00555930 | 8 | folded | returns a constant or a global |
 | 0x00555940 | 8 | folded | returns a constant or a global |
-| 0x00555ae0 | 137 | debug or dev tool: PORT (preserve) | as MW3 0x005360c0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool |
 | 0x00556420 | 28 | folded | zModel's start and its pool's teardown (MW3's 0x00526800 and its unload, paired in test_pm_mission_load's stub list, which does not run them): the start (0x005400e0) makes the draw buffers and the pool's tables and resets the draw state (0x00556420: the current material and colour back to their defaults; pm-map.md, ported with the helpers that read them); the teardown (0x00540200) frees the pool's models and blocks, named at app_mission.cpp:1953 (the port's pool replaced whole) |
 | 0x005564c0 | 8 | folded | empty: does nothing |
 | 0x00556550 | 159 | folded | checked by test (block trace, 2026-11-13): test_pm_shadows and test_pm_mechlib reach it (the material's load / copy), comparing every material and model slot; test_pm_shadows also runs the shadow draw 0x0055da40 itself, its output compared |
@@ -3595,9 +3584,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00557af0 | 10 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:601) |
 | 0x00557b00 | 11 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:602) |
 | 0x00557b20 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:331) |
-| 0x00557b30 | 20 | debug or dev tool: PORT (preserve) | called only from 0x00515fb0, which are debug |
 | 0x00557be0 | 51 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
-| 0x00557d50 | 302 | debug or dev tool: PORT (preserve) | as MW3 0x005380e0, whose class PM's changes keep: the world's writers (gamez.md: 0x004fe8e0's materials 0x005360c0 and models 0x005380e0, saving a world back to a .zbd): a dev tool |
 | 0x005590e0 | 8 | folded | returns a constant or a global |
 | 0x005599a0 | 9 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:507) |
 | 0x005599b0 | 9 | folded | covered by the port where it names it (src/gamez/zclass/cls_node.cpp:507) |
@@ -3803,7 +3790,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00579130 | 12 | folded | checked by test (block trace, 2026-11-13): test_pm_zreader calls it directly on every key of every shipped reader entry; the value read compared |
 | 0x00579150 | 12 | folded | checked by test (block trace, 2026-11-13): test_pm_zreader calls it directly on every key of every shipped reader entry; the value read compared |
 
-### zclass (259 not ported)
+### zclass (254 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -4060,12 +4047,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00515c00 | 98 | MISSING LOGIC (only data the shipped game lacks reaches it) | read: PM's LoD fade values (+0x34, +0x38, +0x3c from the ranges +8, +0x10..+0x18, the switches +0x1c..+0x24 and the floors +0x28..+0x30, +0x50 one for all), computed by the LoD copy 0x0050d4e0 (MW3's 0x004f9840, cls_util.cpp copy_lod); the port leaves them zero, which is what every shipped tree computes (docs/pm-map.md, the node copies' Left): only a mod's LoD with those fields set would differ |
 | 0x00515e20 | 11 | folded | covered by the port where it names it (src/pm/gamez/zeffect/zeff_anim_init.cpp:353) |
 | 0x00515e40 | 25 | folded | read: teardown frees at the list system's end (each list's nodes and the free pools released, their counts cleared; from 0x0050c340, MW3's 0x004f8ab0, and 0x0050caf0, MW3's 0x004f8fb0); the port's objects free themselves |
-| 0x00515fb0 | 125 | debug or dev tool: PORT (preserve) | as MW3 0x004fe6c0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
-| 0x00516260 | 189 | debug or dev tool: PORT (preserve) | as MW3 0x004fe2d0, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
-| 0x00516720 | 48 | debug or dev tool: PORT (preserve) | as MW3 0x004fe210, whose class PM's changes keep: the world's writers (gamez.zbd saved back: the node pools, 0x004fe6c0 -> 0x004fe2d0 -> 0x004fe210; gamez.md) and two debug-only helpers (mechlib's type name for its debug log 0x004fce40; the frame counter for the developer lines 0x004f6c70) |
-| 0x00516800 | 53 | debug or dev tool: PORT (preserve) | called only from 0x00516260, which are debug |
-| 0x005168e0 | 113 | MISSING LOGIC (only data the shipped game lacks reaches it) | as MW3 0x004fe8e0, whose class PM's changes keep: a script engine command (zinterp.h) the port leaves null (hook_allow: counted): no shipped script uses it (the script census: 0 skipped). The commands build or change the world at run time (worlds, partitions, cameras, windows, displays, sequences, lights, models, palettes); for a mod's scripts |
-| 0x00517960 | 30 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_zbd.cpp:105) |
+| 0x00517960 | 30 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_zbd.cpp:106) |
 
 ### znetwork (169 not ported)
 
@@ -4795,7 +4777,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x00590670 | 20 | folded | as MW3 0x0056f230: covered: a sound's play with the master volume (zsnd_play.cpp:134), the playing list's node |
 | 0x005906a0 | 17 | folded | read: a 40-byte value copied into a new std::list node (the STL's construct), from the sound play 0x0058ff90's list inserts; MW3's 0x0056eb10 does it inline, the port's list does it itself |
 
-### zimage (70 not ported)
+### zimage (68 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -4832,10 +4814,8 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x005317b0 | 9 | folded | a thunk: one call to another function |
 | 0x005317e0 | 9 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
 | 0x005317f0 | 9 | folded | a thunk: one call to another function |
-| 0x00531810 | 11 | debug or dev tool: PORT (preserve) | as MW3 0x00518050, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127) |
-| 0x00531840 | 11 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_zbd.cpp:30) |
+| 0x00531840 | 11 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_zbd.cpp:31) |
 | 0x00531860 | 8 | folded | returns a constant or a global |
-| 0x00531870 | 53 | debug or dev tool: PORT (preserve) | as MW3 0x005180a0, whose class PM's changes keep: the texture directory writer (0x005180a0, 'Error writing texture directory.') and its entry-index helper, part of the world writers (gamez.md:127) |
 | 0x00531c50 | 59 | replaced (SDL or the platform layer) | as MW3 0x005184e0, whose class PM's changes keep: the texture table's start-up: zeroes the table and makes the Direct3D default texture record; the port's GPU textures make their own (zimg_texture.cpp:109, fixes.md puffer row) |
 | 0x00531d60 | 11 | folded | covered by the port where it names it (src/frontend/sdl/sdl_twod_host.cpp:174) |
 | 0x00531e70 | 12 | folded | covered by the port where it names it (src/gamez/zimage/zimg_library.cpp:386) |

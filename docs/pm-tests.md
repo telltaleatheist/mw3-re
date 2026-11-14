@@ -1311,3 +1311,11 @@ MW3's +0x40, +0x140, +0x64), which the port reaches through NetHooks. The reader
 link step 0x402370 / 0x402350, the net 0x402170 / 0x402140, the node's link methods 0x403d30 .. 0x403ef0, the frees
 0x402500 / 0x402540 / 0x4025c0 and the null node 0x4b2230 are MW3's (zainet105.cpp) with cdecl calls and loops
 compiled the other way round. Read, not run: test_net105.py's bench uses MW3's register calls and import stubs.
+
+## Today's preservation ports on PM: WriteZBD (2026-11-14)
+
+PM's world writer (0x5168e0 with 0x531870, 0x555ae0, 0x557d50, 0x515fb0, 0x516260, 0x516720, 0x516800, 0x557b30) is
+ported on pm as its own (`pm::zcls::write_zbd` and the pm writers beside the pm readers; gamez.md, Writing a world
+back, Pirate's Moon). `test_pm_write_zbd.py`: PM's four worlds read and written back by the exe and the port, equal
+byte for byte but for the time stamp and the exe's own heap pointers, the reports and file list equal, each file
+read back to the same world; c1 and c3 again with every 97th node not written (the remap). Breaks: see gamez.md.
