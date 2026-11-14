@@ -750,6 +750,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mission.cpp tests/pm/pm_kill.cpp
     tests/pm/test_pm_model_users.cpp
     tests/pm/test_pm_target_desc.cpp
+    tests/pm/test_pm_weapon_save.cpp
     tests/pm/test_pm_remote_hit.cpp
     tests/pm/test_pm_net_objectives.cpp
     tests/pm/test_pm_model_bound.cpp  # the model reader's bound on PM's reader (FIX (A) memory safety)

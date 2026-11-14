@@ -312,6 +312,24 @@ TEST(pm_wire_vehicle_net_part_leaves_the_home_alone) {
   delete f.self.net;
 }
 
+// Pirate's Moon 0x004fbe90 (the brain's vt+0x0c, from the vehicle's placing 0x004a6a20): the brain's +0x2b8 (x298)
+// put where the vehicle stands and the steering given a fresh way from there (its set, 0x004dc7a0).
+TEST(pm_wire_way_reset_lays_the_way_from_the_vehicle) {
+  struct InWorld : Fake {
+    Handle entity_node(Handle) override { return 0x99; }
+  } f;
+  Installed in(&f);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  const int32_t sets = pm_brain(b).steer.sets;
+  pm_way_reset(b);
+  EXPECT(b.x298[0] == 1.0f && b.x298[1] == 2.0f && b.x298[2] == 3.0f);
+  EXPECT(pm_brain(b).steer.sets == sets + 1);
+  pm_forget(b, 7);
+}
+
 TEST(pm_wire_nets_ten_slots_and_the_kind_lookup) {
   Fake f;
   Installed in(&f);

@@ -1879,7 +1879,7 @@ struct WiredMissionHooks : MissionHooks {
     skin_globals().damage_mode = on;
   }
   void set_use_archive() override { zint::globals().use_archive = 1; }
-  void clear_9a17c0() override { e->poke32(0x9a17c0, 0); }
+  void clear_9a17c0() override { zwep::hit_state().hits = 0; }  // PM 0x00492ec0: [0x00b0e440], the weapons' saved count
   void set_view(Handle v) override { e->poke32(0x5f4c8c, v); }
   Handle view() override { return e->peek32(0x5f4c8c); }
   void set_608c84(Handle v) override { e->poke32(0x608c84, v); }
@@ -2747,7 +2747,7 @@ void GameEngine::save_init() {
 }
 void GameEngine::save_shutdown() { zsave::shutdown(); }
 void GameEngine::anim_enable(int32_t on) { zeff::anim_enable_save(on); }
-void GameEngine::weapons_set_mode(int32_t v) { zwep::set_network(v); }
+void GameEngine::weapons_set_mode(int32_t v) { zwep::set_save(v); }
 
 void GameEngine::timer_update() {
   movie_cd_pending_step();  // ours (W47): a movie's held-back CD resume
