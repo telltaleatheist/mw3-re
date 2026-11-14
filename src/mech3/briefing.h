@@ -140,6 +140,9 @@ struct BriefingScript {
     at = steps.begin();
   }
   void step(float dt);               // the head of 0x00406440
+  // Pirate's Moon 1.0 @ 0x00405f20's skip, and 0x00404780's before MECHLAB and SALVAGE: every
+  // step left, the one playing first, run once with 60 s, then stopped, so the map ends drawn.
+  void finish(Engine& e);
 };
 
 // [0x005e043c] the map step the script reached (-1 none) and [0x005f4c84]
