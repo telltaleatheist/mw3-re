@@ -33,7 +33,8 @@ class OptionsState : public MenuState {
   bool enter() override;
   void resume(uint32_t arg) override { ShellState::resume(arg); }  // 0x0042da70
   // Pirate's Moon 1.0 @ 0x0043b790 (Gfx and Audio, vt+0x28): the volumes back as they were on
-  // entering, so BACK undoes the sliders; the others MW3's 0x00438c80.
+  // entering, so BACK undoes the sliders; 0x004399e0 (Game Options): the pop with 7; the others
+  // MW3's 0x00438c80.
   void escape() override;
   Kind kind;
   float kept_effects = 0.0f, kept_music = 0.0f;  // PM's +0x10, +0x14 (Gfx and Audio, set by enter)

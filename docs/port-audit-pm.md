@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4080 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 172 |
+| MISSING LOGIC | 171 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -91,7 +91,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x004311e0** (1 functions, 228 decomp lines; MISSING LOGIC): PM values the shared port keeps as MW3's (pm only): the god camera (mode 3) at 120 m and pitched -81 degrees (-1.413716) in PM, 150 m and -90 degrees in MW3 (player_view.cpp:446-447)
 - **0x00432e40** (1 functions, 20 decomp lines; MISSING LOGIC): pm only, with PM's mech destructor (0x00415940's row): before the mech's node trees are freed, PM stops every animation using any node of them (this walk, each node through 0x0051f750 = MW3's 0x00506bc0 with 1, 1: zeff::anim_stop_using), on the mech's own tree and its +0x6b8 / +0x6bc trees, and in 0x004335c0 (MW3's 0x00413db0); MW3's destructor and the port's mech teardown stop none (the field base does, mech_fieldbase.cpp:333). Effect: an animation on a deleted mech's nodes (a network player leaving, a mech removed) runs on in MW3 and the port
 - **0x004335c0** (1 functions, 36 decomp lines; MISSING LOGIC): pm only, with PM's mech destructor (0x00432e40's row): PM's debris free (MW3's 0x00413db0, the port's debris_free, app_mech.cpp:827) stops every animation on each debris tree (0x00432e40) before it is taken off its parent and freed; the port frees it without (the auto 'covered' label it had came from MW3's comment there)
-- **0x004399e0** (1 functions, 9 decomp lines; MISSING LOGIC): pm only, minor: the game options state's escape (PM vtable 0x005e1f60 slot +0x28; MW3's MenuState::escape 0x00438c80, pop with 1) pops with 7, which no PM state below it takes (the main state's 4..5, the shell's 1), so ShellState::resume (PM 0x0048d0b0) skips the one redraw of the screen under it; MW3 redraws it once on the way back. Leaving the game options by Escape, CANCEL or ACCEPT (each escapes)
 - **0x0043b1e0, 0x0043b450** (2 functions, 142 decomp lines; MISSING LOGIC): pm only, minor, with 0x0043b2d0: the graphics screen's RESOLUTION and TEXTURES cycles' on_left_up keep the choice per video device (the device cycle's value < 4) in the screen's arrays +0x14140 / +0x14154, which the cycles select from when the device changes (0x0043b2d0, labelled) and 0x0043a060 fills on entry; the port has no per-device memory (options_menu.cpp:530, rebuilt from the device's range)
 - **0x0043b2d0** (1 functions, 71 decomp lines; MISSING LOGIC): pm only, minor, group A, read: the TEXTURES cycle offers the same items by the same bits and card memory, but selects differently: PM selects the screen's stored value per device (app +200, +0x14150 for software, +0x14154 + device*4 for a card) and a card past index 3 first selects 2 MB, with no fallback, so an unset (0) value leaves the selection where it was; MW3 and the port select the last item added (or the card's megabytes), then TextureMemory if set (options_menu.cpp:326-360) (MW3 0x0043a310)
 - **0x0043cf50** (1 functions, 57 decomp lines; MISSING LOGIC): PM's HUD ZAPS static (MW3 0x0043be70's version, the hit's static on a HUD channel): unported, and its hook is the census stand-in DamageCalls.zaps_hud, as in MW3 (docs/port-audit.md, BROKEN row 3)
@@ -505,7 +504,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## By module
 
-### mech3ep1 (3295 not ported)
+### mech3ep1 (3294 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -1275,7 +1274,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00439930 | 26 | folded | the Game Options State's destructor in PM: the two owned states (graphics/audio +0x10, controls +0x14, see 0x00439840) deleted, then MenuState's (0x0048cf60, MW3's 0x0048eb80); MW3 deletes them at the program's end (app_states.cpp:1173) |
 | 0x004399a0 | 9 | folded | MW3's 0x004380c0 / 0x004380e0 (GameOptionsScreen::PushButton: the graphics/audio or controls state pushed, no sound), read: PM's push the states the options state owns (+0x10, +0x14) where MW3's push the globals; 0x00438bf0 picks one by the button's id (1, 2) |
 | 0x004399c0 | 9 | folded | MW3's 0x004380c0 / 0x004380e0 (GameOptionsScreen::PushButton: the graphics/audio or controls state pushed, no sound), read: PM's push the states the options state owns (+0x10, +0x14) where MW3's push the globals; 0x00438bf0 picks one by the button's id (1, 2) |
-| 0x004399e0 | 9 | MISSING LOGIC | pm only, minor: the game options state's escape (PM vtable 0x005e1f60 slot +0x28; MW3's MenuState::escape 0x00438c80, pop with 1) pops with 7, which no PM state below it takes (the main state's 4..5, the shell's 1), so ShellState::resume (PM 0x0048d0b0) skips the one redraw of the screen under it; MW3 redraws it once on the way back. Leaving the game options by Escape, CANCEL or ACCEPT (each escapes) |
 | 0x00439a20 | 11 | folded | inside its ported callers (0x0043a060): a small helper their ports do their own way |
 | 0x00439e60 | 14 | folded | by the slot pairing: PM vtable 0x5e26d0 slot 0x84 is MW3 vtable 0x5bff20's 0x0043a6c0 (MW3 ported src/mech3/options_menu.cpp:278), the feature compare equal (7f6e9e10) |
 | 0x00439ee0 | 11 | folded | MW3's 0x00428c60 (StateBackButton::on_left_up: the owner screen's state escaped, vt+0x28), read: PM's copy, the screen's state field at +0x1117c |

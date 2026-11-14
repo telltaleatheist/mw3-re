@@ -40,7 +40,10 @@ bool OptionsState::enter() {
 }
 
 // Pirate's Moon 1.0 @ 0x0043b790 (0x0040b980 / 0x0040b9b0, then the pop as 0x00438c80)
+// Pirate's Moon 1.0 @ 0x004399e0 (Game Options, vt+0x28): the pop with 7, which no state below takes,
+// so the one redraw of the screen under it is skipped (its animation redraws it anyway); MW3's 1.
 void OptionsState::escape() {
+  if (kind == kGame) return e().pop_state(7);
   if (kind == kGfxAudio) {
     Engine& en = e();
     en.set_sound_frequency(kept_effects);
