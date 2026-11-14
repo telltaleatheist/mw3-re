@@ -443,7 +443,7 @@ AiNet* CZAiNetEdit::build_compiled() {
   return cn;
 }
 
-// Mech3.exe 1.2 @ 0x004bed90 (0x004bf4e0 its list's push): with the file's data, the vehicles on the net built before
+// Mech3.exe 1.2 @ 0x004bed90, Pirate's Moon 1.0 @ 0x004c5cb0 (0x004bf4e0 its list's push): with the file's data, the vehicles on the net built before
 // kept and the net let go (0x004bf4b0), the older net class read from the file's tree (0x00402590 -> 0x004025b0:
 // its name the file's, the header's number its +0x18), and the kept vehicles handed it. Ported for preservation
 // (docs/ai.md 9, 17.9): no shipped net file is version 105.

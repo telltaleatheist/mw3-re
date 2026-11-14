@@ -244,4 +244,10 @@ void device_call(const pm::zmod::DeviceCall& d) {
   s.primitive = held;
 }
 
+// Pirate's Moon 1.0 @ 0x005981f0 (VideoSetWireFrame, its dispatcher 0x005b656f; ported for preservation, the engine's
+// entry left null): the device's FILLMODE at once, 2 wireframe for any non-zero, else 3 solid. MW3's 0x00579230 only
+// kept the mode for the next scene (zvid::set_wireframe). Without a device (PM's software renderer, not ported) the
+// exe does nothing.
+void set_wireframe(int32_t on) { ::zvid::set_render_state(8, on ? 2 : 3); }
+
 }  // namespace pm::zvid

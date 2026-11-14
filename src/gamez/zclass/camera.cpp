@@ -615,18 +615,18 @@ int camera_get_clip(Node* node, float* near_clip, float* far_clip) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f3a70
+// Mech3.exe 1.2 @ 0x004f3a70, Pirate's Moon 1.0 @ 0x00506ef0 (PM's report line 0x3ec; MW3's 0x5ca)
 int camera_set_clip(Node* node, float near_clip, float far_clip) {
-  if (int r = check_class(node, 1, kFile, 0x5ca)) return r;
+  if (int r = check_class(node, 1, kFile, 0x3ec)) return r;
   auto* c = static_cast<Camera*>(node->data);
   c->put(0xb0, near_clip), c->put(0xb4, far_clip);
   c->put<int32_t>(0xf8, 1);
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f3b90. The angle is clamped to 1.396 rad (80 degrees).
+// Mech3.exe 1.2 @ 0x004f3b90, Pirate's Moon 1.0 @ 0x00507010 (PM's report line 0x436; MW3's 0x614). The angle is clamped to 1.396 rad (80 degrees).
 int camera_set_fov(Node* node, float h, float v) {
-  if (int r = check_class(node, 1, kFile, 0x614)) return r;
+  if (int r = check_class(node, 1, kFile, 0x436)) return r;
   auto* c = static_cast<Camera*>(node->data);
   const float ah = c->get<float>(0xe0) / h, av = c->get<float>(0xe4) / v;
   c->put(0xd8, h), c->put(0xdc, v);
@@ -689,14 +689,16 @@ int camera_set_window(Node* node, Node* window) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f3d90: the field of view as angles (+0xe8/+0xec are
+// Mech3.exe 1.2 @ 0x004f3d90, Pirate's Moon 1.0 @ 0x005071e0 (PM's report line 0x495; MW3's 0x673): the field of view as angles (+0xe8/+0xec are
 // what 0x004f3b90 derives), the base the factors divide.
 int camera_set_fov_angles(Node* node, float h, float v) {
-  if (int r = check_class(node, 1, kFile, 0x673)) return r;
+  if (int r = check_class(node, 1, kFile, 0x495)) return r;
   Camera* c = cam_of(node);
   const double ah = static_cast<double>(h) / c->get<float>(0xd8), av = static_cast<double>(v) / c->get<float>(0xdc);
   c->put<int32_t>(0x138, 1), c->put<int32_t>(0xf8, 1);
-  const double hh = ah * 0.5, hv = av * 0.5;
+  // PM's (0x00507287): the vertical angle stored as a float and read back before it is halved and its tangent taken;
+  // MW3's kept it on the x87.
+  const double hh = ah * 0.5, hv = static_cast<double>(static_cast<float>(av)) * 0.5;
   c->put(0xe0, h), c->put(0xe4, v);
   c->put(0xe8, static_cast<float>(ah)), c->put(0xec, static_cast<float>(av));
   c->put(0xf0, static_cast<float>(hh)), c->put(0xf4, static_cast<float>(hv));
@@ -705,9 +707,9 @@ int camera_set_fov_angles(Node* node, float h, float v) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f3ee0: the angles 0x004f3d90 set (+0xe0, +0xe4).
+// Mech3.exe 1.2 @ 0x004f3ee0, Pirate's Moon 1.0 @ 0x005072e0 (PM's report line 0x4ca; MW3's 0x6a8): the angles 0x004f3d90 set (+0xe0, +0xe4).
 int camera_get_fov_angles(Node* node, float* h, float* v) {
-  if (int r = check_class(node, 1, kFile, 0x6a8)) return r;
+  if (int r = check_class(node, 1, kFile, 0x4ca)) return r;
   const Camera* c = cam_of(node);
   *h = c->get<float>(0xe0);
   *v = c->get<float>(0xe4);
@@ -794,9 +796,9 @@ int camera_add_position(Node* node, float x, float y, float z) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004f3ff0
+// Mech3.exe 1.2 @ 0x004f3ff0, Pirate's Moon 1.0 @ 0x005073f0 (PM's report line 0x50d; MW3's 0x6eb)
 int camera_set_lod_scale(Node* node, float f) {
-  if (int r = check_class(node, 1, kFile, 0x6eb)) return r;
+  if (int r = check_class(node, 1, kFile, 0x50d)) return r;
   Camera* d = cam_of(node);
   d->put(0xd0, f);
   d->put(0xd4, 1.0f / (f * f));

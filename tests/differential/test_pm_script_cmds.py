@@ -16,7 +16,7 @@ from pathlib import Path
 os.environ['MW3_EXE'] = 'pm'
 os.environ['MW3_PM_MOVED'] = '1'  # this test's addresses are PM's own
 sys.path.insert(0, str(Path(__file__).parent))
-from original import ROOT, Original  # noqa: E402
+from original import FTOL, ROOT, Original  # noqa: E402
 from unicorn.x86_const import UC_X86_REG_EAX  # noqa: E402
 
 LIB = next((ROOT / 'build').glob('libpmprobe.*'))
@@ -39,6 +39,12 @@ probe.probe_pm_node_lighting.argtypes = [P, P, P, I32, I32]
 probe.probe_pm_node_lighting.restype = I32
 probe.probe_pm_model_cmd.argtypes = [I32, P, P, P, P, P, P, I32, P, I32, I32, F, P]
 MALLOC, FREE = 0x5de664, 0x5de65c
+probe.probe_mark_paint.argtypes = [I32, I32, I32, I32, P, I32, I32, I32, P, P, P, I32, I32, I32]
+probe.probe_mark_paint.restype = I32
+probe.probe_pm_anim_camera.argtypes = [I32, P, I32, I32, P, I32, F, P, P, I32]
+probe.probe_pm_anim_camera.restype = I32
+probe.probe_pm_wireframe.argtypes = [I32, I32]
+probe.probe_pm_wireframe.restype = I32
 MODEL = {0: 0x559910, 1: 0x55b810, 2: 0x55be00, 3: 0x55b630, 4: 0x559940}
 
 # PM's own: the report (0x49bfd0's), zGeometry's buffer report (0x50da70's), the C runtime.
@@ -83,6 +89,7 @@ class Exe:
         cpu.stub_function(NODE_DELETE, lambda c: 0)
         cpu.stub_function(SOFT_CLEAR, lambda c: 0)
         cpu.stub_import(PRINTF, self.printf)
+        cpu.import_code(0x5de644, FTOL)  # PM's _ftol import
         cpu.stub_import(MALLOC, lambda c: c.alloc(max(1, c.arg(0))))
         cpu.stub_import(FREE, lambda c: 0)
         cpu.stub_import(STRNCMP, self.strncmp)
@@ -491,11 +498,132 @@ def model_cases(exe, rng, count):
         if cpu.read(glob, 8) != struct.pack('<2I', *args):
             raise SystemExit(f'{addr:#x}: {cpu.read(glob, 8).hex()}')
         done += 1
+    # VideoSetWireFrame 0x5981f0: the device (0xb09f08)'s SetRenderState through its vtable kept at 0xb09f0c (+0x58).
+    sent = []
+    set_state, vtable, device = cpu.code(b'\xc3'), exe.zeroed(0x60), exe.zeroed(8)
+    cpu.stub_function(set_state, lambda c: sent.append((c.arg(1), c.arg(2))) and 0, pop_bytes=0xc)
+    cpu.u32(vtable + 0x58, set_state), cpu.u32(device, vtable)
+    cpu.u32(0xb09f08, device), cpu.u32(0xb09f0c, vtable)
+    for on in (0, 1, 2, -1, 0x7fffffff):
+        for before in (0, 1):
+            sent.clear()
+            exe.call(0x5981f0, on)
+            if len(sent) != 1 or sent[0][0] != 8 or int(sent[0][1] == 2) != probe.probe_pm_wireframe(on, before):
+                raise SystemExit(f'VideoSetWireFrame {on}: {sent}')
+            done += 1
     cpu.u32(0x8c4b60, 41)
     exe.call(0x520960)
     if struct.unpack('<I', cpu.read(0x60f2c8, 4))[0] != 42:
         raise SystemExit('0x520960: not the next frame')
     return done + 1
+
+
+def mark_cases(exe, rng, count):
+    """PM's texture-mark painter 0x548220: MW3's 0x542060 with PM's globals (on 0xa4e0b8, type 0xa4e0bc, maps
+    0xa4e0c0, uv 0xa4e0cc, format 0xa4e59c), its entry's surface at +8, and its lock 0x8c4b90 (surface, &pixels,
+    &pitch), unlock 0x8c4b94 and reload 0x8c4b9c (the entry, a rectangle)."""
+    cpu, done = exe.cpu, 0
+    reloads, state = [], {}
+    lock_at, unlock_at, reload_at = cpu.code(b'\xc3'), cpu.code(b'\xc3'), cpu.code(b'\xc3')
+
+    def lock(c):
+        cpu.u32(c.arg(1), state['pixels'])
+        cpu.u32(c.arg(2), state['pitch'])
+        return 1
+    cpu.stub_function(lock_at, lock)
+    cpu.stub_function(unlock_at, lambda c: 0)
+    cpu.stub_function(reload_at, lambda c: reloads.append(c.arg(0)) and 0)
+    cpu.u32(0x8c4b90, lock_at), cpu.u32(0x8c4b94, unlock_at), cpu.u32(0x8c4b9c, reload_at)
+    for _ in range(count):
+        tw, th, mw, mh = rng.randrange(1, 13), rng.randrange(1, 13), rng.randrange(1, 15), rng.randrange(1, 15)
+        tpal, mpal = (0 if rng.random() < 0.9 else 4), (0 if rng.random() < 0.9 else 4)
+        mflags = rng.choice([3, 3, 3, 3, 1, 2, 7, 0x13])
+        on, has_alpha, fmt, surface = int(rng.random() < 0.92), rng.random() < 0.6, rng.choice([5, 6]), \
+            int(rng.random() < 0.3)
+        uv = [f32(rng.uniform(-2.6, 2.6)), f32(rng.uniform(-2.6, 2.6))]
+        tpix = [rng.getrandbits(16) for _ in range(tw * th)]
+        mpix = [rng.choice([0, rng.getrandbits(16)]) for _ in range(mw * mh)]
+        malpha = bytes(rng.choice([0, 2, 5, 9, 100, 200, 0xfb, 0xfc, 0xff]) for _ in range(mw * mh))
+        tex, mark = exe.zeroed(0x38), exe.zeroed(0x38)
+        tp, mp, ma = cpu.alloc(2 * tw * th), cpu.alloc(2 * mw * mh), cpu.alloc(mw * mh)
+        cpu.write(tp, struct.pack(f'<{tw * th}H', *tpix)), cpu.write(mp, struct.pack(f'<{mw * mh}H', *mpix))
+        cpu.write(ma, malpha)
+        for t, w, h, pal, px, al in ((tex, tw, th, tpal, tp, 0), (mark, mw, mh, mpal, mp, ma if has_alpha else 0)):
+            cpu.write(t + 4, struct.pack('<hh', w, h)), cpu.write(t + 0xe, struct.pack('<h', pal))
+            cpu.u32(t + 0x10, px), cpu.u32(t + 0x14, al)
+        entry, mentry, mat, hit = exe.zeroed(0x2c), exe.zeroed(0x2c), exe.zeroed(0x2c), exe.zeroed(0x28)
+        cpu.u32(entry, tex), cpu.u32(entry + 8, 0x5000 if surface else 0)
+        cpu.u32(mentry, mark)
+        cpu.write(mat + 1, bytes([mflags])), cpu.u32(mat + 0x10, entry), cpu.u32(hit + 0x20, mat)
+        cpu.u32(0xa4e0b8, on), cpu.u32(0xa4e0bc, 1), cpu.u32(0xa4e0c4, mentry)
+        cpu.write(0xa4e0cc, struct.pack('<2f', *uv))
+        cpu.u32(0xa4e59c, fmt)
+        state.update(pixels=tp, pitch=2 * tw)
+        reloads.clear()
+        exe.call(0x548220, hit)
+        want = (cpu.read(tp, 2 * tw * th), cpu.read(0xa4e0cc, 8), len(reloads))
+        tb, ub = (ctypes.c_uint16 * (tw * th))(*tpix), (ctypes.c_float * 2)(*uv)
+        n = probe.probe_mark_paint(mflags, tw, th, tpal, tb, mw, mh, mpal, (ctypes.c_uint16 * (mw * mh))(*mpix),
+                                   ctypes.create_string_buffer(malpha, mw * mh) if has_alpha else None, ub, on, fmt,
+                                   surface)
+        got = (bytes(tb), bytes(ub), n)
+        if got != want:
+            raise SystemExit(f'mark case {done} (target {tw}x{th}, mark {mw}x{mh}, uv {uv}, flags {mflags:#x}, on {on},'
+                             f' format {fmt}, surface {surface}): {got[1:]} != {want[1:]}')
+        SEEN['mark'] = SEEN.get('mark', 0) + 1
+        done += 1
+    return done
+
+
+def anim_cases(exe, rng, count):
+    """Anim events 20 (0x51c370) and 21 (0x51c4d0) on PM's exe: the def's node refs at +0xe8 (0x2c bytes each, the
+    node at +0x28), PM's time left 0x8d3f68, PM's camera setters with PM's report lines."""
+    cpu, done = exe.cpu, 0
+    for _ in range(count):
+        which = rng.choice([20, 21])
+        raw = bytearray(rng.randbytes(0x1e8))
+        for off in (0xb0, 0xb4, 0xd0, 0xd8, 0xdc, 0xe0, 0xe4):
+            struct.pack_into('<f', raw, off, f32(rng.uniform(0.2, 3.0)))
+        cls, null_node = (1 if rng.random() < 0.9 else 3), rng.random() < 0.08
+        ev = bytearray(0x6c)
+        struct.pack_into('<I', ev, 0xc, rng.getrandbits(7))
+        struct.pack_into('<i', ev, 0x10, rng.choice([1, 1, 1, 1, 0, -1]))
+        for off in range(0x14, 0x68, 4):
+            struct.pack_into('<f', ev, off, f32(rng.uniform(0.3, 2.5)))
+        end = f32(rng.uniform(0.5, 4))
+        struct.pack_into('<f', ev, 0x68, end)
+        state = rng.choice([0, 0, 1])
+        time = f32(rng.choice([end * 0.5, end, end * 1.3, rng.uniform(0, 5)]))
+        left = f32(rng.uniform(0.01, 0.2))
+        node, data, table, seq, evp = exe.zeroed(0xe0), cpu.alloc(0x1e8), exe.zeroed(0x2c * 3), exe.zeroed(0x40), \
+            cpu.alloc(0x6c)
+        cpu.u32(node + 0x34, cls), cpu.u32(node + 0x38, data)
+        cpu.write(data, raw)
+        cpu.u32(table + 0x2c + 0x28, 0 if null_node else node)
+        defp = exe.zeroed(0x140)
+        cpu.u32(defp + 0xe8, table)
+        cpu.write(seq + 0x20, bytes([state])), cpu.write(seq + 0x28, struct.pack('<f', time))
+        cpu.write(evp, ev)
+        cpu.write(0x8d3f68, struct.pack('<f', left))
+        r = exe.call(0x51c370 if which == 20 else 0x51c4d0, defp, seq, evp)
+        want = (r & 0xffffffff, cpu.read(data, 0x1e8), cpu.read(0x8d3f68, 4), exe.take())
+        rb, lb = ctypes.create_string_buffer(bytes(raw), 0x1e8), (ctypes.c_float * 1)(left)
+        rep = (ctypes.c_int32 * 512)()
+        k = probe.probe_pm_anim_camera(which, rb, cls, int(null_node), ctypes.create_string_buffer(bytes(ev), 0x6c),
+                                       state, time, lb, rep, 512)
+        g, w = bytearray(rb.raw), bytearray(want[1])
+        for off in (0xd4, 0x1d4, 0x1d8):  # the setters' derived words, within 2 ulps (test_script_cmds.py's)
+            if abs(struct.unpack_from('<i', g, off)[0] - struct.unpack_from('<i', w, off)[0]) <= 2:
+                g[off:off + 4] = w[off:off + 4]
+        got = (k & 0xffffffff, bytes(g), bytes(lb), [rep[1 + i] for i in range(rep[0])])
+        if got != want:
+            diff = [hex(i) for i in range(0x1e8) if got[1][i] != want[1][i]]
+            raise SystemExit(f'anim event {which} case {done} (flags {struct.unpack_from("<I", ev, 0xc)[0]:#x}, state '
+                             f'{state}, class {cls}, null {null_node}): {k} vs {want[0]}, {diff}, reports {got[3]} '
+                             f'{want[3]}')
+        SEEN[f'anim {which} result {k}'] = SEEN.get(f'anim {which} result {k}', 0) + 1
+        done += 1
+    return done
 
 
 def main():
@@ -505,8 +633,10 @@ def main():
     w, c, s = world_cases(exe, rng, count), camera_cases(exe, rng, count), seq_cases(exe, rng, count)
     wn, li, lt = window_cases(exe, rng, count), list_cases(exe, rng, count), lighting_cases(exe, rng, count)
     mo = model_cases(exe, rng, count)
+    mk = mark_cases(exe, rng, count)
+    an = anim_cases(exe, rng, count)
     print(f'ok: on PM\'s exe {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} '
-          f'lighting and {mo} model commands as the port (data, globals, outputs, results, report lines)')
+          f'lighting and {mo} model commands {mk} texture marks and {an} anim camera events as the port (data, globals, outputs, results, report lines)')
     print(dict(sorted(SEEN.items())))
 
 

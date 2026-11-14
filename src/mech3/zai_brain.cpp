@@ -247,8 +247,9 @@ bool Order::set_behaviour(Behaviour* b) {
 
 // Mech3.exe 1.2 @ 0x004c0070 -> 0x004c0010
 NetPart* CompiledNet::make_part(Order& o) { return new NetLink(&o, this, false); }
-// Mech3.exe 1.2 @ 0x004c0310 (0x00410400 runs it on 0x00604008 at start-up): an id from 10000 (0x0058b1c0 over
-// [0x005f2a48]), the base (0x004bf910) holding one, the default behaviour pushed on.
+// Mech3.exe 1.2 @ 0x004c0310 (0x00410400 runs it on 0x00604008 at start-up), Pirate's Moon 1.0 @ 0x004c7300 / 0x00410ec0
+// (on 0x00627c68): an id from 10000 (0x0058b1c0 over [0x005f2a48]; PM's 0x005acbe0 over [0x00616458], cdecl), the
+// base (0x004bf910; PM 0x004c67f0) holding one, the default behaviour (PM 0x00627cc8) pushed on.
 BuiltinNet::BuiltinNet() : CompiledNet(znet::alloc_id(znet::kKeptIds, znet::kKeptIds, znet::kKeptIds + 100), 1) {
   elems.push_back(default_behaviour());
 }

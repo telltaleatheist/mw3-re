@@ -1251,3 +1251,63 @@ NodeSetLighting (0x50db40) sets a node's PM model too (`pm_model`). TextureSetWo
 exe (with the setters and the debug frame), and the lighting cases through both a node's MW3 model and its PM one,
 0 differ. Breaks caught: MW3's back face bit, MW3's colour test, the lighting without the PM model; MW3's 8-bit count
 not (no random polygon has 256 points).
+
+## Today's preservation ports on PM, part 4: MakeShadows (2026-11-14)
+
+PM's MakeShadows 0x563d20 and its walk (0x563b80, 0x5639e0, 0x563b30) are MW3's over pm's translated layouts (the
+same names, -1000, first crossings, column by column); the object step hands its model to PM's builder 0x563760,
+which is MW3's over PM's models: 0x28-byte polygons, the count the low 10 bits, the colours at +0x1c (the same 0.2,
+the weight test, the 1,024-word array: FIX (A) as MW3's). `pm::zmod::shadow_model` (pm/gamez/zmodel/gmod_shadows);
+the shared walk takes a node's `pm_model` to it. `test_pm_make_shadows.py`: PM's four worlds read by PM's loader on
+its exe (test_pm_gamez.py's bench) and by the port, MakeShadows with the stand-in query (PM's 0x501030, cdecl):
+150,715 segments, both ends in order, and every colour equal. Breaks caught: the walk without the PM model, a quarter
+for the fifth.
+
+## Today's preservation ports on PM, part 5: VideoSetWireFrame and the texture marks (2026-11-14)
+
+PM's VideoSetWireFrame is 0x5981f0 (its dispatcher's call at 0x5b656f): the device's FILLMODE set at once, 2 for any
+non-zero, else 3, where MW3's 0x579230 only stored the mode for the next scene (PM keeps that word, 0xb0615c, and
+nothing but the start-up writes it). `pm::zvid::set_wireframe` (pm/gamez/zvideo/zvid_tl); without a device (PM's
+software renderer, not ported) the exe does nothing. The texture-mark painter 0x548220 is MW3's 0x542060 at PM's
+places (the on flag through 0x548870, PM's globals, the entry's surface at +8, the lock, unlock and reload through
+0x8c4b90 / 0x8c4b94 / 0x8c4b9c), so the shared `zmod::mark_paint` is PM's too. `test_pm_script_cmds.py`: the
+wireframe on PM's exe with a fake device (its SetRenderState, vt+0x58), 10 calls, and 400 mark cases, 0 differ.
+Breaks: MW3's stored mode for the wireframe; the rows placed by u for the marks.
+
+## Today's preservation ports on PM, part 6: the anim events no shipped file uses (2026-11-14)
+
+PM dispatches the events through a table it fills at start-up ([0x639d8c], 0x521cxx): event 16 is 0x51e620, 20 is
+0x51c370, 21 is 0x51c4d0 and 38 is 0x5207c0, each MW3's (0x505df0, 0x503c10, 0x503d50, 0x507970) over PM's def
+(its node refs at +0xe8, 0x2c bytes each) and PM's time left (0x8d3f68). The camera setters they call carry PM's
+report lines on pm now (Camera.c: set_clip 0x3ec, set_fov 0x436, set_fov_angles 0x495, get_fov_angles 0x4ca,
+set_lod_scale 0x50d; MW3's 0x5ca, 0x614, 0x673, 0x6a8, 0x6eb), and PM's set_fov_angles stores the vertical angle as a
+float before halving it for its tangent (+0x1d8), where MW3 kept it on the x87: on pm the port does as PM.
+`test_pm_script_cmds.py`: 400 events 20 and 21 on PM's exe with the reports compared, 0 differ (the setters' derived
+words within 2 ulps, as test_script_cmds.py). Breaks: set_clip's MW3 line, MW3's vertical angle (caught). Events
+16 and 38 read in PM's asm, the same as MW3's (the remove 0x4fd7a0; the text 0x596e50, shown for 3 s by 0x5c7180).
+
+## Today's preservation ports on PM: the basic vehicle's own controls (2026-11-14)
+
+PM's controls (0x4b1b80 constructor, 0x4b1ca0 init, 0x4b1f90 setup, 0x4b1c40 / 0x4b1c50 / 0x4b1c60 / 0x4b1f80, the
+frame 0x4b2190 -> 0x401000) and the path follower (0x4010c0 .. 0x401fb0, 0x402330, the measure 0x402440) are MW3's
+in PM's layout: the controls' own fields 0x18 further on (PM's VehicleControls is longer: +0xa04 is +0xa1c, the block
+0xa88), the setup's keys the same (activation, pursuit_range, not_pursuit_dwell, return_range, healthy) and every
+float constant the same (102400, 1500, 10, 4624, 4900, 3, 62500 in init; 0.25, 1, 10, 0.7143, 400, 0.75, 0.5 in the
+follower; the breadcrumb's "now + 1" written as now - -1 in MW3). The port names the fields, so PM's comment on each
+function is all that changes. Read, not run: test_basic_controls.py and test_basic_follow.py need the address map's
+missing twins (0x401050 -> 0x401000, the reader's find 0x5569e0) and PM's shifted controls and vehicle offsets laid out
+in their emulated objects, which pm_moved.py's field tables don't cover yet.
+
+## Today's preservation ports on PM: the built-in net and the version-105 nets (2026-11-14)
+
+The built-in net is PM's 0x627c68, made by 0x4c7300 (0x410ec0 at start-up): MW3's 0x4c0310 with PM's znet
+(0x5acbe0, cdecl, the same range [10000, 10100) from [0x616458]), base 0x4c67f0, vtable 0x5df998 and default
+behaviour 0x627cc8. `test_pm_builtin_net.py` runs PM's start-up on the exe and holds it to what
+`test_builtin_net.py` holds the shared port to: one step, the default behaviour, the id asked once. Breaks: a wrong
+default behaviour, MW3's argument order for the id (both caught).
+
+The 105 reload (0x4c5cb0, MW3's 0x4bed90) differs only in the vehicles' vtable slots (+0x48, +0x14c, +0x68 for
+MW3's +0x40, +0x140, +0x64), which the port reaches through NetHooks. The reader 0x402610 (thunk 0x4025f0), its
+link step 0x402370 / 0x402350, the net 0x402170 / 0x402140, the node's link methods 0x403d30 .. 0x403ef0, the frees
+0x402500 / 0x402540 / 0x4025c0 and the null node 0x4b2230 are MW3's (zainet105.cpp) with cdecl calls and loops
+compiled the other way round. Read, not run: test_net105.py's bench uses MW3's register calls and import stubs.

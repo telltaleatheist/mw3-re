@@ -5,8 +5,13 @@
 #include <vector>
 
 #include "gamez/zmodel/gmod_matl.h"
+#include "gamez/zclass/cls_di.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zclass/cls_node.h"
+#include "gamez/zmodel/gmod_shadows.h"
 #include "pm/gamez/zmodel/gmod_const.h"
+#include "pm/gamez/zvideo/zvid_tl.h"
+#include "gamez/zvideo/zvid_ddd3d.h"
 
 extern "C" {
 
@@ -86,6 +91,77 @@ int32_t probe_pm_node_lighting(const int32_t* parent, const int32_t* has_model, 
   for (int32_t i = 0; i < count; ++i) std::memcpy(&model_flags[i], models[i].header + 8, 4);
   for (auto& n : nodes) n.children = nullptr, n.pm_model = nullptr;
   return r;
+}
+
+// PM's VideoSetWireFrame (0x005981f0): the GPU state's wireframe after, from `before`.
+int32_t probe_pm_wireframe(int32_t on, int32_t before) {
+  platform::DrawState& d = zvid::draw_state();
+  const bool saved = d.wireframe;
+  d.wireframe = before != 0;
+  pm::zvid::set_wireframe(on);
+  const int32_t r = d.wireframe ? 1 : 0;
+  d.wireframe = saved;
+  return r;
+}
+
+int32_t probe_anim_camera(int32_t which, uint8_t* raw, int32_t cls, int32_t null_node, uint8_t* ev, int32_t state,
+                          float time, float* left);
+namespace {
+std::vector<int32_t> g_reports;
+}  // namespace
+// probe_anim_camera with the reports (level, line) kept: out their count, then the pairs.
+int32_t probe_pm_anim_camera(int32_t which, uint8_t* raw, int32_t cls, int32_t null_node, uint8_t* ev, int32_t state,
+                             float time, float* left, int32_t* reports, int32_t cap) {
+  g_reports.clear();
+  zerr::set_sink([](int level, const char*, int line, const char*) { g_reports.push_back(level), g_reports.push_back(line); });
+  const int32_t r = probe_anim_camera(which, raw, cls, null_node, ev, state, time, left);
+  zerr::set_sink(nullptr);
+  reports[0] = static_cast<int32_t>(g_reports.size());
+  for (size_t i = 0; i < g_reports.size() && static_cast<int32_t>(i) + 1 < cap; ++i) reports[1 + i] = g_reports[i];
+  return r;
+}
+
+int probe_pm_gamez_stack(const char* paths, int rb, int gb, int bb, int with_models, uint8_t* out, int cap);
+
+namespace {
+// test_pm_make_shadows.py's stand-in for the segment query (test_make_shadows.py's): a point is shadowed by a hash of
+// it; a running checksum of every segment asked (both ends) and the count.
+uint32_t g_hash = 0, g_calls = 0;
+int stand_in(zcls::Node*, const float from[3], const float to[3], zcls::LineHits* out) {
+  uint32_t f[3], t[3];
+  std::memcpy(f, from, 12), std::memcpy(t, to, 12);
+  for (uint32_t v : {f[0], f[1], f[2], t[0], t[1], t[2]}) g_hash = (g_hash ^ v) * 0x01000193u;
+  ++g_calls;
+  const bool hit = ((f[0] ^ (f[1] * 31u) ^ (f[2] * 131u)) % 3u) == 0;
+  out->count = hit ? 1 : 0;
+  return hit ? 0 : 1;
+}
+}  // namespace
+
+// A PM world loaded as probe_pm_gamez_stack does (nodes too), then MakeShadows (PM's 0x00563d20) with the stand-in
+// query; out: every used model's polygons' colours in slot order; stats: the segments' count and checksum.
+int probe_pm_make_shadows(const char* path, uint8_t* out, int cap, uint32_t* stats) {
+  std::vector<uint8_t> scratch(64u << 20);
+  if (probe_pm_gamez_stack(path, 5, 6, 5, 2, scratch.data(), static_cast<int>(scratch.size())) < 0) return -3;
+  g_hash = 0x811c9dc5u, g_calls = 0;
+  zmod::set_shadow_query(stand_in);
+  zmod::make_shadows();
+  zmod::set_shadow_query(nullptr);
+  stats[0] = g_calls, stats[1] = g_hash;
+  std::vector<uint8_t> b;
+  const pm::zmod::ModelPool& pool = pm::zmod::models();
+  for (int32_t i = 0; i < pool.capacity; ++i) {
+    const pm::zmod::Model& m = pool.blocks[i / pool.block][i % pool.block];
+    if (m.count(0xc) < 1 || m.count(0x10) <= 0) continue;
+    for (int32_t k = 0; k < m.count(0x10); ++k) {
+      const pm::zmod::Polygon& q = m.polygons[k];
+      const auto* c = reinterpret_cast<const uint8_t*>(q.colors);
+      if (c) b.insert(b.end(), c, c + 12 * (q.flags & 0x3ff));
+    }
+  }
+  if (static_cast<int>(b.size()) > cap) return -1;
+  std::memcpy(out, b.data(), b.size());
+  return static_cast<int>(b.size());
 }
 
 }  // extern "C"

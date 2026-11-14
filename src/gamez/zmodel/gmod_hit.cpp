@@ -860,7 +860,7 @@ void mark_span(int32_t t, int32_t m, int32_t c, int32_t* src0, int32_t* src1, in
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00542060 (ECX the hit; its material here): with the marks on, a textured, non-cycled material
+// Mech3.exe 1.2 @ 0x00542060, Pirate's Moon 1.0 @ 0x00548220 (ECX the hit; its material here): with the marks on, a textured, non-cycled material
 // with flag 2 gets the impact type's mark image painted into its texture's image at the captured UV (wrapped into
 // -0.01..1.01 and written back), both unpalettered. Without a mask the mark's non-zero pixels are copied; with one
 // a mask value blends (565: over 3, 555: over 7) and from 0xfc copies, as the cookie does. Ported for

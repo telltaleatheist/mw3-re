@@ -12,14 +12,14 @@ Net105* g_head = nullptr;  // [0x005f4c4c]
 Net105* g_tail = nullptr;  // [0x005f4c50]
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004ae920: [0x005e8654], the null node every "none" answer gives; its static constructor is
+// Mech3.exe 1.2 @ 0x004ae920, Pirate's Moon 1.0 @ 0x004b2230: [0x005e8654], the null node every "none" answer gives; its static constructor is
 // 0x004ae8b0.
 Net105Node* Net105Node::none() {
   static Net105Node n;
   return &n;
 }
 
-// Mech3.exe 1.2 @ 0x004024a0: each link record freed (the exe's malloc), then the node.
+// Mech3.exe 1.2 @ 0x004024a0, Pirate's Moon 1.0 @ 0x00402500: each link record freed (the exe's malloc), then the node.
 Net105Node::~Net105Node() {
   for (Net105Link*& r : link_rec) {
     std::free(r);
@@ -27,7 +27,7 @@ Net105Node::~Net105Node() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x004024e0: each node by +0x30, then the net. The net's making is 0x004021c0 with 0x00402190 (its
+// Mech3.exe 1.2 @ 0x004024e0, Pirate's Moon 1.0 @ 0x00402540: each node by +0x30, then the net. The net's making is 0x004021c0 with 0x00402190 (its
 // fields cleared) and the list's append below.
 Net105::~Net105() {
   for (Net105Node* n = first; n;) {
@@ -55,7 +55,7 @@ void fill(Net105Link* rec, const float from[3], const float to[3], float width) 
 Net105Link* new_link() { return static_cast<Net105Link*>(std::calloc(1, sizeof(Net105Link))); }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00403cd0 (vt+0x30)
+// Mech3.exe 1.2 @ 0x00403cd0, Pirate's Moon 1.0 @ 0x00403d30 (vt+0x30)
 bool Net105Node::add_link(Net105Node* other) {
   if (is_none()) return false;
   int32_t i = 0;
@@ -63,7 +63,7 @@ bool Net105Node::add_link(Net105Node* other) {
   return i < 3 && other->link_pair(this, i);
 }
 
-// Mech3.exe 1.2 @ 0x00403d10 (vt+0x40): `from` into this's first slot with no record, this into `from`'s slot i.
+// Mech3.exe 1.2 @ 0x00403d10, Pirate's Moon 1.0 @ 0x00403d70 (vt+0x40): `from` into this's first slot with no record, this into `from`'s slot i.
 bool Net105Node::link_pair(Net105Node* from, int32_t i) {
   if (is_none()) return false;
   int32_t j = 0;
@@ -74,7 +74,7 @@ bool Net105Node::link_pair(Net105Node* from, int32_t i) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00403d60 (vt+0x44): the node (`to`'s vt+0x60 then vt+0x80: itself) in slot i, a fresh record
+// Mech3.exe 1.2 @ 0x00403d60, Pirate's Moon 1.0 @ 0x00403dd0 (vt+0x44): the node (`to`'s vt+0x60 then vt+0x80: itself) in slot i, a fresh record
 // (the exe's malloc, measured at once), measured.
 void Net105Node::set_link(Net105Node* to, int32_t i) {
   if (is_none()) return;
@@ -84,7 +84,7 @@ void Net105Node::set_link(Net105Node* to, int32_t i) {
   measure(to, i);
 }
 
-// Mech3.exe 1.2 @ 0x00403db0 (vt+0x38): from the last slot down, each link (the null node for none, which does
+// Mech3.exe 1.2 @ 0x00403db0, Pirate's Moon 1.0 @ 0x00403e30 (vt+0x38): from the last slot down, each link (the null node for none, which does
 // nothing) remeasures its way back to this.
 void Net105Node::remeasure_all() {
   if (is_none()) return;
@@ -92,14 +92,14 @@ void Net105Node::remeasure_all() {
     if (Net105Node* l = link(i)) l->remeasure(this, i);
 }
 
-// Mech3.exe 1.2 @ 0x00403df0 (vt+0x3c): the slot holding `to`, then this's remeasure with itself as the other end.
+// Mech3.exe 1.2 @ 0x00403df0, Pirate's Moon 1.0 @ 0x00403e70 (vt+0x3c): the slot holding `to`, then this's remeasure with itself as the other end.
 void Net105Node::remeasure_to(Net105Node* to) {
   if (is_none()) return;
   const int32_t j = link_index(to);
   if (j >= 0) remeasure(this, j);
 }
 
-// Mech3.exe 1.2 @ 0x00403e20 (vt+0x50): the slot holding `to` measured again, and `to`'s slot i back to this.
+// Mech3.exe 1.2 @ 0x00403e20, Pirate's Moon 1.0 @ 0x00403ea0 (vt+0x50): the slot holding `to` measured again, and `to`'s slot i back to this.
 bool Net105Node::remeasure(Net105Node* to, int32_t i) {
   if (is_none()) return false;
   int32_t j = 0;
@@ -110,7 +110,7 @@ bool Net105Node::remeasure(Net105Node* to, int32_t i) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00403e70 (vt+0x54): record i zeroed and filled from this place to `to`'s; the width is the 0
+// Mech3.exe 1.2 @ 0x00403e70, Pirate's Moon 1.0 @ 0x00403ef0 (vt+0x54): record i zeroed and filled from this place to `to`'s; the width is the 0
 // the call to `to`'s place (0x00409fc0, a bare ret) leaves on the stack.
 void Net105Node::measure(Net105Node* to, int32_t i) {
   Net105Link* r = link_rec[i];
@@ -120,14 +120,14 @@ void Net105Node::measure(Net105Node* to, int32_t i) {
 }
 
 namespace {
-// Mech3.exe 1.2 @ 0x004022e0 (ECX the number, EDX the first node): the node of that number along +0x30, none null.
+// Mech3.exe 1.2 @ 0x004022e0, Pirate's Moon 1.0 @ 0x00402350 (ECX the number, EDX the first node): the node of that number along +0x30, none null.
 Net105Node* node_numbered(Net105Node* first, int32_t number) {
   Net105Node* n = first;
   while (n && n->number != number) n = n->next;
   return n;
 }
 
-// Mech3.exe 1.2 @ 0x00402300 (ECX the first node, the path width): each node's three links, a number until now,
+// Mech3.exe 1.2 @ 0x00402300, Pirate's Moon 1.0 @ 0x00402370 (ECX the first node, the path width): each node's three links, a number until now,
 // made the node (none for a negative one), each with a fresh record measured to it at that width.
 void resolve(Net105Node* first, float width) {
   for (Net105Node* n = first; n; n = n->next) {
@@ -150,7 +150,7 @@ const char* str1(zrdr::Node* v) { return v->list[1].s; }
 float f1(zrdr::Node* v, int32_t k) { return v->list[k].f; }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x004025b0, 0x00402590 (its thunk) (ECX `x18`, EDX the block, the name on the stack). The values are read as the exe
+// Mech3.exe 1.2 @ 0x004025b0, 0x00402590 (its thunk), Pirate's Moon 1.0 @ 0x00402610, 0x004025f0 (cdecl) (ECX `x18`, EDX the block, the name on the stack). The values are read as the exe
 // does, from each key's list's first (and second) item as it stands, whatever its type.
 Net105* net105_read(zrdr::Node* block, const char* default_name, int32_t x18) {
   auto* net = new Net105;  // 0x004021c0: made and put on the list
@@ -206,16 +206,16 @@ Net105* net105_read(zrdr::Node* block, const char* default_name, int32_t x18) {
 
 Net105* nets105() { return g_head; }
 
-// Mech3.exe 1.2 @ 0x004021c0: the net made (in net105_read) and linked: the first the head, each after it the
+// Mech3.exe 1.2 @ 0x004021c0, Pirate's Moon 1.0 @ 0x00402170: the net made (in net105_read) and linked: the first the head, each after it the
 // tail's +0x58.
-// Mech3.exe 1.2 @ 0x00402190: its fields cleared (the class's member defaults).
+// Mech3.exe 1.2 @ 0x00402190, Pirate's Moon 1.0 @ 0x00402140: its fields cleared (the class's member defaults).
 void nets105_append(Net105* n) {
   if (g_head) g_tail->next = n;
   else g_head = n;
   g_tail = n;
 }
 
-// Mech3.exe 1.2 @ 0x00402560's walk over [0x005f4c4c].
+// Mech3.exe 1.2 @ 0x00402560, Pirate's Moon 1.0 @ 0x004025c0's walk over [0x005f4c4c].
 void nets105_free() {
   for (Net105* n = g_head; n;) {
     Net105* next = n->next;

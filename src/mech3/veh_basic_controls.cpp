@@ -27,7 +27,7 @@ void set_basic_controls_hooks(BasicControlsHooks* h) { g_hooks = h ? h : &g_defa
 void BasicControlsHooks::base_init(BasicControls& c) { c.VehicleControls::init(); }
 void BasicControlsHooks::base_setup(BasicControls& c, zrdr::Node* def, uint32_t) { c.VehicleControls::setup(def); }
 
-// Mech3.exe 1.2 @ 0x004022c0: the record whose +0x18 is the number.
+// Mech3.exe 1.2 @ 0x004022c0, Pirate's Moon 1.0 @ 0x00402330: the record whose +0x18 is the number.
 Net105Record* BasicControlsHooks::record(int32_t id) {
   for (Net105Record* r = ai::nets105(); r; r = r->next)
     if (r->x18 == id) return r;
@@ -36,14 +36,14 @@ Net105Record* BasicControlsHooks::record(int32_t id) {
 
 float BasicControlsHooks::reader_float(zrdr::Node* n, int32_t i) { return n->list[i].f; }
 
-// Mech3.exe 1.2 @ 0x004ae270
+// Mech3.exe 1.2 @ 0x004ae270, Pirate's Moon 1.0 @ 0x004b1b80
 BasicControls::BasicControls(void* vehicle, int32_t net_number) {
   owner = vehicle;
   net = net_number;
   init();
 }
 
-// Mech3.exe 1.2 @ 0x004ae3c0: with an owner and its node, the base's init; a net number that names a record
+// Mech3.exe 1.2 @ 0x004ae3c0, Pirate's Moon 1.0 @ 0x004b1ca0: with an owner and its node, the base's init; a net number that names a record
 // takes its mode from the record's kind and its node nearest the vehicle, the vehicle's "healthy" node shown
 // to the box test (and its flag 8 off), and the ranges from the record (each 0 its default); else stopped (4).
 void BasicControls::init() {
@@ -75,7 +75,7 @@ void BasicControls::init() {
   v->xe0 = v;
 }
 
-// Mech3.exe 1.2 @ 0x004ae6b0: the net's number kept, the base's setup; with a record, each of its ranges left 0
+// Mech3.exe 1.2 @ 0x004ae6b0, Pirate's Moon 1.0 @ 0x004b1f90: the net's number kept, the base's setup; with a record, each of its ranges left 0
 // taken from the definition ("activation", "pursuit_range"'s two, "not_pursuit_dwell", "return_range"), the
 // pursuit pair put in order.
 void BasicControls::setup_with(zrdr::Node* def, uint32_t arg2, int32_t net_number) {
@@ -108,7 +108,7 @@ void BasicControls::setup_with(zrdr::Node* def, uint32_t arg2, int32_t net_numbe
   }
 }
 
-// Mech3.exe 1.2 @ 0x004ae350
+// Mech3.exe 1.2 @ 0x004ae350, Pirate's Moon 1.0 @ 0x004b1c50
 int32_t BasicControls::path_goal() { return hk().node_goal(net_node); }
 
 }  // namespace mech3
@@ -126,7 +126,7 @@ Node* node_of(BasicControls& c) { return static_cast<Node*>(c.net_node); }
 float from_bits_f(uint32_t b) { return zgame::from_bits(b); }
 uint32_t bits_of(float f) { return zgame::bits(f); }
 
-// Mech3.exe 1.2 @ 0x00401620: a link of `n` other than `exclude`: one link the first; two the first; else a random
+// Mech3.exe 1.2 @ 0x00401620, Pirate's Moon 1.0 @ 0x00401660: a link of `n` other than `exclude`: one link the first; two the first; else a random
 // one of the count, the next after it when that is the excluded.
 int32_t pick_link(Node& n, int32_t exclude) {
   int32_t count = 0;
@@ -138,7 +138,7 @@ int32_t pick_link(Node& n, int32_t exclude) {
   return i;
 }
 
-// Mech3.exe 1.2 @ 0x00401500 (EDX the node in hand, kept updated): on to the followed link's node. A node made at
+// Mech3.exe 1.2 @ 0x00401500, Pirate's Moon 1.0 @ 0x00401530 (EDX the node in hand, kept updated): on to the followed link's node. A node made at
 // run time left behind is freed; at one, its link 0 (a kind-1 net's vehicle back in mode 2) unless it is made too;
 // else the link back to where it came from avoided. `*rec` the chosen link's record, `off` the vehicle's offset
 // from the new node.
@@ -174,7 +174,7 @@ void next_node(BasicVehicle& v, Node** in_hand, ai::Net105Link** rec, float off[
   off[0] = p[0] - at[0], off[1] = p[1] - at[1], off[2] = p[2] - at[2];
 }
 
-// Mech3.exe 1.2 @ 0x00401400: blocked when the last frame hit an object or a wall, else when a sweep from the place
+// Mech3.exe 1.2 @ 0x00401400, Pirate's Moon 1.0 @ 0x00401430: blocked when the last frame hit an object or a wall, else when a sweep from the place
 // to the place ahead by the velocity x 0.7143 hits a wall or an object.
 bool blocked(BasicVehicle& v) {
   BasicControls& c = ctl(v);
@@ -207,7 +207,7 @@ float flat_to(BasicVehicle& v, const float* to, float d[3]) {
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00401100 (mode 0): along the links. Blocked: on to the next node, stopped (mode 4), turning to
+// Mech3.exe 1.2 @ 0x00401100, Pirate's Moon 1.0 @ 0x004010c0 (mode 0): along the links. Blocked: on to the next node, stopped (mode 4), turning to
 // face the link's node (+0x760, the heading +0x748). Else toward the link's node: ahead, the throttle 1 - |cross|
 // (no less than 0.25) and the turn the cross; behind, once it was ahead, on to the next node, again; else stopped,
 // turning. A submarine pitches toward the node's height. Within 10, on to the next node.
@@ -269,7 +269,7 @@ void basic_follow_waypoints(BasicVehicle& v) {
 
 
 namespace {
-// Mech3.exe 1.2 @ 0x00401ab0 (EDX `toward`): 400 or more from the net node in hand, a breadcrumb: a node made at the
+// Mech3.exe 1.2 @ 0x00401ab0, Pirate's Moon 1.0 @ 0x00401b00 (EDX `toward`): 400 or more from the net node in hand, a breadcrumb: a node made at the
 // vehicle's place, linked to `toward`, its links' records zeroed; the old node's link record filled toward it
 // (0x004023d0, width 10); made the node in hand, link 0, the next breadcrumb a second on.
 void drop_crumb(BasicVehicle& v, Node* toward) {
@@ -288,7 +288,7 @@ void drop_crumb(BasicVehicle& v, Node* toward) {
   c.crumb_at = hk().now() - -1.0f;
 }
 
-// Mech3.exe 1.2 @ 0x00401940: armed and past the dwell, both matrices fresh: within attack_rad of the target with a
+// Mech3.exe 1.2 @ 0x00401940, Pirate's Moon 1.0 @ 0x00401990: armed and past the dwell, both matrices fresh: within attack_rad of the target with a
 // clear line, the pursuit (mode 1): the weapon's next shot now, a breadcrumb toward the link's node, its place kept,
 // +0x350 set, the dwell's end = now + attack_dwell; true. Not clear: +0x350 off.
 bool engage(BasicVehicle& v, Handle target) {
@@ -311,7 +311,7 @@ bool engage(BasicVehicle& v, Handle target) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x00401f50 (EDX the target; the squared distance, the facing): the first weapon. Not beaming: the
+// Mech3.exe 1.2 @ 0x00401f50, Pirate's Moon 1.0 @ 0x00401fb0 (EDX the target; the squared distance, the facing): the first weapon. Not beaming: the
 // target active, the shot due, facing within 0.75 and inside its range: fire (+0x390), the next shot an interval
 // on; a beam weapon (its def's +0x6c bit 1) starts its beam; a locking one (bit 15) locks on the target. Beaming:
 // past the time, off the facing or range, or the target gone, the fire off and the next shot an interval on.
@@ -357,13 +357,13 @@ void face(BasicVehicle& v, const float d[3], float* dot, float* turn) {
 }
 }  // namespace
 
-// Mech3.exe 1.2 @ 0x00401bf0: a breadcrumb linked to the node in hand, then the waypoints (mode 0).
+// Mech3.exe 1.2 @ 0x00401bf0, Pirate's Moon 1.0 @ 0x00401c50: a breadcrumb linked to the node in hand, then the waypoints (mode 0).
 void basic_back_to_path(BasicVehicle& v) {
   drop_crumb(v, node_of(ctl(v)));
   ctl(v).mode = 0;
 }
 
-// Mech3.exe 1.2 @ 0x00401680 (mode 1): the pursuit. A breadcrumb (linked to the node in hand) when due; toward the target: ahead, the throttle 1
+// Mech3.exe 1.2 @ 0x00401680, Pirate's Moon 1.0 @ 0x004016d0 (mode 1): the pursuit. A breadcrumb (linked to the node in hand) when due; toward the target: ahead, the throttle 1
 // past pursuit_far, -1 inside pursuit_near, else 0; behind, 0 and the turn +-1. A submarine pitches and banks by the
 // way's height. The lock point aimed at (+0x6f0), the fire check. Past the dwell with the target active, within the
 // return range at 0.8 of full health: on; else back to the path, the next engage not_pursuit_dwell on.
@@ -410,7 +410,7 @@ void basic_pursue(BasicVehicle& v, Handle target) {
   c.xa18 = c.not_pursuit_dwell + hk().now();
 }
 
-// Mech3.exe 1.2 @ 0x00401c30 (mode 2, a kind-1 net's): standing, turning to face the target (+-1 when behind), the
+// Mech3.exe 1.2 @ 0x00401c30, Pirate's Moon 1.0 @ 0x00401c90 (mode 2, a kind-1 net's): standing, turning to face the target (+-1 when behind), the
 // lock point aimed at; once engaged, every vehicle on its +0xe0 ring still in mode 2 joins the pursuit.
 void basic_hold(BasicVehicle& v, Handle target) {
   BasicControls& c = ctl(v);
@@ -435,7 +435,7 @@ void basic_hold(BasicVehicle& v, Handle target) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x00401e30 (mode 3, a kind-2 net's): turning to face the target, the lock point aimed at, the
+// Mech3.exe 1.2 @ 0x00401e30, Pirate's Moon 1.0 @ 0x00401e90 (mode 3, a kind-2 net's): turning to face the target, the lock point aimed at, the
 // fire check.
 void basic_stand(BasicVehicle& v, Handle target) {
   BasicControls& c = ctl(v);
@@ -453,7 +453,7 @@ void basic_stand(BasicVehicle& v, Handle target) {
   fire_check(v, target, d2, dot);
 }
 
-// Mech3.exe 1.2 @ 0x00401050
+// Mech3.exe 1.2 @ 0x00401050, Pirate's Moon 1.0 @ 0x00401000
 void BasicControls::follow(Handle target) {
   auto& v = *static_cast<BasicVehicle*>(owner);
   switch (mode) {
@@ -497,7 +497,7 @@ ai::Net105Node* BasicControlsHooks::node_make(BasicControls& c) {
   return n;
 }
 
-// Mech3.exe 1.2 @ 0x004023d0 (ECX the record, EDX `from`): the offset to `to`; the flat length less the width, or
+// Mech3.exe 1.2 @ 0x004023d0, Pirate's Moon 1.0 @ 0x00402440 (ECX the record, EDX `from`): the offset to `to`; the flat length less the width, or
 // half the width when that is less (a NaN: the half); the offset flat-normalised, the side across it, the two
 // turned 45 either way (the exe passes 45 as is); the width. Also the v105 nets' measure (ai::net105_link_fill).
 void basic_link_fill(ai::Net105Link& r, const float from[3], const float to[3], float width) {
