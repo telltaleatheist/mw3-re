@@ -66,6 +66,7 @@ int32_t probe_net105(const uint8_t* zrd, int32_t len, int32_t x18, const char* d
   zrdr::Node tree{};
   zrdr::read_node(f, &tree);
   std::fclose(f);
+  auto* const fill_was = mech3::ai::net105_link_fill;  // the default (the basic controls' 0x004023d0) put back after
   mech3::ai::net105_link_fill = fill_log;
   g_read.clear();
   g_reading = true;
@@ -93,7 +94,7 @@ int32_t probe_net105(const uint8_t* zrd, int32_t len, int32_t x18, const char* d
     }
   }
   dump(*n);
-  mech3::ai::net105_link_fill = nullptr;
+  mech3::ai::net105_link_fill = fill_was;
   mech3::ai::nets105_free();
   zrdr::free_contents(&tree);
   const int32_t k = int32_t(g_out.size());
