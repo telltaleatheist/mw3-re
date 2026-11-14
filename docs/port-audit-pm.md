@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4084 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 226 |
+| MISSING LOGIC | 223 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 111 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -84,8 +84,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x00405f20** (1 functions, 71 decomp lines; MISSING LOGIC): pm only, visible: PM's briefing frame (MW3's 0x00406440, unpaired by the diff; briefing.cpp BriefingScreen::update) is MW3's but for the skip: on Space or S, PM first runs every step left in the script, from the one playing to the end, once each with 60 seconds (vt+0 with 60.0), then stops the voice and clears the script as MW3 does; MW3 and the port only stop (BriefingScript::stop). So skipping PM's briefing leaves the map as the whole script would have drawn it (its objects shown, lines and markers placed); the port leaves it where the skip came
 - **0x00407fb0** (1 functions, 52 decomp lines; MISSING LOGIC): pm only, minor: the Load State's resume (MW3's 0x004092e0, app_states.cpp: back from the lab with 4, the reallocation refreshed and shown, as the port). For Instant Action (the game's kind 2) PM then copies the line-up's mechs back into the action game's setup: slot 0's mech at +0x40, the others' at +0x48.., the rest of the five -1, so the Instant Action screen offers the mechs chosen in the lab next time; the port keeps the setup as the screen left it
 - **0x00408120** (1 functions, 111 decomp lines; MISSING LOGIC): pm only, minor, audible: the Load State's update (MW3's 0x00409440, app_states.cpp LoadState::update), read: the same build (the sounds, the geometry, the missions object, the briefing's block name, its voice and sound sets, the screen and script; PM's block-name format is in the pm port). Before reading the mission's sounds.zrd PM sets zSound's range scale ([0x00613488], 0x00591830): 0.5 when the sound setting (0x0040b1e0, the graphics/audio screen's SOUND cycle) is 2 (low), else 1; the sound reader (0x00592170) multiplies every sound's RANGE (its near and far distances) by it, so at low sound quality every sound carries half as far. The port reads the ranges unscaled
-- **0x00408b20** (1 functions, 50 decomp lines; MISSING LOGIC): PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog
-- **0x00408d00, 0x005404f0** (2 functions, 40 decomp lines; MISSING LOGIC): PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged
 - **0x0040b120** (1 functions, 47 decomp lines; MISSING LOGIC): a PM value the shared port keeps as MW3's (pm only): the object detail's level 2 sets the camera's LOD scale to 0.2 in PM (0x3e4ccccd), 0.4 in MW3 (options.cpp:260, cam_scale)
 - **0x0040c340, 0x0048dca0, 0x0048dd60** (3 functions, 98 decomp lines; MISSING LOGIC): pm only, minor: the Instant Action world list's select and step (0x0048dca0 / 0x0048dd60: CycleButton's, then the pilot's action game's vt+0x4c, 0x0040c340: the world at +0xd0, the progression waves loaded again for it when the mode is Progression, 0x0040c410). PM updates the game's world as the list moves; the pm port sets it only at ACCEPT (action_menu.cpp:559, set_world 0x0040c360), so while choosing, Progression's waves are the last world's
 - **0x00414ba0** (1 functions, 25 decomp lines; MISSING LOGIC): pm only, minor, effect to check: PM's mech_set_skin (MW3's 0x00414390, mech_build.cpp mech_set_skin; unpaired by the diff), from the mech build 0x00415190, the network (0x0046f510, 0x004701d0), the mission launch 0x00494500 and the player 0x004a0e10 / 0x004a17d0: when the torso's headlight (torso part +0x7c) is there, its node's only child is detached before the skin is applied (0x00479c30, kept at +0x38) and put back after (0x00479c60); the port applies the skin with the child in place. Whether the skin apply (0x004773e0) touches that child is not read; 0x0041b900 (a vt slot) also detaches it
@@ -540,7 +538,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## By module
 
-### mech3ep1 (3340 not ported)
+### mech3ep1 (3338 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -695,8 +693,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00408940 | 9 | folded | as MW3 0x0040a850: AI steps and their states: constructors, make_state factories, destructors and one-line virtuals of the step classes ported in zai_steps/zai_brain/zai_node/zai_attack (the port's make_state switch, zai_brain.cpp:715..745) |
 | 0x00408950 | 12 | folded | MW3's 0x0040aca0 (PlayerView's constructor, player_view.h:253), read: the same fields and the horizon node found; PM's view class (vtable 0x005dee80) has more virtual slots, the entity base's (0x004b9470, MW3's 0x004b5060) small wrappers on the view's node: its node set (0x004088e0, zClass 0x004fd5e0), active read and set (0x00408900 / 0x00408920, bit 2 of +0x24 and 0x004fca50), the look kept at +0x7c and passed to the camera mode +0x58 (0x00408980), a sub-object's destructor (0x00408950); the port's view calls zClass on its node directly |
 | 0x00408980 | 24 | folded | MW3's 0x0040aca0 (PlayerView's constructor, player_view.h:253), read: the same fields and the horizon node found; PM's view class (vtable 0x005dee80) has more virtual slots, the entity base's (0x004b9470, MW3's 0x004b5060) small wrappers on the view's node: its node set (0x004088e0, zClass 0x004fd5e0), active read and set (0x00408900 / 0x00408920, bit 2 of +0x24 and 0x004fca50), the look kept at +0x7c and passed to the camera mode +0x58 (0x00408980), a sub-object's destructor (0x00408950); the port's view calls zClass on its node directly |
-| 0x00408b20 | 50 | MISSING LOGIC | PM's camera ground check (pm only): the ground under the camera probed from 1024 m above it ([0x006026e0]) in PM, 50 m in MW3 (player_view.cpp:797 keeps MW3's), and PM's set_underwater 0x00408d00 also sets the renderer's water mode (0x005404f0: 2 under water, 1 not) besides the fog |
-| 0x00408d00 | 25 | MISSING LOGIC | PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged |
 | 0x00408f40 | 145 | folded | MW3's twins by the order-aware compare and features (layout and helper instances only): 0x0040b310 (0x00408f40: PM's stack probe for its larger frame and a fld for a fmul by 1), 0x0040d810 (0x0040b720: a call MW3 left unmapped is PM's 0x0040b320), 0x0040e270 (0x0040ea60: the element 0x4b8 for 0x4b0), 0x0040f730 (0x00410050: the HudPanel destructor 0x0043b8f0), 0x00410700 (0x00410f80: equal) |
 | 0x00409830 | 71 | dev dialog (MFC), its logic: PORT (preserve) | as MW3 0x0040bb00: the camera dialog (resource 0x6a: the camera's place and angles in degrees, editable; 0x0040bd00 its window): a dev tool's logic |
 | 0x00409a10 | 21 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040bd00: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
@@ -4191,12 +4187,11 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00517960 | 30 | folded | covered by the port where it names it (src/pm/gamez/zclass/cls_zbd.cpp:104) |
 | 0x00517b30 | 47 | MISSING LOGIC | pm only, BROKEN row: PM's node re-read in PM's node format (MW3 0x004ff7a0), the shared port's MW3 format only; see 0x00517ac0 |
 
-### zmodel (274 not ported)
+### zmodel (273 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
 | 0x00540450 | 16 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
-| 0x005404f0 | 15 | MISSING LOGIC | PM's fog under water (pm only): PM's set_underwater 0x00408d00 sets the fog mode [0x00a4e038] to 2 through 0x005404f0, which keeps 2 against anything but 0, so both model draws fog every model, not only flagged ones (gmod_draw.cpp:268 reads the mode); back above water it sets 1. The port's set_underwater is MW3's (player_view.cpp:820), zmod::fog_set_on has no sticky 2, and nothing sets 2, so under water only flagged models are fogged |
 | 0x00540740 | 9 | folded | MW3's fog_apply 0x00526de0 (gmod_fog.cpp:56), unpaired: the world update's fog step; it ran under test_pm_world_box's world update 0x00504fb0, which compares only the pending cells, so not counted as checked |
 | 0x00540750 | 14 | folded | the same as its MW3 twin (identical, or passed by the feature compare 7f6e9e10), so it is what MW3's twin is in the port |
 | 0x00540790 | 14 | folded | covered by the port where it names it (src/gamez/ztwod/twod_host.h:133) |
@@ -4979,7 +4974,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0053bce0 | 31 | folded | covered by the port where it names it (src/gamez/zeffect/zeff_anim_events.cpp:393) |
 | 0x0053bd40 | 53 | unused: PORT (preserve) | as MW3 0x00522280: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x0053be80 | 16 | unused: PORT (preserve) | as MW3 0x005223c0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
-| 0x0053bf40 | 11 | folded | covered by the port where it names it (src/mech3/player_view.cpp:107) |
+| 0x0053bf40 | 11 | folded | covered by the port where it names it (src/mech3/player_view.cpp:108) |
 | 0x0053bfa0 | 50 | unused: PORT (preserve) | as MW3 0x005224b0: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
 | 0x0053c780 | 47 | folded | read: the box's eight x, z corners through a 3x4 matrix (MW3's corner transform 0x00522d60 written out), from PM's node_box_xz 0x004fdd60 (MW3's 0x004ec150; class.cpp node_box_xz, which carries PM's box +0x70 and composes the node's matrix with the stack's as PM does, then zmth::transform_box_xz) |
 | 0x0053d000 | 115 | unused: PORT (preserve) | as MW3 0x00523650, whose class PM's changes keep: zMath routines nothing calls: vector and quaternion add, subtract, negate and dot, single-axis rotations, a plane from three points, 2D side tests, cameras from euler angles and a position, the projection as a matrix, screen-space box extents, a point-set fit (render-matrix.md:183-193) |
@@ -5750,16 +5745,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00530b20 | 13 | replaced (SDL or the platform layer) | as MW3 0x00517230: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 | 0x00530b40 | 20 | replaced (SDL or the platform layer) | as MW3 0x00517250: zimg_winfonts' entries read from fonts.zrd's WINDOWS_FONTS and their GDI fonts (with the list in zImage): the SDL text host keeps its own |
 
-### zerror (5 not ported)
-
-| Address | Lines | Class | Why |
-|---|---|---|---|
-| 0x00527250 | 9 | folded | a thunk: one call to another function |
-| 0x00527270 | 15 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0050da90 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
-| 0x00527490 | 22 | folded | read with the feature compare and the order-aware compare (the same calls, tests and constants in order) against its MW3 twin, ported: the immediates that differ are arguments passed another way (MW3's in a register, a byte as its negative: mov dl, -0x5e for push 0xa2), allocation sizes and structure offsets of PM's layouts, stack adjustments, error lines; one (0x0055d2d0) masks a 15-bit colour's red with 0xfc00 where MW3 keeps the upper bits, the add that follows being 16-bit, the same result |
-| 0x00527500 | 38 | folded | zGeometry's model rows against MW3's twins (zgeo_model.cpp:149, :162, :464): the same steps, PM's this passed where MW3 used registers, its polygon vertex count masked 0x3ff for 0xff (PM's layout) and its colour packed 5-6-5 through its own helpers where MW3 inlined the shifts: a random-coloured material (0x00527500, MW3's 0x0050dd20), a material from a colour (0x005275d0, MW3's 0x0050de00) and a model clipped to a box, skipping polygons whose linear buffer fails (0x00528210, MW3's 0x0050ea50) |
-| 0x005275d0 | 30 | folded | zGeometry's model rows against MW3's twins (zgeo_model.cpp:149, :162, :464): the same steps, PM's this passed where MW3 used registers, its polygon vertex count masked 0x3ff for 0xff (PM's layout) and its colour packed 5-6-5 through its own helpers where MW3 inlined the shifts: a random-coloured material (0x00527500, MW3's 0x0050dd20), a material from a colour (0x005275d0, MW3's 0x0050de00) and a model clipped to a box, skipping polygons whose linear buffer fails (0x00528210, MW3's 0x0050ea50) |
-
 ### zsiscript (5 not ported)
 
 | Address | Lines | Class | Why |
@@ -5769,4 +5754,14 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005ccaf0 | 168 | debug or dev tool: PORT (preserve) | as MW3 0x005a9e10: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005ccef0 | 19 | debug or dev tool: PORT (preserve) | as MW3 0x005aa210: the motion script's text side: the loose .zan reader (0x005a9e10, with 0x005aa210) behind the developers' override, and the writer (0x005a9bc0) |
 | 0x005cd090 | 27 | folded | checked by test: test_pm_mechanim calls every sampler and setter at random (this is zSIScript's SetLoopTime, MW3's 0x005aa3b0, si_script.cpp:84), each output and the state after it compared bit for bit |
+
+### zerror (5 not ported)
+
+| Address | Lines | Class | Why |
+|---|---|---|---|
+| 0x00527250 | 9 | folded | a thunk: one call to another function |
+| 0x00527270 | 15 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0050da90 with only its float constants' signs changed, each one added where MW3 subtracts its negative (fadd c for fsub -c); calls, field counts and immediates as MW3's |
+| 0x00527490 | 22 | folded | read with the feature compare and the order-aware compare (the same calls, tests and constants in order) against its MW3 twin, ported: the immediates that differ are arguments passed another way (MW3's in a register, a byte as its negative: mov dl, -0x5e for push 0xa2), allocation sizes and structure offsets of PM's layouts, stack adjustments, error lines; one (0x0055d2d0) masks a 15-bit colour's red with 0xfc00 where MW3 keeps the upper bits, the add that follows being 16-bit, the same result |
+| 0x00527500 | 38 | folded | zGeometry's model rows against MW3's twins (zgeo_model.cpp:149, :162, :464): the same steps, PM's this passed where MW3 used registers, its polygon vertex count masked 0x3ff for 0xff (PM's layout) and its colour packed 5-6-5 through its own helpers where MW3 inlined the shifts: a random-coloured material (0x00527500, MW3's 0x0050dd20), a material from a colour (0x005275d0, MW3's 0x0050de00) and a model clipped to a box, skipping polygons whose linear buffer fails (0x00528210, MW3's 0x0050ea50) |
+| 0x005275d0 | 30 | folded | zGeometry's model rows against MW3's twins (zgeo_model.cpp:149, :162, :464): the same steps, PM's this passed where MW3 used registers, its polygon vertex count masked 0x3ff for 0xff (PM's layout) and its colour packed 5-6-5 through its own helpers where MW3 inlined the shifts: a random-coloured material (0x00527500, MW3's 0x0050dd20), a material from a colour (0x005275d0, MW3's 0x0050de00) and a model clipped to a box, skipping polygons whose linear buffer fails (0x00528210, MW3's 0x0050ea50) |
 

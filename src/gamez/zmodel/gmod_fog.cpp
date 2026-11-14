@@ -12,8 +12,11 @@ Fog g_fog;
 
 Fog& fog() { return g_fog; }
 
-// Mech3.exe 1.2 @ 0x00526b80
-void fog_set_on(int32_t on) { g_fog.on = on; }
+// Mech3.exe 1.2 @ 0x00526b80, Pirate's Moon 1.0 @ 0x005404f0: PM's keeps 2 (every model fogged, set under water)
+// against anything but 0, which the camera's near cells and a world without fog still set.
+void fog_set_on(int32_t on) {
+  if (on == 0 || g_fog.on != 2) g_fog.on = on;
+}
 
 // Mech3.exe 1.2 @ 0x00526ce0
 void fog_set_linear(int32_t linear) { g_fog.linear = linear; }
