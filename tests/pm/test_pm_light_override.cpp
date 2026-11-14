@@ -60,3 +60,26 @@ TEST(pm_node_light_override_borrows_the_sun_for_its_subtree) {
   L = was;
   zgame::set_game(zgame::mw3_table());
 }
+
+// Pirate's Moon's node update (0x004fe510) has a case for lights (class 9): the light's update (0x0050f270, the
+// shared light_update) as the walk reaches the node, a light no world lists too; MW3's (0x004eca00) reports the
+// class unknown (3) and leaves it.
+#include "gamez/zclass/class.h"
+TEST(pm_node_update_updates_a_light) {
+  for (int pm_game = 1; pm_game >= 0; --pm_game) {
+    zgame::set_game(pm::table());
+    zcls::Node* n = zgame::game().zcls_light_create();
+    EXPECT(n != nullptr);
+    if (!n) return;
+    auto* l = static_cast<zcls::Light*>(n->data);
+    n->set_flags(n->flags() | 4);                          // active
+    l->put<uint32_t>(0xb0, l->get<uint32_t>(0xb0) | 1);   // to be recalculated
+    if (!pm_game) zgame::set_game(zgame::mw3_table());
+    const int status = zcls::node_update(n);
+    const bool recalc = (l->get<uint32_t>(0xb0) & 1) != 0;
+    std::printf("  %s: status %d, still to recalculate %d\n", pm_game ? "PM" : "MW3", status, recalc);
+    if (pm_game) EXPECT(status == 0 && !recalc);
+    else EXPECT(status == 3 && recalc);
+  }
+  zgame::set_game(zgame::mw3_table());
+}

@@ -1,3 +1,4 @@
+#include "gamez/zmodel/gmod_light.h"
 #include "gamez/zclass/class.h"
 
 #include <cstdio>
@@ -622,7 +623,7 @@ NodeObserver& node_update_observer() {
   return observer;
 }
 
-// Mech3.exe 1.2 @ 0x004eca00 (gwNodeUpdate)
+// Mech3.exe 1.2 @ 0x004eca00 (gwNodeUpdate), Pirate's Moon 1.0 @ 0x004fe510 (with lights)
 int node_update(Node* node) {
   if (NodeObserver o = node_update_observer()) o(node);
   int status = 0;
@@ -679,6 +680,12 @@ int node_update(Node* node) {
     case 10:
       sound_update(node);
       break;
+    case 9:  // Pirate's Moon 1.0 @ 0x004fe510's case 9: the light's world position, direction and angles
+      if (zgame::game().node_update_lights) {
+        zmod::light_update(node);  // 0x0050f270
+        break;
+      }
+      [[fallthrough]];  // MW3: unknown here
     default: {
       char msg[160];
       std::snprintf(msg, sizeof msg, "gwNodeUpdate(): Unrecognized node class type:\n  node = %s class_type = %d\n",
