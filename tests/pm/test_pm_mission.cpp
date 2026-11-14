@@ -29,6 +29,8 @@
 #include "gamez/zeffect/zeff_anim_save.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zclass/light.h"
+#include "gamez/zweapon/zwep_init.h"
+#include "gamez/zweapon/zweapon.h"
 #include "mech3/zainet_inout.h"
 #include "mech3/zainet_inout_view.h"
 #include "mech3/zai_repair.h"
@@ -589,6 +591,7 @@ static void kill_run(const char* which, bool quick) {
   mech3::Mech3App app(&engine);
   mech3::set_app(&app);
   EXPECT(app.init_instance());
+  if (const char* e = std::getenv("PM_OBJECT_LOD")) mech3::options().object_lod[0] = mech3::options().object_lod[1] = std::atoi(e);
   mech3::GameEngine::Launch l;
   std::sscanf(which, "%d,%d,%d", &l.index, &l.type, &l.number);
   if (const char* e = std::getenv("PM_MECH")) l.mech = std::atoi(e);
@@ -1630,6 +1633,90 @@ static void kill_run(const char* which, bool quick) {
       }
       return;
     }
+    if (std::getenv("PM_WEAPON_LIGHTS")) {  // pm-tests, weapon lights: both FIRE animations, by the choice
+      static int t = 0;
+      if (++t != 30) return;
+      static std::vector<zwep::Handle> played, attached, freed;
+      static zwep::HitHooks hk;
+      static zwep::RunHooks rk;
+      hk = zwep::hit_hooks(), rk = zwep::run_hooks();
+      zwep::hit_hooks().effect = [](zwep::Handle a, const float x[9]) { played.push_back(a), hk.effect ? hk.effect(a, x) : void(); };
+      zwep::run_hooks().effect_handle = [](zwep::Handle a, const float x[9]) {
+        played.push_back(a);
+        return rk.effect_handle ? rk.effect_handle(a, x) : zwep::Handle{};
+      };
+      zwep::run_hooks().anim_attached = [](zwep::Handle a, zwep::Handle n, const void* o) {
+        attached.push_back(a);
+        return rk.anim_attached ? rk.anim_attached(a, n, o) : zwep::Handle{};
+      };
+      zwep::run_hooks().anim_free = [](zwep::Handle a) { freed.push_back(a), rk.anim_free ? rk.anim_free(a) : void(); };
+      int two = 0;
+      for (const zwep::WeaponDef& d : zwep::state().defs) two += d.fire.animation && d.fire.animation2;
+      zwep::WeaponDef* laser = zwep::find_def("Laser_Large");
+      zwep::WeaponDef* lbx = zwep::find_def("LB2XAC");
+      std::printf("  %d weapons with two FIRE animations; laser %p %p, LB-X %p %p flags %x\n", two,
+                  laser ? laser->fire.animation : nullptr, laser ? laser->fire.animation2 : nullptr,
+                  lbx ? lbx->fire.animation : nullptr, lbx ? lbx->fire.animation2 : nullptr, lbx ? lbx->fire.flags : 0u);
+      if (mech3::object_lod() == 2) {  // object detail low: no FIRE animations or effects read, no impact animations
+        std::printf("  object detail 2: switches %d %d\n", zwep::state().fire_effects, zwep::state().impact_animations);
+        EXPECT(two == 0 && laser && !laser->fire.animation && !zwep::state().fire_effects && !zwep::state().impact_animations);
+        zwep::hit_hooks() = hk, zwep::run_hooks() = rk;
+        return void(done = true);
+      }
+      EXPECT(zwep::state().fire_effects && zwep::state().impact_animations);
+      EXPECT(two >= 30);  // weapons.zrd's lasers, PPCs, autocannons, gauss: a muzzle flash and a weplight each
+      EXPECT(laser && laser->fire.animation && laser->fire.animation2 && lbx && lbx->fire.animation2 && (lbx->fire.flags & 2));
+      if (!laser || !lbx) return void(done = true);
+      void* me = mech3::mech_node_of(player);
+      float a[3];
+      mech3::node_world_cached(me, a);
+      const zwep::Vec3f3 from{a[0], a[1] + 5.0f, a[2]}, dir{1, 0, 0}, still{0, 0, 0};
+      // A beam: choice 0 starts both and keeps them, the release frees both; choice 2 the weplight alone.
+      for (const int c : {0, 2}) {
+        played.clear(), freed.clear();
+        laser->fire.animation_choice = c;
+        zwep::Beam* b = zwep::beam_make(laser, me, nullptr, &from, &dir, 1);
+        zwep::beam_start(b);
+        const std::vector<zwep::Handle> want = c == 0 ? std::vector<zwep::Handle>{laser->fire.animation, laser->fire.animation2}
+                                                      : std::vector<zwep::Handle>{laser->fire.animation2};
+        EXPECT(played == want);
+        EXPECT((laser->fire.running[0] != nullptr) == (c == 0) && laser->fire.running[1] != nullptr);
+        EXPECT(laser->fire.animation_choice == 0);  // back to both for the next
+        const size_t kept = (laser->fire.running[0] != nullptr) + (laser->fire.running[1] != nullptr);
+        zwep::beam_stop(b);
+        zwep::beam_free(b);
+        EXPECT(freed.size() == kept && !laser->fire.running[0] && !laser->fire.running[1]);
+        std::printf("  beam, choice %d: %zu played, %zu freed\n", c, played.size(), freed.size());
+      }
+      // A shot: with the ANIMATION number set and a firepoint, both go on the firepoint; without one, both in the
+      // world; choice 1 the flash alone. The firepoint is let go after each.
+      static uint32_t zone;
+      zone = zwep::query_zone();
+      for (const int k : {0, 1, 2}) {
+        played.clear(), attached.clear();
+        lbx->fire.animation_choice = k == 2 ? 1 : 0;
+        lbx->fire.attach_node = k == 0 ? me : nullptr;
+        zwep::spawn(lbx, me, &zone, &from, &dir, &still, 0, nullptr);
+        const std::vector<zwep::Handle> both{lbx->fire.animation, lbx->fire.animation2}, first{lbx->fire.animation};
+        EXPECT(k == 0 ? attached == both && played.empty() : attached.empty() && played == (k == 1 ? both : first));
+        EXPECT(lbx->fire.attach_node == nullptr && lbx->fire.animation_choice == 0);
+        std::printf("  LB-X shot %d: %zu attached, %zu in the world\n", k, attached.size(), played.size());
+      }
+      // Without the number (the gauss rifle), a firepoint is not used: both in the world, the node let go.
+      if (zwep::WeaponDef* gauss = zwep::find_def("GaussRifle")) {
+        played.clear(), attached.clear();
+        gauss->fire.animation_choice = 0;
+        gauss->fire.attach_node = me;
+        zwep::spawn(gauss, me, &zone, &from, &dir, &still, 0, nullptr);
+        EXPECT(!(gauss->fire.flags & 2) && attached.empty() && played.size() == 2 && gauss->fire.attach_node == nullptr);
+        std::printf("  gauss shot with a firepoint: %zu attached, %zu in the world\n", attached.size(), played.size());
+      } else {
+        EXPECT(false);
+      }
+      zwep::hit_hooks() = hk, zwep::run_hooks() = rk;
+      done = true;
+      return;
+    }
     if (std::getenv("PM_TAG_MUZZLE")) {  // pm-tests item 15: TAG added as the build does, aimed ahead
       static int t = 0;
       if (++t == 30) {
@@ -2042,7 +2129,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -2257,6 +2344,43 @@ TEST(pm_tag_fires_from_the_mech) {
   const pid_t child = check::fork_child();
   if (child == 0) {
     setenv("PM_TAG_MUZZLE", "1", 1);
+    kill_run("1,1,3", true);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// pm-tests, weapon lights (0x005a6700, 0x005a6c60, 0x005a27b0, 0x005a2a00): PM's FIRE blocks name a muzzle flash
+// and a weapon light, and a shot or beam plays both (choice 0; k the k-th), a beam keeping both running until its
+// release; the ANIMATION number puts a shot's on the firepoint. MW3 played the first name alone.
+TEST(pm_weapon_lights_play_both) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();
+  if (child == 0) {
+    setenv("PM_WEAPON_LIGHTS", "1", 1);
+    kill_run("1,1,3", true);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  int status = 1;
+  status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
+// At object detail low (2), the mission's load turns both off (0x00492830): no FIRE animations or effects are read.
+TEST(pm_weapon_lights_off_at_low_detail) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();
+  if (child == 0) {
+    setenv("PM_WEAPON_LIGHTS", "1", 1);
+    setenv("PM_OBJECT_LOD", "2", 1);
     kill_run("1,1,3", true);
     std::fflush(nullptr);
     _exit(check::failures ? 1 : 0);

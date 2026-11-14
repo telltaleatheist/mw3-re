@@ -153,16 +153,21 @@ int32_t beam_start(Beam* b) {
   if (def->flags & kDesignate) sound_frequency(b->sound, 0.0f);
   if (def->fire.effect) {
     if (hit_hooks().impact_effect) hit_hooks().impact_effect(def->fire.effect, b->origin);
-  } else if (Handle a = def->fire.animation) {
-    float roll = 0.0f;
-    if (def->fire.flags & 1) roll = rand_unit() * 3.14159274f;
-    const Vec3f3& o = *b->origin;
-    const float yaw = yaw_of(*b->dir);
-    const float args[9] = {o.x, o.y, o.z, pitch_of(*b->dir), yaw, roll, 0, 0, 0};
-    // The running animation goes in the fire block's +0x08 (the second choice).
-    def->fire.animation2 = rh().effect_handle ? rh().effect_handle(a, args) : nullptr;
-  } else {
-    def->fire.animation2 = nullptr;
+  } else if (def->fire.animation_choice != -1) {
+    // Pirate's Moon 1.0 @ 0x005a27b0: the FIRE animations by the choice, as the shot's (0 both, k the k-th),
+    // each running one kept to be freed at the release (MW3's 0x00581230 played the first and kept it in +0x08).
+    const Handle slots[2] = {def->fire.animation, def->fire.animation2};
+    const int32_t c = def->fire.animation_choice;
+    const int32_t from = c == 0 ? 0 : c - 1, to = c == 0 ? 1 : c - 1;
+    for (int32_t k = from; k <= to; ++k) {
+      if (!slots[k]) continue;
+      float roll = 0.0f;
+      if (def->fire.flags & 1) roll = rand_unit() * 3.14159274f;
+      const Vec3f3& o = *b->origin;
+      const float yaw = yaw_of(*b->dir);
+      const float args[9] = {o.x, o.y, o.z, pitch_of(*b->dir), yaw, roll, 0, 0, 0};
+      def->fire.running[k] = rh().effect_handle ? rh().effect_handle(slots[k], args) : nullptr;
+    }
   }
   b->length = b->timer = b->age = 0;
   b->flags &= ~2u;
@@ -187,6 +192,8 @@ int32_t beam_start(Beam* b) {
   b->prev = nullptr;
   b->next = def->beams;
   def->beams = b;
+  def->fire.sound_choice = def->fire.animation_choice = 0;  // PM: the choices back, as after a shot
+  def->flyout.animation_choice = 0;
   return 0;
 }
 
@@ -196,9 +203,10 @@ int32_t beam_stop(Beam* b) {
   WeaponDef* def = b->def;
   if (b->sound && rh().sound_stop) rh().sound_stop(b->sound);
   if (def->fire.sounds[0]) sound_at(def->fire.sounds[0], b->origin);
-  if (def->fire.animation2) {
-    if (rh().anim_free) rh().anim_free(def->fire.animation2);
-    def->fire.animation2 = nullptr;
+  for (Handle& r : def->fire.running) {  // Pirate's Moon 1.0 @ 0x005a2a00: both running FIRE animations
+    if (!r) continue;
+    if (rh().anim_free) rh().anim_free(r);
+    r = nullptr;
   }
   if (b->next) b->next->prev = b->prev;
   if (b->prev) b->prev->next = b->next;
@@ -372,7 +380,9 @@ void beam_update(WeaponDef* def) {
               if (!(t > 0.0f)) b->timer = 0;
               else sound_frequency(b->sound, t / def->detonation_distance_sq);
             } else {
-              if ((b->flags & 1) && def->impacts[soil].animation) play_at(def->impacts[soil].animation, rec->point);
+              // Pirate's Moon 1.0 @ 0x005a2ae0: not with the impact animations off (object detail 2).
+              if (state().impact_animations && (b->flags & 1) && def->impacts[soil].animation)
+                play_at(def->impacts[soil].animation, rec->point);
               b->timer = dt + b->timer;
             }
           }

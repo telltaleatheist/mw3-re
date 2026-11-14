@@ -338,18 +338,25 @@ Projectile* spawn(WeaponDef* def, Handle owner, const uint32_t* zone, const Vec3
   if (fire.effect) {
     if (hit_hooks().impact_effect) hit_hooks().impact_effect(fire.effect, &p->position);
   } else if (fire.animation_choice != -1) {
-    Handle a = fire.animation_choice == 0 ? fire.animation : fire.animation2;
-    if (a) {
-      const float roll = (fire.flags & 1) ? rand_angle() : 0.0f;
-      if (fire.attach_node) {
-        if (g_rh.anim_attached) g_rh.anim_attached(a, fire.attach_node, fire.attach_offset);
-        fire.attach_node = nullptr;
-      } else {
+    // Pirate's Moon 1.0 @ 0x005a6c60: choice 0 plays both FIRE animations, k the k-th; one is attached only with
+    // the ANIMATION flag (bit 1) and an attach node; the node is let go after (MW3: choice k the k-th slot alone,
+    // attached whenever there was a node).
+    const Handle slots[2] = {fire.animation, fire.animation2};
+    const int32_t from = fire.animation_choice == 0 ? 0 : fire.animation_choice - 1;
+    const int32_t to = fire.animation_choice == 0 ? 1 : fire.animation_choice - 1;
+    for (int32_t k = from; k <= to; ++k) {
+      const Handle a = slots[k];
+      if (!a) continue;
+      if (!(fire.flags & 2) || !fire.attach_node) {
+        const float roll = (fire.flags & 1) ? rand_angle() : 0.0f;
         const float yaw = yaw_of(*dir);
         const float args[9] = {p->position.x, p->position.y, p->position.z, pitch_of(*dir), yaw, roll, 0, 0, 0};
         if (hit_hooks().effect) hit_hooks().effect(a, args);
+      } else if (g_rh.anim_attached) {
+        g_rh.anim_attached(a, fire.attach_node, fire.attach_offset);
       }
     }
+    fire.attach_node = nullptr;
   }
   const Effect& fly = def->flyout;
   if (!(flags & kMine) && (((flags & kFlyoutUnlit) && fly.model) || (fly.animation && !fly.model))) {

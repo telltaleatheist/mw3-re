@@ -336,7 +336,9 @@ uint32_t apply_damage(WeaponDef* def, Handle owner, const Vec3f3* from, HitRecor
     g_hit.attacker = owner;
     if (g_hit.pre_hit) g_hit.pre_hit(reinterpret_cast<Handle>(h), hit->node, damage, def);
     r = g_hh.call_handler ? g_hh.call_handler(h, def, hit, damage) : 0;
-    if (g_hit.killed) {
+    if (!state().impact_animations) {
+      // Pirate's Moon 1.0 @ 0x005a4e80: no kill, impact or damage animation with them off (object detail 2).
+    } else if (g_hit.killed) {
       if (def->kill_animation) play_at(def->kill_animation, hit->point);
     } else if (anim) {
       play_at(anim, hit->point);
@@ -391,6 +393,7 @@ uint32_t impact(WeaponDef* def, HitRecord* rec, Projectile* p, Handle anim) {
     if (g_hh.sound) g_hh.sound(def, rec, soil, 1.0f);
     else sound(def, rec, soil, 1.0f);  // 0x00582f60 (zwep_shot.cpp)
   }
+  if (!state().impact_animations) return r;  // Pirate's Moon 1.0 @ 0x005a3df0: nor the impact effect (object detail 2)
   if (!skip) {
     if (!(flags & 4) && r == 0) {
       if (Handle a = def->impacts[soil].animation) play_at(anim ? anim : a, rec->point);
@@ -555,6 +558,7 @@ int32_t startup() {
   st.defs.clear(), st.pool.clear();
   st.free_list = nullptr;
   st.max_crater_radius = 30.0f;
+  st.fire_effects = st.impact_animations = true;  // Pirate's Moon 1.0 @ 0x005a5170
   run_state().pool_objects = 0;
   // With the network mode: 0x005a8a20(0x00583850, 1000, 0), the shots'
   // network messages (not ported).
