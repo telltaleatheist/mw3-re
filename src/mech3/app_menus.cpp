@@ -1589,4 +1589,12 @@ void GameEngine::multiplayer_resume(Handle screen) {
   }
 }
 
+// Pirate's Moon 1.0 @ 0x00496650: the pause state's Escape, its screen's RESUME.
+bool GameEngine::pause_resume(Handle screen) {
+  auto* p = dynamic_cast<PauseScreen*>(screen_of(screen));
+  if (!p) return false;
+  p->on_button(PauseScreen::kResume, 0, 0);
+  return true;
+}
+
 }  // namespace mech3
