@@ -95,6 +95,7 @@ struct SceneWalk {
   ScreenRing rings[50] = {};       // 0x00736640
   float view_points[6][3] = {};    // 0x007365c0  the camera's footprint (the hull reuses one more)
   int32_t view_count = 0;          // 0x0073662c
+  int32_t picked[4] = {};          // PM 0x00639020..2c: the picked cells, x0, z0, x1, z1 (the virtual picker's unwrapped)
 };
 SceneWalk& scene_walk();
 

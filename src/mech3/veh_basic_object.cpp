@@ -11,6 +11,7 @@
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zreader/zreader.h"
@@ -480,6 +481,7 @@ void vehicle_cameras_reset() {
 
 // Mech3.exe 1.2 @ 0x004ace00: plain modes (0x0040a950), none of the mechs'
 // definition blocks; behind is pitched down 0.06 rad, above straight down.
+// Pirate's Moon 1.0 @ 0x004b0790: the above camera tilted (zgame::Table top_cameras_tilted).
 void vehicle_cameras_make() {
   if (!g_cameras_pending) return;
   g_cameras_pending = false;
@@ -502,7 +504,8 @@ void vehicle_cameras_make() {
 
   auto* above = new CameraMode(3);
   above->dist = 150.0f;
-  zmth::quat_pitch(zgame::from_bits(0xbfc90fd8), *reinterpret_cast<zmth::Quat*>(above->delta_rot));
+  const uint32_t pitch = zgame::game().top_cameras_tilted ? 0xbfb4f4a9 : 0xbfc90fd8;  // PM 0x004b08bf: -81 degrees
+  zmth::quat_pitch(zgame::from_bits(pitch), *reinterpret_cast<zmth::Quat*>(above->delta_rot));
   above->desired_pos[0] = 0.0f;
   above->desired_pos[1] = 1.0f;
   above->desired_pos[2] = 0.0f;

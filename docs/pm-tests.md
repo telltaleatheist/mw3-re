@@ -1015,3 +1015,35 @@ session row at a fixed frame (`pm_mode_pair`: 100,143 at frame 420 past the shif
 filled by LAN discovery in real time and the hidden runs go faster than that: when the answer comes after the
 click, nothing clicks again. The run is at fault, not the limit. A click that waits for the list (as
 `--click-players` waits for players) would end the race for every pair test; not done here.
+
+## The scene render's cell cull (2026-11-14)
+
+PM's scene render (0x50a5d0) draws the world's direct children through 0x50a550, which skips a child
+whose cell range (PM's world_add_child keeps x0, z0, x1, z1 as shorts at +0x4c..+0x52) misses the cells the
+picker just chose ([0x639020..0x63902c], kept by 0x5092a0 clamped and by the virtual picker 0x509830
+unwrapped); a child flagged 0x80 is always drawn. MW3's 0x4f6c00 draws every one. The port keeps the range in
+the walk state (`SceneWalk::picked`, both pickers) and culls behind the table's `world_children_by_cells`.
+`test_pm_scene_children.py` runs 0x50a550 against the port on crafted edges (touching, one past, every side)
+and 300 random ranges: 301 scenes, the drawn children in order. Breaks: the flag off (247 differ), `<` for
+`<=` (42), the 0x80 test dropped (219). `test_pm_walk.py` (the whole world render on the four worlds) still
+matches draw for draw. Not visible in play: a culled child lies outside the camera's footprint.
+
+## The camera's setters mark what hangs under it moved (2026-11-14)
+
+PM's camera setters and adders of rotation and position (0x506ae0, 0x506cd0, 0x506c10, 0x506d90) end, after
+MW3's logic, by marking a camera with children and everything below it moved (0x4ff6d0: an object3d's world
+matrix stale, +0x2c bit 1, flag 0x2000000; a child already flagged is not entered), and its add_child
+(0x506760) marks the camera after the link. The port does the same behind the table's
+`camera_setters_mark_moved` (`node_mark_moved`, once file-local in cls_node.cpp). `test_pm_camera_moved.py`
+runs all five against the exe on 202 trees: 1010 calls, every node's flags, +0x2c and object3d word (the link's
+changed-list push stubbed). Breaks: the flag off (962 differ), add_child unmarked (202), add_rotation unmarked
+(190).
+
+## The top-down cameras (2026-11-14)
+
+PM's mech camera set-up (0x4311e0) makes the god camera 120 m away pitched -1.413716 rad (0xbfb4f4a9, -81
+degrees), MW3's 150 m straight down; a vehicle's above camera (0x4b0790) takes the same pitch and keeps 150 m.
+The port picks them by the table's `top_cameras_tilted`. `test_pm_top_cameras.py` reads the distances and
+angles from PM's instructions (0x4314ee / 0x4314f3, 0x4b08bf / 0x4b08c4), makes the rotations with PM's
+quat_pitch (0x53ea70) and compares the port's cameras bit for bit, and MW3's table against MW3's values.
+Breaks: the flag off, the god camera's 150 m kept, the above pitch one ulp off (each caught).

@@ -715,10 +715,13 @@ int camera_get_fov_angles(Node* node, float* h, float* v) {
 }
 
 // Mech3.exe 1.2 @ 0x004f33a0
+// Pirate's Moon 1.0 @ 0x00506760: the camera is then marked moved too.
 int camera_add_child(Node* node, Node* child) {
   if (!node) return zerr::report(0x400, kFile, 0x2e3, "Null node pointer."), 5;
   if (!child) return zerr::report(0x400, kFile, 0x2e4, "Null node pointer."), 5;
-  return node_link(node, child);
+  const int r = node_link(node, child);
+  if (zgame::game().camera_setters_mark_moved) node_mark_moved(node);
+  return r;
 }
 
 // Mech3.exe 1.2 @ 0x004f3610. No checks.
@@ -740,6 +743,7 @@ void camera_mark_changed(Node* node, Camera* d) {
 }  // namespace
 
 // Mech3.exe 1.2 @ 0x004f36b0. Drops the given-matrix flag (+0x10 bit 1).
+// Pirate's Moon 1.0 @ 0x00506ae0: a camera with children also marks them moved.
 int camera_set_rotation(Node* node, float x, float y, float z) {
   if (int r = check_class(node, 1, kFile, 0x468)) return r;
   Camera* d = cam_of(node);
@@ -747,20 +751,24 @@ int camera_set_rotation(Node* node, float x, float y, float z) {
   d->put(0x20, x), d->put(0x24, y), d->put(0x28, z);
   d->put<uint32_t>(0x10, d->get<uint32_t>(0x10) & ~2u);
   if (node->parent_count() > 0) camera_mark_changed(node, d);
+  if (zgame::game().camera_setters_mark_moved && node->child_count() > 0) node_mark_moved(node);
   return 0;
 }
 
 // Mech3.exe 1.2 @ 0x004f3870. With a given matrix the position goes to +0xa4.
+// Pirate's Moon 1.0 @ 0x00506cd0: a camera with children also marks them moved.
 int camera_set_position(Node* node, float x, float y, float z) {
   if (int r = check_class(node, 1, kFile, 0x4fd)) return r;
   Camera* d = cam_of(node);
   const int off = (d->get<uint32_t>(0x10) & 2) ? 0xa4 : 0x14;
   d->put(off, x), d->put(off + 4, y), d->put(off + 8, z);
   if (node->parent_count() > 0) camera_mark_changed(node, d);
+  if (zgame::game().camera_setters_mark_moved && node->child_count() > 0) node_mark_moved(node);
   return 0;
 }
 
 // Mech3.exe 1.2 @ 0x004f37c0. Unlike the setter, the given-matrix flag stays.
+// Pirate's Moon 1.0 @ 0x00506c10: a camera with children also marks them moved.
 int camera_add_rotation(Node* node, float x, float y, float z) {
   if (int r = check_class(node, 1, kFile, 0x4a0)) return r;
   Camera* d = cam_of(node);
@@ -769,10 +777,12 @@ int camera_add_rotation(Node* node, float x, float y, float z) {
   d->put<int32_t>(0x184, 1);
   d->put(0x28, z);
   if (node->parent_count() > 0) camera_mark_changed(node, d);
+  if (zgame::game().camera_setters_mark_moved && node->child_count() > 0) node_mark_moved(node);
   return 0;
 }
 
 // Mech3.exe 1.2 @ 0x004f3920
+// Pirate's Moon 1.0 @ 0x00506d90: a camera with children also marks them moved.
 int camera_add_position(Node* node, float x, float y, float z) {
   if (int r = check_class(node, 1, kFile, 0x530)) return r;
   Camera* d = cam_of(node);
@@ -780,6 +790,7 @@ int camera_add_position(Node* node, float x, float y, float z) {
   x = x + d->get<float>(off), y = y + d->get<float>(off + 4), z = z + d->get<float>(off + 8);
   d->put(off, x), d->put(off + 4, y), d->put(off + 8, z);
   if (node->parent_count() > 0) camera_mark_changed(node, d);
+  if (zgame::game().camera_setters_mark_moved && node->child_count() > 0) node_mark_moved(node);
   return 0;
 }
 
@@ -975,6 +986,7 @@ int pick_cells(Node* world, Camera* cam) {
   const int32_t cols = w->get<int32_t>(0x88) - 1, rows = w->get<int32_t>(0x8c) - 1;
   auto clamp = [](int32_t v, int32_t hi) { return v > hi ? hi : (v < 0 ? 0 : v); };
   x0 = clamp(x0, cols), x1 = clamp(x1, cols), z0 = clamp(z0, rows), z1 = clamp(z1, rows);
+  g_walk.picked[0] = x0, g_walk.picked[1] = z0, g_walk.picked[2] = x1, g_walk.picked[3] = z1;  // PM 0x005092a0 keeps them
   const uint32_t cam_mask = cell_at(w, cx, cz).get<uint32_t>(4);
   for (int32_t x = x0; x <= x1; ++x) {
     for (int32_t z = z0; z <= z1; ++z) {
@@ -1011,6 +1023,7 @@ int pick_cells_virtual(Node* world, Camera* cam) {
   world_cell_wrapped(world, &x0, min_x, min_z, &z0, &a, &b, &inside);
   world_cell_wrapped(world, &x1, max_x, max_z, &z1, &c, &e, &inside);
   if (z0 > z1) std::swap(z0, z1);  // (the exe also swaps the unused wrapped rows)
+  g_walk.picked[0] = x0, g_walk.picked[1] = z0, g_walk.picked[2] = x1, g_walk.picked[3] = z1;  // PM 0x00509830 keeps them
   const uint32_t cam_mask = cell_at(w, wx, wz).get<uint32_t>(4);
   for (int32_t x = x0; x <= x1; ++x) {
     for (int32_t z = z0; z <= z1; ++z) {
@@ -1153,14 +1166,26 @@ int render_cells(Node* world, Node* camera_node, Camera* cam) {
 
 // Mech3.exe 1.2 @ 0x004f6c00 (ECX world node): the world's direct children
 // with all six planes, EDX 2.
+// Pirate's Moon 1.0 @ 0x0050a550: a child spanning cells is drawn only when
+// its range (PM's world_add_child: +0x4c, +0x50, the far corner after) meets the picked cells.
 int render_world_children(Node* world) {
   if (zmod::shadows_on()) zmod::use_all_casters();
   zmod::mask_top() = 0x3f;
-  for (int32_t i = 0; i < world->child_count(); ++i) render_node(world->children[i], 2);
+  const bool by_cells = zgame::game().world_children_by_cells;
+  const int32_t* r = g_walk.picked;
+  for (int32_t i = 0; i < world->child_count(); ++i) {
+    Node* c = world->children[i];
+    if (by_cells && !(c->flags() & 0x80) &&
+        !(c->get<int32_t>(0x4c) <= r[2] && r[0] <= c->pm_virtual[0] && c->get<int32_t>(0x50) <= r[3] &&
+          r[1] <= c->pm_virtual[1]))
+      continue;
+    render_node(c, 2);
+  }
   return 0;
 }
 
 // Mech3.exe 1.2 @ 0x004f6c50 (ECX world node, EDX camera node, stack camera data)
+// Pirate's Moon 1.0 @ 0x0050a5d0
 int render_scene(Node* world, Node* camera_node, Camera* cam) {
   render_cells(world, camera_node, cam);
   return render_world_children(world);

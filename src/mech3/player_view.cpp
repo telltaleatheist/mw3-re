@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "gamez/zclass/cls_di.h"
+#include "gamez/zgame/zgame_table.h"
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zmodel/gmod_matl.h"
 #include "gamez/zmath/zmth_vector.h"
@@ -393,6 +394,7 @@ float tether_height(int32_t roster) {
   }
 }
 
+// Pirate's Moon 1.0 @ 0x004311e0: the god camera nearer and tilted (zgame::Table top_cameras_tilted).
 CameraList* make_cameras(int32_t roster) {
   ViewHooks& h = *g_hooks;
   auto* list = new CameraList;
@@ -444,8 +446,9 @@ CameraList* make_cameras(int32_t roster) {
   list->modes.push_back(zipper);
 
   auto* gods = new MechCamera(3);
-  gods->dist = 150.0f;
-  zmth::quat_pitch(zgame::from_bits(0xbfc90fd8), Q(gods->delta_rot));
+  const bool pm_top = zgame::game().top_cameras_tilted;  // PM 0x004314ee: 120 m, -81 degrees
+  gods->dist = pm_top ? 120.0f : 150.0f;
+  zmth::quat_pitch(zgame::from_bits(pm_top ? 0xbfb4f4a9 : 0xbfc90fd8), Q(gods->delta_rot));
   gods->desired_pos[0] = 0.0f;
   gods->desired_pos[1] = 1.0f;
   gods->desired_pos[2] = 0.0f;

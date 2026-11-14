@@ -88,6 +88,8 @@ void set_expiry(Node* node);       // 0x004ed990
 int node_set_tree_valid(Node* node, int on);  // 0x004ed8f0, 1 for a null node
 Node* node_root(Node* node);       // 0x004ed8b0, 0 at a node with several parents
 int node_link(Node* parent, Node* child);       // 0x004eba90
+// PM 0x004ff6d0: the node and what is below it moved (object3d +0x20, +0x2c bit 1, flag 0x2000000).
+void node_mark_moved(Node* node);
 int node_set_active(Node* node, int on);        // the running game's: MW3's 0x004eb170
 int mw3_node_set_active(Node* node, int on);    // 0x004eb170
 // Mech3.exe 1.2 @ 0x0040ea30: a game object's kind bits (+0x28, replaced),

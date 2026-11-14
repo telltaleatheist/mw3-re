@@ -166,9 +166,8 @@ Node* node_root(Node* node) {
 }
 
 // Mech3.exe 1.2 @ 0x004eba90. No duplicate check. FIX (A): new arrays for realloc.
-namespace {
 // Pirate's Moon 1.0 @ 0x004ff6d0: a node and what is below it have moved (an object3d's world matrix is stale).
-void mark_moved(Node* node) {
+void node_mark_moved(Node* node) {
   if (node->cls() == 5) {
     auto* d = static_cast<Object3d*>(node->data);
     d->put<uint32_t>(0, d->get<uint32_t>(0) | 0x20);
@@ -176,9 +175,8 @@ void mark_moved(Node* node) {
   node->put<uint32_t>(0x2c, node->get<uint32_t>(0x2c) | 1);
   node->set_flags(node->flags() | 0x2000000);
   for (int32_t i = 0; i < node->child_count(); ++i)
-    if (!(node->children[i]->flags() & 0x2000000)) mark_moved(node->children[i]);
+    if (!(node->children[i]->flags() & 0x2000000)) node_mark_moved(node->children[i]);
 }
-}  // namespace
 
 int node_link(Node* parent, Node* child) {
   parent->children = append(parent->children, parent->child_count(), child);
@@ -193,7 +191,7 @@ int node_link(Node* parent, Node* child) {
   }
   parent->set_flags(parent->flags() | 2);
   if (parent->changed) parent->changed->removable = 0;
-  mark_moved(child);  // Pirate's Moon 0x004fd6f0
+  node_mark_moved(child);  // Pirate's Moon 0x004fd6f0
   return 0;
 }
 
