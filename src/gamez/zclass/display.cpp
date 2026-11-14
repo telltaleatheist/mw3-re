@@ -1,6 +1,10 @@
 #include "gamez/zclass/display.h"
 
+#include <cstring>
+
 #include "gamez/zclass/cls_data.h"
+#include "gamez/zclass/list.h"
+#include "gamez/zerror/zerr.h"
 #include "gamez/zvideo/zvid_format.h"
 
 namespace zcls {
@@ -32,6 +36,24 @@ int display_set_clear_color(Node* node, float r, float g, float b) {
   d->put(0x10, r), d->put(0x14, g), d->put(0x18, b);
   zvid::set_clear_color(zvid::pack_rgb(d->floats(0x10)));
   return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004fa4c0: a display node (class 4), 1 x 1, clear colour (0.392, 0.392, 1), on list 15 (the
+// script command NewDisplay: ported for preservation, the engine's entry left null). Refused by the list: deleted.
+Node* display_create() {
+  Node* node = node_alloc();
+  if (!node) return zerr::report(0x400, kFile, 0x41, "Null node pointer."), nullptr;
+  node->put<int32_t>(0x34, 4);
+  auto* d = new Display{};
+  std::memset(d->raw, 0, sizeof d->raw);
+  node->data = d;
+  d->put<int32_t>(0x08, 1), d->put<int32_t>(0x0c, 1);
+  d->put<uint32_t>(0x10, 0x3ec8b439u), d->put<uint32_t>(0x14, 0x3ec8b439u), d->put(0x18, 1.0f);
+  if (push_front(kDisplays, node) != 0) {
+    node_delete(node);
+    return nullptr;
+  }
+  return node;
 }
 
 }  // namespace zcls

@@ -143,6 +143,7 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a);  // 0x0053c6c0 
 // Every polygon's priority (+0x04) set; none on a null model. The exe returns
 // what EAX holds; callers ignore it (0 here, for the script's engine table).
 int model_set_priority(Model* m, int32_t priority);  // 0x0053bb20 ECX m, EDX priority
+void model_set_lighting(Model* m, uint32_t on);      // 0x00539cf0 ECX m, EDX on: +8 bit 0
 // `kept` (optional) loses the index of each point dropped.
 int drop_colinear(int32_t* n, float* points, std::vector<int32_t>* kept = nullptr);  // 0x0053a530 ECX n, EDX points
 int32_t find_vertex(Model& m, const float p[3]);                     // 0x00539d80
