@@ -120,7 +120,7 @@ def's own node.
 | 31..34 if, else, elseif, endif | 0x507010, 0x5073b0, 0x5073e0 | random, hardware, block +0x3c, player distance, the ground under the player or a node (a ray, 0x507220), heights, the level (0x508fb0) |
 | 35 callback | 0x507410 | the def's callback hears +0x0c |
 | 36 fbfx colour | 0x5074b0 | the screen tint (below), ported |
-| 37 fbfx wave | 0x5076c0 | a screen wave (the 2D layer); hooked |
+| 37 fbfx wave | 0x5076c0 | the screen wave (below), ported; no shipped data |
 | 38 | 0x507970 | a message (the 2D layer); hooked |
 | 39, 40 | 0x507960 | nothing |
 | 41 detonate | 0x507430 | the weapon named +0x0c goes off at +0x18 in node +0x16's frame; hooked |
@@ -211,6 +211,46 @@ Port: `zeff::anim_fbfx_color` (`AnimRunHooks.screen_tint` for 0x5a6730),
   360 frames reach no event 36 (the weapon animations run only on hits).
 - c1m2's missile hits flash (outbox, 2026-10-29).
 
+## The screen wave (event 37, 0x5076c0; ported 2026-11-14)
+
+FBFX_CSINWAVE_FROM_TO in mech3ax's names. No shipped anim.zbd of either
+game has it (`anim_walk`), so nobody has seen it in play; it is ported for
+preservation. The event (0x70 bytes): +0x0c flags (1 a screen place, 2 at
+a node, 4 a screen radius (not read), 8 a world radius), +0x0e the node, +0x10 an
+offset from it, +0x1c and +0x28 the screen x and y (from, to, rate), +0x34
+and +0x38 the world radius (from, to), +0x3c the screen radius (from, to,
+rate), +0x48, +0x54 and +0x60 three "csin" values (from, to, rate), +0x6c
+the time.
+
+- With a world radius, on the sequence's first run (its state byte 0), the
+  screen radius is worked out from it: a square root of the squared
+  distance from the def's root to the player (0x507340) by halving the
+  float's bits (`(bits >> 1) + 0x1fc00000`, a rough root), the radius over
+  that times the focal length, at most a quarter of the screen's larger
+  side; the rate is (to - from) / time. These are written into the event.
+- The time is split as event 36's.
+- The place: at a node (index above 0), the offset taken through the node
+  to the world (0x4ed650, skipped for a missing node) and projected
+  (0x53cf10); off the screen, nothing this frame (the event answers 1, its
+  time spent); on it, x and y rounded (+0.5, truncated). A screen place is
+  from + rate x t. With neither, the exe passes whatever its stack held
+  (the port: 0, FIX (A)).
+- Radius and the three csin values: from + rate x t, truncated to
+  integers; at the end the "to"s (2, done).
+
+They go to the weather manager (0x5a6760 -> 0x5a6650): five wave objects
+at +0x70 (vtable 0x5d04a8), the next one placed (0x5a5400: x, y, 0, the
+radius, csin x as an integer and csin y and z as floats) and shown for a
+frame. Past the fifth the fifth is reused; the manager's update counts
+from 0 again. Its draw calls 0x558dd0 with them for each manager rect, a
+ripple over the frame (the software 2D path; not ported, so nothing shows).
+
+Port: `zeff::anim_fbfx_wave`, `ztwod::ScreenWave` and `weather_wave`
+(`AnimRunHooks.screen_wave`; `WeatherHooks.wave` for 0x558dd0, which the
+program sends to the census). `test_screen_wave.py`: 3000 events against
+the exe, with the distance, the node's point and the projection stubbed,
+through the wave's draw, at 24 bits and with MW3_PRECISION=53.
+
 ## Hooks (`AnimRunHooks`)
 
 zSound's play calls, the ground hits (0x4edab0, `cls_di.c`), the "if" ray
@@ -221,8 +261,8 @@ silent and the rest were skipped without the census seeing them
 (campaign.md section 14). The program (app_mission.cpp, `wire_anim_run`)
 now runs the ports for the ground (`zcls::ground_point`), the sounds
 (`zsnd::play`, `play_at`) and 41 (`zwep::find_def`, `burst_at`). The
-others send their address to the census. 36, the screen tint, is ported
-(below). zClass's frame update (0x4f7f70) and node
+others send their address to the census. 36 and 37, the screen tint and
+the screen wave, are ported (below). zClass's frame update (0x4f7f70) and node
 update (0x4f7e00) are ported (`action-lists.md`) and run for real on both
 sides of test_anim_run.py (`MW3_STUB_UPDATE=1` records them instead, as
 before). The tree copy 0x4f9b50 stays a hook

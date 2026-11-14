@@ -2105,9 +2105,13 @@ struct WiredMissionHooks : MissionHooks {
     // Event 36's tint to the weather manager's (0x005a6730), drawn by its
     // next update (anim-run.md, The screen tint).
     r.screen_tint = [](void*, uint16_t colour, double alpha) { ztwod::weather_tint(colour, alpha); };
-    r.fbfx_wave = [](void*, zeff::AnimDef*, zeff::SeqDef*, uint8_t*) -> int32_t {
-      if (GameEngine* g = engine_of_hooks()) g->unported("0x005076c0", {});
-      return 2;
+    // Event 37's wave to the weather manager's (0x005a6760); its ripple draw
+    // 0x00558dd0 is not ported (anim-run.md, The screen wave).
+    r.screen_wave = [](void*, int32_t x, int32_t y, int32_t zero, int32_t radius, int32_t cx, float cy, float cz) {
+      ztwod::weather_wave(x, y, zero, radius, cx, cy, cz);
+    };
+    ztwod::weather_hooks().wave = [](int32_t, int32_t, int32_t, int32_t, int32_t, float, float, const ztwod::Rect*) {
+      if (GameEngine* g = engine_of_hooks()) g->unported("0x00558dd0", {});
     };
     r.message = [](void*, uint8_t*) {
       if (GameEngine* g = engine_of_hooks()) g->unported("0x00507970", {});

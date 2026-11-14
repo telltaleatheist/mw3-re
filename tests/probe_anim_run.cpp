@@ -335,9 +335,8 @@ void install_hooks() {
     std::memcpy(&q, &alpha, sizeof q);
     tr({9, 36, colour, static_cast<uint32_t>(q), static_cast<uint32_t>(q >> 32)});
   };
-  r.fbfx_wave = [](void*, AnimDef* d, zeff::SeqDef*, uint8_t*) -> int32_t {
-    tr({9, 37, static_cast<uint32_t>(did(d))});
-    return 2;
+  r.screen_wave = [](void*, int32_t x, int32_t y, int32_t, int32_t radius, int32_t, float, float) {
+    tr({9, 37, static_cast<uint32_t>(x), static_cast<uint32_t>(y), static_cast<uint32_t>(radius)});
   };
   r.message = [](void*, uint8_t*) { tr({9, 38, 0}); };
   zcls::update_hooks().update_node = [](void*, Node* n) { tr({6, static_cast<uint32_t>(nidx(n))}); };
