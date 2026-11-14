@@ -130,8 +130,10 @@ class AddressMap:
         self.blocks = sorted((int(lo, 16), int(hi, 16), d) for lo, hi, d in m['blocks'])
         self.function_back = {int(b, 16): int(a_, 16) for a_, b in m['functions'].items()}
         # By hand, what the map can't pair: video unlock's one-instruction wrappers, the loadout's copy
-        # (fastcall there, cdecl here) and where a file list's rectangle is worked out.
-        for mw, pm in ((0x576e70, 0x597ef0), (0x576ea0, 0x597f40), (0x424010, 0x425970), (0x48d06d, 0x48bc85)):
+        # (fastcall there, cdecl here), where a file list's rectangle is worked out, the reader's find
+        # (a one-line wrapper) and the basic controls' frame (pm-tests.md, the basic vehicle's own controls).
+        for mw, pm in ((0x576e70, 0x597ef0), (0x576ea0, 0x597f40), (0x424010, 0x425970), (0x48d06d, 0x48bc85),
+                       (0x5569e0, 0x578950), (0x401050, 0x401000)):
             self.exact[mw] = pm
             self.function_back[pm] = mw
         self._lo = [b[0] for b in self.blocks]
