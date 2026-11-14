@@ -200,6 +200,7 @@ struct Projectile {
   int32_t net_id = 0;          // +0x5cc  spawn's fifth argument
   void (*tick)(Projectile* p) = nullptr;  // +0x5d0  run each frame (the radar's), ECX the shot
   uintptr_t tick_arg = 0;      // +0x5d4
+  uint32_t frame_stamp = 0;    // Pirate's Moon's +0x638: the frame it was made on, then the frame its retire waits for
 };
 
 // The zWeapon globals the reader fills.

@@ -295,7 +295,7 @@ void beam_update(WeaponDef* def);                                          // 0x
 void update(WeaponDef* def);                                               // 0x00585710
 void commit(WeaponDef* def);                                               // 0x005858b0
 void commit_one(WeaponDef* def, Projectile* p);                            // 0x005864c0
-void retire(WeaponDef* def, Projectile* p);                                // 0x00586600
+bool retire(WeaponDef* def, Projectile* p);                                // 0x00586600 (PM 0x005a8390: false while held)
 void home(WeaponDef* def, Projectile* p);                                  // 0x00585900
 HitRecord* collide(WeaponDef* def, Projectile* p, const Vec3f3* to);        // 0x005861f0
 void hide_shooter(WeaponDef* def, Projectile* p);                          // 0x00586160

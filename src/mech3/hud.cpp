@@ -2354,8 +2354,8 @@ void HudWeapons::read_layout(Hud* h) {
   refresh_all();
 }
 
-// Mech3.exe 1.2 @ 0x00445d10: both looks flipped, then set back, so the
-// fonts are set again for the new name.
+// Mech3.exe 1.2 @ 0x00445d10, Pirate's Moon 1.0 @ 0x00447840 (the name by PM's table, the hook's): both looks
+// flipped, then set back, so the fonts are set again for the new name.
 void HudWeaponLine::set_weapon(void* w, zimg::Texture* mark) {
   weapon = w;
   show_for(-1.0f);

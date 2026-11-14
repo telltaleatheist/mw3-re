@@ -50,7 +50,7 @@ float beam_damage(WeaponDef* def, Beam* b) {
   return v * b->damage_scale;
 }
 
-// Mech3.exe 1.2 @ 0x00585cc0: one frame of flight into `move`: speed up to
+// Mech3.exe 1.2 @ 0x00585cc0 (PM 0x005a79a0, its first frame's move below): one frame of flight into `move`: speed up to
 // the maximum, gravity, RANDOM_DEVIATION's drift, the distance travelled,
 // and what happens at RANGE or at the lock's DETONATION_DISTANCE.
 void step(WeaponDef* def, Projectile* p, Vec3f3* move) {
@@ -74,7 +74,10 @@ void step(WeaponDef* def, Projectile* p, Vec3f3* move) {
   } else if (rebuild) {
     rebuild_velocity();
   }
-  *move = {p->velocity.x * dt, p->velocity.y * dt, p->velocity.z * dt};
+  // Pirate's Moon 1.0 @ 0x005a79a0: on the frame it was made, a shot moves by 1e-6 s ([0x005f11bc]) and is drawn at
+  // the muzzle; the rest of the step keeps the frame's time.
+  const float move_dt = p->frame_stamp == zcls::frames().frame ? 1e-6f : dt;
+  *move = {p->velocity.x * move_dt, p->velocity.y * move_dt, p->velocity.z * move_dt};
   if (def->flags & kRandomDeviation) {
     bool drift = true;
     if ((def->flags & kLockOn) && p->target_at) {

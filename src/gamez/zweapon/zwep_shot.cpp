@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "crt/msvc_rand.h"
+#include "gamez/zclass/cls_node.h"
 #include "gamez/zmath/zmth_vector.h"
 #include "gamez/zmodel/gmod_cull.h"
 #include "gamez/zutil/zfix.h"
@@ -277,6 +278,7 @@ Projectile* spawn(WeaponDef* def, Handle owner, const uint32_t* zone, const Vec3
   }
   p->travelled = 0;
   p->age = 0;
+  p->frame_stamp = zcls::frames().frame;  // Pirate's Moon 0x005a6d3c: the first frame's move is 1e-6 s (step)
   p->net_id = net_id;
   if (zone) p->zone = *zone;
   else p->zone = (p->zone & ~0xffu) | 4;
@@ -417,7 +419,7 @@ void tick() {
   set_query_zone(g_rs.tick_zone);
 }
 
-// Mech3.exe 1.2 @ 0x00585710: one frame of every shot of a weapon: shot down,
+// Mech3.exe 1.2 @ 0x00585710, Pirate's Moon 1.0 @ 0x005a73c0 (its dead shots skipped): one frame of every shot of a weapon: shot down,
 // a mine lying in wait, or flying (homing, then the step); then what the move
 // crosses.
 void update(WeaponDef* def) {
@@ -425,6 +427,7 @@ void update(WeaponDef* def) {
   // not a mine moves by it (none does: speed is 0 only for mines and the dead).
   Vec3f3 move{};
   for (Projectile* p = def->active; p; p = p->next) {
+    if (p->state == 0) continue;  // Pirate's Moon 0x005a73c0: a dead shot held a frame by its retire stays where it is
     p->state = 1;
     if (p->tick) p->tick(p);
     set_query_zone((p->zone & 0xff) == 4 ? g_rs.tick_zone : p->zone);
@@ -456,15 +459,21 @@ void update(WeaponDef* def) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x005858b0: the dead leave the list, the flying move.
+// Mech3.exe 1.2 @ 0x005858b0, Pirate's Moon 1.0 @ 0x005a7570 (a held one put back): the dead leave the list, the
+// flying move.
 void commit(WeaponDef* def) {
   Projectile** link = &def->active;
   Projectile* p = *link;
   while (p) {
     if (p->state == 0) {
       *link = p->next;
-      retire(def, p);
-      p = *link;
+      if (retire(def, p)) {
+        p = *link;
+      } else {  // Pirate's Moon 0x005a7570: held, it goes back in its place for one more frame
+        *link = p;
+        link = &p->next;
+        p = p->next;
+      }
     } else {
       if (p->state == 1) commit_one(def, p);
       link = &p->next;
@@ -495,9 +504,16 @@ void commit_one(WeaponDef* def, Projectile* p) {
   p->position = p->next_position;
 }
 
-// Mech3.exe 1.2 @ 0x00586600: a dead shot back to the pool. A TETHER_GUIDED
-// shot is not returned: its slot is lost for the mission (docs/weapons.md).
-void retire(WeaponDef* def, Projectile* p) {
+// Mech3.exe 1.2 @ 0x00586600, Pirate's Moon 1.0 @ 0x005a8390: a dead shot back to the pool. A TETHER_GUIDED
+// shot is not returned: its slot is lost for the mission (docs/weapons.md). PM's first holds it: stamped with the
+// next frame (the zClass frame count, raised each frame) and kept, so it is drawn once more where it ended; on that
+// frame it goes.
+bool retire(WeaponDef* def, Projectile* p) {
+  const uint32_t frame = zcls::frames().frame;
+  if (p->frame_stamp != frame) {
+    p->frame_stamp = frame + 1;
+    return false;
+  }
   p->speed = 0;
   p->state = 1;
   stop_anim(&p->flyout_anim);
@@ -505,6 +521,7 @@ void retire(WeaponDef* def, Projectile* p) {
   remove_child(state().world, p->node);
   if (!(def->flags & kTetherGuided)) pool_release(def, p);
   else p->owner = nullptr;
+  return true;
 }
 
 // Mech3.exe 1.2 @ 0x00585900: a locked shot turns toward its target, at most
