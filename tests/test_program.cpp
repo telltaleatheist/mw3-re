@@ -1025,6 +1025,26 @@ struct CountingPump : platform::MessagePump {
   void wait(uint32_t) override {}
   void post_quit() override { quit = true; }
 };
+
+// zClass's frame counter is raised by the flip, every flip (0x00576ea0's `inc` at 0x00576eb9), menus too; not by the
+// scene walk (docs/game-loop.md).
+TEST(each_flip_counts_a_frame) {
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  mech3::GameEngine engine(p, "mech3.exe -nofmv");
+  engine.quiet = true;
+  const uint32_t before = zcls::frames().frame;
+  engine.video_flip(0, 0, 0, 0);
+  engine.video_flip(0, 0, 1, 1);
+  EXPECT(zcls::frames().frame == before + 2);
+  zcls::frames().frame = before;
+}
 }  // namespace
 
 TEST(program_starts_like_the_game_to_the_main_state) {
