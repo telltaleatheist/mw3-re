@@ -26,6 +26,7 @@
 #include "upgrades/mods/found_worlds.h"
 #include "upgrades/json/gamez_json.h"
 #include "gamez/zclass/cls_zbd.h"
+#include "gamez/zclass/list.h"
 #include "gamez/zeffect/zeff_anim_init.h"
 #include "gamez/zimage/zimg_library.h"
 #include "gamez/zinterp/zinterp.h"
@@ -1100,6 +1101,11 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       continue;
     }
     if (name == "anim.zbd") {  // a world's animations: the read (its binding needs the world)
+      // FIX (A): read unbound. With a world up (the lab's, or one a test left) each def would bind to its nodes and
+      // make lights, sounds and puffers in it through hooks that are unset outside play. With the node
+      // lists set aside nothing is found, as with no world.
+      zcls::Lists live = std::move(zcls::lists());
+      zcls::lists() = zcls::Lists{};
       zeff::anim() = zeff::AnimState{};
       zeff::anim_allow_loading(1);
       zeff::anim().host_path = host;  // a folder anywhere: 0x005090f0's 127 would refuse a long one
@@ -1108,6 +1114,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
       else out.push_back("  " + std::to_string(zeff::anim().def_count()) + " animations read (bound to the world in play)");
       zeff::anim_free_all();
       zeff::anim() = zeff::AnimState{};
+      zcls::lists() = std::move(live);
       continue;
     }
     if (name.size() > 4 && name.compare(name.size() - 4, 4, ".zbd") == 0) {

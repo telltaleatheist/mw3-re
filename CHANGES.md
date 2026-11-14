@@ -387,6 +387,7 @@ unusual happens.
 - An AI pilot at a broken (NaN) position no longer reads leftover memory when the boundary looks for the way out.
 - An objective's text can no longer garble the objectives box: the original used each objective's text as a formatting pattern, so a '%' in it would have printed garbage or crashed. No text in the game has one, so nothing you see changes.
 - A file name the game reads from its data, a mod or a script (a texture, a sound, a movie, a script's `source` or file delete, a world folder) can no longer reach outside the game's folders: a name with `..`, a drive or a full path opens, writes and deletes nothing, and the log says so. The original opened whatever it was given. Nothing shipped uses such a name. Multiplayer sends worlds as numbers, which only ever name your own worlds.
+- Checking a mod (the MODS screen's add and import, its report, `mw3 --check-mod`) while a world is loaded no longer crashes or adds the mod's lights and sounds to that world: the check now reads a world's animation file on its own, as it does with no world loaded.
 
 ## Copy protection removed
 
