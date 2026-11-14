@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -31,8 +32,11 @@ namespace {
 const char kFile[] = "C:\\zipper\\GameZMech3\\zModel\\gmod_const.c";
 ModelPool g_pool;
 
+ReadBound g_bound;
+
 template <typename T>
 T* read_array(std::FILE* f, uint32_t count, uint32_t size, bool* ok) {
+  if (!g_bound.fits(f, static_cast<uint64_t>(count) * size, "an array")) return *ok = false, nullptr;  // FIX (A)
   auto* p = static_cast<T*>(std::malloc(static_cast<size_t>(count) * size));
   *ok = std::fread(p, static_cast<size_t>(count) * size, 1, f) == 1;
   return p;
@@ -40,6 +44,36 @@ T* read_array(std::FILE* f, uint32_t count, uint32_t size, bool* ok) {
 }  // namespace
 
 ModelPool& models() { return g_pool; }
+
+ReadBound& read_bound() { return g_bound; }
+
+void ReadBound::begin(std::FILE* file) {
+  f = file, end = 0, past = 0, refused = false;
+  const long at = std::ftell(file);
+  if (at >= 0 && std::fseek(file, 0, SEEK_END) == 0) {
+    end = std::ftell(file);
+    std::fseek(file, at, SEEK_SET);
+  }
+}
+
+bool ReadBound::fits(std::FILE* file, uint64_t bytes, const char* what) {
+  if (file != f) begin(file);  // a reader called on its own: its read starts here
+  if (refused) return false;
+  const long at = std::ftell(file);
+  const uint64_t left = at >= 0 && end > at ? static_cast<uint64_t>(end - at) : 0;
+  if (bytes <= left) return true;
+  if (bytes <= kPastEnd && past + bytes <= kPastEnd) {
+    past += bytes;
+    return true;
+  }
+  refused = true;
+  std::printf("mw3: a model file at byte %ld: %s of %llu bytes, with %llu left in the file, is more than the file "
+              "can hold. The rebuild: read the models before it and left this one's rest and any after it empty. "
+              "The original game: allocates it and reads on past the file (can run out of memory or crash).\n",
+              at, what, static_cast<unsigned long long>(bytes), static_cast<unsigned long long>(left));
+  std::fflush(stdout);
+  return false;
+}
 
 uint32_t Model::count(int off) const {
   uint32_t v;
@@ -69,6 +103,7 @@ Model* reread_model(std::FILE* f, int32_t index) {
     return nullptr;
   }
   if (size == 0 || size <= index) return nullptr;
+  g_bound.begin(f);
   std::fseek(f, static_cast<long>(index) * 0x60, SEEK_CUR);
   uint8_t raw[0x60];
   if (std::fread(raw, sizeof raw, 1, f) != 1) {
@@ -120,10 +155,17 @@ int read_model_data(std::FILE* f, Model& m) {
   bool ok = true;
   const uint32_t polys = m.count(0x10), verts = m.count(0x14), norms = m.count(0x18);
   const uint32_t morphs = m.count(0x1c), lights = m.count(0x20);
-  if (static_cast<int32_t>(verts) > 0 && (m.vertices = read_array<float>(f, verts, 12, &ok), !ok)) return -1;
-  if (static_cast<int32_t>(norms) > 0 && (m.normals = read_array<float>(f, norms, 12, &ok), !ok)) return -1;
-  if (static_cast<int32_t>(morphs) > 0 && (m.morphs = read_array<float>(f, morphs, 12, &ok), !ok)) return -1;
+  // FIX (A): a refused array (ReadBound) leaves its count and the later ones 0, so nothing walks what was not read.
+  const auto stop = [&](std::initializer_list<int> counts) {
+    if (g_bound.refused)
+      for (int off : counts) std::memset(m.header + off, 0, 4);
+    return -1;
+  };
+  if (static_cast<int32_t>(verts) > 0 && (m.vertices = read_array<float>(f, verts, 12, &ok), !ok)) return stop({0x14, 0x18, 0x1c, 0x20, 0x10});
+  if (static_cast<int32_t>(norms) > 0 && (m.normals = read_array<float>(f, norms, 12, &ok), !ok)) return stop({0x18, 0x1c, 0x20, 0x10});
+  if (static_cast<int32_t>(morphs) > 0 && (m.morphs = read_array<float>(f, morphs, 12, &ok), !ok)) return stop({0x1c, 0x20, 0x10});
   if (static_cast<int32_t>(lights) > 0) {
+    if (!g_bound.fits(f, uint64_t{lights} * 0x4c, "a light list")) return stop({0x20, 0x10});
     m.lights = static_cast<Light*>(std::calloc(lights, sizeof(Light)));
     for (uint32_t i = 0; i < lights; ++i)
       if (std::fread(m.lights[i].raw, 0x4c, 1, f) != 1) return -1;
@@ -138,12 +180,17 @@ int read_model_data(std::FILE* f, Model& m) {
       int32_t n;
       std::memcpy(&n, l.raw + 0x0c, 4);
       if (n > 0 && (l.vertices = read_array<float>(f, n, 12, &ok), !ok)) {
+        if (g_bound.refused) {  // FIX (A): this light and the later ones without points
+          for (uint32_t j = i; j < lights; ++j) std::memset(m.lights[j].raw + 0x0c, 0, 4);
+          return stop({0x10});
+        }
         zerr::report(0x200, kFile, 0, "Error reading GameZ Model3D point light data.");
         return -1;
       }
     }
   }
   if (static_cast<int32_t>(polys) <= 0) return 0;
+  if (!g_bound.fits(f, uint64_t{polys} * 0x24, "a polygon list")) return stop({0x10});
   std::vector<uint8_t> raw(static_cast<size_t>(polys) * 0x24);
   if (std::fread(raw.data(), raw.size(), 1, f) != 1) return -1;
   m.polygons = new Polygon[polys]{};
@@ -158,12 +205,20 @@ int read_model_data(std::FILE* f, Model& m) {
   for (uint32_t i = 0; i < polys; ++i) {
     Polygon& q = m.polygons[i];
     const uint32_t k = q.flags & 0xff;
+    // FIX (A): refused, the polygons before this one are the model's (this one's arrays freed).
+    const auto cut = [&] {
+      if (!g_bound.refused) return -1;
+      std::free(q.vertex_indices), std::free(q.normal_indices), std::free(q.uvs);
+      q.vertex_indices = q.normal_indices = nullptr, q.uvs = nullptr;
+      std::memcpy(m.header + 0x10, &i, 4);
+      return -1;
+    };
     if (k) {
-      if ((q.vertex_indices = read_array<uint32_t>(f, k, 4, &ok), !ok)) return -1;
-      if ((q.flags & 0x200) && (q.normal_indices = read_array<uint32_t>(f, k, 4, &ok), !ok)) return -1;
+      if ((q.vertex_indices = read_array<uint32_t>(f, k, 4, &ok), !ok)) return cut();
+      if ((q.flags & 0x200) && (q.normal_indices = read_array<uint32_t>(f, k, 4, &ok), !ok)) return cut();
     }
-    if (q.material && (q.material->flags & 1) && (q.uvs = read_array<float>(f, k, 8, &ok), !ok)) return -1;
-    if ((q.colors = read_array<float>(f, k, 12, &ok), !ok)) return -1;
+    if (q.material && (q.material->flags & 1) && (q.uvs = read_array<float>(f, k, 8, &ok), !ok)) return cut();
+    if ((q.colors = read_array<float>(f, k, 12, &ok), !ok)) return cut();
     q.scratch = static_cast<uint32_t*>(std::malloc(k * 4));
   }
   return 0;
@@ -181,6 +236,11 @@ int read_models(std::FILE* f) {
   }
   p.size = size, p.count = count, p.free_head = free_head;
   if (size == 0) return 0;
+  g_bound.begin(f);
+  if (size < 0 || !g_bound.fits(f, static_cast<uint64_t>(size) * 0x60, "the model table")) {  // FIX (A)
+    zerr::report(0x200, kFile, 0, "Error reading GameZ Model3D buffer data.");
+    return -1;
+  }
   std::vector<uint8_t> raw(static_cast<size_t>(size) * 0x60);
   if (std::fread(raw.data(), raw.size(), 1, f) != 1) {
     zerr::report(0x200, kFile, 0, "Error reading GameZ Model3D buffer data.");
