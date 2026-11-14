@@ -963,6 +963,12 @@ void ActionGame::set_mode(int32_t m) {
   if (m == 2) load_progression();
 }
 
+// Pirate's Moon 1.0 @ 0x0040c340 (the game's vt+0x4c)
+void ActionGame::set_world(int32_t world) {
+  x74 = world;
+  if (mode == 2) load_progression();
+}
+
 // Pirate's Moon 1.0 @ 0x0040c360
 void ActionGame::set_world(int32_t world, int32_t mission) {
   x74 = world;

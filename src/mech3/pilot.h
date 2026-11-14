@@ -480,6 +480,7 @@ class ActionGame : public Game {
   void load_progression();                         // 0x0040c410: the world's (vt+0x54, its folder's name)
   void set_mode(int32_t m);                        // 0x0040c390: +0xa0; 2 loads the waves
   void set_world(int32_t world, int32_t mission);  // 0x0040c360: +0xd0, +0xd4; in wave mode the waves again
+  void set_world(int32_t world);                   // 0x0040c340: +0xd0 alone, the same
   int32_t last_wave() const;                       // 0x0040c260: -1 with none
   int32_t wave_slots(int32_t w) const;             // 0x0040c280: 0 out of range
   int32_t wave_mech(int32_t w, int32_t i) const;   // 0x0040c2c0: -1 out of range

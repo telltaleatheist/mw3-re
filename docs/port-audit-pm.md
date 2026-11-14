@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4080 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 176 |
+| MISSING LOGIC | 172 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -81,7 +81,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 ## MISSING LOGIC
 
-- **0x0040c340, 0x0048dca0, 0x0048dd60** (3 functions, 98 decomp lines; MISSING LOGIC): pm only, minor: the Instant Action world list's select and step (0x0048dca0 / 0x0048dd60: CycleButton's, then the pilot's action game's vt+0x4c, 0x0040c340: the world at +0xd0, the progression waves loaded again for it when the mode is Progression, 0x0040c410). PM updates the game's world as the list moves; the pm port sets it only at ACCEPT (action_menu.cpp:559, set_world 0x0040c360), so while choosing, Progression's waves are the last world's
 - **0x00414ba0** (1 functions, 25 decomp lines; MISSING LOGIC): pm only, minor, effect to check: PM's mech_set_skin (MW3's 0x00414390, mech_build.cpp mech_set_skin; unpaired by the diff), from the mech build 0x00415190, the network (0x0046f510, 0x004701d0), the mission launch 0x00494500 and the player 0x004a0e10 / 0x004a17d0: when the torso's headlight (torso part +0x7c) is there, its node's only child is detached before the skin is applied (0x00479c30, kept at +0x38) and put back after (0x00479c60); the port applies the skin with the child in place. Whether the skin apply (0x004773e0) touches that child is not read; 0x0041b900 (a vt slot) also detaches it
 - **0x00415190** (1 functions, 112 decomp lines; MISSING LOGIC): pm only, minor: the mech made again in place (MW3's 0x004148c0, mech_rebuild, mech_build.cpp:188), read: the same steps (the type's data, the controls kept, destroyed and constructed again, the skin by name, the HUD's fall mode 0); and when it is rebuilt as its own type with MASC on (+0x598 not 0), PM turns MASC on again afterwards (0x0041eec0(1), MW3's masc 0x0041df50); the port's rebuild leaves MASC off
 - **0x00415940, 0x005a35f0** (2 functions, 206 decomp lines; MISSING LOGIC): pm only, minor (a mech deleted mid-mission: a network player leaving): PM's mech destructor (0x00415940, MW3's 0x00414f40, mech_build.cpp:225) first clears the owner (+0x6c, +0x70, +0x74) of every live shot that mech fired (0x005a35f0 over zWeapon's pools); MW3 and the port do not (all three free the node's handler table: MW3 0x00583400, PM 0x005a4de0, the port app_mech.cpp:848), so a shot outliving its mech keeps the gone owner. To check: whether the port's shot reads that owner afterwards (its hit credit, its tether)
@@ -114,7 +113,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 - **0x0047f7c0** (1 functions, 35 decomp lines; MISSING LOGIC): pm only: the Salvage State's enter (MW3's 0x0047d310, app_states.cpp:1355): with no world up (0x0050ca80, MW3's 0x004f8f50 world_up), PM first loads world 6 through the mission load (0x00492830(6), MW3's 0x0048faf0; world 6 is the mech lab's) before making the salvage screen (0x0047f870, 0x168a8 bytes); MW3 and the port make the screen only. PM opens Salvage from the briefing and the lobby too (pm-tests item 6c-3b); whether the port's salvage screen needs the world there is not checked
 - **0x00480260** (1 functions, 191 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's salvage screen set-up (MW3's 0x0047dcf0). Its room from the game (vt+0x5c bases, vt+0x60 tons) is ported (SalvageScreen::refill on Engine::salvage_bases / salvage_tons, with 0x00480840); its other differences, 191 lines, are still to read with the menus
 - **0x004838b0** (1 functions, 184 decomp lines; MISSING LOGIC): group A, read (the fade from black's first step and the overlay rect ported, app_states.cpp start_mission): PM's mission music (pm only): on a disc of more than five tracks PM plays from a random track on to the end of the disc (mode 3, [0x00607f28] = 3), where MW3 and the port play that one track (mode 6, app_states.cpp:390-392); with 2..5 tracks both pick by mission (PM through the pilot's vt+0x48, the port's vt+0x4c: to check it is the same call on PM's layout); a forced -cdN plays in whatever mode PM last set. The developer lines it writes (Dummy Frame, Let's Play) are 0x00410820's, developer only
-- **0x0048f130** (1 functions, 33 decomp lines; MISSING LOGIC): pm only, minor: the Instant Action screen's buttons (MW3's 0x0048a680, ActionScreen::on_button, action_menu.cpp:358): as MW3 for 3 (back) and 4 (accept), and PM adds 1 and 2 (the world and scenario lists' notices): in Progression (the game's mode 2) the line-up display is refreshed (0x0048f970, MW3's 0x0048aac0) for the world just chosen, which the world list's own step loaded (0x0048dca0); the port refreshes nothing there
 - **0x004943e0** (1 functions, 13 decomp lines; MISSING LOGIC): pm only, multiplayer: a network respawn's objectives reload. PM frees them (0x0045d530) and reads them again through the game's vt+0x3c (0x00435140 for the multiplayer game: objectives.zrd's mp<N>, vt+0x58 0x00436580, for every map), then clears the ended and aborting bytes; the port's objectives_again (mission.cpp:532) is MW3's 0x00491050, maps past 2 from mpinfo.zrd, which PM does not ship (no archive holds it), so on PM a respawn on map 3 or later reads no objectives
 - **0x004a3200** (1 functions, 83 decomp lines; MISSING LOGIC): pm only, vehicles, traced: PM's vehicle collision record (0x004a3cb0) puts hits on a mech's part nodes (0x0040f210, the part's owner) in a new list +0x358 and other entities' (0x0040f1a0) in +0x354, dropping one whose object's byte +8 is 0; the step (0x004a3200, MW3 0x004a09e0) answers either list with 0x004a4320, which runs the collision response 0x004a3e40 (MW3 0x004a0b40) on +0x354 only, and sets the hit flag (+0x374) for both. So in PM a vehicle that runs into a mech is flagged as hit but gets no response from the mech's parts (MW3 and the port respond to every entity hit: veh_move.cpp vehicle_collision_query, one list); the flag still keeps the ground step's own response (the end of 0x004a3200) from running
 - **0x004a6a20** (1 functions, 76 decomp lines; MISSING LOGIC): pm only: MW3's 0x004a3630 (veh_basic_object.cpp vehicle_place: on the ground from 10 up plus 0.1, the heading, the commands cleared, the motion and the points reset) with one step at the end: the vehicle's controls (vt+0x14c), their pilot (vt+0x58) told to reset (vt+0x0c), so a basic vehicle placed (a script's move) restarts its AI's state; the port's vehicle_place stops before it. Constants by sign (x - (-10) written x + 10); the order-aware compare (tools/analysis/pm_shape_compare.py) finds nothing else
@@ -507,7 +505,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## By module
 
-### mech3ep1 (3299 not ported)
+### mech3ep1 (3295 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -692,7 +690,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040be40 | 40 | folded | as MW3 0x0040e120: covered where the port does it: src/mech3/game_editor_net.cpp:229 (read: a destructor, a container insert or assign, or the work beside the function that comment names) |
 | 0x0040bf30 | 20 | dev dialog (MFC), its window plumbing: replaced | as MW3 0x0040e200: MFC dev dialogs' plumbing: resource 0x6a (a dialog of float fields: constructor, DDX, close, DoModal), the teleport dialog's slider (OnHScroll) and destructor, a combo box's pick into the texture memory setting |
 | 0x0040bf90 | 43 | dev dialog (MFC), its window plumbing: replaced | called only from 0x0040bf30, which are devdialog-shell |
-| 0x0040c340 | 12 | MISSING LOGIC | pm only, minor: the Instant Action world list's select and step (0x0048dca0 / 0x0048dd60: CycleButton's, then the pilot's action game's vt+0x4c, 0x0040c340: the world at +0xd0, the progression waves loaded again for it when the mode is Progression, 0x0040c410). PM updates the game's world as the list moves; the pm port sets it only at ACCEPT (action_menu.cpp:559, set_world 0x0040c360), so while choosing, Progression's waves are the last world's |
 | 0x0040c600 | 23 | folded | covered by the port where it names it (src/mech3/pilot.h:259) |
 | 0x0040c660 | 8 | folded | returns a constant or a global |
 | 0x0040c670 | 8 | folded | returns a constant or a global |
@@ -712,7 +709,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040ca30 | 9 | folded | inside its ported callers (0x0048eaf0): a small helper their ports do their own way |
 | 0x0040ca50 | 9 | folded | inside its ported callers (0x0048eaf0): a small helper their ports do their own way |
 | 0x0040ca70 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:866) |
-| 0x0040cac0 | 10 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:552) |
+| 0x0040cac0 | 10 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:582) |
 | 0x0040ce90 | 32 | folded | covered by the port where it names it (src/mech3/mech_dead.cpp:123) |
 | 0x0040cf60 | 17 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
 | 0x0040cfa0 | 108 | folded | read: container code inside ported callers (vector copy, insert and reserve, introsort, list clear and find, uninitialised copy) and thunks whose MW3 pair is identical |
@@ -1231,13 +1228,13 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00435d20 | 9 | folded | read: a wrapper of 0x00434df0 (inline where MW3 calls it) |
 | 0x00435db0 | 8 | folded | returns a constant or a global |
 | 0x00435e80 | 67 | folded | ported (read): PM's multiplayer game's constructor (MW3's 0x004353a0 without its fill: the lobby's), the pm port's MultiplayerGame names it (pilot_games.cpp:1028) |
-| 0x00435fe0 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:565) |
+| 0x00435fe0 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:566) |
 | 0x00435ff0 | 9 | folded | a thunk: one call to another function |
-| 0x00436000 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:561) |
+| 0x00436000 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:562) |
 | 0x00436010 | 8 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
 | 0x00436030 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00436050, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00436050 | 61 | folded | group A, read: a destructor; PM's one more member (0x004731b0) is a container the port's member frees itself |
-| 0x004365f0 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:669) |
+| 0x004365f0 | 8 | folded | covered by the port where it names it (src/mech3/pilot.h:670) |
 | 0x00437990 | 14 | folded | covered by the port where it names it (src/mech3/app_mech.h:179) |
 | 0x004379f0 | 9 | folded | a thunk: one call to another function |
 | 0x00437b90 | 26 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
@@ -1251,7 +1248,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00437cb0 | 9 | folded | a thunk: one call to another function |
 | 0x00437cc0 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00437ce0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00437ce0 | 35 | folded | group A, read: imports only (the C runtime's), the logic as the shared port |
-| 0x00437ea0 | 33 | folded | covered by the port where it names it (src/mech3/pilot.h:697) |
+| 0x00437ea0 | 33 | folded | covered by the port where it names it (src/mech3/pilot.h:698) |
 | 0x00437f20 | 94 | folded | MW3's 0x00437140 (training_load, mech_objective.cpp:823; app_mission.cpp names the PM address), read: objectives.zrd's block for the key, else <key>_set's lessons, else <key>1, <key>2...; PM takes the key from the game's vt+0x58 (the port's game_key()) where MW3 is passed it; 0x00437f5a is Ghidra's split-off second half of the same function |
 | 0x00437f5a | 85 | folded | MW3's 0x00437140 (training_load, mech_objective.cpp:823; app_mission.cpp names the PM address), read: objectives.zrd's block for the key, else <key>_set's lessons, else <key>1, <key>2...; PM takes the key from the game's vt+0x58 (the port's game_key()) where MW3 is passed it; 0x00437f5a is Ghidra's split-off second half of the same function |
 | 0x004381a0 | 12 | folded | as MW3 0x004373b0: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
@@ -2093,22 +2090,19 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0048d230 | 27 | folded | covered by the port where it names it (src/mech3/app_states.h:304) |
 | 0x0048d290 | 9 | folded | a thunk: one call to another function |
 | 0x0048d590 | 196 | folded | MW3's 0x00488bc0 (the Instant Action screen's constructor, action_menu.cpp:232), read: the same controls bound in order; PM also binds ENEMYLINES (+0x17134), a primitive nothing else in PM reads (it is drawn as the dialog's own either way) |
-| 0x0048dca0 | 43 | MISSING LOGIC | pm only, minor: the Instant Action world list's select and step (0x0048dca0 / 0x0048dd60: CycleButton's, then the pilot's action game's vt+0x4c, 0x0040c340: the world at +0xd0, the progression waves loaded again for it when the mode is Progression, 0x0040c410). PM updates the game's world as the list moves; the pm port sets it only at ACCEPT (action_menu.cpp:559, set_world 0x0040c360), so while choosing, Progression's waves are the last world's |
-| 0x0048dd60 | 43 | MISSING LOGIC | pm only, minor: the Instant Action world list's select and step (0x0048dca0 / 0x0048dd60: CycleButton's, then the pilot's action game's vt+0x4c, 0x0040c340: the world at +0xd0, the progression waves loaded again for it when the mode is Progression, 0x0040c410). PM updates the game's world as the list moves; the pm port sets it only at ACCEPT (action_menu.cpp:559, set_world 0x0040c360), so while choosing, Progression's waves are the last world's |
 | 0x0048de20 | 45 | folded | the Instant Action scenario cycle's select (PM): CycleButton::select, then the pilot's action game takes the scenario's mode (0x0040c390); the pm port names it (action_menu.cpp:467) |
 | 0x0048ded0 | 139 | folded | PM's Instant Action scenario list step, ported on pm (action_menu.cpp:104, ScenarioList::step's 'Pirate's Moon 0x0048ded0': the game's mode from the scenario, the wave shown its best) |
-| 0x0048e260 | 12 | folded | covered by the port where it names it (src/mech3/action_menu.h:59) |
+| 0x0048e260 | 12 | folded | covered by the port where it names it (src/mech3/action_menu.h:68) |
 | 0x0048e290 | 9 | folded | a thunk: one call to another function |
 | 0x0048e520 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0048e560, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x0048e540 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0048e5b0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x0048e560 | 20 | folded | as MW3 0x00489900: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x0048e5b0 | 20 | folded | destructor bodies (unwind and deleting callers) of the Instant Action lists: a text and a cycle's base (0x0048e5b0), two cycles (0x0048e840); the port's members destroy themselves |
 | 0x0048e600 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0048e8b0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x0048e620 | 27 | folded | covered by the port where it names it (src/mech3/action_menu.h:78) |
+| 0x0048e620 | 27 | folded | covered by the port where it names it (src/mech3/action_menu.h:87) |
 | 0x0048e840 | 20 | folded | destructor bodies (unwind and deleting callers) of the Instant Action lists: a text and a cycle's base (0x0048e5b0), two cycles (0x0048e840); the port's members destroy themselves |
-| 0x0048e890 | 12 | folded | covered by the port where it names it (src/mech3/action_menu.h:111) |
+| 0x0048e890 | 12 | folded | covered by the port where it names it (src/mech3/action_menu.h:120) |
 | 0x0048e8b0 | 81 | folded | MW3's 0x00489ee0 (the Instant Action screen's destructor), read: the same members torn down, PM calling the destructors MW3 inlined |
-| 0x0048f130 | 33 | MISSING LOGIC | pm only, minor: the Instant Action screen's buttons (MW3's 0x0048a680, ActionScreen::on_button, action_menu.cpp:358): as MW3 for 3 (back) and 4 (accept), and PM adds 1 and 2 (the world and scenario lists' notices): in Progression (the game's mode 2) the line-up display is refreshed (0x0048f970, MW3's 0x0048aac0) for the world just chosen, which the world list's own step loaded (0x0048dca0); the port refreshes nothing there |
 | 0x0048f1c0 | 31 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0048a6c0 with only offsets and sizes of PM's larger structures changed (0x17730->0x17988); calls, field counts and every other immediate and float constant as MW3's |
 | 0x0048f240 | 17 | folded | the pilot menu states' enter and resume (MW3's 0x0048a750 / 0x0048a7b0, pilot_menu.cpp:600 / 680), read: the same; PM's screen mode setter (0x00491ea0, MW3's 0x00488ad0) has no training branch (PM's pilot screen has no training mode) and the Instant Action screen's refresh (0x0048fd90) selects the world and scenario lists from the pilot's own setup, the port's action_setup() (pilot_games.cpp:50) |
 | 0x0048f2a0 | 24 | folded | the pilot menu states' enter and resume (MW3's 0x0048a750 / 0x0048a7b0, pilot_menu.cpp:600 / 680), read: the same; PM's screen mode setter (0x00491ea0, MW3's 0x00488ad0) has no training branch (PM's pilot screen has no training mode) and the Instant Action screen's refresh (0x0048fd90) selects the world and scenario lists from the pilot's own setup, the port's action_setup() (pilot_games.cpp:50) |
@@ -2203,7 +2197,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00498190 | 71 | folded | the connect screen's methods, read against MW3's (mp_connect.h:66-120): the sessions' refill (0x00497270, MW3's 0x00494510, its list's vtable slots one on), the connection (0x00497720, MW3's 0x004949f0: a failed provider falls back to none through the same function, as the port's connect(false); the modem, IPX and serial ones FIX (A) in the port) and the join (0x00498190, MW3's 0x00495490, with PM's version check through 0x004b31d0: 0xff3 / 0xff4, the port's game_of_version, mp_connect.cpp:368) |
 | 0x00498300 | 108 | folded | MW3's 0x00495600 (the host's game named, mp_connect.cpp:395, which names PM's 0x00498300) |
 | 0x004987f0 | 9 | folded | as MW3 0x00495b00: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
-| 0x004988a0 | 38 | folded | covered by the port where it names it (src/mech3/pilot.h:570) |
+| 0x004988a0 | 38 | folded | covered by the port where it names it (src/mech3/pilot.h:571) |
 | 0x00498920 | 9 | folded | as MW3 0x00495d10: covered: the screens' and states' constructors and destructors, list and vector instances (mechdef-configs.md names 0x0049da10), string copies, the missions object's queries (the program's GameEngine overrides them: app_engine.h:128 and the rest), the fade wrapper, the mission cleanup |
 | 0x00498930 | 18 | folded | covered by the port where it names it (src/mech3/app_mech.h:198) |
 | 0x00498960 | 29 | folded | as MW3 0x00495d70: the multiplayer screens (mp_lobby, mp_connect; menus.md): controls' destructors and constructors, list helpers; the named ones ported in those files |
