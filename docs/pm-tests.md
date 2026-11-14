@@ -1019,6 +1019,8 @@ does the same (pm-map.md, The unused models). The light animation event (5) stil
 Pirate's Moon light through MW3's range and colour setters (its mixed colours are not kept up); it made no
 difference to these pictures.
 
+**The vehicle net's part (2026-11-14).** PM's vehicle net makes a bare part for an order (0x4c72a0 -> 0x4c78c0, vtable 0x5ed538; deleting 0x4c78f0, destructor 0x4c7910): the order, the net at +0x18, a byte at +0x1c cleared, an empty run (0x5c7a30). MW3's VehiclePart (0x4c0ba0) stacked the vehicle's place on the brain's +0xe4 as the leash's home and picked the mode's behaviour. PM's brain keeps its home at +0x104, written only by its construction (0), the attack state 0x4dedf0 (its held place at the fight's start, 0 at its end) and a copy (0x4f2fd0). So outside an attack PM has no home and no leash, where the port under PM_AI=1 took MW3's part's push through `r.tick.home = b.xe4` and leashed an idle vehicle to where its order began. PmVehicleNet now makes `PmVehiclePart`. Test: `pm_wire_vehicle_net_part_leaves_the_home_alone` (the break, MW3's part back, fails both checks).
+
 ## The two-process tests at their limits (2026-11-12)
 
 **The walk's frames.** `sdl_two_processes_a_walk_seen_from_the_other` failed on Pirate's Moon every time (alone too:

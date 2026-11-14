@@ -293,6 +293,25 @@ TEST(pm_wire_shared_state_follows_on_pms_net) {
   delete f.self.net;
 }
 
+// Pirate's Moon 0x004c72a0 / 0x004c78c0: the order on PM's vehicle net gets PM's bare part (the net, nothing else);
+// MW3's VehiclePart stacked the vehicle's place on the brain's +0xe4 as a home for the leash, which PM has only
+// from its attack state.
+TEST(pm_wire_vehicle_net_part_leaves_the_home_alone) {
+  Fake f;
+  Installed in(&f);
+  VehicleNet* n = pm_vehicle_net(7);
+  AiParams rec;
+  Brain b(nullptr, rec);
+  Controls c;
+  b.controls = &c;
+  EXPECT(b.set_net(n));
+  auto* part = dynamic_cast<PmVehiclePart*>(b.current().net.get());
+  EXPECT(part != nullptr && part->net() == n);
+  EXPECT(b.xe4 == nullptr && b.homes.empty());
+  b.set_net(nullptr);
+  delete f.self.net;
+}
+
 TEST(pm_wire_nets_ten_slots_and_the_kind_lookup) {
   Fake f;
   Installed in(&f);
