@@ -680,6 +680,7 @@ int check_class(const Node* node, int cls, const char* file, int line) {
 // whatever EAX held; 0 here.
 int node_set_lighting(Node* node, int32_t on) {
   if (node->model) zmod::model_set_lighting(node->model, static_cast<uint32_t>(on));
+  if (node->pm_model) pm::zmod::model_set_lighting(node->pm_model, static_cast<uint32_t>(on));  // PM's 0x00559940
   for (int32_t i = 0; i < node->child_count(); ++i) node_set_lighting(node->children[i], on);
   return 0;
 }

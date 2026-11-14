@@ -1238,3 +1238,16 @@ in all 26; what PM changes is said on each function (`, Pirate's Moon 1.0 @` on 
 `test_pm_script_cmds.py`: the shared probes against PM's twins (each cdecl), 2,401 cases as test_script_cmds.py's
 (world with grids, camera, sequences, windows and NewDisplay, lists, lighting), 0 differ. Breaks: CameraGetFov's and
 max-dec's MW3 lines (caught); the grid mark's line is in its sprintf'd text, which the test doesn't read.
+
+## Today's preservation ports on PM, part 2: the model and texture commands (2026-11-14)
+
+PM's models are pm::zmod's (0x68-byte slots, 0x28-byte polygons), so the model commands have PM versions in
+pm/gamez/zmodel/gmod_const: Object3DSetFacade 0x559910 and the lighting bit 0x559940 as MW3's; SetShowBackFace
+0x55b810 sets PM's back face, flag 0x400 (MW3's 0x100); Object3DSetColor 0x55be00 changes the first material of each
+polygon without UVs (+0x18), where MW3 asked its material's textured flag; SetMorphVertex 0x55b630 as MW3's over PM's
+polygons (their count the low 10 bits; the FIX (A) as MW3's; PM's arguments model, value, list, count, minimum).
+NodeSetLighting (0x50db40) sets a node's PM model too (`pm_model`). TextureSetWorldBase / PerMeter 0x540430 /
+0x540410 and AnimDebugFrame 0x520960 are MW3's at PM's addresses. `test_pm_script_cmds.py`: 403 model cases on PM's
+exe (with the setters and the debug frame), and the lighting cases through both a node's MW3 model and its PM one,
+0 differ. Breaks caught: MW3's back face bit, MW3's colour test, the lighting without the PM model; MW3's 8-bit count
+not (no random polygon has 256 points).

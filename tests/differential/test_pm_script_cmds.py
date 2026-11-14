@@ -35,6 +35,11 @@ probe.probe_list_cmd.argtypes = [I32, I32, P, P, I32, P, P, I32, P, P, I32]
 probe.probe_list_cmd.restype = I32
 probe.probe_lighting.argtypes = [P, P, P, I32, I32]
 probe.probe_lighting.restype = I32
+probe.probe_pm_node_lighting.argtypes = [P, P, P, I32, I32]
+probe.probe_pm_node_lighting.restype = I32
+probe.probe_pm_model_cmd.argtypes = [I32, P, P, P, P, P, P, I32, P, I32, I32, F, P]
+MALLOC, FREE = 0x5de664, 0x5de65c
+MODEL = {0: 0x559910, 1: 0x55b810, 2: 0x55be00, 3: 0x55b630, 4: 0x559940}
 
 # PM's own: the report (0x49bfd0's), zGeometry's buffer report (0x50da70's), the C runtime.
 ZERR, GEO_REPORT, SPRINTF, CALLOC, REALLOC, PRINTF, STRNCMP = 0x406cb0, 0x527250, 0x5de658, 0x5de60c, 0x596520, \
@@ -78,6 +83,8 @@ class Exe:
         cpu.stub_function(NODE_DELETE, lambda c: 0)
         cpu.stub_function(SOFT_CLEAR, lambda c: 0)
         cpu.stub_import(PRINTF, self.printf)
+        cpu.stub_import(MALLOC, lambda c: c.alloc(max(1, c.arg(0))))
+        cpu.stub_import(FREE, lambda c: 0)
         cpu.stub_import(STRNCMP, self.strncmp)
 
     def zeroed(self, n):
@@ -402,12 +409,93 @@ def lighting_cases(exe, rng, count):
             cpu.u32(nodes[i] + 0x5c, arr)
         exe.call(LIGHTING, nodes[0], on)
         want = [struct.unpack('<I', cpu.read(m + 8, 4))[0] for m in models]
-        fl = (ctypes.c_uint32 * n)(*flags)
-        probe.probe_lighting((ctypes.c_int32 * n)(*parent), (ctypes.c_int32 * n)(*has_model), fl, n, s32(on))
-        if list(fl) != want:
-            raise SystemExit(f'lighting case {done}: {list(fl)} != {want}')
+        for fn in (probe.probe_lighting, probe.probe_pm_node_lighting):  # the node's MW3 model, then its PM one
+            fl = (ctypes.c_uint32 * n)(*flags)
+            fn((ctypes.c_int32 * n)(*parent), (ctypes.c_int32 * n)(*has_model), fl, n, s32(on))
+            if list(fl) != want:
+                raise SystemExit(f'lighting case {done} ({fn.__name__}): {list(fl)} != {want}')
         done += 1
     return done
+
+
+def model_cases(exe, rng, count):
+    """PM's model commands (pm::zmod): 0x68-byte slots, 0x28-byte polygons (+0x14 the materials, +0x18 the UVs)."""
+    cpu, done = exe.cpu, 0
+    for _ in range(count):
+        which = rng.randrange(5)
+        npoly, verts, nmat = rng.randrange(0, 6), rng.randrange(0, 12), rng.randrange(1, 4)
+        header = bytearray(rng.randbytes(0x64))
+        struct.pack_into('<ii', header, 0x10, npoly, verts)
+        poly_flags = [(rng.getrandbits(32) & ~0x3ff) | (rng.randrange(0, 5) if verts else 0) for _ in range(npoly)]
+        indices = [rng.randrange(0, verts) for f in poly_flags for _ in range(f & 0x3ff)]
+        poly_mat = [rng.randrange(nmat) for _ in range(npoly)]
+        uvs = [int(rng.random() < 0.5) for _ in range(npoly)]
+        mats = [bytearray(rng.randbytes(0x20)) for _ in range(nmat)]
+        fixed = [rng.randrange(0, verts) for _ in range(rng.randrange(0, 4))] if verts else []
+        a = len(fixed) if which == 3 else rng.choice([0, 1, 2, 3, 255, rng.getrandbits(31)])
+        b = rng.choice([0, -1, 1, 2, 3, 6])
+        v = f32(rng.uniform(-5, 5))
+        mdl = exe.zeroed(0x68)
+        cpu.write(mdl, header)
+        polys = exe.zeroed(0x28 * max(1, npoly))
+        mat_at = [exe.zeroed(0x2c) for _ in range(nmat)]
+        for i, m in enumerate(mats):
+            cpu.write(mat_at[i], bytes(m))
+        k = 0
+        for i in range(npoly):
+            n = poly_flags[i] & 0x3ff
+            ia = cpu.alloc(4 * max(1, n))
+            cpu.write(ia, struct.pack(f'<{n}I', *indices[k:k + n]))
+            k += n
+            first = cpu.alloc(4)
+            cpu.u32(first, mat_at[poly_mat[i]])
+            cpu.u32(polys + 0x28 * i, poly_flags[i])
+            cpu.u32(polys + 0x28 * i + 8, ia)
+            cpu.u32(polys + 0x28 * i + 0x10, 1)
+            cpu.u32(polys + 0x28 * i + 0x14, first)
+            cpu.u32(polys + 0x28 * i + 0x18, cpu.alloc(4) if uvs[i] else 0)
+        cpu.u32(mdl + 0x34, polys), cpu.u32(mdl + 0x44, 0)
+        fa = cpu.alloc(4 * max(1, len(fixed)))
+        cpu.write(fa, struct.pack(f'<{len(fixed)}i', *fixed))
+        if which == 3:
+            exe.call(MODEL[3], mdl, bits(v), fa, a, b)
+        else:
+            exe.call(MODEL[which], mdl, a)
+        wh = bytearray(cpu.read(mdl, 0x64))
+        for off in (0x34, 0x44):
+            struct.pack_into('<I', wh, off, 0)
+        morph = cpu.read(struct.unpack('<I', cpu.read(mdl + 0x44, 4))[0], 12 * verts) if which == 3 and verts else b''
+        want = (bytes(wh), [struct.unpack('<I', cpu.read(polys + 0x28 * i, 4))[0] for i in range(npoly)],
+                [cpu.read(m, 0x20) for m in mat_at], morph)
+        hb = ctypes.create_string_buffer(bytes(header), 0x64)
+        pf = (ctypes.c_uint32 * max(1, npoly))(*poly_flags)
+        mb = ctypes.create_string_buffer(b''.join(bytes(m) for m in mats), 0x20 * nmat)
+        mo = (ctypes.c_float * max(1, 3 * verts))()
+        probe.probe_pm_model_cmd(which, hb, pf, (ctypes.c_uint32 * max(1, len(indices)))(*indices),
+                                 (ctypes.c_int32 * max(1, npoly))(*poly_mat), (ctypes.c_int32 * max(1, npoly))(*uvs),
+                                 mb, nmat, (ctypes.c_int32 * max(1, len(fixed)))(*fixed), a, b, v, mo)
+        gh = bytearray(hb.raw)
+        for off in (0x34, 0x44):
+            struct.pack_into('<I', gh, off, 0)
+        got = (bytes(gh), list(pf)[:npoly], [mb.raw[0x20 * i:0x20 * i + 0x20] for i in range(nmat)],
+               bytes(mo)[:12 * verts] if which == 3 and verts else b'')
+        strip = [lambda m: m[:0x10] + m[0x14:]]
+        if got[:2] != want[:2] or got[3] != want[3] or \
+                [strip[0](m) for m in got[2]] != [strip[0](m) for m in want[2]]:
+            raise SystemExit(f'model case {done} (command {which}, polygons {npoly}, vertices {verts}): differs')
+        SEEN[f'model {which}'] = SEEN.get(f'model {which}', 0) + 1
+        done += 1
+    # The texture world setters and AnimDebugFrame, as MW3's at PM's addresses.
+    for addr, glob, args in ((0x540430, 0xa4e0a8, (bits(1.5), bits(-2.0))), (0x540410, 0xa4e0b0, (bits(0.25), bits(4.0)))):
+        exe.call(addr, *args)
+        if cpu.read(glob, 8) != struct.pack('<2I', *args):
+            raise SystemExit(f'{addr:#x}: {cpu.read(glob, 8).hex()}')
+        done += 1
+    cpu.u32(0x8c4b60, 41)
+    exe.call(0x520960)
+    if struct.unpack('<I', cpu.read(0x60f2c8, 4))[0] != 42:
+        raise SystemExit('0x520960: not the next frame')
+    return done + 1
 
 
 def main():
@@ -416,8 +504,9 @@ def main():
     rng = random.Random(17)
     w, c, s = world_cases(exe, rng, count), camera_cases(exe, rng, count), seq_cases(exe, rng, count)
     wn, li, lt = window_cases(exe, rng, count), list_cases(exe, rng, count), lighting_cases(exe, rng, count)
+    mo = model_cases(exe, rng, count)
     print(f'ok: on PM\'s exe {w} world, {c} camera, {s} sequence, {wn} window and display, {li} list and {lt} '
-          f'lighting commands as the port (data, globals, outputs, results, report lines)')
+          f'lighting and {mo} model commands as the port (data, globals, outputs, results, report lines)')
     print(dict(sorted(SEEN.items())))
 
 

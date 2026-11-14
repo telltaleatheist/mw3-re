@@ -133,4 +133,11 @@ void read_model_data(std::FILE* f, Model& m, int32_t material_base);
 const char* model_inconsistent(const Model& m);  // FIX (A): ::zmod's on PM's model
 void model_empty(Model& m);                      // FIX (A): arrays freed, counts 0, slot kept
 
+// The script commands' on PM's models (ported for preservation; the engine's entries are null).
+void model_set_facade(Model* m, uint32_t mode);       // 0x00559910
+void model_set_lighting(Model* m, uint32_t on);       // 0x00559940
+void model_set_show_backface(Model* m, uint32_t on);  // 0x0055b810: the polygons' flag 0x400
+void model_set_color(Model* m, int32_t color);        // 0x0055be00: the polygons without UVs, their first material
+void model_set_morph(Model* m, const int32_t* fixed, float v, int32_t count, int32_t min_uses);  // 0x0055b630
+
 }  // namespace pm::zmod
