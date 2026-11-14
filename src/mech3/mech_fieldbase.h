@@ -78,7 +78,7 @@ struct DockState : DockStep {
 struct DockIdle : DockState {
   bool asked = false;            // +0x10
   void begin() override;         // 0x0045a740
-  bool step(float) override { return asked; }  // 0x0045a760
+  bool step(float) override;     // 0x0045a760, Pirate's Moon 0x0045b540: in multiplayer the player asks by powering down
   void end() override;           // 0x0045a770
   Handle message(Handle m) override;  // 0x0045a780
 };
@@ -242,7 +242,8 @@ struct FieldBases {
   void effects_on();                   // 0x0045b290
   void effects_off();                  // 0x0045b2c0
   void deploy_points(const float* at);  // 0x0045a560: the rings around `at` (none: the requester's place)
-  void frame(float dt);                // 0x0045a270 (the mission's frame, 0x0048f4ad)
+  void frame(float dt);                // 0x0045a270, PM 0x0045b240 (the mission's frame, 0x0048f4ad)
+  void mp_station_frame();             // MW3's multiplayer station repair (0x0045a270), not called on PM
   int32_t alive() const;               // 0x0045a000: those still active
   bool add(FieldBase& b);              // 0x0045a030
   void clear();                        // 0x00459e50
@@ -370,6 +371,10 @@ class FieldBaseHooks : public zgame::Unported {
   // (vt+0x60, then vt+0x74), a behaviour's links (vt+0x04, vt+0x08), the
   // brain's way finder dropped (+0x238 0x004040d0) and its go-to (0x004c84b0).
   virtual Handle dock_point() { return h(unported("[0x0060b544]+0x20 0x0058b060", {})); }
+  // Pirate's Moon: the mcbwaynet's point nearest a place, hidden or not (0x004e5580 on [0x0062fc18]), and
+  // selected (0x0047c540).
+  virtual Handle dock_point_nearest(const float* pos) { return h(unported("0x004e5580", {low(pos)})); }
+  virtual void dock_point_select(Handle p) { unported("0x0047c540", {low(p)}); }
   virtual const char* dock_point_name(Handle p) { (void)p; return nullptr; }
   virtual bool dock_point_static(Handle p) { (void)p; return false; }  // Pirate's Moon's point +0x0d
   virtual ai::Valve* valve_find(const char* name);

@@ -19,6 +19,7 @@
 #include "gamez/zclass/object3d.h"
 #include "gamez/zeffect/zeff_anim_run.h"
 #include "gamez/zmath/zmth_matrix.h"
+#include "gamez/zmath/zmth_vector.h"
 #include "gamez/zrender/zrndr_blit.h"
 #include "gamez/znetwork/znet_object.h"
 #include "gamez/ztwod/twod.h"
@@ -261,6 +262,27 @@ struct WiredFieldBases : FieldBaseHooks {
   Handle dock_point() override {
     McbWaynet* w = mcb_waynet();
     return w ? w->elem(w->current) : nullptr;
+  }
+  // Pirate's Moon 0x004e5580 on the mcbwaynet: each element's behaviour (vt+0x60) with a place (vt+0x18), the
+  // nearest by the squared distance (0x00537a00, the first of equals), else the first element's.
+  Handle dock_point_nearest(const float* pos) override {
+    McbWaynet* w = mcb_waynet();
+    if (!w || !pos) return nullptr;
+    znet::Element* best = nullptr;
+    float best_d = 3.4028235e38f;
+    for (znet::Element* e : w->elems) {
+      ai::Behaviour* b = e ? static_cast<ai::AiElem*>(e)->as_behaviour() : nullptr;
+      const float* at = b ? b->position() : nullptr;
+      if (!at) continue;
+      const zmth::Vec3 a{pos[0], pos[1], pos[2]}, c{at[0], at[1], at[2]};
+      const float d = zmth::distance_sq(a, c);
+      if (d < best_d) best_d = d, best = e;
+    }
+    if (!best && !w->elems.empty()) best = w->elems[0];
+    return best;
+  }
+  void dock_point_select(Handle p) override {  // 0x0047c540
+    if (McbWaynet* w = mcb_waynet(); w && p) w->select_point(static_cast<znet::Element*>(p));
   }
   const char* dock_point_name(Handle p) override {
     const auto* pt = dynamic_cast<const WaynetPoint*>(static_cast<znet::Element*>(p));

@@ -6,6 +6,7 @@
 #include <string>
 
 #include "crt/msvc_math.h"
+#include "gamez/zclass/class.h"
 #include "gamez/zclass/cls_node.h"
 #include "gamez/zclass/cls_util.h"
 #include "gamez/zclass/object3d.h"
@@ -14,6 +15,7 @@
 #include "gamez/zmodel/gmod_const.h"
 #include "pm/gamez/zmodel/gmod_const.h"
 #include "gamez/zerror/zerr.h"
+#include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zutil/zfix.h"
 #include "gamez/zweapon/zweapon.h"
@@ -39,8 +41,19 @@ Vehicle* veh(void* owner) { return static_cast<Vehicle*>(owner); }
 
 void set_veh_controls_hooks(VehControlsHooks* h) { g_hooks = h ? h : &g_default_hooks; }
 
+// Pirate's Moon 1.0 @ 0x004f9090: the node's world matrix brought up to date first when stale (data bit 0x20:
+// 0x0051e9d0 / 0x0051fde0, 0x004ed280(node, 1), 0x0051ea00); MW3's 0x004e72f0 read it as it stood.
 const float* VehControlsHooks::node_world_matrix(Handle node) {
-  return reinterpret_cast<const float*>(static_cast<const uint8_t*>(zn(node)->data) + 0x60);
+  zcls::Node* n = zn(node);
+  auto* d = static_cast<zcls::Object3d*>(n->data);
+  if (n->cls() == 5 && (d->get<uint32_t>(0) & 0x20)) {
+    zmth::Mat34 buf;
+    zmth::push(&buf);
+    zmth::load_identity();
+    zcls::node_to_world(n, 1);
+    zmth::pop();
+  }
+  return reinterpret_cast<const float*>(static_cast<const uint8_t*>(n->data) + 0x60);
 }
 void VehControlsHooks::node_add_rotation(Handle node, float x, float y, float z) {
   zcls::object3d_add_rotation(zn(node), x, y, z);
@@ -520,7 +533,7 @@ bool turret_can_aim(const VehicleControls& c, const TurretAim& a, float cos_limi
   return -l[2] > cos_limit;
 }
 
-// Mech3.exe 1.2 @ 0x004e72f0. The rate, -ln(0.5) / 0.125, made once ([0x0060b880]).
+// Mech3.exe 1.2 @ 0x004e72f0, Pirate's Moon 1.0 @ 0x004f90f0 (its matrix by 0x004f9090). The rate, -ln(0.5) / 0.125, made once ([0x0060b880]).
 int32_t turret_turn(VehicleControls& c, const TurretAim& a, float dt) {
   static const float k = static_cast<float>(-(std::log(0.5) / 0.125));
   if (!c.turret_node) return 1;

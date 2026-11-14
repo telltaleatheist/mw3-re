@@ -39,3 +39,27 @@ TEST(pm_target_desc_keeps_a_base_only_when_the_game_counts_it) {
   }
   set_target_hooks(&old);
 }
+
+namespace {
+struct Bare : TargetHooks {
+  void entity_init(Handle) override {}
+  void entity_end(Handle) override {}
+};
+}  // namespace
+
+// Pirate's Moon 0x004e30d0 (MW3's 0x004d2cd0): a collision's damage, but none to a multiplayer base (an mpoption).
+TEST(pm_target_collision_spares_a_multiplayer_base) {
+  Bare b;
+  TargetHooks& old = target_hooks();
+  set_target_hooks(&b);
+  TargetRec rec;
+  rec.height = 5.0f;
+  for (const int32_t option : {-1, 1}) {
+    TargetDesc d;
+    d.health = d.max_health = 100.0f, d.mpoption = option;
+    auto* t = new CZAiTarget(0x4321, 0, d, &rec, false);
+    EXPECT(t->on_collide(30.0f) == (option < 0 ? 70.0f : 100.0f));
+    delete t;
+  }
+  set_target_hooks(&old);
+}

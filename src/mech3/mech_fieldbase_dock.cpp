@@ -238,6 +238,24 @@ void DockIdle::begin() {
   asked = false;
   reg->idle_on = true;
 }
+// Mech3.exe 1.2 @ 0x0045a760, Pirate's Moon 1.0 @ 0x0045b540: done once asked. PM: in a network game the player's
+// mech powered down asks itself, at the nearest point of the mcbwaynet when the refit's test lets it (0x0045be50);
+// powered up, the refit's "too close" line may come at once (0x0045bcb0).
+bool DockIdle::step(float) {
+  FieldBaseHooks& h = hk();
+  if (h.game_type() != 3) return asked;
+  const Handle me = h.player_vehicle();
+  if (!h.powered_down(me)) {
+    reg->refit.line_at = h.game_time();
+    return asked;
+  }
+  const Handle point = h.dock_point_nearest(h.entity_position(me));
+  if (reg->refit.may_start(me, point)) {
+    h.dock_point_select(point);
+    message(me);
+  }
+  return asked;
+}
 void DockIdle::end() {
   reg->idle_on = false;
   asked = false;
@@ -321,30 +339,30 @@ void FieldBases::deploy_points(const float* at) {
   }
 }
 
-// Mech3.exe 1.2 @ 0x0045a270. Off multiplayer the dock's states run (as a
-// field base runs its steps; a step finishing after its own abort marks the
-// dropped state, not the new front). In multiplayer, a powered-down player
-// within 20 m of a station is repaired there within 6.5 m, unless an enemy
-// is within 100 m; otherwise the HUD says why.
+// Mech3.exe 1.2 @ 0x0045a270, Pirate's Moon 1.0 @ 0x0045b240: the dock's states run (as a field base runs its
+// steps; a step finishing after its own abort marks the dropped state, not the new front). PM runs them in every
+// game; MW3 (the rest, kept for preservation, not reached on PM) instead, in multiplayer, repaired a powered-down
+// player within 20 m of a station there within 6.5 m, unless an enemy was within 100 m; otherwise the HUD said why.
 void FieldBases::frame(float dt) {
-  FieldBaseHooks& h = hk();
-  if (h.game_type() != 3) {
-    if (states.empty()) return;
-    DockStep* f = states.front();
-    if (begin_next) {
-      f->begin();
-      begin_next = false;
-      return;
-    }
-    if (!f->done()) {
-      if (f->step(dt)) f->finished = true;
-      return;
-    }
-    f->end();
-    states.pop_front();
-    if (!states.empty()) states.front()->begin();
+  if (states.empty()) return;
+  DockStep* f = states.front();
+  if (begin_next) {
+    f->begin();
+    begin_next = false;
     return;
   }
+  if (!f->done()) {
+    if (f->step(dt)) f->finished = true;
+    return;
+  }
+  f->end();
+  states.pop_front();
+  if (!states.empty()) states.front()->begin();
+}
+
+// Mech3.exe 1.2 @ 0x0045a270's multiplayer branch.
+void FieldBases::mp_station_frame() {
+  FieldBaseHooks& h = hk();
   if (!h.mp_repairs()) return;
   const Handle me = h.player_vehicle();
   if (g_repair_anim || !me || !h.entity_active(me) || !h.entity_shut_down(me)) return;
@@ -461,12 +479,12 @@ void DockRefit::begin() {
 // multiplayer no enemy within about 71 m.
 bool DockRefit::may_start(Handle mech, Handle point) {
   FieldBaseHooks& h = hk();
-  if (!mech || !point || anim || !reg->requester_ok()) return false;
+  if (!mech || !point || anim || !h.powered_down(mech)) return false;
   const float* at = h.dock_point_position(point);
   const float* p = h.entity_position(mech);
   const float dx = p[0] - at[0], dy = p[1] - at[1], dz = p[2] - at[2];
   if (!(dz * dz + dy * dy + dx * dx + 1.0f < 42.25f)) return false;  // [0x006068f4]
-  if (!h.mp_repairs()) return true;  // 0x0047b710(0)
+  if (h.game_type() != 3) return true;  // 0x0047b710(0): not a network game
   const Handle c = h.nearest_enemy(mech);
   if (!c || !h.contact_vehicle(c) || h.contact_distance(c) > 5000.0f) return true;  // [0x00606900]
   if (h.game_time() <= line_at) return false;

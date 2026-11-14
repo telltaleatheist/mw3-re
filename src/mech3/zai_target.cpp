@@ -663,8 +663,10 @@ uint32_t CZAiTarget::on_hit(Handle, Handle, float damage) {
   return 0;
 }
 
-// Mech3.exe 1.2 @ 0x004d2cd0 (from 0x004d26d0, a collision): the health left.
+// Mech3.exe 1.2 @ 0x004d2cd0, Pirate's Moon 1.0 @ 0x004e30d0 (from 0x004d26d0, a collision): the health left. PM: a
+// multiplayer base (an mpoption) takes no collision's damage.
 float CZAiTarget::on_collide(float damage) {
+  if (desc.mpoption >= 0) return desc.health;
   desc.health = desc.health - damage;
   fire_triggers();
   if (!(desc.health > 0.0f)) destroy();
