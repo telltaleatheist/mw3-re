@@ -3057,6 +3057,7 @@ bool mech_textures(void* mech, MechTextures* out) {
         if (const zmod::Material* mat = md->polygons[k].material; mat && (mat->flags & 1) && mat->texture) {
           names.push_back(mat->texture->name);
           out->loaded += mat->texture->image != nullptr;
+          out->stand_in += mat->texture->image == &zimg::default_image();
         }
     for (int32_t k = 0; k < n->child_count(); ++k) self(self, n->children[k], names);
   };

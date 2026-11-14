@@ -642,6 +642,7 @@ enable_testing()
 if(MW3_BUILD_MW3)
 add_executable(mw3tests
   tests/main.cpp
+  tests/test_forget_lock.cpp
   tests/test_model_bound.cpp
   tests/test_child_limits.cpp
   tests/test_znet.cpp

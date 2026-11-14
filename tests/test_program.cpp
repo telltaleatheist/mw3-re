@@ -19591,6 +19591,76 @@ TEST(mission_c1m1_mech_wears_its_skin_headless) {
   mech3::options() = mech3::Options{};
 }
 
+// The Vulture's DESERT camo (its third skin, "_c"): its canopy top, vultur_d03_c, is in no texture library, so the
+// game drew its missing-texture checks there (a player's report, 1.1.1). The skin loader's special case for it was
+// misspelt "vult_d03_c" (0x005e5790); FIX (bug), under SMALL FIXES, it also takes "vultur_d03_c" and loads the
+// entry's alternate, vult06_c. Off, the checks as in 1999.
+static void vulture_desert(bool fix, mech3::MechTextures* t) {
+  SavedMounts keep;
+  zutl::mounts() = zutl::Mounts{};
+  zutl::mount(MW3_GAME_DIR);
+  zutl::set_write_dir(temp_dir(fix ? "vulture_desert_fix" : "vulture_desert_off"));
+  mech3::reset_states();
+  reset_process_state();
+  mech3::missions() = mech3::Missions{};
+  mech3::mech_types_forget();
+  mech3::player_controls_instance() = nullptr;
+  mech3::options() = mech3::Options{};
+  const zfix::Options was = zfix::options();
+  zfix::options().small_fixes = fix;
+  FakeWindow window;
+  FakeAlert alert;
+  FakeClock clock;
+  FakeScreen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &fast_movie_clock(), p.screen = &screen, p.sound = &sound, p.files = &files;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::GameEngine::Launch l;  // c1, mission 1
+    l.mech = 18;                  // the Vulture
+    l.skin = 2;                   // DESERT ("_c")
+    engine.set_launch(l);
+    app.post_intro_ = &mech3::states().load;
+    int frames = 0;
+    engine.on_present = [&](int) {
+      if (app.current() != &mech3::states().core || ++frames != 5) return;
+      mech3::mech_textures(mech3::mech_mission_player(), t);
+    };
+    CountingPump pump;
+    pump.limit = 300;
+    pump.stop = [&] { return frames >= 6; };
+    app.run(pump);
+    mech3::missions().cleanup(false);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zfix::options() = was;
+}
+
+TEST(mission_c1m1_vulture_desert_canopy_has_its_texture_headless) {
+  if (!have_game()) return;
+  auto count = [](const std::vector<std::string>& v, const char* n) {
+    int k = 0;
+    for (const std::string& s : v) k += s == n;
+    return k;
+  };
+  mech3::MechTextures fixed, off;
+  vulture_desert(true, &fixed);
+  vulture_desert(false, &off);
+  std::printf("  fixed: skin %s, %zu polygons, vult06_c %d, vultur_d03_c %d, checks %d; off: vult06_c %d, vultur_d03_c %d, checks %d\n",
+              fixed.skin.c_str(), fixed.names.size(), count(fixed.names, "vult06_c"), count(fixed.names, "vultur_d03_c"),
+              fixed.stand_in, count(off.names, "vult06_c"), count(off.names, "vultur_d03_c"), off.stand_in);
+  EXPECT(!fixed.names.empty() && fixed.stand_in == 0 && count(fixed.names, "vultur_d03_c") + count(fixed.lod, "vultur_d03_c") == 0 && count(fixed.names, "vult06_c") > 0);
+  EXPECT(off.stand_in > 0 && count(off.names, "vultur_d03_c") + count(off.lod, "vultur_d03_c") == off.stand_in);  // the model and its low-detail copy
+}
+
 // c1 mission 1's Owens destroyed (its centre torso, Destroy(0, 1)) once
 // woken and standing (docs/damage.md, The death): dead, the slow death fall
 // queued, the node renamed "deadmech", the pilot's eject seat out (a copy of
