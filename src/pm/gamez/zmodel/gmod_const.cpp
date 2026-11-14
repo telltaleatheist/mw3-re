@@ -1042,4 +1042,69 @@ void models_purge(bool models, bool materials) {
   if (materials) ::zmod::materials_purge();
 }
 
+// The script engine's model commands on PM's models (MW3's in zmod's gmod_const: ported for preservation, the
+// engine's entries left null). PM's polygon is 0x28 bytes: its count the low 10 bits, its back face 0x400.
+
+// Pirate's Moon 1.0 @ 0x00559910 (MW3's 0x00539cc0): the model's +0 (Object3DSetFacade).
+void model_set_facade(Model* m, uint32_t mode) { std::memcpy(m->header, &mode, 4); }
+
+// Pirate's Moon 1.0 @ 0x00559940 (MW3's 0x00539cf0): +8 bit 0 from on's bit 0; none, nothing.
+void model_set_lighting(Model* m, uint32_t on) {
+  if (!m) return;
+  uint32_t f;
+  std::memcpy(&f, m->header + 8, 4);
+  f = (f & ~1u) | (on & 1u);
+  std::memcpy(m->header + 8, &f, 4);
+}
+
+// Pirate's Moon 1.0 @ 0x0055b810 (MW3's 0x0053bb50, flag 0x100): each polygon's flag 0x400 from on's bit 0.
+void model_set_show_backface(Model* m, uint32_t on) {
+  for (int32_t i = 0; i < m->count(0x10); ++i)
+    m->polygons[i].flags = (m->polygons[i].flags & ~0x400u) | ((on & 1u) << 10);
+}
+
+// Pirate's Moon 1.0 @ 0x0055be00 (MW3's 0x0053bd60): each polygon without UVs (+0x18) gets its first material made
+// the palette colour `color`, as MW3's (+0x03 its low byte, red the number, green and blue 0, +0x18 1). MW3 asked the
+// material's textured flag instead.
+void model_set_color(Model* m, int32_t color) {
+  for (int32_t i = 0; i < m->count(0x10); ++i) {
+    Polygon& q = m->polygons[i];
+    if (q.uvs) continue;
+    ::zmod::Material* mt = q.materials[0];
+    mt->r = static_cast<float>(color), mt->g = 0, mt->b = 0;
+    mt->rgb = static_cast<uint16_t>((mt->rgb & 0x00ff) | ((color & 0xff) << 8));
+    mt->unk_14[1] = 1.0f;
+  }
+}
+
+// Pirate's Moon 1.0 @ 0x0055b630 (MW3's 0x0053b960): as MW3's, over PM's polygons (the low 10 bits their count).
+// FIX (A) as MW3's: indices past the vertex count are skipped where the exe writes outside its arrays.
+void model_set_morph(Model* m, const int32_t* fixed, float v, int32_t count, int32_t min_uses) {
+  const int32_t verts = m->count(0x14);
+  m->morphs = static_cast<float*>(std::realloc(m->morphs, 12 * static_cast<size_t>(verts > 0 ? verts : 0)));
+  std::vector<int32_t> held(verts > 0 ? verts : 0), uses(verts > 0 ? verts : 0);
+  for (int32_t i = 0; i < count; ++i)
+    if (fixed[i] >= 0 && fixed[i] < verts) held[fixed[i]] = 1;
+  for (int32_t p = 0; p < m->count(0x10); ++p)
+    for (uint32_t k = 0; k < (m->polygons[p].flags & 0x3ff); ++k) {
+      const uint32_t at = m->polygons[p].vertex_indices[k];
+      if (at < static_cast<uint32_t>(verts)) ++uses[at];
+    }
+  if (min_uses > 0)
+    for (int32_t i = 0; i < verts; ++i)
+      if (uses[i] < min_uses) held[i] = 1;
+  for (int32_t i = 0; i < verts; ++i) {
+    m->morphs[3 * i] = 0;
+    m->morphs[3 * i + 1] = held[i] ? 0.0f : v;
+    m->morphs[3 * i + 2] = 0;
+  }
+  uint32_t f;
+  const float one = 1.0f;
+  std::memcpy(m->header + 0x24, &one, 4);
+  std::memcpy(&f, m->header + 8, 4);
+  f |= 8;
+  std::memcpy(m->header + 8, &f, 4);
+  std::memcpy(m->header + 0x1c, m->header + 0x14, 4);
+}
+
 }  // namespace pm::zmod

@@ -84,9 +84,9 @@ namespace {
 TextureWorld g_texture_world;
 }  // namespace
 TextureWorld& texture_world() { return g_texture_world; }
-// Mech3.exe 1.2 @ 0x00526aa0 (stack u, v)
+// Mech3.exe 1.2 @ 0x00526aa0, Pirate's Moon 1.0 @ 0x00540410 (stack u, v)
 void texture_world_per_meter(float u, float v) { g_texture_world.per_meter[0] = u, g_texture_world.per_meter[1] = v; }
-// Mech3.exe 1.2 @ 0x00526ac0 (stack u, v)
+// Mech3.exe 1.2 @ 0x00526ac0, Pirate's Moon 1.0 @ 0x00540430 (stack u, v)
 void texture_world_base(float u, float v) { g_texture_world.base[0] = u, g_texture_world.base[1] = v; }
 // Mech3.exe 1.2 @ 0x00526b90
 int32_t fog_on() { return fog().on; }

@@ -822,7 +822,7 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_sound.cpp tests/probe_pm_sound.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_ai.cpp)
   # Today's preservation ports run on PM's exe (test_pm_script_cmds.py, test_pm_*): the shared probes
-  target_sources(pmprobe PRIVATE tests/probe_script_cmds.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_script_cmds.cpp tests/probe_pm_script_cmds.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_pocket.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_allies.cpp)
   target_sources(pmprobe PRIVATE tests/probe_mech_net.cpp)
