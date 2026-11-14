@@ -1,4 +1,5 @@
 #include "gamez/zrender/zrndr_tint.h"
+#include "gamez/zgame/zgame_table.h"
 
 #include <cstring>
 
@@ -186,10 +187,12 @@ std::vector<uint8_t>& noise_table() {
 }
 
 // Mech3.exe 1.2 @ 0x005581c0
+// Pirate's Moon 1.0 @ 0x0057a170: 40000 bytes ([0x008c1a28] = 0x9c40; zgame::Table finish_noise_40000).
 void finish_init(int32_t (*rand)()) {
   std::vector<uint8_t>& t = noise_table();
-  t.assign(0x6400 + 1, 0);
-  for (size_t i = 0; i < 0x6400; ++i) t[i] = static_cast<uint8_t>(rand ? rand() : crt::msvc_rand());
+  const size_t size = zgame::game().finish_noise_40000 ? 40000 : 0x6400;
+  t.assign(size + 1, 0);
+  for (size_t i = 0; i < size; ++i) t[i] = static_cast<uint8_t>(rand ? rand() : crt::msvc_rand());
 }
 
 // Mech3.exe 1.2 @ 0x00558c10
@@ -202,7 +205,7 @@ void static_fill(const int32_t* rect, double level, uint16_t lo, uint16_t mid, u
   const int32_t w = right - left;
   const std::vector<uint8_t>& t = noise_table();
   if (t.empty() || !f.base) return;  // not in the exe: no set-up, no target
-  const int32_t size = 0x6400;       // [0x0072c1d8]
+  const int32_t size = static_cast<int32_t>(t.size()) - 1;  // [0x0072c1d8] (PM's [0x008c1a28])
   for (int32_t y = top; y < bottom; ++y) {
     const int32_t r = rand ? rand() : crt::msvc_rand();
     const uint8_t* n = t.data() + r * (size - w) / 0x7fff;

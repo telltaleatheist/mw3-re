@@ -1198,3 +1198,15 @@ path: PM's core frame (0x4838b0) and 0x483470, 0x483f30, 0x484530 call it after 
 0x483700. Their hardware branch draws the tint ([0x8c4c14]) and leaves it pending, as MW3 does and as the port's
 GPU path does. So no tint lingers in the port that would not in PM's hardware mode. The row is labelled
 `software` (the software renderer is not ported).
+
+## The finish's static noise (2026-11-14)
+
+PM's finish set-up (0x57a170, MW3's 0x5581c0) fills the static's noise with 40000 bytes of rand ([0x8c1a28] =
+0x9c40) where MW3 fills 0x6400; the fill (0x57abd0) then draws over that size, so the static's rows start across
+a longer table. The port fills by the table's `finish_noise_40000` and the fill takes the size from the table.
+Its scratch buffer (0x3a9800, 1600 x 1200 x 2) the port sizes its own way. The set-up's 40000 rand calls (25600
+in MW3) shift the CRT's sequence after the start, before any mission's seed.
+`test_pm_static.py` is test_static.py's cases on PM's exe: the table (its size and every byte), then up to six
+fills a case over random targets, rects and levels, every pixel and call compared (20 cases, 65 fills, as the
+original). PM passes the target's and the fill's arguments on the stack, so the test hands PM's order to the
+CPU itself. Break: the flag off (the table is 25600 bytes).

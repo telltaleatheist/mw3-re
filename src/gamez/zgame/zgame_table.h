@@ -150,6 +150,9 @@ struct Table {
   // The salvage screen's set-up (mech3 salvage_screen.cpp refill; PM 0x00480260): PM hides the lance's cards in a
   // network game (shows them otherwise) and the bases' line outside the campaign; MW3 always writes the line.
   bool salvage_by_game;
+  // The finish's static noise (zrender zrndr_tint.cpp finish_init, static_fill; PM 0x0057a170): PM fills 40000
+  // bytes of rand, MW3 0x6400.
+  bool finish_noise_40000;
 };
 
 const Table& mw3_table();
