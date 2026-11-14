@@ -136,7 +136,7 @@ struct WeaponGroup {                   // 0x54 bytes, ctor 0x004b1d80
   void next();                         // 0x004b1f40
   void prev();                         // 0x004b2000
   void release();                      // 0x004b20b0
-  bool trigger();                      // 0x004b2100
+  bool trigger();                      // 0x004b2100, PM 0x004b5f80
   void held();                         // 0x004b21f0
 };
 

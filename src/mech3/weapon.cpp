@@ -446,8 +446,10 @@ void WeaponGroup::release() {
   }
 }
 
-// Mech3.exe 1.2 @ 0x004b2100. In group fire every beam but the best rated one
-// is told not to play its ground effect.
+// Mech3.exe 1.2 @ 0x004b2100, Pirate's Moon 1.0 @ 0x004b5f80. In group fire PM fires the best rated beam first, then
+// the rest in order; a kind's first weapon to fire in the volley plays both FIRE animations (the flash and its weapon
+// light), its repeats the flash alone; once a beam has fired, every other beam plays no ground effect (MW3: in
+// order, every beam but the best rated one without it, one animation each).
 bool WeaponGroup::trigger() {
   bool fired = false;
   if (manager->mode == 2) {
@@ -464,9 +466,23 @@ bool WeaponGroup::trigger() {
         }
       }
     }
+    bool beam_fired = best != -1 && weapons[best]->trigger();
+    fired = beam_fired;
+    WeaponDef* seen[32] = {};  // the kinds that have fired (the best beam's not among them)
+    uint32_t seen_count = 0;
     for (uint32_t i = 0; i < count; ++i) {
-      if (beams > 1 && weapons[i]->is_beam() && best != static_cast<int32_t>(i)) zwep::fire_state().beam_ground_fx = 0;
-      if (weapons[i]->trigger()) fired = true;
+      if (static_cast<int32_t>(i) == best) continue;
+      Weapon* w = weapons[i];
+      if (beams > 1 && w->is_beam() && beam_fired) zwep::fire_state().beam_ground_fx = 0;
+      bool first = true;
+      for (uint32_t k = 0; k < seen_count && first; ++k)
+        if (seen[k] == w->def) zwep::set_fire_animation(w->def, 1), first = false;
+      if (first) zwep::set_fire_animation(w->def, 0);
+      if (w->trigger()) {
+        fired = true;
+        if (w->is_beam()) beam_fired = true;
+        if (first) seen[seen_count++] = w->def;
+      }
     }
   } else if (current_weapon) {
     fired = current_weapon->trigger();
