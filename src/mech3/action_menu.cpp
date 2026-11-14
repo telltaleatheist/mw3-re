@@ -135,66 +135,73 @@ const Config* ConfigCycle::config_at(int32_t i) {
   return configs[static_cast<size_t>(it->value)];
 }
 
-// Mech3.exe 1.2 @ 0x00489c10. No choice reads as mech 0 (the value of none),
-// so an empty list lists the Annihilator's loadouts. A wave's enemy lists them
-// with the wave's chosen; training loadouts are not listed unless the wave's.
+// Pirate's Moon 1.0 @ 0x0048e2a0: the font only (none in the inactive one); MW3's 0x00489c10 also
+// listed the loadouts, which PM does in refill.
 void EnemyList::select(int32_t i) {
   CycleButton::select(i);
-  const int32_t mech = value_at(index);
-  set_label_font(mech != -1 ? font : inactive_font);  // 0x00489e40
+  set_label_font(value_at(index) != -1 ? font : inactive_font);  // as 0x00489e40
+}
+
+// Pirate's Moon 1.0 @ 0x0048e6a0
+void EnemyList::hide() {
+  CycleButton::hide();
+  if (configs) configs->hide();
+}
+
+// Pirate's Moon 1.0 @ 0x0048e6c0: stepped, the new mech's loadouts with its first chosen.
+void EnemyList::step(int32_t by) {
+  CycleButton::step(by);
+  refill(0);
+}
+
+// Pirate's Moon 1.0 @ 0x0048f4d0 (and 0x0048e6c0's tail). No choice reads as mech 0 (the value of none).
+void EnemyList::refill(int32_t place) {
   ConfigCycle& c = *configs;
+  const int32_t mech = item(index) ? value_at(index) : 0;
   const ConfigList* loadouts = e_.mech_loadouts(mech);
-  if (!loadouts || mech == -1) {
-    c.clear_items();
-    c.configs.clear();
+  c.clear_items();  // 0x0048a740
+  c.configs.clear();
+  if (mech == -1 || !loadouts || place == -1) {
     c.hide();
     return;
   }
   c.show_for(-1.0f);
-  c.clear_items();
-  c.configs.clear();
-  ActionScreen* s = screen_of(owner);
-  const std::vector<Config*>* list = &loadouts->configs;
-  const int32_t n = static_cast<int32_t>(list->size());
-  auto add = [&c](const Config* cfg) {
+  auto add = [&c](const Config* cfg, const char* text) {
     c.configs.push_back(cfg);
-    c.add_item(cfg->name, static_cast<int32_t>(c.configs.size()) - 1);
+    c.add_item(text, static_cast<int32_t>(c.configs.size()) - 1);
   };
-  if (s && !s->fixed) {
-    // Pirate's Moon 1.0 @ 0x0048f4d0: every loadout but training's, the wave's (ia_progression,
-    // 0x0040c300) chosen; a training one added as "Unknown"; one past the last chooses the first.
-    const ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
-    const int32_t k = g ? g->wave_config(s->wave, s->filling) : -1;
-    const Config* chosen = nullptr;
-    int32_t at = -1;
-    for (int32_t j = 0; j < n; ++j) {
-      const Config* cfg = (*list)[static_cast<size_t>(j)];
-      if (j == k) chosen = cfg;
-      if (!cfg || cfg->training) continue;
-      if (cfg == chosen) at = c.count();
-      add(cfg);
-    }
-    if (chosen && chosen->training) {
-      at = c.count();
-      c.configs.push_back(chosen);
-      c.add_item(e_.message(0xd75), static_cast<int32_t>(c.configs.size()) - 1);
-    }
-    c.select(at < 0 ? 0 : at);
-  } else {
-    for (int32_t k = 0; k < n; ++k) {
-      const Config* cfg = (*list)[static_cast<size_t>(k)];
-      if (cfg && !cfg->training) add(cfg);
-    }
+  const Config* chosen = nullptr;
+  const std::vector<Config*>& list = loadouts->configs;
+  for (size_t j = 0; j < list.size(); ++j) {
+    const Config* cfg = list[j];
+    if (static_cast<int32_t>(j) == place) chosen = cfg;
+    if (cfg && !cfg->training) add(cfg, cfg->name);
   }
-  if (c.count() <= 0) return;
-  c.show_for(-1.0f);
-  if (c.count() != 1) {
-    c.set_arrows(1, 1, 1);
-    c.set_label_font(c.font);
+  if (chosen) {
+    if (chosen->training) add(chosen, e_.message(0xd75));  // "Unknown"
+    for (size_t j = 0; j < c.configs.size(); ++j)  // 0x0048a2e0 by the loadout: its first row
+      if (c.configs[j] == chosen) {
+        c.select(static_cast<int32_t>(j));
+        break;
+      }
   } else {
-    c.set_arrows(0, 0, 0);
-    c.set_label_font(c.inactive_font);
+    c.select(0);
   }
+  const uint8_t many = c.count() > 1 ? 1 : 0;
+  c.set_arrows(many, many, many);
+  c.set_label_font(many ? c.font : c.inactive_font);
+}
+
+// Pirate's Moon 1.0 @ 0x0048e3e0: ENEMYLINES shown (for good) with the wave list.
+void WaveList::show_for(float seconds) {
+  if (lines) lines->show_for(-1.0f);
+  CycleButton::show_for(seconds);
+}
+
+// Pirate's Moon 1.0 @ 0x0048e410
+void WaveList::hide() {
+  if (lines) lines->hide();
+  CycleButton::hide();
 }
 
 // Mech3.exe 1.2 @ 0x00489710
@@ -302,6 +309,7 @@ ActionScreen::ActionScreen(Engine& e, Handle s)
       c.set_pos(enemy_configs[0].get_x() + dx * i, y);
       c.hide();
     }
+    if (bind_primitive(&enemy_lines, "ENEMYLINES")) waves.lines = &enemy_lines;  // Pirate's Moon 0x0048d590
     bind_button(&waves, "ENEMY_WAVE");
     if (ia_mods_page()) {  // ours
       mods_tab = std::make_unique<ModsTab>(e);
@@ -379,9 +387,18 @@ void ActionScreen::keep_lineup() {
   if (mode_of(scenarios.value_at(scenarios.index)) == 2) {
     k.g87c = waves.index;
   } else {
+    // Pirate's Moon 0x0048ded0 / 0x0048eaf0: each enemy's mech, and its loadout's place among the
+    // mech's (0x004279e0, -1 not there; 0 with no loadouts), where MW3 kept the rows.
     for (int i = 0; i < 6; ++i) {
-      k.g838[i] = enemies[i].index;
-      k.g858[i] = enemy_configs[i].index;
+      const int32_t mech = enemies[i].value_at(enemies[i].index);
+      k.g838[i] = mech;
+      const ConfigList* loadouts = engine().mech_loadouts(mech);
+      const Config* cfg = enemy_configs[i].config_at(enemy_configs[i].index);
+      int32_t place = loadouts ? -1 : 0;
+      if (loadouts)
+        for (size_t j = 0; j < loadouts->configs.size() && place < 0; ++j)
+          if (loadouts->configs[j] == cfg) place = static_cast<int32_t>(j);
+      k.g858[i] = place;
     }
   }
 }
@@ -408,6 +425,7 @@ void ActionScreen::show_wave(int32_t w) {
     l.show_for(-1.0f);
     l.add_item(text.c_str(), mech);
     l.select(0);
+    l.refill(g->wave_config(w, i));  // 0x0040c300: the wave's loadout, by its place
     l.set_arrows(0, 0, 0);
     l.set_label_font(l.inactive_font);
     ConfigCycle& c = enemy_configs[i];  // listed, but not to choose (0x0048f445)
@@ -418,38 +436,44 @@ void ActionScreen::show_wave(int32_t w) {
   for (; i < 6; ++i) enemies[i].hide();
 }
 
-// Mech3.exe 1.2 @ 0x0048a930: every mech for each enemy (the first without
-// none, the player's mech chosen; the others none), then the kept choices.
+// Pirate's Moon 1.0 @ 0x0048f660 (MW3's 0x0048a930): every mech for each enemy (the first without
+// none), then the kept choices by mech and each loadout by its place among the mech's (0 past them);
+// with no kept first enemy it is mech 0, its first loadout (MW3 chose the player's mech).
 void ActionScreen::show_custom() {
   Engine& e = engine();
   fixed = 1;
   waves.hide();
-  GameSlot* slot = player_slot();
-  for (EnemyList& l : enemies) l.clear_items();
+  for (int i = 0; i < 6; ++i) {
+    enemies[i].clear_items();
+    enemy_configs[i].clear_items();
+    enemy_configs[i].configs.clear();
+  }
+  const ActionGame* g = current_pilot() ? current_pilot()->action() : nullptr;
   for (int i = 0; i < 6; ++i) {
     EnemyList& l = enemies[i];
-    int32_t chosen = 0, n = 0;
     for (int32_t mech = -1; mech < mech_count(); ++mech) {  // ours: the mods' mechs after Pirate's Moon's
-      if (mech == kMechCount) continue;  // none (0x19)
-      if (i == 0) {
-        if (slot && mech == slot->mech) chosen = n;
-        if (mech == -1) continue;
-        ++n;
-      }
+      if (mech == kMechCount || (i == 0 && mech == -1)) continue;  // none (0x19); the first enemy has no none
       const std::string text =
           mech == -1 ? e.message_format_ints(0x28e, {}) : std::string(e.message_format(0x28f, mech_label(e, mech)));
       l.add_item(text.c_str(), mech);
     }
     l.set_arrows(1, 1, 1);
     l.set_label_font(l.font);
-    l.select(chosen);
+    if (!g) {
+      l.select_value(-1);
+      l.refill(0);
+      continue;
+    }
+    const int32_t mech = g->setup.g838[i];
+    uint32_t place = static_cast<uint32_t>(g->setup.g858[i]);  // unsigned: -1 is past the end too
+    const ConfigList* loadouts = e.mech_loadouts(mech);
+    if (!loadouts || loadouts->configs.size() < place) place = 0;
+    l.select_value(mech);
+    l.refill(static_cast<int32_t>(place));
   }
-  const ActionSetup& k = action_setup();
-  for (int i = 0; i < 6; ++i) {
-    if (k.g838[i] < 0) continue;
-    enemies[i].select(k.g838[i]);
-    enemy_configs[i].select(k.g858[i]);
-  }
+  if (g && g->setup.g838[0] != -1) return;
+  enemies[0].select_value(0);
+  enemies[0].refill(0);
 }
 
 // Mech3.exe 1.2 @ 0x0048aac0. Quirk: the commander's mech is chosen by its

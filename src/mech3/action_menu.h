@@ -78,18 +78,29 @@ class ConfigCycle : public LineupCycle {
 // ENEMY_LIST (vtable 0x005c59c0, 0x00489b90), six of them, each with its
 // loadouts beside it (0x868 bytes the pair): choosing a mech lists its
 // loadouts, or the wave's one.
+// Pirate's Moon's (vtable 0x005e7a48): choosing only sets the font; the loadouts are listed by
+// stepping (0x0048e6c0) or by the screen (refill, 0x0048f4d0); hiding hides them too (0x0048e6a0).
 class EnemyList : public LineupCycle {
  public:
   explicit EnemyList(Engine& e) : LineupCycle(e) {}
-  void select(int32_t i) override;   // +0xa0  0x00489c10
+  void hide() override;              // +0x64  0x0048e6a0
+  void select(int32_t i) override;   // +0xa0  0x0048e2a0 (MW3's 0x00489c10 listed the loadouts)
+  void step(int32_t by) override;    // +0xa4  0x0048e6c0
+  // 0x0048f4d0: the chosen mech's loadouts but training's, the one at `place` in its list chosen
+  // (a training one listed as "Unknown", past the last the first); none with no mech or place -1.
+  void refill(int32_t place);
   ConfigCycle* configs = nullptr;    // +0x434, the pair's second
 };
 
 // ENEMY_WAVE (vtable 0x005c5678): stepping shows that wave's enemies.
+// Pirate's Moon's (vtable 0x005e7658) shows and hides ENEMYLINES with itself (0x0048e3e0, 0x0048e410).
 class WaveList : public LineupCycle {
  public:
   explicit WaveList(Engine& e) : LineupCycle(e) {}
+  void show_for(float seconds) override;  // +0x60  0x0048e3e0
+  void hide() override;              // +0x64  0x0048e410
   void step(int32_t by) override;    // +0xa4  0x00489710
+  ztwod::Image* lines = nullptr;     // +0x434  ENEMYLINES, bound after it
   void fill(int32_t best);           // 0x004897b0: "Wave 1" up to the best + 1 (20 at most)
 };
 
@@ -116,6 +127,7 @@ class ActionScreen : public MenuScreen {
   EnemyList enemies[6];              // +0x138f8, 0x868 apart (each with its loadouts)
   ConfigCycle enemy_configs[6];      // +0x13d2c, 0x868 apart
   WaveList waves;                    // +0x16b68  ENEMY_WAVE
+  ztwod::Image enemy_lines{0};       // PM +0x17134  ENEMYLINES (Pirate's Moon's dialog; MW3 has none)
   int32_t x16f94 = 0, x16f98 = 0;    // +0x16f94, +0x16f98  (set by nothing else)
   uint8_t fixed = 0;                 // +0x16f9c  1: the enemies chosen; 0: a wave's
   int32_t wave = 0;                  // +0x16fa0  the wave shown (0-based)
