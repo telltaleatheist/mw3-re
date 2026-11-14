@@ -1,6 +1,7 @@
 // The salvage screen (docs/campaign.md section 10). Original file unknown
 // (0x0047d2f0..0x0047e520, after the debriefing's); see salvage_screen.h.
 #include "mech3/salvage_screen.h"
+#include "gamez/zgame/zgame_table.h"
 
 #include <cmath>
 
@@ -114,15 +115,23 @@ void SalvageScreen::on_button(int32_t id, int32_t a, int32_t row) {
 }
 
 // Mech3.exe 1.2 @ 0x0047dcf0
+// Pirate's Moon 1.0 @ 0x00480260: in a network game (0x0047b710(0)) the lance's cards are hidden and their names
+// off, else shown; outside the campaign the bases' line and the third text hidden (zgame::Table salvage_by_game).
 void SalvageScreen::refill() {
   Engine& e = engine();
+  const bool pm = zgame::game().salvage_by_game;
+  const bool network = e.game_kind() == 3;
   for (int32_t i = 0; i < 4; ++i) {  // the lance: green while in the mission's count
     LanceCard& c = lance[i];
     if (GameSlot* s = e.game_slot(i)) {
       c.set_mech_image(s->mech, i < e.game_slot_count() ? 1 : 3);
-      c.show_name(true);
+      c.show_name(pm ? !network : true);
     } else {
       c.set_mech_image(-1, 3);
+    }
+    if (pm) {
+      if (network) c.hide();
+      else c.show_for(-1.0f);
     }
     if (ztwod::Text* t = label(c, 0)) t->hide();
   }
@@ -160,6 +169,11 @@ void SalvageScreen::refill() {
   mission.refill();
   if (ztwod::Text* t = label(text, 4)) t->set_text("%.1f %s", static_cast<double>(capacity), e.message(kTonsText));
   if (ztwod::Text* t = label(text, 3)) t->set_text("%.1f %s", static_cast<double>(used), e.message(kTonsText));
+  if (pm && e.game_kind() != 1) {  // PM: no bases' line outside the campaign
+    if (ztwod::Text* t = label(text, 5)) t->hide();
+    if (ztwod::Text* t = label(text, 2)) t->hide();
+    return;
+  }
   if (ztwod::Text* t = label(text, 5)) {
     if (bases == 1) t->set_text_id(0x164, 1);
     else t->set_text_id(0x163, bases);

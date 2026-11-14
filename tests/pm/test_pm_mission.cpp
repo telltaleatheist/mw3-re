@@ -73,6 +73,7 @@
 #include "mech3/mission_world.h"
 #include "gamez/zclass/cls_data.h"
 #include "mech3/briefing.h"
+#include "mech3/salvage_screen.h"
 #include "mech3/debriefing.h"
 #include "mech3/mainmenu.h"
 #include "mech3/pilot_menu.h"
@@ -4642,5 +4643,179 @@ TEST(pm_low_object_detail_loads_the_low_model_and_15_key_gaits_headless) {
     const int status = check::wait_child(child);
     EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
   }
+#endif
+}
+
+// Pirate's Moon's salvage screen set-up (0x00480260, the port's SalvageScreen::refill with the table's
+// salvage_by_game), opened from c2's briefing: in the campaign the lance's cards shown and the bases' line written;
+// with the pilot's game a network one (kind 3) the cards hidden and, outside the campaign, the bases' line and the
+// third text hidden. MW3's 0x0047dcf0 writes the line always and leaves the cards.
+TEST(pm_salvage_screen_by_the_game_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  for (const bool network : {false, true}) {
+    std::fflush(nullptr);
+    const pid_t child = check::fork_child();
+    if (child == 0) {
+      zgame::set_game(pm::table());
+      zutl::mounts() = zutl::Mounts{};
+      zutl::mount(MW3PM_GAME_DIR);
+      const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_salvage_screen_write";
+      std::filesystem::remove_all(wd);  // ours: made just below
+      std::filesystem::create_directories(wd);
+      zutl::set_write_dir(wd.c_str());
+      mech3::reset_states();
+      if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+      mech3::missions() = mech3::Missions{};
+      mech3::mech_types_forget();
+      mech3::player_controls_instance() = nullptr;
+      mech3::options() = mech3::Options{};
+      crt::rand_fixed_seed() = 1u;
+      NoKeys keys;
+      Window window;
+      Alert alert;
+      Clock clock;
+      MovieClock movies;
+      Screen screen;
+      platform::SilentSoundOutput sound;
+      mech3::MountFiles files;
+      mech3::Platform p;
+      p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+      p.sound = &sound, p.files = &files, p.input = &keys;
+      mech3::GameEngine engine(p, "mech3.exe -nofmv");
+      engine.quiet = true;
+      mech3::Mech3App app(&engine);
+      mech3::set_app(&app);
+      EXPECT(app.init_instance());
+      mech3::Pilot* pilot = mech3::create_pilot("Salvor");
+      EXPECT(pilot && pilot->select_campaign(0));
+      pilot->save();
+      int stage = -3;
+      bool done = false;
+      int cards_shown = -1, cards_hidden = -1;
+      bool bases_hidden = false, third_hidden = false;
+      std::string bases_text;
+      mech3::Game* campaign = nullptr;
+      engine.on_present = [&](int) {
+        zgame::State* now = app.current();
+        if (stage == -3 && now == &mech3::states().main && mech3::main_menu()) {
+          const_cast<mech3::MainMenu*>(mech3::main_menu())->buttons[1].on_left_up();  // CAMPAIGN
+          stage = -2;
+        } else if (stage == -2) {
+          auto* ps = dynamic_cast<mech3::PilotState*>(now);
+          if (!ps || !ps->screen) return;
+          ps->screen->refresh(false, pilot);
+          ps->screen->on_button(0x18, 0, 0);  // ACCEPT
+          stage = -1;
+        } else if (stage == -1) {
+          mech3::BriefingScreen* b = mech3::briefing_screen();
+          if (!b || now != &mech3::states().load || !b->loaded) return;
+          if (network) {  // the pilot's game a network one while the screen is made
+            campaign = pilot->current;
+            auto* m = new mech3::MultiplayerGame(pilot);
+            pilot->multi = m, pilot->current = m;
+          }
+          b->on_button(mech3::BriefingScreen::kBtnSalvage, 0, 0);
+          stage = 0;
+        } else if (stage == 0 && now == &mech3::states().briefing_salvage) {
+          auto* s = dynamic_cast<mech3::SalvageScreen*>(engine.screen_of(mech3::states().briefing_salvage.screen_));
+          if (!s) return;
+          cards_shown = cards_hidden = 0;
+          for (const mech3::LanceCard& c : s->lance) ((c.flags & ztwod::kHidden) ? cards_hidden : cards_shown) += 1;
+          ztwod::Text* five = s->text.labels.size() > 5 ? s->text.labels[5] : nullptr;
+          ztwod::Text* two = s->text.labels.size() > 2 ? s->text.labels[2] : nullptr;
+          bases_hidden = !five || (five->flags & ztwod::kHidden);
+          third_hidden = !two || (two->flags & ztwod::kHidden);
+          if (five) bases_text = five->text;
+          if (campaign) pilot->current = campaign;
+          done = true;
+        }
+      };
+      Pump pump;
+      pump.limit = 20000;
+      pump.stop = [&] { return done; };
+      app.run(pump);
+      std::printf("  %s: lance cards shown %d, hidden %d; bases' line %s (\"%s\"), third text %s\n",
+                  network ? "network game" : "campaign", cards_shown, cards_hidden, bases_hidden ? "hidden" : "shown",
+                  bases_text.c_str(), third_hidden ? "hidden" : "shown");
+      EXPECT(done);
+      if (network) EXPECT(cards_hidden == 4 && bases_hidden && third_hidden);
+      else EXPECT(cards_shown == 4 && !bases_hidden && !bases_text.empty());
+      std::fflush(nullptr);
+      _exit(check::failures ? 1 : 0);
+    }
+    const int status = check::wait_child(child);
+    EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+  }
+#endif
+}
+
+// Pirate's Moon's Salvage State entered cold (0x0047f7c0 with the real mission load, GameEngine::load_lab_world):
+// from the main menu, no world up, the state loads the mech lab's world (6) and makes its screen.
+TEST(pm_salvage_entered_cold_loads_the_lab_world_headless) {
+  if (!std::filesystem::exists(MW3PM_GAME_DIR)) return;
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();
+  if (child == 0) {
+    zgame::set_game(pm::table());
+    zutl::mounts() = zutl::Mounts{};
+    zutl::mount(MW3PM_GAME_DIR);
+    const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_salvage_cold_write";
+    std::filesystem::remove_all(wd);  // ours: made just below
+    std::filesystem::create_directories(wd);
+    zutl::set_write_dir(wd.c_str());
+    mech3::reset_states();
+    if (!zsnd::state().open) zsnd::state() = zsnd::State{};
+    mech3::missions() = mech3::Missions{};
+    mech3::mech_types_forget();
+    mech3::player_controls_instance() = nullptr;
+    mech3::options() = mech3::Options{};
+    zcls::nodes() = zcls::NodePool{};  // cold: no world left by the tests before (the child inherits their nodes)
+    crt::rand_fixed_seed() = 1u;
+    NoKeys keys;
+    Window window;
+    Alert alert;
+    Clock clock;
+    MovieClock movies;
+    Screen screen;
+    platform::SilentSoundOutput sound;
+    mech3::MountFiles files;
+    mech3::Platform p;
+    p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+    p.sound = &sound, p.files = &files, p.input = &keys;
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::Pilot* pilot = mech3::create_pilot("Cold");
+    EXPECT(pilot && pilot->select_campaign(0));
+    bool pushed = false, done = false, up_before = true, up_after = false, made = false;
+    int32_t world = -2;
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      if (!pushed && now == &mech3::states().main && mech3::main_menu()) {
+        up_before = engine.world_up();
+        app.push(&mech3::states().salvage, 0);
+        pushed = true;
+      } else if (pushed && now == &mech3::states().salvage) {
+        up_after = engine.world_up();
+        world = mech3::missions().current;
+        made = dynamic_cast<mech3::SalvageScreen*>(engine.screen_of(mech3::states().salvage.screen_)) != nullptr;
+        done = true;
+      }
+    };
+    Pump pump;
+    pump.limit = 20000;
+    pump.stop = [&] { return done; };
+    app.run(pump);
+    std::printf("  a world before %d, after %d (mission world %d), the screen made %d\n", up_before, up_after, world, made);
+    EXPECT(done && !up_before && up_after && world == 6 && made);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  const int status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 #endif
 }

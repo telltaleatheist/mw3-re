@@ -68,12 +68,12 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 | Class | Functions |
 |---|---|
-| folded | 4079 |
+| folded | 4080 |
 | replaced (SDL or the platform layer) | 263 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 121 |
 | software renderer | 112 |
-| MISSING LOGIC | 97 |
 | debug or dev tool: PORT (preserve) | 95 |
+| MISSING LOGIC | 95 |
 | dev dialog (MFC), its logic: PORT (preserve) | 85 |
 | unused: PORT (preserve) | 80 |
 | dev dialog (MFC), its window plumbing: replaced | 51 |
@@ -81,8 +81,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 ## MISSING LOGIC
 
-- **0x0045bcb0** (1 functions, 9 decomp lines; MISSING LOGIC): pm only, multiplayer, field bases: PM's dock idle state's +0x90 (its vtable 0x005e4b9c, MW3's 0x005c2540 +0x90 0x0045add0, which returns its argument): in a network game (the game's vt+0x28 is 3) with the player's mech powered down (vt+0xac), the nearest field base point to it (0x004e5580) is taken and, when the mech can dock there (0x0045be50), selected and the contact started (vt+0x10 with the mech); not powered down, the state's time is set to now (0x0045bcb0). So in PM's multiplayer powering down beside a field base starts the dock; the port has MW3's nothing
-- **0x00480260** (1 functions, 191 decomp lines; MISSING LOGIC): pm only, multiplayer: PM's salvage screen set-up (MW3's 0x0047dcf0). Its room from the game (vt+0x5c bases, vt+0x60 tons) is ported (SalvageScreen::refill on Engine::salvage_bases / salvage_tons, with 0x00480840); its other differences, 191 lines, are still to read with the menus
 - **0x004a6a20** (1 functions, 76 decomp lines; MISSING LOGIC): pm only: MW3's 0x004a3630 (veh_basic_object.cpp vehicle_place: on the ground from 10 up plus 0.1, the heading, the commands cleared, the motion and the points reset) with one step at the end: the vehicle's controls (vt+0x14c), their pilot (vt+0x58) told to reset (vt+0x0c), so a basic vehicle placed (a script's move) restarts its AI's state; the port's vehicle_place stops before it. Constants by sign (x - (-10) written x + 10); the order-aware compare (tools/analysis/pm_shape_compare.py) finds nothing else
 - **0x004c78f0, 0x004c7910** (2 functions, 22 decomp lines; MISSING LOGIC): pm only, AI (read, pairs corrected: the address map gave MW3's 0x004c07d0 / ~AttackNet 0x004c0a60 / FormationNet's part): PM's vehicle-net part (vtable 0x005ed538; made by 0x004c72a0; constructor 0x004c78c0, deleting 0x004c78f0, destructor 0x004c7910) is a bare part: the order, the net at +0x18, a byte at +0x1c cleared, an empty run (0x005c7a30). MW3's VehiclePart (0x004c0ba0 / 0x004c0dc0 / run 0x004c0d60, zai_brain.h:363) keeps a home point for the leash, stacked on the brain's +0xe4 and taken off on the way out, and picks the mode's behaviour; PM's brain leashes from its own home (zai_brain_pm.h, BrainTickPm). The shared port builds MW3's VehiclePart for both games
 - **0x0056b230, 0x0056b2d0, 0x0056b540, 0x0056b580, 0x0056b980, 0x0056d040 ...** (87 functions, 6719 decomp lines; MISSING LOGIC): PM's triangle stripper (0x00570b70 and its std::map / set code, about 1,960 instructions): a model without flag 0x80 made into strips (0x2000) under Direct3D. On world models it changes nothing for shipped data (pm-map.md, the models' form; test_pm_strips.py). But PM's mechlib post-pass 0x00510ab0 (MW3's 0x004fc8b0) runs it on every mech model in hardware mode with no vertex limit, as MW3's 0x00552540 does with 4: the same gap as MW3's stripper (docs/mechlib.md), to measure on PM's mechlib
@@ -447,7 +445,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 
 ## By module
 
-### mech3ep1 (3227 not ported)
+### mech3ep1 (3226 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -1493,7 +1491,7 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x0045bbf0 | 12 | folded | covered by the port where it names it (src/mech3/mech_net.cpp:1078) |
 | 0x0045bc10 | 9 | folded | a thunk: one call to another function |
 | 0x0045bc50 | 15 | folded | read: the dock registry's start-up (MW3 0x00459b80, mech_fieldbase.cpp:46) with PM's refit state built in (0x0045bc50, the port's DockRefit, FieldBases::refit); the same sound names |
-| 0x0045bcb0 | 9 | MISSING LOGIC | pm only, multiplayer, field bases: PM's dock idle state's +0x90 (its vtable 0x005e4b9c, MW3's 0x005c2540 +0x90 0x0045add0, which returns its argument): in a network game (the game's vt+0x28 is 3) with the player's mech powered down (vt+0xac), the nearest field base point to it (0x004e5580) is taken and, when the mech can dock there (0x0045be50), selected and the contact started (vt+0x10 with the mech); not powered down, the state's time is set to now (0x0045bcb0). So in PM's multiplayer powering down beside a field base starts the dock; the port has MW3's nothing |
+| 0x0045bcb0 | 9 | folded | the refit's "too close" line time set to now (+0x14, the port's DockRefit::line_at), inside its ported caller PM 0x0045b540 (mech_fieldbase_dock.cpp DockIdle::step). The row's +0x90 was the dock idle state's step: the vtable is 0x005e4c28 (MW3 0x005c25e0), +0x04 |
 | 0x0045c1d0 | 8 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.h:90) |
 | 0x0045c290 | 22 | folded | covered by the port where it names it (src/mech3/mech_fieldbase.h:105) |
 | 0x0045c2e0 | 72 | folded | ported: src/mech3/mech_fieldbase_dock.cpp (MW3's 0x0045af00 / 0x0045b460, the dock's open and close: the three drives queued, open 1 and close 0, through 0x0045a930 = MW3's 0x004598a0); the same, the unwind frame gone |
@@ -1782,15 +1780,14 @@ Fixed (checked 2026-11-14): the one row this table had, DamageCalls.zaps_hud (0x
 | 0x0047f750 | 10 | folded | covered by the port where it names it (src/mech3/app_states.h:239) |
 | 0x0047f770 | 9 | folded | a thunk: one call to another function |
 | 0x0047f870 | 206 | folded | MW3's 0x0047d3b0 (the salvage screen's constructor), read: the same controls; PM's multiplayer store beside the game's is in the pm port (salvage_screen.cpp:81) |
-| 0x0047ff80 | 12 | folded | covered by the port where it names it (src/mech3/salvage_screen.cpp:27) |
-| 0x0047ffa0 | 22 | folded | covered by the port where it names it (src/mech3/salvage_screen.cpp:27) |
+| 0x0047ff80 | 12 | folded | covered by the port where it names it (src/mech3/salvage_screen.cpp:28) |
+| 0x0047ffa0 | 22 | folded | covered by the port where it names it (src/mech3/salvage_screen.cpp:28) |
 | 0x00480010 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00480030, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00480030 | 20 | folded | as MW3 0x0047dac0: covered: the screens' destructors and constructors (unwind callers), the app states' constructors (their names), InitInstance's body (0x00480020, app.cpp's 0x00480000 port), RunDir (the program's data folder replaces it), the world defaults (no effect, app_engine.cpp) |
 | 0x00480080 | 12 | folded | covered by the port where it names it (src/mech3/salvage_screen.h:33) |
 | 0x004800a0 | 10 | folded | covered by the port where it names it (src/mech3/salvage_screen.h:39) |
 | 0x004800d0 | 52 | folded | by the layout-shift rule (tools/analysis/pm_layout_shift.py, docs/port-audit-pm.md method): MW3's 0x0047db60 with only offsets and sizes of PM's larger structures changed (0x6a0->0x6a8); calls, field counts and every other immediate and float constant as MW3's |
 | 0x00480240 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0047d470, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
-| 0x00480260 | 191 | MISSING LOGIC | pm only, multiplayer: PM's salvage screen set-up (MW3's 0x0047dcf0). Its room from the game (vt+0x5c bases, vt+0x60 tons) is ported (SalvageScreen::refill on Engine::salvage_bases / salvage_tons, with 0x00480840); its other differences, 191 lines, are still to read with the menus |
 | 0x004809f0 | 35 | folded | MW3's 0x0047e490 (the salvage screen's buttons), read: the same cases (0xb / 0xc with a count, the scroll 0x00480260 = MW3's 0x0047dcf0); ACCEPT pops with 6 (0x0047f7b0) where MW3 pops with 0, in the pm port (salvage_screen.cpp:105) |
 | 0x00480db0 | 61 | folded | read with the feature compare and the order-aware compare (the same calls, tests and constants in order) against its MW3 twin, ported: the immediates that differ are arguments passed another way (MW3's in a register, a byte as its negative: mov dl, -0x5e for push 0xa2), allocation sizes and structure offsets of PM's layouts, stack adjustments, error lines; one (0x0055d2d0) masks a 15-bit colour's red with 0xfc00 where MW3 keeps the upper bits, the add that follows being 16-bit, the same result |
 | 0x00480f80 | 12 | folded | read: the scalar deleting destructor (the destructor 0x00481050, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |

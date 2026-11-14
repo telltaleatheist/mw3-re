@@ -1175,3 +1175,18 @@ input (0x5349d0, MW3's 0x51b1c0, zin::reset), so a key held while typing is let 
 stay down when the panel shuts). Behind the table's `chat_resets_input`. `pm_chat_line_resets_the_input`
 (mw3pmtests): a panel's empty line with the keyboard up and A held: on PM the keyboard read once and A let go, on
 MW3's table neither. Break: the flag off (2 failed checks).
+
+## The salvage screen's set-up by the game (2026-11-14)
+
+Besides the room from the game (0x480840, ported earlier), PM's set-up (0x480260, MW3's 0x47dcf0) differs in
+three ways. A lance card's name is shown only outside a network game (0x47b710(0), the game when its kind is 3).
+The card itself is shown (show_for(-1)) outside a network game and hidden in one, where MW3 never touches it.
+Outside the campaign (kind not 1) the bases' line (text label 5) and label 2 are hidden instead of the line being
+written. Behind the table's `salvage_by_game`. `pm_salvage_screen_by_the_game_headless` opens Salvage from c2's
+briefing on PM's dlgSalvage.zrd: in the campaign 4 cards shown and the line written; with the pilot's game a
+network one 4 cards hidden and both texts hidden. Break: the flag off (the network case fails).
+
+Salvage entered cold (the item above, 0x47f7c0, now with the real mission load):
+`pm_salvage_entered_cold_loads_the_lab_world_headless` pushes the Salvage State from the main menu with no world
+up: after its enter world 6 is up (Missions::current 6) and the screen made. Break: the load dropped (no world).
+

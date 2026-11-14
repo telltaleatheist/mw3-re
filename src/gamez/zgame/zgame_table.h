@@ -147,6 +147,9 @@ struct Table {
   // The chat panel's entered line (mech3 chat_panel.cpp ChatPanel::line_entered; PM 0x0041f1f0): PM resets the
   // input after the line (zin::reset), so keys held while typing are let go; MW3 leaves them.
   bool chat_resets_input;
+  // The salvage screen's set-up (mech3 salvage_screen.cpp refill; PM 0x00480260): PM hides the lance's cards in a
+  // network game (shows them otherwise) and the bases' line outside the campaign; MW3 always writes the line.
+  bool salvage_by_game;
 };
 
 const Table& mw3_table();
