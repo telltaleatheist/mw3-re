@@ -668,3 +668,107 @@ TEST(pm_gfx_audio_back_undoes_the_volumes_and_backgrounds_scroll_in_a_mission_he
   EXPECT(after_back[0] == entered[0] && after_back[1] == entered[1] && (entered[0] != 0.25f || entered[1] != 0.75f));
   EXPECT(after_accept[0] == 0.25f && after_accept[1] == 0.75f);
 }
+
+namespace {
+// The keyboard: each queued DIK goes down on one read and up on the next.
+struct TapKeys : platform::Input {
+  std::vector<uint32_t> queue;
+  uint32_t up = 0;
+  bool open(Device d) override { return d == kKeyboard; }
+  void close(Device) override {}
+  int32_t acquire(Device) override { return 0; }
+  int32_t unacquire(Device) override { return 0; }
+  int32_t keyboard_data(platform::KeyEvent* ev, uint32_t* count) override {
+    uint32_t n = 0;
+    if (up) ev[n++] = platform::KeyEvent{up, 0, 0, 0}, up = 0;
+    else if (!queue.empty() && *count > 0) ev[n++] = platform::KeyEvent{queue.front(), 0x80, 0, 0}, up = queue.front(),
+                                           queue.erase(queue.begin());
+    *count = n;
+    return 0;
+  }
+  int32_t mouse_state(platform::MouseState*) override { return kNotAcquired; }
+  int32_t joystick_state(platform::JoyState*) override { return kNotAcquired; }
+};
+}  // namespace
+
+// Pirate's Moon's main state (0x004896e0): its idle minute only starts again (0x00489370), where
+// MW3's pushed the attract movie; its fifth hotkey is P for PIRATE MISSIONS (STANDALONE), where
+// MW3's T was TRAINING, which PM's menu does not have.
+TEST(pm_main_menu_idles_without_the_attract_movie_and_p_opens_pirate_missions_headless) {
+  std::error_code ec;
+  if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_main_idle";
+  fs::remove_all(wd, ec);
+  fs::create_directories(wd, ec);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd.c_str());
+  zutl::mount(MW3PM_GAME_DIR);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  TapKeys keys;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files, p.input = &keys;
+  enum { kWait, kIdle, kT, kP, kDone };
+  int stage = kWait, frames = 0;
+  bool stayed = false, refilled = false, t_stayed = false, left = false;
+  std::string after_p;
+  {
+    mech3::GameEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    mech3::MainState& main = mech3::states().main;
+    auto name = [&] {
+      auto* st = dynamic_cast<mech3::ShellState*>(app.current());
+      return std::string(st ? st->name() : "(none)");
+    };
+    engine.on_present = [&](int) {
+      const bool at_main = app.current() == &main && mech3::main_menu();
+      if (app.pending()) return;
+      if (stage == kWait && at_main) {
+        main.idle_ = 0.0001f;  // the minute about to run out
+        stage = kIdle, frames = 0;
+      } else if (stage == kIdle && ++frames == 5) {
+        stayed = app.current() == &main, refilled = main.idle_ > 59.0f;
+        keys.queue.push_back(0x14);  // T
+        stage = kT, frames = 0;
+      } else if (stage == kT && ++frames == 5) {
+        t_stayed = app.current() == &main;
+        keys.queue.push_back(0x19);  // P
+        stage = kP, frames = 0;
+      } else if (stage == kP && ++frames == 5) {
+        after_p = name();
+        stage = kDone;
+      }
+    };
+    Pump pump;
+    pump.limit = 3000;
+    pump.stop = [&] {  // every pass, not only the presented ones: with -nofmv an attract state comes and goes between
+      if (stage == kIdle && (app.current() != &main || app.pending())) left = true;
+      return stage == kDone;
+    };
+    app.run(pump);
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  stayed = stayed && !left;
+  std::printf("  idle out: still the main menu %d (left it %d), the minute again %d; T: still the main menu %d; P: %s\n", stayed,
+              left, refilled, t_stayed, after_p.c_str());
+  EXPECT(stage == kDone && stayed && refilled && t_stayed);
+  EXPECT(after_p == "Pilot State");  // as the PIRATE MISSIONS button: the pilot screen first
+}

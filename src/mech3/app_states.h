@@ -193,7 +193,7 @@ class MainState : public ShellState {
   void escape() override;             // 0x00486ec0
   void reset_idle() { idle_ = 60.0f; }  // 0x00486980
   uint32_t save_pilots_ = 0;          // +0x10  (never set by this file)
-  float idle_ = 0;                    // +0x14  seconds left before the attract movie
+  float idle_ = 0;                    // +0x14  seconds left before the attract movie (PM: the minute only restarts)
 };
 
 // 3 "Pause State" (0x00608f48, vtable 0x005c40f0).
