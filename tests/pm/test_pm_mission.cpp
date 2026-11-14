@@ -402,6 +402,9 @@ const char* pm_weapon_name(void* player, int i);
 bool pm_kill_only_leg_lost(void* mech, int leg);
 int pm_missile_step(void* player, void* mech, int weapon, bool lock, bool artemis);
 void pm_hold_down(void* mech);
+void pm_controls_hold(void* mech, float v);
+void pm_controls_read(void* mech, float out[7]);
+static float g_resume[2][7];
 int pm_shot_flight(void* player, int since, float* travelled, float* expected, int* seen, char* name, size_t n);
 static float g_shot_travelled = 0, g_shot_expected = 0;
 static int g_shot_seen = 0, g_shot_result = 0;
@@ -2102,6 +2105,19 @@ static void kill_run(const char* which, bool quick) {
       done = true;
       return;
     }
+    if (std::getenv("PM_RESUME")) {  // back from the pause: the Core state's resume(8) on the held inputs
+      ++since;
+      if (since == 5) {
+        pm_controls_hold(player, 0.5f);
+        mech3::states().core.resume(1);  // a resume not from the pause: kept
+        pm_controls_read(player, g_resume[0]);
+        pm_controls_hold(player, 0.5f);
+        mech3::states().core.resume(8);
+        pm_controls_read(player, g_resume[1]);
+        done = true;
+      }
+      return;
+    }
     if (std::getenv("PM_SHOT_FLIGHT")) {  // a round's flight under the real loop (pm_shot_flight)
       char name[64] = "";
       ++since;
@@ -2188,7 +2204,7 @@ static void kill_run(const char* which, bool quick) {
   EXPECT(box_left == 0);   // and off for the shots: 0x005cb510
   const char* leg_mode = std::getenv("PM_LEG");
   if (!leg_mode || std::atoi(leg_mode) == 5) EXPECT(stuck == 0);  // the slower weapons run out of time or ammo
-  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT") && !std::getenv("PM_SHOT_FLIGHT")) EXPECT(dead == 1 || g_refit_done);
+  if (quick && !std::getenv("PM_FALL") && !std::getenv("PM_BASE_LIGHT") && !std::getenv("PM_CRATERS") && !std::getenv("PM_MOTIONS") && !std::getenv("PM_HOSTILES") && !std::getenv("PM_TAG_MUZZLE") && !std::getenv("PM_WEAPON_LIGHTS") && !std::getenv("PM_ALLY_TURRET") && !std::getenv("PM_GONE") && !std::getenv("PM_SPLASH") && !std::getenv("PM_ANIMSAVE") && !std::getenv("PM_ANHUR") && !std::getenv("PM_DEADROOTS") && !std::getenv("PM_INOUT") && !std::getenv("PM_TELEPORT") && !std::getenv("PM_WATER") && !std::getenv("PM_HEIGHT") && !std::getenv("PM_SHOT_FLIGHT") && !std::getenv("PM_RESUME")) EXPECT(dead == 1 || g_refit_done);
   EXPECT(pm::zmod::clip3d_state().overruns == 0);
 }
 
@@ -2416,6 +2432,31 @@ TEST(pm_tag_fires_from_the_mech) {
 // A round under the real loop (the frame counter moved by the program, not by hand): the player's first round-firing
 // weapon in c1m1, one shot followed. It must cover most of its speed times its age (PM's first-frame hold is a
 // millionth of a second once, 0x005a79a0); a counter stuck at the shot's stamp would hold it at the muzzle.
+// Back from the pause (Pirate's Moon 0x00496220 pops 8; the Core state's resume 0x00483de0 case 8): the player's held
+// turn, twist, pitch, jets and look go to 0 (controls vt+0x1c, 0x004289d0), the throttle and its target stay; any
+// other resume keeps them all, as MW3's.
+TEST(pm_c1m1_resume_from_the_pause_lets_go_but_the_throttle) {
+#if !defined(_WIN32)
+  std::fflush(nullptr);
+  const pid_t child = check::fork_child();
+  if (child == 0) {
+    setenv("PM_RESUME", "1", 1);
+    kill_run("1,1,3", true);
+    const float* kept = g_resume[0];
+    const float* after = g_resume[1];
+    std::printf("  resume(1): %.2f %.2f %.2f %.2f %.2f throttle %.2f/%.2f; resume(8): %.2f %.2f %.2f %.2f %.2f throttle %.2f/%.2f\n", kept[0],
+                kept[1], kept[2], kept[3], kept[4], kept[5], kept[6], after[0], after[1], after[2], after[3], after[4], after[5], after[6]);
+    for (int i = 0; i < 7; ++i) EXPECT(kept[i] == 0.5f);
+    for (int i = 0; i < 5; ++i) EXPECT(after[i] == 0.0f);
+    EXPECT(after[5] == 0.5f && after[6] == 0.5f);
+    std::fflush(nullptr);
+    _exit(check::failures ? 1 : 0);
+  }
+  const int status = check::wait_child(child);
+  EXPECT(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#endif
+}
+
 TEST(pm_c1m1_a_round_flies_under_the_real_loop) {
 #if !defined(_WIN32)
   std::fflush(nullptr);

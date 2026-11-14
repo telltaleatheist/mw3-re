@@ -748,6 +748,7 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_mission.cpp tests/pm/pm_kill.cpp
     tests/pm/test_pm_model_users.cpp
     tests/pm/test_pm_model_bound.cpp  # the model reader's bound on PM's reader (FIX (A) memory safety)
+    tests/pm/test_pm_weapon_update.cpp  # PM's weapon manager frame (0x004b4a90)
     tests/test_model_bound.cpp  # (main's, shared) the same bound on MW3's reader
     tests/test_child_limits.cpp  # (main's, shared) a forked test child's own memory and time caps
     tests/pm/test_pm_objectives.cpp
@@ -842,6 +843,8 @@ if(MW3_BUILD_PM)
   target_sources(pmprobe PRIVATE tests/probe_pm_refit.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_weapon_lights.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_group_fire.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_weapon_select.cpp)
+  target_sources(pmprobe PRIVATE tests/probe_pm_controls_zero.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_fade.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_view_ground.cpp)
   target_sources(pmprobe PRIVATE tests/probe_pm_object_lod.cpp)

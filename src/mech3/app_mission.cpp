@@ -2747,6 +2747,12 @@ void GameEngine::timer_update() {
   sync_frame_step(ztimer::state().dt, ztimer::state().total_scaled);
 }
 
+// Pirate's Moon: the launched mech's controls, their held inputs but the throttle zeroed (vt+0x1c, 0x00428940).
+void GameEngine::mech_controls_settle(Handle mech) {
+  if (void* m = object_of(mech); m && is_launched_mech(m)) mech_controls_zero_held(m);
+  else Engine::mech_controls_settle(mech);
+}
+
 // Mech3.exe 1.2 @ 0x00583870 -> 0x00584920: zWeapon down (its pool's nodes
 // and the defs), without the weapon types' free callback, as the exe.
 void GameEngine::weapons_shutdown() { zwep::shutdown(nullptr); }

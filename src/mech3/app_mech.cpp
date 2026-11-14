@@ -2362,6 +2362,11 @@ void update_entities(float dt) {
     if (m->x09) m->update(dt);  // vt+0x34
   });
 }
+// Pirate's Moon: the mech's controls' vt+0x1c (0x00428940 / the player's 0x004289d0).
+void mech_controls_zero_held(void* mech) {
+  if (MechControls* c = static_cast<Mech*>(mech)->controls) c->zero_held();
+}
+
 // Mech3.exe 1.2 @ 0x0041ca30: the player's mech takes the value, any other 1.
 void mech_set_hud_fall(void* mech, int32_t v) {
   if (!mech) return;

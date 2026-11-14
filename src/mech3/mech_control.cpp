@@ -134,6 +134,18 @@ void MechControls::zero() {
   throttle_target = throttle = turn_target = turn = jump_target = jump = 0;
 }
 
+// Pirate's Moon 1.0 @ 0x00428940
+void MechControls::zero_held() {
+  jj_strafe = jj_forward = pitch = twist = axis_30 = axis_2c = 0;
+  turn_target = turn = jump_target = jump = 0;
+}
+
+// Pirate's Moon 1.0 @ 0x004289d0
+void PlayerControls::zero_held() {
+  MechControls::zero_held();
+  look_dx = look_dy = look_x = look_y = 0;
+}
+
 // Pirate's Moon 1.0 @ 0x004289a0
 void PlayerControls::zero() {
   MechControls::zero();

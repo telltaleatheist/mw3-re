@@ -612,6 +612,8 @@ class Engine : public zgame::AppHooks {
   virtual void lab_start(Handle cfg, int32_t a) { unported("0x005a2ba0", {cfg, a}); }
   virtual void mech_apply_config(Handle mech, uint32_t cfg) { unported("0x00414430", {mech, cfg}); }
   virtual void mech_set_mode_a(Handle mech, int32_t a) { unported("0x0041ca30", {mech, a}); }
+  // Pirate's Moon: the mech's controls (+0x38c) vt+0x1c, 0x00428940 / 0x004289d0: the held inputs but the throttle 0.
+  virtual void mech_controls_settle(Handle mech) { unported("0x00428940", {mech}); }
   virtual void mech_set_mode_b(Handle mech, int32_t a) { unported("0x0041cc30", {mech, a}); }
   virtual void mech_draw_cockpit(Handle mech) { unported("0x0041ab90", {mech}); }
   // The draw paths' HUD calls after the HUD frame: the pilot's HUD (MechData

@@ -479,6 +479,7 @@ const void* mech_shadow(const void* mech);  // its caster (+0xcc, a zmod::Shadow
 void mech_lock_warning(void* mech);  // 0x0041abd0: the view's mech hears it is locked on
 bool mech_aim_at(void* mech, const float at[3]);                   // 0x0041bc20 (Mech::aim_at), as the HUD's reticle would (0x0041cd40)                            // vtable +0x34, 0x00419fc0 (Mech::update)
 void mech_set_hud_fall(void* mech, int32_t v);                     // 0x0041ca30
+void mech_controls_zero_held(void* mech);                           // Pirate's Moon: +0x38c's vt+0x1c (0x00428940)
 uint32_t mech_allies(const void* mech);          // AiTarget +0xc4
 // The AiTarget masks player.cpp writes as words (+0xc0 team, +0xc4 allies,
 // +0xc8 enemies); false for any other offset.

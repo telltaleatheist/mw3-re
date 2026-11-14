@@ -227,9 +227,9 @@ void Mech::command(int32_t cmd) {
       case 0x28:  // the fire mode: chain, single, group
         wm->mode = (wm->mode + 1) % 3;
         select(wm->group);
-        // Pirate's Moon drops MW3's sound (0x004b0830) for this time, a second on (0x004b4690; nothing reads it that
-        // has been found, docs/pm-map.md).
-        wm->mode_until = world().time + 1.0f;
+        // Pirate's Moon 1.0 @ 0x004b4690: MW3's sound (0x004b0830) is spoken a second on, by the manager's update
+        // (0x004b4a90), on the weapons' clock ([0x008c1b50], MW3's [0x0072c530]).
+        wm->mode_until = weapon_world().clock + 1.0f;
         break;
       case 0x2a:
         own(0x4b04f0, p(wm), 0, [&] { return uintptr_t{wm->next_group()}; });
