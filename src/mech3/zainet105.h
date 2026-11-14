@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "gamez/zreader/zreader.h"
 #include "mech3/zainet.h"
 
 // The version-105 AI nets (docs/ai.md 17.9): the older net class a version-105 net file builds (0x004025b0, through
@@ -14,9 +15,11 @@ namespace mech3::ai {
 
 // One link's values (malloc(0x3c), zeroed; filled by the basic controls' 0x004023d0): the way to the linked node.
 struct Net105Link {
-  float offset[3] = {};  // +0x00  to the linked node
-  float length = 0;      // +0x0c
-  uint8_t x10[0x24] = {};  // +0x10..+0x33  not named yet
+  float offset[3] = {};  // +0x00  to the linked node, then flat-normalised (0x0051e210)
+  float length = 0;      // +0x0c  the flat length less the width, or half the width when that is less
+  float side[3] = {};    // +0x10  across the offset (0x00522460)
+  float left[3] = {};    // +0x1c  the side turned +45 degrees (0x00523e70)
+  float right[3] = {};   // +0x28  and -45
   float width = 0;       // +0x34
   uint8_t x38[4] = {};   // +0x38
 };
@@ -27,15 +30,17 @@ static_assert(sizeof(Net105Link) == 0x3c);
 // "none" answer gives, is [0x005e8654] (`none()`); its link methods do nothing.
 class Net105Node : public AiElem {
  public:
-  Net105Node() = default;  // 0x004ae8e0: all 0, the number -1
+  // Mech3.exe 1.2 @ 0x004ae8e0: all 0, the number -1.
+  Net105Node() = default;
   ~Net105Node() override;  // 0x004024a0's frees: each link record
 
   static Net105Node* none();  // [0x005e8654], 0x004ae920 (vt+0x10)
   bool is_none() const { return this == none(); }
   int32_t link_count() const { return 3; }  // vt+0x04 (0x0041ec30)
-  // vt+0x08 0x004ae950 -> vt+0x7c 0x004ae960: link i, the null node for none or out of 0..2.
+  // Mech3.exe 1.2 @ 0x004ae950 (vt+0x08, through vt+0x7c)
+  // Mech3.exe 1.2 @ 0x004ae960 (vt+0x7c): link i, the null node for none or out of 0..2.
   Net105Node* link(int32_t i) const { return i < 0 || i > 2 || !links[i] ? none() : links[i]; }
-  // vt+0x0c 0x004ae980: the slot holding `to` (the last one first), -1 for the null node or none.
+  // Mech3.exe 1.2 @ 0x004ae980 (vt+0x0c): the slot holding `to` (the last one first), -1 for the null node or none.
   int32_t link_index(const Net105Node* to) const {
     if (to == none()) return -1;
     for (int32_t i = 2; i >= 0; --i)
@@ -43,18 +48,20 @@ class Net105Node : public AiElem {
     return -1;
   }
   const float* pos() const { return place; }  // vt+0x18 (0x00409fc0, +4)
-  bool set_pos(const float p[3]) {            // vt+0x2c 0x004ae930
+  // Mech3.exe 1.2 @ 0x004ae930 (vt+0x2c)
+  bool set_pos(const float p[3]) {
     place[0] = p[0], place[1] = p[1], place[2] = p[2];
     return true;
   }
-  // The link methods (0x00403cd0..0x00403e70; mech3/zainet105.cpp). Slots between them are the element base's.
-  bool add_link(Net105Node* to);                 // vt+0x30 0x00403cd0: `to` told to take this in its first free slot
-  void unlink_all();                             // vt+0x38 0x00403db0: each linked node told to drop this
-  bool unlink(Net105Node* to);                   // vt+0x3c 0x00403df0: the slot holding `to` cleared
-  bool link_from(Net105Node* from);              // vt+0x40 0x00403d10: this into its first free slot, `from` told
-  void set_link(Net105Node* from, int32_t i);    // vt+0x44 0x00403d60: slot i, a fresh link record
-  bool drop_link(Net105Node* to);                // vt+0x50 0x00403e20
-  void clear_link(Net105Node* from, int32_t i);  // vt+0x54 0x00403e70: slot i's record zeroed
+  // The link methods (0x00403cd0..0x00403e70; mech3/zainet105.cpp), each nothing on the null node. A link's record
+  // is measured by the basic controls' 0x004023d0 (`net105_link_fill`), here and by the reader's 0x00402300.
+  bool add_link(Net105Node* other);                // vt+0x30 0x00403cd0: this's first free slot i, other's link_pair
+  void remeasure_all();                            // vt+0x38 0x00403db0: each linked node remeasures, last first
+  void remeasure_to(Net105Node* to);               // vt+0x3c 0x00403df0: the slot holding `to`, remeasure(this, it)
+  bool link_pair(Net105Node* from, int32_t i);     // vt+0x40 0x00403d10: this's first free slot j: set_link both ways
+  void set_link(Net105Node* to, int32_t i);        // vt+0x44 0x00403d60: slot i, a fresh record, measured
+  bool remeasure(Net105Node* to, int32_t i);       // vt+0x50 0x00403e20: the slot holding `to` and `to`'s slot i
+  void measure(Net105Node* to, int32_t i);         // vt+0x54 0x00403e70: record i zeroed, filled to `to` at width 0
 
   float place[3] = {};                      // +0x04
   Net105Node* links[3] = {};                // +0x10  (the file's numbers, -1 none, until 0x00402300)
@@ -95,5 +102,14 @@ class Net105 : public AiNet {
 Net105* nets105();
 void nets105_append(Net105* n);  // 0x004021c0's link onto the tail
 void nets105_free();             // 0x00402560's walk: each record (0x004024e0), the list emptied
+
+// Mech3.exe 1.2 @ 0x004025b0 (through 0x00402590): a version-105 net file's block read into a new Net105 on the list:
+// its settings, then node_00..node_98, then each link resolved and measured (0x00402300). `x18` is the caller's
+// ECX, `default_name` the name without a "name" key.
+Net105* net105_read(zrdr::Node* block, const char* default_name, int32_t x18);
+
+// The basic controls' 0x004023d0 (ECX the record, EDX `from`, then `to` and the width): the record measured from one
+// place to another. Theirs to set (dev 2's part); none leaves the record zeroed.
+extern void (*net105_link_fill)(Net105Link& rec, const float from[3], const float to[3], float width);
 
 }  // namespace mech3::ai
