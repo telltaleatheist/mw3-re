@@ -311,10 +311,12 @@ int32_t field_base_damage(FieldBase& b, Handle weapon, uint32_t x, float amount)
   return r;
 }
 
-// Mech3.exe 1.2 @ 0x004590b0: the basic vehicle's death (0x004ad2d0, once),
-// then the campaign's loss, every time it is called.
+// Mech3.exe 1.2 @ 0x004590b0, Pirate's Moon 1.0 @ 0x0045a250: the basic vehicle's death (0x004ad2d0, once),
+// then the campaign's loss, every time it is called. PM between them: with no base left alive (0x0045b100 by
+// 0x0045b0d0) the dock in progress is aborted (0x0045b320, the front state's abort).
 void field_base_die(FieldBase& b) {
   g_hooks->base_die(b);
+  if (field_bases().alive() == 0) field_bases().abort_front();  // Pirate's Moon 1.0 @ 0x0045b100
   if (const Handle c = g_hooks->campaign()) g_hooks->base_lost(c);
 }
 
