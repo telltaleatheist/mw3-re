@@ -1296,7 +1296,9 @@ float constant the same (102400, 1500, 10, 4624, 4900, 3, 62500 in init; 0.25, 1
 follower; the breadcrumb's "now + 1" written as now - -1 in MW3). The port names the fields, so PM's comment on each
 function is all that changes. Read, not run: test_basic_controls.py and test_basic_follow.py need the address map's
 missing twins (0x401050 -> 0x401000, the reader's find 0x5569e0) and PM's shifted controls and vehicle offsets laid out
-in their emulated objects, which pm_moved.py's field tables don't cover yet.
+in their emulated objects, which pm_moved.py's field tables don't cover yet. Deferred (lead, 2026-11-14): with the two twins now mapped
+(0x5569e0 -> 0x578950, 0x401050 -> 0x401000) both tests start on PM's exe under MW3_EXE=pm, but the benches need
+PM's offsets for the controls and vehicle (about 110 literals, 2-3 hours) for unwired code already read.
 
 ## Today's preservation ports on PM: the built-in net and the version-105 nets (2026-11-14)
 
