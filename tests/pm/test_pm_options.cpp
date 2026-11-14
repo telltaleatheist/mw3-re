@@ -896,3 +896,88 @@ TEST(pm_fmv_intro_opens_with_its_cd_track_and_only_pictures_hold_a_key) {
   zfmv::set_host(nullptr);
   zrdr::close_archives(true);
 }
+
+namespace {
+struct PopEngine : mech3::GameEngine {
+  using mech3::GameEngine::GameEngine;
+  std::vector<uint32_t> pops;
+  void pop_state(uint32_t arg) override {
+    pops.push_back(arg);
+    mech3::GameEngine::pop_state(arg);
+  }
+};
+}  // namespace
+
+// Pirate's Moon's game options leave with a pop of 7 (0x004399e0; MW3's 1), the graphics and audio
+// page with 1 as before (0x0043b790).
+TEST(pm_game_options_leave_with_a_pop_of_7_headless) {
+  std::error_code ec;
+  if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
+  MountsBack back;
+  zgame::set_game(pm::table());
+  const std::string wd = std::string(MW3_TEST_TMP_ROOT) + "/pm_options_pop";
+  fs::remove_all(wd, ec);
+  fs::create_directories(wd, ec);
+  zutl::mounts() = zutl::Mounts{};
+  zutl::set_write_dir(wd.c_str());
+  zutl::mount(MW3PM_GAME_DIR);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  Window window;
+  Alert alert;
+  Clock clock;
+  MovieClock movies;
+  Screen screen;
+  platform::SilentSoundOutput sound;
+  mech3::MountFiles files;
+  mech3::Platform p;
+  p.window = &window, p.alert = &alert, p.clock = &clock, p.movie_clock = &movies, p.screen = &screen;
+  p.sound = &sound, p.files = &files;
+  enum { kMain, kOptions, kGfx, kBackInOptions, kLeave, kDone };
+  int stage = kMain;
+  std::vector<uint32_t> pops;
+  {
+    PopEngine engine(p, "mech3.exe -nofmv");
+    engine.quiet = true;
+    mech3::Mech3App app(&engine);
+    mech3::set_app(&app);
+    EXPECT(app.init_instance());
+    engine.on_present = [&](int) {
+      zgame::State* now = app.current();
+      auto* os = dynamic_cast<mech3::OptionsState*>(now);
+      auto* game = os ? dynamic_cast<mech3::GameOptionsScreen*>(engine.screen_of(os->screen_)) : nullptr;
+      auto* g = os ? dynamic_cast<mech3::GfxAudioScreen*>(engine.screen_of(os->screen_)) : nullptr;
+      if (app.pending()) return;
+      if (stage == kMain && now == &mech3::states().main && mech3::main_menu()) {
+        mech3::main_menu()->buttons[mech3::MainMenuButton::kOptions].on_left_up();
+        stage = kOptions;
+      } else if (stage == kOptions && game) {
+        game->gfx_audio.on_left_up();
+        stage = kGfx;
+      } else if (stage == kGfx && g) {
+        g->back.on_left_up();  // the graphics page: 1
+        stage = kBackInOptions;
+      } else if (stage == kBackInOptions && game) {
+        game->back.on_left_up();  // the game options: 7
+        stage = kLeave;
+      } else if (stage == kLeave && now == &mech3::states().main) {
+        stage = kDone;
+      }
+    };
+    Pump pump;
+    pump.limit = 3000;
+    pump.stop = [&] { return stage == kDone; };
+    app.run(pump);
+    pops = engine.pops;
+    app.stop_game();
+    app.exit_instance();
+    mech3::set_app(nullptr);
+  }
+  zrdr::close_archives(true);
+  mech3::reset_states();
+  mech3::options() = mech3::Options{};
+  std::string said;
+  for (uint32_t v : pops) said += (said.empty() ? "" : " ") + std::to_string(v);
+  std::printf("  stage %d, pops: %s\n", stage, said.c_str());
+  EXPECT(stage == kDone && pops.size() >= 2 && pops[pops.size() - 2] == 1 && pops.back() == 7);
+}
