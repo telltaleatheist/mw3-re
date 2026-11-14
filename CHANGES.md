@@ -173,6 +173,7 @@ it is clear what the designers meant.
 
 ## Crashes and broken data that no longer break the game
 
+- **A broken world or model file can no longer eat all the memory.** A number in the file says how many points, faces or materials a model has, and the original sets aside that much memory before reading. A damaged or hand-edited file can ask for gigabytes, so the original could run the machine out of memory or crash. Now anything that much bigger than the file itself is refused: the models before it load as usual, the rest are left empty, and the log says where in the file it went wrong.
 - **Pirate's Moon: re-reading a part of the world that has no model of its own reads nothing.** When the craters are reset, the original reads the touched ground again from the world's file; asked for a node without a model, its reader would take the bytes before the model table as one. Only ground with a model is ever re-read in the shipped game, so this never happened in play.
 - Pirate's Moon: an attack or defend order to a lancemate on something that has no vehicle behind it is answered "disregard" instead of crashing the game.
 - Pirate's Moon: an Instant Action Progression wave written with more than six mechs, or a wave line without its loadout, no longer reads past the end (the screen shows the first six; the line is skipped).

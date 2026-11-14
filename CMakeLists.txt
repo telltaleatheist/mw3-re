@@ -642,6 +642,8 @@ enable_testing()
 if(MW3_BUILD_MW3)
 add_executable(mw3tests
   tests/main.cpp
+  tests/test_model_bound.cpp
+  tests/test_child_limits.cpp
   tests/test_znet.cpp
   tests/test_cue.cpp
   tests/test_mech.cpp
@@ -745,6 +747,9 @@ if(MW3_BUILD_PM)
     tests/pm/test_pm_collide_rate.cpp
     tests/pm/test_pm_mission.cpp tests/pm/pm_kill.cpp
     tests/pm/test_pm_model_users.cpp
+    tests/pm/test_pm_model_bound.cpp  # the model reader's bound on PM's reader (FIX (A) memory safety)
+    tests/test_model_bound.cpp  # (main's, shared) the same bound on MW3's reader
+    tests/test_child_limits.cpp  # (main's, shared) a forked test child's own memory and time caps
     tests/pm/test_pm_objectives.cpp
     tests/pm/test_pm_options.cpp
     tests/pm/test_pm_hud.cpp

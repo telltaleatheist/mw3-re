@@ -56,6 +56,21 @@ void reset_pool();
 // stops the game ("GameZ model resource failure").
 Model* model_alloc();                         // 0x00538fe0
 int read_models(std::FILE* f);                // 0x00538e30
+// FIX (A) memory safety (docs/fixes.md, ours): what a count read from a model file may size. An array that fits in
+// what is left of the file is read as the exe reads it; one past the file's end is still allocated and read as zeros,
+// as the exe does with a cut file, while all of those in one read stay within kPastEnd bytes. Past that the read is
+// refused: the model's unread counts are zeroed, the read's later models left empty, a warning written. The exe
+// allocates whatever a garbage count asks (a broken mod's file can run the machine out of memory or crash it).
+struct ReadBound {
+  static constexpr uint64_t kPastEnd = 64ull << 20;
+  std::FILE* f = nullptr;
+  int64_t end = 0;
+  uint64_t past = 0;
+  bool refused = false;
+  void begin(std::FILE* file);          // a read starts: the file's end measured, nothing past it yet
+  bool fits(std::FILE* file, uint64_t bytes, const char* what);  // false (and warned once) when refused
+};
+ReadBound& read_bound();
 int read_model_data(std::FILE* f, Model& m);  // 0x00538a70
 int model_release(Model* m);                  // 0x00539150, 1 while used (+0xc)
 int32_t models_free_unused();                 // 0x005392c0: the models nothing holds released; their count

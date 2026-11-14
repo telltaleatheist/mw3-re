@@ -10,10 +10,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#endif
+#include <thread>
 #endif
 #if defined(_WIN32)
 #include <process.h>
 #endif
+#include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <cstdio>
@@ -37,6 +43,53 @@ std::vector<std::pair<pid_t, std::string>>& child_files() {
   static std::vector<std::pair<pid_t, std::string>> files;
   return files;
 }
+
+// The child's own memory in bytes: macOS's footprint (what the memory pressure counts; setrlimit is not
+// enforced there), else the resident set.
+uint64_t child_footprint() {
+#if defined(__APPLE__)
+  task_vm_info_data_t info{};
+  mach_msg_type_number_t n = TASK_VM_INFO_COUNT;
+  if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&info), &n) != KERN_SUCCESS) return 0;
+  return info.phys_footprint;
+#else
+  unsigned long pages = 0, resident = 0;
+  if (std::FILE* f = std::fopen("/proc/self/statm", "r")) {
+    if (std::fscanf(f, "%lu %lu", &pages, &resident) != 2) resident = 0;
+    std::fclose(f);
+  }
+  return static_cast<uint64_t>(resident) * static_cast<uint64_t>(sysconf(_SC_PAGESIZE));
+#endif
+}
+
+double env_or(const char* name, double fallback) {
+  const char* v = std::getenv(name);
+  if (!v || !*v) return fallback;
+  const double d = std::atof(v);
+  return d > 0 ? d : fallback;
+}
+
+// A forked child's own limits, so an orphan cannot run on when a wrapper's cap kills only the parent:
+// MW3_CHILD_SECS (default 1800) by alarm, MW3_CHILD_MEM_GB (default 8) and the parent's death by a
+// watchdog thread twice a second. Over the memory it exits 125 (run_capped.py's code), orphaned 124.
+void child_limits(pid_t parent) {
+  alarm(static_cast<unsigned>(env_or("MW3_CHILD_SECS", 1800.0)));
+  const uint64_t cap = static_cast<uint64_t>(env_or("MW3_CHILD_MEM_GB", 8.0) * 1024.0 * 1024.0 * 1024.0);
+  std::thread([parent, cap] {
+    for (;;) {
+      if (getppid() != parent) _exit(124);
+      const uint64_t used = child_footprint();
+      if (used > cap) {
+        char msg[128];
+        const int len = std::snprintf(msg, sizeof msg, "  the child went past MW3_CHILD_MEM_GB (%.1f GB); ended\n",
+                                      static_cast<double>(used) / (1024.0 * 1024.0 * 1024.0));
+        if (len > 0) (void)!write(2, msg, static_cast<size_t>(len));
+        _exit(125);
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+  }).detach();
+}
 }  // namespace
 
 pid_t fork_child() {
@@ -46,6 +99,7 @@ pid_t fork_child() {
   std::filesystem::create_directories(dir, ec);
   const std::string path = (dir / (std::to_string(static_cast<long>(getpid())) + "-" + std::to_string(++made) + ".txt")).string();
   std::fflush(nullptr);
+  const pid_t parent = getpid();
   const pid_t child = fork();
   if (child == 0) {
     failures = 0;  // the child counts its own checks: the parent's earlier failures would fail every later child
@@ -54,6 +108,7 @@ pid_t fork_child() {
       dup2(fd, 1), dup2(fd, 2);
       close(fd);
     }
+    child_limits(parent);
     return 0;
   }
   if (child > 0) child_files().push_back({child, path});
