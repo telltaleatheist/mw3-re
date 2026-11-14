@@ -3,8 +3,10 @@
 #include <cstdlib>
 #include <cctype>
 #include <cstring>
+#include <vector>
 
 #include "gamez/zerror/zerr.h"
+#include "gamez/zimage/zimg_texture.h"
 #include "gamez/zmodel/gmod_const.h"
 #include "gamez/zreader/zreader.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -469,6 +471,70 @@ int32_t material_sweep(int32_t step) {
   }
   g_sweep = 0;
   return freed;
+}
+
+// The world's writers (WriteZBD's; ported for preservation, docs/gamez.md, Writing a world back).
+
+// Mech3.exe 1.2 @ 0x00535ff0 (ECX m): its index in the table, -1 for none or one outside it; it is marked
+// referenced (flag 0x10) either way.
+int32_t material_index(Material* m) {
+  if (!m) return -1;
+  m->flags |= 0x10;
+  return g_table.index_of(m);
+}
+
+// Mech3.exe 1.2 @ 0x005360c0 (ECX file): the table's four numbers, every block whole (a textured material's
+// texture as its row), then each used material's cycle (0x1c bytes, then its textures' rows) in the used list's
+// order. The capacity, 0 when a block or a cycle could not be written (reported). The exe writes a cycled
+// material's +0x24 and a cycle's +0x18 as its pointers, which the reader replaces; the file's value and 0 here.
+int write_materials(std::FILE* f) {
+  MaterialTable& t = g_table;
+  const struct {
+    const int32_t* v;
+    int line;
+  } head[] = {{&t.capacity, 0x277}, {&t.count, 0x284}, {&t.free_head, 0x291}, {&t.used_head, 0x29e}};
+  for (const auto& h : head)
+    if (std::fwrite(h.v, 4, 1, f) != 1) zerr::report(0x200, kFile, h.line, "Error writing material buffer.");
+  int32_t result = kBlock;
+  std::vector<uint8_t> raw(static_cast<size_t>(kBlock) * 0x2c);
+  for (size_t b = 0; b < t.blocks.size(); ++b) {
+    for (int32_t i = 0; i < kBlock; ++i) {
+      const Material& m = t.blocks[b][i];
+      uint8_t* r = raw.data() + i * 0x2c;
+      r[0] = m.alpha, r[1] = m.flags;
+      std::memcpy(r + 2, &m.rgb, 2);
+      std::memcpy(r + 4, &m.r, 4), std::memcpy(r + 8, &m.g, 4), std::memcpy(r + 0xc, &m.b, 4);
+      const uint32_t tex = (m.flags & 1) ? static_cast<uint32_t>(zimg::texture_index(m.texture)) : m.texture_index;
+      std::memcpy(r + 0x10, &tex, 4);
+      std::memcpy(r + 0x14, m.unk_14, 12);
+      std::memcpy(r + 0x20, &m.soil, 4);
+      std::memcpy(r + 0x24, &m.file_cycle, 4);
+      std::memcpy(r + 0x28, &m.prev, 2), std::memcpy(r + 0x2a, &m.next, 2);
+    }
+    if (std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+      zerr::report(0x200, kFile, 0x2c1, "Error writing material buffer.");
+      result = 0;
+    }
+  }
+  for (int32_t i = t.used_head; i >= 0; i = t.at(i).next) {
+    const Material& m = t.at(i);
+    if (!(m.flags & 4)) continue;
+    const Cycle* c = m.cycle;
+    uint8_t cr[0x1c] = {};
+    std::memcpy(cr, &c->looping, 4), std::memcpy(cr + 4, &c->frame, 4), std::memcpy(cr + 8, &c->index, 4);
+    std::memcpy(cr + 0xc, &c->speed, 4), std::memcpy(cr + 0x10, &c->texture_count, 4), std::memcpy(cr + 0x14, &c->added, 4);
+    if (std::fwrite(cr, sizeof cr, 1, f) != 1) {
+      zerr::report(0x200, kFile, 0x2d8, "Error writing material buffer.");
+      return 0;
+    }
+    std::vector<int32_t> rows(c->texture_count);
+    for (uint32_t k = 0; k < c->texture_count; ++k) rows[k] = zimg::texture_index(c->textures[k]);
+    if (!rows.empty() && std::fwrite(rows.data(), rows.size() * 4, 1, f) != 1) {
+      zerr::report(0x200, kFile, 0x2f5, "Error writing material buffer.");
+      return 0;
+    }
+  }
+  return result;
 }
 
 }  // namespace zmod

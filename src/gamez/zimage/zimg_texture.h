@@ -32,6 +32,9 @@ TextureTable& textures();
 // refuses the directory (-1, the table as it was), `where` named in the log.
 int read_texture_directory(int count, std::FILE* f, const char* where = nullptr);
 TextureEntry* texture_at(int index);                  // 0x00518080
+int32_t texture_index(const TextureEntry* e);          // 0x00518050: its row, -1 for none
+// WriteZBD's texture directory (ported for preservation): the count, 0 when not written.
+int write_texture_directory(std::FILE* f);             // 0x005180a0
 
 // --- Loading ---
 

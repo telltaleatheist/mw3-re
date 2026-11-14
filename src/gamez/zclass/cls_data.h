@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 
 #include "gamez/zclass/cls_node.h"
@@ -70,7 +71,8 @@ struct Seq : Raw<0x20> {
     Node* node;
     float time;
   };
-  Entry* entries = nullptr;        // +0x20  count +0x1c
+  Entry* entries = nullptr;        // +0x20  count +0x1c (malloc'd: seq_add_child grows it)
+  ~Seq() { std::free(entries); }
 };
 
 // Animate.c (class 8; none in the files, nothing in MW3 makes one): +0x00

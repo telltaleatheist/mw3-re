@@ -676,3 +676,74 @@ carry normals, and crater polygons merged at the data's tolerances. With the
 entries real none is skipped (`mission_c1m1_owens_runs_its_frames` checks
 it and the four draw settings). `test_script_setters.py` (400 runs) checks
 the setters; `test_gmod_add.py` builds half its models at set tolerances.
+
+### The commands the shipped scripts never use (ported for preservation, 2026-11-14)
+
+The engine entries the dispatcher would call for commands no shipped script uses (the census above: none skipped)
+are ported for preservation, in their own modules, and the entries are left null, so the program does what it did.
+A mod's scripts would need them wired (`make_engine`); that is a decision for later. Part 1:
+- World (`zcls`, cls_world): WorldSetVirtualMapSize 0x4f1dc0 (the virtual block +0x54/+0x58 and the grid's cells
+  past it +0x5c/+0x60), WorldSetVirtualPartition 0x4f1d90 (+0x50; on: the changed nodes updated 0x4f7e50, every
+  node in the grid marked 0x8000 by 0x4f1cd0, the block's size applied again; no grid: reported, level 5),
+  WorldSetPartitionTolerance 0x4f2860 (+0x80/+0x84), WorldSetPartitionMaxDec 0x4f2880 (the byte +0x4c, over 255
+  reported and 255).
+- Camera (`zcls`, camera): CameraSetDynamicLOD 0x4f32a0 (the walk's +0x51c on, +0x520 1 over the distance, 0.04
+  for 0), CameraSetObjectHSETest 0x4f3550 (+0x518), CameraGetTranslate 0x4f39d0 (the place set +0x14, or the world
+  one +0xa4 with data +0x10 bit 1), CameraGetClip 0x4f3b00, and the two getters under the camera commands, the fov
+  factors 0x4f3d00 (+0xd8/+0xdc) and the LoD scale 0x4f3f70 (+0xd0).
+- Sequences (`zcls`, seq): NewSEQ 0x4fdc70 (class 7, stepping forward, list 11), SEQAddChild 0x4fdcd0 (linked
+  0x4eba90, then {child, time} put in at the index, the later ones moved up; FIX (A): an index past the count or
+  below 0 is the end, where the exe writes outside the block), SEQSetActive / Repeat / Loop / Pause 0x4fde50 /
+  0x4fde90 / 0x4fded0 / 0x4fdf10 (data +0 / +4 / +8 / +0xc).
+- Windows and displays (`zcls`, window, display): WindowSetBuffer 0x4fa1c0 (+0xe4), WindowSetClearPolygon 0x4fa230
+  (+0xe0 bit 31, on only for 1), WindowAddClearVertex 0x4fa2c0 (onto the polygon being added, +0xe0's low bits, of
+  up to four of 0x34 bytes from +0x10: four vertices and a count with bit 31 set; the height always 100; 1 and a
+  report with four polygons or four vertices), WindowCloseClearPolygon 0x4fa3e0 (the next polygon, bit 31 set; the
+  result the closed one's index; the exe also hands it to the software renderer's clear list 0x564660, not
+  ported), NewDisplay 0x4fa4c0 (class 4, 1 x 1, clear colour 0.392, 0.392, 1, list 15).
+- Lists and nodes (`zcls`, list, cls_node): ListPrint 0x4f7fa0 (`Node %d desc: %s` for each live node, the index
+  counting removed items too), the walk by a name's first characters 0x4f8b80 (its length kept at 0x60be48; no
+  name steps on), NodeSetLighting 0x4f9e50 (the model's +8 bit 0 by 0x539cf0, down the whole tree; the exe returns
+  whatever EAX held).
+- Models and textures (`zmod`, gmod_const and gmod_init) and the anim debug frame (`zeff`): Object3DSetFacade
+  0x539cc0 (the model's +0), SetShowBackFace 0x53bb50 (each polygon's flag 0x100), Object3DSetColor 0x53bd60 (each
+  untextured polygon's material made a palette colour: +0x03 the number's low byte, red the number, green and blue
+  0, +0x18 1; the materials are shared, so every model using one changes), SetMorphVertex 0x53b960 (a morph per
+  vertex, (0, v, 0), or 0 for the vertices listed and those used by fewer polygons than the minimum; the weight
+  +0x24 1, flag 8; FIX (A): listed indices past the vertex count are skipped where the exe writes outside its
+  arrays), TextureSetWorldBase 0x526ac0 and TextureSetWorldPerMeter 0x526aa0 (0x74a29c.. and 0x74a2a4..; nothing in
+  the exe reads them), AnimDebugFrame 0x507dd0 (the next frame's number at 0x5ebbf4, which nothing reads).
+- WriteZBD 0x4fe8e0 (`zcls::write_zbd`, the world back to a gamez.zbd, and its texture, material, model and node
+  writers): gamez.md, Writing a world back; `test_write_zbd.py`.
+- MakeShadows 0x5487d0 (`zmod::make_shadows`, gmod_shadows): shadows baked into a world's vertex colours. The
+  light "sunlight" on list 9 gives the offset (its direction +0x84 times -1000) and "world1" on list 13 the world;
+  0x548650 updates the changed nodes, puts an identity on the stack, asks first crossings only (0x4ed9c0), and walks
+  every cell's nodes column by column, then the world's children: active, intersecting nodes (flags 4 and 0x10),
+  an object3d (0x5484c0: its matrix on the stack unless its data's flag 8, the world matrix
+  +0x60 as it is with node flag 0x80000 and no data flag 0x20, else made from the top and the local +0x30; its
+  model, its children), or each child of a LoD (0x548600). Each model with +0 clear (0x548250): its points, morphed
+  when flag 8 has a weight and morphs, through the top; each point's segment to the point plus the offset
+  (0x4eed90), and a crossing darkens that point's colour on every polygon to a fifth. FIX (A): the exe keeps the
+  answers in 1,024 words on its stack, overrun by a model of more points. 0x5485b0, the same walk for LoDs, is
+  never called. Not run by any shipped script; each world holds both names, so it would work on any of them.
+  `test_make_shadows.py`: on all six worlds, the exe and the port with the same stand-in segment query (a hash of
+  the point): 258,214 segments, their ends bit for bit in the same order, and every model's colours equal. Breaks
+  caught: a quarter for a fifth, the rows outer, the offset away from the light, the LoDs' children skipped (the
+  shipped worlds have no morphing model and no object taking its world matrix as it is, so those two branches are
+  not reached by them).
+- Not ported, the software renderer's (CLAUDE.md, Rendering): SetPerspectiveTextureAdaptive 0x558120 (the span's
+  step, read at 0x55f8bc) and SetPaletteName 0x5975e0 (the 8-bit palette, through 0x597680).
+
+**Check: `tests/differential/test_script_cmds.py`** (probe `tests/probe_script_cmds.cpp`): 400 random calls each for
+the world, camera, sequence, window, list, lighting and model commands against the exe (grids of up to 3 by 3 with empty
+and missing node lists, null nodes and data, wrong classes, insertions inside and at the end, full clear-polygon
+buffers, lists with removed items and repeated names, prefix walks started and stepped, trees of up to 8 nodes with
+and without models, models of up to 5 polygons and 11 vertices with shared, textured and untextured materials)
+and NewDisplay, the texture world setters and AnimDebugFrame, comparing the data, the walk's globals, the outputs, the printed text, the
+results and the reports' level and line. Breaks caught: the translate always the set place, the virtual partition
+not applying the size again, the max clamped at 254, the dynamic LoD's default 0.05, the insert moving one entry
+short, Repeat writing Loop's field, a clear vertex keeping its height, the close giving 0, the clear polygon on for
+any non-zero, the prefix walk comparing whole names, the print counting only live nodes, the lighting not going
+down the tree, the colour changing textured materials, the morph ignoring the use count or the model flag, the
+backface from bit 1, the texture base written as the per-meter, the debug frame without the + 1.
+

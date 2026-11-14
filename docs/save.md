@@ -70,7 +70,7 @@ InitInstance (0x00480020) sets the switches right after making the manager:
 anim on, the rest off. **So a saved game holds only the header and the
 mission animations' state**: what the world's objects were doing and which
 animations had run. The world's own state (GWWorld), the craters and the
-weapons in flight are not saved; their code is there, switched off.
+weapons in flight are not saved; their code is there, switched off. (The weapons' word is not shots in flight but a count of hits with no owner, [0x009a17c0], raised at the end of the damage 0x00583480 (inc at 0x0058368c); nothing else reads it. Ported for preservation: zwep::set_save, its registration in zwep::startup, the save and the load.)
 
 ## 3. When it runs
 

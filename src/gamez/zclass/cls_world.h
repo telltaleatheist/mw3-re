@@ -51,6 +51,13 @@ int world_set_origin(Node* world, float x, float z);  // 0x004f2500
 int world_set_margins(Node* world, float x, float z);  // PM 0x00505bf0
 int world_set_size(Node* world, float x, float z);    // 0x004f2530
 int world_make_grid(Node* world, float x, float z);   // 0x004f2560: cells of x by z over the area
+// The script commands' (ported for preservation; the engine's entries are null): WorldSetVirtualPartition,
+// WorldSetVirtualMapSize, WorldSetPartitionTolerance, WorldSetPartitionMaxDec.
+int world_set_virtual_map_size(Node* world, int32_t w, int32_t h);   // 0x004f1dc0
+int world_mark_partitions(Node* world);                              // 0x004f1cd0
+int world_set_virtual_partition(Node* world, int32_t on);            // 0x004f1d90
+int world_set_partition_tolerance(Node* world, float a, float b);    // 0x004f2860
+int world_set_partition_max_dec(Node* world, int32_t count);         // 0x004f2880
 
 // The cell a box (x and z) fits, with the world's margins, else (-1, -1).
 void box_cell(Node* world, int32_t* cx, float min_x, float max_x, float min_z, float max_z,

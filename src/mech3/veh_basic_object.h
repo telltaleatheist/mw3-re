@@ -72,7 +72,7 @@ struct MotionAnim {
 
 // 0xfc bytes, vtable 0x005c88e8 (89 slots).
 struct BasicVehicle : Vehicle {
-  uint32_t xe0 = 0;              // +0xe0
+  void* xe0 = nullptr;           // +0xe0  the vehicle itself once its own controls' init ran (0x004ae3c0), then zeroed
   VehicleControls* controls = nullptr;  // +0xe4  given (the AI's), else its own made here (0x004ae270)
   EngineSound engine;            // +0xe8  (0x004adaf0)
   MotionAnim motion;             // +0xf0

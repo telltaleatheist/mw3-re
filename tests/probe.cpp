@@ -658,6 +658,8 @@ int probe_models(const char* path, long moff, long off, uint8_t* out, int cap) {
 #include "gamez/zmodel/gmod_fog.h"
 #include "gamez/zmodel/gmod_strip.h"
 #include "gamez/zrender/zrndr_fog.h"
+#include "gamez/zutil/zutl_path.h"
+#include "gamez/zmodel/gmod_shadows.h"
 
 namespace {
 std::vector<int32_t> g_reports;
@@ -853,6 +855,69 @@ int probe_read_zbd(const char* path, int size, uint8_t* out, int cap) {
   return finish(b, out, cap);
 }
 
+// test_make_shadows.py's stand-in for the segment query: shadowed by a hash of the point (its float bits), and a
+// running checksum of every segment asked (both ends) with the count.
+uint32_t g_shadow_hash = 0, g_shadow_calls = 0;
+int shadow_test(zcls::Node*, const float from[3], const float to[3], zcls::LineHits* out) {
+  uint32_t f[3], t[3];
+  std::memcpy(f, from, 12), std::memcpy(t, to, 12);
+  for (uint32_t v : {f[0], f[1], f[2], t[0], t[1], t[2]}) g_shadow_hash = (g_shadow_hash ^ v) * 0x01000193u;
+  ++g_shadow_calls;
+  const bool hit = ((f[0] ^ (f[1] * 31u) ^ (f[2] * 131u)) % 3u) == 0;
+  out->count = hit ? 1 : 0;
+  return hit ? 0 : 1;
+}
+
+// test_make_shadows.py: `path` read (0x004ff520), then MakeShadows (0x005487d0) with the stand-in query; out: every
+// used model's polygons' colours in slot order; stats: the segments' count and checksum.
+int probe_make_shadows(const char* path, uint8_t* out, int cap, uint32_t* stats) {
+  zimg::textures().count = 0;
+  zimg::textures().group = 3;
+  zmod::materials() = zmod::MaterialTable{};
+  zmod::models() = zmod::ModelPool{};
+  zvid::set_pixel_format(5, 6, 5);
+  reset_world_state(-1);
+  if (zcls::read_zbd(path) != 0) return -1;
+  zerr::set_sink(nullptr);
+  g_shadow_hash = 0x811c9dc5u, g_shadow_calls = 0;
+  zmod::set_shadow_query(shadow_test);
+  zmod::make_shadows();
+  zmod::set_shadow_query(nullptr);
+  stats[0] = g_shadow_calls, stats[1] = g_shadow_hash;
+  std::vector<uint8_t> b;
+  for (const zmod::Model& m : zmod::models().slots) {
+    if (static_cast<int32_t>(m.count(0xc)) < 1 || static_cast<int32_t>(m.count(0x10)) <= 0) continue;
+    for (uint32_t k = 0; k < m.count(0x10); ++k) {
+      const zmod::Polygon& q = m.polygons[k];
+      const auto* c = reinterpret_cast<const uint8_t*>(q.colors);
+      b.insert(b.end(), c, c + 12 * (q.flags & 0xff));
+    }
+  }
+  return finish(b, out, cap);
+}
+
+// test_write_zbd.py: `path` read (0x004ff520), then written back as "out.zbd" in the write folder `dir`
+// (0x004fe8e0). out: the two results, the reports (level, line) after the read.
+int probe_write_zbd(const char* path, const char* dir, int32_t* out, int cap) {
+  zimg::textures().count = 0;
+  zimg::textures().group = 3;
+  zmod::materials() = zmod::MaterialTable{};
+  zmod::models() = zmod::ModelPool{};
+  zvid::set_pixel_format(5, 6, 5);
+  reset_world_state(-1);
+  out[0] = zcls::read_zbd(path);
+  g_reports.clear();
+  zerr::set_sink(record_report);
+  const zutl::Mounts saved = zutl::mounts();
+  zutl::mounts().write = dir;
+  out[1] = zcls::write_zbd("out.zbd");
+  zutl::mounts() = saved;
+  zerr::set_sink(nullptr);
+  int n = 0;
+  for (size_t i = 0; i < g_reports.size() && 2 + n < cap; ++i) out[2 + n++] = g_reports[i];
+  return n;
+}
+
 }  // extern "C"
 
 #include "gamez/zclass/class.h"
@@ -943,10 +1008,6 @@ int probe_destroy_op(int op, int a, int b, int c) {
 namespace {
 zcls::MechLib g_copy_lib;
 
-int32_t texture_index(const zimg::TextureEntry* e) {
-  return e ? static_cast<int32_t>(e - zimg::textures().entries) : -1;
-}
-
 // A model's bytes (its pointer fields left out), arrays and polygons, the
 // materials as table indices.
 void put_model(std::vector<uint8_t>& b, const zmod::Model& m) {
@@ -990,7 +1051,7 @@ void put_material_table(std::vector<uint8_t>& b) {
     put_i32(b, i);
     put_bytes(b, &m.alpha, 1), put_bytes(b, &m.flags, 1), put_bytes(b, &m.rgb, 2);
     put_bytes(b, &m.r, 4), put_bytes(b, &m.g, 4), put_bytes(b, &m.b, 4);
-    put_i32(b, (m.flags & 1) ? texture_index(m.texture) : static_cast<int32_t>(m.texture_index));
+    put_i32(b, (m.flags & 1) ? zimg::texture_index(m.texture) : static_cast<int32_t>(m.texture_index));
     put_bytes(b, m.unk_14, 12), put_bytes(b, &m.soil, 4);
     put_i32(b, (m.cycle != nullptr || m.file_cycle != 0) ? 1 : 0);
     put_bytes(b, &m.prev, 2), put_bytes(b, &m.next, 2);

@@ -56,6 +56,9 @@ void reset_pool();
 // stops the game ("GameZ model resource failure").
 Model* model_alloc();                         // 0x00538fe0
 int read_models(std::FILE* f);                // 0x00538e30
+// WriteZBD's (ported for preservation): a model's slot (-1 for none) and the pool written back.
+int32_t model_index(const Model* m);           // 0x00538090
+int write_models(std::FILE* f);                // 0x005380e0
 // FIX (A) memory safety (docs/fixes.md, ours): what a count read from a model file may size. An array that fits in
 // what is left of the file is read as the exe reads it; one past the file's end is still allocated and read as zeros,
 // as the exe does with a cut file, while all of those in one read stay within kPastEnd bytes. Past that the read is
@@ -143,6 +146,13 @@ int model_add_polygon(Model* m, int32_t n, const PolygonAdd& a);  // 0x0053c6c0 
 // Every polygon's priority (+0x04) set; none on a null model. The exe returns
 // what EAX holds; callers ignore it (0 here, for the script's engine table).
 int model_set_priority(Model* m, int32_t priority);  // 0x0053bb20 ECX m, EDX priority
+void model_set_lighting(Model* m, uint32_t on);      // 0x00539cf0 ECX m, EDX on: +8 bit 0
+// The script commands' (ported for preservation; the engine's entries are null): Object3DSetFacade, SetShowBackFace,
+// Object3DSetColor, SetMorphVertex.
+void model_set_facade(Model* m, uint32_t mode);       // 0x00539cc0: +0
+void model_set_show_backface(Model* m, uint32_t on);  // 0x0053bb50: the polygons' flag 0x100
+void model_set_color(Model* m, int32_t color);        // 0x0053bd60: the untextured materials' palette colour
+void model_set_morph(Model* m, const int32_t* fixed, float v, int32_t count, int32_t min_uses);  // 0x0053b960
 // `kept` (optional) loses the index of each point dropped.
 int drop_colinear(int32_t* n, float* points, std::vector<int32_t>* kept = nullptr);  // 0x0053a530 ECX n, EDX points
 int32_t find_vertex(Model& m, const float p[3]);                     // 0x00539d80

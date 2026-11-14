@@ -213,6 +213,17 @@ int32_t anim_run_events(AnimDef* def, SeqDef* seq) {
   }
 }
 
+namespace {
+int32_t g_debug_frame = 0;  // 0x005ebbf4
+}  // namespace
+int32_t& anim_debug_frame_at() { return g_debug_frame; }
+
+// Mech3.exe 1.2 @ 0x00507dd0. The exe returns whatever EAX held (the number); 0 here.
+int32_t anim_debug_frame() {
+  g_debug_frame = static_cast<int32_t>(zcls::frames().frame + 1);
+  return 0;
+}
+
 // Mech3.exe 1.2 @ 0x00507de0. ECX the def's object. A def that runs only in
 // range of the player (flag 2), in a zone (8) or when its root was drawn
 // (4) checks once, then waits a few frames (+0x9b, a counter shared round

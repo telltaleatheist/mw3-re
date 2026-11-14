@@ -171,7 +171,7 @@ int al_seq(const uint8_t* header, const int32_t* nodes, const float* times, int3
   n->put<int32_t>(0x34, 7);
   auto* s = new zcls::Seq{};
   std::memcpy(s->raw, header, 0x20);
-  s->entries = new zcls::Seq::Entry[count > 0 ? count : 1]{};
+  s->entries = static_cast<zcls::Seq::Entry*>(std::calloc(count > 0 ? count : 1, sizeof(zcls::Seq::Entry)));
   for (int32_t i = 0; i < count; ++i) s->entries[i] = {node(nodes[i]), times[i]};
   n->data = s;
   zcls::push_front(11, n);

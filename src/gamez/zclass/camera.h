@@ -39,6 +39,14 @@ int camera_set_listener(Node* node, int32_t on);                   // 0x004f3430
 int camera_set_flag8(Node* node, bool on);                         // 0x004f34c0
 int camera_set_horizon(Node* node, Node* horizon);                 // 0x004f4090  EDX horizon
 int camera_set_horizon_xz(Node* node, Node* horizon);              // 0x004f4100
+// The script commands' (ported for preservation; the engine's entries are null): CameraSetDynamicLOD,
+// CameraSetObjectHSETest, CameraGetTranslate, CameraGetClip, and the two getters under the camera commands.
+void camera_set_dynamic_lod(int32_t on, float distance);          // 0x004f32a0  ECX on
+int camera_set_object_hse_test(int32_t on);                        // 0x004f3550  ECX on
+int camera_get_translate(Node* node, float* x, float* y, float* z);  // 0x004f39d0
+int camera_get_fov(Node* node, float* h, float* v);                // 0x004f3d00
+int camera_get_lod_scale(Node* node, float* f);                    // 0x004f3f70
+int camera_walk_zone(uint32_t* out);                               // 0x004f6c70: the walk's zone, as drawn
 
 // The camera's world matrix, position, view direction and euler angles, the
 // view matrix (0x00520b00), its planes and frustum points. `offset` moves it

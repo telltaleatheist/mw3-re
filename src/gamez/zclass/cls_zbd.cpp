@@ -381,4 +381,210 @@ int read_zbd(const char* path) {
   return -1;
 }
 
+// The world's writers (WriteZBD, a script command; ported for preservation, the engine's entry left null;
+// docs/gamez.md, Writing a world back).
+
+// Mech3.exe 1.2 @ 0x004fe210 (ECX nodes, EDX count, stack file): their indices; 0, -1 when not written (reported).
+int write_node_list(Node* const* list, int32_t count, std::FILE* f) {
+  if (count == 0) return 0;
+  std::vector<int32_t> index(count > 0 ? count : 0);
+  for (int32_t i = 0; i < count; ++i) index[i] = node_index_of(list[i]);
+  if (std::fwrite(index.data(), index.size() * 4, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x102, "Error writing node data.");
+    return -1;
+  }
+  return 0;
+}
+
+namespace {
+template <typename T>
+bool write_raw(const Node* node, std::FILE* f) {
+  return std::fwrite(static_cast<const T*>(node->data)->raw, sizeof(T::raw), 1, f) == 1;
+}
+int write_error(int line, const char* msg) {
+  zerr::report(0x200, kFile, line, msg);
+  return -1;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004fe2d0 (ECX node, EDX file): its class's data as the reader takes it (a camera's four nodes
+// as indices; a world's light, sound and cell lists; a light's and a sound's nodes), then its parents and
+// children. 1 when it wrote any, 0 when none, -1 on an error (reported). The data's pointers are the file's
+// values here, which the exe writes as its own and the reader replaces.
+int write_node(const Node* node, std::FILE* f) {
+  int result = 0;
+  if (node->action) {
+    char msg[96];
+    std::snprintf(msg, sizeof msg, "Writing gamez.zbd; node %s has action callback defined.", node->name());
+    zerr::report(0x200, kFile, 0x11c, msg);
+  }
+  switch (node->cls()) {
+    case 0:
+      break;
+    case 1: {
+      result = 1;
+      const auto* c = static_cast<const Camera*>(node->data);
+      uint8_t raw[sizeof c->raw];
+      std::memcpy(raw, c->raw, sizeof raw);
+      for (int i = 0; i < 4; ++i) {
+        const int32_t at = node_index_of(c->nodes[i]);
+        std::memcpy(raw + 4 * i, &at, 4);
+      }
+      if (std::fwrite(raw, sizeof raw, 1, f) != 1) return write_error(0x185, "Error writing node camera data.");
+      break;
+    }
+    case 2: {
+      result = 1;
+      const auto* w = static_cast<const World*>(node->data);
+      if (!write_raw<World>(node, f)) return write_error(0x1b7, "Error writing node world data.");
+      if (w->get<int32_t>(0xa0) > 0) write_node_list(w->lights, w->get<int32_t>(0xa0), f);
+      if (w->get<int32_t>(0xac) > 0) write_node_list(w->sounds, w->get<int32_t>(0xac), f);
+      for (int32_t z = 0; z < w->get<int32_t>(0x8c); ++z)
+        for (int32_t x = 0; x < w->get<int32_t>(0x88); ++x) {
+          const Partition& p = w->rows[z][x];
+          if (std::fwrite(p.raw, sizeof p.raw, 1, f) != 1)
+            return write_error(0x1d3, "Error writing world area partition data.");
+          if (p.get<int16_t>(0x3a) > 0) write_node_list(p.nodes, p.get<int16_t>(0x3a), f);
+        }
+      break;
+    }
+    case 3:
+      result = 1;
+      if (!write_raw<Window>(node, f)) return write_error(0x1a4, "Error writing node window data.");
+      break;
+    case 4:
+      result = 1;
+      if (!write_raw<Display>(node, f)) return write_error(0x195, "Error writing node display data.");
+      break;
+    case 5:
+      result = 1;
+      if (!write_raw<Object3d>(node, f)) return write_error(0x144, "Error writing node object3d data.");
+      break;
+    case 6:
+      result = 1;
+      if (!write_raw<Lod>(node, f)) return write_error(0x153, "Error writing node lod data.");
+      break;
+    case 9: {
+      result = 1;
+      if (!write_raw<Light>(node, f)) return write_error(0x162, "Error writing node light data.");
+      const auto* l = static_cast<const Light*>(node->data);
+      if (l->get<int32_t>(0xc8) > 0) write_node_list(l->nodes, l->get<int32_t>(0xc8), f);
+      break;
+    }
+    case 10: {
+      result = 1;
+      zerr::report(0x200, kFile, 0x127, "Writing sound node data: Must complete software.");
+      if (!write_raw<Sound>(node, f)) return write_error(0x130, "Error writing node sound data.");
+      const auto* s = static_cast<const Sound*>(node->data);
+      if (s->get<int32_t>(0x8c) > 0) write_node_list(s->nodes, s->get<int32_t>(0x8c), f);
+      break;
+    }
+    default: {
+      char msg[160];
+      std::snprintf(msg, sizeof msg, "gClsWriteNode(): Unrecognized node class type:\n  node = %s class_type = %d\n",
+                    node->name(), node->cls());
+      zerr::report(0x400, kFile, 0x1e8, msg);
+      return 0;
+    }
+  }
+  if (node->parent_count() > 0) {
+    result = 1;
+    write_node_list(node->parents, node->parent_count(), f);
+  }
+  if (node->child_count() > 0) {
+    result = 1;
+    write_node_list(node->children, node->child_count(), f);
+  }
+  return result;
+}
+
+// Mech3.exe 1.2 @ 0x004fe6c0 (ECX file): every slot of the pool (an empty list's pointer 0, the model as its slot,
+// no action), then each slot's data (0x004fe2d0), the slots given the offsets theirs start at (+0xd0's low 24
+// bits, in the file only), and the slots written again. The capacity, 0 after an error (reported).
+int write_nodes(std::FILE* f) {
+  NodePool& p = nodes();
+  const int32_t cap = p.capacity;
+  if (cap == 0) return 0;
+  std::vector<uint8_t> raw(static_cast<size_t>(cap) * 0xd4);
+  for (int32_t i = 0; i < cap; ++i) {
+    const Node& n = *node_at(i);
+    uint8_t* r = raw.data() + static_cast<size_t>(i) * 0xd4;
+    std::memcpy(r, n.raw, 0xd0);
+    std::memcpy(r + 0xd0, &n.link, 4);
+    if (n.parent_count() == 0) std::memset(r + 0x58, 0, 4);
+    if (n.child_count() == 0) std::memset(r + 0x60, 0, 4);
+    const int32_t model = zmod::model_index(n.model);
+    std::memcpy(r + 0x3c, &model, 4);
+    std::memset(r + 0x48, 0, 4);
+  }
+  int32_t result = cap;
+  const long slots_at = std::ftell(f);
+  if (std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x24a, "Error writing node data.");
+    result = 0;
+  }
+  for (int32_t i = 0; i < result; ++i) {
+    const uint32_t at = static_cast<uint32_t>(std::ftell(f));
+    if (write_node(node_at(i), f) != 0) {
+      uint8_t* link = raw.data() + static_cast<size_t>(i) * 0xd4 + 0xd0;
+      uint32_t v;
+      std::memcpy(&v, link, 4);
+      v = (v & ~0xffffffu) | (at & 0xffffffu);
+      std::memcpy(link, &v, 4);
+    }
+  }
+  const long end = std::ftell(f);
+  std::fseek(f, slots_at, SEEK_SET);
+  if (std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x26c, "Error writing node data.");
+    result = 0;
+  }
+  std::fseek(f, end, SEEK_SET);
+  return result;
+}
+
+// Mech3.exe 1.2 @ 0x004fe8e0 (ECX path): the world back to a gamez.zbd (GameZWriteZBDFile): the header, the
+// texture directory, the materials, the models, the deferred deletes done, the nodes, then the header again
+// with where each starts. 0, -1 when it could not be opened or the header not written (reported). The path is
+// remembered as read_zbd's is. FIX (A): written through the write folder (zutl::open).
+int write_zbd(const char* path) {
+  const size_t len = std::strlen(path);
+  if (len == 0) return -1;
+  if (len < 0x2f) {
+    std::memcpy(zbd_path(), path, len + 1);
+  } else {
+    char msg[80];
+    std::snprintf(msg, sizeof msg, "zbd_filename length %d exceeds storage string size %d.",
+                  static_cast<int>(len), 0x30);
+    zerr::report(0x200, kFile, 0x2a4, msg);
+  }
+  std::FILE* f = zutl::open(path, "wb");
+  if (!f) return -1;
+  ZbdHeader h{};
+  h.signature = 0x02971222, h.version = 27;
+  if (std::fwrite(&h, sizeof h, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x2b7, "Error writing GameZ header data.");
+    std::fclose(f);  // the exe leaves it open
+    return -1;
+  }
+  h.textures_offset = static_cast<int32_t>(std::ftell(f));
+  h.texture_count = zimg::write_texture_directory(f);
+  h.materials_offset = static_cast<int32_t>(std::ftell(f));
+  zmod::write_materials(f);
+  h.models_offset = static_cast<int32_t>(std::ftell(f));
+  zmod::write_models(f);
+  deferred_flush();
+  h.node_last_free = nodes().free_head;
+  h.nodes_offset = static_cast<int32_t>(std::ftell(f));
+  h.node_array_size = write_nodes(f);
+  std::fseek(f, 0, SEEK_SET);
+  if (std::fwrite(&h, sizeof h, 1, f) != 1) {
+    zerr::report(0x200, kFile, 0x2dc, "Error writing GameZ header data.");
+    std::fclose(f);  // the exe leaves it open
+    return -1;
+  }
+  std::fclose(f);
+  return 0;
+}
+
 }  // namespace zcls

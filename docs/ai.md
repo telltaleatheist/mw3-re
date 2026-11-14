@@ -3677,6 +3677,24 @@ goes through a hooks struct the test stubs the same on both sides.
   lines in the exe's first source file). No shipped net file is version
   105 (the header 0x4da900 reads a "mech3" 105 as 106), so nothing reaches
   them; a hand-made 105 file would.
+  Ported for preservation, not wired in (2026-11-14, src/mech3/zainet105):
+  the net `Net105` (0x4021c0, 0x5c bytes over AiNet(-1); the list
+  [0x5f4c4c] / [0x5f4c50] by +0x58), its 0x34-byte node `Net105Node`
+  (0x4ae8e0, vtable 0x5c8cb8; the null node [0x5e8654] = 0x60b160) with a
+  0x3c-byte record per link, and the reader 0x4025b0 (name, type ST / HI /
+  FI, path_width 10 by default, activate_rad, attack_rad, attack_dwell,
+  pursuit_range sorted larger first, not_pursuit_dwell, return_range, then
+  node_00..node_98: a word, a place, up to three link numbers), whose
+  0x402300 makes the numbers nodes and measures each link at the path
+  width through the basic controls' 0x4023d0 (`net105_link_fill`, theirs).
+  The node's link methods 0x403cd0..0x403e70 too: add (+0x30) asks the
+  other to pair, the pair (+0x40) sets both ways, set (+0x44) makes and
+  measures, +0x50 remeasures both ends (it drops nothing), +0x54 measures
+  at width 0 (the stack's leftover: 0x409fc0 is a bare ret). Two FIX (A)s:
+  a link to a number no node has stays null (the exe reads the null's
+  place), and a measure without a record does nothing; the name is bounded
+  to its 20 bytes. Test: `test_net105.py` (2,000 blocks and their link
+  operations against the exe, every measure call compared).
 
 - The brain's step 0x4cd7b0 (vtable 0x5cc348, its run 0x4cd810, maker
   0x4cd790): the brain's constructor makes it at +0x240 (0x4cd770) and
@@ -3889,6 +3907,13 @@ moves, and from 80 m the machine guns miss it.
   brain is not mapped beyond section 4).
 - Duplicate record names in a file: by number both are read, by name the
   first wins.
+- The lance command's target marker (cmd_target.flt, 0x00468100): its
+  AiTarget constructor (0x004d7f80) puts it on the targets list
+  ([0x0060b584..0x0060b588]) and the exe leaves it there, while the port's
+  PocketMarker sits only in zEntity's list (app_pocket.cpp make_marker), never
+  in zai_target's. What reads the targets list for it (the valves' and
+  targets.zrd's users) is unchecked; Pirate's Moon (0x00469c80) takes its own
+  marker off that list, as the port has it (pm-tests.md, 2026-11-14).
 
 ## The developer tools (decided with Owen, 2026-10-20)
 

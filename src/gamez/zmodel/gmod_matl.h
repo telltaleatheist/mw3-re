@@ -55,6 +55,9 @@ struct MaterialTable {
 MaterialTable& materials();
 
 int read_materials(std::FILE* f);  // 0x005363d0
+// WriteZBD's (ported for preservation): the index, marking it referenced; the table written back.
+int32_t material_index(Material* m);  // 0x00535ff0
+int write_materials(std::FILE* f);     // 0x005360c0
 Material* take_material(int32_t index);  // 0x00536070, marks it referenced
 // The table's equal material (0x00536f10: all but the bookkeeping flags; a
 // soil of 0 on either side takes the other's), else a new one copied from

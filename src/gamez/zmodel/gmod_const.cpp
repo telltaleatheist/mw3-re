@@ -1125,4 +1125,200 @@ int model_scroll_tick(Model* m) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x00539cf0 (ECX m, EDX on): +8 bit 0 from on's bit 0; none, nothing (zClass's set_lighting, a
+// script command's).
+void model_set_lighting(Model* m, uint32_t on) {
+  if (!m) return;
+  uint32_t f;
+  std::memcpy(&f, m->header + 8, 4);
+  f = (f & ~1u) | (on & 1u);
+  std::memcpy(m->header + 8, &f, 4);
+}
+
+// The script engine's model commands (docs/interp.md, The commands the shipped scripts never use): ported for
+// preservation, the engine's entries left null.
+
+// Mech3.exe 1.2 @ 0x00539cc0 (ECX m, EDX mode): the model's +0 (Object3DSetFacade).
+void model_set_facade(Model* m, uint32_t mode) { std::memcpy(m->header, &mode, 4); }
+
+// Mech3.exe 1.2 @ 0x0053bb50 (ECX m, EDX on): each polygon's flag 0x100 from on's bit 0.
+void model_set_show_backface(Model* m, uint32_t on) {
+  for (int32_t i = 0; i < static_cast<int32_t>(m->count(0x10)); ++i)
+    m->polygons[i].flags = (m->polygons[i].flags & ~0x100u) | ((on & 1u) << 8);
+}
+
+// Mech3.exe 1.2 @ 0x0053bd60 (ECX m, EDX color): each untextured polygon's material made the palette colour
+// `color` (+0x03 its low byte, red the number, green and blue 0, +0x18 1). The materials are shared, so every
+// model using one changes.
+void model_set_color(Model* m, int32_t color) {
+  for (int32_t i = 0; i < static_cast<int32_t>(m->count(0x10)); ++i) {
+    Material* mt = m->polygons[i].material;
+    if (mt->flags & 1) continue;
+    mt->r = static_cast<float>(color), mt->g = 0, mt->b = 0;
+    mt->rgb = static_cast<uint16_t>((mt->rgb & 0x00ff) | ((color & 0xff) << 8));
+    mt->unk_14[1] = 1.0f;
+  }
+}
+
+// Mech3.exe 1.2 @ 0x0053b960 (ECX m, EDX fixed, stack v, count, min_uses): one morph per vertex (+0x44, count
+// +0x1c), (0, v, 0) for a vertex free to move, (0, 0, 0) for one in `fixed` or used by fewer than min_uses
+// polygons (min_uses 0 or less: none by use); the morph weight +0x24 1, the model's flag 8.
+void model_set_morph(Model* m, const int32_t* fixed, float v, int32_t count, int32_t min_uses) {
+  const int32_t verts = static_cast<int32_t>(m->count(0x14));
+  m->morphs = static_cast<float*>(std::realloc(m->morphs, 12 * static_cast<size_t>(verts > 0 ? verts : 0)));
+  std::vector<int32_t> held(verts > 0 ? verts : 0), uses(verts > 0 ? verts : 0);
+  // FIX (A): the exe marks `fixed`'s indices and counts the polygons' without a bound, writing outside its arrays
+  // for one past the vertex count.
+  for (int32_t i = 0; i < count; ++i)
+    if (fixed[i] >= 0 && fixed[i] < verts) held[fixed[i]] = 1;
+  for (int32_t p = 0; p < static_cast<int32_t>(m->count(0x10)); ++p)
+    for (uint32_t k = 0; k < (m->polygons[p].flags & 0xff); ++k) {
+      const uint32_t at = m->polygons[p].vertex_indices[k];
+      if (at < static_cast<uint32_t>(verts)) ++uses[at];
+    }
+  if (min_uses > 0)
+    for (int32_t i = 0; i < verts; ++i)
+      if (uses[i] < min_uses) held[i] = 1;
+  for (int32_t i = 0; i < verts; ++i) {
+    m->morphs[3 * i] = 0;
+    m->morphs[3 * i + 1] = held[i] ? 0.0f : v;
+    m->morphs[3 * i + 2] = 0;
+  }
+  uint32_t f;
+  const float one = 1.0f;
+  std::memcpy(m->header + 0x24, &one, 4);
+  std::memcpy(&f, m->header + 8, 4);
+  f |= 8;
+  std::memcpy(m->header + 8, &f, 4);
+  std::memcpy(m->header + 0x1c, m->header + 0x14, 4);
+}
+
+// The world's writers (WriteZBD's; ported for preservation, docs/gamez.md, Writing a world back).
+
+// Mech3.exe 1.2 @ 0x00538090: a model's slot, -1 for none.
+int32_t model_index(const Model* m) { return m ? static_cast<int32_t>(m - g_pool.slots.data()) : -1; }
+
+namespace {
+bool put(std::FILE* f, const void* p, size_t size, size_t n) { return n == 0 || std::fwrite(p, size, n, f) == n; }
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x005380e0 (ECX file): the pool's three numbers and its slots, then each slot's arrays as the
+// reader takes them (points, normals, morphs, lights and their points, polygons with their materials' indices,
+// then each polygon's point and normal indices, its uvs when textured and its colours); a slot that had any is
+// given the offset they start at (+0x5c, in the pool too), and the slots are written again. The size, 0 after
+// an error (reported). The exe writes the slots' and lights' pointers as they are and the polygons' (+0x08..
+// +0x18) as its own, which the reader replaces: the file's values and 0 here.
+int write_models(std::FILE* f) {
+  ModelPool& p = g_pool;
+  if (std::fwrite(&p.size, 4, 1, f) != 1) zerr::report(0x200, kFile, 0x1c5, "Error writing model3d buffer.");
+  if (std::fwrite(&p.count, 4, 1, f) != 1) zerr::report(0x200, kFile, 0x1d2, "Error writing model3d buffer.");
+  if (std::fwrite(&p.free_head, 4, 1, f) != 1) zerr::report(0x200, kFile, 0x1df, "Error writing model3d buffer.");
+  if (p.size == 0) return 0;
+  const auto write_slots = [&] {
+    std::vector<uint8_t> raw(static_cast<size_t>(p.size) * 0x60);
+    for (int32_t i = 0; i < p.size; ++i) {
+      std::memcpy(raw.data() + i * 0x60, p.slots[i].header, 0x5c);
+      std::memcpy(raw.data() + i * 0x60 + 0x5c, &p.slots[i].link, 4);
+    }
+    return std::fwrite(raw.data(), raw.size(), 1, f) == 1;
+  };
+  int32_t result = p.size;
+  const long slots_at = std::ftell(f);
+  if (!write_slots()) {
+    zerr::report(0x200, kFile, 0x1f6, "Error writing model3d buffer.");
+    result = 0;
+  }
+  static const uint8_t kZero[0x5c] = {};
+  for (int32_t i = 0; i < result; ++i) {
+    Model& m = p.slots[i];
+    const long at = std::ftell(f);
+    bool any = false;
+    if (static_cast<int32_t>(m.count(0xc)) < 1 && std::memcmp(m.header, kZero, 0x5c) != 0)
+      zerr::report(0x200, kFile, 0x207, "Writing GameZ Model3D buffer data for model that has no parents.");
+    const struct {
+      int count;
+      const float* data;
+      int line;
+    } arrays[] = {{0x14, m.vertices, 0x217}, {0x18, m.normals, 0x22a}, {0x1c, m.morphs, 0x23d}};
+    bool stop = false;
+    for (const auto& a : arrays) {
+      const int32_t n = static_cast<int32_t>(m.count(a.count));
+      if (n <= 0) continue;
+      any = true;
+      if (!put(f, a.data, 12, n)) {
+        zerr::report(0x200, kFile, a.line, "Error writing model3d buffer.");
+        stop = true;
+        break;
+      }
+    }
+    if (stop) {
+      result = 0;
+      break;
+    }
+    const int32_t lights = static_cast<int32_t>(m.count(0x20));
+    if (lights > 0) {
+      any = true;
+      std::vector<uint8_t> raw(static_cast<size_t>(lights) * 0x4c);
+      for (int32_t l = 0; l < lights; ++l) {
+        std::memcpy(raw.data() + l * 0x4c, m.lights[l].raw, 0x4c);
+        std::memcpy(raw.data() + l * 0x4c + 0x28, &m.lights[l].color, 2);
+      }
+      if (std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+        zerr::report(0x200, kFile, 0x254, "Error writing model3d buffer.");
+        result = 0;
+        break;
+      }
+      for (int32_t l = 0; l < lights; ++l) {
+        int32_t n;
+        std::memcpy(&n, m.lights[l].raw + 0xc, 4);
+        if (n > 0 && !put(f, m.lights[l].vertices, 12, n)) {
+          zerr::report(0x200, kFile, 0x268, "Error writing model3d buffer.");
+          result = 0;
+          break;
+        }
+      }
+    }
+    const int32_t polys = static_cast<int32_t>(m.count(0x10));
+    if (polys > 0) {
+      any = true;
+      std::vector<uint8_t> raw(static_cast<size_t>(polys) * 0x24);
+      for (int32_t k = 0; k < polys; ++k) {
+        Polygon& q = m.polygons[k];
+        uint8_t* r = raw.data() + k * 0x24;
+        const int32_t mat = material_index(q.material);
+        std::memcpy(r, &q.flags, 4), std::memcpy(r + 4, &q.priority, 4);
+        std::memcpy(r + 0x1c, &mat, 4), std::memcpy(r + 0x20, &q.zone_set, 4);
+      }
+      if (std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+        zerr::report(0x200, kFile, 0x294, "Error writing model3d buffer.");
+        result = 0;
+        break;
+      }
+      for (int32_t k = 0; k < polys; ++k) {
+        const Polygon& q = m.polygons[k];
+        const size_t n = q.flags & 0xff;
+        int line = 0;
+        if (n && !put(f, q.vertex_indices, 4, n)) line = 0x2a9;
+        else if (n && (q.flags & 0x200) && q.normal_indices && !put(f, q.normal_indices, 4, n)) line = 0x2b9;
+        else if ((q.material->flags & 1) && !put(f, q.uvs, 8, n)) line = 0x2cb;
+        else if (!put(f, q.colors, 12, n)) line = 0x2d9;
+        if (line) {
+          zerr::report(0x200, kFile, line, "Error writing model3d buffer.");
+          result = 0;
+          break;
+        }
+      }
+    }
+    if (any) m.link = static_cast<uint32_t>(at);
+  }
+  const long end = std::ftell(f);
+  std::fseek(f, slots_at, SEEK_SET);
+  if (!write_slots()) {
+    zerr::report(0x200, kFile, 0x2fb, "Error writing model3d buffer.");
+    result = 0;
+  }
+  std::fseek(f, end, SEEK_SET);
+  return result;
+}
+
 }  // namespace zmod

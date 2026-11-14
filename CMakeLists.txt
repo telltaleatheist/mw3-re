@@ -142,6 +142,7 @@ add_library(mw3core STATIC
   src/gamez/zmodel/gmod_light.cpp
   src/gamez/zmodel/gmod_matl.cpp
   src/gamez/zmodel/gmod_puff.cpp
+  src/gamez/zmodel/gmod_shadows.cpp
   src/gamez/zmodel/gmod_strip.cpp
   src/gamez/zmodel/gmod_screen.cpp
   src/gamez/zreader/zreader.cpp
@@ -232,6 +233,7 @@ add_library(mw3core STATIC
   src/mech3/dir_limits_pm.cpp
   src/mech3/veh_move.cpp
   src/mech3/veh_stealth.cpp
+  src/mech3/veh_basic_controls.cpp
   src/mech3/game_editor.cpp
   src/mech3/game_editor_net.cpp
   src/mech3/game_editor_tree.cpp
@@ -316,6 +318,7 @@ add_library(mw3core STATIC
   src/mech3/zai_node.cpp
   src/mech3/zai_path.cpp
   src/mech3/zainet.cpp
+  src/mech3/zainet105.cpp
   src/mech3/zainetedit.cpp
   src/mech3/zainet_inout.cpp
   src/mech3/zainet_inout_view.cpp
@@ -599,6 +602,9 @@ add_library(mw3probe SHARED
   tests/probe_veh_basic.cpp
   tests/probe_veh_fieldbase.cpp
   tests/probe_veh_stealth.cpp
+  tests/probe_basic_controls.cpp
+  tests/probe_basic_follow.cpp
+  tests/probe_script_cmds.cpp
   tests/probe_veh_dock.cpp
   tests/probe_veh_waynet.cpp
   tests/probe_bz2.cpp
@@ -611,6 +617,7 @@ add_library(mw3probe SHARED
   tests/probe_ai_valve.cpp
   tests/probe_ai_target.cpp
   tests/probe_turret.cpp
+  tests/probe_net105.cpp
   tests/probe_sensors.cpp
   tests/probe_anim_owner.cpp
   tests/probe_ai_lists.cpp
@@ -690,6 +697,7 @@ add_executable(mw3tests
   tests/test_mod_copy_report.cpp
   tests/test_net_save.cpp
   tests/test_save_entry.cpp
+  tests/test_weapon_save.cpp
   tests/test_new_weapon.cpp
   tests/test_salvage_chance.cpp
   tests/test_loadout_fallback.cpp

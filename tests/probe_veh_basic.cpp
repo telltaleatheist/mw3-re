@@ -259,7 +259,7 @@ void probe_vb_image(uint8_t* b) {
   b[0xbc] = v.xbc;
   put(b, 0xc0, v.team), put(b, 0xc4, v.allies), put(b, 0xc8, v.enemies), put(b, 0xcc, v.shadow ? 1u : 0u);
   put(b, 0xd0, lo(v.net)), put(b, 0xd4, lo(v.ammo)), put(b, 0xd8, lo(v.net_collision));
-  put(b, 0xe0, v.xe0), put(b, 0xe4, lo(v.controls));
+  put(b, 0xe0, lo(v.xe0)), put(b, 0xe4, lo(v.controls));
   // +0xec, the engine sound: compared as an index (probe_vb_engine_index).
   put(b, 0xf0, lo(v.motion.def)), put(b, 0xf4, lo(v.motion.anim)), putf(b, 0xf8, v.motion.until);
 }

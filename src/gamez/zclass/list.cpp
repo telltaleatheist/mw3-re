@@ -186,12 +186,17 @@ int purge_lists() {
   static const int kOrder[] = {6, 0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 13, 14, 15, 11, 12};
   for (int list : kOrder)
     if (g_lists.list[list].needs_purge) list_purge(list);
-  while (ListItem* item = g_lists.deferred) {  // 0x004f81e0
+  deferred_flush();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f81e0: the deferred deletes done.
+void deferred_flush() {
+  while (ListItem* item = g_lists.deferred) {
     g_lists.deferred = item->next;
     if (item->node) node_free(item->node);
     item_free(item);
   }
-  return 0;
 }
 
 // Mech3.exe 1.2 @ 0x004f8050
@@ -479,6 +484,34 @@ void frame_update() {
   sequences_update();
   animates_update();
   update_changed();
+}
+
+// The script engine's list commands (docs/interp.md, The commands the shipped scripts never use): ported for
+// preservation, the engine's entries left null.
+
+// Mech3.exe 1.2 @ 0x004f7fa0 (ECX list): each live node's index (removed items counted too) and name, by printf.
+void list_print(int list, void (*out)(const char* line)) {
+  int32_t i = 0;
+  for (ListItem* it = g_lists.list[list].head; it; it = it->next, ++i) {
+    if (!it->node) continue;
+    char line[0x100];
+    std::snprintf(line, sizeof line, "Node %d desc: %s\n", i, it->node->name());
+    if (out) out(line);
+    else std::fputs(line, stdout);
+  }
+}
+
+namespace {
+bool prefix_matches(Node* node) {  // 0x004f8bb0
+  return std::strncmp(node->name(), static_cast<const char*>(g_walk.key), g_walk.prefix_len) == 0;
+}
+}  // namespace
+
+// Mech3.exe 1.2 @ 0x004f8b80 (ECX name, EDX list): as list_walk_by_name, by the name's first characters; a name
+// starts the walk (its length kept), none steps on.
+Node* list_walk_prefix(const char* name, int list) {
+  if (name) g_walk.prefix_len = std::strlen(name);
+  return list_walk_next(name, list, prefix_matches);
 }
 
 }  // namespace zcls

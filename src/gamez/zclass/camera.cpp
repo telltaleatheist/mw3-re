@@ -607,7 +607,7 @@ int camera_set_zone(Node* node, const uint8_t zone[4]) {
 
 const float* camera_axis(Node* node) { return static_cast<Camera*>(node->data)->floats(0x74); }
 
-// Mech3.exe 1.2 @ 0x004f3b00
+// Mech3.exe 1.2 @ 0x004f3b00, Pirate's Moon 1.0 @ 0x00506f80 (PM's report line 0x412; MW3's 0x5f0)
 int camera_get_clip(Node* node, float* near_clip, float* far_clip) {
   if (int r = check_class(node, 1, kFile, 0x412)) return r;
   auto* c = static_cast<Camera*>(node->data);
@@ -1431,6 +1431,54 @@ void shadow_lod(Node* node) {
   node->set_flags(node->flags() | kDrawn);
   shadow_model_morphed(node);
   shadow_children(node);
+}
+
+// The script engine's camera commands and getters (docs/interp.md, The commands the shipped scripts never use):
+// ported for preservation, the engine's entries left null.
+
+// Mech3.exe 1.2 @ 0x004f32a0 (ECX on, stack the distance): the walk's dynamic LoD and its frame time to hold, 1 over
+// the distance (0: 0.04).
+void camera_set_dynamic_lod(int32_t on, float distance) {
+  SceneWalk& w = scene_walk();
+  w.lod_target = distance == 0.0f ? 0.04f : 1.0f / distance;
+  w.lod_dynamic = on;
+}
+
+// Mech3.exe 1.2 @ 0x004f3550 (ECX on)
+int camera_set_object_hse_test(int32_t on) {
+  scene_walk().hidden_surface = on;
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f39d0: the place set (+0x14), or with +0x10 bit 1 the world one (+0xa4).
+int camera_get_translate(Node* node, float* x, float* y, float* z) {
+  if (int r = check_class(node, 1, kFile, 0x562)) return r;
+  Camera* c = cam_of(node);
+  const float* p = c->floats((c->get<uint32_t>(0x10) & 2) ? 0xa4 : 0x14);
+  *x = p[0], *y = p[1], *z = p[2];
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3d00: camera_set_fov's two factors (+0xd8, +0xdc).
+int camera_get_fov(Node* node, float* h, float* v) {
+  if (int r = check_class(node, 1, kFile, 0x64f)) return r;
+  Camera* c = cam_of(node);
+  *h = c->get<float>(0xd8), *v = c->get<float>(0xdc);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f3f70: camera_set_lod_scale's factor (+0xd0).
+int camera_get_lod_scale(Node* node, float* f) {
+  if (int r = check_class(node, 1, kFile, 0x6ca)) return r;
+  *f = cam_of(node)->get<float>(0xd0);
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f6c70 (ECX out): the walk's zone list as drawn (0x0060bb98) for the developer lines
+// (0x0040fb82's); ported for preservation.
+int camera_walk_zone(uint32_t* out) {
+  *out = scene_walk().zone;
+  return 0;
 }
 
 }  // namespace zcls
