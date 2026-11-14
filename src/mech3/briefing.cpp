@@ -130,6 +130,13 @@ void BriefingScript::stop(Engine& e) {
   at = steps.end();
 }
 
+// Pirate's Moon 1.0 @ 0x00405f20 (its skip; inline in 0x00404780 too). Each step's done is
+// not asked: a marker passes, a shown object shows, the voice starts and is stopped below.
+void BriefingScript::finish(Engine& e) {
+  for (auto it = at; it != steps.end(); ++it) (*it)->step(60.0f);
+  stop(e);
+}
+
 // The head of 0x00406440: the entry playing steps; done, the next one plays
 // from the next frame.
 void BriefingScript::step(float dt) {
@@ -372,8 +379,9 @@ BriefingScreen::~BriefingScreen() {
   if (briefing_screen() == this) briefing_screen() = nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x00406440. FIX (B): the bar crept up 0.005 a frame; with
-// zfix's per_second, 0.15 a second (0.005 at 30 fps).
+// Mech3.exe 1.2 @ 0x00406440, Pirate's Moon 1.0 @ 0x00405f20: Space or S runs what is left of
+// the script first (finish), where MW3 only stopped it. FIX (B): the bar crept up 0.005 a
+// frame; with zfix's per_second, 0.15 a second (0.005 at 30 fps).
 void BriefingScreen::update(float dt) {
   Engine& e = engine();
   script.step(dt);
@@ -391,11 +399,12 @@ void BriefingScreen::update(float dt) {
   }
   if ((e.key_state(kKeySpace) & 3) || (e.key_state(kKeyS) & 3)) {
     e.input_clear();
-    script.stop(e);
+    script.finish(e);
   }
 }
 
-// Mech3.exe 1.2 @ 0x00404c30
+// Mech3.exe 1.2 @ 0x00404c30, Pirate's Moon 1.0 @ 0x00404780: MECHLAB and SALVAGE finish the
+// script (the map shown whole on the way back), where MW3 stopped it where it was.
 void BriefingScreen::on_button(int32_t id, int32_t a, int32_t b) {
   (void)a, (void)b;
   Engine& e = engine();
@@ -408,7 +417,7 @@ void BriefingScreen::on_button(int32_t id, int32_t a, int32_t b) {
       launch();
       break;
     case kBtnMechLab:
-      script.stop(e);
+      script.finish(e);
       lab_btn.on_leave();
       e.mech_lab_open(e.store_handle(build_lab_store()), 0);
       break;
@@ -419,7 +428,7 @@ void BriefingScreen::on_button(int32_t id, int32_t a, int32_t b) {
       script.start();
       break;
     case kBtnSalvage:
-      script.stop(e);
+      script.finish(e);
       salvage_btn.on_leave();
       e.salvage_open();
       salvage_seen = 1;

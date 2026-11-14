@@ -70,7 +70,7 @@ produces; the label names the compared value. Reaching a function, or running a 
 |---|---|
 | folded | 4083 |
 | replaced (SDL or the platform layer) | 263 |
-| MISSING LOGIC | 216 |
+| MISSING LOGIC | 214 |
 | MISSING LOGIC (only data the shipped game lacks reaches it) | 126 |
 | software renderer | 112 |
 | debug or dev tool: PORT (preserve) | 95 |
@@ -80,8 +80,6 @@ produces; the label names the compared value. Reaching a function, or running a 
 
 ## MISSING LOGIC
 
-- **0x00404780** (1 functions, 87 decomp lines; MISSING LOGIC): pm only, minor, visible: the briefing's buttons (MW3's 0x00404c30, BriefingScreen::on_button, briefing.cpp:398; the address map did not place it). Before MECHLAB (2) and SALVAGE (4) PM runs every step not yet done with 60 s (each step's vt+0, 60.0) and only then stops the script, so coming back the briefing shows its end (every marker and text in place); MW3 and the port stop where it was. ABORT (0) also sets the leaving flag +0x113ad when +0x113b4 is set (0x00404bf0) before going on; REPLAY (3) and LAUNCH (1) as MW3's; 7 shows the reallocation (0x00404650, in the pm port)
-- **0x00405f20** (1 functions, 71 decomp lines; MISSING LOGIC): pm only, visible: PM's briefing frame (MW3's 0x00406440, unpaired by the diff; briefing.cpp BriefingScreen::update) is MW3's but for the skip: on Space or S, PM first runs every step left in the script, from the one playing to the end, once each with 60 seconds (vt+0 with 60.0), then stops the voice and clears the script as MW3 does; MW3 and the port only stop (BriefingScript::stop). So skipping PM's briefing leaves the map as the whole script would have drawn it (its objects shown, lines and markers placed); the port leaves it where the skip came
 - **0x00407fb0** (1 functions, 52 decomp lines; MISSING LOGIC): pm only, minor: the Load State's resume (MW3's 0x004092e0, app_states.cpp: back from the lab with 4, the reallocation refreshed and shown, as the port). For Instant Action (the game's kind 2) PM then copies the line-up's mechs back into the action game's setup: slot 0's mech at +0x40, the others' at +0x48.., the rest of the five -1, so the Instant Action screen offers the mechs chosen in the lab next time; the port keeps the setup as the screen left it
 - **0x00408120** (1 functions, 111 decomp lines; MISSING LOGIC): pm only, minor, audible: the Load State's update (MW3's 0x00409440, app_states.cpp LoadState::update), read: the same build (the sounds, the geometry, the missions object, the briefing's block name, its voice and sound sets, the screen and script; PM's block-name format is in the pm port). Before reading the mission's sounds.zrd PM sets zSound's range scale ([0x00613488], 0x00591830): 0.5 when the sound setting (0x0040b1e0, the graphics/audio screen's SOUND cycle) is 2 (low), else 1; the sound reader (0x00592170) multiplies every sound's RANGE (its near and far distances) by it, so at low sound quality every sound carries half as far. The port reads the ranges unscaled
 - **0x0040c340, 0x0048dca0, 0x0048dd60** (3 functions, 98 decomp lines; MISSING LOGIC): pm only, minor: the Instant Action world list's select and step (0x0048dca0 / 0x0048dd60: CycleButton's, then the pilot's action game's vt+0x4c, 0x0040c340: the world at +0xd0, the progression waves loaded again for it when the mode is Progression, 0x0040c410). PM updates the game's world as the list moves; the pm port sets it only at ACCEPT (action_menu.cpp:559, set_world 0x0040c360), so while choosing, Progression's waves are the last world's
@@ -531,7 +529,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 
 ## By module
 
-### mech3ep1 (3336 not ported)
+### mech3ep1 (3334 not ported)
 
 | Address | Lines | Class | Why |
 |---|---|---|---|
@@ -596,7 +594,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00404360 | 32 | folded | as MW3 0x00404340: covered: array and list helpers, destructors (unwind callers), the loading bar and the briefing's map (app_menus.cpp:964 overrides briefing_map_image; the hook's 'not ported yet' comment is stale), the vehicle path's entries drop (app_vehicle.h:145) |
 | 0x00404600 | 13 | folded | as MW3 0x004bf530: covered: the firing's records, the net editor class's forwarding virtuals, vector and list instances, the region registry's helpers, the AI states' and steps' constructors and destructors, start-up statics |
 | 0x00404610 | 11 | folded | covered by the port where it names it (src/mech3/zrdrainet.cpp:195) |
-| 0x00404780 | 87 | MISSING LOGIC | pm only, minor, visible: the briefing's buttons (MW3's 0x00404c30, BriefingScreen::on_button, briefing.cpp:398; the address map did not place it). Before MECHLAB (2) and SALVAGE (4) PM runs every step not yet done with 60 s (each step's vt+0, 60.0) and only then stops the script, so coming back the briefing shows its end (every marker and text in place); MW3 and the port stop where it was. ABORT (0) also sets the leaving flag +0x113ad when +0x113b4 is set (0x00404bf0) before going on; REPLAY (3) and LAUNCH (1) as MW3's; 7 shows the reallocation (0x00404650, in the pm port) |
 | 0x00404990 | 15 | folded | the briefing script's stop and step (MW3's inline in 0x00404c30 / the head of 0x00406440; briefing.cpp:125 / :135): the voice stopped, the step pointer at the start, playing cleared (0x00404990); the current step run and the next taken when it is done (0x004049d0) |
 | 0x004049d0 | 25 | folded | the briefing script's stop and step (MW3's inline in 0x00404c30 / the head of 0x00406440; briefing.cpp:125 / :135): the voice stopped, the step pointer at the start, playing cleared (0x00404990); the current step run and the next taken when it is done (0x004049d0) |
 | 0x00404a20 | 95 | folded | read: covered where the port names it (briefing.cpp:513 and 871 PM's loadouts, pilot.h:346 the standalone rows, mech_damage.cpp:225 the headlight, app_hud.cpp:534 the radar's front, mech_config.cpp:951, pilot_games.cpp:635, mech_headlight.cpp:50, mech_waynet.h:70, mission_world.cpp:249, app_vehicle.cpp:623 the stealth controls, zai_brain.cpp:239, zainet_inout.cpp:382, zai_node.cpp:146, zai_walk_pm.cpp:441, zai_drive_pm.cpp:772, zrdraiv.cpp:581, mech_build.cpp:283, app_pocket.cpp:172, zrdraiv.h:66, zai_brain.cpp:1033, pm zeff_anim_events.h:28, zsnd_3d.cpp:27, zsnd_play.cpp:203 and 221) |
@@ -613,7 +610,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004056c0 | 8 | folded | empty: does nothing |
 | 0x004056d0 | 8 | folded | empty: does nothing |
 | 0x00405700 | 8 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:68) |
-| 0x00405710 | 12 | folded | covered by the port where it names it (src/mech3/briefing.h:168) |
+| 0x00405710 | 12 | folded | covered by the port where it names it (src/mech3/briefing.h:171) |
 | 0x00405730 | 22 | folded | a briefing control's destructor body (two texts, then the base 0x005becd0); the port's members destroy themselves |
 | 0x00405870 | 12 | folded | by the slot pairing: PM vtable 0x5de8a4 slot 0x30 is MW3 vtable 0x5bc230's 0x0042a3d0 (MW3 ported src/mech3/menu_widgets.cpp:222), the feature compare equal (7f6e9e10) |
 | 0x004058f0 | 12 | folded | covered by the port where it names it (src/mech3/menu_widgets.h:160) |
@@ -627,7 +624,6 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00405c30 | 20 | folded | MW3's 0x004060c0, the order-aware compare and the call order equal (ratio 1.000) |
 | 0x00405c80 | 12 | folded | read: the scalar deleting destructor (the destructor 0x0044bec0, then delete when bit 0 is set); the port deletes its objects itself, the destructor labelled on its own row |
 | 0x00405ca0 | 98 | folded | the briefing's teardown, read: the script stopped and its steps deleted (0x00405a20, the port's BriefingScript clear), the briefing screen's destructor (0x00405ca0: the script, the store list, the members, as MW3's inline in its screen's destructor), and a briefing button's constructor (0x00405bf0: the base 0x0044be30, its vtable 0x005de9e8); the port's objects own their members |
-| 0x00405f20 | 71 | MISSING LOGIC | pm only, visible: PM's briefing frame (MW3's 0x00406440, unpaired by the diff; briefing.cpp BriefingScreen::update) is MW3's but for the skip: on Space or S, PM first runs every step left in the script, from the one playing to the end, once each with 60 seconds (vt+0 with 60.0), then stops the voice and clears the script as MW3 does; MW3 and the port only stop (BriefingScript::stop). So skipping PM's briefing leaves the map as the whole script would have drawn it (its objects shown, lines and markers placed); the port leaves it where the skip came |
 | 0x004060d0 | 562 | folded | MW3's 0x00406650 (a MARKERS step's reader, briefing.cpp:578), read: the same entries (texts in FONT else brief_grey, shapes by color and radius, an optional sound per entry), the keys PM reads by name where MW3's calls pass them in registers; the port reads the same keys (:589-662) |
 | 0x00406cb0 | 8 | folded | empty: does nothing |
 | 0x00406ce0 | 8 | folded | returns a constant or a global |
@@ -662,7 +658,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00407bb0 | 20 | folded | covered by the port where it names it (src/mech3/mech_config.h:168) |
 | 0x00407c00 | 8 | folded | by the slot pairing: PM vtable 0x5dea7c slot 0x68 is MW3 vtable 0x5bbdb0's 0x0040a8a0 (MW3 folded: a getter of a member), the feature compare equal (7f6e9e10) |
 | 0x00407c10 | 9 | folded | as MW3 0x00409fb0: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
-| 0x00407c20 | 39 | folded | covered by the port where it names it (src/mech3/briefing.cpp:930) |
+| 0x00407c20 | 39 | folded | covered by the port where it names it (src/mech3/briefing.cpp:939) |
 | 0x00407f10 | 39 | folded | group A, read: the same as MW3's 0x004091e0 plus PM's vt+0x64 call first (the game's start: Standalone's 0x0040e3f0, the base's reader open 0x004350c0, new in PM); the pm port makes it in load_state_enter (app_menus.cpp:838, 'vt+0x64 at 0x00407f38') with the reader opened by Missions (mission.cpp:407); the movie flag is the same one (MW3 0x00608c88 +0x1c1, PM 0x0062ca98 +0x1bd) |
 | 0x00407fa0 | 9 | folded | a thunk: one call to another function |
 | 0x00407fb0 | 52 | MISSING LOGIC | pm only, minor: the Load State's resume (MW3's 0x004092e0, app_states.cpp: back from the lab with 4, the reallocation refreshed and shown, as the port). For Instant Action (the game's kind 2) PM then copies the line-up's mechs back into the action game's setup: slot 0's mech at +0x40, the others' at +0x48.., the rest of the five -1, so the Instant Action screen offers the mechs chosen in the lab next time; the port keeps the setup as the screen left it |
@@ -698,7 +694,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00409ec0 | 162 | folded | group A, read: the same logic; PM inlines the compare (0x00409c60 called once with the value read) where MW3 calls 0x0040bf50 per name; the machine fields read are the same ones in the same order (MW3 0x005f4ca8/ac/b8/b4/b0, PM 0x00618768/6c/78/74/70: VIDEO_KB one dword off in both) |
 | 0x0040a870 | 41 | folded | read: MW3's 0x0040cb30 (options' apply-all: the same 13 getter-setter pairs in the same order, then the two floats), unpaired by the diff; the port's options_apply_all (options.cpp:556) |
 | 0x0040a920 | 14 | folded | read: HWCardDev's setter (the device number stored, hardware chosen when 0 or above, 0x0040b340), from the settings read 0x0040a100 and the options screens; the port's set_hw_card_dev (options.cpp:53) |
-| 0x0040ab60 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:839) |
+| 0x0040ab60 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:848) |
 | 0x0040afe0 | 15 | folded | MW3's set_shadow_parts 0x0040d1f0 (options.cpp:219), unpaired by the diff: the same body (the hardware or software slot, then the shadows on or off); not run under a test (trace) |
 | 0x0040b210 | 8 | folded | inside its ported callers (0x0043a060): a small helper their ports do their own way |
 | 0x0040b250 | 11 | folded | as MW3 0x0040d410: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
@@ -738,7 +734,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040c9c0 | 17 | folded | covered by the port where it names it (src/mech3/mission.cpp:93) |
 | 0x0040ca30 | 9 | folded | inside its ported callers (0x0048eaf0): a small helper their ports do their own way |
 | 0x0040ca50 | 9 | folded | inside its ported callers (0x0048eaf0): a small helper their ports do their own way |
-| 0x0040ca70 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:857) |
+| 0x0040ca70 | 8 | folded | covered by the port where it names it (src/mech3/briefing.cpp:866) |
 | 0x0040ca80 | 23 | folded | as MW3 0x00436a40: covered by ported code beside them: the force feedback's release, the game classes' small virtuals (first enemy, record slots, flags; mission-start.md), list and vector instances (mechdef-*.md name 0x0046cc00, 0x00475bf0, 0x00475c20), static list initialisers, the pilot's game-type getters (0x00479460/80, 0x004794a0, used by the port), part classes' constant virtuals and their damage path, constructors and destructors, the mcbwaynet's calls (app_vehicle.cpp) |
 | 0x0040cac0 | 10 | folded | covered by the port where it names it (src/mech3/action_menu.cpp:526) |
 | 0x0040ce90 | 32 | folded | covered by the port where it names it (src/mech3/mech_dead.cpp:123) |
@@ -778,7 +774,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x0040e670 | 9 | folded | a thunk: one call to another function |
 | 0x0040e680 | 9 | folded | a thunk: one call to another function |
 | 0x0040e690 | 9 | folded | a thunk: one call to another function |
-| 0x0040e6a0 | 9 | folded | covered by the port where it names it (src/mech3/briefing.cpp:839) |
+| 0x0040e6a0 | 9 | folded | covered by the port where it names it (src/mech3/briefing.cpp:848) |
 | 0x0040e6b0 | 9 | folded | inside its ported callers (0x0047f420): a small helper their ports do their own way |
 | 0x0040e860 | 78 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
 | 0x0040e9c0 | 31 | folded | container code inside PM's ported standalone game (pilot_games.cpp, pilot.h StandaloneGame): the mission list's sort by 0x0040d900 (0x0040d660's introsort parts), the lists' clears and frees, a vector of 8-byte entries assigned, the lineup read inside the ported load (0x0040e2b0, which names 0x0040dc70), the destructor (vtable 0x005df148 then its base's); the port uses std containers |
@@ -833,7 +829,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x004101b0 | 8 | folded | returns a constant or a global |
 | 0x004101c0 | 10 | debug or dev tool: PORT (preserve) | as MW3 0x0040f890: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x004101e0 | 10 | debug or dev tool: PORT (preserve) | as MW3 0x0040f8b0: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
-| 0x004103a0 | 13 | folded | covered by the port where it names it (src/mech3/briefing.cpp:477) |
+| 0x004103a0 | 13 | folded | covered by the port where it names it (src/mech3/briefing.cpp:486) |
 | 0x00410470 | 108 | debug or dev tool: PORT (preserve) | as MW3 0x0040fb50, whose class PM's changes keep: the developer text lines (25 rows at [0x005fc848], Arial 10): their font and layers (0x0040f7f0, 0x0040f870, 0x0040f890, 0x0040f8b0) and the per-frame readout 0x0040fb50, which writes the lines every frame but whose layers are never on in the release (hud.md section 20; the port's notes: developer only) |
 | 0x004107a0 | 17 | folded | as MW3 0x0040fe70: covered by ported code beside them: the briefing's list helpers, vector inserts, the cameras' free, the options' getters (implemented in the program's hooks), the message panel's constructors and destructors, the HUD message, the AI steps' base vtable thunks, start-up statics |
 | 0x00410820 | 17 | unused: PORT (preserve) | as MW3 0x0040fef0: the timing marks ('Dummy Frame', 'Lets Play!'): act only with [0x005e14f0], 0 in the data (program.md, no effect) |
@@ -4233,8 +4229,8 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x00557240 | 16 | folded | folded, by the feature compare and the order-aware compare (tools/analysis/pm_shape_compare.py: the same calls, tests and constants in order) against its MW3 twin; the only immediates that differ are error reports' line numbers (each checked to be the report's argument, 0x00406cb0 / 0x0049bfd0) |
 | 0x00557290 | 137 | folded | checked by test (block trace, 2026-11-13): test_pm_mechlib runs it on PM's mechlib trees over c1, c3 and none (the node pool's growth, the node copy and its data), comparing the library's materials and trees, every model slot and every node slot with its links and data; test_pm_headlight also reaches 0x0050cdc0..0x0050d4e0 (each step's object fields and node flags compared) |
 | 0x005576e0 | 109 | folded | group A, read: the same logic on PM's layout and helpers (the reader's lookup 0x00578630 for 0x00556740, PM's list helpers, the flare's fade with PM's globals, the gravity command, the objective's distance through PM's HUD getter); the call counts differ by how often a getter is called |
-| 0x00557af0 | 10 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:488) |
-| 0x00557b00 | 11 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:489) |
+| 0x00557af0 | 10 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:548) |
+| 0x00557b00 | 11 | folded | covered by the port where it names it (src/gamez/zmodel/gmod_const.cpp:549) |
 | 0x00557b20 | 11 | folded | covered by the port where it names it (src/gamez/zinterp/zinterp.h:331) |
 | 0x00557b30 | 20 | debug or dev tool: PORT (preserve) | called only from 0x00515fb0, which are debug |
 | 0x00557be0 | 51 | folded | read: container and list code (vector insert and copy, list add and teardown, the puffers' vectors) and small helpers inside their ported callers: a sticky mode setter (2 kept), the pool's growth (gmod_const.cpp:191, PM's port), the puffers' set (gmod_puff.cpp:170 as MW3's), the reader's get-and-read wrappers |
@@ -4676,7 +4672,7 @@ Run evidence (2026-11-13): the PM chains (campaign kills:99 and standalone-kills
 | 0x005c3c70 | 21 | folded | by the slot pairing: PM vtable 0x5f22dc slot 0x5c is MW3 vtable 0x5cfed8's 0x005a30f0 (MW3 ported src/gamez/ztwod/twod_wintext.cpp:151), the feature compare equal (7f6e9e10) |
 | 0x005c3ce0 | 89 | folded | zTwoD's controls (ported in gamez/ztwod) against MW3's twins by the order-aware compare and features: the differences are PM's Text 0x4d4 bytes (MW3's 0x4cc, so the divide-by-size shifts sar 9 for sar 10 and the strides), list growth helpers called where MW3 inlined them, a few sign forms (fmul -2), the char-class table written as dwords for bytes (0x005c7700, MW3's 0x005a46a0: the same classes), and PM's 2D path's blits and locks (unmapped calls for MW3's zVideo 0x0057d210 / 0x005841e0 / 0x00584210 / 0x00597e50, the SDL layer's) |
 | 0x005c4030 | 93 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
-| 0x005c4290 | 35 | folded | covered by the port where it names it (src/mech3/briefing.cpp:228) |
+| 0x005c4290 | 35 | folded | covered by the port where it names it (src/mech3/briefing.cpp:235) |
 | 0x005c4720 | 18 | folded | zTwoD's controls (ported in gamez/ztwod) against MW3's twins by the order-aware compare and features: the differences are PM's Text 0x4d4 bytes (MW3's 0x4cc, so the divide-by-size shifts sar 9 for sar 10 and the strides), list growth helpers called where MW3 inlined them, a few sign forms (fmul -2), the char-class table written as dwords for bytes (0x005c7700, MW3's 0x005a46a0: the same classes), and PM's 2D path's blits and locks (unmapped calls for MW3's zVideo 0x0057d210 / 0x005841e0 / 0x00584210 / 0x00597e50, the SDL layer's) |
 | 0x005c4760 | 225 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D (0x005c0320: [0x008c4b70] and [0x008d3aa9] set; its lines, rects, blits, scene begin and end through the device's function table [0x008c4bd8..]; else the software 2D path): the SDL 2D host draws the 2D layer |
 | 0x005c4cb0 | 56 | replaced (SDL or the platform layer) | PM's 2D drawing through Direct3D for zTwoD's shapes (as 0x005c0320's label: the SDL 2D host draws the 2D layer): the circle and ring as midpoint points sent as a primitive list (0x005c4ed0, from Frame's draw 0x005c4e90; else the software circle 0x00584cb0), the points' list clipped to the rect (0x005c4cb0) or each jittered by a random amount within an amplitude (0x005c5460, the HUD static's shimmer on hardware), a point and a polyline's hardware branches (0x005c8ae0, 0x005c8c20), a shape's draw with its hardware and software branches (0x005c58f0) and an image's erase blit on the software path (0x005c9aa0) |
