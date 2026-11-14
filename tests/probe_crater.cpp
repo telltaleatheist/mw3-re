@@ -37,7 +37,7 @@ int32_t material_index(const zmod::Material* m) {
   const int32_t i = zmod::materials().index_of(m);
   return i >= 0 ? i : -2;
 }
-int32_t model_index(const zmod::Model* m) {
+int32_t slot_index(const zmod::Model* m) {
   if (!m) return -1;
   const auto& s = zmod::models().slots;
   return m >= s.data() && m < s.data() + s.size() ? static_cast<int32_t>(m - s.data()) : -2;
@@ -59,7 +59,7 @@ int32_t node_count() {
 }
 
 void dump_model(const zmod::Model* m) {
-  u32(static_cast<uint32_t>(model_index(m)));
+  u32(static_cast<uint32_t>(slot_index(m)));
   if (!m) return;
   raw(m->header, 0x34);
   raw(m->header + 0x48, 0x14);

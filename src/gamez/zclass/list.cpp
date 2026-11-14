@@ -186,12 +186,17 @@ int purge_lists() {
   static const int kOrder[] = {6, 0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 13, 14, 15, 11, 12};
   for (int list : kOrder)
     if (g_lists.list[list].needs_purge) list_purge(list);
-  while (ListItem* item = g_lists.deferred) {  // 0x004f81e0
+  deferred_flush();
+  return 0;
+}
+
+// Mech3.exe 1.2 @ 0x004f81e0: the deferred deletes done.
+void deferred_flush() {
+  while (ListItem* item = g_lists.deferred) {
     g_lists.deferred = item->next;
     if (item->node) node_free(item->node);
     item_free(item);
   }
-  return 0;
 }
 
 // Mech3.exe 1.2 @ 0x004f8050

@@ -1425,4 +1425,11 @@ int camera_get_lod_scale(Node* node, float* f) {
   return 0;
 }
 
+// Mech3.exe 1.2 @ 0x004f6c70 (ECX out): the walk's zone list as drawn (0x0060bb98) for the developer lines
+// (0x0040fb82's); ported for preservation.
+int camera_walk_zone(uint32_t* out) {
+  *out = scene_walk().zone;
+  return 0;
+}
+
 }  // namespace zcls

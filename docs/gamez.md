@@ -381,6 +381,37 @@ For typed nodes +0xd0 holds the file offset of the node's data (mech3ax
 checks it). The exe never seeks by it: it reads the data in slot order and
 only ORs in bit 24. Likely the writer stores it for tools.
 
+## Writing a world back (0x4fe8e0; ported for preservation, 2026-11-14)
+
+`GameZWriteZBDFile` (the authoring build's, under `ifdef COMPILE`; the engine's entry stays null) saves the world in
+memory as the reader takes it (`zcls::write_zbd`): the header (the path remembered as the reader's), the texture
+directory (0x5180a0, each mip a row again by 0x518050), the materials (0x5360c0: the four numbers, every block of
+1,000 whole, a textured material's texture as its row, then each used material's cycle and its textures' rows in
+the used list's order), the models (0x5380e0: the pool's three numbers and slots, each slot's points, normals,
+morphs, lights and their points, polygons with their materials as indices (0x535ff0, which marks each one
+referenced), then each polygon's point and normal indices, uvs when textured, colours; a slot with any gets the
+offset they start at in +0x5c, in the pool too), the deferred deletes done, the nodes (0x4fe6c0: every slot, an
+empty list's pointer 0, the model as its slot, no action; then each slot's data by 0x4fe2d0, a camera's four nodes
+as indices, a world's light, sound and cell lists, a light's and a sound's node lists, the parents and children by
+0x4fe210; the slots given their data's offset in +0xd0's low 24 bits, in the file only), then the header again.
+
+The exe writes its own heap pointers wherever the pools hold one (image and surface, a cycled material's +0x24 and
+a cycle's +0x18, the models' and lights' arrays, the polygons' +0x08..+0x18, the nodes' and their data's lists);
+the reader replaces each. The port writes the file's values it read (0 for the polygons' and the textures'). A
+pool that is not whole blocks (t1's 16,000 node slots) comes back whole (17,500), the extra slots on the free list,
+in the exe and the port alike. Sound nodes report `Writing sound node data: Must complete software.`; a node with
+an action reports that too. Two debug helpers sit with the writers and are ported with them: mechlib's type name
+0x4fce40 and the walk's zone getter 0x4f6c70.
+
+**Check: `tests/differential/test_write_zbd.py`**: each of the six worlds read (0x4ff520) and written back by the
+exe and the port, the files equal byte for byte but for the words where the exe wrote one of its heap pointers
+(its heap put at 0x7a000000, where no float or count of the data falls), the results and reports equal; then each
+side reads its own file back to the same world (nodes, lists and fog). Breaks caught: an empty child list's pointer
+not 0, the camera's nodes one index on, the slots' offsets not given, the models' four bytes on, the normal indices
+left out, a textured material's texture as the file had it, a mip one row back. (Leaving out the conversions
+alone is not seen on the shipped worlds: their files already hold the indices, offsets and zeros the writer
+makes.)
+
 ## Re-reading part of the file (0x4ff730, 0x4ff7a0, 0x538640)
 
 0x4ff730(node, recurse) re-opens the remembered file (0x60bf50) through
@@ -513,8 +544,7 @@ indices), plus the bytes consumed.
    bad version and a truncated file.
 7. **Ported**: the re-read path (0x4ff730, 0x4ff7a0, 0x538640) with the
    model swap (0x4eb420 / 0x4eb370); its caller 0x500760 (the
-   destructible-environment client) is not. The writers (0x4fe8e0, 0x5180a0, 0x5360c0, model and node
-   writers) are only for the authoring tool; port last or never.
+   destructible-environment client) is not. The writers: ported for preservation (Writing a world back).
 
 FIX (A) candidates: the pools hold 32-bit pointers in fields that are 32-bit
 in the file (texture +0x24, material +0x10/+0x24, node +0x38/+0x3c/+0x58/

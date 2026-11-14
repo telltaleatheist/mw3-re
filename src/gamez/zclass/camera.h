@@ -45,6 +45,7 @@ int camera_get_translate(Node* node, float* x, float* y, float* z);  // 0x004f39
 int camera_get_clip(Node* node, float* near_clip, float* far_clip);  // 0x004f3b00
 int camera_get_fov(Node* node, float* h, float* v);                // 0x004f3d00
 int camera_get_lod_scale(Node* node, float* f);                    // 0x004f3f70
+int camera_walk_zone(uint32_t* out);                               // 0x004f6c70: the walk's zone, as drawn
 
 // The camera's world matrix, position, view direction and euler angles, the
 // view matrix (0x00520b00), its planes and frustum points. `offset` moves it

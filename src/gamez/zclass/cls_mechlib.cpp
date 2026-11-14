@@ -343,4 +343,8 @@ Node* read_tree(TreeReader& lib, std::FILE* f, Node* parent) {
   return node;
 }
 
+// Mech3.exe 1.2 @ 0x004fce40 (ECX type): a mechlib node type's name for the debug log ("gw_object3d" for 5, else
+// "unknown"); ported for preservation.
+const char* mechlib_type_name(int32_t type) { return type == 5 ? "gw_object3d" : "unknown"; }
+
 }  // namespace zcls

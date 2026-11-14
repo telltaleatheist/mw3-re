@@ -4,6 +4,7 @@
 #include <cstring>
 #include <list>
 #include <string>
+#include <vector>
 
 #include "gamez/zerror/zerr.h"
 #include "gamez/zimage/zimg_library.h"
@@ -362,6 +363,36 @@ int32_t textures_free() {
   free_all(0);
   close_all(1);
   return 0;
+}
+
+// The world's writers (WriteZBD's; ported for preservation, docs/gamez.md, Writing a world back).
+
+// Mech3.exe 1.2 @ 0x00518050: an entry's row, -1 for none.
+int32_t texture_index(const TextureEntry* e) {
+  return e ? static_cast<int32_t>(e - g_table.entries) : -1;
+}
+
+// Mech3.exe 1.2 @ 0x005180a0 (ECX file): the table as the reader takes it, each mip a row again; the count, 0 when
+// it could not be written (reported). The exe writes the image and surface pointers as they are, which the reader
+// sets to none; 0 here.
+int write_texture_directory(std::FILE* f) {
+  const int32_t count = g_table.count;
+  if (count == 0) return 0;
+  std::vector<uint8_t> raw(static_cast<size_t>(count) * 0x28);
+  for (int32_t i = 0; i < count; ++i) {
+    const TextureEntry& e = g_table.entries[i];
+    uint8_t* r = raw.data() + i * 0x28;
+    std::memcpy(r + 8, e.name, 20);
+    std::memcpy(r + 0x1c, &e.state, 4);
+    std::memcpy(r + 0x20, &e.group, 4);
+    const int32_t mip = texture_index(e.mip);
+    std::memcpy(r + 0x24, &mip, 4);
+  }
+  if (std::fwrite(raw.data(), raw.size(), 1, f) != 1) {
+    zerr::report(0x200, kFile, 0xf1, "Error writing texture directory.");
+    return 0;
+  }
+  return count;
 }
 
 }  // namespace zimg
