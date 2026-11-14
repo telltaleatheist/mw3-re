@@ -415,7 +415,9 @@ bool WeaponGroup::remove(Weapon* w) {
   return true;
 }
 
-// Mech3.exe 1.2 @ 0x004b1f40: the next weapon with ammo that is not destroyed.
+// Mech3.exe 1.2 @ 0x004b1f40, Pirate's Moon 1.0 @ 0x004b5e10: the next weapon ready to fire (0x004b7bd0, the
+// port's can_fire: reloaded, ammo, not destroyed), so chain fire skips one still reloading; MW3 took the next
+// with ammo that was not destroyed.
 void WeaponGroup::next() {
   if (count <= 1) return;
   uint32_t i = static_cast<uint32_t>(current) <= count ? static_cast<uint32_t>(current) : count;
@@ -424,13 +426,13 @@ void WeaponGroup::next() {
   do {
     if (++i == count) i = 0;
     w = at(i);
-    if (w && w->ammo() != 0 && w->damage != 1.0f) current_weapon = w;
+    if (w && w->can_fire()) current_weapon = w;
   } while (!current_weapon && i != static_cast<uint32_t>(current));
   if (w) current = static_cast<int32_t>(i);
   current_weapon = at(static_cast<uint32_t>(current));
 }
 
-// Mech3.exe 1.2 @ 0x004b2000
+// Mech3.exe 1.2 @ 0x004b2000, Pirate's Moon 1.0 @ 0x004b5ea0: next()'s mirror, the previous weapon ready to fire.
 void WeaponGroup::prev() {
   if (count <= 1) return;
   int32_t i = static_cast<uint32_t>(current) <= count ? current : static_cast<int32_t>(count);
@@ -439,7 +441,7 @@ void WeaponGroup::prev() {
   do {
     if (--i < 0) i = static_cast<int32_t>(count) - 1;
     w = at(static_cast<uint32_t>(i));
-    if (w && w->ammo() != 0 && w->damage != 1.0f) current_weapon = w;
+    if (w && w->can_fire()) current_weapon = w;
   } while (!current_weapon && i != current);
   if (w) current = i;
   current_weapon = at(static_cast<uint32_t>(current));
@@ -624,54 +626,40 @@ Weapon* WeaponManager::current() const {
   return g ? g->current_weapon : nullptr;
 }
 
-// Mech3.exe 1.2 @ 0x004b04f0: the next group with a beam or a weapon with ammo.
+// Pirate's Moon 1.0 @ 0x004b43a0 / 0x004b4480's test, the same both ways: a live weapon counts when it is a beam,
+// uses no ammo (the weapons table, 0x00486ab0), has an infinite bin, or holds ammo. MW3's 0x004b04f0 took a beam or
+// ammo != 0 and its 0x004b0610 a beam or ammo > 0 (so its previous group skipped a Flamer-only group).
+static bool group_has_live(const WeaponGroup* grp) {
+  for (uint32_t i = 0; i < grp->count; ++i) {
+    const Weapon* w = grp->at(i);
+    if (w && w->damage != 1.0f && (w->is_beam() || !weapon_uses_ammo(w->index) || (w->bin && w->bin->infinite) || w->ammo() > 0))
+      return true;
+  }
+  return false;
+}
+
+// Mech3.exe 1.2 @ 0x004b04f0, Pirate's Moon 1.0 @ 0x004b43a0: the next group with a live weapon, selected as the
+// group keys select one (select_group: its current weapon moved on to a ready one).
 bool WeaponManager::next_group() {
-  bool found = false;
-  int32_t g = group;
-  for (;;) {
-    g = (g + 1) % 5;
-    if (g == group) return false;
-    WeaponGroup* grp = groups[g];
-    const uint32_t n = grp->count;
-    for (uint32_t i = 0; i < n && !found; ++i) {
-      Weapon* w = grp->at(i);
-      if (w && w->damage != 1.0f && (w->is_beam() || w->ammo() != 0)) found = true;
-    }
-    if (found) break;
-  }
-  release();
-  group = g;
-  refresh_hud();
-  return true;
+  for (int32_t g = (group + 1) % 5; g != group; g = (g + 1) % 5)
+    if (group_has_live(groups[g])) return select_group(g);
+  return false;
 }
 
-// Mech3.exe 1.2 @ 0x004b0610. Unlike next_group it wants ammo > 0, so a group
-// with only an unlimited-ammo weapon that is not a beam (the Flamer) is skipped.
+// Mech3.exe 1.2 @ 0x004b0610, Pirate's Moon 1.0 @ 0x004b4480: the previous one, by the same test.
 bool WeaponManager::prev_group() {
-  bool found = false;
-  int32_t g = group;
-  for (;;) {
-    g = (g + 4) % 5;
-    if (g == group) return false;
-    WeaponGroup* grp = groups[g];
-    const uint32_t n = grp->count;
-    for (uint32_t i = 0; i < n && !found; ++i) {
-      Weapon* w = grp->at(i);
-      if (w->damage != 1.0f && (w->is_beam() || w->ammo() > 0)) found = true;
-    }
-    if (found) break;
-  }
-  release();
-  group = g;
-  refresh_hud();
-  return true;
+  for (int32_t g = (group + 4) % 5; g != group; g = (g + 4) % 5)
+    if (group_has_live(groups[g])) return select_group(g);
+  return false;
 }
 
-// Mech3.exe 1.2 @ 0x004b0730
+// Mech3.exe 1.2 @ 0x004b0730, Pirate's Moon 1.0 @ 0x004b4560: PM moves the group on to a ready weapon (0x004b5e10)
+// when its current one isn't (0x004b7bd0), before the HUD's refresh; MW3 kept the current one.
 bool WeaponManager::select_group(int32_t g) {
   if (groups[g]->count < 1) return false;
   release();
   group = g;
+  if (WeaponGroup* grp = groups[g]; grp->current_weapon && !grp->current_weapon->can_fire()) grp->next();
   refresh_hud();
   return true;
 }
