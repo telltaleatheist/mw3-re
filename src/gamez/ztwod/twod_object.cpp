@@ -527,9 +527,15 @@ void Movie2D::start() { host().unported("0x005a7d10", {}); }
 // ---- Ripple ----
 
 // Mech3.exe 1.2 @ 0x005a53e0
-Ripple::Ripple() : Object2D(0, 0) {}
+Ripple::Ripple() : ManagerObject(0, 0) {}
 
 // Mech3.exe 1.2 @ 0x005a5440
-void Ripple::draw_ripple() { host().ripple(x, y, inner, outer, amplitude, wavelength, phase, clip); }
+void Ripple::draw_in_rect() { host().ripple(x, y, inner, outer, amplitude, wavelength, phase, rect); }
+
+// Mech3.exe 1.2 @ 0x005a5400
+void Ripple::place(int32_t px, int32_t py, int32_t in, int32_t out, int32_t amp, float wl, float ph) {
+  set_pos(px, py);
+  inner = in, outer = out, amplitude = amp, wavelength = wl, phase = ph;
+}
 
 }  // namespace ztwod

@@ -158,7 +158,7 @@ int32_t anim_fbfx_color(SeqDef& s, uint8_t* e) {
 }
 
 // Mech3.exe 1.2 @ 0x005076c0 (ECX the def, EDX the sequence): event 37, a
-// screen wave (FBFX_CSINWAVE_FROM_TO) through zTwoD (0x005a6760). +0x0c flags
+// screen wave (FBFX_CSINWAVE_FROM_TO), a ripple through zTwoD (0x005a6760). +0x0c flags
 // (1 screen place, 2 at a node, 8 world radius), +0x0e the node, +0x10 its
 // offset, +0x1c/+0x28 x and y (from, to, rate), +0x34/+0x38 the world radius,
 // +0x3c the screen radius, +0x48/+0x54/+0x60 csin x, y, z, +0x6c the time.

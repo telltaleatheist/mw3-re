@@ -114,17 +114,6 @@ void ScreenTint::draw_in_rect() {
   zrndr::tint(colour, reinterpret_cast<const int32_t*>(rect), alpha, hardware());
 }
 
-// Mech3.exe 1.2 @ 0x005a5440: the ripple (0x00558dd0, ECX x, EDX y).
-void ScreenWave::draw_in_rect() {
-  if (weather_hooks().wave) weather_hooks().wave(x, y, zero, radius, csin_x, csin_y, csin_z, rect);
-}
-
-// Mech3.exe 1.2 @ 0x005a5400
-void ScreenWave::place(int32_t px, int32_t py, int32_t z, int32_t r, int32_t cx, float cy, float cz) {
-  set_pos(px, py);
-  zero = z, radius = r, csin_x = cx, csin_y = cy, csin_z = cz;
-}
-
 namespace {
 // Mech3.exe 1.2 @ 0x005a5a60 (ECX the count, EDX the rect): every vertex
 // inside it, edges included; no rect, all of them.
@@ -325,7 +314,7 @@ void Snow::update(float dt) {
 WeatherLayer::WeatherLayer() {
   add(&tint);
   tint.hide();
-  for (ScreenWave& w : waves) {
+  for (Ripple& w : waves) {
     add(&w);
     w.hide();
   }
@@ -343,10 +332,10 @@ void weather_tint(uint16_t colour, double alpha) {
 }
 
 // Mech3.exe 1.2 @ 0x005a6760 -> 0x005a6650
-void weather_wave(int32_t x, int32_t y, int32_t zero, int32_t radius, int32_t csin_x, float csin_y, float csin_z) {
-  ScreenWave& w = g_layer.waves[g_layer.wave_count];
+void weather_wave(int32_t x, int32_t y, int32_t inner, int32_t outer, int32_t amplitude, float wavelength, float phase) {
+  Ripple& w = g_layer.waves[g_layer.wave_count];
   if (g_layer.wave_count < 4) ++g_layer.wave_count;
-  w.place(x, y, zero, radius, csin_x, csin_y, csin_z);
+  w.place(x, y, inner, outer, amplitude, wavelength, phase);
   w.show_for(0.0f);
 }
 

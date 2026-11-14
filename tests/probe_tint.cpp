@@ -11,6 +11,7 @@
 #include "gamez/zmath/zmth_matrix.h"
 #include "gamez/zrender/zrndr_fog.h"
 #include "gamez/zrender/zrndr_tint.h"
+#include "gamez/ztwod/twod_host.h"
 #include "gamez/ztwod/twod_weather.h"
 #include "gamez/zvideo/zvid_dd.h"
 #include "gamez/zvideo/zvid_format.h"
@@ -34,8 +35,20 @@ struct WaveCalls {
   float d2 = 0, moved[3] = {}, screen[2] = {};
   uint32_t code = 0;
   std::vector<uint32_t> asked;  // world_point: 1, the point; project: 2, the point
-  std::vector<uint32_t> draws;  // per ripple: x y zero radius csin_x, y, z (bits), rect 1/2/0
+  std::vector<uint32_t> draws;  // per ripple: x y inner outer amplitude, wavelength, phase (bits), rect 1/2/0
 } g_wave;
+
+// zRender's ripple (0x00558dd0) recorded.
+struct WaveHost : ztwod::Host {
+  void ripple(int32_t x, int32_t y, int32_t in, int32_t out, int32_t amp, float wl, float ph,
+              const ztwod::Rect* rect) override {
+    const ztwod::WeatherLayer& l = ztwod::weather_layer();
+    g_wave.draws.insert(g_wave.draws.end(), {static_cast<uint32_t>(x), static_cast<uint32_t>(y),
+                                             static_cast<uint32_t>(in), static_cast<uint32_t>(out),
+                                             static_cast<uint32_t>(amp), fb(wl), fb(ph),
+                                             rect == l.rects[0] ? 1u : rect == l.rects[1] ? 2u : 0u});
+  }
+} g_wave_host;
 }  // namespace
 
 extern "C" {
@@ -94,8 +107,8 @@ int32_t probe_tint_run(const uint8_t* ev, uint32_t now, uint32_t left, uint32_t 
 // projection's code and x, y, the wave count before, each slot's flags and
 // timer (10), the rects (bits 0, 1) and their 8 ints. out: the
 // result, the time left, +0x3c, +0x40, +0x44, the count after, each slot's x
-// y zero radius csin_x csin_y csin_z flags timer (5 x 9), then the calls asked
-// (count first) and the draws (count first).
+// y inner outer amplitude wavelength phase flags timer (5 x 9), then the calls
+// asked (count first) and the ripples drawn (count first).
 int32_t probe_wave_run(const uint8_t* ev, uint32_t now, int32_t state, uint32_t left, int32_t has_node, uint32_t d2,
                        uint32_t fx, int32_t w, int32_t h, const uint32_t* moved, uint32_t code, const uint32_t* screen,
                        int32_t count, const uint32_t* slots, int32_t rects, const int32_t* r8, uint32_t* out) {
@@ -116,17 +129,11 @@ int32_t probe_wave_run(const uint8_t* ev, uint32_t now, int32_t state, uint32_t 
     o[0] = g_wave.screen[0], o[1] = g_wave.screen[1], o[2] = 0;
     return g_wave.code;
   };
-  rh.screen_wave = [](void*, int32_t x, int32_t y, int32_t z, int32_t r, int32_t cx, float cy, float cz) {
-    ztwod::weather_wave(x, y, z, r, cx, cy, cz);
+  rh.screen_wave = [](void*, int32_t x, int32_t y, int32_t in, int32_t out, int32_t amp, float wl, float ph) {
+    ztwod::weather_wave(x, y, in, out, amp, wl, ph);
   };
-  ztwod::WeatherHooks& wh = ztwod::weather_hooks();
-  const auto saved_wave = wh.wave;
-  wh.wave = [](int32_t x, int32_t y, int32_t z, int32_t r, int32_t cx, float cy, float cz, const ztwod::Rect* rect) {
-    const ztwod::WeatherLayer& l = ztwod::weather_layer();
-    g_wave.draws.insert(g_wave.draws.end(), {static_cast<uint32_t>(x), static_cast<uint32_t>(y), static_cast<uint32_t>(z),
-                                             static_cast<uint32_t>(r), static_cast<uint32_t>(cx), fb(cy), fb(cz),
-                                             rect == l.rects[0] ? 1u : rect == l.rects[1] ? 2u : 0u});
-  };
+  ztwod::Host* saved_host = &ztwod::host();
+  ztwod::set_host(&g_wave_host);
   zvid::text_target().pixels = nullptr;
   zmth::projection().fx = bf(fx);
   zvid::surfaces().back.width = w, zvid::surfaces().back.height = h;
@@ -137,9 +144,9 @@ int32_t probe_wave_run(const uint8_t* ev, uint32_t now, int32_t state, uint32_t 
   }
   l.wave_count = count;
   for (int i = 0; i < 5; ++i) {
-    ztwod::ScreenWave& v = l.waves[i];
+    ztwod::Ripple& v = l.waves[i];
     v.flags = slots[2 * i], v.timer = bf(slots[2 * i + 1]);
-    v.x = v.y = v.zero = v.radius = v.csin_x = 0, v.csin_y = v.csin_z = 0, v.rect = nullptr;
+    v.x = v.y = v.inner = v.outer = v.amplitude = 0, v.wavelength = v.phase = 0, v.rect = nullptr;
   }
   std::vector<uint8_t> e(ev, ev + 0x70);
   zeff::NodeRef40 refs[8]{};
@@ -157,9 +164,9 @@ int32_t probe_wave_run(const uint8_t* ev, uint32_t now, int32_t state, uint32_t 
   out[k++] = fb(zeff::anim().time_left());
   for (int off : {0x3c, 0x40, 0x44}) out[k++] = *reinterpret_cast<const uint32_t*>(e.data() + off);
   out[k++] = static_cast<uint32_t>(l.wave_count);
-  for (const ztwod::ScreenWave& v : l.waves) {
-    for (int32_t i : {v.x, v.y, v.zero, v.radius, v.csin_x}) out[k++] = static_cast<uint32_t>(i);
-    out[k++] = fb(v.csin_y), out[k++] = fb(v.csin_z), out[k++] = v.flags, out[k++] = fb(v.timer);
+  for (const ztwod::Ripple& v : l.waves) {
+    for (int32_t i : {v.x, v.y, v.inner, v.outer, v.amplitude}) out[k++] = static_cast<uint32_t>(i);
+    out[k++] = fb(v.wavelength), out[k++] = fb(v.phase), out[k++] = v.flags, out[k++] = fb(v.timer);
   }
   // The draw of the slot this event's call went to (the count before, at most 4).
   l.waves[count < 4 ? count : 4].draw();
@@ -168,7 +175,7 @@ int32_t probe_wave_run(const uint8_t* ev, uint32_t now, int32_t state, uint32_t 
   out[k++] = static_cast<uint32_t>(g_wave.draws.size());
   for (uint32_t v : g_wave.draws) out[k++] = v;
   rh = saved;
-  wh.wave = saved_wave;
+  ztwod::set_host(saved_host);
   return k;
 }
 

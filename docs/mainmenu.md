@@ -221,8 +221,8 @@ never negative).
   section 10); what follows a pilot (the Action screen, the multiplayer
   screens) is still a hook. They share MenuScreen, ShellButton,
   SlideButton, ScrollImage, the cycle button, the file list and the edit bar.
-- The ripple's drawing (zRender 0x00558dd0) and the render overlay layer
-  (0x005a4590..) a Ripple can also live in (its +0x04, 0x005a5360).
+- Done: the render overlay layer (0x005a4590..) a Ripple can also live in
+  (its +0x04, 0x005a5360; anim event 37's screen waves, anim-run.md).
 - The Main state itself still goes through `construct` / `vcall` (its test,
   test_app_states.py, compares those calls); it can call the screen
   directly once the menu states are ported.

@@ -684,8 +684,9 @@ Mapped, not ported:
   key-list screen's other pieces (0x00482570). Shape's hit test 0x005a3440
   and Frame's 0x005a3b30 (TARGET's 0x00440a30, hooked in the HUD). Done:
   the ripple's +0x04 0x005a5360 and zRender's 0x00558dd0, the key list
-  0x00482570, both hit tests. Open: the overlay 0x005a4590.., the text
-  console 0x005a3cd0.. and the interp debug console (developer only).
+  0x00482570, both hit tests, the overlay 0x005a4590.. (weather.md: its
+  tint and five ripples, 2026-11-14). Open: the text console 0x005a3cd0..
+  and the interp debug console (developer only).
 - Weather drawing 0x005a5470..0x005a6110 (world-params.md). Done
   (twod_weather.cpp).
 - Outside zTwoD, behind Host: zImage's image cache 0x005179d0 / 0x00517b10
