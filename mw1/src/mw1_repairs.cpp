@@ -64,19 +64,15 @@ SalvageSum salvage_after_repairs(int64_t pool, const std::vector<int64_t>& bills
 Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills, int64_t pool, int32_t term_percent, int32_t payout_percent) {
   Repairs r;
   // The bills in the pool's order: the commander's mech first (or, every mech lost, the last one's full repair),
-  // then the lancemates' in the bills' order. Each with its line's words before the amount.
-  struct Line {
-    int64_t amount;
-    std::string words;
-  };
-  std::vector<Line> order;
+  // then the lancemates' in the bills' order.
+  std::vector<MechRepair> order;
   std::vector<std::string> lost;
   bool commander_lost = false;
   for (const MechBill& b : bills)
     if (b.who == 0) {
       if (b.destroyed) commander_lost = true;
       else if (const int64_t bill = pay_override().commander_repairs >= 0 ? pay_override().commander_repairs : bill_of(c, b); bill > 0)
-        order.push_back({bill, "Repairs: the " + mech_title(b.mech)});
+        order.push_back({0, b.mech, bill, 0, false});
     }
   if (commander_lost) {
     const int32_t was = c.mech;
@@ -89,29 +85,33 @@ Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills, int64_t p
       const OwnedMech o = c.hangar[static_cast<size_t>(take)];
       c.hangar.erase(c.hangar.begin() + take);
       c.mech = o.mech, c.loadout = o.loadout;
+      r.took = o.mech, r.took_from = from;
       lost.push_back("Lost: your " + mech_title(was) + ". You take the " + mech_title(o.mech) +
                      (from ? "; " + pilot_title(from) + " stays behind next time." : "."));
     } else {
       // The safety net: every mech the company owned destroyed; the last comes back, fully repaired, on the bill.
-      order.push_back({full_repair(c, was), "Your last mech, the " + mech_title(was) + ", is recovered and repaired:"});
+      order.push_back({0, was, full_repair(c, was), 0, true});
     }
   }
   for (const MechBill& b : bills) {
     if (b.who == 0 || b.destroyed) continue;  // lost (a lancemate's with them: after_mission), never billed
     if (const int64_t bill = bill_of(c, b); bill > 0)
-      order.push_back({bill, "Repairs: the " + mech_title(b.mech) + " (" + pilot_title(b.who) + ")"});
+      order.push_back({b.who, b.mech, bill, 0, false});
   }
   std::vector<int64_t> amounts;
-  for (const Line& l : order) amounts.push_back(l.amount);
+  for (const MechRepair& m : order) amounts.push_back(m.amount);
   r.sum = salvage_after_repairs(pool, amounts, term_percent, payout_percent);
   r.lines = lost;
+  if (!order.empty()) r.lines.push_back("Repairs:");
   for (size_t i = 0; i < order.size(); ++i) {
-    const int64_t from = r.sum.from_pool[i];
-    std::string l = order[i].words + " " + thousands(order[i].amount);
-    if (from == order[i].amount) l += ", from the wrecks";
-    else if (from > 0) l += ", " + thousands(from) + " from the wrecks";
-    r.lines.push_back(l);
+    MechRepair& m = order[i];
+    m.from_pool = r.sum.from_pool[i];
+    const int64_t billed = m.amount - m.from_pool;
+    r.lines.push_back(mech_title(m.mech) + " (" + (m.who ? pilot_title(m.who) : std::string("you")) + ")" +
+                      (m.rebuilt ? " rebuilt" : "") + ": " + thousands(m.amount) +
+                      (billed == 0 ? ", paid from salvage" : m.from_pool == 0 ? ", billed" : ", " + thousands(billed) + " billed"));
   }
+  r.mechs = order;
   r.billed = r.sum.beyond;
   r.paid = std::min<int64_t>(r.billed, std::max<int64_t>(c.funds, 0));
   r.forgiven = r.billed - r.paid;
@@ -119,6 +119,22 @@ Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills, int64_t p
   if (r.billed > 0)
     r.lines.push_back("Repair bill: " + thousands(r.billed) + " C-bills" + (r.forgiven ? " (" + thousands(r.forgiven) + " forgiven)" : ""));
   return r;
+}
+
+std::vector<std::string> repair_line_choices(const Repairs& r) {
+  if (r.mechs.empty()) return {};
+  int64_t amount = 0, from = 0;
+  bool rebuilt = false;
+  for (const MechRepair& m : r.mechs) amount += m.amount, from += m.from_pool, rebuilt = rebuilt || m.rebuilt;
+  const int64_t billed = amount - from;
+  const std::string who = r.mechs.size() == 1 ? mech_title(r.mechs[0].mech) : std::to_string(r.mechs.size()) + " 'Mechs";
+  const std::string done = who + (r.mechs.size() == 1 && rebuilt ? " rebuilt: " : " repaired: ");
+  const std::string forgiven = r.forgiven ? " (" + thousands(r.forgiven) + " forgiven)" : "";
+  const std::string a = thousands(amount);
+  if (billed == 0) return {done + a + " C-bills, paid from salvage", done + a + ", paid from salvage", "Repairs: " + a + ", from salvage"};
+  const std::string b = from == 0 ? "billed" : thousands(billed) + " billed";
+  return {done + a + " C-bills, " + b + " to you" + forgiven, done + a + ", " + b + forgiven, "Repairs: " + a + ", " + b + forgiven,
+          "Repairs: " + a + ", " + b};
 }
 
 PayOverride& pay_override() {

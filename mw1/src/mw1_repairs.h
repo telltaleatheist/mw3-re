@@ -75,11 +75,27 @@ SalvageSum salvage_after_repairs(int64_t pool, const std::vector<int64_t>& bills
 // forgiven. The commander's destroyed mech is lost: they take the first idle hangar mech, else a lancemate's (who
 // stays behind); with none left, the last comes back fully repaired, on the bill (the commander's). The lines for
 // AFTER ACTION, the hub and DETAILS; `sum` the salvage's arithmetic (its pay not added here: settle_mission's).
+// FIXES.md item 57 (Owen 2026-11-18): the repairs are the mission's result, shown on AFTER ACTION in plain words, never
+// as a hub message. Each mech repaired, in the pool's order: who flew it, its bill, the pool's part of it; `rebuilt`
+// the safety net's (the last mech recovered, a full repair).
+struct MechRepair {
+  int32_t who = 0, mech = -1;
+  int64_t amount = 0, from_pool = 0;
+  bool rebuilt = false;
+};
 struct Repairs {
   int64_t billed = 0, paid = 0, forgiven = 0;  // billed: past the pool, from the funds
   SalvageSum sum;
+  std::vector<MechRepair> mechs;
+  int32_t took = -1, took_from = 0;  // the commander's mech lost: the mech they take, and the lancemate's it was (0 none)
+  // DETAILS' lines (and the hub's AFTER ACTION without the results' layout): a lost mech's fate, then "Repairs:" and
+  // each mech's ("Owens (you): 4,963, paid from salvage"), then the bill past the pool ("Repair bill: ...").
   std::vector<std::string> lines;
 };
+// PAYMENT's repair line, its wordings from the fullest to the shortest (the screen shows the first that fits): one
+// mech, "Owens repaired: 4,963 C-bills, paid from salvage" or "... 400,000 billed to you"; several, "3 'Mechs
+// repaired: ..." (each one's in DETAILS); the last "Repairs: 412,000, 361,000 billed". None without repairs.
+std::vector<std::string> repair_line_choices(const Repairs& r);
 Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills, int64_t pool = 0, int32_t term_percent = 0,
                        int32_t payout_percent = 100);
 

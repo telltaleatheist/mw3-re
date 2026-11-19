@@ -269,8 +269,8 @@ struct Run {
   bool mend_player = false;
   // The commander's mech destroyed in the mission (an idle Firefly put in the hangar first): lost, the Firefly theirs.
   bool kill_player = false, spare_set = false;
-  int64_t bill_shown = -1;  // AFTER ACTION's "Repair bill: " (or PAYMENT's "Billed ", past the wrecks), -1 none
-  bool from_wrecks = false;  // a mech's repairs paid from the wrecks' worth (FIXES.md item 51; DETAILS' lines)
+  int64_t bill_shown = -1;  // AFTER ACTION's "Repair bill: " (DETAILS', or the hub's without the layout), -1 none
+  bool from_wrecks = false;  // the repairs paid from the wrecks' worth (FIXES.md items 51, 57: PAYMENT's repair line)
   int32_t messages_read = 0;  // the hub's MESSAGES panels dismissed with OK
   int32_t message_pages = 0;  // the pages before their last (NEXT), FIXES.md item 42
   int32_t hover_step = 0;     // the hub's OK hovered by the mouse (the market run), then left
@@ -868,7 +868,8 @@ void loop_run(Ending ending, Run* run = nullptr) {
         sc->on_button(mw1::kResultsDetails, 0, 0);
         EXPECT(on_screen_now(sc, "PAYMENT"));
         std::vector<std::string> all = {rp->outcome};
-        for (const std::vector<std::string>* v : {&rp->where, &rp->pay, &rp->crew, &rp->mech}) all.insert(all.end(), v->begin(), v->end());
+        const std::vector<std::string> pay = mw1::pay_lines(*rp, mw1::kResultsWide.status);  // with its repair line
+        for (const std::vector<std::string>* v : {&rp->where, &pay, &rp->crew, &rp->mech}) all.insert(all.end(), v->begin(), v->end());
         for (const std::vector<mw1::ListRow>* v : {&rp->salvage, &rp->kills})
           for (const mw1::ListRow& r : *v) all.push_back(r.words);
         std::vector<std::string> mission = rp->where;  // its ending, time, lance and wrecks
@@ -909,7 +910,7 @@ void loop_run(Ending ending, Run* run = nullptr) {
           bill_shown = std::max<int64_t>(0, bill);
           if (run) {
             run->bill_shown = bill;
-            for (const std::string& l : all) run->from_wrecks = run->from_wrecks || l.find("from the wrecks") != std::string::npos;
+            for (const std::string& l : pay) run->from_wrecks = run->from_wrecks || l.find("paid from salvage") != std::string::npos;
           }
         }
         if (run && run->after_action.empty()) run->after_action = all, run->results_lines = mission;

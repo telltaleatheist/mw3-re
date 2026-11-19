@@ -1728,35 +1728,31 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
     if (!objective.empty()) p.where.push_back(objective);
     p.where.push_back(std::string(success ? "Accomplished" : a.outcome == Outcome::kFailure ? "Failed" : "Withdrew") + " in " +
                       time_words(a.seconds));
-    // PAYMENT (FIXES.md item 51): the wrecks' worth less the repairs, the salvage term on what's left, the fee (any
-    // deduction on both), the total and the funds. Each mech's repairs in DETAILS.
+    // PAYMENT (FIXES.md items 51 and 57): the repairs in plain words (paid from the wrecks' worth first, the rest
+    // billed: one line, the mech's or the lance's total; each mech's in DETAILS), the salvage term on what's left, the
+    // fee (any deduction on both), the total and the funds.
     const bool docked = s.payout_percent < 100 && success;
     const std::string dock = !docked ? "" : s.payout_percent ? " (" + std::to_string(s.payout_percent) + "% paid)" : " (withheld)";
     const SalvageSum& sum = rep.sum;
+    p.repairs = repair_line_choices(rep);
     if (success) {
-      if (sum.repairs == 0) p.pay.push_back("Wrecks " + thousands(sum.pool) + ", no repairs");
-      else if (sum.beyond == 0)
-        p.pay.push_back("Wrecks " + thousands(sum.pool) + " - repairs " + thousands(sum.repairs) + " = " + thousands(sum.left));
-      else  // past the pool: the rest billed, no salvage (two lines: the narrow 4:3 panel)
-        p.pay.push_back("Wrecks " + thousands(sum.pool) + " - repairs " + thousands(sum.repairs)),
-            p.pay.push_back("Billed " + thousands(sum.beyond) + (rep.forgiven ? " (" + thousands(rep.forgiven) + " forgiven)" : "") +
-                            ", no salvage left");
-      if (sum.beyond > 0) {
-      } else if (sum.left == 0) p.pay.push_back("Salvage: nothing left");
+      if (sum.beyond > 0 || (sum.repairs > 0 && sum.left == 0)) p.pay.push_back("Salvage: none left after repairs");
+      else if (sum.left == 0) p.pay.push_back("Salvage: nothing left");
       else
         p.pay.push_back("Salvage: " + (m.term >= 100 ? std::string("all") : std::to_string(m.term) + "%") + " of " +
                         thousands(sum.left) + " = " + thousands(s.salvage) + dock);
     } else {
       p.pay.push_back(std::string("Salvage: none (") + (a.outcome == Outcome::kFailure ? "lost" : "withdrew") + ")");
-      for (const std::string& l : rep.lines)
-        if (l.rfind("Repair bill", 0) == 0) p.pay.push_back(l);
     }
     if (contract_.rung) p.pay.push_back("No fee: not a contract");
     else p.pay.insert(success ? p.pay.end() : p.pay.begin(), "Fee: " + thousands(s.fee) + dock);
+    p.repairs_at = success ? 0 : p.pay.size();  // a win's first (the salvage after them); else after the salvage
     const int64_t total = c.funds - before;
     p.pay.push_back("Total: " + std::string(total < 0 ? "-" : "+") + thousands(total < 0 ? -total : total) + "   Funds: " +
                     thousands(c.funds));
-    // CREW STATUS: each mech that flew, who flew it, what's left of it (MW1's "JENNER 93 %"); a lancemate's fate.
+    // CREW STATUS: each mech that flew, who flew it, what's left of it (MW1's "JENNER 93 %"); a lancemate's fate or
+    // promotion (FIXES.md item 57: the mission's, here, not a hub message).
+    std::vector<std::string> promoted;
     for (const auto& b : a.bills) {
       std::string l = mech_title(b.mech) + " (" + (b.who == 0 ? std::string("you") : pilot_title(b.who)) + "): ";
       if (b.destroyed) {
@@ -1765,9 +1761,19 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
           if (f.id == b.who && f.destroyed) l += pilot_killed(f) ? ", KILLED" : ", MISSING";
       } else {
         l += std::to_string(std::clamp(100 - (b.damage * 100 + kWhole / 2) / kWhole, 0, 100)) + "%";
+        // Promoted by this mission (after_mission's, on the copy): on the line when it fits 4:3's, else its own.
+        if (b.who && gunnery(c, b.who) > gunnery(company_, b.who)) {
+          const std::string up = pilot_title(b.who) + " promoted: Gunnery " + kRatingNames[gunnery(c, b.who)];
+          if (l.size() + 10 <= kResultsNarrow.status) l += ", promoted";
+          else promoted.push_back(up);
+        }
       }
       p.crew.push_back(l);
     }
+    for (const std::string& l : promoted) p.crew.push_back(l);
+    // The commander's mech lost: the one they take (and the lancemate who stays behind for it).
+    if (rep.took >= 0)
+      p.crew.push_back("Next: you take the " + mech_title(rep.took) + (rep.took_from ? ", " + pilot_title(rep.took_from) + " stays" : ""));
     if (a.bills.empty())  // a mission saved before the bills: the fates alone
       for (const LanceFate& f : a.lance)
         p.crew.push_back(pilot_title(f.id) + (!f.destroyed ? ": came back" : pilot_killed(f) ? ": KILLED" : ": MISSING"));
@@ -1790,9 +1796,10 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
                          static_cast<int32_t>(i)});
     }
     if (p.kills.empty()) p.kills.push_back({"None"});
-    // Each mech's repairs, how much the wrecks paid (FIXES.md item 51), a lost mech's fate, the bill past them.
+    // Each mech's repairs, how much the wrecks paid (FIXES.md items 51, 57), a lost mech's fate, the bill past them.
     if (!rep.lines.empty()) {
       p.kills.push_back({""});
+      if (success) p.kills.push_back({"Wrecks' worth: " + thousands(sum.pool) + " C-bills"});
       for (const std::string& l : rep.lines) p.kills.push_back({l});
     }
     p.mech_title = "YOUR " + upper(mech_title(company_.mech));
@@ -2230,7 +2237,11 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
   // salvage on a win, the experience, casualties and repairs on a counted mission, the time and the world moved on.
   void settle_pending() {
     // The fee, the fates, the repairs from the wrecks' worth, then the salvage on what's left (FIXES.md item 51).
+    // The fates' notes (promotions, losses, the killed and missing) and the repairs are the mission's result, shown on
+    // AFTER ACTION (FIXES.md item 57): never the hub's MESSAGES.
+    const size_t notes = company_.notices.size();
     const MissionSettled m = settle_mission(company_, contract_, *pending_, rng_);
+    company_.notices.resize(std::min(notes, company_.notices.size()));
     const Settlement& s = m.s;
     // The parts are kept only on a win (VISION.md, the endings): failed or quit, the mission's salvage is dropped.
     if (pending_->outcome == Outcome::kSuccess && pending_->salvage) company_.stores->add_all(*pending_->salvage);
@@ -2240,7 +2251,6 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
     // Then the repairs (mw1_repairs.h): the bill, the commander's loss.
     if (pending_->outcome != Outcome::kRetreat) {
       const Repairs& r = m.r;
-      for (const std::string& l : r.lines) company_.notices.push_back(l);
       std::printf("mw1: repairs: %s, %s from the wrecks (%s), %s left; billed %s, paid %s, forgiven %s\n",
                   thousands(r.sum.repairs).c_str(), thousands(r.sum.covered).c_str(), thousands(r.sum.pool).c_str(),
                   thousands(r.sum.left).c_str(), thousands(r.billed).c_str(), thousands(r.paid).c_str(), thousands(r.forgiven).c_str());
@@ -2438,7 +2448,8 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       l.push_back(pilot_title(f.id) + (!f.destroyed                                ? ": flew"
                                        : pending_->outcome == Outcome::kRetreat ? ": mech destroyed"
                                        : pilot_missing(f)                       ? ": MISSING"
-                                                                                : ": KILLED"));
+                                                                                : ": KILLED") +
+                (!f.destroyed && gunnery(c, f.id) > gunnery(company_, f.id) ? ", promoted" : ""));
     for (int32_t id : pending_->stayed)
       l.push_back(pilot_title(id) + " stayed behind: no place on this map (" + std::to_string(pending_->lance.size()) + " allied)");
     if (pending_->outcome == Outcome::kFailure) l.push_back(""), l.push_back("REPLAY: play it again as it was");

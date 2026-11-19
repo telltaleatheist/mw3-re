@@ -212,7 +212,19 @@ TEST(mw1_repairs_settled_from_the_pool) {
   for (const std::string& l : r.lines) std::printf("  %s\n", l.c_str());
   EXPECT(r.sum.repairs == 62339 / 4 + 53206 / 10 && r.sum.covered == r.sum.repairs && r.billed == 0 && c.funds == 1000000);
   EXPECT(r.sum.left == 100000 - r.sum.repairs && r.sum.pay == r.sum.left * 10 / 100);
-  EXPECT(r.lines.size() == 2 && r.lines[0].rfind("Repairs: the Owens ", 0) == 0 && r.lines[0].find("from the wrecks") != std::string::npos);
+  // DETAILS' lines (FIXES.md item 57): a heading, then each mech's, the commander's first, in plain words.
+  EXPECT(r.lines.size() == 3 && r.lines[0] == "Repairs:" && r.lines[1] == "Owens (you): 15,584, paid from salvage");
+  EXPECT(r.mechs.size() == 2 && r.mechs[0].who == 0 && r.mechs[0].from_pool == 15584 && r.mechs[1].who == 1);
+  // PAYMENT's line: two mechs, their total, fullest first, each shorter.
+  std::vector<std::string> pl = mw1::repair_line_choices(r);
+  EXPECT(pl.size() >= 2 && pl[0] == "2 'Mechs repaired: 20,904 C-bills, paid from salvage" && pl[1] == "2 'Mechs repaired: 20,904, paid from salvage");
+  for (size_t i = 1; i < pl.size(); ++i) EXPECT(pl[i].size() < pl[i - 1].size());
+  // One mech: its own name (Owen's words).
+  c = company();
+  r = mw1::settle_repairs(c, {{0, mw1::kPmOwens, 2500, false}}, 100000, 10, 100);
+  pl = mw1::repair_line_choices(r);
+  EXPECT(!pl.empty() && pl[0] == "Owens repaired: 15,584 C-bills, paid from salvage");
+  EXPECT(mw1::repair_line_choices(mw1::settle_repairs(c, {}, 100000, 10, 100)).empty());
   // A pool of 16,000: the commander's first (15,584 from it), the Firefly's 416 from it and 4,904 billed.
   c = company();
   r = mw1::settle_repairs(c, {{1, mw1::kPmFirefly, 1000, false}, {0, mw1::kPmOwens, 2500, false}}, 16000, 10, 100);
@@ -220,6 +232,13 @@ TEST(mw1_repairs_settled_from_the_pool) {
   EXPECT(r.sum.from_pool.size() == 2 && r.sum.from_pool[0] == 62339 / 4 && r.sum.from_pool[1] == 16000 - 62339 / 4);
   EXPECT(r.billed == r.sum.repairs - 16000 && r.paid == r.billed && c.funds == 1000000 - r.billed && r.sum.pay == 0);
   EXPECT(r.lines.back().rfind("Repair bill: ", 0) == 0);
+  pl = mw1::repair_line_choices(r);
+  EXPECT(!pl.empty() && pl[0] == "2 'Mechs repaired: 20,904 C-bills, 4,904 billed to you" && pl.back() == "Repairs: 20,904, 4,904 billed");
+  // Nothing from the pool (a failure): "billed" alone.
+  c = company();
+  r = mw1::settle_repairs(c, {{0, mw1::kPmOwens, 2500, false}}, 0, 10, 100);
+  pl = mw1::repair_line_choices(r);
+  EXPECT(!pl.empty() && pl[0] == "Owens repaired: 15,584 C-bills, billed to you" && r.lines[1] == "Owens (you): 15,584, billed");
   // The commander's last mech lost: its full repair comes off the top of the pool.
   c = company();
   c.mech = mw1::kPmFirefly;

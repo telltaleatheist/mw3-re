@@ -125,3 +125,30 @@ TEST(mw1_results_the_list_scrolls_and_details) {
   p.salvage.resize(3);
   EXPECT(!mw1::results_view(p, {}, false).buttons[mw1::kResultsListDown - 1].there);
 }
+
+// FIXES.md item 57: PAYMENT's repair line, the fullest wording that fits the panel (16:9's, 4:3's), at its place;
+// none without repairs.
+TEST(mw1_results_repair_line_fits_the_panel) {
+  mw1::ResultsPanel p;
+  p.pay = {"Salvage: 50% of 46,037 = 23,018", "Fee: 400,000", "Total: +423,018   Funds: 1,000,000"};
+  const std::vector<std::string> pay = p.pay;
+  EXPECT(mw1::pay_lines(p, mw1::kResultsNarrow.status) == pay);
+  p.repairs = {"Owens repaired: 4,963 C-bills, paid from salvage", "Owens repaired: 4,963, paid from salvage",
+               "Repairs: 4,963, from salvage"};
+  p.repairs_at = 0;
+  std::vector<std::string> l = mw1::pay_lines(p, mw1::kResultsWide.status);
+  EXPECT(l.size() == 4 && l[0] == p.repairs[0] && l[1] == pay[0]);
+  l = mw1::pay_lines(p, mw1::kResultsNarrow.status);
+  EXPECT(l.size() == 4 && l[0] == p.repairs[1] && l[0].size() <= mw1::kResultsNarrow.status);
+  EXPECT(mw1::pay_lines(p, 10)[0] == p.repairs.back());  // none fits: the shortest
+  p.repairs_at = 9;                                          // past the end: last
+  EXPECT(mw1::pay_lines(p, 80).back() == p.repairs[0]);
+  // On the screen: PAYMENT's four lines, the repair line among them.
+  p.repairs_at = 0;
+  for (bool wide : {false, true}) {
+    const mw1::ScreenView v = mw1::results_view(p, {}, wide);
+    const std::vector<std::string> shown = place(v, "PAY");
+    EXPECT(shown.size() == mw1::kPayLines && shown[0] == p.repairs[wide ? 0 : 1]);
+    for (const std::string& s : shown) EXPECT(s.size() <= (wide ? mw1::kResultsWide : mw1::kResultsNarrow).status);
+  }
+}

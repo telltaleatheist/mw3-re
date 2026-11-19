@@ -88,6 +88,10 @@ struct ResultsPanel {
   int32_t house = -1;                    // the world's House: its crest
   std::vector<std::string> where;        // under the picture: paragraphs (wrapped to the column)
   std::vector<std::string> pay, crew;    // the status panel's (cut to kPayLines, kCrewLines)
+  // PAYMENT's repair line (FIXES.md item 57): its wordings, fullest first (repair_line_choices); the view puts the
+  // first that fits the panel's width in at `repairs_at`. None: no line.
+  std::vector<std::string> repairs;
+  size_t repairs_at = 0;
   std::vector<ListRow> salvage;          // SALVAGE TO STORES, all of it (the list scrolls)
   std::string kills_title = "ENEMY MECHS DESTROYED";
   std::vector<ListRow> kills;            // DETAILS: each wreck, by whom, its value
@@ -106,6 +110,8 @@ const std::vector<ListRow>& results_list(const ResultsPanel& p, const ResultsCho
 void clamp_choice(const ResultsPanel& p, ResultsChoice& c);
 // The screen's texts, pictures and buttons (pure: the tests read it), for the wide layout or 4:3's.
 ScreenView results_view(const ResultsPanel& p, const ResultsChoice& c, bool wide);
+// PAYMENT's lines as shown: `pay` with the first of `repairs` no wider than `width` (else the last) at `repairs_at`.
+std::vector<std::string> pay_lines(const ResultsPanel& p, size_t width);
 // Lines cut to `n`: past it, the last line says "... and N more".
 std::vector<std::string> fit_lines(std::vector<std::string> lines, size_t n = kTerminalLines);
 // A mission's time as the results say it: "12:05" (minutes, seconds); "unknown" below 0.

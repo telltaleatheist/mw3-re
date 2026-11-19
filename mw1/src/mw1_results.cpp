@@ -76,6 +76,19 @@ void clamp_choice(const ResultsPanel& p, ResultsChoice& c) {
   c.top = std::max(0, std::min(c.top, n - kListRows));
 }
 
+std::vector<std::string> pay_lines(const ResultsPanel& p, size_t width) {
+  std::vector<std::string> l = p.pay;
+  if (p.repairs.empty()) return l;
+  std::string line = p.repairs.back();
+  for (const std::string& r : p.repairs)
+    if (r.size() <= width) {
+      line = r;
+      break;
+    }
+  l.insert(l.begin() + static_cast<long>(std::min(p.repairs_at, l.size())), line);
+  return l;
+}
+
 ScreenView results_view(const ResultsPanel& p, const ResultsChoice& choice, bool wide) {
   ResultsChoice c = choice;
   clamp_choice(p, c);
@@ -97,7 +110,7 @@ ScreenView results_view(const ResultsPanel& p, const ResultsChoice& choice, bool
   v.blocks = {at_place("OUTCOME", {p.outcome}),
               at_place("WHERE", fit_lines(wrap(p.where, w.column), wide ? 4 : 7)),
               at_place("PAY_TITLE", {c.details ? p.mech_title : "PAYMENT"}),
-              at_place("PAY", c.details ? fit_lines(p.mech) : fit_lines(p.pay, kPayLines)),
+              at_place("PAY", c.details ? fit_lines(p.mech) : fit_lines(pay_lines(p, w.status), kPayLines)),
               at_place("CREW_TITLE", {c.details ? "" : "CREW STATUS"}),
               at_place("CREW", c.details ? std::vector<std::string>{} : fit_lines(p.crew, kCrewLines)),
               at_place("LIST_TITLE", {list_title}),
