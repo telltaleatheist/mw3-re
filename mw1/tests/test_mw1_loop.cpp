@@ -65,6 +65,7 @@
 #include "mw1_scenery.h"
 #include "mw1_story.h"
 #include "mw1_campaign.h"
+#include "mw1_fade.h"
 #include "mw1_game.h"
 #include "mw1_hub.h"
 #include "mw1_market.h"
@@ -347,6 +348,7 @@ void loop_run(Ending ending, Run* run = nullptr) {
   mech3::mech_types_forget();
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
+  mw1::fade::set_enabled(false);  // FIXES.md item 52: changes at once (the fade's own test turns it on)
   mw1::install_game_loop(1, ending == kReach ? "portalgate" : nullptr);
   mw1::set_game_loop_start(run && run->via_menu ? mw1::Start::kMenu : mw1::Start::kHub);
   mw1::set_game_loop_story(false);  // MW1's story (test_mw1_story's own runs)
@@ -2364,6 +2366,7 @@ struct MenuRun {
   std::vector<std::string> boxes;  // each box's words, as asked
   bool story = false;  // MW1's story's events (mw1_story.h); off unless a test is about them
   int limit = 6000;     // frames before the run gives up
+  bool fade = false;    // the fade between screens (FIXES.md item 52); off: each change at once
 };
 void menu_run(MenuRun& r) {
   zgame::set_game(pm::table());
@@ -2389,6 +2392,7 @@ void menu_run(MenuRun& r) {
   mech3::player_controls_instance() = nullptr;
   mech3::options() = mech3::Options{};
   mw1::set_mw1_game_dir(MW1_DOS_GAME_DIR);  // the narration
+  mw1::fade::set_enabled(r.fade);  // FIXES.md item 52: off unless the test is about it
   mw1::install_game_loop(r.seed);
   mw1::set_game_loop_start(r.start);
   mw1::set_game_loop_story(r.story);
@@ -3635,4 +3639,59 @@ TEST(mw1_loop_screens_change_in_one_step_headless) {
                                            "MW1 Travel State", "MW1 Hub State", "MW1 Office State", "MW1 Hub State"};
     EXPECT(step == 8 && seen == want);
   });
+}
+
+// FIXES.md item 52: a change of screen faded, as the player clicks it: BAR out to black over a quarter second, the Bar
+// up on the black frame, in over a quarter second; a second click during it ignored; the Bar's BACK the same way.
+TEST(mw1_loop_screens_fade_to_black_and_back_headless) {
+  std::error_code ec;
+  if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
+  MenuRun r;
+  r.start = mw1::Start::kHub;
+  r.fade = true;
+  int step = 0;
+  float t = 0.0f, changed_at = -1.0f, done_at = -1.0f, max_alpha = 0.0f, back_changed = -1.0f;
+  bool bar_before_black = false, hub_clicked_again = false;
+  r.step = [&](mech3::Mech3App& app, mech3::GameEngine& ge) {
+    mw1::fade::Fade& f = mw1::fade::current();
+    if (step == 0 && showing(app, mw1::game_loop_hub())) {
+      if (f.busy()) return false;  // the hub's own fade in, from the start: a click now is ignored (below)
+      mw1::game_loop_hub()->screen()->on_button(mw1::kHubBar, 0, 0);
+      EXPECT(f.busy() && !showing(app, mw1::game_loop_bar()));  // not yet: out first
+      step = 1, t = 0.0f;
+      return false;
+    }
+    if (step == 1) {
+      t += ge.frame_dt();
+      max_alpha = std::max(max_alpha, f.alpha());
+      if (!hub_clicked_again && showing(app, mw1::game_loop_hub())) {
+        mw1::game_loop_hub()->screen()->on_button(mw1::kHubMarket, 0, 0);  // a second click: ignored
+        hub_clicked_again = true;
+      }
+      if (changed_at < 0 && showing(app, mw1::game_loop_bar())) {
+        changed_at = t;
+        bar_before_black = f.alpha() < 0.999f && f.phase() != mw1::fade::Fade::Phase::kIn;
+      }
+      if (changed_at >= 0 && !f.busy()) {
+        done_at = t;
+        mw1::game_loop_bar()->screen()->on_button(mw1::kBarBack, 0, 0);
+        step = 2, t = 0.0f;
+      }
+      return false;
+    }
+    if (step == 2) {
+      t += ge.frame_dt();
+      if (back_changed < 0 && showing(app, mw1::game_loop_hub())) back_changed = t;
+      return back_changed >= 0 && !f.busy();
+    }
+    return false;
+  };
+  menu_run(r);
+  mw1::fade::set_enabled(false);
+  std::printf("  BAR: the Bar up at %.3f s, the fade done at %.3f s (black %.2f); BACK: the hub up at %.3f s\n", changed_at,
+              done_at, max_alpha, back_changed);
+  EXPECT(step == 2 && max_alpha == 1.0f && !bar_before_black && hub_clicked_again);
+  EXPECT(changed_at >= mw1::fade::kFadeSeconds / 2 - 0.02f && changed_at <= mw1::fade::kFadeSeconds / 2 + 0.06f);
+  EXPECT(done_at >= mw1::fade::kFadeSeconds - 0.02f && done_at <= mw1::fade::kFadeSeconds + 0.1f);
+  EXPECT(back_changed >= mw1::fade::kFadeSeconds / 2 - 0.02f && back_changed <= mw1::fade::kFadeSeconds / 2 + 0.06f);
 }

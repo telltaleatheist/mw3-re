@@ -1,4 +1,5 @@
 #include "mw1_game.h"
+#include "mw1_fade.h"
 
 #include <algorithm>
 #include <array>
@@ -220,6 +221,14 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
   bool main_entered(mech3::Engine& e) override {
     auto& ge = static_cast<mech3::GameEngine&>(e);
     ge_ = &ge;
+    if (!fade_hook_) {  // FIXES.md item 52: the fade on screens not MW1's
+      fade_hook_ = true;
+      auto before = ge.on_present;
+      ge.on_present = [this, before](int f) {
+        if (before) before(f);
+        if (ge_) fade_present(*ge_);
+      };
+    }
     // The mission's end heard the frame it happens (latch_ending), after each frame shown. Put on here, as the main
     // state is entered, never from inside a frame's own on_present (replacing the function that is running frees it).
     if (!ending_hook_) {
@@ -330,6 +339,9 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
         show_results();
         ge.push_state(results_, 0);
       }
+      // FIXES.md item 52: the first screen after a mission (or the start) in from black. Not under the shots' and
+      // tests' screens (MW1_SCREEN): their pictures are of the screen itself.
+      if (fade::enabled() && !std::getenv("MW1_SCREEN")) fade::current().fade_in();
       // MW1_SCREEN=market (development: --shot pictures of a screen past the hub).
       if (const char* s = std::getenv("MW1_SCREEN"); s && std::string(s).rfind("market", 0) == 0) {
         press(kHubMarket);
@@ -384,6 +396,28 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
         if (std::string(s) == "hub_long_next") press(kHubOk);
       }
       if (const char* s = std::getenv("MW1_SCREEN"); s && std::string(s) == "news") press(kHubBar), press_bar(kBarNews);
+      // FIXES.md item 52's captures: the player's presses at set frames (as a click: faded), the hub's first at
+      // MW1_FADE_AT (default 60), the next 40 frames on. fade_bar: BAR, then the Bar's BACK; fade_lab: MECH COMPLEX,
+      // then MECH LAB (on the commander's mech).
+      if (const char* s = std::getenv("MW1_SCREEN"); s && (std::string(s) == "fade_bar" || std::string(s) == "fade_lab")) {
+        const bool lab = std::string(s) == "fade_lab";
+        const int at = std::getenv("MW1_FADE_AT") ? std::atoi(std::getenv("MW1_FADE_AT")) : 60;
+        press(kHubOk);
+        auto before = ge.on_present;
+        ge.on_present = [this, before, lab, at, start = -1](int f) mutable {
+          if (before) before(f);
+          if (start < 0) start = f;
+          const int n = f - start;
+          if (n == at) {
+            std::printf("mw1: fade capture: frame %d, %s\n", f, lab ? "MECH COMPLEX" : "BAR");
+            as_player([&] { press(lab ? kHubMarket : kHubBar); });
+          }
+          if (n == at + 40) {
+            std::printf("mw1: fade capture: frame %d, %s\n", f, lab ? "MECH LAB" : "BACK");
+            as_player([&] { lab ? press_market(kMarketLab) : press_bar(kBarBack); });
+          }
+        };
+      }
       // bar_drink: ORDER DRINK at the Bar, its tip (or the quiet text) over the Bar (FIXES.md item 34);
       // message_market, message_office: a message (the quiet text) over the Mech Complex, the office.
       if (const char* s = std::getenv("MW1_SCREEN"); s && std::string(s) == "bar_drink") press(kHubBar), press_bar(kBarDrink);
@@ -449,7 +483,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       std::printf("mw1: no menu layout (%s in MW1's data): the hub at the start\n", kMenuFile);
       return false;
     }
-    menu_ = ge.adopt_state([this](zgame::Handle h) { return menu_state_ = new MenuState(h, [this](int32_t id) { press_menu(id); }); });
+    menu_ = ge.adopt_state([this](zgame::Handle h) { return menu_state_ = new MenuState(h, [this](int32_t id) { as_player([&] { press_menu(id); }); }); });
     return menu_ != 0;
   }
 
@@ -485,15 +519,17 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
     mech3::GameEngine* ge = ge_;
     if (!ge) return;
     switch (id) {
-      case kMenuNew: new_campaign(*ge, true); return;
+      case kMenuNew: screen_change([this, ge] { new_campaign(*ge, true); }); return;
       case kMenuContinue:
         if (company_.stores) {  // the hub's QUIT came back here: the same company, the same offer
-          show_hub();
-          ge->push_state(hub_, 0);
-          hub_events();
+          screen_change([this, ge] {
+            show_hub();
+            ge->push_state(hub_, 0);
+            hub_events();
+          });
           return;
         }
-        if (save_there()) enter_hub(*ge);
+        if (save_there()) screen_change([this, ge] { enter_hub(*ge); });
         return;
       case kMenuOptions:  // PM's own options, the state its main menu made (its OPTIONS button's, 0x00609868)
         if (const zgame::Handle options = ge->peek32(kOptionsStateGlobal)) ge->push_state(options, 0);
@@ -562,6 +598,32 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
     ge.push_state(next, 0);
   }
 
+  // FIXES.md item 52: a change of screen faded (out to black, the change, in), when the player's press asks for it.
+  // A press from a screen's button (as_player) runs at once, but the screen changes it asks for (screen_change) are
+  // kept, in order, and made together under black; a press from the code (the tests, the shots) changes at once.
+  // A message in the bottom box isn't a change of screen: never kept, never faded.
+  bool fade_hook_ = false;
+  bool queuing_ = false;
+  std::vector<std::function<void()>> queued_;
+  void screen_change(std::function<void()> fn) {
+    if (queuing_) queued_.push_back(std::move(fn));
+    else fn();
+  }
+  void as_player(const std::function<void()>& press) {
+    if (queuing_ || fade::current().busy()) return;  // during a fade: ignored
+    queuing_ = true;
+    press();
+    queuing_ = false;
+    if (queued_.empty()) return;
+    std::vector<std::function<void()>> ops = std::move(queued_);
+    queued_.clear();
+    auto run = [ops] {
+      for (const auto& f : ops) f();
+    };
+    if (fade::enabled() && ge_) fade::current().start(run);
+    else run();
+  }
+
   // The hub's state on this engine, made once (Engine::adopt_state); false when MW1's layout is not there.
   bool hub(mech3::GameEngine& ge) {
     if (hub_engine_ == &ge && ge.menu_state_of(hub_) == hub_state_) return hub_ != 0;
@@ -578,7 +640,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       std::printf("mw1: no hub layout (%s in MW1's data): the message boxes\n", kHubFile);
       return false;
     }
-    hub_ = ge.adopt_state([this](zgame::Handle h) { return hub_state_ = new HubState(h, [this](int32_t id) { press(id); }); });
+    hub_ = ge.adopt_state([this](zgame::Handle h) { return hub_state_ = new HubState(h, [this](int32_t id) { as_player([&] { press(id); }); }); });
     if (hub_state_) hub_state_->set_hover([this](int32_t id) { hub_hovered(id); });
     return hub_ != 0;
   }
@@ -600,16 +662,20 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       case kHubDeploy:
         // The contract taken at the office: the briefing (the hub off, then the main menu replaced by it).
         if (pending_ || !contract_.accepted || !ge) return;
-        ge->pop_state(0);  // the menu under it not redrawn (FIXES.md item 35): Load replaces it at once
-        deploy(*ge);
+        screen_change([this, ge] {
+          ge->pop_state(0);  // the menu under it not redrawn (FIXES.md item 35): Load replaces it at once
+          deploy(*ge);
+        });
         return;
       case kHubCompany:
         // MW1's company screen (CREW_MENU): the crew grid in the hub's place (LEAVE brings the hub back).
         if (pending_ || !ge || !bar(*ge)) return;
-        bchoice_ = BarChoice{};
-        bchoice_.page = BarPage::kLance, bchoice_.company = true;
-        show_bar();
-        swap_to(*ge, bar_);
+        screen_change([this, ge] {
+          bchoice_ = BarChoice{};
+          bchoice_.page = BarPage::kLance, bchoice_.company = true;
+          show_bar();
+          swap_to(*ge, bar_);
+        });
         return;
       case kHubOk: {
         if (!pending_) {  // the messages read (cleared above): the scenery again
@@ -623,46 +689,58 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       }
       case kHubReplay:
         if (!pending_ || pending_->outcome != Outcome::kFailure || !ge) return;
-        ge->pop_state(0);  // as DEPLOY's
-        replay(*ge);
+        screen_change([this, ge] {
+          ge->pop_state(0);  // as DEPLOY's
+          replay(*ge);
+        });
         return;
       case kHubOptions:
         // MW1's OPTIONS in the hub's place: SETTINGS (PM's options), MAIN MENU, BACK (Escape at the hub too).
         if (pending_ || !ge || !hub_options(*ge)) return;
-        hub_options_state_->show(scenery_image(company_.planet_number), upper(company_.planet));
-        swap_to(*ge, hub_options_);
+        screen_change([this, ge] {
+          hub_options_state_->show(scenery_image(company_.planet_number), upper(company_.planet));
+          swap_to(*ge, hub_options_);
+        });
         return;
       case kHubMarket:
         // The market in the hub's place (BACK brings the hub back); not while AFTER ACTION waits.
         if (pending_ || !ge || !market(*ge)) return;
-        choice_ = MarketChoice{};
-        show_market();
-        swap_to(*ge, market_);
-        story_events(kClassMechComplex);
+        screen_change([this, ge] {
+          choice_ = MarketChoice{};
+          show_market();
+          swap_to(*ge, market_);
+          story_events(kClassMechComplex);
+        });
         return;
       case kHubTravel:
         // The travel screen in the hub's place (BACK brings the hub back); not while AFTER ACTION waits.
         if (pending_ || !ge || !travel(*ge)) return;
-        tchoice_ = TravelChoice{};
-        show_travel();
-        swap_to(*ge, travel_);
+        screen_change([this, ge] {
+          tchoice_ = TravelChoice{};
+          show_travel();
+          swap_to(*ge, travel_);
+        });
         return;
       case kHubBar:
         // The Bar in the hub's place (BACK brings the hub back); not while AFTER ACTION waits.
         if (pending_ || !ge || !bar(*ge)) return;
-        bchoice_ = BarChoice{};
-        show_bar();
-        swap_to(*ge, bar_);
-        story_events(kClassBarEntry);
+        screen_change([this, ge] {
+          bchoice_ = BarChoice{};
+          show_bar();
+          swap_to(*ge, bar_);
+          story_events(kClassBarEntry);
+        });
         return;
       case kHubOffice:
         // The House office in the hub's place (BACK brings the hub back): the offer to negotiate, or why there's none.
         // A place, as MW1's: it opens wherever the world has one (its events fire on entering).
         if (pending_ || contract_.accepted || !contracts_here(company_) || !ge || !office(*ge)) return;
-        ochoice_ = OfficeChoice{};
-        show_office();
-        swap_to(*ge, office_);
-        story_events(kClassOffice);
+        screen_change([this, ge] {
+          ochoice_ = OfficeChoice{};
+          show_office();
+          swap_to(*ge, office_);
+          story_events(kClassOffice);
+        });
         return;
       default: return;  // the screens that come later
     }
@@ -677,7 +755,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       std::printf("mw1: no office layout (%s in MW1's data)\n", kOfficeFile);
       return false;
     }
-    office_ = ge.adopt_state([this](zgame::Handle h) { return office_state_ = new OfficeState(h, [this](int32_t id) { press_office(id); }); });
+    office_ = ge.adopt_state([this](zgame::Handle h) { return office_state_ = new OfficeState(h, [this](int32_t id) { as_player([&] { press_office(id); }); }); });
     return office_ != 0;
   }
 
@@ -765,7 +843,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
   bool hub_options(mech3::GameEngine& ge) {
     if (hub_options_ && ge.menu_state_of(hub_options_) == hub_options_state_) return true;
     if (!layout_there(kHubFile, kHubOptionsDialog)) return false;
-    hub_options_ = ge.adopt_state([this](zgame::Handle h) { return hub_options_state_ = new HubOptionsState(h, [this](int32_t id) { press_hub_options(id); }); });
+    hub_options_ = ge.adopt_state([this](zgame::Handle h) { return hub_options_state_ = new HubOptionsState(h, [this](int32_t id) { as_player([&] { press_hub_options(id); }); }); });
     return hub_options_ != 0;
   }
 
@@ -778,10 +856,12 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
         if (const zgame::Handle options = ge->peek32(kOptionsStateGlobal)) ge->push_state(options, 0);
         return;
       case kHubOptMainMenu:
-        ge->pop_state(1);  // MW1's menu, under these (Pirate's Moon's without it); CONTINUE brings the hub back
-        show_menu();
+        screen_change([this, ge] {
+          ge->pop_state(1);  // MW1's menu, under these (Pirate's Moon's without it); CONTINUE brings the hub back
+          show_menu();
+        });
         return;
-      case kHubOptBack: back_to_hub(); return;
+      case kHubOptBack: screen_change([this] { back_to_hub(); }); return;
       default: return;
     }
   }
@@ -804,7 +884,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       std::printf("mw1: no Bar layout (%s in MW1's data)\n", kBarFile);
       return false;
     }
-    bar_ = ge.adopt_state([this](zgame::Handle h) { return bar_state_ = new BarState(h, [this](int32_t id) { press_bar(id); }); });
+    bar_ = ge.adopt_state([this](zgame::Handle h) { return bar_state_ = new BarState(h, [this](int32_t id) { as_player([&] { press_bar(id); }); }); });
     return bar_ != 0;
   }
 
@@ -874,9 +954,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
           break;
         }
         if (!ge) return;
-        show_hub();
-        swap_to(*ge, hub_);
-        hub_events();  // MW1 runs the hub's events each time it draws it (an arrival's after travel)
+        screen_change([this] { back_to_hub(); });
         return;
       default: return;
     }
@@ -902,7 +980,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       std::printf("mw1: no travel layout (%s in MW1's data)\n", kTravelFile);
       return false;
     }
-    travel_ = ge.adopt_state([this](zgame::Handle h) { return travel_state_ = new TravelState(h, [this](int32_t id) { press_travel(id); }); });
+    travel_ = ge.adopt_state([this](zgame::Handle h) { return travel_state_ = new TravelState(h, [this](int32_t id) { as_player([&] { press_travel(id); }); }); });
     if (travel_state_) {
       // The map hears the mouse (a world chosen by a click, named under the mouse) and the keys (the arrows, a name
       // typed, Enter).
@@ -972,17 +1050,13 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
                     date_words(company_.date).c_str(), thousands(company_.funds).c_str());
         clear_contract();
         if (!ge) return;
-        show_hub();
-        swap_to(*ge, hub_);
-        hub_events();  // MW1 runs the hub's events each time it draws it (an arrival's after travel)
+        screen_change([this] { back_to_hub(); });
         return;
       }
       case kTravelFilter: tchoice_.filter = next_filter(tchoice_.filter); break;
       case kTravelBack:
         if (!ge) return;
-        show_hub();
-        swap_to(*ge, hub_);
-        hub_events();  // MW1 runs the hub's events each time it draws it (an arrival's after travel)
+        screen_change([this] { back_to_hub(); });
         return;
       default: return;
     }
@@ -1002,7 +1076,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       std::printf("mw1: no market layout (%s in MW1's data)\n", kMarketFile);
       return false;
     }
-    market_ = ge.adopt_state([this](zgame::Handle h) { return market_state_ = new MarketState(h, [this](int32_t id) { press_market(id); }); });
+    market_ = ge.adopt_state([this](zgame::Handle h) { return market_state_ = new MarketState(h, [this](int32_t id) { as_player([&] { press_market(id); }); }); });
     if (market_state_) {
       market_state_->set_pointer(kMarketListArea[0], kMarketListArea[1], kMarketListArea[2], kMarketListArea[3],
                                  [this](int32_t x, int32_t y, bool click) { market_point(x, y, click); });
@@ -1034,7 +1108,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
         break;
       }
       case kMarketLab:
-        if (ge) open_lab(*ge);
+        if (ge) screen_change([this, ge] { open_lab(*ge); });
         return;
       case kMarketStockUp: --m.stock, m.own_shown = false; break;
       case kMarketStockDown: ++m.stock, m.own_shown = false; break;
@@ -1042,9 +1116,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       case kMarketOwnDown: ++m.owned, m.own_shown = true; break;
       case kMarketBack:
         if (!ge) return;
-        show_hub();
-        swap_to(*ge, hub_);
-        hub_events();  // MW1 runs the hub's events each time it draws it (an arrival's after travel)
+        screen_change([this] { back_to_hub(); });
         return;
       default: return;
     }
@@ -1389,6 +1461,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
 
   void lab_closed() {
     if (lab_owned_ < 0) return;
+    if (fade::enabled()) fade::current().fade_in();  // FIXES.md item 52: the Mech Complex back in from black
     const int32_t i = lab_owned_;
     lab_owned_ = -1;
     lab_pilot_.forget();  // its screen gone with the lab
@@ -1425,7 +1498,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       std::printf("mw1: no results layout (%s in MW1's data): AFTER ACTION at the hub\n", kResultsFile);
       return false;
     }
-    results_ = ge.adopt_state([this](zgame::Handle h) { return results_state_ = new ResultsState(h, [this](int32_t id) { press_results(id); }); });
+    results_ = ge.adopt_state([this](zgame::Handle h) { return results_state_ = new ResultsState(h, [this](int32_t id) { as_player([&] { press_results(id); }); }); });
     if (results_state_) {
       results_state_->set_keys([this](uint32_t k) { results_key(k); });
       results_state_->set_wheel([this](int32_t d) { results_move(-d); });
@@ -1576,18 +1649,22 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
     if (!results_up_ || !pending_ || !ge) return;
     if (id == kResultsReplay) {
       if (pending_->outcome != Outcome::kFailure) return;
-      ge->pop_state(0);  // the results, the hub under it not redrawn (FIXES.md item 35)
-      results_up_ = false;
-      ge->pop_state(0);  // the hub, nor the menu
-      replay(*ge);
+      screen_change([this, ge] {
+        ge->pop_state(0);  // the results, the hub under it not redrawn (FIXES.md item 35)
+        results_up_ = false;
+        ge->pop_state(0);  // the hub, nor the menu
+        replay(*ge);
+      });
       return;
     }
-    ge->pop_state(1);
-    results_up_ = false;
-    company_.notices.clear();
-    settle_pending();
-    show_hub();
-    hub_events();  // back at the hub (MW1's after a battle)
+    screen_change([this, ge] {
+      ge->pop_state(1);
+      results_up_ = false;
+      company_.notices.clear();
+      settle_pending();
+      show_hub();
+      hub_events();  // back at the hub (MW1's after a battle)
+    });
   }
 
   // ---- the story's events (mw1_story.h, mw1_event_screen.h) ----
@@ -1601,7 +1678,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       return false;
     }
     events_[i] = ge.adopt_state([this, side, i](zgame::Handle h) {
-      return event_states_[i] = new EventState(h, side, [this](int32_t id) { press_event(id); });
+      return event_states_[i] = new EventState(h, side, [this](int32_t id) { as_player([&] { press_event(id); }); });
     });
     return events_[i] != 0;
   }
