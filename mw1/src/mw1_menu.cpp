@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <string>
 
 #include "gamez/zinput/zinput.h"
 #include "mech3/app_hooks.h"
@@ -23,8 +25,19 @@ float ticks(int32_t n) { return static_cast<float>(n) / kTicksPerSecond; }
 
 const char* menu_button_name(int32_t id) { return id >= 1 && id <= kMenuButtonCount ? kMenuButtons[id - 1].name : ""; }
 
+// FIXES.md item 86 (waiting on Owen): MW1_MENU_TITLE=up or low (development) lays the menu out as one of the two
+// choices for the title over the 'Mech's head (mw1menu.zrd's MW1MENUDIALOG_UP, _LOW); else as it is.
+namespace {
+const char* menu_dialog() {
+  const char* t = std::getenv("MW1_MENU_TITLE");
+  if (t && std::string(t) == "up") return "MW1MENUDIALOG_UP";
+  if (t && std::string(t) == "low") return "MW1MENUDIALOG_LOW";
+  return kMenuDialog;
+}
+}  // namespace
+
 MenuState::MenuState(zgame::Handle h, std::function<void(int32_t)> pressed)
-    : Mw1State(h, "MW1 Menu State", kMenuFile, kMenuDialog, kMenuButtons, 0, std::move(pressed)) {}
+    : Mw1State(h, "MW1 Menu State", kMenuFile, menu_dialog(), kMenuButtons, 0, std::move(pressed)) {}
 
 void MenuState::show_menu(bool continue_on, const std::string& save_line) {
   ScreenView s;

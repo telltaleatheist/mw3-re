@@ -38,6 +38,9 @@ SKIP_PREFIX = ("intro_0_", "mech_")  # the mechs show as PM's icons (FIXES.md it
 SKIP = {"hub_" + t for t in ("agri", "capital", "culture", "frontier", "ice", "industrial", "jungle", "military", "mining",
                              "ocean", "pleasure", "temperate", "trade")}
 EMBLEMS = {"story_darkwing_crest"}
+# The menu-title choice (FIXES.md item 86, waiting on Owen): title_bg recut 1.25 times closer from its top left, the
+# 'Mech's head moved right and down, clear of the title (mw1menu.zrd's MW1MENUDIALOG_LOW).
+TITLE_LOW_ZOOM = 1.25
 PORTRAIT_PREFIX = ("recruit_", "char_", "liaison_")
 # FIXES.md items 50 and 56: the office's liaison, as wide as its buttons, from under LEAVE down to the button row's
 # foot: <name>_office, its own file, the portrait's whole height and the middle of its width, never stretched.
@@ -96,6 +99,12 @@ def main():
         made.append(os.path.join(out, file))
         for suffix, size in sizes:
             rows.append([name + suffix, file, size[0], size[1]])
+        if name == "title_bg":
+            low = im.crop((0, 0, round(im.size[0] / TITLE_LOW_ZOOM), round(im.size[1] / TITLE_LOW_ZOOM)))
+            lfile = "title_bg_low.jpg"
+            low.save(os.path.join(out, lfile), quality=90, optimize=True)
+            made.append(os.path.join(out, lfile))
+            rows.append(["title_bg_low", lfile, SCENE[0], SCENE[1]])
         if name.startswith("liaison_"):
             office = cut(im, OFFICE_PORTRAIT)
             ofile = name + "_office.jpg"

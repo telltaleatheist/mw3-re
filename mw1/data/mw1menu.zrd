@@ -43,4 +43,80 @@ MW1MENUDIALOG_WIDE (
     SAVE (POSITION (50 416) FONT ("mw1_note"))
   )
 )
+;
+; FIXES.md item 86 (waiting on Owen; MW1_MENU_TITLE=up or low picks one, development): the title clear of the
+; 'Mech's head. _UP: MECHWARRIOR and CRITICAL HIT 38 higher, in the sky above the head. _LOW: the title where it is,
+; the picture recut 1.25 times closer from its top left (title_bg_low), the head right of and below the title's end.
+MW1MENUDIALOG_UP (
+  CURSOR (BITMAP ("mw1_cursor") CENTER (1))
+  PRIMITIVES (
+    BACKGROUND (POSITION (-107 0) BITMAP ("mw1_title_bg") ANCHOR ("CENTRE"))
+  )
+  BUTTONS (
+    NEW_CAMPAIGN (POSITION (40 300) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (132 306) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    CONTINUE (POSITION (40 338) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (132 344) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    ; On the hub now (its OPTIONS tile): kept for its id, never shown here.
+    OPTIONS (POSITION (40 376) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (132 382) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    QUIT (POSITION (40 376) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (132 382) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+  )
+  TEXTS (
+    TITLE (POSITION (38 -4) FONT ("mw1_title_43"))
+    SUBTITLE (POSITION (42 58) FONT ("mw1_title_sub"))
+    SAVE (POSITION (42 416) FONT ("mw1_note"))
+  )
+)
+MW1MENUDIALOG_UP_WIDE (
+  CURSOR (BITMAP ("mw1_cursor") CENTER (1))
+  PRIMITIVES (
+    BACKGROUND (POSITION (0 0) BITMAP ("mw1_title_bg") ANCHOR ("CENTRE"))
+  )
+  BUTTONS (
+    NEW_CAMPAIGN (POSITION (48 300) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (140 306) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    CONTINUE (POSITION (48 338) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (140 344) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    ; On the hub now (its OPTIONS tile): kept for its id, never shown here.
+    OPTIONS (POSITION (48 376) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (140 382) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    QUIT (POSITION (48 376) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (140 382) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+  )
+  TEXTS (
+    TITLE (POSITION (46 -4) FONT ("mw1_title"))
+    SUBTITLE (POSITION (50 58) FONT ("mw1_title_sub"))
+    SAVE (POSITION (50 416) FONT ("mw1_note"))
+  )
+)
+MW1MENUDIALOG_LOW (
+  CURSOR (BITMAP ("mw1_cursor") CENTER (1))
+  PRIMITIVES (
+    BACKGROUND (POSITION (-107 0) BITMAP ("mw1_title_bg_low") ANCHOR ("CENTRE"))
+  )
+  BUTTONS (
+    NEW_CAMPAIGN (POSITION (40 300) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (132 306) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    CONTINUE (POSITION (40 338) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (132 344) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    ; On the hub now (its OPTIONS tile): kept for its id, never shown here.
+    OPTIONS (POSITION (40 376) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (132 382) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    QUIT (POSITION (40 376) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (132 382) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+  )
+  TEXTS (
+    TITLE (POSITION (38 34) FONT ("mw1_title_43"))
+    SUBTITLE (POSITION (42 96) FONT ("mw1_title_sub"))
+    SAVE (POSITION (42 416) FONT ("mw1_note"))
+  )
+)
+MW1MENUDIALOG_LOW_WIDE (
+  CURSOR (BITMAP ("mw1_cursor") CENTER (1))
+  PRIMITIVES (
+    BACKGROUND (POSITION (0 0) BITMAP ("mw1_title_bg_low") ANCHOR ("CENTRE"))
+  )
+  BUTTONS (
+    NEW_CAMPAIGN (POSITION (48 300) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (140 306) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    CONTINUE (POSITION (48 338) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (140 344) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    ; On the hub now (its OPTIONS tile): kept for its id, never shown here.
+    OPTIONS (POSITION (48 376) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (140 382) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+    QUIT (POSITION (48 376) BITMAP ("mw1_button") ROLLOVER (BITMAP ("mw1_button_lit")) ACTIVATE (BITMAP ("mw1_button_down")) DISABLE (BITMAP ("mw1_button_off")) LABEL_AT (140 382) LABEL_FONT ("mw1_label") LABEL_OFF_FONT ("mw1_label_off"))
+  )
+  TEXTS (
+    TITLE (POSITION (46 34) FONT ("mw1_title"))
+    SUBTITLE (POSITION (50 96) FONT ("mw1_title_sub"))
+    SAVE (POSITION (50 416) FONT ("mw1_note"))
+  )
+)
 )

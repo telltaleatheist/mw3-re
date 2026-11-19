@@ -994,6 +994,18 @@ so the log's money didn't add up to the funds.
   - mw3pmsdltests `sdl_hires_transparent_line_takes_its_dc_rect`: "Heat" in PM's gauge font, transparent: the DC's rect; opaque: its cells; the 2D off: nothing recorded. Sabotaged (cells always): fails.
 - **Shots:** `outbox/2026-11-19/mw1-hud-text-82/` (4K mission before and after: the compass, the scales, Heat and Coolant, the speed readout).
 
+## 86. [ ] The menu's title clear of the 'Mech's head *(waiting on Owen; branch mw1-menu-title, not merged)*
+On the main menu MECHWARRIOR's last letters sit on the 'Mech's head (at 16:9 the R, at 4:3 the O). Two choices,
+both real layouts behind a development switch, `MW1_MENU_TITLE=up` or `low` (mw1menu.zrd's MW1MENUDIALOG_UP and
+_LOW, each with its _WIDE):
+- **up:** MECHWARRIOR and CRITICAL HIT 38 canvas pixels higher, the title in the sky above the head. The sky over
+  the head is only about 50 pixels, so the title sits near the top edge.
+- **low:** the title where it is; the picture recut 1.25 times closer from its top left (`title_bg_low`, made by
+  tools/mw1art.py), so the head moves right of and below the title's end. The 'Mech is bigger and its shins leave the
+  bottom. Putting the head wholly under the title's line would take about 1.8 times, too soft and too much 'Mech lost.
+Shots at 1080p and 4:3: outbox/2026-11-19/mw1-menu-title/. The one Owen picks becomes MW1MENUDIALOG (and the other
+goes with the switch).
+
 ## Order (open items, the lead's, 2026-11-17; two devs from 22:30)
 **mw1 dev 1** (the hub, the lab, the market, travel), in order:
 1. 23 + 27: the Company screen's mech icons, and every mech picture as PM's icon.
