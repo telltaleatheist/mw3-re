@@ -30,6 +30,7 @@
 // - <dialog>_WIDE: the same screen laid out for the wide canvas (853, 16:9),
 //   taken in place of <dialog> when the canvas is wider than 4:3's; its places
 //   are the wide canvas's (anchored from 853 on a wider one still).
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -40,6 +41,10 @@
 #include "mech3/app_states.h"
 #include "mech3/menu_states.h"
 #include "mech3/menu_widgets.h"
+
+namespace mech3 {
+class GameEngine;
+}
 
 namespace mw1::screens {
 
@@ -137,6 +142,7 @@ class Mw1Screen : public mech3::MenuScreen {
   bool visible(int32_t id) const;
   bool enabled(int32_t id) const;
   bool panel_shown(size_t i) const;  // the layout's i-th PANEL
+  bool panel_at(size_t i, int32_t* x, int32_t* y) const;  // its place on the canvas (false: no such panel)
   int32_t button_count() const { return static_cast<int32_t>(buttons_.size()); }
   bool button_middle(int32_t id, int32_t* x, int32_t* y) const;  // for the tests: where to click it (false: not there)
   // A part of the screen that hears the mouse (the travel map): `heard` with the mouse's place on each move over it
@@ -205,6 +211,15 @@ class Mw1State : public mech3::MenuState {
   // first plain key (its DirectInput code) to `keys`, Escape aside (escape_id's button).
   void set_pointer(int32_t left, int32_t top, int32_t right, int32_t bottom, std::function<void(int32_t, int32_t, bool)> heard);
   void set_keys(std::function<void(uint32_t)> keys) { keys_ = std::move(keys); }
+  // Ours (the live mech views, mech3/model_view.h): a frame drawn as the Mech Lab draws its own: `begin` before the 2D
+  // (the target set and cleared), `holes` the canvas rects (x, y, w, h) left see-through in the 2D, `after` once
+  // the 2D is down (the 3D drawn into the holes). Unset: the menu's own frame.
+  struct View3D {
+    std::function<void(mech3::GameEngine&)> begin;
+    std::function<std::vector<std::array<int32_t, 4>>(Mw1Screen&)> holes;
+    std::function<void(mech3::GameEngine&, Mw1Screen&)> after;
+  };
+  void set_view3d(View3D v) { view3d_ = std::move(v); }
   // The mouse wheel turned (each frame it moved: +1 up, -1 down; FIXES.md item 38, the results' list).
   void set_wheel(std::function<void(int32_t)> wheel) { wheel_ = std::move(wheel); }
   void set_hover(std::function<void(int32_t)> hover) {  // the buttons' hover (Mw1Screen::set_hover), set on each entering
@@ -231,6 +246,8 @@ class Mw1State : public mech3::MenuState {
   std::function<void(int32_t, int32_t, bool)> pointer_;
   std::function<void(uint32_t)> keys_;
   std::function<void(int32_t)> wheel_;
+  View3D view3d_;
+  bool frame_3d();  // the frame with view3d_ (false: not drawn so, the menu's own)
   int32_t wheel_at_ = 0;  // the wheel's position last frame
   bool wheel_read_ = false;
   std::function<void(int32_t)> hover_;

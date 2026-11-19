@@ -1,5 +1,7 @@
 #include "mw1_market_screen.h"
 
+#include <cstdlib>
+
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -84,6 +86,16 @@ bool market_row_at(int32_t x, int32_t y, bool wide, bool* own, int32_t* row) {
   return false;
 }
 
+bool live_mech_wanted() {
+  const char* s = std::getenv("MW1_LIVE_MECH");
+  return s && *s == '1';
+}
+
+int32_t market_shown_mech(const Company& c, const MarketChoice& m) {
+  if (const char* s = std::getenv("MW1_SPIKE_MECH")) return std::atoi(s);
+  return m.own_shown || c.market.stock.empty() ? owned_mech(c, m.owned) : c.market.stock[static_cast<size_t>(m.stock)];
+}
+
 ScreenView market_view(const Company& c, const MarketChoice& m) {
   ScreenView v;
   v.blocks = {at_place("PLANET", {upper(c.planet)}),
@@ -95,11 +107,12 @@ ScreenView market_view(const Company& c, const MarketChoice& m) {
               at_place("STATUS", {m.note.empty() ? "BUY takes from FOR SALE; the rest act on YOUR MECHS." : m.note})};
   v.panels.assign(kMarketPanelCount, true);
   // FIXES.md item 14: the chosen mech's render under the buttons (none till the renders are made).
-  const int32_t shown = m.own_shown || c.market.stock.empty() ? owned_mech(c, m.owned)
-                                                              : c.market.stock[static_cast<size_t>(m.stock)];
+  const int32_t shown = market_shown_mech(c, m);
   v.pictures.assign(kMarketPanelCount, "");
-  if (renders_ready() && shown >= 0) v.pictures[kMarketPanelMech] = render_image(shown, RenderUse::kPanel);
-  v.panels[kMarketPanelMechFrame] = v.panels[kMarketPanelMech] = renders_ready() && shown >= 0;
+  // The spike (mech3/model_view.h): the mech drawn live in the panel, its picture none.
+  const bool live = live_mech_wanted();
+  if (!live && renders_ready() && shown >= 0) v.pictures[kMarketPanelMech] = render_image(shown, RenderUse::kPanel);
+  v.panels[kMarketPanelMechFrame] = v.panels[kMarketPanelMech] = (live || renders_ready()) && shown >= 0;
 
   // FOR SALE: the stock at the buying price; a price over the funds dimmed (FIXES.md item 41, Owen: what he can
   // afford at a glance): its row in S_ROWS_DIM's darker green, a blank line in its place in S_ROWS (and the other way).

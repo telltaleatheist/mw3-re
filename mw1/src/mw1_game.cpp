@@ -2,6 +2,8 @@
 #include "mw1_fade.h"
 
 #include <algorithm>
+#include <chrono>
+#include <set>
 #include <array>
 #include <cctype>
 #include <cstdio>
@@ -67,6 +69,9 @@
 #include "mw1_lab_pilot.h"
 #include "mw1_menu.h"
 #include "mw1_movie.h"
+#include "mech3/model_view.h"
+#include "mech3/mech_reader.h"
+#include "mech3/mech_skin.h"
 #include "mw1_images.h"
 #include "mw1_lab_skin.h"
 #include "mw1_layouts.h"
@@ -1197,8 +1202,64 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       market_state_->set_pointer(kMarketListArea[0], kMarketListArea[1], kMarketListArea[2], kMarketListArea[3],
                                  [this](int32_t x, int32_t y, bool click) { market_point(x, y, click); });
       market_state_->set_resumed([this] { lab_closed(); });
+      if (live_mech_wanted()) market_state_->set_view3d(live_panel_view());
     }
     return market_ != 0;
+  }
+
+  // The spike (mech3/model_view.h): the market's chosen mech drawn live in its panel, front on, in GUNMETAL.
+  Mw1State::View3D live_panel_view() {
+    Mw1State::View3D v;
+    v.begin = [this](mech3::GameEngine& en) {
+      if (!model_view_.is_open()) {
+        model_view_.open(en);
+        std::printf("mw1: live view: opened in %.1f ms\n", model_view_.open_ms());
+        model_view_.set_camera_offset(kRenderCamera);
+        if (std::getenv("MW1_SKIN_NAMES"))
+          for (int32_t m = 0; m < mech3::mech_count(); ++m) {
+            std::string names;
+            if (mech3::MechDfn* d = mech3::mech_dfn(m); d && d->skins)
+              for (mech3::Skin* k : d->skins->skins) names += std::string(" ") + (k && k->name ? k->name : "?");
+            std::printf("mw1: skins %s:%s\n", mech3::mech_name(m), names.c_str());
+          }
+      }
+      model_view_.begin_frame(en);
+    };
+    v.holes = [](Mw1Screen& s) {
+      std::vector<std::array<int32_t, 4>> h;
+      int32_t x = 0, y = 0;
+      if (s.panel_shown(kMarketPanelMech) && s.panel_at(kMarketPanelMech, &x, &y)) h.push_back({x, y, kRenderPanelW, kRenderPanelH});
+      return h;
+    };
+    v.after = [this](mech3::GameEngine& en, Mw1Screen& s) {
+      const int32_t mech = market_shown_mech(company_, choice_);
+      int32_t x = 0, y = 0;
+      if (mech < 0 || !s.panel_shown(kMarketPanelMech) || !s.panel_at(kMarketPanelMech, &x, &y)) return;
+      if (!model_view_.is_open()) return;
+      static int32_t timed = -1;
+      if (model_view_.prepare(en, mech, "gunmetal") && timed != mech) {
+        timed = mech;
+        std::printf("mw1: live view: %s ready in %.1f ms\n", mech3::mech_name(mech), model_view_.show_ms());
+      }
+      const mech3::Rect& rd = mech3::render();
+      const mech3::Rect& dp = mech3::display();
+      if (dp.w <= 0 || dp.h <= 0) return;
+      const int32_t x0 = rd.x + x * rd.w / dp.w, y0 = rd.y + y * rd.h / dp.h;
+      const int32_t x1 = rd.x + (x + kRenderPanelW) * rd.w / dp.w, y1 = rd.y + (y + kRenderPanelH) * rd.h / dp.h;
+      const auto t0 = std::chrono::steady_clock::now();
+      model_view_.draw(en, mech, x0, y0, x1 - x0, y1 - y0, 0.0f);
+      if (std::getenv("MW1_SPIKE_SIX"))  // the Company page's case: six more chassis, small, across the top
+        for (int32_t k = 0; k < 6; ++k) {
+          const int32_t m6 = (k * 4 + 2) % mech3::mech_count();
+          if (model_view_.prepare(en, m6, "gunmetal") && timed_six_.insert(m6).second)
+            std::printf("mw1: live view: %s ready in %.1f ms\n", mech3::mech_name(m6), model_view_.show_ms());
+          model_view_.draw(en, m6, rd.x + rd.w * (k + 1) / 8, rd.y + rd.h / 20, rd.w / 10, rd.h / 6, 0.0f);
+        }
+      const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+      draw_ms_ += ms, ++draws_;
+      if (draws_ == 100) std::printf("mw1: live view: draw %.2f ms a frame (mean of 100)\n", draw_ms_ / draws_);
+    };
+    return v;
   }
 
   void press_market(int32_t id) {
@@ -3477,6 +3538,10 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
   OfficeChoice ochoice_;
   zgame::Handle market_ = 0;
   MarketState* market_state_ = nullptr;
+  mech3::ModelView model_view_;  // the spike's live mech
+  std::set<int32_t> timed_six_;
+  double draw_ms_ = 0;
+  int32_t draws_ = 0;
   MarketChoice choice_;
   int32_t lab_owned_ = -1;
   // FIXES.md item 14's render pass and its stage (render_pass_frame, render_stage).

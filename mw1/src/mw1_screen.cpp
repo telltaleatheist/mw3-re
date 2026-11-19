@@ -510,6 +510,11 @@ bool Mw1Screen::visible(int32_t id) const {
   return id >= 1 && static_cast<size_t>(id) <= buttons_.size() && !(buttons_[id - 1]->flags & ztwod::kHidden);
 }
 bool Mw1Screen::panel_shown(size_t i) const { return i < panels_.size() && !(panels_[i]->flags & ztwod::kHidden); }
+bool Mw1Screen::panel_at(size_t i, int32_t* x, int32_t* y) const {
+  if (i >= panels_.size()) return false;
+  *x = panels_[i]->x, *y = panels_[i]->y;
+  return true;
+}
 bool Mw1Screen::enabled(int32_t id) const {
   return id >= 1 && static_cast<size_t>(id) <= buttons_.size() && buttons_[id - 1]->enabled != 0;
 }
@@ -652,12 +657,40 @@ void Mw1State::draw_faded(bool step_dt) {
   }
 }
 
+// The Mech Lab's frame order (LabState::update and draw): the target set and cleared, the 2D under the 3D lock with
+// its holes left the layer's key, then the 3D into them, then shown.
+bool Mw1State::frame_3d() {
+  auto* ge = dynamic_cast<mech3::GameEngine*>(&e());
+  if (!ge || !view3d_.after || !screen_ptr_ || ge->video_mode() == 0) return false;
+  mech3::GameEngine& en = *ge;
+  en.input_poll(0);
+  en.sound_update(0, 0);
+  if (en.key_state(1) == 1) escape();
+  if (!screen_) return true;
+  if (view3d_.begin) view3d_.begin(en);
+  en.video_begin_3d();
+  en.render_flush(en.video_screen_rect());
+  en.vcall(screen_, 0x00, {zgame::bits(en.frame_dt())});
+  if (view3d_.holes)
+    if (zrndr::Target2D& t = zrndr::target2d(); t.base && t.width && t.height)
+      for (const auto& h : view3d_.holes(*screen_ptr_))
+        for (int32_t y = std::max(0, h[1]); y < std::min<int32_t>(static_cast<int32_t>(t.height), h[1] + h[3]); ++y) {
+          auto* row = reinterpret_cast<uint16_t*>(t.base + static_cast<size_t>(y) * t.pitch);
+          for (int32_t x = std::max(0, h[0]); x < std::min<int32_t>(static_cast<int32_t>(t.width), h[0] + h[2]); ++x)
+            row[x] = mech3::GameEngine::kLayerKey;
+        }
+  en.video_end_3d();
+  view3d_.after(en, *screen_ptr_);
+  en.video_flip(0, 0, 1, 0);
+  return true;
+}
+
 bool Mw1State::update() {
   if (fade::current().busy()) {
     fading_frame();
     return false;
   }
-  const bool r = MenuState::update();
+  const bool r = frame_3d() ? false : MenuState::update();
   if (keys_ && screen_ptr_)
     if (const uint32_t k = e().input_frame_key()) keys_(k);
   // The wheel: its position (zin's, unclamped) against last frame's.

@@ -54,6 +54,9 @@ bool market_row_at(int32_t x, int32_t y, bool wide, bool* own, int32_t* row);
 
 // The screen's texts and buttons for the company's Mech Complex (pure: the tests read it).
 ScreenView market_view(const Company& c, const MarketChoice& m);
+// The mech the panel shows (the chosen row's), and whether it is drawn live (the spike: MW1_LIVE_MECH=1).
+int32_t market_shown_mech(const Company& c, const MarketChoice& m);
+bool live_mech_wanted();
 
 // The Mech Complex's state: pushed in the hub's place by the loop. `resumed` hears it come back to the top (the
 // mech lab closed over it).
