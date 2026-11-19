@@ -267,7 +267,8 @@ struct Run {
   bool mend_player = false;
   // The commander's mech destroyed in the mission (an idle Firefly put in the hangar first): lost, the Firefly theirs.
   bool kill_player = false, spare_set = false;
-  int64_t bill_shown = -1;  // AFTER ACTION's "Repair bill: ", -1 none
+  int64_t bill_shown = -1;  // AFTER ACTION's "Repair bill: " (or PAYMENT's "Billed ", past the wrecks), -1 none
+  bool from_wrecks = false;  // a mech's repairs paid from the wrecks' worth (FIXES.md item 51; DETAILS' lines)
   int32_t messages_read = 0;  // the hub's MESSAGES panels dismissed with OK
   int32_t message_pages = 0;  // the pages before their last (NEXT), FIXES.md item 42
   int32_t hover_step = 0;     // the hub's OK hovered by the mouse (the market run), then left
@@ -883,10 +884,30 @@ void loop_run(Ending ending, Run* run = nullptr) {
             }
           return -1;
         };
+        // PAYMENT's salvage (FIXES.md item 51): "Salvage: 5% of 2,339,700 = 116,985", the pay after " = "; nothing
+        // left, or none, 0. The repairs past the wrecks: "Billed 400,000, ..." (a failure's "Repair bill: ...").
+        auto salvage_pay = [&]() -> int64_t {
+          for (const std::string& l : rp->pay)
+            if (l.rfind("Salvage: ", 0) == 0) {
+              const size_t eq = l.rfind(" = ");
+              if (eq == std::string::npos) return 0;
+              std::string digits;
+              for (char ch : l.substr(eq + 3)) {
+                if (ch == ' ' && !digits.empty()) break;
+                if (ch >= '0' && ch <= '9') digits += ch;
+              }
+              return digits.empty() ? 0 : std::stoll(digits);
+            }
+          return -1;
+        };
         if (salvage_shown < 0) {
-          salvage_shown = amount("Salvage share: "), fee_shown = amount("Fee: ");
-          bill_shown = std::max<int64_t>(0, amount("Repair bill: "));
-          if (run) run->bill_shown = amount("Repair bill: ");
+          salvage_shown = salvage_pay(), fee_shown = amount("Fee: ");
+          const int64_t bill = std::max(amount("Repair bill: "), amount("Billed "));
+          bill_shown = std::max<int64_t>(0, bill);
+          if (run) {
+            run->bill_shown = bill;
+            for (const std::string& l : all) run->from_wrecks = run->from_wrecks || l.find("from the wrecks") != std::string::npos;
+          }
         }
         if (run && run->after_action.empty()) run->after_action = all, run->results_lines = mission;
         if (run && run->stop_at_after_action) {
@@ -2060,15 +2081,15 @@ TEST(mw1_loop_a_full_lance_flies_on_a_pm_map_headless) {
   });
 }
 
-// Repairs (mw1_repairs.h) through the loop: the player's mech hit in a won mission, the bill shown on AFTER ACTION
-// and taken from the fee and salvage; a field base's repair (the engine's hook, ProgramFlow::mech_repaired) billed on
+// Repairs (mw1_repairs.h) through the loop: the player's mech hit in a won mission, its repairs paid from the wrecks'
+// worth (FIXES.md item 51: no bill from the funds); a field base's repair (the engine's hook, ProgramFlow::mech_repaired) billed on
 // an accepted failure, and dropped on a quit.
 TEST(mw1_loop_repairs_billed_won_failed_and_never_on_a_quit_headless) {
   std::error_code ec;
   if (!fs::exists(fs::path(MW3PM_GAME_DIR) / "zbd" / "reader.zbd", ec)) return;
   const fs::path dir = fs::path(MW3_TEST_TMP_ROOT) / "mw1_loop_repairs";
   struct Case { const char* name; Ending ending; float hit; bool mend; bool billed; bool killed; };
-  const Case cases[] = {{"won, hit", kWon, 40.0f, false, true, false},
+  const Case cases[] = {{"won, hit", kWon, 40.0f, false, false, false},
                         {"failed and accepted, a field base", kFailed, 0, true, true, false},
                         {"quit, a field base", kQuit, 0, true, false, false},
                         {"failed and accepted, the commander's mech destroyed", kFailed, 0, false, false, true}};
@@ -2095,6 +2116,7 @@ TEST(mw1_loop_repairs_billed_won_failed_and_never_on_a_quit_headless) {
         EXPECT(saved.mech == mw1::kPmFirefly && saved.hangar.empty());
       } else {
         EXPECT(k.billed ? run.bill_shown > 0 : run.bill_shown < 0);
+        if (k.ending == kWon) EXPECT(run.from_wrecks);  // the repairs from the wrecks' worth (FIXES.md item 51)
       }
     });
   }
@@ -2982,7 +3004,7 @@ void dark_wing_run(DarkWingRun& d) {
         if (!showing(app, rs)) return false;
         if (const mw1::ResultsPanel* p = mw1::game_loop_results_shown()) {
           d.results = true, d.replay = p->replay, d.message = !p->message.empty();
-          d.no_fee = !p->pay.empty() && p->pay[0] == "No fee: not a contract";
+          d.no_fee = std::find(p->pay.begin(), p->pay.end(), "No fee: not a contract") != p->pay.end();
         }
         rs->screen()->on_button(mw1::kResultsContinue, 0, 0);
         ++step, wait = 0;
@@ -3071,7 +3093,8 @@ TEST(mw1_story_the_dark_wing_won_and_lost_headless) {
       EXPECT(d.asked && d.attack_live && d.launched && d.rung == mw1::kDarkWingRung);
       EXPECT(d.enemies == mw1::kRungMechs && d.made == d.enemies && d.aims == d.enemies);  // the commander alone: all 8
       EXPECT(d.climate == d.map_climate);
-      EXPECT(d.results && d.no_fee && !d.replay && d.funds_after <= d.funds_before);
+      // No fee; a win's salvage is all of what the wrecks leave after the repairs (FIXES.md item 51), a loss pays none.
+      EXPECT(d.results && d.no_fee && !d.replay && (win || d.funds_after <= d.funds_before));
       EXPECT(!d.too_late);
       if (win) {
         EXPECT(d.victory_panel && d.won && d.arrest_seen && d.saved_won && d.units_on == 0 && d.not_redrawn && !d.asked_late);
@@ -3171,7 +3194,7 @@ void step_run(StepRun& d) {
         mw1::ResultsState* rs = mw1::game_loop_results();
         if (!showing(app, rs)) return false;
         if (const mw1::ResultsPanel* p = mw1::game_loop_results_shown())
-          d.results = true, d.no_fee = !p->pay.empty() && p->pay[0] == "No fee: not a contract";
+          d.results = true, d.no_fee = std::find(p->pay.begin(), p->pay.end(), "No fee: not a contract") != p->pay.end();
         rs->screen()->on_button(mw1::kResultsContinue, 0, 0);
         ++step, wait = 0;
         return false;

@@ -54,16 +54,52 @@ int64_t bill_of(const Company& c, const MechBill& b);
 // (provisional Q4).
 int64_t wreck_repairs(const Company& c, int32_t pm_mech, int32_t damage);
 
-// The repairs after a counted mission (won, or failed and accepted; after the fee, the salvage and the lancemates'
-// fates): the bill for each mech come back (a destroyed one is lost, never billed), taken from the funds and never
-// below 0, the rest forgiven. The commander's destroyed mech is lost: they take the first idle hangar mech, else a
-// lancemate's (who stays behind); with none left, the last comes back fully repaired, on the bill. The lines for
-// AFTER ACTION and the hub.
+// FIXES.md item 51 (Owen, 2026-11-18): a win's salvage pays after the repairs. The pool (the wrecks' worth) pays the
+// repairs first, the commander's mech's then the lancemates' in turn; the salvage term is paid on what's left (less
+// any deduction), and what the pool can't cover is billed as before. A story battle has no employer to split with:
+// all of what's left (the mw1 lead's default).
+inline constexpr int32_t kStorySalvagePercent = 100;
+struct SalvageSum {
+  int64_t pool = 0, repairs = 0;
+  int64_t covered = 0;  // the repairs the pool paid
+  int64_t beyond = 0;   // the repairs past the pool: billed
+  int64_t left = 0;     // the pool after the repairs
+  int64_t pay = 0;      // left x term% x payout%
+  std::vector<int64_t> from_pool;  // each bill's part the pool paid, in the bills' order
+};
+SalvageSum salvage_after_repairs(int64_t pool, const std::vector<int64_t>& bills, int32_t term_percent, int32_t payout_percent);
+
+// The repairs after a counted mission (won, or failed and accepted; after the fee and the lancemates' fates): the
+// bill for each mech come back (a destroyed one is lost, never billed), the commander's first, paid from `pool` (a
+// win's wrecks' worth: salvage_after_repairs) and the rest taken from the funds, never below 0, the rest of that
+// forgiven. The commander's destroyed mech is lost: they take the first idle hangar mech, else a lancemate's (who
+// stays behind); with none left, the last comes back fully repaired, on the bill (the commander's). The lines for
+// AFTER ACTION, the hub and DETAILS; `sum` the salvage's arithmetic (its pay not added here: settle_mission's).
 struct Repairs {
-  int64_t billed = 0, paid = 0, forgiven = 0;
+  int64_t billed = 0, paid = 0, forgiven = 0;  // billed: past the pool, from the funds
+  SalvageSum sum;
   std::vector<std::string> lines;
 };
-Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills);
+Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills, int64_t pool = 0, int32_t term_percent = 0,
+                       int32_t payout_percent = 100);
+
+// A mission settled, as CONTINUE settles it (and the results screen and the hub's lines show it, on copies): settle's
+// fee, standing and pool; on a counted mission (not a retreat) the lancemates' fates (after_mission) and the repairs
+// from the pool; then the salvage pay (Settlement::salvage) added to the funds.
+struct MissionSettled {
+  Settlement s;
+  Repairs r;
+  int32_t term = 0;  // the salvage term the pay used (percent)
+};
+MissionSettled settle_mission(Company& c, Contract& k, const AfterAction& a, Rng& rng);
+// Development shots only (MW1_SHOT_PAY=pool,repairs[,term]; the loop sets it): a win's pool, the commander's mech's
+// repairs and the salvage term as given, so the PAYMENT block can be shown at any numbers (today's repairs are a few percent of a pool).
+// Negative: as computed.
+struct PayOverride {
+  int64_t pool = -1, commander_repairs = -1;
+  int32_t term = -1;
+};
+PayOverride& pay_override();
 
 }  // namespace mw1::repairs
 

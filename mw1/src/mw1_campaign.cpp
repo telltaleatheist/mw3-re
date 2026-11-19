@@ -242,20 +242,17 @@ int32_t wreck_value(const Company& c, const Wreck& w) {
 Settlement settle(Company& c, Contract& k, Outcome o, const std::vector<Wreck>& wrecks, Rng& rng) {
   Settlement s;
   const HouseRules& h = kHouses[c.planet_house];
-  if (k.rung) {  // a story battle (FIXES.md 47, mw1_ladder.h): no pay, no deduction roll (MW1's Dark Wing), no standing
+  if (o == Outcome::kSuccess) {  // the pool: every wreck counts (the original's overwrite fixed, Owen 2026-11-16)
+    for (const Wreck& w : wrecks) s.pool += int64_t{wreck_value(c, w)} * 1000;
+  }
+  if (k.rung) {  // a story battle (FIXES.md 47, mw1_ladder.h): no fee, no deduction roll (MW1's Dark Wing), no standing
     c.kills += static_cast<int32_t>(wrecks.size());
     k.accepted = false;
     return s;
   }
   if (rng.upto(100) <= h.deduction_roll) s.payout_percent = h.reduced_payout;
-  if (o == Outcome::kSuccess && k.salvage_percent) {
-    int64_t total = 0;  // every wreck counts (the original's overwrite fixed, Owen 2026-11-16)
-    for (const Wreck& w : wrecks) total += wreck_value(c, w);
-    const int64_t share = total * k.salvage_percent / 100;
-    s.salvage = share * s.payout_percent / 100 * 1000;
-  }
   if (o == Outcome::kSuccess) s.fee = static_cast<int64_t>(k.remaining) * s.payout_percent / 100 * 1000;
-  c.funds += s.salvage + s.fee;
+  c.funds += s.fee;
   // The standing (research/contracts.md): success +2 favor, retreat +1 grievance with the employer, nothing on a
   // failure; the House you fought +2 grievance every time.
   if (o == Outcome::kSuccess) c.favor[k.house] += 2;

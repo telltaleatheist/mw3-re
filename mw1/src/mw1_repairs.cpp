@@ -45,20 +45,41 @@ int64_t wreck_repairs(const Company& c, int32_t pm_mech, int32_t damage) {
   return full_repair(c, pm_mech) * std::clamp(damage, 0, kWhole) / kWhole;
 }
 
-Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills) {
-  Repairs r;
-  bool commander_lost = false;
-  for (const MechBill& b : bills) {
-    if (b.who == 0 && b.destroyed) commander_lost = true;
-    if (b.destroyed) continue;  // lost (a lancemate's with them: after_mission), never billed
-    const int64_t bill = bill_of(c, b);
-    if (bill <= 0) continue;
-    r.billed += bill;
-    r.lines.push_back("Repairs: the " + mech_title(b.mech) + (b.who ? " (" + pilot_title(b.who) + ")" : std::string()) + " " +
-                      thousands(bill));
+SalvageSum salvage_after_repairs(int64_t pool, const std::vector<int64_t>& bills, int32_t term_percent, int32_t payout_percent) {
+  SalvageSum m;
+  m.pool = std::max<int64_t>(pool, 0);
+  int64_t left = m.pool;
+  for (int64_t b : bills) {
+    b = std::max<int64_t>(b, 0);
+    const int64_t from = std::min(b, left);
+    m.from_pool.push_back(from);
+    m.repairs += b, m.covered += from, left -= from;
   }
+  m.beyond = m.repairs - m.covered;
+  m.left = left;
+  m.pay = left * std::clamp(term_percent, 0, 100) * std::clamp(payout_percent, 0, 100) / 10000;
+  return m;
+}
+
+Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills, int64_t pool, int32_t term_percent, int32_t payout_percent) {
+  Repairs r;
+  // The bills in the pool's order: the commander's mech first (or, every mech lost, the last one's full repair),
+  // then the lancemates' in the bills' order. Each with its line's words before the amount.
+  struct Line {
+    int64_t amount;
+    std::string words;
+  };
+  std::vector<Line> order;
+  std::vector<std::string> lost;
+  bool commander_lost = false;
+  for (const MechBill& b : bills)
+    if (b.who == 0) {
+      if (b.destroyed) commander_lost = true;
+      else if (const int64_t bill = pay_override().commander_repairs >= 0 ? pay_override().commander_repairs : bill_of(c, b); bill > 0)
+        order.push_back({bill, "Repairs: the " + mech_title(b.mech)});
+    }
   if (commander_lost) {
-    const int32_t lost = c.mech;
+    const int32_t was = c.mech;
     int32_t take = -1;
     for (size_t h = 0; h < c.hangar.size() && take < 0; ++h)
       if (c.hangar[h].pilot == 0) take = static_cast<int32_t>(h);
@@ -68,21 +89,60 @@ Repairs settle_repairs(Company& c, const std::vector<MechBill>& bills) {
       const OwnedMech o = c.hangar[static_cast<size_t>(take)];
       c.hangar.erase(c.hangar.begin() + take);
       c.mech = o.mech, c.loadout = o.loadout;
-      r.lines.push_back("Lost: your " + mech_title(lost) + ". You take the " + mech_title(o.mech) +
-                        (from ? "; " + pilot_title(from) + " stays behind next time." : "."));
+      lost.push_back("Lost: your " + mech_title(was) + ". You take the " + mech_title(o.mech) +
+                     (from ? "; " + pilot_title(from) + " stays behind next time." : "."));
     } else {
       // The safety net: every mech the company owned destroyed; the last comes back, fully repaired, on the bill.
-      const int64_t full = full_repair(c, lost);
-      r.billed += full;
-      r.lines.push_back("Your last mech, the " + mech_title(lost) + ", is recovered and repaired: " + thousands(full));
+      order.push_back({full_repair(c, was), "Your last mech, the " + mech_title(was) + ", is recovered and repaired:"});
     }
   }
+  for (const MechBill& b : bills) {
+    if (b.who == 0 || b.destroyed) continue;  // lost (a lancemate's with them: after_mission), never billed
+    if (const int64_t bill = bill_of(c, b); bill > 0)
+      order.push_back({bill, "Repairs: the " + mech_title(b.mech) + " (" + pilot_title(b.who) + ")"});
+  }
+  std::vector<int64_t> amounts;
+  for (const Line& l : order) amounts.push_back(l.amount);
+  r.sum = salvage_after_repairs(pool, amounts, term_percent, payout_percent);
+  r.lines = lost;
+  for (size_t i = 0; i < order.size(); ++i) {
+    const int64_t from = r.sum.from_pool[i];
+    std::string l = order[i].words + " " + thousands(order[i].amount);
+    if (from == order[i].amount) l += ", from the wrecks";
+    else if (from > 0) l += ", " + thousands(from) + " from the wrecks";
+    r.lines.push_back(l);
+  }
+  r.billed = r.sum.beyond;
   r.paid = std::min<int64_t>(r.billed, std::max<int64_t>(c.funds, 0));
   r.forgiven = r.billed - r.paid;
   c.funds -= r.paid;
   if (r.billed > 0)
     r.lines.push_back("Repair bill: " + thousands(r.billed) + " C-bills" + (r.forgiven ? " (" + thousands(r.forgiven) + " forgiven)" : ""));
   return r;
+}
+
+PayOverride& pay_override() {
+  static PayOverride o;
+  return o;
+}
+
+MissionSettled settle_mission(Company& c, Contract& k, const AfterAction& a, Rng& rng) {
+  MissionSettled m;
+  m.term = k.rung ? kStorySalvagePercent : k.salvage_percent;  // read before settle closes the contract
+  m.s = settle(c, k, a.outcome, a.wrecks, rng);
+  if (a.outcome == Outcome::kSuccess && pay_override().pool >= 0) m.s.pool = pay_override().pool;  // shots only
+  if (pay_override().term >= 0) m.term = pay_override().term;
+  if (a.outcome != Outcome::kRetreat) {  // a counted mission: the fates, then the repairs from the pool
+    after_mission(c, a.lance);
+    std::vector<MechBill> bills;
+    for (const AfterAction::Bill& b : a.bills) bills.push_back({b.who, b.mech, b.damage, b.destroyed});
+    m.r = settle_repairs(c, bills, m.s.pool, m.term, m.s.payout_percent);
+  } else {
+    m.r.sum = salvage_after_repairs(m.s.pool, {}, m.term, m.s.payout_percent);  // a retreat: no pool (not a win)
+  }
+  m.s.salvage = m.r.sum.pay;
+  c.funds += m.s.salvage;
+  return m;
 }
 
 }  // namespace mw1::repairs

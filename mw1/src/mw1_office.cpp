@@ -101,8 +101,13 @@ std::vector<std::string> answer_lines(Answer a, const Company& c, const Contract
   return l;
 }
 
+std::string office_hint(int32_t id) {
+  if (id == kOfficeSalvageDown || id == kOfficeSalvageUp) return "Salvage pays this % of the wrecks' worth after your repairs.";
+  return "";
+}
+
 ScreenView office_view(const Company& c, const Contract& k, const OfficeChoice& o, const std::vector<std::string>& offer,
-                       const std::vector<std::string>& closed) {
+                       const std::vector<std::string>& closed, const std::string& hint) {
   ScreenView v;
   const bool open = closed.empty(), up = open && !offer.empty();  // the House deals; an offer is up
   auto row = [&](const char* name, const std::string& theirs, int32_t asked, const std::string& ask_words) {
@@ -118,8 +123,10 @@ ScreenView office_view(const Company& c, const Contract& k, const OfficeChoice& 
               at_place("PLACE", {"HOUSE OFFICE"}),
               at_place("PLACE_SUB", {"FUNDS " + thousands(c.funds) + " C-BILLS"}),
               at_place("STATUS_WORLD", {upper(c.planet)}),
-              at_place("STATUS", {up ? "The House's liaison will hear your terms." : open ? "Ask the liaison for a mission."
-                                                                                         : "Nothing to negotiate here now."}),
+              at_place("STATUS", {!hint.empty() ? hint
+                                  : up        ? "The House's liaison will hear your terms."
+                                  : open      ? "Ask the liaison for a mission."
+                                              : "Nothing to negotiate here now."}),
               at_place("C_TITLE", {"CONTRACT ON OFFER"}),
               at_place("C_LINES", up ? offer : std::vector<std::string>{"No contract on offer."}),
               at_place("NOTES", notes),

@@ -245,6 +245,12 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
               std::string(s) == "results" || std::string(s).rfind("walk_", 0) == 0) &&
         !shot_driver_) {
       hold_for_shot_ = std::string(s).rfind("loading", 0) == 0;
+      // FIXES.md item 51's shots: MW1_SHOT_PAY=pool,repairs (C-bills), the win's pool and the commander's repairs.
+      if (const char* pay = std::getenv("MW1_SHOT_PAY")) {
+        long long pool = -1, rep = -1;
+        int term = -1;
+        if (std::sscanf(pay, "%lld,%lld,%d", &pool, &rep, &term) >= 2) pay_override() = {pool, rep, term};
+      }
       shot_driver_ = true;
       auto before = ge.on_present;
       ge.on_present = [this, before, page = std::string(s)](int f) {
@@ -699,6 +705,12 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       return false;
     }
     office_ = ge.adopt_state([this](zgame::Handle h) { return office_state_ = new OfficeState(h, [this](int32_t id) { press_office(id); }); });
+    if (office_state_)
+      office_state_->set_hover([this](int32_t id) {  // the status line's words over a button (FIXES.md item 51)
+        if (id == office_hover_) return;
+        office_hover_ = id;
+        show_office();
+      });
     return office_ != 0;
   }
 
@@ -809,12 +821,15 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
 
   void show_office() {
     if (!office_state_) return;
+    // MW1_OFFICE_HOVER=1 (development shots): the SALVAGE arrow under the mouse, its words on the status line.
+    if (std::getenv("MW1_OFFICE_HOVER") && !office_hover_) office_hover_ = kOfficeSalvageUp;
     std::vector<std::string> closed;
     if (!earning_here(company_)) {
       closed = refuses(company_, company_.planet_house) ? refusal_words(company_.planet_house) : terminated_words();
       closed.push_back(refuses(company_, company_.planet_house) ? "No contracts from this House." : "No contracts here until you leave.");
     }
-    office_state_->show(office_view(company_, contract_, ochoice_, offered_ ? offer_lines(false, false) : std::vector<std::string>{}, closed));
+    office_state_->show(office_view(company_, contract_, ochoice_, offered_ ? offer_lines(false, false) : std::vector<std::string>{}, closed,
+                                    office_hint(office_hover_)));
   }
 
   // ---- the Bar (mw1_pilots.h, mw1_bar_screen.h) ----
@@ -1481,12 +1496,9 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
     Contract k = contract_;
     Rng r = rng_;
     const int64_t before = c.funds;
-    const Settlement s = settle(c, k, a.outcome, a.wrecks, r);
-    Repairs rep;
-    if (a.outcome != Outcome::kRetreat) {
-      after_mission(c, a.lance);
-      rep = settle_repairs(c, as_bills(a.bills));
-    }
+    const MissionSettled m = settle_mission(c, k, a, r);
+    const Settlement& s = m.s;
+    const Repairs& rep = m.r;
     const bool success = a.outcome == Outcome::kSuccess;
     p.planet = upper(company_.planet);
     p.employer = "HOUSE " + upper(kHouses[contract_.house].name);
@@ -1511,17 +1523,31 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
     if (!objective.empty()) p.where.push_back(objective);
     p.where.push_back(std::string(success ? "Accomplished" : a.outcome == Outcome::kFailure ? "Failed" : "Withdrew") + " in " +
                       time_words(a.seconds));
-    // PAYMENT: the fee (any deduction), the salvage share, the repair bill, the total and the funds.
+    // PAYMENT (FIXES.md item 51): the wrecks' worth less the repairs, the salvage term on what's left, the fee (any
+    // deduction on both), the total and the funds. Each mech's repairs in DETAILS.
     const bool docked = s.payout_percent < 100 && success;
-    if (contract_.rung) {
-      p.pay.push_back("No fee: not a contract");
+    const std::string dock = !docked ? "" : s.payout_percent ? " (" + std::to_string(s.payout_percent) + "% paid)" : " (withheld)";
+    const SalvageSum& sum = rep.sum;
+    if (success) {
+      if (sum.repairs == 0) p.pay.push_back("Wrecks " + thousands(sum.pool) + ", no repairs");
+      else if (sum.beyond == 0)
+        p.pay.push_back("Wrecks " + thousands(sum.pool) + " - repairs " + thousands(sum.repairs) + " = " + thousands(sum.left));
+      else  // past the pool: the rest billed, no salvage (two lines: the narrow 4:3 panel)
+        p.pay.push_back("Wrecks " + thousands(sum.pool) + " - repairs " + thousands(sum.repairs)),
+            p.pay.push_back("Billed " + thousands(sum.beyond) + (rep.forgiven ? " (" + thousands(rep.forgiven) + " forgiven)" : "") +
+                            ", no salvage left");
+      if (sum.beyond > 0) {
+      } else if (sum.left == 0) p.pay.push_back("Salvage: nothing left");
+      else
+        p.pay.push_back("Salvage: " + (m.term >= 100 ? std::string("all") : std::to_string(m.term) + "%") + " of " +
+                        thousands(sum.left) + " = " + thousands(s.salvage) + dock);
     } else {
-      p.pay.push_back("Fee: " + thousands(s.fee) +
-                      (!docked ? "" : s.payout_percent ? " (" + std::to_string(s.payout_percent) + "% paid)" : " (withheld)"));
-      p.pay.push_back("Salvage share: " + thousands(s.salvage));
+      p.pay.push_back(std::string("Salvage: none (") + (a.outcome == Outcome::kFailure ? "lost" : "withdrew") + ")");
+      for (const std::string& l : rep.lines)
+        if (l.rfind("Repair bill", 0) == 0) p.pay.push_back(l);
     }
-    for (const std::string& l : rep.lines)
-      if (l.rfind("Repair bill", 0) == 0) p.pay.push_back(l);
+    if (contract_.rung) p.pay.push_back("No fee: not a contract");
+    else p.pay.insert(success ? p.pay.end() : p.pay.begin(), "Fee: " + thousands(s.fee) + dock);
     const int64_t total = c.funds - before;
     p.pay.push_back("Total: " + std::string(total < 0 ? "-" : "+") + thousands(total < 0 ? -total : total) + "   Funds: " +
                     thousands(c.funds));
@@ -1559,6 +1585,11 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
                          static_cast<int32_t>(i)});
     }
     if (p.kills.empty()) p.kills.push_back({"None"});
+    // Each mech's repairs, how much the wrecks paid (FIXES.md item 51), a lost mech's fate, the bill past them.
+    if (!rep.lines.empty()) {
+      p.kills.push_back({""});
+      for (const std::string& l : rep.lines) p.kills.push_back({l});
+    }
     p.mech_title = "YOUR " + upper(mech_title(company_.mech));
     p.mech = mech_lines(a.armor_left, a.structure_left, destroyed);
     // The message (item 31): the exe's outcome line, and the deduction's after a win paid short (MW1's
@@ -1986,18 +2017,20 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
   // The pending mission settled (CONTINUE on the results screen; OK at the hub without its layout): the pay, the
   // salvage on a win, the experience, casualties and repairs on a counted mission, the time and the world moved on.
   void settle_pending() {
-    const Settlement s = settle(company_, contract_, pending_->outcome, pending_->wrecks, rng_);
+    // The fee, the fates, the repairs from the wrecks' worth, then the salvage on what's left (FIXES.md item 51).
+    const MissionSettled m = settle_mission(company_, contract_, *pending_, rng_);
+    const Settlement& s = m.s;
     // The parts are kept only on a win (VISION.md, the endings): failed or quit, the mission's salvage is dropped.
     if (pending_->outcome == Outcome::kSuccess && pending_->salvage) company_.stores->add_all(*pending_->salvage);
     // A counted mission (won, or failed and accepted; a retreat isn't, nor a replayed failure): the lancemates'
     // experience, then their casualties (mw1_pilots.h).
     // Then the repairs (mw1_repairs.h): the bill, the commander's loss.
     if (pending_->outcome != Outcome::kRetreat) {
-      after_mission(company_, pending_->lance);
-      const Repairs r = settle_repairs(company_, as_bills(pending_->bills));
+      const Repairs& r = m.r;
       for (const std::string& l : r.lines) company_.notices.push_back(l);
-      std::printf("mw1: repairs: billed %s, paid %s, forgiven %s\n", thousands(r.billed).c_str(), thousands(r.paid).c_str(),
-                  thousands(r.forgiven).c_str());
+      std::printf("mw1: repairs: %s, %s from the wrecks (%s), %s left; billed %s, paid %s, forgiven %s\n",
+                  thousands(r.sum.repairs).c_str(), thousands(r.sum.covered).c_str(), thousands(r.sum.pool).c_str(),
+                  thousands(r.sum.left).c_str(), thousands(r.billed).c_str(), thousands(r.paid).c_str(), thousands(r.forgiven).c_str());
     }
     std::printf("mw1: settled: %s, %zu wrecks, salvage %s, fee %s, payout %d%%, funds %s, %d items in the stores\n",
                 ending_word(pending_->outcome), pending_->wrecks.size(), thousands(s.salvage).c_str(), thousands(s.fee).c_str(),
@@ -2175,13 +2208,10 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
     Company c = company_;
     Contract k = contract_;
     Rng r = rng_;
-    const Settlement s = settle(c, k, pending_->outcome, pending_->wrecks, r);
-    // The repairs as OK will settle them (a counted mission: won, or failed and accepted).
-    Repairs rep;
-    if (pending_->outcome != Outcome::kRetreat) {
-      after_mission(c, pending_->lance);
-      rep = settle_repairs(c, as_bills(pending_->bills));
-    }
+    // The repairs as OK will settle them (a counted mission: won, or failed and accepted), from the wrecks first.
+    const MissionSettled m = settle_mission(c, k, *pending_, r);
+    const Settlement& s = m.s;
+    const Repairs& rep = m.r;
     std::vector<std::string> l = {pending_->outcome == Outcome::kSuccess   ? "Success"
                                   : pending_->outcome == Outcome::kFailure ? "Failure"
                                                                           : "Retreat: the contract broken",
@@ -2465,12 +2495,6 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
       bills_.push_back({f.id, mech, std::min(kWhole, (m ? damage_of(bars_of(m)) : 0) + mended_[f.id]), f.destroyed});
     }
   }
-  static std::vector<MechBill> as_bills(const std::vector<AfterAction::Bill>& v) {
-    std::vector<MechBill> out;
-    for (const AfterAction::Bill& b : v) out.push_back({b.who, b.mech, b.damage, b.destroyed});
-    return out;
-  }
-
   // The lancemate flying an AI mech: its brain's pilot is the name ally_launching gave.
   int32_t lancemate_of(void* mech) const {
     int32_t n = 0;
@@ -3273,6 +3297,7 @@ class Loop : public mech3::ProgramFlow, public mech3::ObjectivesExtension {
   mech3::GameEngine* ge_ = nullptr;
   zgame::Handle hub_ = 0;
   HubState* hub_state_ = nullptr;
+  int32_t office_hover_ = 0;  // the office's button under the mouse (its words on the status line), 0 none
   int32_t hub_hover_ = 0;  // the hub's button under the mouse (its words on the status line), 0 none
   zgame::Handle bar_ = 0;
   BarState* bar_state_ = nullptr;

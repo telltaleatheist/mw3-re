@@ -54,8 +54,11 @@ std::vector<std::string> answer_lines(Answer a, const Company& c, const Contract
 // The screen's texts and buttons (pure: the tests read it). `offer` is the contract's lines, without its terms; empty:
 // none asked for yet (REQUEST MISSION). `closed`: why there's no offer to be had (the House broke off, or refuses the
 // company), the terms' rows and every button but LEAVE greyed. The office is a place, as MW1's: it opens either way.
+// `hint`: the status line's words for the button under the mouse (empty: the office's own).
 ScreenView office_view(const Company& c, const Contract& k, const OfficeChoice& o, const std::vector<std::string>& offer,
-                       const std::vector<std::string>& closed = {});
+                       const std::vector<std::string>& closed = {}, const std::string& hint = "");
+// The status line's words over a button (empty: none). The SALVAGE arrows: how the salvage is paid (FIXES.md item 51).
+std::string office_hint(int32_t id);
 
 // The office's state: pushed in the hub's place by the loop. Escape is BACK.
 class OfficeState : public Mw1State {

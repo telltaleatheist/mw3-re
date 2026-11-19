@@ -311,12 +311,14 @@ struct AfterAction {
 };
 struct Settlement {
   int32_t payout_percent = 100;
-  int64_t salvage = 0, fee = 0;  // C-bills paid
+  int64_t salvage = 0, fee = 0;  // C-bills paid (the salvage's: settle_mission's, after the repairs)
+  int64_t pool = 0;              // a win's wrecks' worth in C-bills (FIXES.md item 51), 0 otherwise
 };
 // The after-action settlement (081B:STARTUP): the deduction roll, the
-// salvage share of the disabled enemies' value (every wreck counts: the
-// original's overwrite is fixed, research/contracts.md), the fee on a
-// success, the standing, and the kills.
+// fee on a success, the standing, and the kills; on a win, the pool: the
+// disabled enemies' value (every wreck counts: the original's overwrite is
+// fixed, research/contracts.md). The salvage paid from the pool comes after
+// the repairs (FIXES.md item 51): mw1_repairs.h's settle_mission.
 Settlement settle(Company& c, Contract& k, Outcome o, const std::vector<Wreck>& wrecks, Rng& rng);
 
 // A wreck's value in thousands at the company's tier: its PM chassis's sale price at this world (mw1_market.h's

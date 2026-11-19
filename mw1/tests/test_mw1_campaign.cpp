@@ -146,24 +146,25 @@ TEST(mw1_campaign_accept_and_settle) {
   // x 9 x 1.18 / 2 = 31,169 off: 2,741.
   c.repair_premium = 18;
   EXPECT(mw1::wreck_value(c, {mw1::kJenner, 100, 0}) == 2772 && mw1::wreck_value(c, {mw1::kJenner, 50, 5000}) == 2741);
-  // Success (Davion always pays 100%): 5% of the wrecks, and the fee's remainder; +2 favor, the kills counted. A
-  // Locust (the Firefly, 30 t) wholly to repair: 2,344,000 - 53,206 = 2,291 thousand.
+  // Success (Davion always pays 100%): the fee's remainder, and the pool of the wrecks' worth (the salvage paid from
+  // it after the repairs: mw1_repairs.h's settle_mission, FIXES.md item 51); +2 favor, the kills counted. A Locust
+  // (the Firefly, 30 t) wholly to repair: 2,344,000 - 53,206 = 2,291 thousand.
   const mw1::Settlement s =
       mw1::settle(c, k, mw1::Outcome::kSuccess, {{mw1::kJenner, 100, 0}, {mw1::kLocust, 0, mw1::kWhole}}, rng);
-  EXPECT(s.payout_percent == 100 && s.salvage == (2772 + 2291) * 5 / 100 * 1000 && s.fee == 141000);
-  EXPECT(c.funds == start + 9000 + s.salvage + s.fee && c.favor[mw1::kDavion] == 2 && c.kills == 2 && !k.accepted);
+  EXPECT(s.payout_percent == 100 && s.pool == (2772 + 2291) * 1000 && s.salvage == 0 && s.fee == 141000);
+  EXPECT(c.funds == start + 9000 + s.fee && c.favor[mw1::kDavion] == 2 && c.kills == 2 && !k.accepted);
   // A retreat pays nothing and costs a grievance; a failure pays nothing either way.
   const int64_t before = c.funds;
   mw1::Contract r = mw1::generate_contract(c, 0, rng);
   mw1::accept(c, r);
   const int64_t advanced = c.funds;
   const mw1::Settlement t = mw1::settle(c, r, mw1::Outcome::kRetreat, {{mw1::kJenner, 100}}, rng);
-  EXPECT(t.salvage == 0 && t.fee == 0 && c.funds == advanced && advanced > before && c.grievance[mw1::kDavion] == 1);
+  EXPECT(t.salvage == 0 && t.pool == 0 && t.fee == 0 && c.funds == advanced && advanced > before && c.grievance[mw1::kDavion] == 1);
   mw1::Contract f = mw1::generate_contract(c, 0, rng);
   mw1::accept(c, f);
   const int64_t f_advanced = c.funds;
   const mw1::Settlement u = mw1::settle(c, f, mw1::Outcome::kFailure, {{mw1::kJenner, 100}}, rng);
-  EXPECT(u.fee == 0 && u.salvage == 0 && c.funds == f_advanced && c.grievance[mw1::kDavion] == 1);
+  EXPECT(u.fee == 0 && u.salvage == 0 && u.pool == 0 && c.funds == f_advanced && c.grievance[mw1::kDavion] == 1);
   // The House you fought: +2 grievance at every ending, a target that isn't a House none.
   for (const mw1::Outcome o : {mw1::Outcome::kSuccess, mw1::Outcome::kFailure, mw1::Outcome::kRetreat})
     for (const int32_t target : {int32_t{mw1::kMarik}, int32_t{mw1::kTargetColumns - 1}}) {
