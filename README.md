@@ -1,5 +1,17 @@
 # MechWarrior 3 Rebuild
 
+> **Development has moved; downloads stay here.** From 2026-11-21 the code
+> lives in its own repos: [mech3-re](https://github.com/telltaleatheist/mech3-re)
+> (MechWarrior 3 and the launcher) and
+> [mech3-pm-re](https://github.com/telltaleatheist/mech3-pm-re) (Pirate's Moon) and
+> [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) (MechWarrior 1 Remake).
+> Fixes and pull requests go there; this repo's code stays as it is, so
+> existing clones keep working (the new repos share its history, and pull
+> requests opened here are merged there). New releases of the launcher and
+> the games keep coming out on this page's
+> [Releases](https://github.com/telltaleatheist/mw3-re/releases), and the
+> games' UPDATES keep finding them.
+
 An unofficial fan rebuild of **MechWarrior 3** (Zipper Interactive and
 MicroProse, 1999) for today's computers: Windows 10 and 11, macOS and Linux,
 with no Wine, DirectX wrappers, DDrawCompat or dgVoodoo.
