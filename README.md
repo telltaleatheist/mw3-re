@@ -1,16 +1,9 @@
 # MechWarrior 3 Rebuild
 
-> **Development has moved; downloads stay here.** From 2026-11-21 the code
-> lives in its own repos: [mech3-re](https://github.com/telltaleatheist/mech3-re)
-> (MechWarrior 3 and the launcher) and
-> [mech3-pm-re](https://github.com/telltaleatheist/mech3-pm-re) (Pirate's Moon) and
-> [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) (MechWarrior 1 Remake).
-> Fixes and pull requests go there; this repo's code stays as it is, so
-> existing clones keep working (the new repos share its history, and pull
-> requests opened here are merged there). New releases of the launcher and
-> the games keep coming out on this page's
-> [Releases](https://github.com/telltaleatheist/mw3-re/releases), and the
-> games' UPDATES keep finding them.
+> **This is the download page; the code now lives in its own repos.** Get the
+> game from [Releases](../../releases) as always, and report bugs in
+> [Issues](../../issues). On 2026-11-21 the project was split into one repo
+> per game: see [Where everything lives](#where-everything-lives) below.
 
 An unofficial fan rebuild of **MechWarrior 3** (Zipper Interactive and
 MicroProse, 1999) for today's computers: Windows 10 and 11, macOS and Linux,
@@ -37,18 +30,82 @@ as separate downloads too.
 
 > Found a bug? Please [report it](#reporting-a-bug).
 
+## Where everything lives
+
+On 2026-11-21 the project was split. Until then this one repo held
+everything: MechWarrior 3, the launcher, and Pirate's Moon and MechWarrior 1
+Remake on branches of their own. Now each game has its own repo, and this
+one is the front door.
+
+| What | Where | Releases |
+|---|---|---|
+| **The download** (the launcher with all three games), bug reports, and this page | **mw3-re** (here) | [Releases](../../releases): the full package for Windows, Mac and Linux, and each game alone |
+| MechWarrior 3, the launcher, and the packaging that builds the download | [mech3-re](https://github.com/telltaleatheist/mech3-re) | [MechWarrior 3 alone](https://github.com/telltaleatheist/mech3-re/releases) |
+| Pirate's Moon | [mech3-pm-re](https://github.com/telltaleatheist/mech3-pm-re) | [Pirate's Moon alone](https://github.com/telltaleatheist/mech3-pm-re/releases) |
+| MechWarrior 1 Remake | [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) | [its releases](https://github.com/telltaleatheist/mech1-remake-re/releases) (it plays from the full package) |
+| The shared "find your game files" setup | [re-setup-kit](https://github.com/telltaleatheist/re-setup-kit) | (a library the games build in) |
+| MechWarrior (1989) rebuilt as C++ | [mech1-re](https://github.com/telltaleatheist/mech1-re) | not released yet |
+| BattleTech: The Crescent Hawk's Inception rebuilt | [inception-re](https://github.com/telltaleatheist/inception-re) | not released yet |
+
+**Why it was split:**
+
+- **Each game stands on its own.** Every game has its own repo, its own
+  version numbers and its own releases, and plays without the launcher.
+  Pirate's Moon and MechWarrior 1 Remake used to be long-lived branches
+  here; as repos of their own, their history, changes and downloads are
+  easy to find.
+- **MechWarrior 3 stays as it shipped.** Pirate's Moon is a complete copy of
+  the game with the expansion's changes in place, and those changes never
+  flow back. Fixes flow down only: mech3-re into mech3-pm-re into
+  mech1-remake-re.
+- **The family is growing.** MechWarrior 1 Remake, a MechWarrior (1989)
+  rebuild and an Inception rebuild share the setup kit and the `-re` name
+  ("reverse engineered"). The names now say what each one is ("mw3" was
+  often read as Modern Warfare 3).
+
+**Why this repo stays:** it's the address people know. Articles and links
+point here, and every copy of the game already installed checks this page's
+Releases for updates. So new releases keep coming out here, and the launcher
+keeps finding them. Its code is frozen as it was at the split, so old clones
+and links keep working. The game repos carry this repo's full history, and
+pull requests opened here are merged there.
+
+**If you want to:**
+
+- **Play:** download from [Releases](../../releases). One package holds the
+  launcher and all three games; you need your own copies of the games.
+- **Report a bug** in any of the three games: open an issue
+  [here](../../issues) (more [below](#reporting-a-bug)).
+- **Change the code:** fork the game's own repo and open your pull request
+  there.
+- **Understand how the repos fit together**, how the launcher brings in each
+  game and how updates and releases work: [DEPLOY.md](DEPLOY.md).
+
 ## What's new
 
 Every release's full notes are on the [Releases](../../releases) page, and
-[CHANGES.md](CHANGES.md) lists everything the rebuild changes from the
+[CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
 ### Coming in the next release
 
 Nothing yet.
 
+**1.2.3 (2026-11-21)** (the full notes are in
+[docs/release-notes-1.2.3.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.2.3.md)): setting up your
+games is simpler, and always your choice.
+
+- **Your files are copied in**, so the copy, zip or disc image you set a game
+  up from can be deleted afterwards; a game folder put next to the program is
+  found whatever it is called.
+- **Always your choice**: what a game finds is only offered ("USE THESE GAME
+  FILES?"), and holding Shift at a game's start lets you choose again.
+- Pirate's Moon and MechWarrior (1989) are set up the same way.
+- MechWarrior 1 Remake 1.0.6: its new name on the window and save folder,
+  reach contracts that can be reached, the arctic defence contract back.
+
 **1.2.2 (2026-11-21)** (the full notes are in
-[docs/release-notes-1.2.2.md](docs/release-notes-1.2.2.md)): fixes from your
+[docs/release-notes-1.2.2.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.2.2.md)): fixes from your
 bug reports, for all three games.
 
 - **Raw mouse**: the mouse moves exactly as far as you move it, without the
@@ -60,7 +117,7 @@ bug reports, for all three games.
   every map.
 
 **1.2.1 (2026-11-21)** (the full notes are in
-[docs/release-notes-1.2.1.md](docs/release-notes-1.2.1.md)): a fix release
+[docs/release-notes-1.2.1.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.2.1.md)): a fix release
 for MechWarrior 1 Remake, now 1.0.4.
 
 - **Every contract can be won**: Desolation Ridge's "destroy the pirate base"
@@ -70,7 +127,7 @@ for MechWarrior 1 Remake, now 1.0.4.
   maps cool your 'Mech faster; smoother HUD shapes.
 
 **1.2.0 (2026-11-20)** (the full notes are in
-[docs/release-notes-1.2.0.md](docs/release-notes-1.2.0.md)):
+[docs/release-notes-1.2.0.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.2.0.md)):
 
 - **Ultrawide screens** (21:9, 32:9) filled without stretching, with
   2560x1080, 3440x1440, 3840x1080 and 5120x1440 in the graphics options.
@@ -81,7 +138,7 @@ for MechWarrior 1 Remake, now 1.0.4.
   Hit 1.0.3.
 
 **1.1.3 (2026-11-20)** (the full notes are in
-[docs/release-notes-1.1.3.md](docs/release-notes-1.1.3.md)):
+[docs/release-notes-1.1.3.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.1.3.md)):
 
 - **Three games on one launcher**: MechWarrior 1 Remake 1.0.1, a fan remake of
   MechWarrior (1989) on the rebuild's engine, joins the combined package. The
@@ -94,7 +151,7 @@ for MechWarrior 1 Remake, now 1.0.4.
   first lancemate.
 
 **1.1.2 (2026-11-15)** (the full notes are in
-[docs/release-notes-1.1.2.md](docs/release-notes-1.1.2.md)):
+[docs/release-notes-1.1.2.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.1.2.md)):
 
 - **Both games are ported whole**, the developers' tools and unused code
   included, kept as the original has them.
@@ -106,7 +163,7 @@ for MechWarrior 1 Remake, now 1.0.4.
   that left the game, damaged model files, the mod check with a world loaded.
 
 **1.1.1 (2026-11-13)** (the full notes are in
-[docs/release-notes-1.1.1.md](docs/release-notes-1.1.1.md)):
+[docs/release-notes-1.1.1.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.1.1.md)):
 
 - **Pirate's Moon plays by its own rules** where 1.1.0 still used
   MechWarrior 3's: multiplayer salvage, field base repairs, which weapons can
@@ -118,7 +175,7 @@ for MechWarrior 1 Remake, now 1.0.4.
   on something with no vehicle behind it (Pirate's Moon).
 
 **1.1.0 (2026-11-12)** (the full notes are in
-[docs/release-notes-1.1.0.md](docs/release-notes-1.1.0.md)):
+[docs/release-notes-1.1.0.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.1.0.md)):
 
 - **One download holds both games**, MechWarrior 3 and Pirate's Moon, with a
   launcher to pick between them.
@@ -457,7 +514,7 @@ The rebuild fixes the original's bugs where the intent is clear: things that
 ran faster on a fast computer, the mobile field bases that would not come
 back, lancemates walking into walls, and more. Quirks that players know and
 plan around are kept. Every change is listed in plain words in
-[CHANGES.md](CHANGES.md).
+[CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md).
 
 The fixes that change play are grouped under five switches on the
 **UPGRADES** page in the options (in the menus and in a mission), all on
@@ -488,7 +545,7 @@ off when typed again. The message panel says what was turned on or off.
 | `game over man` | Loses the mission |
 
 A mission won with a code counts as won. In a network game the keypad keys
-stay the chat's. More in [docs/cheats.md](docs/cheats.md).
+stay the chat's. More in [docs/cheats.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/cheats.md).
 
 ## Mods
 
@@ -534,7 +591,7 @@ Mods live as folders in a `mods` folder inside the settings folder (below),
 laid out like the game's own files, each with a short `mod.txt`. `mw3
 --mods` lists what it found, and `mw3 --check-mod FOLDER` reads a mod as
 the game would and says what it would refuse. How to make one:
-[docs/modding.md](docs/modding.md).
+[docs/modding.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/modding.md).
 
 To build or change a world, use [zStudio](https://github.com/Vorta/zStudio) by Vorta
 (Windows): it unpacks the game's files into the editable source tree Zipper's own team
@@ -543,11 +600,11 @@ worked from, and builds them back into game files you can ship as a mod.
 The game editor itself (the original's own, opened to players: the AI's paths, the
 vehicles' AI, new weapons, saved into your own copy of a campaign) is reached from
 MODS: MISSIONS, a mission, PLAY, then EDIT MISSION on the pause menu (or Shift+F12).
-It has a guide: [docs/editor-guide.md](docs/editor-guide.md).
+It has a guide: [docs/editor-guide.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/editor-guide.md).
 In the game every field, button and menu row has a tip, and the menu's HELP row gives a
 quick start.
 
-The original game has a tool of its own here: [tools/weapon-patch](tools/weapon-patch)
+The original game has a tool of its own here: [tools/weapon-patch](https://github.com/telltaleatheist/mech3-re/tree/main/tools/weapon-patch)
 adds weapons to the original `Mech3.exe`'s mech lab. It isn't part of the rebuild.
 
 ## Where your saves and settings go
@@ -561,7 +618,8 @@ adds weapons to the original `Mech3.exe`'s mech lab. It isn't part of the rebuil
 It holds `mw3.cfg`, your pilots and saves, the settings, your mods, the
 converted movies and the music, and `mw3.log`. Pirate's Moon keeps its own
 beside it, in `MicroProse/Pirate's Moon`, and MechWarrior 1 Remake in
-`MicroProse/MechWarrior 1 Critical Hit`. Uninstalling the rebuild keeps
+`MicroProse/MechWarrior 1 Remake` (moved there by itself from the old
+`MicroProse/MechWarrior 1 Critical Hit` on its first start). Uninstalling the rebuild keeps
 them; deleting one starts that game over. The launcher's GAME FILES, MY DATA
 FOLDER moves a game's folder to another drive.
 
@@ -588,7 +646,7 @@ Open an [issue](../../issues) and include:
 ## Hidden mechanics
 
 Taking the game apart turned up hundreds of hidden mechanics, quirks and
-bugs, collected for players in [docs/discoveries.md](docs/discoveries.md).
+bugs, collected for players in [docs/discoveries.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/discoveries.md).
 A few:
 
 - Lasers never cause critical hits, and criticals only happen once a part's
@@ -610,9 +668,10 @@ tool, as it was in 1999: expect rough edges.
 
 ## Building from source
 
-See [docs/building.md](docs/building.md). How the code is organised (the
+The code is in the game repos (see [Where everything lives](#where-everything-lives)).
+For MechWarrior 3 and the launcher, see [docs/building.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/building.md). How the code is organised (the
 shared engine, MechWarrior 3, Pirate's Moon and the launcher):
-[docs/games-layout.md](docs/games-layout.md).
+[docs/games-layout.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/games-layout.md).
 
 ## Credits and licence
 
