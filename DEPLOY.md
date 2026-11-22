@@ -82,7 +82,9 @@ repo:
   program pm-v1.2.2").
 - **No game files are ever in a package.** Each game sets itself up from the
   player's own copy through the setup kit (`mw3 --status` / `--setup`, the
-  find screen) and copies what it needs into its own settings folder.
+  find screen) and copies what it needs into its own settings folder. (MW1
+  for now takes its installs from the launcher's finds or its `mw1.cfg`; its
+  own setup recipe comes later.)
 - Each game also starts on its own, without the launcher, and keeps its own
   settings, saves and mods.
 
@@ -114,7 +116,7 @@ assets, move the download off mw3-re, or publish without `SHA256SUMS`.
 
 ## Deploying a release
 
-Releases are cut by the lead session when Owen clears them. The full
+Releases are cut by the lead session when the project owner clears them. The full
 checklist is mech3-re's [docs/release.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release.md);
 this is the shape of it.
 
@@ -164,7 +166,7 @@ tags in a `git bundle`.
    the new one on the hub.
 
 After a release: the game repos' mains already sit on their tags. Issue
-replies announcing it are Owen's to approve.
+replies announcing it are the project owner's to approve.
 
 ## Rules that keep it working
 
