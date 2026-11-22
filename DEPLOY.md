@@ -11,7 +11,7 @@ copy it to the others.
 | [mw3-re](https://github.com/telltaleatheist/mw3-re) | **The hub.** Where the project started; its code is frozen since 2026-11-21 | `vX.Y.Z` (the package's version) | **The download**: the combined package for every platform (the launcher and all three games), each game alone, and `SHA256SUMS`. The launcher's updates come from here |
 | [mech3-re](https://github.com/telltaleatheist/mech3-re) | MechWarrior 3 and the launcher (named BattleTech), and the packaging scripts that build the download | `vX.Y.Z` | MechWarrior 3 alone |
 | [mech3-pm-re](https://github.com/telltaleatheist/mech3-pm-re) | Pirate's Moon: a complete copy of the game with Pirate's Moon's changes in place | `pm-vX.Y.Z` | Pirate's Moon alone |
-| [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) | MechWarrior 1 Remake: MechWarrior (1989)'s campaign on this engine | `mw1-vX.Y.Z` | Its notes (it ships inside the combined package) |
+| [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) | MechWarrior 1 Remake: MechWarrior (1989)'s campaign on this engine | `mw1-vX.Y.Z` | The combined package it plays from, and its notes |
 | [re-setup-kit](https://github.com/telltaleatheist/re-setup-kit) | The shared "find your game files" kit: installed copies, discs, images and archives on Mac, Windows and Linux | none (pinned by commit) | nothing |
 
 Rebuilds on other engines, not part of the download (yet):
@@ -157,9 +157,9 @@ tags in a `git bundle`.
    game repos too: a game's own release up before the hub's would be seen by
    1.2.2 copies with no package to download.
 8. **Then each game's own release:** MW3 alone on mech3-re (`vX.Y.Z`),
-   Pirate's Moon alone on mech3-pm-re (`pm-vX.Y.Z`), MW1's notes on
-   mech1-remake-re (`mw1-vX.Y.Z`), each with its files and their lines of
-   `SHA256SUMS`, and a link to the hub for the full package. Every game
+   Pirate's Moon alone on mech3-pm-re (`pm-vX.Y.Z`), and on mech1-remake-re
+   (`mw1-vX.Y.Z`) the combined package MW1 plays from, each with its files and
+   their lines of `SHA256SUMS`, and a link to the hub for the full package. Every game
    release's version must match a bundle on the hub.
 9. **Check it live:** download every asset again and check its checksum, then
    run the previous release's launcher, press UPDATES, and confirm it finds
