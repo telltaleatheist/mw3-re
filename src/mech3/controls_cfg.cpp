@@ -415,7 +415,7 @@ bool controls_repair_mouse_fire() {  // after the tables' rebuild (the hook's)
 // Ours, FIX (bug), playtest W40: the map is the settings' own block, so the
 // original saved whatever it held at exit, a quit box's unbind too. The map
 // saved is the one the load and the controls menus left (input.md, section 3).
-// The same for the mouse's MouseAccelX/Y (Owen, 2026-11-02): kept at the load
+// The same for the mouse's MouseAccelX/Y (2026-11-02): kept at the load
 // and at the options' ACCEPT, so a value set for a moment (the menus' 1.3 is
 // zInput's working copy, 0x00481fc0) never reaches the disk.
 namespace {

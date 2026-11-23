@@ -14,7 +14,7 @@ rem For the combined package (tools\package\combined.cmd, docs/release.md):
 rem   MW3_PKG_PM_BIN=<mw3pm.exe built on pm>  adds Pirate's Moon beside mw3.exe (its DLLs checked as mw3's)
 rem   MW3_PKG_MW1_DIR=<mw1's build tree on mw1>  adds MechWarrior 1 Remake: mw1.exe and mw1data\ (its own data)
 rem   MW3_PKG_MW1_PORT_DIR=<staged port>  adds Elthial's MechWarrior (1989) SDL port (PLAY ORIGINAL) in
-rem                         MechWarrior1989\, as tools\package\mw1port\build_port.cmd stages it (Owen, 2026-11-20)
+rem                         MechWarrior1989\, as tools\package\mw1port\build_port.cmd stages it (2026-11-20)
 rem   MW3_PKG_STEM=<stem>   names <stem>-<version>-win64 (folder, zip) and <stem>-Setup-<version>.exe
 rem                         (default MW3-Rebuild; MW3 alone is MW3-alone, which the launcher's updater never takes)
 rem   MW3_PKG_KEEP_BUILD=1  reuse build-win-pkg (a second package from the same build)

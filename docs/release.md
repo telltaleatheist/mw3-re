@@ -1,14 +1,14 @@
 # Cutting a release
 
-A checklist for the three platforms' packages. Owen approves every tag and
+A checklist for the three platforms' packages. Every tag and
 every GitHub release; nothing here publishes anything by itself. The
 packages are built from one commit, so every platform's version is the same.
 
 ## MW3 v1.0: "done"
 
-Owen, 2026-10-31: MechWarrior 3 is declared done with the tag `v1.0`
+2026-10-31: MechWarrior 3 is declared done with the tag `v1.0`
 before any Pirate's Moon work reaches `main`. Pirate's Moon lives on its own
-branch, `pm`, which never merges to `main` (Owen, 2026-11-04). `v1.0` is tagged when
+branch, `pm`, which never merges to `main` (2026-11-04). `v1.0` is tagged when
 every box here is ticked:
 
 - [ ] Multiplayer ported (`docs/multiplayer-port.md`, every piece), with
@@ -19,14 +19,14 @@ every box here is ticked:
       fly camera on Shift+F12 under --debug-camera (docs/editor.md S1-S4;
       F11 stays the lancemate command screen). The
       Battlesport editor's menus (the AI net editor, the vehicle editor) come
-      after v1.0, with Pirate's Moon, whose net editor changed (Owen,
+      after v1.0, with Pirate's Moon, whose net editor changed (
       2026-11-01).
 - [x] SETUP takes any source foolproof: an install, a disc, .iso, .cue/.bin,
       .zip (nested too), .7z; maps it and installs without the player
       unpacking anything (`docs/setup-sources.md`; the packages carry
       libarchive, zlib and liblzma with their licences).
 - [x] The software renderer no longer offered anywhere in the menus.
-- [ ] Fully 16:9 at the desktop's resolution (Owen, 2026-11-01): every
+- [ ] Fully 16:9 at the desktop's resolution (2026-11-01): every
       screen widened (the multiplayer screens and the logo screens checked);
       the movies with black bars baked into their 4:3 frame (INTRO 640x320,
       C4WIN 640x240) shown without them, scaled to the screen's width, the
@@ -35,7 +35,7 @@ every box here is ticked:
       The movies and the logo screens done 2026-11-01 (fmv.md section 8:
       the shapes measured from the pictures; C4WIN is letterboxed but for
       its 4:3 ending, which is centred like the briefings).
-- [ ] Moddable, simply (Owen, 2026-11-01): players and hobbyists can add
+- [ ] Moddable, simply (2026-11-01): players and hobbyists can add
       their own game data without any change to the exe later. A `mods/`
       folder in the settings folder (one folder per mod, a small manifest,
       mounted in front of the install in mw3.cfg's order, nothing written
@@ -47,15 +47,15 @@ every box here is ticked:
 - [x] Every row in `docs/playtest.md` closed: fixed, by design or the
       original's, none open.
 - [x] The community-reported problems (`docs/community-issues.md`) each
-      have a verdict (Owen, 2026-10-31: items 9 and 12 kept as the original).
+      have a verdict (2026-10-31: items 9 and 12 kept as the original).
 - The whole campaign on the release build: the automated 20-mission run
-  (`sdl_program_campaign_by_objectives`) counts; Owen's own playthrough is a
-  later playtest, not a gate (Owen, 2026-10-31).
+  (`sdl_program_campaign_by_objectives`) counts; own playthrough is a
+  later playtest, not a gate (2026-10-31).
 - [ ] Every check in sections 1-4 below passes on all three platforms.
 
 ## After Pirate's Moon: Rebuild Upgrades (planned for 1.1.0)
 
-Owen, 2026-11-05. Work starts when Pirate's Moon is finished. Today one switch,
+2026-11-05. Work starts when Pirate's Moon is finished. Today one switch,
 bug fixes, covers every play change. After this:
 
 - **The bug fixes switch goes away.**
@@ -72,13 +72,13 @@ bug fixes, covers every play change. After this:
 - **In multiplayer the host's settings apply to everyone in the game.**
 
 When the work starts: go through `fixes.md` and sort each fix into game-breaking
-or upgrade, for Owen to approve.
+or upgrade, for a decision: approve.
 
 ## 1. Before
 
 - [ ] `main` is the commit to release, with nothing uncommitted.
 - [ ] The tests of what changed since the last release pass on that commit, not
-      the whole suites (Owen, 2026-11-05): each change's own tests and those of
+      the whole suites (2026-11-05): each change's own tests and those of
       the code that uses it. A change to movement or collision runs the mission
       tests (`MW3_TEST=mission_`), a change to loading or play the campaign runs,
       a change to platform code its tests on that platform. The notes say which
@@ -88,9 +88,9 @@ or upgrade, for Owen to approve.
 - [ ] `CHANGES.md` has a line for every change since the last release.
 - [ ] The README's **What's new** has this release's section, its date, and an
       emptied "Coming in the next release". Fixes add a line there as they reach
-      `main` (Owen, 2026-11-04).
+      `main` (2026-11-04).
 - [ ] The release notes are drafted (`docs/release-notes-<version>.md`) and
-      Owen has read them.
+      they have been read.
 - [ ] The players' read-mes match the build: `tools/windows/dist/README.txt`,
       `tools/macos/README.txt`, `tools/linux/README.txt`, the top-level `README.md`.
 - [x] Open since 2026-11-01: the Mac `--deps` release form
@@ -106,10 +106,10 @@ into `MW3_VERSION`, which `mw3 --version`, the Windows version resource, the
 Mac's Info.plist and every package's file name carry), and the commit count
 into `MW3_BUILD_NUMBER`.
 
-**Numbering (Owen, 2026-11-05):** each part is one digit. 1.0.9 is followed by
+**Numbering (2026-11-05):** each part is one digit. 1.0.9 is followed by
 1.1.0 and 1.1.9 by 1.2.0, whatever is in the release; there is never a 1.1.10.
 
-- [ ] Owen tags the commit (`git tag -a v0.1 -m ...`), or approves the tag.
+- [ ] The commit is tagged (`git tag -a v0.1 -m ...`), or approves the tag.
       Until then the version is the commit's short hash.
 - [ ] The version does not end in `-dirty`: every package script builds from
       scratch, and a dirty tree names every file.
@@ -181,11 +181,11 @@ requires it and checks its DLLs. Each checks every program is there.
 ## The combined package (1.1.0 on)
 
 From 1.1.0 every release is one package per platform holding the launcher,
-MechWarrior 3 and Pirate's Moon (Owen, 2026-11-09), plus each game alone, all on
+MechWarrior 3 and Pirate's Moon (2026-11-09), plus each game alone, all on
 one GitHub release. The launcher's updater takes only the combined package's
 name (launcher.md, Updates).
 
-MechWarrior 1 Remake joins the combined package (Owen, 2026-11-17): built
+MechWarrior 1 Remake joins the combined package (2026-11-17): built
 from the branch `mw1`, `mw1` and its `mw1data/` go beside the launcher, whose
 MECHWARRIOR 1 entry starts it (launcher.md, MechWarrior 1). One launcher, three
 games. MW3 alone and PM alone never carry it. On Windows `combined.cmd` takes
@@ -222,7 +222,7 @@ Moon.app".
       (program)".
 - [ ] With MW1 in the package, `mw1` has `pm` merged before its `mw1-vX.Y.Z`
       tag.
-- [ ] Owen tags the commits, or approves the tags.
+- [ ] The commit is taggeds, or approves the tags.
 
 ### Building
 
@@ -258,7 +258,7 @@ Moon.app".
 ### The notes
 
 - [ ] One GitHub release per package version, named for it ("MechWarrior 3
-      Rebuild 1.1.0"). Its page is short (Owen, 2026-11-12: "just put the
+      Rebuild 1.1.0"). Its page is short (2026-11-12: "just put the
       installers there at the very top and only the text that's necessary"):
       the three combined installers as links first, then only what a player
       needs before installing (your own game, upgrading keeps your files, the
@@ -274,10 +274,9 @@ Moon.app".
 Every file that leaves the machine (the packages, the read-mes, the release
 notes, the README) is checked before it goes up.
 
-- [ ] **No legal name.** The credits are "Owen Morgan" everywhere: LICENSE,
+- [ ] **No legal name.** Search each package's text and binaries (LICENSE,
       the README, `THIRD-PARTY.txt`, the installer, the Info.plist, the
-      release notes. Search each package's text and binaries for Owen's other
-      name and for his email addresses (`strings -a`, `grep -ri`); there must
+      release notes) for the author's legal name and email addresses (`strings -a`, `grep -ri`); there must
       be no match.
 - [x] **No team ID or signing identity.** The Mac app is signed ad hoc
       (above); the Windows files carry no certificate.
@@ -313,12 +312,12 @@ the Linux AppDir. Left, and why:
   payload is the checked folder.
 - The tests at 19a68f71 on Windows: the file-leak crash and the drive-path
   fix are on lead/b26, not main yet; v1.0 needs them.
-- Owen's: the tag and the version (section 2), the release notes, a clean
+- The: the tag and the version (section 2), the release notes, a clean
   Windows user (install, uninstall), Gatekeeper on a fresh Mac, play under
   Rosetta, and the Linux launcher, mission and movie runs (WSLg windows
   appear on his desktop).
 
-## 5. Publishing (Owen)
+## 5. Publishing
 
 - [ ] The tag pushed (a package's: a bare `vX.Y.Z` on `main`), the GitHub
       release made with the notes, and the three platforms' files uploaded,

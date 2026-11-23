@@ -10,7 +10,7 @@
 #include "mech3/mods_widgets.h"
 #include "upgrades/mods/mods_tick_list.h"
 
-// Ours (Owen, 2026-11-08; docs/modding.md, The MODS screen): the main menu's
+// Ours (2026-11-08; docs/modding.md, The MODS screen): the main menu's
 // MODS button and its screen, MODSDIALOG (our record edits,
 // patch12::apply_ours) on the pilot screen's look. Two tables: CUSTOM
 // CAMPAIGNS (each campaign= of every mod) and MODS (every other mod, on or
@@ -83,7 +83,7 @@ class ModsScreen;
 
 class ModsScreen : public MenuScreen {
  public:
-  // Six buttons (Owen, 2026-11-11): PLAY (kEnter), MISSIONS, IMPORT (kAdd), INFO, the delete tab, BACK. kToggle
+  // Six buttons (2026-11-11): PLAY (kEnter), MISSIONS, IMPORT (kAdd), INFO, the delete tab, BACK. kToggle
   // has no button: a click on a row's box ticks it. kExport and kOpenFolder are INFO's view's.
   enum Id : int32_t { kEnter = 1, kBack, kToggle, kUp, kDown, kMissions, kCampaigns, kMods, kAdd, kOpenFolder, kExport, kInfo, kDelete };
   ModsScreen(Engine& e, Handle state);

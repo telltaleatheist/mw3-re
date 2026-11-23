@@ -1,6 +1,6 @@
 # How the rebuild is organised: MW3, Pirate's Moon and the launcher
 
-Decided with Owen, 2026-10-31. (The original exe's own structure is
+Decided with 2026-10-31. (The original exe's own structure is
 `architecture.md`; this page is about the rebuild.)
 
 ## Three programs, one package
@@ -42,7 +42,7 @@ own MW3 or PM files) and keeps its own settings and saves.
   (`MW3_EXE=pm` runs a test against PM's exe), so a PM change cannot break
   MW3's suite unseen.
 
-## Which branch builds what (Owen, 2026-11-04, replacing the shared-engine plan)
+## Which branch builds what (2026-11-04, replacing the shared-engine plan)
 
 PM lives on the branch `pm`, which never merges into `main`: a complete copy
 of the game with PM's changes in place, as the original's `branchep1` was.
@@ -65,7 +65,7 @@ of the game with PM's changes in place, as the original's `branchep1` was.
   `main`'s merges into `pm` stay clean and a shared-code change on `pm` can
   be checked against MW3's tests (`pm-tests.md`, MW3's tests built from
   `pm`). Nothing is built or released from them.
-- MechWarrior 1 Remake (Owen, 2026-11-17: into mw3-re as the branch
+- MechWarrior 1 Remake (2026-11-17: into mw3-re as the branch
   `mw1`, public, packaged with the other two) takes PM's engine by merging
   `pm` into `mw1`, and never merges back. Its launcher entry is `main`'s
   launcher's (`launcher.md`, MechWarrior 1).

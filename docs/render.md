@@ -81,7 +81,7 @@ Emulator check of the conventions: `tests/differential/explore/render_matrix.py`
   `zvideo/zvid_ddd3d`, `mech3/app_states`, render-shadows.md. Identical to
   the original at 24 bits (blank images, the default) and with the filler at
   53 bits (`shadow_state().precision`; k53 the default: in play the shadows
-  show, Owen 2026-10-20). Correction:
+  show, 2026-10-20). Correction:
   0x51fee0 sums column 2 and the translation's z in another order
   (`zmth::multiply` now bit-exact).
 - Lens flares, the Direct3D path (ported 2026-10-25, item 18:
@@ -855,7 +855,7 @@ caster's texture, drawn by the multipass functions (0x57eeb0..: the base
 pass, then one multiply-blend pass per shadow). The caster's own node turns
 shadows off while it is drawn (0x526a70 around 0x4f4ab0's model draw). At
 a 24-bit FPU the images come out blank (white); in play (Windows 11 +
-DDrawCompat) the shadows show, so the FPU is at 53 bits there (Owen,
+DDrawCompat) the shadows show, so the FPU is at 53 bits there (
 2026-10-20). Details,
 projected lights (flag 0x40) included: `render-shadows.md`. Separately,
 many objects carry **fake shadow polygons**: untextured black with material
@@ -1091,7 +1091,7 @@ frame and come back (30 to 60 a frame), where the ground and the mechs
 around it show none. Likely coplanar faces in the vehicle's model fighting
 in depth (two polygons of one surface at equal sz), not the ground. Not
 traced yet: which model, whether its polygons share a plane, whether the
-original shows it too (Owen's PC, the same spot).
+original shows it too (the reference PC, the same spot).
 
 ## 7. Porting order
 
@@ -1134,7 +1134,7 @@ Shaped by the code above; each step is checkable on its own.
    (0x541df0), the overlay list and the full-screen quad. Puffers (0x5496c0) are ported
    (puffers.md).
 9. The software renderer (0x481290 strategy, 0x53e050, span code) is not
-   ported (Owen, 2026-10-25): hardware textures only; a software look, if
+   ported (2026-10-25): hardware textures only; a software look, if
    ever wanted, is a shader pass on the GPU path (CLAUDE.md, Rendering).
 
 For the viewer now (`tools/viewer`), in order of visible effect: material

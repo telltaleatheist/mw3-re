@@ -450,7 +450,7 @@ TEST(mod_export_round_trip) {
   for (const auto& [rel, data] : own) put(mod / rel, data);
   // Ours and the player's, never in the zip; beside the mod, never looked at.
   for (const char* rel : {"mw3-mod-added.txt", "mw3-checksums.txt", "zbd/c1/gamez.zbd.bak", "zbd/c1/anim.zbd.saving",
-                          ".DS_Store", "zbd/Thumbs.db", "pilots/Owen.txt", "mw3.cfg", "game.log", "._mod.txt"})
+                          ".DS_Store", "zbd/Thumbs.db", "pilots/Pilot.txt", "mw3.cfg", "game.log", "._mod.txt"})
     put(mod / rel, "not the mod's");
   put(fs::path(wd) / "mods" / "Other" / "mod.txt", "name=Other\n");
   put(fs::path(wd) / "mods" / "Hard Rain.txt", "beside it");

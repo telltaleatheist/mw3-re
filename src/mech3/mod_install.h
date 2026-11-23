@@ -9,7 +9,7 @@
 #include "upgrades/mods/import_texts.h"
 #include "mech3/mods.h"
 
-// Ours (Owen, 2026-11-08; docs/modding.md, ADD MOD): a mod added from a .zip
+// Ours (2026-11-08; docs/modding.md, ADD MOD): a mod added from a .zip
 // (or any archive the build's libarchive reads: .7z, .rar) or a folder into
 // the write dir's mods\<name>\. Unpacked first into a staging folder of ours
 // (mod-staging\<n>\, with our marker), every entry checked (nothing outside

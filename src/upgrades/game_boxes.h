@@ -3,7 +3,7 @@
 #include <functional>
 #include <string>
 
-// Ours (playtest W16, Owen, 2026-11-12): no system dialogs outside the Battlesport editor. A box the player
+// Ours (playtest W16, 2026-11-12): no system dialogs outside the Battlesport editor. A box the player
 // sees is the game's own (dlgMessage.zrd's, ztwod's message box) whenever the game's screens are up; a
 // system box only where nothing of the game can be drawn (before its window, after a crash).
 namespace mech3 {

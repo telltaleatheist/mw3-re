@@ -5,7 +5,7 @@
 
 #include "gamez/zutil/zfix.h"
 
-// Ours (Owen, 2026-11-10; docs/upgrades-sort.md): the Upgrades page's five
+// Ours (2026-11-10; docs/upgrades-sort.md): the Upgrades page's five
 // switches, their mw3.cfg keys, the Small fixes list a player can read, and
 // the word the multiplayer host sends so everyone plays on its switches.
 namespace upgrades {

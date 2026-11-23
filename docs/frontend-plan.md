@@ -96,7 +96,7 @@ files: without them (mw3import not run) PLAYAVI ends at once, as the
 original's without the file. With `-nofmv` the Intro state skips INTRO
 (game-loop.md); SPLASH plays either way.
 Indeo 5 (IV50) has no system decoder on macOS; FFmpeg's libavcodec decodes
-it. Decided (Owen, 2026-10-26): the first-run importer converts the AVIs
+it. Decided (2026-10-26): the first-run importer converts the AVIs
 once (libavcodec decodes the Indeo 5, only in the importer), and the game
 plays the converted files with a small built-in decoder: MPEG-1 video
 through pl_mpeg (one header, MIT), at 30 fps with every frame twice (MPEG-1
@@ -107,7 +107,7 @@ of the repo.
 ## 4. Porting order
 
 Each item is one sitting, with its test plan; the campaign loop first, so
-Owen can play c1m1 -> c1m2 with salvage and the lab.
+The player can play c1m1 -> c1m2 with salvage and the lab.
 
 0. **(Done) The menu driver** (`--click-at`, `--tap`, `--shot` from the
    plain start) **and `--briefing c1m2`** (program.md): a pilot whose newest

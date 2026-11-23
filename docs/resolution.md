@@ -1,10 +1,10 @@
 # Screen size and aspect
 
-Mech3.exe 1.2, mapped 2026-10-21 (mac 2) for Owen's decision (fixes.md,
+Mech3.exe 1.2, mapped 2026-10-21 (mac 2) for a decision (fixes.md,
 Candidates and Decided): any size up to 4K, 16:9 included, 640x480 4:3
 identical to the original; since 2026-11-20 any width up to 7680 at 2160 high,
 21:9 and 32:9 included (section 13). A first start plays at the desktop's size
-(Owen, 2026-10-30; section 10). 16:9 widens the view instead of
+(2026-10-30; section 10). 16:9 widens the view instead of
 stretching it. The menus and HUD art are scaled, and the menus pillarboxed.
 If larger sizes are trouble, the cap is 1920x1080. A FIX (B), behind
 `zfix::options().any_resolution`.
@@ -115,7 +115,7 @@ the original's formula unchanged, so 640x480 stays bit for bit.
    any shape. Headless.
 2. The window's shape: `--window` and the SDL window follow the mode's
    aspect (or pillarbox the back buffer); the mouse scale from the display
-   size, not 640. Platform only; Owen checks it on screen. Done
+   size, not 640. Platform only; Checked on screen. Done
    (2026-10-28), section 6.
 3. The mode switch 0x004ab6b0 and Shift+V 0x004ab910 on the port's zVideo:
    the 2D buffer, `Render3D`'s viewport, the HUD's text area 0x0040f330, the
@@ -284,7 +284,7 @@ window), as mode 3 keeps a render rect apart from its display. The 16-bit
 buffer is the canvas, and its layer is stretched over the frame by the art
 scale, the frame's height over 480 (`art_scale`: 1.5 at 720p, 2.25 at
 1080p, 3 at 1440p, 4.5 at 4K), so the HUD covers the same share of the
-screen as the original's at 640x480 (Owen, 2026-10-30: "as big as it was").
+screen as the original's at 640x480 (2026-10-30: "as big as it was").
 Until then the scale was whole (the height over 480, rounded down): at
 1280x720 the art drew at 1x, smaller than at 640x480, and at 1080p at 2x.
 
@@ -426,7 +426,7 @@ Shots:
 
 ## 10. The first start (2026-10-30)
 
-Owen: 16:9 by default. FIX (B), with any_resolution. With no InGameVMode
+16:9 by default. FIX (B), with any_resolution. With no InGameVMode
 saved, `load_options` (0x0040c420) makes the mission's mode 16 at the
 desktop's size (`OptionsHooks::first_start_screen`, the program's
 `platform::Window::first_start_size`: SDL's desktop mode, in points as the
@@ -446,21 +446,21 @@ gives 16 at the desktop's 2560x1440; a 5K desktop plays at 3840x2160; a
 saved 13, or a saved 16 at 1280x720, wins; no desktop (a check) or the fix
 off gives 5. Break: the mode not set fails it twice.
 
-**16:9 at most** (Owen, 2026-10-30, instead of extra cockpit geometry for
+**16:9 at most** (2026-10-30, instead of extra cockpit geometry for
 wide screens; lifted 2026-11-20, section 13). Mode 16's size was at most 16:9:
 a 21:9 or 32:9 screen got a 16:9 frame at its height, pillarboxed by the
 window's fit (section 6).
 
 ## 11. Playtest W13: a mode changed mid-mission (2026-10-30)
 
-Owen's shots from his PC (d02a386, D3D12): after choosing RESOLUTION
+the shots from his PC (d02a386, D3D12): after choosing RESOLUTION
 1920x1080 from a mission played at 640x480, two things were wrong.
 
 **The 3D picture stretched.** The exe sets the camera's angle across only
 at the mission's load (0x0040d590, called from 0x0048ffc6 and 0x00490503).
 Its modes were all 4:3, so a mode change never needed it. Ours are not:
 the mission kept 640x480's 80 degrees across, now drawn over a 16:9 frame,
-which is the 4:3 picture stretched 1.33 wide (Owen measured about 1.4 on
+which is the 4:3 picture stretched 1.33 wide (measured about 1.4 on
 his own mech). The mode switch 0x004ab6b0 (`Engine::set_screen_mode`) now
 sets the angle again for the new shape, with any_resolution: 96.4 degrees at
 16:9, 80 back at 640x480, the vertical 60 kept. My earlier checks all
@@ -498,7 +498,7 @@ Tests:
 ## 12. 16:9 menus (2026-10-30; on by default 2026-10-31)
 
 Ours, `zfix::options().wide_menus`, a display switch beside any_resolution
-(it changes no play, so `--original` keeps it). On by default (Owen,
+(it changes no play, so `--original` keeps it). On by default (
 2026-10-31); mw3.cfg's `widemenus=0/1` and `--no-wide-menus` /
 `--wide-menus` set it, the command line first. `Engine::menu_vmode` gives
 the menus the in-mission mode when its canvas is wider than 4:3 (853x480
@@ -511,7 +511,7 @@ are laid out when they are made (an OptionsState makes its screen in its
 constructor), so screens already made stay at their width.
 
 A mode picked in the menus takes hold in them at once (2026-11-10, playtest
-1.1.0 item 3; until then it reached the menus at the next start, and Owen,
+1.1.0 item 3; until then it reached the menus at the next start, and
 going from a saved 4:3 mode to 1920x1080, saw 4:3 menus still). GRAPHICS'
 ACCEPT and UPGRADES' ACCEPT (WIDE MENUS) call `Engine::menu_mode_picked`: it
 forgets the kept mode, and if the menus' mode is now another and the stack's
@@ -569,7 +569,7 @@ made, except the pause screen (it keeps the dialog origin, section 9):
   display's size from 0, 0x0040a110) stays at 0, as does one with no image:
   held still in a mission (`borrow_background`), the controls' went by
   half the extra width, so the game options showed through at its left
-  (pm-tests.md front-end item 5, Owen's mw3pm shot 2026-11-07; MW3 the
+  (pm-tests.md front-end item 5, the mw3pm shot 2026-11-07; MW3 the
   same). The dark corner at the top left and the ring around MOUSE/KEYBD
   DEFAULT of that shot are gone with it (hidden 1920x1080 shots through
   Instant Action). `mission_c1m1_controls_from_the_pause_wide_headless`;
@@ -616,7 +616,7 @@ ENTRY and the pilots left, OPERATION, ACCEPT and CANCEL right, LINES2 (619
 wide) stretched at column 320, which only its top line crosses).
 The briefing (0x405230) is one centred block on its widened map. Its
 script's objects are made with it (read_script), so the widening sees them.
-The debriefing (0x47b430, made apart too) is one centred block (Owen, 2026-11-06:
+The debriefing (0x47b430, made apart too) is one centred block (2026-11-06:
 its columns together, the extra width open at the sides, its board reaching them).
 Its cards are filled in the constructor, so their armor display and line are laid out by their own numbers before the
 widening: it shifts them with the card (`LanceDisplay::shift`).
@@ -717,7 +717,7 @@ constructor, so with FastMenu on the picture held the art at its 4:3 places
 and was then widened as if it were a background, while the controls bound
 after the bake moved: the main menu showed CREDITS and QUIT twice, Instant
 Action's map box and its two cycles' bars stood in the middle with their
-texts at the right. (Owen's W6 picture of Pirate's Moon's Instant Action
+texts at the right. (The W6 picture of Pirate's Moon's Instant Action
 shows the same split; his option bit is off in both games' settings, and
 the state was not reproduced on the Mac without the bit, so what put his
 screen on that path is not known.)
@@ -737,7 +737,7 @@ wide); break: without the call LINES is 483 wide and four checks fail.
 
 ### A control's looks after a stretch (2026-11-12, playtest W6 found)
 
-What Owen's picture showed (Instant Action at 16:9 after its MODS screen:
+What the picture showed (Instant Action at 16:9 after its MODS screen:
 the map box and its two cycles' bars at their 640 places, the texts at the
 right) comes from a plainer path than FastMenu: MODS, then BACK. Dev 4
 reproduced it on Windows with exact steps and no mods; on the Mac it shows
@@ -758,7 +758,7 @@ already: its lines are a plain image, with no looks to put back.
 
 ## 13. Ultrawide (PR #3 by roswellien, 2026-11-20)
 
-Owen took the pull request and lifted section 10's 16:9 cap. Still FIX (B)
+The pull request was taken and lifted section 10's 16:9 cap. Still FIX (B)
 under any_resolution; off, the original's modes only.
 
 - **Mode 16** keeps the asked shape. `vmode_size` fits it inside

@@ -167,7 +167,7 @@ TEST(mods_mount_in_order_and_game_data_only) {
   EXPECT(mech3::mods_found(wd).size() == 3);
 }
 
-// One file's fault never refuses a mod (Owen, 2026-11-11): the file is left out and the rest added. Only the
+// One file's fault never refuses a mod (2026-11-11): the file is left out and the rest added. Only the
 // mod's own fault does: here, nothing in it usable.
 TEST(mods_check_refuses_only_a_mod_with_nothing_usable) {
   const std::string root = tmp("mods_nothing_usable");
@@ -1365,7 +1365,7 @@ TEST(mods_worlds_declared) {
   EXPECT(mech3::mission_dir_count() == 9 && std::string(mech3::mission_dir(9)) == "none");
 }
 
-// A reader archive's entries, hand-edited ones included (Owen, 2026-11-11: mods' makers edit these by hand; make
+// A reader archive's entries, hand-edited ones included (2026-11-11: mods' makers edit these by hand; make
 // them work, and fail gracefully). A list that says more items than its entry holds takes the entries after it
 // as its tail, as the original's 0x00557180 does and the community's mpinfo.zrd and aiv.zrd entries need. At the
 // first thing that is no node (a word of no type, a count or a string no file could hold, nesting past the limit,

@@ -79,7 +79,7 @@ TEST(update_says_what_it_found) {
   EXPECT(none.kind == u::Verdict::kFailed && none.words.find("no release") != std::string::npos);
 }
 
-// Two homes (Owen 2026-11-21): the hub mw3-re and mech3-re; the newest package on either wins, one failing is fine.
+// Two homes (2026-11-21): the hub mw3-re and mech3-re; the newest package on either wins, one failing is fine.
 TEST(update_takes_the_newest_from_either_repo) {
   const std::string hub = list({release("v1.2.2"), release("pm-v1.1.1")}), game = list({release("v1.3.0"), release("v1.4.0", true)});
   const u::Verdict both = u::judge("v1.2.2", {{hub, ""}, {game, ""}});

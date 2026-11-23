@@ -8,7 +8,7 @@ key is bound to (0x0040db60 registers only 0x61, 0x70, 0x7e and 0x6c to the
 debug handler 0x0040dba0). Mapped 2026-10-31 (dev 2); the entry, exit,
 panel, main menu and the view on the stealth ported 2026-11-01 (S4, below;
 the AI net and vehicle editors behind its rows come after v1.0). The
-port first reached it with Shift+F12 under `--debug-camera` only, as Owen
+port first reached it with Shift+F12 under `--debug-camera` only, as
 asked: "exactly what they did", a developer's tool. Since 2026-11-09 players
 reach it only from the MODS screen (The way in, below); `--debug-camera`
 stays a developer's command-line flag that no player reaches (mw3.cfg's
@@ -187,7 +187,7 @@ the menu's first (none in the main menu); the panel's layer updated
 (0x00403140); 0x9c held calls the empty trace; then, up or not, the net
 editor's frame 0x00404290 (nothing without a net editor).
 
-### The pointer (ours, 2026-11-11; Owen's playtest: "there's no cursor")
+### The pointer (ours, 2026-11-11; the playtest: "there's no cursor")
 
 The exe draws no pointer in the editor: the lit row is the pointer. The
 mouse is held as in any mission and its counts move the game's mouse
@@ -700,7 +700,7 @@ editor not stepped, Open opening nothing.
 In the release Node Params (0x00403710 -> the node's vt+0x90, 0x004c7190 ->
 0x004c7840) opens template 180, "Node Parameters", modeless, with OK and
 Cancel and nothing else, and never hands it the node: 0x004c7820 calls
-0x004bf620, an empty function. Owen's call (2026-11-09): build it as it was
+0x004bf620, an empty function. Decided (2026-11-09): build it as it was
 meant to work, as ours (`upgrades/editor/node_params`).
 
 The first pick's record is a form (S7b: drawn by ImGui; until then the
@@ -733,7 +733,7 @@ N selected nodes" as Move Node says), yaw 0, a Team ID and Friend, Foe or
 Other. On OK it builds an aiv record (0x004df6a0) and hands it to 0x004e0540
 -> 0x004671d0, which returns 0, so the "Entry for %s on net %d is %s" path,
 the reader's reload and the vehicle's making (0x004e0680, 0x0049fce0) never
-run: nothing is made or written. Owen's call (2026-11-09): as it was meant
+run: nothing is made or written. Decided (2026-11-09): as it was meant
 to work, as ours (`upgrades/editor/add_vehicle`).
 
 A mission makes a vehicle at its start for every aiv.zrd record but the
@@ -874,7 +874,7 @@ mod's copy:
 - *The archive* (`archive_with_entry`): the entries in their order, each
   other one's bytes, name, comment and file time as they were, the table and
   version 1 after them.
-- *Where* (Owen's rule through the lead, 2026-11-09; `editor_mod`,
+- *Where* (the rule through the lead, 2026-11-09; `editor_mod`,
   `save_archive_edit`): never a folder the editor did not make. The archive
   is the one the game finds (a mod's copy first); its edits go into an editor
   mod of their own, `mods/<source mod's name> edits` (`editor edits` for the
@@ -906,7 +906,7 @@ every node's place and links the same; c1m1's edits as saved). Breaks: a
 property dropped, a table comment lost, a foreign folder reused, no .bak, the
 mod placed last, and (mech3ax) a re-encoded archive given as unedited.
 
-## The way in (Owen, 2026-11-09)
+## The way in (2026-11-09)
 
 The editor is reached only through the MODS screen:
 - **MODS -> EDITOR:** a mod's or custom campaign's mission, opened with the
@@ -936,7 +936,7 @@ The editor is reached only through the MODS screen:
     menu's CAMPAIGN, editor_reachable is false and Shift+F12's command opens
     nothing.
 
-## The way in from MODS (Owen, 2026-11-09; built 2026-11-09)
+## The way in from MODS (2026-11-09; built 2026-11-09)
 
 How a modder reaches the editor (`upgrades/editor/mods_edit`, the MODS
 screen's `edit` and `edit_start`, the program's start in app_engine.cpp).
@@ -944,7 +944,7 @@ screen's `edit` and `edit_start`, the program's start in app_engine.cpp).
 - **The MODS page offers no way in to edit the original campaign**: no row
   for it there. That is the whole rule: nothing stops anyone changing the
   originals who sets out to (no tamper traps, no read-only marks, no refusing
-  an edited install; Owen, 2026-11-09). Shift+F12 in play stays as the
+  an edited install; 2026-11-09). Shift+F12 in play stays as the
   developers left it (`--debug-camera`), its save still going to "editor
   edits" (The save, below), and editing files by hand stays open.
 - **New maps are zStudio's job.** Modders bring them in by ADD MOD or by
@@ -965,9 +965,9 @@ screen's `edit` and `edit_start`, the program's start in app_engine.cpp).
   editor came from it (not to the mission). Replaced 2026-11-11: the exit
   goes on with the mission in play (The switch, below).
 
-### The switch (Owen, 2026-11-11, playtest W2)
+### The switch (2026-11-11, playtest W2)
 
-Owen pressed the pause's EDITOR with the editor up: it closed the editor,
+Pressing the pause's EDITOR with the editor up: it closed the editor,
 which then left the mission for MODS, and that MODS screen took no clicks
 on his PC (not reproduced on the Mac: the hidden program on the same path
 comes back to a MODS screen that takes real mouse events). His decision:
@@ -1019,16 +1019,16 @@ net_01 moved and saved into `mods\ed\zbd\c1\readerm1.zbd`, the old file as
 the pause's QUIT back on MODS with the original pilot). Breaks: the save into the side folder, no editor on the
 first frame, MODS not opened again.
 
-## Our modding dialogs (planned; a sketch for Owen, 2026-11-09)
+## Our modding dialogs (planned; a sketch for 2026-11-09)
 
-Owen's direction: modders never have to edit a file. Each major modding
+The direction: modders never have to edit a file. Each major modding
 feature gets a basic dialog in the Battlesport editor (a form drawn by
 ImGui, as the net editor's dialogs are since S7b), marked ours, in
 `src/upgrades/editor/`. Each writes the same files a modder would write by
 hand (mod.txt rows, reader entries, per-def animation JSON, mech3ax JSON)
 into the mod being edited, so a file-edited mod and a dialog-made one are
 the same thing, and the original reads whatever it would read of either.
-Nothing here is built; it is for Owen to look over first.
+Nothing here is built; it is for a decision: look over first.
 
 **Where they live.** On the MODS screen, EDIT on a mod lists, above its
 missions, a few rows of ours: NEW WEAPON, NEW MECH VARIANT, EFFECTS AND
@@ -1071,7 +1071,7 @@ does not offer them: they write into a mod, and only MODS's EDIT names one.
 
 ### 1a. New Weapon on EDIT WEAPONS (built 2026-11-10: main fields, then effects and sounds)
 
-Owen's calls (2026-11-09): it opens only from MODS → EDITOR, not by
+Decided (2026-11-09): it opens only from MODS → EDITOR, not by
 Shift+F12; the main fields come first, the effects and sounds in a second
 sitting. Built in `upgrades/editor/new_weapon` with its tips in
 `help_weapons.cpp`.
@@ -1225,7 +1225,7 @@ On dev 1's per-def design (modding.md, Animations a def at a time):
   a checksum list inside (modding.md, the planned step 8), the same archive
   ADD MOD takes back in.
 
-**Order, if Owen agrees**: 1 (new weapon), then 4 (campaign list, small),
+**Order, once agreed**: 1 (new weapon), then 4 (campaign list, small),
 then 2 (mech variant), then 5 (pack), then 3 (effects, the largest, waiting
 on the per-def loader).
 
@@ -1778,7 +1778,7 @@ The exe keeps Apply only in aiv.zrd's record cache and in the running brain
 
 ## Mission settings (2026-11-11)
 
-Ours (`upgrades/editor/mission_settings`; Owen: "salvage can be a mission-level setting"): the main menu's one
+Ours (`upgrades/editor/mission_settings`; "salvage can be a mission-level setting"): the main menu's one
 blank row is MISSION SETTINGS, a form for the mission that is open, reached as New Weapon is (only in a mission
 opened from MODS; elsewhere the line under the menu says so). One setting for now, "salvage chance": how many
 times in 100 a kill's salvage is offered in this mission (modding.md, The salvage chance), empty for none of its
@@ -1872,7 +1872,7 @@ Tests:
 
 ## The editor's help (ours, 2026-11-09)
 
-Owen asked (through the lead) for help in the game and on GitHub, from one
+Asked for: help in the game and on GitHub, from one
 source so the two cannot drift.
 - **The tables** (`upgrades/editor/help.h`) sit beside the forms' models:
   help_menus.cpp (both menus' rows, Teleport, Save as's box), help_weapons.cpp
@@ -1913,7 +1913,7 @@ source so the two cannot drift.
 
 ## Dear ImGui for the editor's dialogs (lead, 2026-11-09)
 
-Owen: the editor's dialogs need not imitate MFC. The lead's call is Dear
+The editor's dialogs need not imitate MFC. The lead's call is Dear
 ImGui (MIT, source only, with an SDL3 platform backend and an SDL_GPU
 renderer backend). It is used for the Battlesport editor's dialogs and for
 our modding dialogs. The game's own menus stay zTwoD.
@@ -2124,7 +2124,7 @@ reversing); the speed step 0x004a2b10 (ported); the move on the horizontal
 plane; then the four platform points' ground (0x004a2190), the highest plus
 +0x88 of the motion block, pitch and roll 0: a level sled above the ground.
 
-## The port, in sittings (agreed 2026-10-31; scope set by Owen 2026-11-01)
+## The port, in sittings (agreed 2026-10-31; scope set by 2026-11-01)
 
 About 140 unported functions for S1..S6 and about 200 (5,500 lines of
 pseudocode) for the vehicle editor.
@@ -2180,7 +2180,7 @@ pseudocode) for the vehicle editor.
    ported: the first is read only by the editors (S5 on), the second writes
    into the debug lines, which the release never shows.
 
-**After Pirate's Moon is finished (Owen, 2026-11-05):** MW3's version on `main`,
+**After Pirate's Moon is finished (2026-11-05):** MW3's version on `main`,
 PM's differences on `pm` (its zainetedit.cpp changed: 35 changed functions, 85
 new):
 

@@ -1,5 +1,5 @@
 #pragma once
-// Ours: the one form every warning about a mod's file takes, for the mod's maker to fix the file from (Owen,
+// Ours: the one form every warning about a mod's file takes, for the mod's maker to fix the file from (
 // 2026-11-11). Four parts in plain words, no code terms beyond the file's own names:
 //   where     the file, then the entry (or texture, row, mission) in it
 //   wrong     what is wrong in data terms, with the offset or item number ("its list 8 bytes in says 38 items and

@@ -97,7 +97,7 @@ bool mod_is_campaign(const ModInfo& m) {
   if (k == "assets") return false;
   // A campaign of its own (campaign= lines), or a copy of one (base=). A mod laid over the game's own files
   // with neither, whatever it replaces (the campaign's missions, new worlds, the main reader), is an asset mod:
-  // ticked for any campaign and for Instant Action (Owen, 2026-11-10).
+  // ticked for any campaign and for Instant Action (2026-11-10).
   return !m.campaigns.empty() || !m.base.empty();
 }
 

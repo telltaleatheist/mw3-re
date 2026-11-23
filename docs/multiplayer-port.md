@@ -111,7 +111,7 @@ and dedicated starts. The connection list shows "LAN / Internet (IP)" in
 place of DirectPlay's providers; IPX, modem and serial go (FIX (A)); the
 modem buttons (CALL, ANSWER, DIAL) stay hidden. No NAT traversal:
 internet play needs the host's UDP port forwarded, as most DirectPlay games
-did; a relay or hole punching can come later if Owen wants it (the lead,
+did; a relay or hole punching can come later if wanted (
 2026-10-31: ENet 1.3.x approved, IPX, modem, serial and the lobby launch
 dropped).
 
@@ -242,7 +242,7 @@ functions (about 4,050 lines of pseudocode), the game's network code at
 10. The game list and host screen (EnumSessions' list, join, create a game
     with its name and limit): its controls from dialog.zrd's MULTIPLAYER
     dialogs. (2)
-    Owen's decisions for 9-10 (2026-10-31, through the lead):
+    the decisions for 9-10 (2026-10-31, through the lead):
     - The original's screens stay. The connection screen keeps its layout
       and offers games on the LAN (found automatically, click to join),
       Join by address (host:port) and Host a game; no IPX, modem or serial.
@@ -307,7 +307,7 @@ Ours, in three pieces:
   DIAL and CALL hidden), the connect, the update's polling, the session
   list, JOIN, HOST, FIND GAME, CANCEL, the info lines; the state's page
   switch 0x0049cb20, the network on and off 0x0047fc40, the pilot handed
-  on 0x00494920. Owen's: the LAN searched as soon as the screen is up
+  on 0x00494920. Decided: the LAN searched as soon as the screen is up
   (no FIND needed), an address in CONNECT_INFO_EDIT and FIND GAME or
   JOIN to reach one host. Tests: the screen's logic through its hooks,
   and two processes, one hosting from the screen and the other finding
@@ -322,7 +322,7 @@ Ours, in three pieces:
   that gives a private or carrier-grade NAT address as its public one
   (10.x, 100.64-127.x, 172.16-31.x, 192.168.x) cannot be reached from the
   internet: "Your internet provider blocks hosting: use a LAN, or a VPN
-  such as Tailscale", and that address is not offered to share. Owen's
+  such as Tailscale", and that address is not offered to share. The
   "level 1, between friends": plain addresses, the copy button and the
   forward line, no server and no codes. Tests against a
   fake IGD on loopback (its description, AddPortMapping,
@@ -330,7 +330,7 @@ Ours, in three pieces:
 
 ## After v1.0
 
-- Matchmaking (Owen, 2026-10-31, through the lead): someday, after Pirate's
+- Matchmaking (2026-10-31, through the lead): someday, after Pirate's
   Moon and everything else, and only if many people play: a small master
   server with a game browser, NAT punch-through, and a relay when
   punch-through fails. The connection screen keeps room for it (a "Browse
@@ -809,7 +809,7 @@ Ours, in three pieces:
   the header), the modem's ANSWER, DIAL and CALL hidden (FIX (A)); the
   reset and the connect 0x004949f0 (TCP/IP's branch: HOST, the address,
   FIND GAME; the help lines 0x2a1 / 0x2a2 "Enter an IP address / Or leave
-  blank to search", the original's own words for Owen's search and join
+  blank to search", the original's own words for the search and join
   by address), the update 0x00494470 (the search asked when its timer
   runs out: again at once while DPERR_CONNECTING, else in 3 s),
   SESSION_LIST's refill 0x00494510 ("%1 <Player Count: n of m>", "<Game
@@ -822,7 +822,7 @@ Ours, in three pieces:
   `Platform::network_open`, FIX (A); off: the game ended, zNetwork down;
   the rest of it, below, ported 2026-11-10),
   the page switch 0x0049cb20 and its request 0x0049cb00. Ours: the screen
-  connects and searches the LAN as soon as it opens (Owen); Stop Search
+  connects and searches the LAN as soon as it opens; Stop Search
   with another address searches there instead; a name in use is found
   after the join (DirectPlay listed a game's players before it), the game
   then left (`znet::close_session`). The game's version word is 0x28. 9a's
@@ -837,7 +837,7 @@ Ours, in three pieces:
   lobby's page). The program's `--net-discovery` / `--net-lan` point the
   LAN's search at loopback in the tests. Left for piece 11: the lobby
   (page 2), its pilot and game (0x00494920's second screen).
-- **Piece 9c** (2026-11-01): internet hosting at Owen's "level 1".
+- **Piece 9c** (2026-11-01): internet hosting at The "level 1".
   miniupnpc 2.2.8 vendored in `third_party/miniupnpc` (BSD-3-Clause,
   unmodified; the release tarball's sha256 05b929679091b9921b6b6c1f25e39e4c
   8d1f4d46c8feb55a412aa697aee03a93, every kept file identical to GitHub's
@@ -1281,7 +1281,7 @@ Ours, in three pieces:
   no change. Test: `net_lobby_mods_check_headless` (refused at join and at
   lock with both sides' names; equal hashes and two string-only mods pass).
   Breaks caught: the joiner's check off, LOCK's check off.
-- **The Upgrades switches** (Owen, 2026-11-10; ours, 1.1.0): after the
+- **The Upgrades switches** (2026-11-10; ours, 1.1.0): after the
   mods block, "UPGR" (0x52475055) and the Upgrades page's five as bits
   (water, MFB regroup, improved AI, Artemis, small fixes; bit 0 water). A
   joiner whose mods match takes the host's five for the game
@@ -1298,7 +1298,7 @@ Ours, in three pieces:
   `net_lobby_mods_check_headless` (the host's word taken, given back; a host
   with none: the box, own kept), `sdl_two_processes_from_the_lobby_into_a_game`
   (the host's small fixes off: the joiner's game on 0xf).
-- **Mods in multiplayer** (Owen, 2026-11-11; ours, 1.1.0;
+- **Mods in multiplayer** (2026-11-11; ours, 1.1.0;
   `upgrades/mods/mp_mods.h`, modding.md, Mods in multiplayer): after the
   upgrades block, "MOD1" (0x31444f4d), a count (at most 16) and each named
   mod's own number, low word then high, in the names' order. With it a

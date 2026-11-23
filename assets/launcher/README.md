@@ -35,7 +35,7 @@ symmetrical, front view, centred on a pure black background, no text, no
 letters." Qwen-Image 2.1, 768x768, 40 steps. The rows above are the first
 badges'.
 
-The three badges (2026-10-31, Owen: the ripple belongs to a circle) are
+The three badges (2026-10-31: the ripple belongs to a circle) are
 the games' entries: MechWarrior 3, Pirate's Moon (greyed until it is
 supported) and MechWarrior (1989) (shown when its port is beside ours).
 

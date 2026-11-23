@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-// Ours (Owen, 2026-11-09; modder step 2): the modding reference. Every key a
+// Ours (2026-11-09; modder step 2): the modding reference. Every key a
 // reader takes, by file, with its type, default and limits, written beside
 // each reader's registry here (one .cpp per file kind) and turned into
 // docs/modding-reference.md by `mw3 --reference` (reference_markdown). The

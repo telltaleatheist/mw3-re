@@ -6,7 +6,7 @@ renderer showed nothing the Direct3D path lacks.** Everywhere the two differ,
 the software side is the reduced one: fewer effects, fewer lights, smaller
 textures, no shadows. Its own code is the plumbing that does in 16-bit
 software what the card does. One look difference (the fog's start) and the
-software look as a whole are candidates for Owen; the rest is kept out.
+software look as a whole are candidates; the rest is kept out.
 
 ## How
 
@@ -50,7 +50,7 @@ No detail textures, water passes or sky passes exist apart from the shared
 ones: the sky dome and the water are models drawn by both paths; "detail"
 in the exe is only detail.zrd, the settings file.
 
-## For Owen
+## To decide
 
 1. **The fog's start** (the one difference with a look of its own): the
    software game kept the near 500 m clear, where Direct3D fogs from 32 m.

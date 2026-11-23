@@ -2,7 +2,7 @@
 
 AddressSanitizer and UndefinedBehaviorSanitizer over the port's long runs,
 to find crashes before a player does (as W1, TARGET's view of a turret, was
-found by Owen). Ours; the method and what each run found.
+found in play). Ours; the method and what each run found.
 
 ## The build
 

@@ -280,7 +280,7 @@ and landing effects, 4 seven probes, the full gait and the part animation,
 ## Quirks
 
 - +0x2f4 is never initialised; with 0 the feet always use the front or back
-  probe. FIX (bug) (Owen, 2026-11-05): the port uses L / 2, the value Pirate's
+  probe. FIX (bug) (2026-11-05): the port uses L / 2, the value Pirate's
   Moon's own code writes (its 0x477d1a), so the middle probe counts within
   L / 4 of the foot; `zfix bugs` off keeps the exe's (0).
 - The in-water test passes up to 0.7 height above the surface.

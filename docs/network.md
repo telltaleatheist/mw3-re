@@ -35,5 +35,5 @@ every player directly, not through the host.
 DirectPlay is gone (FIX (A)): the transport is ENet over UDP (`net_enet`,
 multiplayer-port.md), with a LAN broadcast for finding games, carrying the
 same MW3 message types. Playing against the original exe is not possible and
-not a goal (Owen, 2026-10-31: faithful to the game, a modern transport in
+not a goal (2026-10-31: faithful to the game, a modern transport in
 DirectPlay's place, no emulation of it).

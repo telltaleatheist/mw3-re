@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-// Ours (Owen, 2026-11-11; docs/modding.md, The salvage chance): how often a
+// Ours (2026-11-11; docs/modding.md, The salvage chance): how often a
 // kill's salvage is offered, opened to mods. The original draws a coin twice
 // (rand() & 1, campaign.md section 9): a destroyed vehicle's weapons, all or
 // none (0x00472ec0), and a destroyed mech that lost a leg, whole or not

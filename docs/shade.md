@@ -46,7 +46,7 @@ mech's lighting to follow whether it stands in the sun:
   c3 (and less so c4b and training) a mech standing in the open is drawn
   in full light under a dim sun, and in shadow it goes black (0); only
   while it is exactly at the sun's diffuse is it drawn like the world.
-  Candidate for Owen (fixes.md): the sun's diffuse as the lit target.
+  Candidate (fixes.md): the sun's diffuse as the lit target.
 - Only one mech is tested a frame, so with many mechs a mech's shade
   answers late (its turn comes round every N frames); the fade (1 a
   second) hides it.

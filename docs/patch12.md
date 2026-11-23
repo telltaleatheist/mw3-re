@@ -2,7 +2,7 @@
 
 What the official 1.2 patch changes in the game's data, against a 1.0
 install, and whether the rebuild can redo each change itself when it loads
-1.0 data. The rule (Owen): small values, record edits and our own message
+1.0 data. The rule: small values, record edits and our own message
 wording are ours to write; the patch's own bytes and whole new files are not
 copied. Built in sittings from 2026-10-31; what is done is listed under Built.
 
@@ -46,10 +46,10 @@ masked.
 
 ## What stays out
 
-Owen (2026-10-31): copying small amounts of 1.2's data is fine, so a 1.0
+2026-10-31: copying small amounts of 1.2's data is fine, so a 1.0
 player gets the exact 1.2. Left out:
 
-- (Done 2026-11-01, Owen: include them.) **c3's multiplayer maps**
+- (Done 2026-11-01: include them.) **c3's multiplayer maps**
   (`readermp3.zbd`, `readermp4.zbd`, 7,262 and 6,662 bytes) are whole new
   files, not entries: `patch12_files.inc` holds 1.2's bytes, and at the
   engine's start `provide_files()` writes them into the write dir when c3's

@@ -427,7 +427,7 @@ void ConnectScreen::host() {
 // Mech3.exe 1.2 @ 0x004957c0 (TCP/IP's branch): FIND GAME searches at the
 // address (blank: the LAN) and becomes Stop Search, which ends the search
 // and the connection (the screen reset). FIX (bug): no connection, nothing
-// (the exe read it unchecked). Ours (Owen's join by address while the LAN is
+// (the exe read it unchecked). Ours (The join by address while the LAN is
 // searched): Stop Search with another address searches there instead.
 void ConnectScreen::find() {
   if (!conn || conn->kind != 2) return;

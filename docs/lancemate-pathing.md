@@ -1,6 +1,6 @@
 # Lancemates that walk round things (W58, design, 2026-11-03)
 
-Owen, for 1.0.2: "the pathing is a ridiculous joke in the original. they
+For 1.0.2: "the pathing is a ridiculous joke in the original. they
 should be able to walk around walls and attack targets and such." An
 improvement behind `zfix::options().bugs` (`--original` and the probes keep
 the exe's); this file is the design, for the lead before any code.
@@ -129,7 +129,7 @@ that, the exe's follow for 10 s (as W17's give-up).
 
 Lancemates first: the player's lance (the brain's team the player's).
 A switch per side in the options (`zfix::Options`: `nav_allies` with
-`bugs`, `nav_enemies` off until Owen decides; enemies pathing round walls
+`bugs`, `nav_enemies` off until decided; enemies pathing round walls
 makes the game harder). Network games: the same code on every machine;
 the grid is built from the same world, so it agrees, but it stays off in
 network games until checked.
@@ -151,18 +151,18 @@ network games until checked.
 - **Unchanged**: every differential test (the probes turn `bugs` off) and
   W17/W27's tests with `bugs` off; the campaign runs.
 
-## Open for the lead / Owen
+## Open
 
 - 4 m cells (accurate streets, 4x the build) or 8 m (cheaper, may close
   narrow streets).
 - Water: costed or avoided?
-- Enemies: `nav_enemies` (Owen's call).
+- Enemies: `nav_enemies` (to decide).
 - Whether the W17 detour and W27 breadcrumbs stay as the fallback while a
   tile builds (proposed: yes).
 
 ## As built (W58, 2026-11-03)
 
-The design above was for a one-storey grid. Owen's cases (Epona's first
+The design above was for a one-storey grid. The cases (Epona's first
 mission, c2m4: a ramp, a thin walkway, a river; every order, not only
 follow) and the runs changed it. Code: `mech3/zai_nav` (the grid, A*, the
 follower), `zai_attack`'s `NavWay` (the follow's, the fight's and the repair

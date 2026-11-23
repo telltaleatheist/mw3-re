@@ -694,7 +694,7 @@ ModAddDone mod_add_run(const std::string& write_dir, const std::string& source, 
     }
     game = g == 2 ? ModGame::kPm : ModGame::kMw3;
   }
-  // W15 (Owen, 2026-11-12): a mod for the other game is added to that game's mods, compared with its install,
+  // W15 (2026-11-12): a mod for the other game is added to that game's mods, compared with its install,
   // and said in the game's box; without the launcher's word on where that game is, not added, with what to do.
   const ModGame here = mods_game() == "mw3pm" ? ModGame::kPm : ModGame::kMw3;
   if (game != here) {

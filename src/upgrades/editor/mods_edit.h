@@ -2,11 +2,11 @@
 #include <functional>
 #include <string>
 
-// Ours (Owen, 2026-11-09; docs/editor.md, The way in from MODS): a mod's
+// Ours (2026-11-09; docs/editor.md, The way in from MODS): a mod's
 // mission entered by the MODS screen's EDIT runs with the game editor open
 // from its first frame, its saves going into the mod itself. The editor's
 // exit (EXIT GAME EDIT, Shift+F12, the pause's PLAY MISSION) goes on with the
-// mission in play (Owen, 2026-11-11: one switch between playing and editing,
+// mission in play (2026-11-11: one switch between playing and editing,
 // never a way out); MODS comes back when the mission is left or ends.
 namespace mech3 {
 
@@ -29,7 +29,7 @@ void mods_edit_frame();
 // The session over, by whatever way the mission ended (the main menu's enter).
 void mods_edit_end();
 
-// Ours (Owen, 2026-11-09; docs/editor.md, The way in): the editor is reached
+// Ours (2026-11-09; docs/editor.md, The way in): the editor is reached
 // only from a mission the MODS screen launched, EDIT's or a custom campaign's
 // (ENTER), there by Shift+F12 and the pause's switch. Elsewhere (the campaign,
 // Pirate Missions, Instant Action, training, multiplayer) neither does

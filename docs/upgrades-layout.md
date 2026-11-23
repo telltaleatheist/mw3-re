@@ -1,12 +1,12 @@
 # src/upgrades: the plan (proposal, 2026-11-09)
 
-Owen's rule: a reader of the port should see exactly what the original does.
+The rule: a reader of the port should see exactly what the original does.
 Fixes stay inline (`FIX (A|B|bug|trap)`, listed in fixes.md). The SDL wiring
 stays where it is (`frontend/`, `platform/`, `crt/`: the stand-ins for
 DirectX, MCI, Win32 and the CRT, FIX (A)). Everything we add that the
 original does not have goes under `src/upgrades/`: gameplay upgrades of the
 Upgrades page's kind (behind an upgrade switch, not the bug-fix one) and new
-features. Nothing is moved yet. Owen (2026-11-09): the move waits for the final sweep; until then new feature and upgrade code is written straight into src/upgrades/.
+features. Nothing is moved yet. 2026-11-09: the move waits for the final sweep; until then new feature and upgrade code is written straight into src/upgrades/.
 
 ## 1. Inventory (main, ee5fb3c3; 581 files)
 

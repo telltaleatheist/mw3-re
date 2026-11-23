@@ -364,7 +364,7 @@ TEST(mp_mods_hash_importer_and_hand_laid_match) {
   mech3::mods_identity() = keep_id;
 }
 
-// Owen, 2026-11-11: "they shouldn't need the same version of the original game. Ours is built on patch 1.2."
+// 2026-11-11: "they shouldn't need the same version of the original game. Ours is built on patch 1.2."
 // The lobby's number is against the game as played: on 1.0's files the rebuild plays 1.2 (mech3/patch12.h), so
 // the same mod gives one number on a 1.0 install and on a 1.2 one, imported or laid by hand. On the real
 // installs (game/mw3-1.0 and game/mw3-1.2, only read): 1.2's own archives laid over 1.0 count for nothing; a mod

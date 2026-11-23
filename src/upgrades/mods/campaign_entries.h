@@ -4,7 +4,7 @@
 
 #include "mech3/mods.h"
 
-// Ours (docs/mods-campaigns-plan.md, Owen 2026-11-10): mods by campaign. The
+// Ours (docs/mods-campaigns-plan.md, 2026-11-10): mods by campaign. The
 // MODS screen's CAMPAIGNS are entries: the game's own campaign(s), Instant
 // Action, each campaign a mod brings and each copy the player saved. Each
 // entry has a folder of ours, <write dir>/campaigns/<id>/ (our marker in it),

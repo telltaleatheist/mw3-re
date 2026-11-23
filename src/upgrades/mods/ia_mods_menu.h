@@ -7,7 +7,7 @@
 #include "upgrades/mods/ia_mods.h"
 #include "upgrades/mods/mods_tick_list.h"
 
-// Ours (docs/mods-campaigns-plan.md, Instant Action; Owen 2026-11-10):
+// Ours (docs/mods-campaigns-plan.md, Instant Action; 2026-11-10):
 // Instant Action's own MODS. A MODS tab on its screen (ACTIONDIALOG, our
 // record edit; ActionScreen 0x00488bc0) opens this screen over it,
 // IAMODSDIALOG on the MODS screen's look: the tick list of the entry `ia`,

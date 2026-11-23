@@ -1,10 +1,10 @@
 # The bundled libraries, from source
 
 `tools/deps/build_deps.sh mac|linux|win` builds the libraries the releases
-bundle from their official release tarballs (Owen, 2026-10-30: universal
+bundle from their official release tarballs (2026-10-30: universal
 arm64 + x86_64 for macOS 12 and later on the Mac, and on Linux), into
 `build-deps/<platform>/prefix`. `JOBS=4` caps the parallel jobs (the
-default is every core). First run on the Mac 2026-10-31 (Owen allowed it):
+default is every core). First run on the Mac 2026-10-31:
 all five downloads match their pins; 2.6 minutes at `JOBS=4`; every dylib
 x86_64 + arm64, minimum macOS 12.0, named `@rpath/<file>`, loading only the
 system and each other. The app (`make_app.sh --deps`) bundles SDL3,

@@ -89,7 +89,7 @@ which sends the crater to the other players instead (the host makes it).
 ## 3. Quicksand, 0x00502110
 
 Not part of MW3: the code is left from Recoil, on the same GameZ engine
-(Owen, 2026-11-17). No MW3 weapon has the flag, so nothing in the game makes
+(2026-11-17). No MW3 weapon has the flag, so nothing in the game makes
 a pit; the port keeps it for completeness.
 
 The same steps with the quicksand defaults: gated by the veto [0x0060c0c8]

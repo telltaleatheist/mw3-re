@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-// Internet hosting at Owen's "level 1, between friends" (ours, not original
+// Internet hosting at The "level 1, between friends" (ours, not original
 // code: docs/multiplayer-port.md, piece 9c). The router is found over UPnP
 // (miniupnpc) as the multiplayer screen opens and asked for its public
 // address; the game's UDP port is mapped on it while hosting, and the

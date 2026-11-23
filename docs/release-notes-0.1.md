@@ -1,6 +1,6 @@
 # MechWarrior 3 rebuild 0.1: first playtest (DRAFT)
 
-Draft for Owen to edit before anything is published. Not tagged, not
+Draft for a decision: edit before anything is published. Not tagged, not
 released. The zip is built on the PC by `tools\windows\package.cmd`
 (docs/windows.md, Packaging); its name carries the `git describe` version.
 
@@ -74,14 +74,14 @@ converter, miniz, pl_mpeg) and their licences are listed in
 
 ---
 
-## Notes for Owen (not part of the release text)
+## Notes (not part of the release text)
 
 - The repository's licence and the README's install steps for Mac and
   Linux should be in place before this is public; the text above links
   to them.
 - `--install-from` comes in the second batch: this text assumes it is on
   main when the zip is built.
-- The GitHub release needs the zip only; the version tag is Owen's call
+- The GitHub release needs the zip only; the version tag is The call
   (e.g. `v0.1.0`; package.cmd names the zip from `git describe`, so tag
   first, then build).
 - The Indeo helper path and the first-start box were checked on the Mac

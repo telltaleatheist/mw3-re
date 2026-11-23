@@ -1,6 +1,6 @@
 # What the rebuild reads: a spec for tools that export to it
 
-For authors of tools that make MechWarrior 3 content (zStudio in the first place; Owen, 2026-11-11:
+For authors of tools that make MechWarrior 3 content (zStudio in the first place; 2026-11-11:
 making things is zStudio's, the rebuild imports and plays it). This page is the contract in one place;
 each rule links to where it is worked out and tested. Field-by-field keys: `docs/modding-reference.md`
 (generated from the readers, so it cannot drift). How it all works: `docs/modding.md`.

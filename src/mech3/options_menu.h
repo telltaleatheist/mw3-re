@@ -31,7 +31,7 @@ class CameraCycle : public CycleButton {
 // The game options' MouseAccelY for the invert box (0x00438100's ACCEPT).
 float mouse_y_accel(float current, bool inverted);
 
-// Ours (Owen, 2026-11-02; moved 11-07 to the game options under INVERT
+// Ours (2026-11-02; moved 11-07 to the game options under INVERT
 // MOUSE Y, where a player meets it first): MOUSE SENSITIVITY, MouseAccelX and Y's magnitude (Y keeping its sign, the game
 // options' invert box), 0.5 to 5.0 in tenths, the original's 1.3 by default;
 // its slider (our record edit, patch12::apply_ours) bound only where the
@@ -49,7 +49,7 @@ class SensitivitySlider : public ztwod::Slider {
   void set_raw(float v) override { set_value(v); }
 };
 
-// Ours (Owen, 2026-11-07): the UPGRADES page, one press from the options (its
+// Ours (2026-11-07): the UPGRADES page, one press from the options (its
 // button under CONTROLS), our record edits (patch12::apply_ours): the rebuild's
 // own switches, today the bug fixes and wide menus, saved to mw3.cfg through
 // options_upgrades_saver (the program sets it). Bound only where the program

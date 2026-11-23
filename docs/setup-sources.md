@@ -1,6 +1,6 @@
 # SETUP from any source: "Point to your game"
 
-A v1.0 item (Owen, 2026-10-31): the player points at whatever they have and
+A v1.0 item (2026-10-31): the player points at whatever they have and
 it just works, with no installing and no unpacking by hand. Ours, not
 original code. Planned and agreed with the lead 2026-10-31 (dev 2); built in
 sittings, each reported.
@@ -171,7 +171,7 @@ zip (a long run).
    the setup-only start not going on after an install (first a hang: the
    pick case now has a 30 s frame cap so it fails instead), the look's stop
    ignored. On the PC: the setup tests pass and a plain start goes straight
-   in (the finder found Owen's own install there, so the setup-only start
+   in (the finder found The PC's own install there, so the setup-only start
    was checked on the Mac).
 
 5. Sitting 5 (2026-11-01): the packages. `build_deps.sh` and

@@ -896,7 +896,7 @@ std::vector<std::string> mod_check(const std::string& dir, const std::string& in
   fx.against_install = !install.empty();
   // An error is the mod's fault as a whole, and the only thing that refuses it: no folder, a mod.txt that cannot
   // be read or is another game's, nothing in it usable. One file's or one line's fault is a warning in four
-  // parts (mod_warning.h): that file or line left out or partly read, the rest of the mod used (Owen, 2026-11-11).
+  // parts (mod_warning.h): that file or line left out or partly read, the rest of the mod used (2026-11-11).
   auto error = [&](const std::string& what) { out.push_back("error: " + what), ++*errors, fx.refused.push_back(what); };
   int usable_rows = 0;
   auto warn = [&](const std::string& where, const ModWarning& w, bool left_out) {

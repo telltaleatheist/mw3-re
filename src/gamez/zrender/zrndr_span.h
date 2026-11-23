@@ -45,7 +45,7 @@ void set_target(uint8_t* base, const int32_t* rect, int32_t depth, int32_t pitch
 
 // The x87 precision 0x0055d010 runs at. Its 16.16 conversions use the
 // 1.5 * 2^52 rounding trick, which needs double precision; at 24 bits (a
-// Direct3D 6 that truncates the FPU; not so in play, Owen 2026-10-20) every edge and row comes
+// Direct3D 6 that truncates the FPU; not so in play, 2026-10-20) every edge and row comes
 // out 0 and nothing is filled (docs/render-shadows.md).
 enum class X87 { k24, k53 };
 

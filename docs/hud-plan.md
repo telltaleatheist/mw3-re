@@ -97,7 +97,7 @@ tick). They are ported and made now (the rain and snow classes 0x5a60a0 /
    torso or head is badly hurt.
 6c1. (Done 2026-10-25) **The views' nodes and render** (hud.md section 22):
    the HUD's cameras and windows made in zClass, the depth fill, the zView
-   render. Open: what the MFD's mode 1 shows (Owen).
+   render. Open: what the MFD's mode 1 shows.
 6c2. (Done 2026-10-25) **The zoom window's 3D pass** (the reticle's vt+0x28
    0x444230 -> 0x442f50 with 0x4436c0 and the zoom's own render 0x443320;
    hud.md section 23): the zoom camera's view in its box or circle.

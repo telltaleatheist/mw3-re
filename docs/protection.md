@@ -2,11 +2,11 @@
 
 Static analysis of `game/mw3-1.2/Mech3.exe` (the official 1.2 patch, not a
 NoCD build) from `analysis-output/mech3.asm`, `decomp/` and `func2file.json`,
-compared with the cracked "Exe 1.2 NOCD" from Owen's backup (data only, never
+compared with the cracked "Exe 1.2 NOCD" from The backup (data only, never
 run). Nothing here was run in the emulator except where noted. "Unverified"
 marks inference.
 
-Decision (Owen, 2026-10-20): the rebuild removes these traps; they guard
+Decision (2026-10-20): the rebuild removes these traps; they guard
 nothing now. Each removal is marked `FIX (trap)` in the code and listed in
 `fixes.md`. The cheated flag stays, being a game rule.
 
@@ -285,7 +285,7 @@ reseeding the shared `rand()`.
 
 Open: whether Launch (0x49b790, which ORs bits 0-4 again but does not recompute
 the CRC) can run without Lock Options. If it can, a host who launches unlocked
-with any box ticked would fail the first check about 51 s in. Test on Owen's PC.
+with any box ticked would fail the first check about 51 s in. Test on the reference PC.
 
 **Rebuild:** delete the compare at 0x46fc08 (keep the setup and the CRC so the
 code stays shaped like the original; nothing else reads +0x88). No network

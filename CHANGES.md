@@ -12,7 +12,7 @@ switches, all on to start: WATER MOVEMENT, MFB REGROUP, IMPROVED AI, ARTEMIS
 TRACKING and SMALL FIXES (the page lists what the small fixes are). Turn one
 off and that part plays as in 1999; `mw3 --original` turns all five off for
 one run. Crash fixes, the fixes that let the game run today, and the
-restored sounds, pictures, voice lines and text stay on (Owen's rule,
+restored sounds, pictures, voice lines and text stay on (the rule,
 2026-11-10). In a network game everyone plays on the host's switches. Which
 change sits under which switch: [`docs/upgrades-sort.md`](docs/upgrades-sort.md).
 A 1.0 `mw3.cfg`'s `bugfixes=` line becomes the five switches the first time.
@@ -802,7 +802,7 @@ Known quirks the rebuild deliberately keeps:
 - Windows: the game no longer starts now and then with the cursor stuck in the middle of the screen (seen mostly with Pirate's Moon, started from the launcher). The launcher now hands the keyboard and mouse over to the game, the game takes the mouse only once its window really is in front, and if the mouse still gives no motion the next key or button press takes it again. The log says what state the mouse was taken in.
 - The launcher's BEFORE YOU PLAY screen fits its text: with long notes (a long settings folder, or movies, music and sounds all missing) the orange status line was drawn on top of the notes' last lines, and the line under ADD FROM MY DISC sat on the button's bottom edge. The notes now use the panel's width, the status line comes under them, and the button's second line is inside it.
 - Wide menus with the original's FastMenu option (-seasick): the screens were drawn once at their 4:3 layout and then spread, so the main menu showed CREDITS and QUIT twice and Instant Action's map box stood in the middle with its texts at the right. The screen is now laid out wide before it is drawn into its one picture.
-- Wide menus: after Instant Action's MODS screen and BACK, its map box and the map and scenario bars were drawn at their 4:3 places, left of their texts (playtest W6, the picture Owen saw); now they stay where they belong.
+- Wide menus: after Instant Action's MODS screen and BACK, its map box and the map and scenario bars were drawn at their 4:3 places, left of their texts (playtest W6, the playtest's picture); now they stay where they belong.
 - Instant Action's MODS button says what it does when the mouse is over it: "Play Instant Action with mods. The game starts again to load them."
 - A mission started from the MODS screen's MISSIONS can be left when it ends. On its debriefing neither the tick (continue) nor the list (abort) did anything, because the stand-in pilot has no campaign to go on with, so you stood on the debriefing; both now go back to the missions' list.
 - A world the game does not have is found when a mod is imported. A mod with no mod.txt (a folder, a zip, or a game folder it was laid over, as a zStudio export is) holding `zbd\<name>\gamez.zbd` for a name none of the game's worlds has gets the lines it needs written into the mod.txt the game makes: `world=`, `ia_world=` when it has Instant Action maps, and a campaign of its missions in number order, so PLAY and MISSIONS on MODS work with no hand edit; its multiplayer maps are seen by the lobby. INFO says what the world has and what it lacks, and whether its script takes another world's scenery. A world's script left loose at the top of a modded game folder is taken.

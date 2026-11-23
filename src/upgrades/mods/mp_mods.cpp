@@ -63,7 +63,7 @@ struct Trees {
 };
 }  // namespace
 
-// The base is the game as played, not the raw install (Owen, 2026-11-11: "they shouldn't need the same version
+// The base is the game as played, not the raw install (2026-11-11: "they shouldn't need the same version
 // of the original game. Ours is built on patch 1.2."): on 1.0's files the rebuild plays 1.2 (mech3/patch12.h),
 // so a mod's entry counts when it differs, read as a tree, from the install's entry with the 1.2 layer's edits,
 // or from the entry the layer adds; and a whole file that is 1.2's own (data_version.h, by size and CRC) over

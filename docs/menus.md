@@ -184,7 +184,7 @@ ACCEPT:
 | MW2JJETS | ON / OFF | 0x0040d1e0 / 0x0040d1c0 |
 | CMD_INVERT_MOUSE_Y | ON / OFF | MouseAccelY < 0; written -1.3 or 1.3 straight into the entry |
 
-MOUSE SENSITIVITY is ours (Owen, 2026-11-02; moved here from GRAPHICS &
+MOUSE SENSITIVITY is ours (2026-11-02; moved here from GRAPHICS &
 AUDIO on 11-07, pm-tests.md front-end item 3): the volumes' slider record
 under INVERT MOUSE Y, just below the panel's frame (the nine rows fill it),
 its label spaced as the original's ("M O U S E   S E N S I T I V I T Y",
@@ -198,14 +198,14 @@ mission takes them at its start, the menus keep 1.3 (CoreState::leave).
 Bound only where the program turns it on (`options_sensitivity_slider`).
 Not behind the bug-fix switch: an option whose default is the original's.
 
-**UPGRADES** (ours, Owen 2026-11-07, item 4): a button under CONTROLS
+**UPGRADES** (ours, 2026-11-07, item 4): a button under CONTROLS
 inside the screens' bracket (GRAPHICS & AUDIO's record at y 160), from the
 main menu and from a mission's pause alike, pushing the upgrades page
 (`UpgradesScreen`, UPGRADES_DIALOG, our record): the game options'
 background, ACCEPT and BACK, the credits' frame (`credit_lines`; the game
 options' `option1_lines` would leave seven of its nine boxes empty) and a
 `textbox70` under each switch's ON/OFF row, the arrows at the box's ends.
-Since 1.1.0 (Owen, 2026-11-10; docs/upgrades-sort.md) it holds the five
+Since 1.1.0 (2026-11-10; docs/upgrades-sort.md) it holds the five
 upgrades, WATER MOVEMENT, MFB REGROUP, IMPROVED AI, ARTEMIS TRACKING and SMALL
 FIXES (zfix's five, at once), WIDE MENUS (from the next screen made) and,
 since issue #15 (2026-11-21), RAW MOUSE (at once; input.md section 14), one
@@ -841,7 +841,7 @@ In the port (playtest W44/W46, 2026-11-01): the frame's update (vt+0) of
 the hardware path runs inside its 2D pass with the HUD, else nothing drew it
 (FIX (A)): an Escape in a match left it up unseen, its mouse button 1
 unbound, the mouse's fire gone for the rest of the match. With bug fixes on
-(Owen's W46) it does not block: the mouse stays bound, each fresh Escape
+(W46) it does not block: the mouse stays bound, each fresh Escape
 toggles it, Y answers OK (the match left), N Cancel, Y's and N's own
 commands lifted while it shows; with them off, the exe's (visible now). Its
 OK fades to 0x00609848, a second Multi-Exit State (0x00470650 builds it):

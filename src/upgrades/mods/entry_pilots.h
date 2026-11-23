@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-// Ours (docs/mods-campaigns-plan.md, Pilots; Owen 2026-11-10): inside a
+// Ours (docs/mods-campaigns-plan.md, Pilots; 2026-11-10): inside a
 // campaign entry the pilot screen lists the entry's own pilots and, after
 // them, the main menu's pilots the entry does not have (a name the entry has,
 // in any letter case, is the entry's). Picking one of those brings it across

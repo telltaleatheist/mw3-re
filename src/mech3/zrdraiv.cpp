@@ -390,7 +390,7 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
         sound_tag = dup("epona");
       else if (std::strcmp(name, "Alan_Mattila") == 0 ||
                // FIX (bug): two records misspell him (c1 Instant Action map 1,
-               // c3 mission 6), so he had no radio voice there (Owen, 2026-10-20).
+               // c3 mission 6), so he had no radio voice there (2026-10-20).
                (zfix::options().fixed && (std::strcmp(name, "Alan_Mattilla") == 0 || std::strcmp(name, "Alan_Matilla") == 0)))
         sound_tag = dup("alan");
       else if (std::strcmp(name, "Dominic_Paine") == 0)
@@ -441,7 +441,7 @@ AivRecord* AivRecord::parse(zrdr::Node* value, const char* name) {
     } else if (zfix::options().small_fixes) {
       // FIX (bug): two Instant Action records on c4 (Enemy_12 in readeria1,
       // Enemy_06 in readeria2) list their orders loose in the record, with no
-      // "vlist" around them; the exe skips them (Owen, 2026-10-20).
+      // "vlist" around them; the exe skips them (2026-10-20).
       for (int32_t k = 5; k < L[0].i; ++k)
         if (L[k].type == zrdr::List && L[k - 1].type != zrdr::String && L[k].list[0].i >= 0x12 &&
             L[k].list[1].type != zrdr::String)

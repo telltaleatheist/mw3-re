@@ -11,7 +11,7 @@ rem With a third ref, MechWarrior 1 Remake (branch mw1) is built too and goes be
 rem MW3-Rebuild package (mw1.exe and mw1data\); MW3 alone and PM alone never carry it. With MW3_PKG_WITH_PORT=1 it
 rem also brings Elthial's MechWarrior (1989) SDL port for PLAY ORIGINAL: tools\package\mw1port\build_port.cmd at its
 rem pins with the proposed patches, staged in build-pkg\mw1port and put in MechWarrior1989\ beside the launcher.
-rem Off: Owen cut it for now (2026-11-20).
+rem Off: cut for now (2026-11-20).
 rem The worktrees are build-pkg\main, build-pkg\pm and build-pkg\mw1 (ours, replaced each run); deps\ is joined into each.
 setlocal
 cd /d "%~dp0\..\.."

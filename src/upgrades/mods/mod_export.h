@@ -4,7 +4,7 @@
 
 #include "mech3/mods.h"
 
-// Ours (Owen, 2026-11-09; docs/modding.md, IMPORT and EXPORT): EXPORT packs
+// Ours (2026-11-09; docs/modding.md, IMPORT and EXPORT): EXPORT packs
 // a mod folder into one .zip that IMPORT (mod_install.h, mod_add_prepare)
 // takes back as the same mod: its files and mod.txt under one folder named
 // as the mod, and a checksums file (sha256sum's lines, one per file) that

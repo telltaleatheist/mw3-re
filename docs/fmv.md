@@ -111,7 +111,7 @@ LOADIMAGE does not show its image: the next flip that copies the 2D surface
 does (0x0057a850's blit). In SPLASH that is the WAIT's end, so the logos
 appear as the 4 seconds end, while the main menu loads, and the wait shows
 what the screen held before (the intro movie's last frame, or black with
-`-nofmv`). Not yet checked on the original (Owen's PC).
+`-nofmv`). Not yet checked on the original (the reference PC).
 
 ### The wait (vtable 0x005cf820)
 
@@ -288,7 +288,7 @@ its own clock's frame changes, and with sound the stream answers the sound's
 frame. The two 15 fps clocks start on the same step, so each ask falls on the
 sound's own frame change; with a play cursor that moves in its device's
 periods (WASAPI 10 ms, CoreAudio 23 ms; DirectSound's likewise) the ask lands
-just before or after it in a regular beat. Owen's PC, the intro: one frame in
+just before or after it in a regular beat. The reference PC, the intro: one frame in
 three repeated and one skipped, through the Indeo helper and the converted
 files alike, the whole movie long. FIX (bug), behind `bugs`: with a streamed
 sound the step asks for the sound's frame each time it runs and shows a frame
@@ -349,7 +349,7 @@ for each `video\*.AVI` of the install, into the write dir's `video` folder
 
 The 19 movies of the install convert in about a minute (INTRO to 60 MB from
 82 MB). fmv.zrd also names c3m3, c1win, c2win and c3win, which neither
-the disc (MechWarrior 3 (USA), 1999) nor the 1.0 or 1.2 install has: the
+The disc (MechWarrior 3 (USA), 1999) nor the 1.0 or 1.2 install has: the
 disc's VIDEO folder is the same 19 files, byte for byte. The `.fmv` is written last, so its presence marks a movie done;
 `--missing` converts only the movies without one, and prints `progress K N
 name` after each. The `.fmv` is written in binary mode, so a Windows-made
@@ -450,7 +450,7 @@ kept by `--original` like the menus themselves) the movies play on the
 menus' wide canvas (853x480 at 16:9), where 0x005773e0's stretch over the
 whole target drew every 640x480 movie and still image a third too wide.
 `GameEngine::fmv_stretch`, over the whole of a buffer wider than 4:3, keeps
-the picture's shape instead: the original's 4:3 screen centred at the
+The picture's shape instead: the original's 4:3 screen centred at the
 buffer's height with black sides, the whole image stretched over it as it
 was over a 4:3 target, or, for a movie stretch whose black bars are baked
 into its frame, its picture rows at the buffer's width with bars above and
@@ -492,7 +492,7 @@ converts and measures every distinct `video\*.AVI` of the folders given with
 `mw3import --shapes` (the program's own measurement on the imported files).
 Our numbers, not the game's data. Run on the 1.2 and 1.0 installs and the
 disc: 57 files, 19 distinct (the same bytes everywhere), and the two lines of
-Owen's PC cache, measured through Windows' Indeo codec, come out the same
+The reference PC cache, measured through Windows' Indeo codec, come out the same
 (`intro/2737/640x480 0:79-400`, `c3m5/751/640x480 0:whole`). The
 multiplayer maps have no movies, and Pirate's Moon none at all.
 
@@ -503,7 +503,7 @@ frame by frame (the importer's MovieStream, or the helper's Video for
 Windows under the helper's lock). Before each frame it waits while any
 movie plays, so the movie that started it plays at once, whole, and the
 measurement runs after it ends, in the menus, about 700 frames a second on
-the Mac. Until 2026-11-02 it ran beside the play: on Owen's PC, through
+The Mac. Until 2026-11-02 it ran beside the play: on the reference PC, through
 the Indeo helper, it took the helper's lock frame after frame and the
 player waited for it, so every movie's first play froze for 10 to 30 s
 (the intro 32 s). The result goes into the write dir's `movie-shapes.txt`,
@@ -511,7 +511,7 @@ a line a movie: `<name>/<frames>/<w>x<h>` and its runs (`0:79-400`,
 `1022:whole`), read at the next start after the table, so a line there
 wins over the table's. A play that started before the shape was known
 stays whole up to the first run start after it is (`MovieShapePlay`), so
-the picture changes size only at a cut, at once, never mid-shot. One movie
+The picture changes size only at a cut, at once, never mid-shot. One movie
 is measured at a time; another opened meanwhile is measured on a later
 play. The `--movie` debug start measures first (with no wait), so its shots
 are the final look.

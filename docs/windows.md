@@ -39,9 +39,9 @@ to it. `mw3soundcheck --music FILE` plays a music file through the game's
 music player for 3 s and says whether this build decodes it.
 `tools\windows\build.cmd mw3 mw3import` also builds the importer, and its
 build copies FFmpeg's DLLs next to `mw3import.exe`; give a player the two
-exes and all the DLLs in one folder (FFmpeg's are four). On Owen's PC
+exes and all the DLLs in one folder (FFmpeg's are four). On the reference PC
 (2026-10-30): the 19 movies in 29 s; their `.wav` and `.fmv` files are
-the Mac's byte for byte, the `.m1v` differ by FFmpeg build but play either
+The Mac's byte for byte, the `.m1v` differ by FFmpeg build but play either
 way; `--cue` on his MW3 disc image gives track02 (191.9 s) and track03
 (186.1 s).
 

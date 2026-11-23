@@ -199,7 +199,7 @@ class SdlInput : public platform::Input {
   SDL_Keymod chord_held_ = SDL_KMOD_NONE;
   bool chord_armed_ = false, chord_spoiled_ = false;
   bool swallow_[4] = {};  // the recapturing click's buttons, kept from the game until let go
-  // Ours (playtest, Owen): a held mission's mouse comes back with the focus,
+  // Ours (playtest): a held mission's mouse comes back with the focus,
   // no click needed; the click that brought it back (within kActivationNs of
   // the focus) is still not the game's (input.md section 8).
   static constexpr uint64_t kActivationNs = 250000000ull;
@@ -219,7 +219,7 @@ class SdlInput : public platform::Input {
   void take_raw(float rx, float ry, bool got);  // the raw source's counts into dx_, dy_ (or SDL's held, when it is silent)
   float held_x_ = 0, held_y_ = 0;    // SDL's motion (frame pixels) held while the raw source is in use
   bool raw_silent_ = false;          // SDL's motion taken: the raw source gave none
-  bool raw_said_ = false;            // the log's line said (once a run)
+  bool raw_said_ = false;            // The log's line said (once a run)
   const char* hint_ = nullptr;       // the system scale hint as last set
   void sync_scale_hint();
   MotionStats stats_;

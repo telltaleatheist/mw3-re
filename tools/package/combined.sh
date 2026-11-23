@@ -14,7 +14,7 @@
 # MW3-Rebuild package beside the launcher with its mw1data/ (combined.cmd's third ref); MW3 alone and PM alone never
 # carry it. --mw1-port also brings Elthial's MechWarrior (1989) SDL port for PLAY ORIGINAL: tools/package/mw1port/
 # build_port.sh at its pins with the proposed patches (read-only opens of the player's game), staged in
-# build-pkg/mw1port (Windows: combined.cmd with MW3_PKG_WITH_PORT=1). Off: Owen cut it for now (2026-11-20).
+# build-pkg/mw1port (Windows: combined.cmd with MW3_PKG_WITH_PORT=1). Off: cut for now (2026-11-20).
 #
 # Refs: the tags for a release (v1.1.0 pm-v1.0.2); any commit for a check (origin/main origin/pm). The worktrees are
 # build-pkg/main and build-pkg/pm (ours, replaced each run); the deps (build-deps/, ../prefix) are linked or passed.

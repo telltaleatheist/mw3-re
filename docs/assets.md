@@ -176,7 +176,7 @@ checked against the MD5 its descriptor carries (+0x2a): a damaged disc
 writes nothing. Every file group goes into one folder, as unshield's
 extraction made `game/mw3-1.0` (a path twice must be the same bytes; MW3's
 disc has none twice). `VIDEO\` is copied as `video/`, its file names as on
-the disc. The 16 data files of the table above are checked against the
+The disc. The 16 data files of the table above are checked against the
 1.0 disc's size, CRC and SHA-256, and `Mech3.exe` against 1.0's; anything
 else is reported as a warning (another release, a mod) and the version
 "unknown". With `--patch` too, the patch's 28 files (each checked by the
@@ -206,7 +206,7 @@ were. `--install-from` and `--patch` are wrappers over them. Test:
 `setup_api_probes_installs_cancels_and_explains` (break: the movies' copy
 ignoring a cancel, 2 checks).
 
-On Owen's disc image (`MechWarrior 3.zip`'s `Mechwarrior 3.iso`, sha256
+On the disc image (`MechWarrior 3.zip`'s `Mechwarrior 3.iso`, sha256
 `08c26c0d71375d6130df7716abc2c282147494d869bd48ce13bd5f972f763e49`):
 126 files from the cabinet (404 MB) and 19 movies, all 145 identical to
 `game/mw3-1.0`, all 16 data files 1.0's; with the patch all 28 are

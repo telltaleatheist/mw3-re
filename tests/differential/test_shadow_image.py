@@ -7,7 +7,7 @@ Precisions (the port's switch zmod::shadow_state().precision):
   game  the original at 24 bits as in play (blank images), port k24: identical.
   fix   the original at 24 bits but 0x55d010 at 53 (the candidate FIX), port
         k53: identical.
-  x53   the original at 53 bits throughout (the CRT's setting, which Owen's
+  x53   the original at 53 bits throughout (the CRT's setting, which the reference
         Windows 11 + DDrawCompat appears to keep), port k53: within the
         last bits of the float code (counted and reported).
   full  the original at 64 bits throughout, port k53: likewise.

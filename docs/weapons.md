@@ -431,7 +431,7 @@ firepoint when attached); the node turned to the direction for animated
 flyouts; the FLYOUT animations started; a lock's three dwords copied
 (LOCK_ON, with the lock flag above 0) and the shooter's velocity kept as the
 base; FLYOUT_HEALTH makes the node shootable (+0x24 bit 27, +0xbc = 1, +0x40 =
-the shot). The fire and flyout choices are set back to 0.
+The shot). The fire and flyout choices are set back to 0.
 
 ### The frame (tick 0x5823c0)
 
@@ -522,7 +522,7 @@ fires unlocked (0x004b3330 returns before 0x004b3370), and an unlocked shot
 never turns. A part's weapon whose target is over about 27 degrees off its
 facing fires along the facing (0x004b36e0, cos 0.89) and a locked shot then
 turns toward the target in flight. Tested in a fight
-(`mission_c3m5_homing_*_headless`, 2026-11-02, Owen's c3m5 report): every
+(`mission_c3m5_homing_*_headless`, 2026-11-02, The c3m5 report): every
 live shot of every projectile weapon watched each frame (the weapons'
 active lists: a retired slot keeps state 1 in the pool) for its lock against
 the shooter's selected target, its aim on the target and finite, unlocked
@@ -762,7 +762,7 @@ missiles take four of the 164 pool slots the mission shares (a full pool
 would drop them silently), and the owner is the shooter's node, so they cannot hit
 the shooter.
 
-**Why Owen saw nothing.** Any of: the target moved (the missiles hit where
+**Why nothing was seen.** Any of: the target moved (the missiles hit where
 it stood seven seconds earlier, 1.2 km behind and above the player, so
 neither the launch nor the flight is in view); the beam left the target for
 one frame (at 60 fps there is no frame to spare, and a frame on open sky
@@ -772,7 +772,7 @@ second was up (the beam stops and the charge is gone for 22..67 s); or the
 next try came before the minute-long recharge was full (a trigger from a
 partial charge does nothing at all).
 
-**The fix** (Owen 2026-10-20: hard but consistent; `zfix bugs`, off in the
+**The fix** (2026-10-20: hard but consistent; `zfix bugs`, off in the
 probes, so the parts above stay the exe's):
 
 - The hold compares the time on the target in whole milliseconds

@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string>
 
-// Ours (Owen, 2026-11-09; docs/editor.md, Node Params): the net editor's
+// Ours (2026-11-09; docs/editor.md, Node Params): the net editor's
 // Node Params row as it was meant to work. The release opens template 180
 // with OK and Cancel only and never hands it the node (0x004c7840 ->
 // 0x004c7820 -> 0x004bf620, an empty function); here the first pick's record

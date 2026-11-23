@@ -181,7 +181,7 @@ bool fix_def(int32_t index, AnimDef& d, const char** prev_name) {
           break;
         }
         // FIX (bug): only this entry goes; the def keeps waiting on the rest
-        // (decided with Owen, docs/fixes.md). The count to meet comes down if
+        // (decided, docs/fixes.md). The count to meet comes down if
         // fewer entries that count are left.
         for (int j = k; j + 1 < d.count(0x110); ++j) d.prereqs[j] = d.prereqs[j + 1];
         d.raw[0x110] = static_cast<uint8_t>(d.raw[0x110] - 1);

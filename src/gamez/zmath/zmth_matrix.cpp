@@ -54,7 +54,7 @@ namespace {
 StackFaults g_faults;
 Mat34 g_scratch;
 
-// The callers, as image offsets a linker map finds (Owen's v1.0 crash at
+// The callers, as image offsets a linker map finds (the v1.0 crash at
 // load+0x1d, W59): a few frames, once per kind of fault.
 void print_address(const void* a) {
 #if defined(_WIN32)

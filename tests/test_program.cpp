@@ -362,7 +362,7 @@ TEST(data_version_names_the_install) {
   EXPECT(none.name == "incomplete" && none.missing == 16 && none.of_10 == 12);
 }
 
-// c3's two 1.2 multiplayer maps (Owen, 2026-11-01; patch12.md): a 1.0 install
+// c3's two 1.2 multiplayer maps (2026-11-01; patch12.md): a 1.0 install
 // lacks them, so the layer writes 1.2's files into the write dir, byte for
 // byte, where the lobby's scan finds them; never into the install, never over
 // a copy found anywhere, and nothing for a 1.2 install.
@@ -574,7 +574,7 @@ TEST(disc_install_from_an_image_a_cue_and_a_folder) {
                           "FILE \"disc (Track 2).bin\" BINARY\n  TRACK 02 AUDIO\n    INDEX 00 00:00:00\n    INDEX 01 00:02:00\n";
   spit_file(tmp + "/disc.cue", std::vector<uint8_t>(cue.begin(), cue.end()));
   std::error_code ec;
-  std::filesystem::create_directories(tmp + "/drive/VIDEO", ec);  // the disc as a mounted folder
+  std::filesystem::create_directories(tmp + "/drive/VIDEO", ec);  // The disc as a mounted folder
   for (const auto& [name, d] : disc.root) spit_file(tmp + "/drive/" + name, d);
   for (const auto& [name, d] : disc.video) spit_file(tmp + "/drive/VIDEO/" + name, d);
 
@@ -2144,7 +2144,7 @@ TEST(entry_pilot_screen_lists_and_brings_the_main_menus_pilots_headless) {
   }
 }
 
-// Playtest W15 (Owen, 2026-11-12): Freako's "PM 1.2 Mod - Beta" zip holds only names both games ship (a
+// Playtest W15 (2026-11-12): Freako's "PM 1.2 Mod - Beta" zip holds only names both games ship (a
 // reader.zbd, the worlds' textures), and MechWarrior 3's IMPORT asked which game it was for. Its records tell:
 // a Pirate's Moon reader.zbd has records MechWarrior 3's lacks (its new mechs' files). Imported in MechWarrior 3
 // it goes to Pirate's Moon's mods when the launcher said where that game is, else it is not added and the line
@@ -2879,7 +2879,7 @@ TEST(mods_screen_each_campaign_its_own_ticks_and_locked_rows_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// The MODS screen's views and their buttons (Owen's playtest W5; modding.md, The MODS screen): the tables have
+// The MODS screen's views and their buttons (the playtest W5; modding.md, The MODS screen): the tables have
 // MISSIONS, IMPORT and INFO, never EXPORT or OPEN FOLDER; INFO's view has those two and none of the tables';
 // MISSIONS' list has no tab at all. UP and DOWN show only for a ticked mod that shares something with another
 // ticked mod, and their hover line names the other. Every hover line is whole in the two note rows.
@@ -3019,7 +3019,7 @@ TEST(mods_screen_each_view_has_its_buttons_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// Ours (Owen, 2026-11-09; editor.md, The way in): a custom campaign's mission
+// Ours (2026-11-09; editor.md, The way in): a custom campaign's mission
 // launched from MODS has the editor: Shift+F12 opens it and a net saved goes
 // into the campaign's mod; the pause offers EDITOR, which resumes and opens it.
 TEST(mods_campaign_mission_has_the_editor_headless) {
@@ -3299,7 +3299,7 @@ TEST(mods_screen_add_mod_headless) {
                 asked, opened.c_str());
     EXPECT(stage == 4 && picked_folder == 0);  // one file box (ADD FOLDER is gone)
     EXPECT(adding_note == "Adding Desert Pack..." && adding_before);  // drawn a frame before the add
-    // Desert Pack holds a file of the game's own t1 world and no campaign of its own: an asset mod (Owen, 2026-11-10),
+    // Desert Pack holds a file of the game's own t1 world and no campaign of its own: an asset mod (2026-11-10),
     // a row of MODS, unticked; CAMPAIGNS has the game's own alone, still chosen; nothing is ticked by an import.
     EXPECT(rows == "[ ] Desert Pack|" && !own_locked && campaign_rows == "MechWarrior 3|" && chosen_campaign == "MechWarrior 3");
     EXPECT(first_note.find("Added Desert Pack: tick it for a campaign, then PLAY.") == 0);
@@ -5488,7 +5488,7 @@ TEST(mission_c1m1_target_views_a_turret_headless) {
   std::printf("  TARGET on a turret %d (at frame %d, mode %d): %d nodes drawn in 5 frames\n", turret != nullptr, on,
               seen.target_shown, seen.node_draws);
   // Its node read as a mech's was two handles taken for a pointer: the
-  // view's draw crashed (Owen's Windows playtest, render_subtree).
+  // view's draw crashed (the Windows playtest, render_subtree).
   EXPECT(on && seen.target_shown == 1 && seen.node_draws == 5);
   zrdr::close_archives(true);
   mech3::reset_states();
@@ -9564,7 +9564,7 @@ TEST(mission_c1m1_field_bases_repair_the_player_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// The bases stay deployed after a repair (ours, FIX (bug) behind bugs; Owen:
+// The bases stay deployed after a repair (ours, FIX (bug) behind bugs:
 // "I shouldn't have to tell them to prepare at the same location again").
 // c2m1: the player calls the bases (M, M) and is repaired; then the player
 // leaves and Dominic, worn, is ordered to repair (F10). With bugs the dock
@@ -9896,7 +9896,7 @@ void expect_repaired(const RepairRun& r, bool bugs) {
   // AI's real waits (W34) a shot lands there after c3m1's second (0.99 / 0.87).
   EXPECT(r.bases && r.done >= 1 && r.after[0].internal == 1.0f && r.after[0].armor == 1.0f);
   if (bugs) EXPECT(r.done == 2 && r.after[1].internal == 1.0f && r.after[1].armor == 1.0f);
-  // W35 (Owen): the MFD's armour bars (mode 3) follow the repair once the
+  // W35: the MFD's armour bars (mode 3) follow the repair once the
   // player powers up (the HUD is off while powered down, as the exe).
   auto bars = [](const char* when, const mech3::HudReport& h) {
     std::printf("    %s bars (full/whole):", when);
@@ -9922,7 +9922,7 @@ TEST(mission_c2m1_field_bases_repair_the_player_twice_headless) {
   if (!have_game()) return;
   for (const bool bugs : {true, false}) expect_repaired(field_base_repair_run(bugs), bugs);
 }
-// W35 again (Owen, c3m5 on the PC): his log says the first repair took the
+// W35 again ( c3m5 on the PC): his log says the first repair took the
 // store's last armour of his kind and the next two found none, so the
 // armour (and the bars) stayed worn while the internals came back: the exe's
 // rule (vehicles.md, The repair). One item: the first repair restores it
@@ -9940,7 +9940,7 @@ TEST(mission_c2m1_field_bases_repair_armour_only_from_the_store_headless) {
   std::printf("  bars: worn %d, rest 1 %d, rest 2 %d\n", worn_sum, rest1, rest2);
   EXPECT(rest1 > worn_sum + worn_sum / 2 && rest2 < worn_sum + worn_sum / 4);  // the bars show the armour left
 }
-// W32 (Owen, c3m1): the Clan HQ Q-targeted, its radar triangle out of place.
+// W32 ( c3m1): the Clan HQ Q-targeted, its radar triangle out of place.
 // A targets.zrd building's node is at the world's origin (its mesh in world
 // co-ordinates); the radar's place for a contact is the node's (0x005a85e0,
 // the exe's too), so its triangle pointed at the origin. With the bug fixes
@@ -20414,7 +20414,7 @@ TEST(placements_on_every_campaign_mission_headless) {
   if (f) std::fclose(f);
   for (const Leg& g : legs) EXPECT(g.frames >= 2);  // every mission reached play
   EXPECT(placed > static_cast<int>(legs.size()));   // the player and the AI mechs placed
-  EXPECT(moved == 0);  // the step fix moves no campaign mech (Owen's condition)
+  EXPECT(moved == 0);  // the step fix moves no campaign mech (the condition)
   zrdr::close_archives(true);
   mech3::reset_states();
   reset_process_state();
@@ -20708,7 +20708,7 @@ TEST(playtest_w40_controls_screen_accept_saves_cancel_does_not_headless) {
   EXPECT(w40_mouse(cancelled, kW40Trigger1) != 3);  // the cancelled change never saved
 }
 
-// MOUSE SENSITIVITY (ours, Owen 2026-11-02): a slider on the graphics and
+// MOUSE SENSITIVITY (ours, 2026-11-02): a slider on the graphics and
 // audio screen (our record edit among the volume sliders) sets MouseAccelX
 // and Y's magnitude, 0.5 to 5.0 in tenths (3.0 until issue #15's raw mouse), Y keeping its sign (the game
 // options' invert box, which keeps the magnitude); untouched, the original's 1.3. The mission's mouse reads scale by it (zInput's accel,
@@ -20840,7 +20840,7 @@ TEST(options_mouse_sensitivity_slider_headless) {
     zin::mouse_integrate();
     EXPECT(st.mouse.dx == static_cast<int32_t>(10 * a) && st.mouse.dy == static_cast<int32_t>(10 * -a));
   }
-  // W19 (Owen's PC, sensitivity 0.9): a slow mouse, one count a read, moves the reticle; the cut's fractions
+  // W19 (the reference PC, sensitivity 0.9): a slow mouse, one count a read, moves the reticle; the cut's fractions
   // carry (FIX (A)), where each read alone gave 0 and the mouse could cross the pad with nothing moving.
   {
     st.mouse = zin::MouseInfo{};
@@ -20863,7 +20863,7 @@ TEST(options_mouse_sensitivity_slider_headless) {
 // MOUSE SENSITIVITY across a mission and a restart (the lead): CoreState's
 // leave (0x00481fc0) sets 1.3 / 1.3 for the menus through 0x0051b790, which
 // writes zInput's working copy (0x005ece48/4c) only; the saved entries are the
-// options' own (0x005f4d2c/30, MouseAccelX/Y). And (Owen) the settings save
+// options' own (0x005f4d2c/30, MouseAccelX/Y). And the settings save
 // the values kept at the load and the options' ACCEPT, never the live ones:
 // 2.5 inverted, a mission, the menus, a moment's change, the program's end,
 // the next start: 2.5 / -2.5 saved and in its mission's step.
@@ -21015,7 +21015,7 @@ TEST(options_mouse_sensitivity_survives_a_mission_and_a_restart_headless) {
           left = true;
           in_menus[0] = zin::state().accel_x, in_menus[1] = zin::state().accel_y;
           kept_options[0] = mech3::options().mouse_accel[0], kept_options[1] = mech3::options().mouse_accel[1];
-          // Changed for a moment, never ACCEPTed: not what the program's end saves (Owen's rule).
+          // Changed for a moment, never ACCEPTed: not what the program's end saves (the rule).
           mech3::options().mouse_accel[0] = mech3::options().mouse_accel[1] = 1.3f;
           stage = 3;
         }
@@ -21147,7 +21147,7 @@ TEST(playtest_w47_campaign_movie_pauses_the_menu_music_headless) {
 // whose screen (0x00492750) is made over a grab of the frame shown; RESUME
 // (0x00492d70) goes back through the state's +0x28, and so does Escape on the
 // pause screen. The frame behind is the 3D one read back (FIX (A)), not the 2D
-// layer's key colour (the purple Owen saw).
+// layer's key colour (the purple seen in play).
 TEST(playtest_escape_pauses_the_mission_and_resume_returns_headless) {
   if (!have_game()) return;
   SavedMounts keep;
@@ -24412,7 +24412,7 @@ TEST(cheat_food_for_thought_wins_the_salvage_coins) {
 // (every mech and vehicle on the radar), operation cwal (the reload and heat
 // dissipation 10x), food for thought on and off again, game over man (the
 // loss); then the next mission starts with none on.
-// pm-tests item 36 (Owen 2026-11-09, on Pirate's Moon; MW3 the same):
+// pm-tests item 36 (2026-11-09, on Pirate's Moon; MW3 the same):
 // "operation cwal" typed with L let go after the Enter that closes the box
 // read as L released to the game once the box was gone: L, the hold-to-look
 // key (Mech::update's 0x17), put the reticle's view (2) in the free look (3),
@@ -24708,7 +24708,7 @@ TEST(mission_c1m1_modded_splash_stays_within_the_list_headless) {
   EXPECT(damaged >= 1 && damaged <= 32);
 }
 
-// pm-tests item 25 (Owen, in MW3): in c1m2, locked on an enemy mech (A), E to the next enemy (B, one of the
+// pm-tests item 25 ( in MW3): in c1m2, locked on an enemy mech (A), E to the next enemy (B, one of the
 // mission's vehicles), an LRM volley at once without aiming at B. The target change resets the reticle
 // (0x0041d890 -> 0x00441780 -> 0x00443cc0), so the volley is not locked (0x004b3330 reads the weapons' +0x88, which the reticle's update clears): its missiles carry
 // no target to home on. (c1m2's B stands 13 m from A, so the flight itself does not tell them apart.)
@@ -24830,7 +24830,7 @@ TEST(mission_c1m2_lock_drops_on_a_new_target_headless) {
   EXPECT(fired == 1 && !locked && !shot_lock);
 }
 
-// pm-tests item 25, Owen's likely play: locked on one target (A, a vehicle), switched to another (B, a mech, by
+// pm-tests item 25, The likely play: locked on one target (A, a vehicle), switched to another (B, a mech, by
 // Shift+E) with the reticle on B, an LRM volley 0.1, 0.3, 0.6 and 1.0 s after the key. The lock on B takes the
 // original's 0.6 s (0x00443d20, [0x005e3a0c]) plus two frames; the volleys before it go unlocked, along the aim,
 // so onto B all the same; the one after is locked on B. No lock carries over. B walks across the line at about
@@ -26181,7 +26181,7 @@ TEST(mission_c1m1_pause_click_at_any_size_headless) {
   EXPECT(miss.resumes == 0);
 }
 
-// Playtest W36 (Owen at 16:9): the pause's buttons where they were at 4:3,
+// Playtest W36 ( at 16:9): the pause's buttons where they were at 4:3,
 // and after the options "it's in 4:3 now as well", 16:9 again only back in
 // the mission. The pause at 16:9 at 0 (its buttons at the left edge, its
 // title a marquee across the display), and back from the options in the
@@ -26307,7 +26307,7 @@ TEST(mission_c1m1_pause_at_16_9_is_the_same_after_the_options_headless) {
   EXPECT(std::equal(v.resume[0], v.resume[0] + 4, v5.resume[0]));
 }
 
-// Playtest W13 (Owen's 18/19): the options reached from a mission's pause
+// Playtest W13 (The 18/19): the options reached from a mission's pause
 // screen at 16:9 had every widget 106 to the right of the art. The pause
 // screen sits on the mission's 853x480 canvas, but the options show on the
 // menus' 640x480 one (0x00438c90 sets mode 5), so their 640x480 frame is at
@@ -26444,7 +26444,7 @@ OptionsPlace c1m1_options_place(int32_t mode) {
 }
 }  // namespace
 
-// Front-end item 5 (Owen's mw3pm shot 2026-11-07): Escape, OPTIONS, CONTROLS
+// Front-end item 5 (the mw3pm shot 2026-11-07): Escape, OPTIONS, CONTROLS
 // in a mission at 16:9 with the wide menus: each screen's canvas, origin and
 // its ACCEPT's rect, and the controls' DEFAULT buttons.
 namespace {
@@ -26731,7 +26731,7 @@ WideMenus wide_menus_run(bool wide, bool fast = false, int32_t frame_width = 0, 
         if (c->lines.image) out.cr_lines_w = c->lines.image->width;
         out.cr_lines_x = c->lines.get_x();
         out.cr_back = c->cancel.get_rect()->left;
-        // W60 (Owen, the campaign's ending): the scrolling names' box and a
+        // W60 ( the campaign's ending): the scrolling names' box and a
         // line placed in it, as each frame places them.
         out.cr_names = c->names.left, out.cr_name_right = c->names.right;
         c->names.scroll(0.5f);
@@ -26948,7 +26948,7 @@ WideMenus wide_menus_run(bool wide, bool fast = false, int32_t frame_width = 0, 
 }  // namespace
 
 // A mode picked in the menus takes hold in them at once (playtest 1.1.0
-// item 3, Owen: "I changed the resolution to 1920x1080 but it didn't change
+// item 3: "I changed the resolution to 1920x1080 but it didn't change
 // the aspect ratio"; resolution.md section 12). From a saved 4:3 mode:
 // GRAPHICS' ACCEPT with the same mode goes back to OPTIONS as the exe does;
 // with 1920x1080 the menus are made again wide and the main menu is up;
@@ -27216,7 +27216,7 @@ TEST(menus_take_a_picked_mode_inside_an_entry_headless) {
   EXPECT(e.entry_width == 853);
 }
 
-// 16:9 menus are on by default (Owen, 2026-10-31): with nothing set, the
+// 16:9 menus are on by default (2026-10-31): with nothing set, the
 // menus take a wide in-mission mode (13: 853x480), and stay 640x480 (mode 5)
 // when that mode is 4:3 (5, or 10: 1600x1200); widemenus=0 or
 // --no-wide-menus turn it off.
@@ -27251,7 +27251,7 @@ TEST(menus_wide_follow_the_selected_aspect) {
 // FastMenu (the original's option, -seasick) with wide menus: a screen that is baked into one picture is laid
 // out wide before the bake, so the art in the picture (the overlays' lines, the baked buttons) is where the
 // live layout puts it. Before, the bake came first: LINES kept its 640 form and the picture its 4:3 places
-// while the controls moved (the main menu's CREDITS and QUIT twice; Owen's Instant Action, playtest W6).
+// while the controls moved (the main menu's CREDITS and QUIT twice; Instant Action, playtest W6).
 TEST(menus_wide_with_fast_menu_bake_after_the_layout_headless) {
   if (!have_game()) return;
   const WideMenus on = wide_menus_run(true), fast = wide_menus_run(true, true);
@@ -27328,9 +27328,9 @@ TEST(menus_wide_spread_by_their_groups_headless) {
               off.win_bg, on.win_bg, off.win_continue, on.win_continue, off.win_abort, on.win_abort, off.win_card,
               on.win_card, off.win_line, off.win_line_end, on.win_line, on.win_line_end);
   EXPECT(off.win_bg == 640 && on.win_bg == 640 + extra);
-  EXPECT(off.win_continue > 0 && on.win_continue == off.win_continue + extra / 2 && on.win_abort == off.win_abort + extra / 2);  // one block (Owen)
+  EXPECT(off.win_continue > 0 && on.win_continue == off.win_continue + extra / 2 && on.win_abort == off.win_abort + extra / 2);  // one block
   EXPECT(on.win_card == off.win_card + extra / 2);
-  // The card's bars and line draw by their own numbers: they keep their place by its name (Owen's 10:46 shot).
+  // The card's bars and line draw by their own numbers: they keep their place by its name (The 10:46 shot).
   std::printf("  the card: bars %d -> %d, line %d -> %d, name %d -> %d\n", off.win_bars, on.win_bars, off.win_mark, on.win_mark, off.win_name, on.win_name);
   EXPECT(off.win_bars > 0 && on.win_bars - on.win_name == off.win_bars - off.win_name);
   EXPECT(off.win_mark > 0 && on.win_mark - on.win_name == off.win_mark - off.win_name);
@@ -27428,7 +27428,7 @@ TEST(menus_ultrawide_keep_native_controls_and_lab_aligned_headless) {
   }
 }
 
-// Playtest W13 (Owen's 20 against 17): a mission begun at 640x480 and put to
+// Playtest W13 (The 20 against 17): a mission begun at 640x480 and put to
 // 1920x1080 from the options (Core's resume, 0x004ab6b0) kept the camera's
 // 4:3 80 degrees across, the picture stretched 4:3 to 16:9. The exe sets
 // the angle only at the mission's load (0x0040d590, its only modes 4:3);
@@ -28162,7 +28162,7 @@ HomingRun homing_run(const char* dir, bool kill, int limit) {
         const zwep::Vec3f3 d = s.direction;
         if (zwep::run_hooks().ground && s.speed > 0.0f) {
           zwep::HitList g;
-          uint8_t zones[4];  // the shot's zone set, as the update sets it around its probe (0x00585710)
+          uint8_t zones[4];  // The shot's zone set, as the update sets it around its probe (0x00585710)
           std::memcpy(zones, zmod::zones().list, 4);
           if ((s.zone & 0xff) != 4) std::memcpy(zmod::zones().list, &s.zone, 4);
           zwep::run_hooks().ground(&s.position, &g);
@@ -28226,7 +28226,7 @@ HomingRun homing_run(const char* dir, bool kill, int limit) {
         if (!t.have) {
           ++r.locked;
           // The lock is the shooter's selected target (+0x6c's object): what
-          // the shot leaves toward may differ, a part's weapon firing along
+          // The shot leaves toward may differ, a part's weapon firing along
           // its facing when the target is over 27 degrees off (0x004b36e0).
           void* shooter = s.owner == mech3::mech_node(player) ? player : nullptr;
           for (int32_t k = 0; k < made && !shooter; ++k)
@@ -28708,7 +28708,7 @@ TEST(issue10_auto_return_torso_keeps_its_limit_headless) {
   EXPECT(issue10_twist(true) <= 1.001f);
   EXPECT(issue10_twist(false) > 1.5f);  // the original's: well past
 }
-// Playtest W50 (Owen, c1m2 on the Mac, v1.0): "Destroy Missile Platforms
+// Playtest W50 ( c1m2 on the Mac, v1.0): "Destroy Missile Platforms
 // OP: Baker" stays In Progress; triturret02 vanished with no wreck while its
 // triangle and target box (empty) stayed. The tripod turrets start facing
 // straight up (their node's rotation, normalised); their first aim eases the
@@ -28790,7 +28790,7 @@ TEST(mission_c1m2_triturret_aim_on_fast_frames_headless) {
         r.yaw_det = m[0] * m[8] - m[2] * m[6];
         return r;
       };
-      // From 8 sides, 35 m off and 6 m up (Owen's place in his shot is one).
+      // From 8 sides, 35 m off and 6 m up (The place in his shot is one).
       int fixed_turned = 0, original_collapsed = 0, table_collapsed = 0, slow_collapsed = 0, fixed_collapsed = 0;
       for (int k = 0; k < 8; ++k) {
         const float a = 0.785398f * static_cast<float>(k);
@@ -28807,7 +28807,7 @@ TEST(mission_c1m2_triturret_aim_on_fast_frames_headless) {
       }
       std::memcpy(t->facing, f0, sizeof f0);
       zcls::object3d_set_matrix(tn, tm0);
-      // The exe at 166 fps: no easing, and every side collapses the yaw (what Owen saw).
+      // The exe at 166 fps: no easing, and every side collapses the yaw (what was seen).
       EXPECT(original_collapsed == 8);
       // Fixed: never collapsed, and it turns toward the sides its limits allow.
       EXPECT(fixed_collapsed == 0 && fixed_turned > 0);
@@ -28836,7 +28836,7 @@ TEST(mission_c1m2_triturret_aim_on_fast_frames_headless) {
   mech3::options() = mech3::Options{};
 }
 
-// Playtest W55 (Owen, PC; the Mac too): MECH LAB, VARIANTS, SAVE over a
+// Playtest W55 ( PC; the Mac too): MECH LAB, VARIANTS, SAVE over a
 // variant of his own, Enter: "Overwrite?" over a purple screen. The lab's
 // frame goes through the GPU, the 16-bit buffer holding only its 2D layer;
 // the message box (0x004ac150) first locks and unlocks the 3D layer empty,
@@ -28955,7 +28955,7 @@ TEST(controls_axis_popup_binds_a_slider_to_the_throttle_headless) {
 }
 
 
-// W59 (Owen's v1.0 crash, zmth::load+0x1d late in c4b): 0x004ed530 takes a
+// W59 (the v1.0 crash, zmth::load+0x1d late in c4b): 0x004ed530 takes a
 // node's world position on a matrix of its own (push, identity, 0x004ed280,
 // pop). The port's shortcut ran 0x004ed280 on whatever the stack's top was
 // for a changed node: outside a draw that is the empty base slot (a write
@@ -29119,7 +29119,7 @@ TEST(mission_lance_far_way_before_and_after_headless) {
   EXPECT(measured >= 3);
 }
 
-// W58: Epona's first mission (Owen: "that one gave me the most trouble with
+// W58: Epona's first mission ("that one gave me the most trouble with
 // lancemate pathing"). c2m4 has two floors, the ground and the works 90 m
 // under it, joined by ramps and thin walkways. The player stands in the works,
 // Dominic follows from the start: the exe, the port before, the grid.
@@ -29227,7 +29227,7 @@ TEST(mission_c2m4_lancemate_reaches_the_works_headless) {
   EXPECT(grid.placed && grid.reached > 0 && grid.stuck_s < 10);
 }
 
-// W58, Owen's two: "you're on a conveyor" and "a river you keep bumping into".
+// W58, The two: "you're on a conveyor" and "a river you keep bumping into".
 // The player on the works' slab line (c2m4's conveyor); then Dominic on one bank
 // of the river and the player on the other, 125 m up from its bridge.
 TEST(mission_c2m4_lancemate_to_the_conveyor_and_over_the_river_headless) {

@@ -1161,7 +1161,7 @@ TEST(fix_place_steps_ten_above) {
   EXPECT(std::fabs(place_on_bridge(true) - -49.99f) < 1e-3f);   // fixed: on it
 }
 
-// TAG (weapons.md "TAG, end to end"; Owen 2026-10-20). The frames the hold
+// TAG (weapons.md "TAG, end to end"; 2026-10-20). The frames the hold
 // needs on the target at a frame rate: the exe's float sum takes 61 at 60
 // fps and 145 at 144; in whole milliseconds, one second exactly.
 static int tag_hold_frames(int fps, bool fix) {
@@ -1837,7 +1837,7 @@ TEST(fix_aim_cone_widens_with_the_view) {
   c = kept;
 }
 
-// W50 (Owen, c1m2 on the Mac): zMath's e^-x table (0x00523f70) steps by
+// W50 ( c1m2 on the Mac): zMath's e^-x table (0x00523f70) steps by
 // 1/51, so a per-second easing reads 1 on short frames: a rate of 3 at
 // 6 ms (166 fps) never eased at all. exp_neg_dt gives the 30 fps frame's
 // table value raised to the frame's share: at 1/30 s the table bit for bit
@@ -1965,7 +1965,7 @@ TEST(fix_throttle_lever_reaches_reverse) {
   zfix::set_all(true);
 }
 
-// W59 (Owen's v1.0 crash, zmth::load+0x1d in c4b's last fight): an unbalanced
+// W59 (the v1.0 crash, zmth::load+0x1d in c4b's last fight): an unbalanced
 // matrix stack is refused and logged, never a write through a stray slot.
 TEST(fix_matrix_stack_imbalance_is_refused_and_logged) {
   zmth::MatrixStack& st = zmth::matrix_stack();
@@ -2087,7 +2087,7 @@ TEST(weapon_manager_refuses_a_seventeenth) {
   delete c;
 }
 
-// The mission cleanup with a beam firing (Owen, PM mission 2, REPLAY on the debriefing): the
+// The mission cleanup with a beam firing ( PM mission 2, REPLAY on the debriefing): the
 // cleanup's kill ran on the BEAM defs and read a beam's list as shots, a null node at +0x54.
 TEST(fix_cleanup_leaves_a_firing_beam) {
   zwep::State& st = zwep::state();
@@ -2328,7 +2328,7 @@ TEST(fix_material_table_read_again_keeps_no_pointer_into_the_old_blocks) {
   std::filesystem::remove_all(dir, ec);
 }
 
-// MW1's FIXES 107 (Owen: a machine gun's sound came on and never stopped), small_fixes: a weapon's looped sound
+// MW1's FIXES 107 (a machine gun's sound came on and never stopped), small_fixes: a weapon's looped sound
 // (U_LOOPED) plays from its trigger to its release. Outside group fire a group lets go of only its current weapon,
 // and the fire mode can change while the trigger is held: after a group volley the group's other weapons were never
 // released and their loops played on. With the fix each weapon still sounding is let go; without it, the exe's.

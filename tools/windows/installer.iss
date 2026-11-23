@@ -19,7 +19,7 @@
   #define Stem "MW3-Rebuild"
 #endif
 
-; The shortcut's name: BattleTech for the combined package, which holds more than MW3 (Owen, 2026-11-20), its
+; The shortcut's name: BattleTech for the combined package, which holds more than MW3 (2026-11-20), its
 ; comment naming the games for the Start menu's search; MW3 alone keeps its own name.
 #if Stem == "MW3-alone"
   #define Shortcut "MechWarrior 3"
@@ -87,7 +87,7 @@ Type: files; Name: "{autodesktop}\MechWarrior 3.lnk"
 
 [Icons]
 ; The launcher is the shortcut; mw3.exe is installed
-; and starts alone too, but has no shortcut (Owen, 2026-11-02; launcher.md).
+; and starts alone too, but has no shortcut (2026-11-02; launcher.md).
 Name: "{autoprograms}\{#Shortcut}"; Filename: "{app}\mw3launcher.exe"; WorkingDir: "{app}"; Comment: "{#ShortcutComment}"
 Name: "{autoprograms}\MechWarrior 3 Rebuild - Read me"; Filename: "{app}\README.txt"
 Name: "{autodesktop}\{#Shortcut}"; Filename: "{app}\mw3launcher.exe"; WorkingDir: "{app}"; Comment: "{#ShortcutComment}"; Tasks: desktopicon

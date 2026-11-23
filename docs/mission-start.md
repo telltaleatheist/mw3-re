@@ -351,8 +351,8 @@ starts with the reactor coming on as the screen fades in; the power key
   -35.86; the pick leaves water out): the campaign opens with a wade
   ashore.
 
-**The step fix** (FIX (bug), Owen 2026-10-20, `zfix bugs`): the pick gets
-a step of 10, as its other callers' constants. Owen's condition: every
+**The step fix** (FIX (bug), 2026-10-20, `zfix bugs`): the pick gets
+a step of 10, as its other callers' constants. The condition: every
 shipped mech still lands where the designers put it. Checked with
 `placements_on_every_campaign_mission_headless` (mw3tests):
 

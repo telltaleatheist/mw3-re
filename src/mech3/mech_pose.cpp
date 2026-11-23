@@ -215,7 +215,7 @@ void Mech::pose_gait(MechAnim& a, int jets, const Vec3& saved) {
     for (int i = 0; i < 2; ++i) {
       Foot& f = *foot(i);
       lerp_into(*f.translation, i == 0 ? lp : rp, b, crouch == 0.0f);
-      // FIX (bug): each foot from its own last rotation (Owen, 2026-10-20);
+      // FIX (bug): each foot from its own last rotation (2026-10-20);
       // the exe writes both into the left's, so the right foot snaps.
       slerp_into(f.rot, zfix::options().fixed && i == 1 ? rq : lq, b);
     }

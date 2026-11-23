@@ -242,7 +242,7 @@ const std::vector<ScreenGroups>& screen_groups() {
       // The briefing: one block, the map in the middle, its sides from its
       // terrain, past the grid's labels and the north arrow at its edges.
       {0x405230, {}, {}, 40},
-      // The debriefing: one block (Owen, 2026-11-06: the columns kept together,
+      // The debriefing: one block (2026-11-06: the columns kept together,
       // the extra width open at the sides); its dark circuit board's sides
       // barely dimmed (dimmed as the others, black).
       {0x47b430, {}, {}, 0, 256, 160},

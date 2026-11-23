@@ -215,7 +215,7 @@ matrix (0x4ed280 fails), else 0.
 
 With the x87 at 24 bits every 16.16 value in step 6 is 0 (only bits 29..31
 of the trick's low dword survive, all clear under 2^13): no row, nothing
-filled, the image all white. **In play the shadows are visible** (Owen,
+filled, the image all white. **In play the shadows are visible** (
 2026-10-20, Windows 11 + DDrawCompat, hardware mode): the reference runtime
 leaves the FPU at 53 bits at least where the trick runs (the CRT's
 `_PC_53`). Whether DirectX 6 on Windows 98 in 1999 truncated it and hid them
@@ -330,7 +330,7 @@ the other draws truncate).
   0x8430..0xffff) at 64 bits and none at 24: a white image
   (`explore/shadow_image_x87.py`). Multiplying by white changes nothing, so
   a 24-bit FPU would draw the mech shadows (every pass runs) invisibly. In
-  play on Windows 11 + DDrawCompat they are visible (Owen, 2026-10-20), so
+  play on Windows 11 + DDrawCompat they are visible (2026-10-20), so
   the FPU is not at 24 bits there; the port defaults to k53 and keeps k24
   as a switch; test_shadow_image.py checks both against the original, and
   mechlib's mechs all cast with k53 (`explore/shadow_mechs.py`).
@@ -487,7 +487,7 @@ shade up to 52 m, the shade by diffuse, the ground always the mech's own.
 
 ## Open
 
-- Shadows confirmed visible in play (Owen, 2026-10-20). The other 24-bit
+- Shadows confirmed visible in play (2026-10-20). The other 24-bit
   findings (projected-light triangles, point-lit vertices, clouds) are the
   lead's to revisit; whether Windows 98's DirectX 6 hid the shadows stays
   unconfirmed.

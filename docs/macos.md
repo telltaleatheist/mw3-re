@@ -31,9 +31,9 @@ THIRD-PARTY.txt describes the `--deps` build.
   git, `LSMinimumSystemVersion` from the binary (see below), games
   category.
 - Signed **ad hoc** (`codesign -s -`): the code is sealed, but no identity
-  or name is in the signature (Owen, 2026-10-30: the releases are not
+  or name is in the signature (2026-10-30: the releases are not
   Developer ID signed and not notarized, for his privacy; he publishes as
-  Owen Morgan). `tools/macos/mw3.entitlements` grants nothing: the app needs
+  the developer). `tools/macos/mw3.entitlements` grants nothing: the app needs
   no exception. The DMG is not signed.
 - An explicit opt-in, `--identity "<IDENTITY>"`, signs with a keychain
   identity, the hardened runtime and a secure timestamp instead; never used

@@ -1,6 +1,6 @@
 # Lessons for the next port
 
-Written with Owen at the end of the MW3 port (2026-10-31), for the next
+Written at the end of the MW3 port (2026-10-31), for the next
 project of this kind (Pirate's Moon first, then any other old game). What
 worked, what we'd change, and why.
 
@@ -43,7 +43,7 @@ first, then modernised, was weighed and rejected:
    bug. That catches wiring bugs before a human playtest does.
 3. **Automated builds on every platform from week one.** Windows-only
    breaks (`<windows.h>`'s `min`/`max` macros, twice) surfaced only when
-   someone built by hand on Owen's PC. A CI build on Windows, Mac and Linux
+   someone built by hand on the reference PC. A CI build on Windows, Mac and Linux
    at every push finds them in minutes.
 4. **Decide the program layout at the start.** Pirate's Moon was always
    planned; the two games, the launcher and the shared engine folder

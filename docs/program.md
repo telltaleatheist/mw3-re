@@ -65,7 +65,7 @@ build/mw3 [install-dir] [options] [-nofmv] [-seasick] [-cdN]
   goes through a pipe and a thread that writes the console's own handle and
   the file; at exit the handles are put back and the threads drained.
 - **The data folder** (ours, `mech3/data_folder.cpp`, `data_folder_start.h`;
-  Owen, 2026-11-04): the write dir on another drive, chosen in the launcher (GAME
+  2026-11-04): the write dir on another drive, chosen in the launcher (GAME
   FILES, MY DATA FOLDER). `data-folder.txt` in the usual folder names it, and
   `mw3-data-folder.txt` in the folder says it is ours; with no pointer nothing
   changes. mw3, mw3launcher and mw3import all read it, and `--write-dir` wins (and

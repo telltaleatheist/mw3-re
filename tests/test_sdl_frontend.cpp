@@ -374,7 +374,7 @@ TEST(sdl_input_t16000m_twist_reaches_rz) {
     EXPECT(in.open(platform::Input::kJoystick));
     std::printf("  T.16000M: axes from %s\n", in.axis_source());
     static const char* const kFrom[3] = {"its HID descriptor", "the known sticks' table", "mw3.cfg's joystick_axes="};
-    EXPECT(std::string(in.axis_source()) == kFrom[how]);  // the log's word for it, each in its turn
+    EXPECT(std::string(in.axis_source()) == kFrom[how]);  // The log's word for it, each in its turn
     uint32_t flags = 0, axes = 0;
     in.joystick_caps(&flags, &axes);
     EXPECT(axes == 4);
@@ -487,7 +487,7 @@ TEST(sdl_input_stick_taken_out_reads_centred) {
   SDL_DetachVirtualJoystick(id);
 }
 
-// FIX (B) (Owen 2026-11-20, for MW1's remake too): a stick plugged in after the
+// FIX (B) (2026-11-20, for MW1's remake too): a stick plugged in after the
 // start is opened by zInput's poll with the users asked for meanwhile, the
 // arrival taken once; its buttons 11..15 read and bind as 1..10 do (the
 // original stops at 10, which the probes' path keeps).
@@ -1171,7 +1171,7 @@ TEST(sdl_issue15_mission_mouse_line_counts_slow_motion) {
   if (sw > 0 && sh > 0) zin::mouse_set_screen(sw, sh);
 }
 
-// Issue #15, RAW MOUSE (Owen, 2026-11-21; input.md section 14): on, a held
+// Issue #15, RAW MOUSE (2026-11-21; input.md section 14): on, a held
 // mouse asks SDL for the counts (the system scale hint "0"), off for the
 // system's speed ("1"), switched at once. With a raw source (the Mac's
 // GCMouse) its counts are the motion and SDL's (the system's curve) dropped;
@@ -1283,7 +1283,7 @@ TEST(sdl_editor_frees_the_mouse) {
   move(100, 230, 9, 9);
   EXPECT(in.mouse_state(&ms) == 0 && puts == 1 && cx == 100 && cy == 230 && ms.x == 0 && ms.y == 0);
   button(true);
-  EXPECT(in.mouse_state(&ms) == 0 && ms.buttons[0]);  // the click is the game's (the panel's pick)
+  EXPECT(in.mouse_state(&ms) == 0 && ms.buttons[0]);  // The click is the game's (the panel's pick)
   button(false);
   in.mouse_state(&ms);
   // The pause over the editor: not the mission, the menus' rules (fullscreen: held).
@@ -1609,7 +1609,7 @@ TEST(sdl_render_keeps_a_shown_frame) {
 // A mission's colour clear is off (start_mission): a new back buffer, at the first frame or after
 // a size change, still starts a defined black where no draw reaches. Metal's undefined memory
 // happened to be magenta; anything but the defined colour fails here.
-// FIX (bug), Owen 2026-11-04: what no draw covers in a mission takes the fog's colour; black with fog off.
+// FIX (bug), 2026-11-04: what no draw covers in a mission takes the fog's colour; black with fog off.
 TEST(mission_frame_fill_is_the_fogs_colour) {
   const zmod::Fog kept = zmod::fog();
   const float tan[3] = {0.8f, 0.5f, 0.25f};
@@ -2035,7 +2035,7 @@ TEST(sdl_host_image_release_counts_and_frees) {
 // opaque by the overlay's rule (app_engine, sdl_platform's upload) at every
 // level, full health blue (hud.md section 16). Seven parts' blue outlines are
 // the colour of the translucent blue fill under them (0x001f); drawn
-// see-through until opaque writes ended the fill's record (Owen's playtest:
+// see-through until opaque writes ended the fill's record (the playtest:
 // only the right arm, 0x003f, showed).
 TEST(sdl_host_damage_diagram_shows_every_part) {
   if (!std::filesystem::exists(std::string(MW3_GAME_DIR) + "/zbd/rimage.zbd")) return;
@@ -3080,7 +3080,7 @@ bool waited(pid_t pid, int* status, int seconds = 120) {
 
 // The program confines its names (zutl::Mounts::confined): a dialog named
 // "..\\secret.zrd" is refused though the file sits beside the write dir, and
-// the log says so; a dialog the game has still loads.
+// The log says so; a dialog the game has still loads.
 TEST(sdl_program_names_stay_inside_the_game_folders) {
   if (!have_fonts()) return;
   const std::string root = std::string(MW3_TEST_TMP) + "/sdl_confined";
@@ -4032,7 +4032,7 @@ TEST(sdl_program_multiplayer_mods_button_ticks_and_starts_again) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn, waitpid
-// Mods in multiplayer (Owen, 2026-11-11; upgrades/mods/ia_mods.h, mp_mods.h), the real program on loopback. A
+// Mods in multiplayer (2026-11-11; upgrades/mods/ia_mods.h, mp_mods.h), the real program on loopback. A
 // hosts from multiplayer's entry (--entry mp --entry-mp: the main menu opens MULTIPLAYER itself) with the mod
 // Big Guns ticked. Three joiners in turn, through the screens: one on a plain start (no mods) is turned back and
 // told it does not have Big Guns; one in the entry with another copy of the mod is told its copy differs; one in
@@ -4135,7 +4135,7 @@ TEST(sdl_two_processes_multiplayer_mods_match_or_turn_back) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn, waitpid
-// Owen, 2026-11-11: "we use the original for the assets only": which version of the original a player's files
+// 2026-11-11: "we use the original for the assets only": which version of the original a player's files
 // are never keeps two players apart; both play 1.2 as the rebuild makes it (mech3/patch12.h). The real program
 // on loopback, a host on 1.0's files and a joiner on 1.2's, then the other way round: the joiner gets into the
 // lobby (the session's version word is the rebuild's, the same on both; nothing compares the data), is not
@@ -5316,7 +5316,7 @@ TEST(sdl_program_bugfixes_switch) {
 // nothing to say for 1.2 data with music. 1.0's data and a mix need no note
 // either: they load as 1.2 (docs/patch12.md); only data of an unknown
 // version is told about the patch. The music is any CD track's file.
-// The launcher's window is 16:9 unless --window gave a size (Owen, 2026-11-10):
+// The launcher's window is 16:9 unless --window gave a size (2026-11-10):
 // the game's own 1280x960 default is not handed to it.
 TEST(launcher_window_is_16_9_by_default) {
   sdlfe::LauncherOptions lo;
@@ -5375,7 +5375,7 @@ TEST(launcher_long_path_fits_the_button) {
   EXPECT(sdlfe::fit_middle(ready + path, ready.size(), 10, chars) == ready + "...");  // too narrow: the words alone
 }
 
-// The launcher's one picker (Owen, 2026-11-02: one option): an image or a
+// The launcher's one picker (2026-11-02: one option): an image or a
 // download is itself the source; any other file stands for its folder
 // (Mech3.exe or any file of an installed copy, zbd\ and video\ up one, or a
 // disc's folder); a .bin with its .cue beside it is the .cue.
@@ -5481,7 +5481,7 @@ TEST(sdl_program_launcher_screens) {
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir + "/wd", ec);
   std::filesystem::create_directories(dir + "/wd2", ec);
-  // The first entry hovered (Owen, the PC's fresh install): a square plate lights its edge (at edge_x, edge_y,
+  // The first entry hovered ( the PC's fresh install): a square plate lights its edge (at edge_x, edge_y,
   // the plate's top, the 640 block 107 in) in amber. The main screen's cards (layout C, 2026-11-20): MW3's PLAY
   // lights its edge too, no ripple (two cards here: no MW1 program).
   struct Shot {
@@ -5524,19 +5524,19 @@ TEST(sdl_program_launcher_screens) {
                   text.find(s.says) != std::string::npos);
       if (c) SDL_DestroySurface(c);
     }
-    EXPECT(img && img->w == 854 && img->h == 480 && lit > n / 5);  // 16:9 (Owen, 2026-11-08): more dark sky, 24% lit at least
+    EXPECT(img && img->w == 854 && img->h == 480 && lit > n / 5);  // 16:9 (2026-11-08): more dark sky, 24% lit at least
     EXPECT(text.find(s.says) != std::string::npos);
     EXPECT(text.find(s.hover) != std::string::npos && edge);
     if (img) SDL_DestroySurface(img);
   }
 }
 
-// BEFORE YOU PLAY by measure (Owen's playtest, W3): an install with no movies, no music and an empty
+// BEFORE YOU PLAY by measure (the playtest, W3): an install with no movies, no music and an empty
 // soundsH.zbd under a long settings folder (a long user name), ADD FROM MY DISC having answered "No disc in a
 // drive ...". The status line is under the notes and all of it above the button, at a size still read; before,
 // it was drawn at a fixed place over the notes' last lines. Three cases: those two notes; a third with them
 // (two operations' missions gone); Pirate's Moon's own notes (its empty soundsH.zbd and no music, the folder
-// in the music note longer still: Owen's own case).
+// in the music note longer still: The PC's own case).
 TEST(sdl_program_launcher_notes_fit_above_the_buttons) {
   namespace fs = std::filesystem;
   std::error_code ec;
@@ -6003,7 +6003,7 @@ TEST(sdl_program_mission_switch_stays_and_mods_comes_back_alive) {
   fs::remove_all(dir, ec);
 }
 
-// The MODS screen's six buttons (Owen's playtest, W5), in the real program at 4:3 and 16:9: the mouse over
+// The MODS screen's six buttons (the playtest, W5), in the real program at 4:3 and 16:9: the mouse over
 // IMPORT says its line in the two note lines; a click on a mod's name chooses it and changes no tick; a click
 // on its box ticks it for the campaign (written to that campaign's mods.txt); MISSIONS puts the campaign's
 // missions in the left box, BACK the campaigns again, INFO the campaign's info.
@@ -6432,7 +6432,7 @@ TEST(sdl_program_instant_action_mods_pilot_and_straight_in) {
   fs::remove_all(dir, ec);
 }
 
-// Playtest W6 (dev 4's steps, Owen's picture): Instant Action at 16:9, its MODS tab, BACK. The box's lines and the
+// Playtest W6 (dev 4's steps, the picture): Instant Action at 16:9, its MODS tab, BACK. The box's lines and the
 // map and scenario bars are one image the wide layout stretches; the button's own looks kept the 640 one, and its
 // refresh as the screen came back put it on, drawn at the 640 places (the labels stayed right). The screen logs the
 // width its images show: the same after MODS > BACK as before, with no mods (the empty tick screen) and with one, and
@@ -6561,7 +6561,7 @@ TEST(sdl_program_launcher_window_goes_on_to_the_game) {
 // stand-in with the install and this start's options, as `script` says
 // (it keeps its arguments; READY writes the ready file, DONE its end's
 // mark, which it also writes when it reaches the script's end). The launcher ends at
-// the game's first frame and leaves it running (Owen, 2026-11-01); a game
+// the game's first frame and leaves it running (2026-11-01); a game
 // that ends first or is slow leaves it up. Hidden, without sound.
 namespace {
 struct LauncherRun {
@@ -6724,7 +6724,7 @@ TEST(sdl_program_launcher_stays_when_the_game_fails_or_is_slow) {
   EXPECT(!has(again.log, "exited (93)") && !has(again.log, "closed with an error"));
 }
 
-// The launcher for v1.0 (Owen and the lead, 2026-11-02; docs/launcher.md):
+// The launcher for v1.0 ( and the lead, 2026-11-02; docs/launcher.md):
 // the games and QUIT only; MECHWARRIOR 3 without its files opens the find
 // screen (FIND THE GAME, BACK; no Setup, Search, Folder or Patch); a game
 // found there starts at once, through the notes when the install lacks
@@ -6755,7 +6755,7 @@ TEST(sdl_program_launcher_finds_the_game_then_plays) {
   EXPECT(c.exited && !c.args.empty() && c.args[0] == MW3_GAME_DIR && screen(c.log, "the game's first frame"));
   EXPECT(screen(c.log, "screen notes: ADD FROM MY DISC, OK\n") && screen(c.log, "note: No music yet"));
   EXPECT(c.log.find("screen notes:") < c.log.find("the game's first frame"));
-  // W13 (Owen, 2026-11-12): a player's pick (no check's click on MECHWARRIOR 3 after it) ends on the games,
+  // W13 (2026-11-12): a player's pick (no check's click on MECHWARRIOR 3 after it) ends on the games,
   // with nothing started, so Pirate's Moon can be added first; the notes' OK goes back to them too.
   auto stay = pick;
   stay.push_back({"MW3_LAUNCHER_NO_PLAY", "1"});
@@ -6784,7 +6784,7 @@ TEST(sdl_program_launcher_finds_the_game_then_plays) {
   std::filesystem::remove_all(cd, ec);
 }
 
-// The movies converted in the launcher (Owen's first start sat 44 s on
+// The movies converted in the launcher (The first start sat 44 s on
 // "Starting MechWarrior 3..." while mw3 did it): a found install's AVIs go
 // through the importer (here a stand-in, MW3_IMPORTER, as mw3import: its
 // "progress K N name" lines, the .fmv files) on the work screen before the
@@ -6999,7 +6999,7 @@ TEST(sdl_program_launcher_says_the_picker_is_opening_before_it_asks) {
   std::filesystem::remove_all(dir, ec);
 }
 
-// GAME FILES (Owen, 2026-11-02): the find screen at any time, by keys or a
+// GAME FILES (2026-11-02): the find screen at any time, by keys or a
 // pad as by the mouse (MW3_LAUNCHER_NAV); with the install in use lacking
 // its music, ADD FROM MY DISC there too. A repick to a copy used where it
 // is: the launcher's own earlier copy (<write dir>/install, no longer
@@ -7848,7 +7848,7 @@ TEST(sdl_program_package_layouts_find_both_games) {
 #endif
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
-// Owen's hard rule for the combined package (2026-11-09): reinstalling never touches a player's mods, pilots, saves,
+// The hard rule for the combined package (2026-11-09): reinstalling never touches a player's mods, pilots, saves,
 // settings or imported data. A package's program folder (launcher, mw3, mw3pm) used, then replaced by a new one through
 // the updater's own swap (upgrades::update::swap_in, as its install does), and both games started from each through PLAY: MechWarrior 3's data folder (moved
 // elsewhere by its pointer, MY DATA FOLDER) and Pirate's Moon's settings folder keep every file byte for byte, and

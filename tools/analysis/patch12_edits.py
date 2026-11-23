@@ -51,7 +51,7 @@ COPIES = [('zbd/c4b/readerm5.zbd', e + '.zrd', 'zbd/c4b/readerm6.zbd') for e in 
     ('zbd/c4b/readerm5.zbd', e + '.zrd', 'zbd/c4b/readerm4.zbd') for e in (
         'net_20', 'reg_base_interior', 'reg_inside_c4bm5', 'reg_outside_c4bm5', 'reg_warehouse')]
 
-# Entries 1.2 adds that 1.0 has nowhere: written whole (Owen, 2026-10-31:
+# Entries 1.2 adds that 1.0 has nowhere: written whole (2026-10-31:
 # small amounts are fine to copy). c3's multiplayer maps stay out until
 # multiplayer is ported.
 ADDED = [('zbd/c1/reader.zbd', 'envlights.zrd'), ('zbd/c1/reader.zbd', 'intro.zrd'),
@@ -209,7 +209,7 @@ def main():
     (root / 'patch12_added.inc').write_text('\n'.join(added) + '\n')
     (root / 'patch12_edits.inc').write_text('\n'.join(edits) + '\n')
     (root / 'patch12_copies.inc').write_text('\n'.join(copies) + '\n')
-    # Whole files 1.2 adds (c3's multiplayer maps; Owen, 2026-11-01): bytes.
+    # Whole files 1.2 adds (c3's multiplayer maps; 2026-11-01): bytes.
     files, table = list(head), []
     for k, path in enumerate(FILES):
         assert not (GAME / 'mw3-1.0' / path).exists(), path

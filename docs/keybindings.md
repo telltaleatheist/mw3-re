@@ -1,6 +1,6 @@
 # Key bindings: the audit (playtest #12)
 
-Mech3.exe 1.2; audited 2026-10-21 (mac 2) for Owen. Every command, its
+Mech3.exe 1.2; audited 2026-10-21 (mac 2). Every command, its
 default key (0x00411150, docs/controls.md "The defaults"), who handles it in
 the exe, and what the program does with it today. The table comes from
 `test_program`'s `mission_c1m1_default_keys_fire_headless`. It presses each
@@ -31,7 +31,7 @@ screen), so a fresh install plays the defaults.
 
 ## [ ] Enter and keypad Enter, settled
 
-Owen remembers ] as next weapon, [ as previous, Enter as next weapon group
+Remembered from play: ] as next weapon, [ as previous, Enter as next weapon group
 and keypad Enter as fire everything. The exe:
 
 - **] and [** are WEPGRP_NEXT / PREV (0x2a / 0x2b). They move to the next
@@ -46,9 +46,9 @@ and keypad Enter as fire everything. The exe:
   one **in the HUD's weapon list**, across all groups (the list's +0x1143c,
   which 0x446240 fills), along with its group (0x4b0730, 0x4b1de0).
 - **Keypad Enter** is ALPHASTRIKE (0x39): every weapon at once (0x4b0a70),
-  unless powered down. This matches Owen.
+  unless powered down. This matches play.
 
-So the decomp disagrees with Owen's memory on ] / [ and Enter, but explains
+So the decomp disagrees with the memory of play on ] / [ and Enter, but explains
 it. With the usual grouping of one weapon kind per group, ] moving group by
 group looks like "next weapon". Enter, walking the HUD's list, lands in
 another group as soon as the current group's weapons run out, which looks
@@ -115,7 +115,7 @@ mech), none bound either.
 
 ## The table
 
-| Command | Default | Handler (exe) | Fires | Still unported when pressed (owner) | Expected (readme, Owen) |
+| Command | Default | Handler (exe) | Fires | Still unported when pressed (owner) | Expected (readme, play) |
 |---|---|---|---|---|---|
 | **Movement** | | | | | |
 | 0x18 Forward throttle | UP | held: PlayerControls::update 0x427d60 | yes | - |  |
@@ -152,11 +152,11 @@ mech), none bound either.
 | 0x6e Toggle MASC | V | Mech::command 0x41be80 | yes | - |  |
 | **Weapon** | | | | | |
 | 0x3d Fire weapon | SPACE | held: PlayerControls::update 0x427d60 | yes | - |  |
-| 0x2a Next weapon group | ] | Mech::command 0x41be80 | yes | - | readme: next weapon group; Owen: next weapon |
-| 0x2b Previous weapon group | [ | Mech::command 0x41be80 | yes | - | readme: previous weapon group; Owen: previous weapon |
+| 0x2a Next weapon group | ] | Mech::command 0x41be80 | yes | - | readme: next weapon group; next weapon |
+| 0x2b Previous weapon group | [ | Mech::command 0x41be80 | yes | - | readme: previous weapon group; previous weapon |
 | 0x26 Previous Weapon in Group | Ctrl-[ | Mech::command 0x41be80 | yes | - | readme 1.2: previous weapon in a group (1.0: next) |
 | 0x25 Next Weapon in Group | Ctrl-] | Mech::command 0x41be80 | yes | - | readme 1.2: next weapon in a group (1.0: previous) |
-| 0x27 Next weapon | ENTER | Mech::command 0x41be80 | yes | - | Owen: jumps to the next weapon group |
+| 0x27 Next weapon | ENTER | Mech::command 0x41be80 | yes | - | jumps to the next weapon group |
 | 0x2c Weapon Group 1 | F1 | Mech::command 0x41be80 | yes | - |  |
 | 0x2d Weapon Group 2 | F2 | Mech::command 0x41be80 | yes | - |  |
 | 0x2e Weapon Group 3 | F3 | Mech::command 0x41be80 | yes | - |  |
@@ -168,12 +168,12 @@ mech), none bound either.
 | 0x34 Assign weapon to group 4 | ShiftF4 | Mech::command 0x41be80 | yes | - |  |
 | 0x35 Assign weapon to group 5 | ShiftF5 | Mech::command 0x41be80 | yes | - |  |
 | 0x28 Toggle fire mode | \ | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
-| 0x39 Alpha Strike | NUMPAD ENTER | Mech::command 0x41be80 | yes | - | Owen: fires every weapon at once |
+| 0x39 Alpha Strike | NUMPAD ENTER | Mech::command 0x41be80 | yes | - | fires every weapon at once |
 | 0x41 Flush Coolant | F | Mech::command 0x41be80 | yes | - |  |
 | 0x40 Override Thermal Shutdown | O | Mech::command 0x41be80 | yes | - |  |
 | 0x3b Jettison ammo | ShiftK | Mech::command 0x41be80 | yes | - |  |
 | **View** | | | | | |
-| 0x61 Cycle Camera Mode | X | the app, 0x40dba0 | yes | camera 0x40b310 (mac 2); camera 0x502da0 (mac 2); the controls' view state 0x426780 (mac 2) | Owen: starts inside, X to third person |
+| 0x61 Cycle Camera Mode | X | the app, 0x40dba0 | yes | camera 0x40b310 (mac 2); camera 0x502da0 (mac 2); the controls' view state 0x426780 (mac 2) | starts inside, X to third person |
 | 0x62 Look Left | AltNUMPAD 4 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | 0x63 Look Right | AltNUMPAD 6 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |
 | 0x64 Look Up | AltNUMPAD 2 | Mech::command 0x41be80 | yes | - (#14..#17: look.md, cockpit-sounds.md) |  |

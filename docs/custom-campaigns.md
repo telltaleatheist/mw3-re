@@ -75,7 +75,7 @@ movie_end=c4win
    `pilots\mods\<mod>\` with the original's layout inside (pilot files,
    `games\<pilot><op><n>.mw3`, their `.rows` sidecars). The pilot file's
    format stays the exe's, the original's pilots never hold a mod's
-   numbers, entering the campaign shows its own pilots (Owen: "its own,
+   numbers, entering the campaign shows its own pilots ("its own,
    beside the original's"), and removing a mod's pilots is one folder. The
    save's name comes from the `op=` heading and the mission's place, not
    message 0x21d's "Op %1, Mission %2" (the place can still be its number).

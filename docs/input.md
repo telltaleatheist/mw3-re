@@ -150,7 +150,7 @@ the original rebuilt nothing, so the reverse tables (key, joystick and
 mouse button to command) stayed the defaults': the quit box's
 `mouse_command(1)` named the defaults' command.
 
-MouseAccelX/Y (the options' 0x005f4d2c/30) follow the same rule (Owen,
+MouseAccelX/Y (the options' 0x005f4d2c/30) follow the same rule (
 2026-11-02): the settings write the values kept at the load and when an
 options screen applies at its ACCEPT (`settings_keep_mouse`), not the live
 ones. CoreState::leave's 1.3 / 1.3 for the menus is zInput's working copy
@@ -199,7 +199,7 @@ centres the hats (0xffff) and clears the button bytes 1..10. Quirk kept:
 those are buttons 2..11, so button 1, the trigger, keeps its state through a
 reset.
 
-Two FIX (B) changes (Owen, 2026-11-20, for MW1's remake too), both off in
+Two FIX (B) changes (2026-11-20, for MW1's remake too), both off in
 the probes (`zfix fixed`):
 
 - Buttons 11..15. The binding word's joystick field (bits 22..25) and the
@@ -282,7 +282,7 @@ button's command reading the left, the joystick centre halved, Alt-F4 run
 while up, the wheel's reset quirk fixed, an overflowing read kept, the
 joystick reset's off-by-one fixed, the first key's callback not set.
 
-In the program (2026-10-20, Owen's click that did not fire): the mouse is
+In the program (2026-10-20, the click that did not fire): the mouse is
 exclusive and foreground, so `SdlInput` refuses it while the window is
 not in front. The original's logic recovers by itself: the frame's
 OnActivate resumes zInput (0x0051b080), and every mouse read retries the
@@ -380,7 +380,7 @@ DIDC_FORCEFEEDBACK when SDL says the device rumbles. Tests:
 
 ## 8. The mouse in a window (2026-10-30)
 
-Owen, after trying Alt+Enter: in a window the mouse could not leave it (to
+After trying Alt+Enter: in a window the mouse could not leave it (to
 resize it, say). FIX (A), platform only (`SdlInput`, sdl_input.h); the
 game's zInput is untouched. The exe's mouse is exclusive (DISCL_EXCLUSIVE |
 DISCL_FOREGROUND): DirectInput held and hid the cursor whenever it was
@@ -402,7 +402,7 @@ In a shown window (`windowed`: not fullscreen, not hidden):
   nor its release reaches the game (no shot). The Ctrl and Alt keys
   themselves still reach the game as keys.
 - **The pause** is a menu: it lets go; back in the mission it is held again.
-- **The focus lost** lets go (as before). Ours (Owen, 2026-11-02; it
+- **The focus lost** lets go (as before). Ours (2026-11-02; it
   changes "a click takes it back"): back, a mission that held the mouse
   when the focus left takes it again at once, no click needed: the cursor
   hidden, relative on. Before, the cursor stayed where it was and the aim
@@ -460,7 +460,7 @@ multi-axis controllers by default (SDL_HINT_HIDAPI_ENUMERATE_ONLY_CONTROLLERS,
 "avoiding macOS keyboard capture permission prompts"), and the port opens
 only those interfaces; macOS's Input Monitoring covers keyboards, and the
 descriptor is an IOKit property. Not tried on a real stick (none attached to
-the Mac). On Linux hidraw is usually root-only: the open fails, silently,
+The Mac). On Linux hidraw is usually root-only: the open fails, silently,
 and the table or the packed order is used.
 
 **Which device.** The exe took the first attached joystick (EnumDevices;
@@ -485,9 +485,9 @@ name), `sdl_input_stick_taken_out_reads_centred`. Breaks: the packed map,
 no table entry, the unplugged stick not read, its turn held, always the
 first device, one usage an input item: each caught.
 
-## 10. The mouse's speed (Owen, 2026-11-09)
+## 10. The mouse's speed (2026-11-09)
 
-Owen: ours far too fast, MW3 and PM, Mac and PC (3840x2160); the original
+Ours far too fast, MW3 and PM, Mac and PC (3840x2160); the original
 at about the desktop's speed. The original's mouse is DirectInput's counts
 times MouseAccel (section 2) on a 640x480 screen. On the reference runtime,
 DDrawCompat 0.6 and later scale a fullscreen game's mouse to the desktop's
@@ -505,12 +505,12 @@ fullscreen switch or a resize takes at once). Held or free alike; the menus
 in a window still put the cursor under the system's (section 8). zInput is
 untouched: MouseAccel and MOUSE SENSITIVITY apply on top, as the
 original's 1.3 did over DDrawCompat's counts. A 640x480 window is one to
-one, as before. Not measured against the original on Owen's PC (his hand
+one, as before. Not measured against the original on the reference PC (his hand
 on the mouse); the rule is DDrawCompat's.
 
 ## 11. The focus is checked (playtest W4, 2026-11-11)
 
-Owen's report: on Windows, mostly Pirate's Moon, fullscreen and started from
+The report: on Windows, mostly Pirate's Moon, fullscreen and started from
 the launcher, the game sometimes came up with its cursor in the middle of the
 screen and not moving. Keys worked; the quit box or Alt+Tab usually cured it.
 
@@ -605,9 +605,9 @@ not known.
 
 ## 13. The mission's mouse line (issue #15, 2026-11-21)
 
-Players (Owen on Windows before 1.1.0, then fjosk on 1.1.x): "it's stuck at
+Players (on Windows before 1.1.0, then fjosk on 1.1.x): "it's stuck at
 the middle and had to move it very far, only then the reticle respond". The
-cut that caused Owen's (W19, section 2's MOUSE SENSITIVITY on a frame's 0 or
+cut that caused the playtest's (W19, section 2's MOUSE SENSITIVITY on a frame's 0 or
 1 counts) has been carried since 1.1.0, and every later step was checked
 with slow motion and found to keep it: SDL's events through `SdlInput`
 (its fractions), zInput's sensitivity, the controls' view 0 and view 2, the
@@ -633,14 +633,14 @@ of C times the sensitivity (zInput). `sdl_issue15_mission_mouse_line_counts_slow
 400 events of 0.4 px in a 1280-wide window at 0.5: 160 px, 80 counts, 40
 kept; dropping SdlInput's carried fractions reads 0 counts and fails.
 
-## 14. RAW MOUSE (issue #15, Owen 2026-11-21)
+## 14. RAW MOUSE (issue #15, 2026-11-21)
 
 The original read DirectInput's counts: linear, the same distance for the
 same hand movement at any speed. From 1.1.0 (section 10) ours took the
 system pointer's motion (SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE), its speed
 and its acceleration curve, as DDrawCompat's default moves the original on
 Windows 11 with Enhance pointer precision on (with it off DDrawCompat gives
-the counts). Players of #15 and Owen before W19 felt the curve: slow strokes
+the counts). Players of #15 and the playtest before W19 felt the curve: slow strokes
 shrink (SDL's copy of Windows' curve, about 0.57 px a count at the slowest;
 macOS's own, steeper), fast ones grow.
 
@@ -674,7 +674,7 @@ all taken; SDL's dropped again when it comes back; off, the source not
 read; breaking the hold, so SDL's motion passes beside the source's, reads
 170 for 20 and fails), `options_mouse_sensitivity_slider_headless` (the
 slider's 0.5..5.0 and the page's RAW MOUSE read, applied and saved). Not
-checked with a hand on a mouse: GCMouse's counts and their sign on Owen's
+checked with a hand on a mouse: GCMouse's counts and their sign on the
 Mac, and the feel on Windows against the original.
 
 ## Open

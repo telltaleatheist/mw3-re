@@ -1,6 +1,6 @@
 #!/bin/bash
 # The libraries the release bundles, built from their official release
-# sources (Owen, 2026-10-30; docs/deps.md): SDL3, SDL3_ttf (with FreeType,
+# sources (2026-10-30; docs/deps.md): SDL3, SDL3_ttf (with FreeType,
 # built in), SDL3_sound, a minimal LGPL FFmpeg for mw3import, and libarchive
 # with zlib and liblzma (static, for SETUP's "Point to your game"). Each
 # tarball is pinned by its sha256 (checked against the release's own

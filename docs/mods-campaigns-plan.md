@@ -1,6 +1,6 @@
-# Mods by campaign: the plan (Owen, 2026-11-10)
+# Mods by campaign: the plan (2026-11-10)
 
-Owen's model for how players use mods, replacing "mods turned on apply to the
+The model for how players use mods, replacing "mods turned on apply to the
 whole game". Both games; Pirate's Moon has two official campaigns (Campaign and
 Pirate Missions), MechWarrior 3 one.
 
@@ -12,7 +12,7 @@ Pirate Missions), MechWarrior 3 one.
 - **Game mods are played through MODS.** Game mods are worlds and campaigns
   (built in zStudio and imported whole) and assets (new or changed mechs,
   weapons and their values).
-- **Instant Action takes mods, from its own screen** (Owen, 2026-11-10,
+- **Instant Action takes mods, from its own screen** (2026-11-10,
   replacing "an entry in the CAMPAIGNS list"): see Instant Action below.
 - **Multiplayer takes no mods for now**; perhaps later, if players ask.
 - **Translations and purely visual mods are not managed.** Players do them the
@@ -39,7 +39,7 @@ Pirate Missions), MechWarrior 3 one.
   right-hand list, unticked, and a mod that brings a campaign of its own in
   CAMPAIGNS. **A mod made for the original game that is laid over its files**
   (new weapons, harder missions, changed scenarios, in any of the game's
-  worlds) **is an asset mod** (Owen, 2026-11-10, after a real one was tried):
+  worlds) **is an asset mod** (2026-11-10, after a real one was tried):
   a tick for each campaign and for Instant Action, since one such mod often
   changes the campaign, the Pirate Missions and Instant Action at once. Only
   a mod with a campaign of its own gets a row at the left. **IMPORT also
@@ -50,7 +50,7 @@ Pirate Missions), MechWarrior 3 one.
   campaign with its ticks.
 - **Pilots and saves:** each campaign entry keeps its own, so modded progress
   never mixes with the main menu's campaign. **The player picks their own
-  pilot** (Owen, 2026-11-10): an entry's pilot screen lists its own pilots and
+  pilot** (2026-11-10): an entry's pilot screen lists its own pilots and
   the main game's; picking a main-game pilot the entry does not have brings it
   and its saved mechs across quietly, then and there, and it goes on as the
   entry's own. No question is asked. The main game's pilot is never written,
@@ -83,7 +83,7 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 - Nothing is lost on the way: the `mod=` lines a player has today become the
   official campaign entry's ticks the first time this build starts.
 
-## Instant Action (Owen, 2026-11-10)
+## Instant Action (2026-11-10)
 
 - **A MODS button on Instant Action's own screen** opens the tick list a
   campaign has: every imported mod with a checkbox, order and conflicts shown.
@@ -102,7 +102,7 @@ Freako's weapons, start to end: MODS, IMPORT his files, choose any campaign
 - **MODS, CAMPAIGNS lists campaigns only**: Instant Action has no row there.
   Underneath it is still the entry `ia` (its folder, ticks and loadouts).
 
-## Deleting and resetting (Owen, 2026-11-10)
+## Deleting and resetting (2026-11-10)
 
 - **Edits are saved as a copy.** The editor never writes the game's own
   campaign or a mod someone else made: the first save makes a copy of the
@@ -167,13 +167,13 @@ tests, is in `docs/modding.md` from "Mods by campaign: how it works" on.
 
 ## Open
 
-- 1.1.0 waits for this (Owen, 2026-11-10), so mods change behaviour once.
-- Owen's playtest of what was only seen headless or through a checks-only
+- 1.1.0 waits for this (2026-11-10), so mods change behaviour once.
+- the playtest of what was only seen headless or through a checks-only
   switch: `docs/playtest-1.1.0.md`, "To see with eyes: mods by campaign".
 - Mounting in place, without the restart, once every cache it would leave
   stale is known (What changes in the code, above).
 - EXPORT cannot yet split a copy's weapons out into an asset mod.
-- Choosing and ordering a campaign's missions in a dialog (Owen's Campaign
+- Choosing and ordering a campaign's missions in a dialog (the Campaign
   Missions pick): after the release.
 - The starter mods' translation kind: kept as it is (it costs nothing), but not
   featured, since translations are not managed.

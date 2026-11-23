@@ -1,5 +1,5 @@
 #pragma once
-// Ours, not the original's: the launcher's CHECK FOR UPDATES (docs/launcher.md, Updates; Owen 2026-11-09, no
+// Ours, not the original's: the launcher's CHECK FOR UPDATES (docs/launcher.md, Updates; 2026-11-09, no
 // signing). This part is the logic only: GitHub's releases list read, the newest package release picked, versions
 // compared, what to say. The fetching (the system's curl) is the front end's (frontend/sdl/sdl_update.h).
 #include <cstdint>
@@ -40,7 +40,7 @@ struct Verdict {
 };
 // From what the fetch gave: `json` (empty when it failed, `fetch_error` saying why) against `current` (MW3_VERSION).
 Verdict judge(const std::string& current, const std::string& json, const std::string& fetch_error);
-// The same over several repos' lists (Owen 2026-11-21: the hub mw3-re and the game's own mech3-re, whichever has the
+// The same over several repos' lists (2026-11-21: the hub mw3-re and the game's own mech3-re, whichever has the
 // newest package): every list that reads counts; failed only when none does, saying the first one's reason.
 struct Answer {
   std::string json, fetch_error;

@@ -1,7 +1,7 @@
-# Campaign Missions: a design sketch for Owen (2026-11-10)
+# Campaign Missions: a design sketch (2026-11-10)
 
 A modding dialog for a custom campaign's mission list (modding.md, Custom
-campaigns), in the form of editor-mech-variant.md. For Owen to pick from;
+campaigns), in the form of editor-mech-variant.md. For a decision: pick from;
 no code until he does.
 
 What it writes is the campaign file the game already reads: `campaign=` in
@@ -11,7 +11,7 @@ mod.txt naming a text file of lines (`name=`, `stock=`, `movie_start=`,
 
 ## Where it opens
 
-Two ways, Owen's pick:
+Two ways, one to pick:
 - **The MODS screen**, a CAMPAIGN tab beside EDITOR and TEST, on the chosen
   mod or custom campaign: no mission needs to be running, as the file is
   only a list. (Proposed.)
@@ -96,7 +96,7 @@ The game reads campaigns at the mount, so it plays from the next start
   its own campaign format, where it differs, comes with the PM side (the
   list form is the same).
 
-## For Owen to pick
+## For a decision: pick
 
 1. Where it opens: a CAMPAIGN tab on the MODS screen (proposed) or an
    editor row.

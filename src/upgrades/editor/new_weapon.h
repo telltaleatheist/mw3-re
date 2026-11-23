@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-// Ours (Owen, 2026-11-09; docs/editor.md, New Weapon): the main menu's EDIT
+// Ours (2026-11-09; docs/editor.md, New Weapon): the main menu's EDIT
 // WEAPONS row, empty in the release (0x004bf620), opens New Weapon when the
 // editor came from MODS's EDITOR: a weapon copied from one the game knows,
 // its row (name, ammo, tech, title) and main numbers set, written into the

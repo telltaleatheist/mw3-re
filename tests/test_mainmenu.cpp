@@ -66,7 +66,7 @@ TEST(main_menu_moves_per_second) {
   EXPECT(raw.ripple_seconds > 17.5f / 144.0f && raw.ripple_seconds < 18.5f / 144.0f);
 }
 
-// The launcher's ripple is the main menu's (Owen: "much slower than the
+// The launcher's ripple is the main menu's ("much slower than the
 // original ripple"): both run mech3::menu_ripple_step from the same start,
 // so a SlideButton and the launcher's ring have the same radius at every
 // frame, and the ring spreads 120 pixels a second at any frame rate. The

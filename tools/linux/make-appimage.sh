@@ -15,7 +15,7 @@
 #   MW3_PKG_PM_BIN=<mw3pm built on pm>  adds Pirate's Moon beside mw3 (its libraries gathered as mw3's)
 #   MW3_PKG_MW1_PORT_DIR=<staged port>  adds Elthial's MechWarrior (1989) SDL port (PLAY ORIGINAL) as
 #                                       tools/package/mw1port/build_port.sh stages it, in usr/bin/MechWarrior1989 (its
-#                                       libraries beside it by $ORIGIN, not through linuxdeploy; Owen, 2026-11-20)
+#                                       libraries beside it by $ORIGIN, not through linuxdeploy; 2026-11-20)
 #   MW3_PKG_MW1_DIR=<mw1's build tree>  adds MechWarrior 1 Remake: mw1 and its mw1data/ beside the launcher
 #   MW3_PKG_STEM=<stem>                 the AppImage's name: <stem>-<version>-x86_64.AppImage (default MW3-Rebuild;
 #                                       MW3 alone is MW3-alone, which the launcher's updater never takes)
@@ -117,7 +117,7 @@ fi
 
 # libarchive, zlib and liblzma are linked in: build_deps.sh keeps their licences in the prefix.
 [ -d "$PREFIX/share/licenses" ] && cp -R "$PREFIX/share/licenses/." "$APPDIR/usr/share/doc/mw3/licenses/"
-# The combined package is named BattleTech in menus (it holds more than MW3; Owen, 2026-11-20), found by its
+# The combined package is named BattleTech in menus (it holds more than MW3; 2026-11-20), found by its
 # games' names too (Keywords).
 DESKTOP=tools/linux/mw3.desktop
 if [ -n "${MW3_PKG_PM_BIN:-}" ]; then

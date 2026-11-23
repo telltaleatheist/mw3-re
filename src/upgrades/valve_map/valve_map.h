@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-// Ours (Owen, 2026-11-12; docs/valves/README.md): a mission's valve map. For every valve the mission
+// Ours (2026-11-12; docs/valves/README.md): a mission's valve map. For every valve the mission
 // touches: its starting value, who sets it and who reads it, gathered from the mission as the port has
 // loaded it (the valve registry, valves.zrd, aiv.zrd's vlists, targets.zrd's health_below, the AI nets'
 // valve steps, objectives.zrd, the animations bound to valves, the field bases), read through the ported

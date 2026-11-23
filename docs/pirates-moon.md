@@ -2,13 +2,13 @@
 
 Not a port. Pirate's Moon (PM, the expansion) is read side by side with
 MW3 1.2 for what it tells us about MW3: the same studio, engine and code
-base, built eight weeks later. Started 2026-10-20 (Owen: "see if it has any
+base, built eight weeks later. Started 2026-10-20 ("see if it has any
 hidden files that could give us some extra insight ... discrepancies between
 mw3 and pm, which might connect dots").
 
 ## The copy
 
-- Source: `MW3 pirates moon.zip` from Owen's Win98 backups, a Redump-style
+- Source: `MW3 pirates moon.zip` from The Win98 backups, a Redump-style
   image: `Track 1.bin` (MODE1/2352, volume `MW3 PM`) and `Track 2.bin`
   (CD audio, about 9.4 minutes: the expansion's music).
 - Extracted under `game/` (git-ignored): `game/pm-disc/` (the bins, `pm.iso`
@@ -22,7 +22,7 @@ mw3 and pm, which might connect dots").
   was linked 1999-09-22. Sections: `.text` 0x401000 (0x1dca18, 140 KB more
   than MW3's), `.rdata` 0x5de000, `.data` 0x602000, `.rsrc` 0xb0f000; entry
   0x5cefe8. Window class `Mech3Ep1Class`, title "MechWarrior 3 EP1".
-- No official PM patch is in Owen's backups (only a third-party no-CD
+- No official PM patch is in The backups (only a third-party no-CD
   patcher, `MW3PM-NoCD.EXE`, in `MW3 patches and cracks.zip`), and none
   turned up in a web search. This is PM 1.0.
 - Also on the disc: DirectX 7 (PM requires it; MW3 needed 6),

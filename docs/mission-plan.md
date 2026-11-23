@@ -9,7 +9,7 @@ system docs; this file points to them.
 ## 0. How a mission is checked live
 
 - `build/mw3 -nofmv --mission c1m1 --write-dir DIR` (a scratch write dir:
-  the default holds Owen's settings) starts a mission through the
+  the default holds the player's settings) starts a mission through the
   original's states (program.md). The c4b world's missions are `c4bm4`..
   `c4bm6` (`c4m4` loads world c4, which has no such mission: the launch
   makes no mech); Operation 4 has six missions (no `c4bm7`).
@@ -97,7 +97,7 @@ and of c4m2 (the sun's flare and the rain): outbox 2026-10-27/mission.
   start; 0x004b4ab0 wired in item 2); the network registration (multiplayer).
   Open in play: playtest #23 / #24 (a beam fires only from a full charge,
   so a click while it recharges is dropped and a held click fires late, as
-  the original): a candidate for Owen (fixes.md), not a port.
+  the original): a candidate (fixes.md), not a port.
 
 ### AI
 
@@ -211,7 +211,7 @@ and of c4m2 (the sun's flare and the rain): outbox 2026-10-27/mission.
   `_truck_nodes_name_the_truck`.
 - **Missing**: 0x004ab6b0 (85 lines) and 0x004ac860 (23) reached once at
   the start (turret.cpp / veh_basic.cpp, to identify); the stealth object
-  0x004a4de0 and BASIC mode (back burner, Owen).
+  0x004a4de0 and BASIC mode (back burner).
 
 ### Salvage
 
@@ -491,17 +491,17 @@ Small items, each one sitting, in the order a player would notice them.
       every frame from the first that drew the scene. Escape's pause
       draws none, and the run never ended. Tested by
       `sdl_program_frames_end_a_paused_mission`.
-23. **For Owen**: the playtest questions and the fixes.md Candidates in one
+23. **To decide**: the playtest questions and the fixes.md Candidates in one
     place, each with its evidence and a recommendation; nothing changed.
-    Done (2026-10-28): `docs/for-owen.md`. It covers ten playtest rows to
+    Done (2026-10-28), in a private notes file. It covers ten playtest rows to
     check in play; three rows (#11, #18, #26) still marked waiting but
-    ported since; two needing his repro (#22, #27); #23's firing lag, with
+    ported since; two needing a repro (#22, #27); #23's firing lag, with
     a comparison to make on the original; and 21 Candidates, grouped, each
     with a recommendation (keep 10, change 8, one to try on a branch, two
     to check in the original first). The decided ones are listed for
     reference.
 
-Decisions for Owen rather than ports: the beam's charge gate (playtest #23
+Decisions rather than ports: the beam's charge gate (playtest #23
 / #24, fixes.md Candidates), the subtitles, the other Candidates in
 fixes.md. Back burner by decision: the stealth object and BASIC mode, the
 software look, multiplayer (with the network work).

@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-// Ours (Owen, 2026-11-11: mods in multiplayer; docs/modding.md, Multiplayer): the host decides which mods a
+// Ours (2026-11-11: mods in multiplayer; docs/modding.md, Multiplayer): the host decides which mods a
 // game uses, and a joiner is let in only with the same files. Each player's lobby record already carries one
 // hash over all its gameplay mods and their names (mp_lobby.cpp, the mods check); after it and the upgrades
 // block comes this one, a hash for each of those mods, so a refusal can say which mod is missing or differs.

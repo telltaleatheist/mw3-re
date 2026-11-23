@@ -93,7 +93,7 @@ struct ShadowState {
   ShadowCaster* current = nullptr; // 0x0073ff84  the caster whose image is being drawn
   // Not in the original: the x87 precision the image's polygon filler
   // (0x0055d010) runs at. In play on Windows 11 + DDrawCompat the shadows
-  // show (Owen, 2026-10-20), so the FPU is at 53 bits there: k53, the
+  // show (2026-10-20), so the FPU is at 53 bits there: k53, the
   // default. k24 is what a Direct3D 6 that truncates the FPU gives: every
   // image blank (render-shadows.md).
   zrndr::X87 precision = zrndr::X87::k53;

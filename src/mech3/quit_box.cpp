@@ -50,7 +50,7 @@ constexpr uint32_t kKeyY = 0x15, kKeyN = 0x31, kKeyEscape = 0x01;  // DIK codes
 // unbound meanwhile (a click answers the box, not the mech). FIX (bug),
 // playtest W44/W46: the box (drawn by nothing in the port then) kept the
 // mouse's fire unbound for the rest of the match; with bug fixes on the
-// match goes on under it untouched (Owen): the mouse stays bound, Y leaves,
+// match goes on under it untouched: the mouse stays bound, Y leaves,
 // N or Escape again closes it, and only Y's and N's own commands are lifted
 // while it shows.
 void QuitBox::prompt() {

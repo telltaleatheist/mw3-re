@@ -120,10 +120,10 @@ class ConnectScreen : public MenuScreen {
   void chosen();                     // 0x00495410: a game chosen, JOIN for a joinable one
   void take_pilot(Handle pilot, const char* name);  // 0x00494920: its name, the lists, the reset
   void forget_kind();                // 0x004949d0
-  // Ours (Owen): the one connection connected and the LAN searched when the
+  // Ours: the one connection connected and the LAN searched when the
   // screen opens, no CONNECT or FIND needed.
   void search_lan();
-  // Ours (piece 9c, Owen's "level 1": plain addresses, a copy button, the
+  // Ours (piece 9c, The "level 1": plain addresses, a copy button, the
   // forward line): the host's addresses under the host setup, from the
   // platform's UPnP, refreshed each half second.
   void show_reach();
@@ -133,7 +133,7 @@ class ConnectScreen : public MenuScreen {
     explicit ModsTab(Engine& e) : btn(e, 9) {}
     ShellButton btn;
     ztwod::Text line;
-    // The tab's hover line (Owen, 2026-11-11: every button says what a press does), two rows under the addresses.
+    // The tab's hover line (2026-11-11: every button says what a press does), two rows under the addresses.
     ztwod::Text hint, hint2;
     bool hinted = false;
   };

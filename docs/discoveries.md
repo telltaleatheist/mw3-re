@@ -4470,7 +4470,7 @@ The screen after the pilot for INSTANT ACTION, 0x00488bc0 (details:
   the Medium and Large Pulse Lasers use the green and red lasers' flashes. The
   LB-X autocannons' scattered pellets name a missing animation too (`mac_fire`),
   so they fly without one. (From the data: weapons.zrd against every world's
-  anim.zbd. docs/fixes.md, Candidates for Owen)
+  anim.zbd. docs/fixes.md, Candidates)
 - **The developers left their own teleport spots in every operation.** Each
   world's reader.zbd holds a location.zrd, the list a hidden teleport tool
   read (a debug command no key reaches in the release). The spots:

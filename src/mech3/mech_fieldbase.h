@@ -129,7 +129,7 @@ struct DockClose : DockState {
   Handle message(Handle m) override;  // 0x0045b770
   void abort() override {}       // 0x005ac5c0
 };
-// Ours, FIX (bug) behind zfix mfb_regroup (Owen, playtest: the bases stay deployed
+// Ours, FIX (bug) behind zfix mfb_regroup ( playtest: the bases stay deployed
 // after a repair): after a completed repair the reset keeps the bases called
 // and queues this in place of the idle state. It reads as idle to the MFB
 // command, so M-M still calls the bases (here or elsewhere), and ends when a

@@ -1041,7 +1041,7 @@ lone timer above. A valve that updates itself, directly or round a loop of
 updates and conditions, recurses until the stack runs out in the exe (the
 update action 0x4e3d90 fires its target's reactions whatever the value, so
 any such loop never ends). The port skips a valve firing while its own
-reactions run (`Valve::fire`, FIX (bug), Owen 2026-10-20: each reaction
+reactions run (`Valve::fire`, FIX (bug), 2026-10-20: each reaction
 round the loop runs once per set). The only valve reaction that fires
 another at once is the update, so the guard changes nothing the exe
 survives: `test_ai_valves.py` counts the skips, none in any case.
@@ -1660,7 +1660,7 @@ IControls, its own order, three contacts with what they see and two
 vehicles, the weapon manager's ammo value as an x87 `fld` thunk, the later
 items' functions as stubs; 200 cases of 60 frames with random settings,
 timers, contacts, the switch and the time at 24-bit x87: 12,000 frames,
-the answers, the awake count, the ten fields the frame writes, 111,211
+The answers, the awake count, the ten fields the frame writes, 111,211
 calls and the stack identical, all 18 marked branches reached.
 Breaking the port showed it catches it, 20 of 20: steering with the AI off,
 the power-down ignoring +0x2a4, the engaging delay kept, a NaN distance
@@ -1962,7 +1962,7 @@ states now laid out as the real ones with the order at +0x04): the real
 behaviours in the emulator, the formation net as a fake, the pilot and its
 lance object, the nearest step and the follow behaviour answered from the
 trace; 200 cases of 80 calls: 4054 states made, 4800 runs, 4791 slots asked,
-the answers, the calls, every order and the brain's +0x104 / +0x298
+The answers, the calls, every order and the brain's +0x104 / +0x298
 identical, all 8 marked branches reached. Breaking the port showed it
 catches it, 11 of 11: the stop without the fire, the fire without the stop,
 the default not run again, the default replaced by none (a crash), the
@@ -2711,7 +2711,7 @@ when their hooks are unset). 0x49e540 is the `lance_lost` hook (L4).
 Tests: `test_sound_extra.py` runs 0x4e6c60 (600 cases), `test_ai_hits.py`
 0x4ea630 and 0x4ea6b0 on its cases.
 
-**Playtest W17 (2026-10-30): an ordered lancemate and walls.** Owen: told
+**Playtest W17 (2026-10-30): an ordered lancemate and walls.** Told
 to follow or attack, Dominic "just runs into a wall" (Op 2). Both orders
 push the target's VehicleNet follow behaviour (0x4ea450), whose state
 0x4d1980 steers straight at the target with the carrot (walk_drive
@@ -2730,7 +2730,7 @@ The mission's AI nets cannot route him. They are scripted unit routes, with
 graph. The exe's way finder (0x4c7f70) found no way between the nodes
 nearest Dominic and the player on either map.
 
-Ours (FIX (bug), behind `bugs`, Owen 2026-10-30): a detour inside the
+Ours (FIX (bug), behind `bugs`, 2026-10-30): a detour inside the
 follow state (`FollowState::detour_goal`).
 - **Blocked:** past the far end of his follow range (+0x28, where the
   follow never settles: it is content within the slack of the range's
@@ -2761,7 +2761,7 @@ range there is 60 to 80 m, but at about 120 m he bounces off something and
 the exe leaves him there (120.879). That test had taken this for his reach.
 With the detour he works round it (114.758 by the run's end).
 
-**Playtest W27 (2026-10-30): the leader's way.** Owen, on a build with the
+**Playtest W27 (2026-10-30): the leader's way.** On a build with the
 detour: "When I turn a corner he just runs into a wall perpetually", and
 in c2m4 Dominic "spent the entire mission ramming into a wall". The probes
 see only the straight way's sides, so a leader who walks round a building
@@ -2814,7 +2814,7 @@ reproduced. c2m4 has no teleport valve (the shipped files' five are in
 c2m1, thor_01, and c3m2's ambush). The contacts' bump (Mech::collide,
 0x4225c0) moves a mech within 9 m of another with no look at walls; a
 setup with Dominic at a wall and the player behind him did not push him
-through (the wall response held him). Open: Owen's place and what he did.
+through (the wall response held him). Open: the player's place and what they did.
 
 ### 17.6a The pocket commander (mech_pocket.cpp)
 
@@ -3499,7 +3499,7 @@ budget (movement.md).
 
 ### 17.8b How the player's allies fight (traced 2026-10-22)
 
-Asked by Owen ("allies fight back when attacked but never start a fight on
+Asked for ("allies fight back when attacked but never start a fight on
 their own"). As the exe has it, that is half right: they never *go* to a
 fight on their own, but they shoot at any enemy within their weapons'
 reach whether or not anyone attacked them. Each part, with the code:
@@ -3922,7 +3922,7 @@ moves, and from 80 m the machine guns miss it.
   targets.zrd's users) is unchecked; Pirate's Moon (0x00469c80) takes its own
   marker off that list, as the port has it (pm-tests.md, 2026-11-14).
 
-## The developer tools (decided with Owen, 2026-10-20)
+## The developer tools (decided with 2026-10-20)
 
 The AI tester dialog and the in-game AI path editor (ZAiNetEdit's editing
 side), reached in the exe through the debug menu, are to be ported later

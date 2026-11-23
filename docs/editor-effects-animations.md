@@ -1,7 +1,7 @@
-# Effects and Animations: a design sketch for Owen (2026-11-10)
+# Effects and Animations: a design sketch (2026-11-10)
 
 A modding dialog over the animation def files (modding.md, Animations a def
-at a time, steps 1 to 4), in the form of editor-mech-variant.md. For Owen to
+at a time, steps 1 to 4), in the form of editor-mech-variant.md. To
 pick from; no code until he does.
 
 What is there already, and what this would put a form on:
@@ -78,11 +78,11 @@ The next start (or the next TEST) loads it.
 - **Puffer, light and sound definitions themselves**: it picks among the
   names the game has; making a new smoke or a new light is another form.
 - **Pirate's Moon**: it reads no def files, so the form would say so there
-  (or write a whole anim.zbd through `--build-anim`'s merge; Owen's pick).
+  (or write a whole anim.zbd through `--build-anim`'s merge; one to pick).
 - **The original game**: def files are ours; `--build-anim` makes the whole
   files for it (modding.md).
 
-## For Owen to pick
+## For a decision: pick
 
 1. Whether this comes before or after the Campaign Missions form.
 2. The first sitting: timing and names only (sketched), or also adding and

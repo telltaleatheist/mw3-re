@@ -55,7 +55,7 @@ constexpr Added kAdded[] = {
 #include "mech3/patch12_added.inc"
 };
 
-// Whole files 1.2 adds: c3's multiplayer maps (patch12_files.inc; Owen,
+// Whole files 1.2 adds: c3's multiplayer maps (patch12_files.inc;
 // 2026-11-01: copied, so a 1.0 player has every 1.2 map).
 struct File {
   const char* path;

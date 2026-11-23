@@ -41,7 +41,7 @@ PlaceCalls& place_calls() { return g_calls; }
 // is given y + 10 as its step, so ground up to 2y + 10 counts (the other
 // callers pass a constant; docs/mission-start.md section 11); none in reach
 // takes the lowest polygon. FIX (bug): a step of 10, as the other callers
-// (Owen 2026-10-20; zfix small_fixes). Always 1.
+// (2026-10-20; zfix small_fixes). Always 1.
 int Mech::place(const float pos[3], float yaw) {
   float p[3] = {pos[0], pos[1], pos[2]};
   zmod::Zones& zones = zmod::zones();

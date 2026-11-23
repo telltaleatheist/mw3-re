@@ -134,7 +134,7 @@ class ActionScreen : public MenuScreen {
     explicit ModsTab(Engine& e) : btn(e, 5) {}
     ShellButton btn;
     ztwod::Text line;
-    // The tab's hover line (Owen, 2026-11-11: every button says what a press does), two rows under the box.
+    // The tab's hover line (2026-11-11: every button says what a press does), two rows under the box.
     ztwod::Text hint, hint2;
     bool hinted = false;
   };

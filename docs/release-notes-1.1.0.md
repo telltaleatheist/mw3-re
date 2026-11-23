@@ -85,7 +85,7 @@ The one bug-fixes switch is now five, on a page of their own in the options (in 
 
 ## Fixed
 
-From Owen's playtests of the 1.1.0 builds:
+From The playtests of the 1.1.0 builds:
 
 - **Windows: the cursor no longer sticks in the middle of the screen** at a start (mostly Pirate's Moon from the launcher). The game takes the mouse only once its window really is in front.
 - **A slow mouse moves the reticle.** With MOUSE SENSITIVITY below its middle, a slow mouse could cross the pad with the aim not moving, then jump.

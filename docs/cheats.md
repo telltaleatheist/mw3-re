@@ -1,6 +1,6 @@
 # Cheat codes (ours)
 
-The rebuild's own cheat codes (Owen, 2026-11-01). The original has none a
+The rebuild's own cheat codes (2026-11-01). The original has none a
 player can type: its cheats are the options' switches that set the cheated
 flag [0x00609994] (protection.md), which marks a campaign mission as not
 counted. These codes leave that flag alone. Code: `mech3/cheats` (the

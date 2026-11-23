@@ -8,7 +8,7 @@
 #include <thread>
 #include <vector>
 
-// The movies' shapes on a wide screen (ours, docs/fmv.md section 8; Owen,
+// The movies' shapes on a wide screen (ours, docs/fmv.md section 8;
 // 2026-11-01): some movies carry black bars baked into their 4:3 frame
 // (INTRO 640x320, most of C4WIN 640x240). Measured from the pictures, not
 // known by name: each frame's lit rows and a coarse picture of it; the

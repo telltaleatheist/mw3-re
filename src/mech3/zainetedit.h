@@ -10,7 +10,7 @@
 // is always a short-lived builder (made with `build` set): the net it builds
 // lives on in the registry, the builder is dropped. The editing side (the
 // debug menu's path editor, `build` clear: edits written back through the
-// record cache 0x004dc2b0) is not ported; decided with Owen, later behind
+// record cache 0x004dc2b0) is not ported; decided, later behind
 // --debug (ai.md, The developer tools).
 namespace mech3::ai {
 

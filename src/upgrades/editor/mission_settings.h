@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string>
 
-// Ours (Owen, 2026-11-11; docs/editor.md, Mission settings): the editor's
+// Ours (2026-11-11; docs/editor.md, Mission settings): the editor's
 // MISSION SETTINGS row (the main menu's one blank row), a form for the
 // mission that is open. One setting for now: how often a kill's salvage is
 // offered in this mission (upgrades/mods/salvage_chance.h), 0 to 100, empty

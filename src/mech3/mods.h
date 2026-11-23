@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-// Mods (ours, docs/modding.md; Owen, 2026-11-01): folders of game data in
+// Mods (ours, docs/modding.md; 2026-11-01): folders of game data in
 // the write dir's mods\, each laid out like the install with a mod.txt,
 // mounted in front of the 1.2 patch and the install in the order mw3.cfg's
 // mod= lines give (the first wins), behind the write dir (the player's own

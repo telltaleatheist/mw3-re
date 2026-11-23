@@ -20,7 +20,7 @@ bool install_valid(const std::string& dir, std::string* missing = nullptr);
 // the file is in zbd/ or video/ (a picked reader.zbd).
 std::string install_of_pick(const std::string& file);
 
-// What the launcher's one picker means (Owen, 2026-11-02: one option): a
+// What the launcher's one picker means (2026-11-02: one option): a
 // file of one of `kinds` (extensions, lower case, no dot) is itself the
 // source; any other file stands for its folder (Mech3.exe, or any file in an
 // installed copy or a disc's folder: install_of_pick, zbd\ and video\ up

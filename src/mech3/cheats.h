@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-// Ours (Owen, 2026-11-01): cheat codes in single player (campaign, Instant
+// Ours (2026-11-01): cheat codes in single player (campaign, Instant
 // Action, training), typed into a one-line box over the running mission;
 // refused in a network game, where the keypad keys stay the chat's. Each
 // lasts for the mission it was typed in. Not original code; no cheated flag

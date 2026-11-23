@@ -23,7 +23,7 @@
 #   MW3_PKG_MW1_PORT_DIR=<staged port>  adds Elthial's MechWarrior (1989) SDL port (PLAY ORIGINAL), as
 #                                       tools/package/mw1port/build_port.sh stages it: the program and its libraries
 #                                       in MacOS/MechWarrior1989, MechWarrior.ini and licences/ in
-#                                       Resources/MechWarrior1989 (Owen, 2026-11-20)
+#                                       Resources/MechWarrior1989 (2026-11-20)
 #   MW3_PKG_STEM=<stem>                 the DMG's name: <stem>-<version>-mac.dmg (default MW3-Rebuild; MW3 alone is
 #                                       MW3-alone, which the launcher's updater never takes)
 #   MW3_PKG_KEEP_BUILD=1                reuse build-mac-pkg (a second package from the same build)
@@ -238,7 +238,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
 EOF
 
 # The name shown (Finder, Dock, Launchpad, the menu bar): BattleTech for the combined package, which holds more than
-# MW3 (Owen, 2026-11-20). The folder and the plist keep "MechWarrior 3" (the updater's path; a localized name shows only
+# MW3 (2026-11-20). The folder and the plist keep "MechWarrior 3" (the updater's path; a localized name shows only
 # when the plist's matches the folder's), so Spotlight finds it by both names.
 SHOWN="$NAME"
 [ -n "$PM_BIN" ] && SHOWN="BattleTech"

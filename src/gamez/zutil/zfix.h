@@ -5,7 +5,7 @@
 // differential tests check the original path.
 namespace zfix {
 
-// The frame the original's per-frame steps were tuned at (Owen, 2026-10-20):
+// The frame the original's per-frame steps were tuned at (2026-10-20):
 // a step of x a frame becomes x * 30 a second.
 constexpr float kReferenceFps = 30.0f;
 
@@ -15,7 +15,7 @@ struct Options {
   // turns this off, not even --original; only the probes and tests do, to run
   // the exe's own path against the original.
   bool fixed = true;
-  // The Upgrades page's switches (Owen, 2026-11-10; upgrades-sort.md (b), (c)):
+  // The Upgrades page's switches (2026-11-10; upgrades-sort.md (b), (c)):
   // gameplay changes a player can turn off to play the game as it shipped.
   bool water = true;        // deep water slows a mech smoothly
   bool mfb_regroup = true;  // the field bases come back after a repair
@@ -23,27 +23,27 @@ struct Options {
   bool artemis = true;      // Artemis FCS tracking
   bool small_fixes = true;  // the list in upgrades/upgrades_list.cpp
   // Not a fix: the 1.5 * 2^52 rounding trick gives what a 53-bit FPU gives, as
-  // on Windows 11 in play (Owen, 2026-10-20: mechs cast shadows); false gives
+  // on Windows 11 in play (2026-10-20: mechs cast shadows); false gives
   // the 24-bit result Direct3D 6's FPU setting would (CLAUDE.md, FPU precision).
   bool fpu53 = true;
   bool any_resolution = true;  // FIX (B): any screen size and 16:9 (resolution.md)
   bool nested_lock = true;     // FIX (A): a 3D lock inside a lock leaves the outer one (render-frame.md)
   // Ours: the menus on the mission's canvas when it is wider than 640x480
-  // (16:9), on by default (Owen, 2026-10-31); a display choice, not a bug
+  // (16:9), on by default (2026-10-31); a display choice, not a bug
   // fix: mw3.cfg's widemenus=0, --no-wide-menus (resolution.md section 12).
   bool wide_menus = true;
-  // Ours (issue #15, Owen 2026-11-21): the mouse's raw counts, linear as
+  // Ours (issue #15, 2026-11-21): the mouse's raw counts, linear as
   // DirectInput gave the original, not the system pointer's speed curve; a
   // display-side choice like wide_menus: mw3.cfg's rawmouse=0, --no-raw-mouse
   // (input.md section 14).
   bool raw_mouse = true;
-  // Ours (W56, Owen 2026-11-03), with `fixed`: a stick's throttle lever covers
+  // Ours (W56, 2026-11-03), with `fixed`: a stick's throttle lever covers
   // reverse too (mech3::lever_throttle); mw3.cfg's throttle_reverse=0 keeps
   // the original's stop at the bottom.
   bool throttle_reverse = true;
   // Ours (W58, with improved_ai: docs/lancemate-pathing.md): AI pilots walk round
   // walls by a walkability grid when their straight way is blocked; the
-  // player's side on, the enemies off until Owen decides (the game harder).
+  // player's side on, the enemies off until decided (the game harder).
   bool nav_allies = true;
   bool nav_enemies = false;
 };

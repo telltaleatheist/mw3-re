@@ -983,7 +983,7 @@ the Owens in mode 2 and fires: the hits wear a torso section's internal to
 intact. Headless runs load no 2D images, so the test gives the silhouette
 set distinct stand-ins first.
 
-**What it shows** (Owen's playtest, 2026-10-29: "only the left arm
+**What it shows** (the playtest, 2026-10-29: "only the left arm
 outlined (or the right one)"). Each part is an outline over the
 background's translucent fill (`dmg_bg_blue`, an alpha image of 0x001f;
 red or green for TARGET's enemy or neutral): blue at full health, green
@@ -997,7 +997,7 @@ colours differ and showed. Fixed in the cover, not here: an opaque write
 ends a pixel's record. mw3sdltests
 `sdl_host_damage_diagram_shows_every_part` draws the view with the shipped
 images at every band for each part and checks every outline texel opaque;
-with the cover unfixed it shows Owen's picture (seven parts with 0 texels
+with the cover unfixed it shows the picture (seven parts with 0 texels
 at full health). Shots: c1m1, `--tap 0x20@800` (all blue at frame 900);
 with `--vehicle-ahead 40 --vehicle-hold` the vehicle's hits turn the left
 arm and leg green by frame 2400.
@@ -1353,7 +1353,7 @@ turned to the centroid (0x00523ac0, 0x004f36b0); then, with the mech's
 see-through flag (object3d flag 2, 0x004fbb90) and an attached cockpit model
 (MechData +0x228's node under the torso's) off, the mech's node drawn alone
 (0x004428b0) between its vt+0x68(1) and (0). Mode 1 shows the player's own
-mech from the front, as Owen describes; mode 2 is the damage diagram, mode
+mech from the front, as remembered; mode 2 is the damage diagram, mode
 3 the armour bars (section 16).
 
 **TARGET's view of its target (hud-plan 6c3).** 0x00441410 in mode 1
@@ -1377,7 +1377,7 @@ mode 1 shows any target that is not hidden (vt+0xa8), so turrets as well
 as mechs and vehicles; targets.zrd's objects answer vt+0xa8 and show mode
 0. The program read every target's node as a mech's (`Mech::node`). A
 turret's `self` and `node` are 32-bit handles, so that read took the two
-handles for a pointer, and `render_subtree` crashed on it (Owen's Windows
+handles for a pointer, and `render_subtree` crashed on it (the Windows
 playtest, 2026-10-29: `Node::parent_count`). `object_node` now takes the
 node by class (`hud_object_node`, the sensors' lookup). A removed object
 resolves to null through its handle, and a dead mech keeps its node as

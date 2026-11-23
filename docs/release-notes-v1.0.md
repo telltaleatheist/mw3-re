@@ -133,7 +133,7 @@ files.
 
 ---
 
-## Notes for Owen (not part of the release text)
+## Notes (not part of the release text)
 
 - The package file names follow the README's Download table; check them
   against what the packaging scripts actually produce, and fill in the

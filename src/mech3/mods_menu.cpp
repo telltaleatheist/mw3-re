@@ -289,7 +289,7 @@ void target_buffers(Engine& e) {
   const Handle r = e.video_buffer_d90();
   e.render_set_target2(e.video_target(), r, b, a);
 }
-// Ours (Owen, 2026-11-09): the pilot screen's lines (pilot_bg_lines, 619x445)
+// Ours (2026-11-09): the pilot screen's lines (pilot_bg_lines, 619x445)
 // with the pilots' box of six bars (24,113 to 256,437) taken out and a copy
 // of its right box (the games' plain one, 378,33, 241x210) put in its place,
 // the CAMPAIGNS list's box lined up with MODS'. The same size and place, so
@@ -944,7 +944,7 @@ void ModsScreen::report() {
   std::printf("mw3: mods: report on %s: %zu lines\n", folder.c_str(), lines.size());
 }
 
-// MISSIONS (ours, Owen 2026-11-11; modding.md, The MODS screen): the chosen campaign's missions in the left
+// MISSIONS (ours, 2026-11-11; modding.md, The MODS screen): the chosen campaign's missions in the left
 // box (a mod's own first, then the campaign's, then the game's); PLAY starts the one chosen in play, where
 // the pause's switch or Shift+F12 opens the editor (it replaces TEST and EDITOR). BACK: the tables again.
 void ModsScreen::missions() {
@@ -1136,7 +1136,7 @@ void ModsScreen::add_mod(const std::string& path) {
   // A whole modded game folder: what differs from the player's install becomes the mod (upgrades/mods/import_folder.h).
   std::string took;
   // A file inside a folder mod stands for the folder (import_folder.h, import_pick_root).
-  // "Which game is it for?" when nothing in the mod says: the game's own box (W16, Owen, 2026-11-12: no
+  // "Which game is it for?" when nothing in the mod says: the game's own box (W16, 2026-11-12: no
   // system dialogs outside the editor): YES MechWarrior 3, NO Pirate's Moon, CANCEL not added.
   std::function<int(const std::string&)> ask = mods_menu_platform().ask_game;
   if (!ask)
@@ -1147,7 +1147,7 @@ void ModsScreen::add_mod(const std::string& path) {
       return r == 6 ? 1 : r == 7 ? 2 : 0;
     };
   const ModAddDone d = import_folder_run(mods_menu_write_dir(), import_pick_root(path), mods_menu_install(), ask, nullptr, &took);
-  if (d.other_game) {  // W15 (Owen, 2026-11-12): the other game's mod, put in its mods (or not), said in the game's own box
+  if (d.other_game) {  // W15 (2026-11-12): the other game's mod, put in its mods (or not), said in the game's own box
     std::printf("mw3: mods: %s\n", d.message.c_str());
     engine().message_box_words(0, "Add a mod", d.message);
     tell(d.ok ? "Added to the other game's mods." : "Not added.");

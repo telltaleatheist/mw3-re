@@ -1,5 +1,5 @@
 #pragma once
-// Ours (MechWarrior 1 Remake's FIXES.md item 30; Owen, 2026-11-18): runs no player is at never touch the system's
+// Ours (MechWarrior 1 Remake's FIXES.md item 30; 2026-11-18): runs no player is at never touch the system's
 // pointer. A hidden, --shot, --frames or scripted run, and every test program, never puts the window in relative
 // mode (which on the Mac warps the pointer to the window's centre, over and over) nor moves the pointer: the game's
 // own mouse state is decided as before (its checks unchanged), only SDL is not asked. A player's run is unchanged.

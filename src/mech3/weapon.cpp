@@ -259,7 +259,7 @@ uint32_t salvo_spread(WeaponDef* def, const zwep::HitRecord*, zwep::Projectile* 
 
 // Mech3.exe 1.2 @ 0x004afed0: TAG's strike, four missiles from 1500 back along
 // the beam and 400 up, 50 apart, homing on the point. FIX (bug): on the unit
-// the beam marked, so a moving one is hit too (Owen 2026-10-20; zfix small_fixes).
+// the beam marked, so a moving one is hit too (2026-10-20; zfix small_fixes).
 void WeaponType::strike(zwep::Handle owner_node, const zwep::Vec3f3& dir, const zwep::Vec3f3& at,
                         zwep::Handle hit_node) {
   strike_point = at;

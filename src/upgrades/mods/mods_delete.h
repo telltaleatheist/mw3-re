@@ -4,7 +4,7 @@
 
 #include "upgrades/mods/marked_remove.h"
 
-// Ours (docs/mods-campaigns-plan.md, Deleting and resetting; Owen
+// Ours (docs/mods-campaigns-plan.md, Deleting and resetting;
 // 2026-11-10): DELETE and RESET on the MODS screen. One remover takes a
 // folder directly under this write dir's mods\ or campaigns\ and the marker
 // it must carry; without the marker, through a link, or anywhere else, it

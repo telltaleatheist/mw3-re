@@ -540,7 +540,7 @@ are the supports' vertical speeds (floats), [8..15] their in-air flags.
   two supports counted in quicksand, else lava_slowdown with two in lava.
   The count is by the pick's water flag, which is only 0 or 1, so the
   quicksand (3) and lava (4) counts never rise: vehicles are never slowed
-  (and the 0.3 sink of such supports never happens). A candidate for Owen
+  (and the 0.3 sink of such supports never happens). A candidate
   (fixes.md).
 - **The supports**: the lowest-ground support is left as it is; each other
   one steps (0x4a2820: gravity x1c, falling while above its ground, landing
@@ -673,7 +673,7 @@ and that path never writes the count (+0x214): it stays 0 (nothing else
 in the exe writes it). The TRACK step then places no collision points, and
 the sweeps' segments run between unset ones, except a slide's side points
 (6..11), placed afresh. So vehicles cross walls and buildings unless
-sliding. The list path writes 12; a candidate for Owen (fixes.md): giving
+sliding. The list path writes 12; a candidate (fixes.md): giving
 the model path the count would make vehicles collide as their data says,
 which may change how the AI's vehicles get round obstacles.
 
@@ -860,7 +860,7 @@ and done return it, the message aborts, the abort clears the dock's marker
 |---|---|---|
 | idle +0xbc | 0x5c25e0 | waits (+0xb8 set); its message 0x45a780 is a mech's request (below), which queues the six others in the order below |
 | places +0xe0 | 0x5c2620 | five frames on, says mcb_contact ("move into position"?); done when every active base with a valve has its valve set (each base's net sets it at its place) |
-| contact +0xd0 | 0x5c25c0 | says mcb_waiting once (in play the bases' "we have arrived and are ready to deploy", Owen 2026-10-24); done when the requester is within 12 m (squared 144, [0x5e4a18]) of the dock point and powered down (vt+0xa0); [0x60b4cc] set |
+| contact +0xd0 | 0x5c25c0 | says mcb_waiting once (in play the bases' "we have arrived and are ready to deploy", 2026-10-24); done when the requester is within 12 m (squared 144, [0x5e4a18]) of the dock point and powered down (vt+0xa0); [0x60b4cc] set |
 | deploy +0xf4 | 0x5c2640 | busy (+0x78); each active base's drive out queued at the front of its steps; the player's view onto camera mode 4 (its own kept at +0x80); the mech at rest at the dock point (0x418e90); done with the three drives, saying mcb_deploy (no shipped sound); the mech powering up aborts |
 | repair +0x110 | 0x5c25a0 | busy; the effects `mfbeffects` on each active base (0x458cf0); twelve seconds, then the mech repaired (0x4154e0 with that frame's time); powering up aborts; its end says mcb_complete and stops the effects |
 | close +0x124 | 0x5c2580 | each base's drive in; the view back to its camera if still on mode 4; done with the drives; [0x60b4cc] cleared |
@@ -922,7 +922,7 @@ program's brain hooks gave the way finder no position (`pilot_of` left the
 pilot's `pos` null), so every go-to failed. The bases then followed net_01's
 links as any net walk does, round MFB 2, 3 and 4 before Charlie, and took
 whichever slot their link picks led to: in one run base 02 came up behind
-base 01 on node 22 and stopped 30 m short, its valve never set; in Owen's
+base 01 on node 22 and stopped 30 m short, its valve never set; in The
 game one drove on past the slots (each slot links on toward nodes 32 and
 33) into the enemy. With the position, each base gets its way to its own
 slot (link i of "MFB Charlie": nodes 22, 23, 24), and all three park there.
@@ -1035,7 +1035,7 @@ player's Mad Cat worn to 25 % armour, 50 % internals, the ammo bins
 emptied, coolant 0: after the 12 s all back, 440 rounds from the store,
 18 half tons of armour).
 
-**After a repair, and the bases staying (2026-10-30, Owen; ours behind
+**After a repair, and the bases staying (2026-10-30; ours behind
 `bugs`).** In the exe a repair is followed by three steps:
 1. The close: the bases drive in to their far points and fold their arms.
 2. The reset: "drive" and "contact" cleared, "mcbdeploy" 0, the bases
@@ -1049,7 +1049,7 @@ can use only a dock the player has called, and only while it waits for its
 mech. Then the lancemate replaces the player as the requester. After a
 repair, his F10 is refused (disregard_order).
 
-Owen: the bases should stay. With `bugs` (FIX (bug), ours):
+The bases should stay. With `bugs` (FIX (bug), ours):
 - A completed repair marks the dock (`FieldBases::park`). The reset keeps
   "drive" and "mcbdeploy" and queues `DockParked` in place of the idle
   state.
@@ -1455,7 +1455,7 @@ the kill count (+0x3fc) (4c3).
    FIRE_RATE.
 9. A beam on without the aim: stopped (0x581400).
 
-**The pick** 0x4a70d0 (FIX (B), Owen 2026-10-24, behind `per_second`: the
+**The pick** 0x4a70d0 (FIX (B), 2026-10-24, behind `per_second`: the
 turn by game time, below): a turret without an AMS looks only on the frames
 whose number (zClass's [0x72f338]) over the turrets made ([0x609a48])
 leaves its id: one turret a frame, each in turn. Then the turn count
@@ -1612,7 +1612,7 @@ total, the turrets' and the AMS's) was never copied into the weapons' world
 in the program, so the AMS's period never passed and a turret never took a
 turn; `sync_frame_step` copies it each frame with the step.
 
-**The turn by game time** (FIX (B), Owen 2026-10-24, behind `per_second`):
+**The turn by game time** (FIX (B), 2026-10-24, behind `per_second`):
 the pick's turn comes on game time in 1/30 s steps instead of frames: a
 turret's turn is the step whose number over the turrets made leaves its id,
 at most one a frame (`turn_due`), so with N turrets each looks every N/30 s
@@ -1984,7 +1984,7 @@ nose high. At 33 ms frames: c2m3's APCs reach 30 to 40 degrees and 20 to 25 m/s,
 exe's own suspension (0x4a1760 with its support step 0x4a2820) run in Unicorn on
 the port's dumped state, frame by frame through that launch (80 frames at 33 ms,
 150 at 6 ms with a roll of 84 degrees), gives the port's numbers exactly. So it is
-the original's, and stays (no change without Owen's word).
+the original's, and stays (no change without the word).
 
 **2. Short frames make it much worse.** A support on the ground takes its vertical
 speed from the ground's step over the frame, `(ground - y) / dt` (0x4a2820): the
@@ -2013,7 +2013,7 @@ What the fix leaves: c2m3 at short frames. Its vehicles still spend far longer p
 speeds lower than the original's; some other per-frame term keeps them tilted, not
 found. c1m1 and c1m2 match 33 ms.
 
-**A possible later fix (Owen chose the one-liner for now, 2026-11-04): the move at a
+**A possible later fix (the one-liner chosen for now, 2026-11-04): the move at a
 fixed 1/30 s with drawn-position blending.** Time accumulated per vehicle in
 `vehicle_frame`, the move (0x4a1240, the track step and suspension) run once per
 1/30 s of game time, the controls still per frame. Measured on a prototype, events

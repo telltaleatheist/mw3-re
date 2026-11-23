@@ -679,7 +679,7 @@ shared engine, MechWarrior 3, Pirate's Moon and the launcher):
   and published by MicroProse in 1999. **MechWarrior** (1989) was made by
   Dynamix and published by Activision. All the games' content is theirs and
   comes from your own copies.
-- The rebuild is by Owen Morgan, under the [MIT licence](LICENSE). The
+- The rebuild is under the [MIT licence](LICENSE). The
   original's code was studied with Ghidra and
   [REA](https://github.com/morluto/rea), the data formats cross-checked with
   [mech3ax](https://github.com/TerranMechworks/mech3ax), and the port checked

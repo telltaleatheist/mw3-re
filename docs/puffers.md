@@ -137,7 +137,7 @@ touch a particle.**
 step: 1 below 1/51. So whenever `dt * friction < 1/51` the drag is off
 entirely: friction 1.0 at 60 fps (dt 0.0167 -> index 0), friction 1.75 above
 89 fps. The 1999 frame rates (30-60) mostly gave the drag; a modern 144 Hz
-display switches it off for every shipped puffer. FIX (B) (Owen, 2026-10-20):
+display switches it off for every shipped puffer. FIX (B) (2026-10-20):
 the port computes e^-(dt * friction) and steps the wind's speed by up to
 `random_accel * dt * 30` (a 30 fps frame's worth), so smoke drifts the same
 at any frame rate; `zfix::options().per_second` restores the exe's table and

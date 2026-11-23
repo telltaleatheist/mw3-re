@@ -1,6 +1,6 @@
 # Performance (release builds)
 
-What a frame costs in a Release build (what Owen plays on Windows), where
+What a frame costs in a Release build (what players play on Windows), where
 the time goes, and what could be made cheaper. Measured on the Mac
 (2026-10-30, Apple silicon, Metal); Windows numbers still to come.
 

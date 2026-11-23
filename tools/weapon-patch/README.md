@@ -6,7 +6,7 @@ The example, `rows-plain-ppc.txt`, adds the plain PPC, which the game defines an
 This folder holds no game files and no built files. It stands apart from the rebuild in this repository; no game
 build uses it.
 
-Made with AI assistance, by Claude, on Owen's project.
+Made with AI assistance, by Claude, on The project.
 
 **Both routes have run on a real game with the plain PPC; large row lists are unproven.** See What was tested.
 

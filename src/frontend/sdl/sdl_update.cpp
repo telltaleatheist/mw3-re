@@ -335,7 +335,7 @@ Installed install_update(const std::string& download) {
 #endif
 }
 
-// Both homes of the package (Owen 2026-11-21): the hub mw3-re, where every copy up to 1.2.1 looks, and mech3-re,
+// Both homes of the package (2026-11-21): the hub mw3-re, where every copy up to 1.2.1 looks, and mech3-re,
 // MechWarrior 3's own repo after the split; the newest package on either wins. MW3_UPDATE_API: one list, for checks.
 upgrades::update::Verdict check_for_updates(const std::string& current) {
   const char* api = std::getenv("MW3_UPDATE_API");

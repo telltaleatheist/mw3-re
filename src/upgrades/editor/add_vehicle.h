@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-// Ours (Owen, 2026-11-09; docs/editor.md, Add veh to node): the net editor's
+// Ours (2026-11-09; docs/editor.md, Add veh to node): the net editor's
 // Add veh to node as it was meant to work. The release fills template 141
 // (the vehicle type, x, y, z and yaw from the first pick, a team, Friend,
 // Foe or Other; 0x00403820 -> 0x0049d350) and on OK hands the record to

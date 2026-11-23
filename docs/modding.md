@@ -1,6 +1,6 @@
 # Mods
 
-Ours (Owen, 2026-11-01: "players and hobbyists can add their own game data
+Ours (2026-11-01: "players and hobbyists can add their own game data
 without any change to the exe later"; small, "nothing big and dramatic").
 A start of the game mounts no mod: the main menu plays the original. Mods are
 ticked per campaign (and for Instant Action) and mounted when that campaign
@@ -48,7 +48,7 @@ description=Rain on every world.
 `name` is required; `for`, when given, must have `mw3` as its first word, a
 version after it if any (a Pirate's Moon mod, `for=mw3pm`, is left out of MW3). Other keys are ignored, `#` starts a comment.
 
-**Which game a mod is for, at IMPORT** (playtest W15, Owen, 2026-11-12). A mod with no mod.txt is told by
+**Which game a mod is for, at IMPORT** (playtest W15, 2026-11-12). A mod with no mod.txt is told by
 the names only one game ships (`mod_game_of`: MW3's c4b and t1 worlds and its own mission readers, PM's
 readersa and readeria4), and when every name is one both games ship (a `reader.zbd`, the worlds'
 textures, as Freako's "PM 1.2 Mod - Beta") by its `zbd/reader.zbd`'s records (`mod_game_of_records`:
@@ -117,7 +117,7 @@ images, sounds, music and movies do not count, so a translation or a
 texture pack never blocks a game; with none on either side nothing changes.
 The block's layout: multiplayer-port.md, the mods check.
 
-**Mods in multiplayer (Owen, 2026-11-11: "make mods only work if they both
+**Mods in multiplayer (2026-11-11: "make mods only work if they both
 have the same mods").** The multiplayer screen has a MODS button (ours, beside
 the session list; the line under it says "MODS: off" or "MODS: 2 on"). Its
 screen is Instant Action's: tick the mods, ACCEPT, and the game starts again
@@ -143,7 +143,7 @@ who imported a mod and one who laid its whole archives into a mod folder by
 hand match. A whole archive that lacks one of the game's entries does not
 match the imported one (it hides the entry; the imported one keeps the
 game's). Which version of the original a player's files are does not count
-(Owen, 2026-11-11: "they shouldn't need the same version of the original
+(2026-11-11: "they shouldn't need the same version of the original
 game. Ours is built on patch 1.2."): the base is the game as played. On
 1.0's files (by size and CRC, data_version.h) a mod's entry is compared, read
 as a tree, with the install's entry after the 1.2 layer's edits, or with the
@@ -227,7 +227,7 @@ an id left out, nothing without mods) and `mod_world_plays_in_instant_action_hea
 
 ### A world the game does not have, found at IMPORT (Z2, 2026-11-11)
 
-Owen (2026-11-11): making things is zStudio's ([Vorta/zStudio](https://github.com/Vorta/zStudio)), which
+2026-11-11: making things is zStudio's ([Vorta/zStudio](https://github.com/Vorta/zStudio)), which
 exports ordinary game files for MechWarrior 3 1.2; the rebuild imports them and plays them. A zStudio export
 of a new world is the world's folder under `zbd\` (its `gamez.zbd`, `anim.zbd`, `reader.zbd` with
 `world.zrd`, `readerm<n>.zbd` for each mission, `readeria<n>`/`readermp<n>` for the maps, `rtexture.zbd`)
@@ -280,7 +280,7 @@ animations); its missions, world records and textures are its own." The script i
 mod's root (the text fallback); neither, and INFO says "nothing on it can load".
 
 **At the mount**, so neither of the last two rows can happen from a mod: a campaign is left out, said in
-the log and on MODS, when a line's world is a mod's whose build script is nowhere the load looks (the
+The log and on MODS, when a line's world is a mod's whose build script is nowhere the load looks (the
 first `zbd\interp.zbd` in the mounts, which the game reads first, else `<world>.gs` in any mod, the patch or
 the install), or when a line's mission has no `zbd\<world>\readerm<n>.zbd` (or our `.zbd.entries` or zip
 form) anywhere; an `ia_world=` entry on a world with no script is left out the same way. The game's own
@@ -345,7 +345,7 @@ The test world meets all three (its archives are c1's, whose `reader.zbd` has `a
 outside `interp.zbd`. A world made by zStudio and exported by us carries zStudio's `reader.zbd` and is refused
 as zStudio's own export is; a mod world without its own `anim.zbd` (which the game plays, taking the
 scenery's) is refused too ("needs each campaign's original world and animation package"). Whether
-Initialize accepts the unpacked folder in fact needs a run of zStudio on Owen's PC.
+Initialize accepts the unpacked folder in fact needs a run of zStudio on the reference PC.
 
 ## New mechs and weapons (after PM, items 1 and 2, 2026-11-08)
 
@@ -429,7 +429,7 @@ is 38 and the rows once there are rows; 37 itself then still reads as no
 weapon with the fixes off). A name taken (the PPC's too) is refused. The
 rows are gameplay data in the hash as the mechs' are (name, ammo, tech).
 
-**Both ways (Owen, 2026-11-09).** Mods must load in ours as they are, and a
+**Both ways (2026-11-09).** Mods must load in ours as they are, and a
 mod made for ours must not break the original where it ships files the
 original reads too. A mech or weapon row adds only entries the original never
 asks for, read by name into tables sized from the data:
@@ -560,7 +560,7 @@ first old one's place, every other line kept; since mods by campaign nothing
 in play reads those lines, and a campaign's ticks are its own `mods.txt`.) Test:
 `mods_list_for_the_launcher`.
 
-## Mods by campaign: how it works (Owen, 2026-11-10)
+## Mods by campaign: how it works (2026-11-10)
 
 The design is `docs/mods-campaigns-plan.md`; this is what was built. The
 sections after this one go through it part by part, each with its tests.
@@ -624,7 +624,7 @@ Ours, `upgrades/mods/campaign_entries`: the model and its storage.
   a world's files (`zbd\c1\` .. `zbd\t1\`), the main `reader.zbd`, new
   worlds (`world=`). It is ticked for whichever campaigns it should change,
   the game's own (both of Pirate's Moon's), an imported one, a copy, and for
-  Instant Action (Owen, 2026-11-10, after a real mod that changes the
+  Instant Action (2026-11-10, after a real mod that changes the
   campaign's missions, the Pirate Missions and Instant Action at once: as one
   campaign row its other changes could not be reached). `kind=campaign`
   still makes it a row of its own, the game's campaign over its files. A
@@ -876,7 +876,7 @@ folders, the copy, the box), `mods_screen_edit_opens_the_editor_and_saves_into_t
 
 ### DELETE and RESET (step 4c)
 
-Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Deleting and resetting).
+2026-11-10 (docs/mods-campaigns-plan.md, Deleting and resetting).
 `upgrades/mods/mods_delete`; one tab on MODS under REPORT, which reads
 DELETE or RESET by the row chosen and is not shown when there is nothing of
 ours to remove (`ModsScreen::show_delete_tab`). Every one asks in the game's
@@ -938,7 +938,7 @@ Tests: `mods_screen_import_from_a_modded_game_folder_headless`,
 
 ### Instant Action's own MODS
 
-Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Instant Action): Instant
+2026-11-10 (docs/mods-campaigns-plan.md, Instant Action): Instant
 Action takes mods from its own screen, not from MODS's list.
 
 - **The tab** (`ActionScreen` 0x00488bc0, button 5; our record `IAMODS`
@@ -967,7 +967,7 @@ Action takes mods from its own screen, not from MODS's list.
 - **Leaving** modded Instant Action by its pilot screen's CANCEL starts again
   on the main menu of a plain run (no `--open-mods`: the player came from the
   main menu).
-- **A plain start is unmodded** (Owen, 2026-11-11, playtest W9: "mods
+- **A plain start is unmodded** (2026-11-11, playtest W9: "mods
   should be disabled when you open the game, and you should enable them if
   you want to play modded"). INSTANT ACTION on the main menu of a plain run
   opens the original at once, "MODS: off", whatever the last session
@@ -1010,7 +1010,7 @@ again with the pilot), `ia_mods_accept_steps_and_line`, `ia_mods_straight_in_and
 
 ### Pilots inside an entry
 
-Owen, 2026-11-10 (docs/mods-campaigns-plan.md, Pilots). Storage is as built:
+2026-11-10 (docs/mods-campaigns-plan.md, Pilots). Storage is as built:
 each entry has its own pilots, saves and saved mechs, and the main menu's are
 never written from inside one.
 
@@ -1326,7 +1326,7 @@ the briefing, a won mission, the debriefing, the next briefing, the ending).
 
 ### The MODS screen (begun 2026-11-09)
 
-**The screen since 2026-11-11 (Owen's playtest, W5: "too many buttons ...
+**The screen since 2026-11-11 (the playtest, W5: "too many buttons ...
 stupid simple, idiot proof, intuitive").** What follows this block describes
 how the pieces work; the buttons and their names are these now.
 
@@ -1403,14 +1403,14 @@ Ours, from the game's own pieces (`mods_menu`, `mods_tables.h`): a MODS
 button on the main menu and its screen, both our records in dialog.zrd
 (`patch12::apply_ours`, as the options' UPGRADES): the button after QUIT in
 the original's look (`circlebtn_small`, a red label, OPTIONS' line), placed
-for Owen to choose (at the bottom continuing the left column, or on the
+for a decision: choose (at the bottom continuing the left column, or on the
 right under the circle); the screen, MODSDIALOG, on the pilot screen's art
 and widgets, with the pilot screen's groups at 16:9. Bound only where the
 program turns it on (`mods_menu_page`), so the probes see the original's
 menu. The screen is made when MODS is pressed and reads dialog.zrd itself
 (the main menu's tree is not the file's by then).
 
-- CAMPAIGNS (Owen, 2026-11-09: a plain list as MODS, not the pilots' six
+- CAMPAIGNS (2026-11-09: a plain list as MODS, not the pilots' six
   bars): the games' list in a copy of the games' box at the left, lined up
   with MODS (`campaign_lines`: the pilot screen's lines, the six bars' box
   taken out, the same size and place so 16:9 stretches it the same); a row
@@ -1459,7 +1459,7 @@ the conflict to the other mod, ON/OFF and the save) and
 campaign's folder, the first mission, the pause's options and QUIT, the main
 menu, MODS, BACK: the stack at each step, nothing under the mission, the
 pilots kept until the main menu). The button's place: the bottom left, as
-shown (Owen, 2026-11-09). Left: a live remount.
+shown (2026-11-09). Left: a live remount.
 
 ### Plain errors on the MODS screen (modder step 3, 2026-11-10)
 
@@ -1496,7 +1496,7 @@ MODS FOLDER on it).
 
 ### What a faulty file does to a mod (dev 3, 2026-11-11)
 
-Owen's rule: a mod's maker edits these files by hand, so a fault in one
+The rule: a mod's maker edits these files by hand, so a fault in one
 file is accommodated, never a reason to refuse the mod. `mod_check` sorts
 what it finds into two kinds.
 
@@ -1744,7 +1744,7 @@ answers the picker for scripted runs and shots.
   (pilots, configs, saves) are left out. All the same: nothing to add.
 - An archive holding only a program (a mod shipped as its own installer):
   refused, saying to run it and add the folder it makes.
-- **A modded game folder** (Owen, 2026-11-10; `upgrades/mods/import_folder`,
+- **A modded game folder** (2026-11-10; `upgrades/mods/import_folder`,
   `import_folder_run`): a mod that ships as an installer writes over a game
   folder, so what the player has of it is a whole install, often too big to
   copy whole. A picked folder with the game's exe and `zbd\` in it is compared
@@ -1775,7 +1775,7 @@ answers the picker for scripted runs and shots.
   `import_folder_refusals`, `import_folder_other_picks_and_links`;
   `MW3_IMPORT_FOLDER=<folder> MW3_TEST=import_folder_real build/mw3tests` runs a
   real one (game/mw3-1.0 against 1.2: 14 files taken, 96 the same, under 2 s).
-- **The mod's installer program itself** (Owen, 2026-11-10: one step, nothing
+- **The mod's installer program itself** (2026-11-10: one step, nothing
   run; `upgrades/mods/installer_read`, `import_installer_prepare`;
   docs/installer-format.md has the format). The mods we know of ship as
   installers made with Clickteam Install Creator. IMPORT given such a program
@@ -2015,9 +2015,9 @@ either order, c1 mission 1 launches the mech and the weapon fires),
 `patch12_acts_on_10s_entries_under_a_mods_changed_entries`,
 `editor_save_as_over_a_campaign_kept_as_changed_entries`.
 
-### The salvage chance (Owen, 2026-11-11)
+### The salvage chance (2026-11-11)
 
-Owen: "tweaking salvage would mean ... you can increase the amount of salvage taken from each mission"; "the
+"Tweaking salvage would mean ... you can increase the amount of salvage taken from each mission"; "the
 coin flip, maybe we can allow the user to change that value in a mod/editor"; "salvage can be a mission-level
 setting. or it can be a mod you activate like the weapons mod, that applies to everything." The room stays the
 original's (a field base's 300 t and 2 mechs); the guaranteed lists are data already (objectives.zrd's salvage
@@ -2101,7 +2101,7 @@ export into another's write dir, twice, a folder of two, two bad files, the
 lab reading all four, one imported again after its `.done`). Break: a file
 of that name written over.
 
-### IMPORT and EXPORT (Owen, 2026-11-09; modder step 8 brought forward)
+### IMPORT and EXPORT (2026-11-09; modder step 8 brought forward)
 
 IMPORT is ADD MOD renamed. EXPORT packs the selected mod (a MODS row, or a
 campaign's row: its mod) into one .zip that IMPORT takes back as the same
@@ -2175,7 +2175,7 @@ reads, writes and deletes nothing, and the log says so
 **The reader archives' entries, bounded.** Every `reader*.zbd` entry (a
 mission's objectives, a mech's definition, the worlds' settings) is read
 through `zrdr::load` inside the archive's own data (up to its table), and
-hand-edited ones are made to work where they can (Owen, 2026-11-11: mods'
+hand-edited ones are made to work where they can (2026-11-11: mods'
 makers edit these files by hand, some in a hex editor).
 
 - A list that says more items than its entry holds takes the entries after
@@ -2697,7 +2697,7 @@ sequence a blob of events), read through a `ScratchFile` by the anim reader
 *Names past their NUL.* The shipped files keep, after many names' NULs, what
 the original tools' buffers held. mech3ax restores those bytes from tables of
 its own built from the shipped files (its anim-names crate); we keep no
-game-derived tables (Owen's rule), so our names are zero after their NUL.
+game-derived tables (the rule), so our names are zero after their NUL.
 Those bytes are never read: the reader and the runtime take names to their
 NUL. Our file therefore differs from the shipped one only past names' NULs.
 Where unzbd keeps a name's trailing bytes in the JSON (the source list's
@@ -2853,7 +2853,7 @@ object list).
 
 So a node file holding object3d trees in mechlib's model form is enough for
 any effect. A def naming a camera can name the world's. The four names with
-no def in any world are in fixes.md, Candidates for Owen.
+no def in any world are in fixes.md, Candidates.
 
 **Built (step 4, 2026-11-10): the node files.**
 - A node file is `<node>.flt.json` beside the def files (`zbd\<world>\anim\`
@@ -2894,7 +2894,7 @@ Breaks caught: no node files read (the def then left out); no node check
 (the read stops at the bad def, -1, later defs unbound).
 
 
-Owen's ask: animations moddable, and easy, with every old mod working
+The aim: animations moddable, and easy, with every old mod working
 exactly as before. Today a mod replaces a world's whole anim.zbd (or its
 whole JSON, above). Adding one weapon effect, say a heavy gauss rifle's
 `hgaus_fire` with its trail, muzzle flash and flyby loops, means editing all
@@ -3049,7 +3049,7 @@ ours. Without it a whole file wins as in point 4, and old mods are unchanged.
 The `original\` folder is the modder's to copy over an original install.
 Ours would ignore it, added to what `mod_own_file` skips as mod.txt is.
 
-Order of work, when Owen agrees, one sitting each:
+Order of work, once agreed, one sitting each:
 1. the merge and the def files, with a test that adding and replacing defs on
    all six worlds leaves every other def's bytes as shipped, plus the save's
    name check;
@@ -3117,10 +3117,10 @@ animations come from point 2 of "Animations a def at a time".
   `elemental_limp.zan` for the Elemental's limp the shipped data lacks. A
   motion the archive has always comes from the archive; to replace one, a mod
   ships its own motion.zbd.
-- Existing data mods load (Owen, 2026-11-07): a file the old engine loaded isn't
+- Existing data mods load (2026-11-07): a file the old engine loaded isn't
   refused by a check stricter than it was. An exe patch can't apply; what it
   changed is rebuilt as data. Tested on real mods, kept out of the repo.
-- Whole campaigns (Owen, 2026-11-07): the goal is fully moddable, including a
+- Whole campaigns (2026-11-07): the goal is fully moddable, including a
   rewritten campaign with more enemies. Every fixed limit a mission can reach
   (units, AI, objects, scripts) found, then raised, or refused with a message
   naming it, where the original crashed.
@@ -3130,7 +3130,7 @@ animations come from point 2 of "Animations a def at a time".
      "GameZ model resource failure: restarting your game usually solves
      this." (`model_alloc`, 0x00538fe0). Found by item 4's mechlib four times
      over (3,080 models); to be sized from the mods' rows.
-- After Pirate's Moon (Owen, 2026-11-07), in one list: custom weapons with their own
+- After Pirate's Moon (2026-11-07), in one list: custom weapons with their own
   effects and animations, custom mechs, custom maps and campaigns, all as data;
   existing data mods (mech3ax and zStudio output) loading as they are; quicksand as a
   part a mod can use, the pits the engine already makes plus, behind a mod's own
@@ -3142,9 +3142,9 @@ animations come from point 2 of "Animations a def at a time".
   on, off and reorder, with their conflicts shown. A mod made by overwriting an
   install is taken as the files that differ from the player's own install. Nothing is
   ever written into the install.
-- The in-game MODS screen and custom campaigns (Owen, 2026-11-08): mods are turned on
+- The in-game MODS screen and custom campaigns (2026-11-08): mods are turned on
   and off, and custom campaigns entered, from the game itself, so a mod never replaces
-  the original campaign. Owen: "i just want people to be able to enable/disable mods at
+  the original campaign. "i just want people to be able to enable/disable mods at
   will, and to enter custom campaigns/games". In order:
   1. **Campaigns as data.** A mod names a campaign in mod.txt (`campaign=<file>`), a
      text file listing its operations and missions in order: each mission's world (the
@@ -3155,7 +3155,7 @@ animations come from point 2 of "Animations a def at a time".
      own, beside the original's.
   2. **A MODS button on the main menu**, set apart from the others (there is little room
      under CAMPAIGN: at the bottom or on the right side, placed per game, MW3's and PM's
-     menus each their own; a shot of each choice for Owen first), in each game's own style
+     menus each their own; a shot of each choice first), in each game's own style
      (its menu art, fonts, list boxes and buttons; zTwoD's widgets, as the other
      screens). It opens a screen with two tables: CUSTOM CAMPAIGNS (each installed
      campaign or mission, its author and version, an entry point that starts it or
@@ -3174,7 +3174,7 @@ animations come from point 2 of "Animations a def at a time".
      button beside it.
   Both games: main first, pm by the crossing (PM's own campaign format where it
   differs). Each step with its tests and a section here.
-- Modder-friendly, after the MODS screen and custom campaigns (Owen, 2026-11-08), in
+- Modder-friendly, after the MODS screen and custom campaigns (2026-11-08), in
   this order:
   1. **Readable files read directly**: a mod's loose `.zrd` as text and mech3ax's JSON
      (models, motions, animations, worlds) taken as they are, ahead of the archives, so
@@ -3197,7 +3197,7 @@ animations come from point 2 of "Animations a def at a time".
      (above, Requirements in mod.txt).
   8. **A pack button**: a mod folder to a shareable zip with its mod.txt and checksums.
      Built 2026-11-10 as EXPORT's check and mod.txt (above, IMPORT and EXPORT, The pack).
-- The Battlesport editor as the mission editor (Owen, 2026-11-08, the after-PM order's
+- The Battlesport editor as the mission editor (2026-11-08, the after-PM order's
   step 4): the original developers' in-game editor (editor.md: the AI net and vehicle
   editors behind its menu, the stealth object's view) ported whole and wired up so
   modders make missions with it as Zipper did, saved as a mod. It is the "game editor"
@@ -3207,13 +3207,13 @@ animations come from point 2 of "Animations a def at a time".
   the editor is built, then wired to it. The editor's dialogs and screens are built out
   to work exactly as the original's; what the exe doesn't carry but the editor needs is
   made by hand, said as ours. After pm-v1.0.0, in the after-PM order; not to be dropped
-  (Owen: "i want to do all of this so lets not forget about it").
+  ("i want to do all of this so lets not forget about it").
 - Quicksand's art (2026-11-07): every MW3 world's `declient.zrd` asks for seven frames,
   `qsnd01` to `qsnd07`, that no MW3 texture file has; Recoil ships them under those names.
-  Ours will be new art in MW3's style (Owen: made with the local image generator), one
+  Ours will be new art in MW3's style (made with the local image generator), one
   seamless texture turned into the seven looping frames by a scripted drift, so the loop
   stays smooth; in the rebuild's own assets with its licence, never Recoil's.
-- Making missions (Owen, 2026-11-07): worlds are zStudio's, missions are ours.
+- Making missions (2026-11-07): worlds are zStudio's, missions are ours.
   [zStudio](https://github.com/Vorta/zStudio) (Vorta, MIT, Windows) rebuilds Zipper's own
   source tree from the game files and compiles worlds back to `gamez.zbd`; the rebuild
   loads what it exports, and we don't duplicate it (what we learn goes back as pull
@@ -3224,7 +3224,7 @@ animations come from point 2 of "Animations a def at a time".
   it when installed on Windows) and starts the editor on a game and mission. A guide,
   `docs/making-missions.md`, written once those exist: a world in zStudio, a mission in
   the editor, packed and installed as a mod.
-- Our additions in their own folder (Owen, 2026-11-07): whole features that aren't the
+- Our additions in their own folder (2026-11-07): whole features that aren't the
   original's (the mission designer, the mod installer, Recoil-style quicksand, and the
   load watch, hit log and font search now beside ported code) go in `src/rebuild/`, so
   `src/gamez` and `src/mech3` stay the original with its marked fixes, and

@@ -1,6 +1,6 @@
-# Mech Variant: a design sketch for Owen (2026-11-10)
+# Mech Variant: a design sketch (2026-11-10)
 
-The next modding dialog after New Weapon (editor.md, 1a), for Owen to pick
+The next modding dialog after New Weapon (editor.md, 1a), for a decision: pick
 from. No code until he does. It makes a new mech from one the game (or an
 enabled mod) has, the way `--make-starter mech` makes Thor B
 (modding.md, Starter mods), but with the numbers on a form.
@@ -93,7 +93,7 @@ next TEST (Quick testing: TEST re-reads the definitions).
   its loadouts half a ton over and refused by the lab; the form would say so
   when the Mad Cat is picked and suggest 80 t or lighter loadouts.
 
-## For Owen to pick
+## For a decision: pick
 
 1. The row (EDIT MECHS in the blank row) or a page of New Weapon.
 2. The first sitting's fields: the row and the handling above, or fewer
