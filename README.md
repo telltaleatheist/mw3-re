@@ -5,6 +5,8 @@
 > [Issues](../../issues). On 2026-11-21 the project was split into one repo
 > per game: see [Where everything lives](#where-everything-lives) below.
 
+![The BattleTech launcher](docs/screenshots/launcher.png)
+
 An unofficial fan rebuild of **MechWarrior 3** (Zipper Interactive and
 MicroProse, 1999) for today's computers: Windows 10 and 11, macOS and Linux,
 with no Wine, DirectX wrappers, DDrawCompat or dgVoodoo.
