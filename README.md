@@ -18,15 +18,17 @@ minus the bugs and the problems it has on modern machines. It is a personal
 learning project: free, not sold, and not affiliated with or endorsed by
 Microsoft or MicroProse.
 
-The download holds three games on one launcher, named **BattleTech**:
+The download is one launcher, named **BattleTech**, which installs each game
+for you:
 
 - **MechWarrior 3**, rebuilt as above;
 - **Pirate's Moon**, the expansion, rebuilt the same way from its own exe;
 - **MechWarrior 1 Remake** (formerly MW1: Critical Hit), a fan remake of MechWarrior (1989)'s mercenary
-  campaign on MechWarrior 3's combat, worlds and 'Mechs.
+  campaign on MechWarrior 3's combat, worlds and 'Mechs;
+- **The Crescent Hawk's Inception** (1988), rebuilt; plays from your own
+  DOS 1.03 or Amiga 2.3 copy.
 
-Each game also starts on its own, and MechWarrior 3 and Pirate's Moon come
-as separate downloads too.
+Each game also starts on its own and comes as a separate download too.
 
 **No game files are included.** You need your own copy of each game you play.
 
@@ -41,13 +43,13 @@ one is the front door.
 
 | What | Where | Releases |
 |---|---|---|
-| **The download** (the launcher with all three games), bug reports, and this page | **mw3-re** (here) | [Releases](../../releases): the full package for Windows, Mac and Linux, and each game alone |
+| **The download** (the launcher, which installs the games), bug reports, and this page | **mw3-re** (here) | [Releases](../../releases): the launcher for Windows, Mac and Linux, and MechWarrior 3, Pirate's Moon and MechWarrior 1 Remake alone |
 | MechWarrior 3, the launcher, and the packaging that builds the download | [mech3-re](https://github.com/telltaleatheist/mech3-re) | [MechWarrior 3 alone](https://github.com/telltaleatheist/mech3-re/releases) |
 | Pirate's Moon | [mech3-pm-re](https://github.com/telltaleatheist/mech3-pm-re) | [Pirate's Moon alone](https://github.com/telltaleatheist/mech3-pm-re/releases) |
-| MechWarrior 1 Remake | [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) | [its releases](https://github.com/telltaleatheist/mech1-remake-re/releases) (it plays from the full package) |
+| MechWarrior 1 Remake | [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) | [its releases](https://github.com/telltaleatheist/mech1-remake-re/releases) |
 | The shared "find your game files" setup | [re-setup-kit](https://github.com/telltaleatheist/re-setup-kit) | (a library the games build in) |
 | MechWarrior (1989) rebuilt as C++ | [mech1-re](https://github.com/telltaleatheist/mech1-re) | not released yet (a first preview once it runs from its own files) |
-| BattleTech: The Crescent Hawk's Inception rebuilt | [inception-re](https://github.com/telltaleatheist/inception-re) | not released yet |
+| BattleTech: The Crescent Hawk's Inception rebuilt | [inception-re](https://github.com/telltaleatheist/inception-re) | [its releases](https://github.com/telltaleatheist/inception-re/releases) |
 
 **Why it was split:**
 
