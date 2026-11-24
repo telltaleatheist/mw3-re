@@ -130,8 +130,8 @@ tags in a `git bundle`.
    commit, its tests for what changed passing, `CHANGES.md`, and its release
    notes. mech3-re also gets the hub's release page
    (`docs/release-page-<v>.md`) and notes (`docs/release-notes-<v>.md`).
-2. **Choose the versions.** Each part is one digit (1.2.9 is followed by
-   1.3.0). The package's version is mech3-re's tag; Pirate's Moon and MW1
+2. **Choose the versions.** Features raise the second number, fixes alone the
+   third (1.3.9 is followed by 1.3.10). The package's version is mech3-re's tag; Pirate's Moon and MW1
    keep their own numbers.
 3. **Tag locally, don't push yet:** `vX.Y.Z` on mech3-re, `pm-vX.Y.Z` on
    mech3-pm-re, `mw1-vX.Y.Z` on mech1-remake-re.
