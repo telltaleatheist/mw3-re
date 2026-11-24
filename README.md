@@ -76,8 +76,8 @@ pull requests opened here are merged there.
 
 **If you want to:**
 
-- **Play:** download from [Releases](../../releases). One package holds the
-  launcher and the games; you need your own copies of the games.
+- **Play:** download from [Releases](../../releases). The launcher
+  installs each game; you need your own copies of the games.
 - **Report a bug** in any of the games: open an issue
   [here](../../issues) (more [below](#reporting-a-bug)).
 - **Change the code:** fork the game's own repo and open your pull request
@@ -110,7 +110,7 @@ games is simpler, and always your choice.
 
 **1.2.2 (2026-11-21)** (the full notes are in
 [docs/release-notes-1.2.2.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.2.2.md)): fixes from your
-bug reports, for all the games.
+bug reports, for all three games.
 
 - **Raw mouse**: the mouse moves exactly as far as you move it, without the
   system's acceleration (RAW MOUSE on the Upgrades page); MOUSE SENSITIVITY
