@@ -73,23 +73,28 @@ centred on a pure black background, no text, no letters."
 the name, its status and a line about it, its button), the look of the download
 page; the cards and their tabs are gone, each game's badge is its own.
 
-**The menu's sounds (2026-11-26, launcher split b6):** `hover.wav` (a rollover,
-played at 0.7) and `click.wav` (a select), the launcher's own in place of the
-game's `sfx_button2.wav` and `sfx_button6.wav` (read from the player's
-`soundsL/H.zbd` before), so the launcher needs no game files to sound. Made
-with the local Crucible server's sound effects model, Stable Audio 3.0 Small
-SFX (`stable-audio-3-small-sfx`, mlx-darwin), 1 s each, seed 1 (seeds 2 and 3
-made too, not used), its default steps and guidance:
+**The menu's sounds (2026-11-26, launcher split b6; roles changed for 1.7.0):**
+`hover.wav` (a rollover, played at 0.7) and `click.wav` (a select), the
+launcher's own in place of the game's `sfx_button2.wav` and `sfx_button6.wav`
+(read from the player's `soundsL/H.zbd` before), so the launcher needs no game
+files to sound. Made with the local Crucible server's sound effects model,
+Stable Audio 3.0 Small SFX (`stable-audio-3-small-sfx`, mlx-darwin), 1 s each,
+seed 1, its default steps and guidance.
 
-- `click.wav`: "TrackType: SFX. A soft short user-interface click: a muted
-  plastic button press with a tiny metallic tick, close mic, dry, no reverb,
-  quick clean decay."
-- `hover.wav`: "TrackType: SFX. A faint subtle user-interface hover blip: a
-  very short airy high tick of brushed metal, quiet, close mic, dry, no
-  reverb."
+- `hover.wav` (since 1.7.0; it was 1.6.0's `click.wav`, the same file):
+  "TrackType: SFX. A soft short user-interface click: a muted plastic button
+  press with a tiny metallic tick, close mic, dry, no reverb, quick clean
+  decay." Made 16-bit mono 44.1 kHz, cut to its first 120 ms (the sound is over
+  by about 23 ms), faded in over 0.5 ms and out over the last 10 ms, peak
+  -6 dBFS (about -9 with the 0.7).
+- `click.wav` (since 1.7.0, picked from three candidates): "TrackType: SFX. A
+  heavy toggle switch thrown on a steel control panel: a sharp click and a
+  short low metal thunk, close mic, dry, no reverb." Made 16-bit mono 44.1 kHz,
+  cut from 1 ms before the sound starts to 20 ms after it falls below -40 dB
+  (115 ms; a fixed 120 ms cut would clip some candidates), faded in over 0.5 ms
+  and out over the last 10 ms, peak -6 dBFS.
 
-Then each was made 16-bit mono 44.1 kHz, cut to its first 120 ms (the sound
-is over by 20-45 ms), faded in over 0.5 ms and out over the last 10 ms, and
-its peak set to -6 dBFS (click) and -9 dBFS (hover; with the 0.7, about -12).
-The game's own two peak at about -5 dBFS and last 150-190 ms: these are
-softer and shorter on purpose.
+1.6.0's `hover.wav` ("A faint subtle user-interface hover blip: a very short
+airy high tick of brushed metal, quiet, close mic, dry, no reverb.", peak
+-9 dBFS) is no longer used. The game's own two peak at about -5 dBFS and last
+150-190 ms: these are softer and shorter on purpose.
