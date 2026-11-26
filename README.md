@@ -75,9 +75,11 @@ one is the front door.
 **Why this repo stays:** it's the address people know. Articles and links
 point here, and every copy of the game already installed checks this page's
 Releases for updates. So new releases keep coming out here, and the launcher
-keeps finding them. Its code is frozen as it was at the split, so old clones
-and links keep working. The game repos carry this repo's full history, and
-pull requests opened here are merged there.
+keeps finding them. The whole tree as it was at the split is kept on the
+branch `archive/frozen-2026-11-21` and the tag `frozen-2026-11-21`, so old
+clones and links still have somewhere to land: for a link to a file on
+`main`, put `frozen-2026-11-21` in place of `main`. The game repos carry this
+repo's full history, and pull requests opened here are merged there.
 
 **If you want to:**
 
