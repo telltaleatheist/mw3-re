@@ -33,4 +33,9 @@ void set_ready_status(const std::string& text);
 // The process's resident memory in KB (the soak test's lines); 0 where unknown.
 size_t resident_kb();
 
+// The limit on open files raised as far as the system lets a program (Linux's usual 1,024, the Mac's 256 for an app:
+// issue #7, a graphics driver that opens one per allocation). Nothing on Windows.
+void raise_open_file_limit();
+std::string open_files();  // "83 of 10240", for the log; "unknown" on Windows
+
 }  // namespace sdlfe

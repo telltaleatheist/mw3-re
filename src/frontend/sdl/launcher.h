@@ -4,9 +4,9 @@
 // movie. It finds the MechWarrior 3 install quietly and offers the games; a
 // game without its files opens the find screen (find it, install from the
 // disc, an image or a download), and the notes offer what an install lacks
-// (the movies, the music) from the disc, over mech3::setup. Its art
-// is ours (assets/launcher); the ripple under the mouse is the main menu's
-// (zrndr::ripple, 0x00558dd0).
+// (the movies, the music) from the disc, through the game's own --setup
+// (the games' find screen until d1: docs/launcher-split.md, b6). Its art and
+// sounds are ours (assets/launcher).
 #include <string>
 #include <vector>
 
@@ -38,6 +38,13 @@ struct LauncherOptions {
   // A plain mw3 start that found no install (docs/games-layout.md): the find
   // screen alone, straight on into the game once there is one.
   bool setup_only = false;
+  // With setup_only: an install the plain start's search found elsewhere, looked at first and offered to be
+  // copied in (INSTALL), so the original may be deleted afterwards (2026-11-21).
+  std::string look_first;
+  bool choose_again = false;
+  // mw3pm's own start (setup_only): the find screen is Pirate's Moon's, its folder chosen into write_dir/install;
+  // cfg_install is its own mw3.cfg's install= (2026-11-21: the player chooses in PM too).
+  bool pm = false;  // Shift held at a plain start: the files in use offered again, PLAY goes on with them
   bool write_dir_fixed = false;  // --write-dir given: no moving the data folder
   // mw3launcher (docs/launcher.md, The two programs): MECHWARRIOR 3 starts
   // this program as a child, `game_bin <install> game_args... --ready-file F`,
@@ -49,6 +56,8 @@ struct LauncherOptions {
   // its own install, settings and saves (docs/launcher.md).
   std::string pm_bin;
   std::string mw1_bin;  // MechWarrior 1 Remake's program beside ours (MW3_MW1_BIN for checks)
+  std::string mw1r_bin;  // MechWarrior 1 Rebuild's (mech1-re, MW1's ORIGINAL tab), beside ours or installed (MW3_MW1R_BIN)
+  std::string chi_bin, chirm_bin;  // Inception Rebuild's and Inception Remake's (MW3_CHI_BIN, MW3_CHIRM_BIN)
   std::vector<std::string> pm_args;
   std::vector<std::string> game_args;
   bool hidden = false;  // --hidden: the window never shown (checks), passed on to the game

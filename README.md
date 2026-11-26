@@ -47,8 +47,8 @@ one is the front door.
 
 | What | Where | Releases |
 |---|---|---|
-| **The download** (the launcher, which installs the games), bug reports, and this page | **mw3-re** (here) | [Releases](../../releases): the launcher for Windows, Mac and Linux, and MechWarrior 3, Pirate's Moon and MechWarrior 1 Remake alone |
-| MechWarrior 3, the launcher, and the packaging that builds the download | [mech3-re](https://github.com/telltaleatheist/mech3-re) | [MechWarrior 3 alone](https://github.com/telltaleatheist/mech3-re/releases) |
+| **The download** (the launcher, which installs the games), the launcher's code and its packaging, bug reports, and this page | **mw3-re** (here) | [Releases](../../releases): the launcher for Windows, Mac and Linux, and MechWarrior 3, Pirate's Moon and MechWarrior 1 Remake alone |
+| MechWarrior 3 | [mech3-re](https://github.com/telltaleatheist/mech3-re) | [MechWarrior 3 alone](https://github.com/telltaleatheist/mech3-re/releases) |
 | Pirate's Moon | [mech3-pm-re](https://github.com/telltaleatheist/mech3-pm-re) | [Pirate's Moon alone](https://github.com/telltaleatheist/mech3-pm-re/releases) |
 | MechWarrior 1 Remake | [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) | [its releases](https://github.com/telltaleatheist/mech1-remake-re/releases) |
 | The shared "find your game files" setup | [re-setup-kit](https://github.com/telltaleatheist/re-setup-kit) | (a library the games build in) |
@@ -79,7 +79,9 @@ keeps finding them. The whole tree as it was at the split is kept on the
 branch `archive/frozen-2026-11-21` and the tag `frozen-2026-11-21`, so old
 clones and links still have somewhere to land: for a link to a file on
 `main`, put `frozen-2026-11-21` in place of `main`. The game repos carry this
-repo's full history, and pull requests opened here are merged there.
+repo's full history. Since then `main` holds the launcher's own code and
+nothing else: pull requests for the launcher are opened here, and for a game
+in the game's own repo.
 
 **If you want to:**
 
@@ -87,8 +89,11 @@ repo's full history, and pull requests opened here are merged there.
   installs each game; you need your own copies of the games.
 - **Report a bug** in any of the games: open an issue
   [here](../../issues) (more [below](#reporting-a-bug)).
-- **Change the code:** fork the game's own repo and open your pull request
-  there.
+- **Change the code:** for a game, fork the game's own repo and open your
+  pull request there. For the launcher, here: `git clone --recursive`, then
+  `cmake -S . -B build && cmake --build build` (SDL3, SDL3_ttf and FreeType;
+  the setup kit comes in as a submodule); `build/launchertests` runs its
+  tests, which need no game files.
 - **Understand how the repos fit together**, how the launcher brings in each
   game and how updates and releases work: [DEPLOY.md](DEPLOY.md).
 

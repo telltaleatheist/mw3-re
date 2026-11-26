@@ -1,0 +1,447 @@
+#include "upgrades/update/games.h"
+
+#include <algorithm>
+#include <atomic>
+#include <cctype>
+#include <iterator>
+#include <mutex>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+#include "upgrades/update/json_reader.h"
+
+namespace upgrades::update {
+
+// games.json as built in (games_catalog.cpp, written from it by CMake).
+extern const char kBuiltinCatalog[];
+
+namespace {
+
+using detail::Json;
+
+// The catalog's key of each Game, in the enum's order: how the code names an entry.
+constexpr const char* kKeys[] = {"mw3", "pm", "mw1", "mw1r", "chi", "chirm"};
+static_assert(sizeof kKeys / sizeof *kKeys == kGameCount);
+
+// One entry's fields read against what the launcher needs; the first failure kept in `why`.
+struct Fields {
+  const Json& j;
+  std::string where;
+  std::string* why;
+  bool fail(const std::string& what) {
+    if (why->empty()) *why = where + ": " + what;
+    return false;
+  }
+  bool text(const char* key, std::string* out, bool needed = true) {
+    const Json* v = j.at(key);
+    if (!v) return !needed || fail(std::string("no ") + key);
+    if (v->type != Json::kString || (needed && v->s.empty())) return fail(std::string(key) + " is not a text");
+    return *out = v->s, true;
+  }
+  bool number(const char* key, int* out) {
+    const Json* v = j.at(key);
+    if (!v || v->type != Json::kNumber) return fail(std::string("no ") + key + " number");
+    return *out = std::atoi(v->s.c_str()), true;
+  }
+};
+
+}  // namespace
+
+namespace {
+
+// The catalog read; `ignored` null: the built-in's strict reading (any bad entry fails it all), else a fetched one's
+// (a bad entry left out, said there).
+bool read_catalog(const std::string& json, Catalog* out, std::string* why, std::vector<std::string>* ignored) {
+  *out = {}, why->clear();
+  detail::Reader r(json);
+  Json root;
+  if (!r.value(&root) || !r.end()) return *why = r.error, false;
+  if (root.type != Json::kObject) return *why = "not a catalog (an object)", false;
+  Fields top{root, "the catalog", why};
+  if (!top.number("catalog", &out->version)) return false;
+  if (out->version < 1) return top.fail("catalog is not a version");
+  if (out->version > 1) return top.fail("a newer catalog format (" + std::to_string(out->version) + ") than this launcher reads (1)");
+  if (const Json* rev = root.at("revision")) {
+    if (rev->type != Json::kNumber) return top.fail("revision is not a number");
+    out->revision = std::atoi(rev->s.c_str());
+  }
+  const Json* families = root.at("families");
+  const Json* games = root.at("games");
+  if (!families || families->type != Json::kArray) return top.fail("no families list");
+  if (!games || games->type != Json::kArray) return top.fail("no games list");
+  // A bad entry: the whole refused (strict) or the entry left out.
+  auto bad = [&]() {
+    if (!ignored) return false;
+    ignored->push_back(*why), why->clear();
+    return true;
+  };
+  for (size_t i = 0; i < families->items.size(); ++i) {
+    const Json& j = families->items[i];
+    Fields f{j, "families[" + std::to_string(i) + "]", why};
+    CatalogFamily fam;
+    bool ok = j.type == Json::kObject ? f.text("key", &fam.key) && f.text("name", &fam.name) && f.number("order", &fam.order) : f.fail("not an entry");
+    for (const CatalogFamily& o : out->families)
+      if (ok && o.key == fam.key) ok = f.fail("the family " + fam.key + " twice");
+    if (ok) out->families.push_back(std::move(fam));
+    else if (!bad()) return false;
+  }
+  for (size_t i = 0; i < games->items.size(); ++i) {
+    const Json& j = games->items[i];
+    Fields f{j, "games[" + std::to_string(i) + "]", why};
+    CatalogGame g;
+    const bool ok = [&] {
+      if (j.type != Json::kObject) return f.fail("not an entry");
+      if (!f.text("key", &g.key)) return false;
+      f.where += " (" + g.key + ")";
+      std::string state;
+      if (!f.text("family", &g.family) || !f.number("order", &g.order) || !f.text("state", &state) || !f.text("name", &g.name) ||
+          !f.text("title", &g.title) || !f.text("heading", &g.heading) || !f.text("button", &g.button) ||
+          !f.text("description", &g.description) || !f.text("repo", &g.repo) || !f.text("tag_prefix", &g.tag_prefix) ||
+          !f.text("program", &g.program) || !f.text("badge", &g.badge) || !f.text("heading_badge", &g.heading_badge, false) ||
+          !f.text("card", &g.card, false) || !f.text("min_launcher", &g.min_launcher))
+        return false;
+      if (state == "coming_soon") g.state = CatalogGame::kComingSoon;
+      else if (state == "released") g.state = CatalogGame::kReleased;
+      else if (state == "removed") g.state = CatalogGame::kRemoved;
+      else return f.fail("state " + state + " is none of coming_soon, released, removed");
+      bool known = false;
+      for (const CatalogFamily& fam : out->families) known = known || fam.key == g.family;
+      if (!known && !ignored) return f.fail("its family " + g.family + " is not listed");  // a fetched one's: at the merge (the built-in's families count)
+      for (const CatalogGame& o : out->games)
+        if (o.key == g.key) return f.fail("the key twice");
+      const Json* assets = j.at("assets");
+      if (!assets || assets->type != Json::kObject) return f.fail("no assets");
+      Fields a{*assets, f.where + " assets", why};
+      const char* const kPlatforms[] = {"windows", "mac", "linux"};  // Platform's order
+      for (int p = 0; p < 3; ++p) {
+        if (!a.text(kPlatforms[p], &g.asset[p])) return false;
+        if (g.asset[p].find("{tag}") == std::string::npos) return a.fail(std::string(kPlatforms[p]) + " has no {tag}");
+      }
+      if (const Json* needs = j.at("needs")) {
+        if (needs->type != Json::kArray) return f.fail("needs is not a list");
+        for (const Json& n : needs->items) {
+          if (n.type != Json::kString || n.s.empty()) return f.fail("needs holds a non-key");
+          g.needs.push_back(n.s);
+        }
+      }
+      if (const Json* b = j.at("panel_before_release")) {
+        if (b->type != Json::kBool) return f.fail("panel_before_release is not true or false");
+        g.panel_before_release = b->b;
+      }
+      return true;
+    }();
+    if (ok) out->games.push_back(std::move(g));
+    else if (!bad()) return false;
+  }
+  if (!ignored)  // a fetched one's needs may name the built-in's games: checked on the merged catalog's use
+    for (const CatalogGame& g : out->games)
+      for (const std::string& n : g.needs) {
+        bool listed = false;
+        for (const CatalogGame& o : out->games) listed = listed || o.key == n;
+        if (!listed) return *why = "games (" + g.key + "): it needs " + n + ", which is not listed", false;
+      }
+  std::stable_sort(out->games.begin(), out->games.end(), [](const CatalogGame& a, const CatalogGame& b) { return a.order < b.order; });
+  std::stable_sort(out->families.begin(), out->families.end(), [](const CatalogFamily& a, const CatalogFamily& b) { return a.order < b.order; });
+  return true;
+}
+
+// A file name the launcher may fetch and keep beside the catalog: letters, digits, '_', '-', '.', ending .png.
+bool plain_png(const std::string& n) {
+  if (n.size() < 5 || n.size() > 64 || n.compare(n.size() - 4, 4, ".png") != 0 || n.find("..") != std::string::npos) return false;
+  for (char c : n)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-' && c != '.') return false;
+  return true;
+}
+
+// A name a fetched entry puts in a path (its key, its program, its assets): letters, digits and `extra`, no "..".
+bool plain_name(const std::string& n, const char* extra) {
+  if (n.empty() || n.size() > 96 || n.find("..") != std::string::npos) return false;
+  for (char c : n)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && !std::strchr(extra, c)) return false;
+  return true;
+}
+
+// A release's version ("v1.5.2", "v1.5.2-16-gHASH-dirty", "1.5.2"); a build's "unknown" or bare commit is not one,
+// and takes every entry (a development build).
+bool release_version(const std::string& v) {
+  const size_t d = !v.empty() && v[0] == 'v' ? 1 : 0;
+  const size_t dot = v.find('.', d);
+  if (dot == std::string::npos || dot == d) return false;
+  for (size_t i = d; i < dot; ++i)
+    if (!std::isdigit(static_cast<unsigned char>(v[i]))) return false;
+  return dot + 1 < v.size() && std::isdigit(static_cast<unsigned char>(v[dot + 1]));
+}
+
+// The catalog in use this run, made once: its games by Game (the six known, then its others), their GameInfo.
+struct Active {
+  Catalog cat;
+  std::vector<const CatalogGame*> by_game;
+  std::vector<GameInfo> info;
+};
+std::mutex g_active_mutex;
+std::atomic<const Active*> g_active{nullptr};
+
+// Null when `c` lacks one of the six the code knows.
+const Active* make_active(const Catalog& c, std::string* missing) {
+  auto* a = new Active{c, {}, {}};  // kept for the run: GameInfo points into it
+  for (const char* k : kKeys) {
+    const CatalogGame* e = nullptr;
+    for (const CatalogGame& g : a->cat.games)
+      if (g.key == k) e = &g;
+    if (!e) return *missing = k, delete a, nullptr;
+    a->by_game.push_back(e);
+  }
+  for (const CatalogGame& g : a->cat.games) {
+    if (a->by_game.size() >= static_cast<size_t>(kMaxGames)) break;
+    if (std::find(std::begin(kKeys), std::end(kKeys), g.key) == std::end(kKeys)) a->by_game.push_back(&g);
+  }
+  for (const CatalogGame* e : a->by_game) a->info.push_back({e->key.c_str(), e->name.c_str(), e->repo.c_str(), e->tag_prefix.c_str(), e->program.c_str()});
+  return a;
+}
+
+const Active& active() {
+  if (const Active* a = g_active.load(std::memory_order_acquire)) return *a;
+  std::lock_guard<std::mutex> lock(g_active_mutex);
+  if (!g_active.load(std::memory_order_relaxed)) {
+    std::string missing;
+    const Active* a = make_active(builtin_catalog(), &missing);
+    if (!a) {  // a build's own data: the catalog test stops this first
+      std::fprintf(stderr, "the built-in games catalog (games.json) has no %s\n", missing.c_str());
+      std::abort();
+    }
+    g_active.store(a, std::memory_order_release);
+  }
+  return *g_active.load(std::memory_order_relaxed);
+}
+
+}  // namespace
+
+bool parse_catalog(const std::string& json, Catalog* out, std::string* why) { return read_catalog(json, out, why, nullptr); }
+
+bool read_fetched_catalog(const std::string& json, const std::string& launcher_version, Catalog* out,
+                          std::vector<std::string>* ignored, std::string* why) {
+  ignored->clear();
+  if (!read_catalog(json, out, why, ignored)) return false;
+  std::vector<CatalogGame> kept;
+  // Read through a volatile pointer: clang folded the compare with the constant into the name's bytes as immediates
+  // in the code, outside its address (mw3pm pm-v1.2.11, check_paths.py).
+  static const char* const volatile owner_at = kCatalogOwner;
+  const std::string owner = owner_at;
+  for (CatalogGame& g : out->games) {
+    const std::string where = "games (" + g.key + "): ";
+    const size_t slash = g.repo.find('/');
+    if (slash != std::string::npos && g.repo.substr(0, slash) != owner) {
+      ignored->push_back(where + "its repo " + g.repo + " is not under " + owner);
+      continue;
+    }
+    if (slash != std::string::npos) g.repo = g.repo.substr(slash + 1);
+    bool plain_repo = !g.repo.empty();
+    for (char c : g.repo) plain_repo = plain_repo && (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.');
+    if (!plain_repo || g.repo.find("..") != std::string::npos) {
+      ignored->push_back(where + "its repo " + g.repo + " is not a repo's name");
+      continue;
+    }
+    bool plain = plain_name(g.key, "_-") && plain_name(g.program, "_-") && plain_name(g.tag_prefix, "_-.");
+    for (const std::string& asset : g.asset) plain = plain && plain_name(asset, "_-.{}");
+    if (!plain) {
+      ignored->push_back(where + "its key, program, tag prefix or an asset is not a plain name");
+      continue;
+    }
+    if (release_version(launcher_version) && compare_versions(g.min_launcher, launcher_version) > 0) {
+      ignored->push_back(where + "it needs launcher " + g.min_launcher + " or newer (this is " + launcher_version + ")");
+      continue;
+    }
+    if (!plain_png(g.badge) || (!g.heading_badge.empty() && !plain_png(g.heading_badge)) || (!g.card.empty() && !plain_png(g.card))) {
+      ignored->push_back(where + "its art is not a plain .png name");
+      continue;
+    }
+    kept.push_back(std::move(g));
+  }
+  out->games = std::move(kept);
+  return true;
+}
+
+Catalog merged_catalog(const Catalog& builtin, const Catalog& fetched, std::vector<std::string>* ignored) {
+  if (fetched.revision <= builtin.revision) return builtin;
+  Catalog out = builtin;
+  out.revision = fetched.revision;
+  for (const CatalogFamily& f : fetched.families) {
+    auto at = std::find_if(out.families.begin(), out.families.end(), [&](const CatalogFamily& o) { return o.key == f.key; });
+    if (at != out.families.end()) *at = f;
+    else out.families.push_back(f);
+  }
+  for (const CatalogGame& g : fetched.games) {
+    const bool family = std::any_of(out.families.begin(), out.families.end(), [&](const CatalogFamily& o) { return o.key == g.family; });
+    if (!family) {
+      if (ignored) ignored->push_back("games (" + g.key + "): its family " + g.family + " is not listed");
+      continue;
+    }
+    auto at = std::find_if(out.games.begin(), out.games.end(), [&](const CatalogGame& o) { return o.key == g.key; });
+    if (at != out.games.end()) *at = g;
+    else out.games.push_back(g);
+  }
+  std::stable_sort(out.games.begin(), out.games.end(), [](const CatalogGame& a, const CatalogGame& b) { return a.order < b.order; });
+  std::stable_sort(out.families.begin(), out.families.end(), [](const CatalogFamily& a, const CatalogFamily& b) { return a.order < b.order; });
+  return out;
+}
+
+const std::string& builtin_catalog_text() {
+  static const std::string text = kBuiltinCatalog;
+  return text;
+}
+
+const Catalog& builtin_catalog() {
+  static const Catalog c = [] {
+    Catalog out;
+    std::string why;
+    if (!parse_catalog(builtin_catalog_text(), &out, &why)) {  // a build's own data: the catalog test stops this first
+      std::fprintf(stderr, "the built-in games catalog (games.json) cannot be read: %s\n", why.c_str());
+      std::abort();
+    }
+    return out;
+  }();
+  return c;
+}
+
+bool use_catalog(const Catalog& c) {
+  std::lock_guard<std::mutex> lock(g_active_mutex);
+  if (g_active.load(std::memory_order_relaxed)) return false;
+  std::string missing;
+  const Active* a = make_active(c, &missing);
+  if (!a) return false;
+  g_active.store(a, std::memory_order_release);
+  return true;
+}
+
+const Catalog& active_catalog() { return active().cat; }
+int game_count() { return static_cast<int>(active().by_game.size()); }
+Game game_at(int i) { return static_cast<Game>(i); }
+
+bool game_of_key(const std::string& key, Game* g) {
+  const Active& a = active();
+  for (size_t i = 0; i < a.by_game.size(); ++i)
+    if (a.by_game[i]->key == key) return *g = static_cast<Game>(i), true;
+  return false;
+}
+
+const CatalogGame& catalog_game(Game g) {
+  const Active& a = active();
+  const size_t i = static_cast<size_t>(g);
+  if (i >= a.by_game.size()) {
+    std::fprintf(stderr, "games catalog: no game %zu this run (%zu)\n", i, a.by_game.size());
+    std::abort();
+  }
+  return *a.by_game[i];
+}
+
+const GameInfo& game_info(Game g) {
+  (void)catalog_game(g);  // the same check
+  return active().info[static_cast<size_t>(g)];
+}
+
+bool game_tag(Game g, const std::string& tag) {
+  const std::string prefix = game_info(g).prefix;
+  if (tag.rfind(prefix, 0) != 0) return false;
+  // The rest as package_tag reads a bare vX.Y.Z.
+  return package_tag("v" + tag.substr(prefix.size()));
+}
+
+std::string game_asset_name(Game g, const std::string& tag, Platform p) {
+  std::string name = catalog_game(g).asset[static_cast<int>(p)];
+  return name.replace(name.find("{tag}"), 5, tag);
+}
+
+const Asset* game_asset(Game g, const Release& r, Platform p) {
+  const std::string want = game_asset_name(g, r.tag, p);
+  for (const Asset& a : r.assets)
+    if (a.name == want && !a.url.empty()) return &a;
+  return nullptr;
+}
+
+// compare_versions reads from the first digit, which in "mw1-v" is mw1's own "1".
+int compare_game(const std::string& a, const std::string& b) { return compare_versions(game_version(a), game_version(b)); }
+
+const Release* newest_game(Game g, const std::vector<Release>& releases, Platform p) {
+  const Release* best = nullptr;
+  for (const Release& r : releases)
+    if (!r.draft && !r.prerelease && game_tag(g, r.tag) && game_asset(g, r, p) && (!best || compare_game(r.tag, best->tag) > 0))
+      best = &r;
+  return best;
+}
+
+std::string installed_text(const InstalledGame& in) {
+  return "# Installed by the MechWarrior 3 Rebuild launcher. This folder is the launcher's: UPDATE replaces it.\n"
+         "game=" + in.game + "\ntag=" + in.tag + "\nfile=" + in.file + "\nsha256=" + in.sha256 + "\nfrom=" + in.from + "\n";
+}
+
+bool parse_installed(const std::string& text, InstalledGame* out) {
+  *out = {};
+  size_t at = 0;
+  while (at < text.size()) {
+    const size_t nl = text.find('\n', at);
+    std::string line = text.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
+    at = nl == std::string::npos ? text.size() : nl + 1;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    const size_t eq = line.find('=');
+    if (line.empty() || line[0] == '#' || eq == std::string::npos) continue;
+    const std::string k = line.substr(0, eq), v = line.substr(eq + 1);
+    if (k == "game") out->game = v;
+    else if (k == "tag") out->tag = v;
+    else if (k == "file") out->file = v;
+    else if (k == "sha256") out->sha256 = v;
+    else if (k == "from") out->from = v;
+  }
+  return !out->game.empty();
+}
+
+const Asset* GameCheck::asset() const {
+  for (Game g : kGames)
+    if (game_tag(g, release.tag))
+      if (const Asset* a = game_asset(g, release, platform)) return a;
+  return nullptr;
+}
+
+GameCheck judge_game(Game g, const std::string& installed, const std::vector<Answer>& answers, Platform p) {
+  GameCheck c;
+  c.platform = p;
+  const std::string name = game_info(g).name;
+  const Homes h = read_homes(answers);
+  if (h.read == 0) {  // every home failed: the first one's reason
+    c.kind = GameCheck::kFailed;
+    if (!h.failed) c.words = "Could not check for " + name + ".";
+    else if (!h.parse_error.empty()) c.words = "The releases list for " + name + " could not be read (" + h.parse_error + ").";
+    else c.words = "Could not reach the releases of " + name + (h.failed->fetch_error.empty() ? std::string(".") : ": " + h.failed->fetch_error + ".");
+    return c;
+  }
+  const Release* newest = newest_game(g, h.releases, p);
+  if (!newest) {
+    c.kind = GameCheck::kNoRelease;
+    c.words = "No release of " + name + " for this computer yet.";
+    return c;
+  }
+  c.release = with_homes(h, newest->tag, [g, p](const Release& r) { return game_asset(g, r, p) != nullptr; });
+  if (installed.empty() || compare_game(newest->tag, installed) > 0) {
+    c.kind = GameCheck::kNewer;
+    c.words = installed.empty() ? name + " " + game_version(newest->tag) + " can be installed."
+                                : name + " " + game_version(newest->tag) + " is out (installed: " + game_version(installed) + ").";
+  } else {
+    c.kind = GameCheck::kUpToDate;
+    c.words = name + " " + game_version(installed) + " is the newest.";
+  }
+  return c;
+}
+
+std::string game_version(const std::string& tag) {
+  // After the "v" that starts the numbers: "mw1-v1.0.7" has a digit in its prefix.
+  for (size_t i = 0; i + 1 < tag.size(); ++i)
+    if (tag[i] == 'v' && tag[i + 1] >= '0' && tag[i + 1] <= '9' && (i == 0 || tag[i - 1] == '-')) return tag.substr(i + 1);
+  return tag;
+}
+
+std::string size_words(uint64_t bytes) {
+  const uint64_t mb = (bytes + 512 * 1024) / (1024 * 1024);
+  return mb == 0 ? std::string("under 1 MB") : std::to_string(mb) + " MB";
+}
+
+}  // namespace upgrades::update

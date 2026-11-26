@@ -1,6 +1,0 @@
-PORT_URL=https://github.com/Elthial/Mechwarrior-sdl-port.git
-PORT_COMMIT=e119a72a6e7eed86d8d43d58a236e4212628fd56
-MUNT_URL=https://github.com/munt/munt.git
-MUNT_COMMIT=6e7c01fba7e1d50c8fa705834889fd0eac136075
-NUKED_URL=https://github.com/nukeykt/Nuked-OPL3.git
-NUKED_COMMIT=765ec962e473aeb767e4cba74ffdc8f588ffbfe8

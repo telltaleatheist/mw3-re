@@ -1,2 +1,0 @@
-# The patches apply to the port's LF tree byte for byte: never converted (core.autocrlf on Windows).
-*.patch -text

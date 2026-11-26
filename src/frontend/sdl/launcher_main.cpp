@@ -4,7 +4,7 @@
 // it, hiding while the game runs. mw3 itself starts without it.
 //
 //   mw3launcher [--version] [--write-dir DIR] [--windowed | --window WxH] [--nosound] [--no-import]
-//               [--launcher-shot FILE [--launcher-screen main|setup|work|notes]]
+//               [--launcher-shot FILE [--launcher-screen main|setup|work|notes|found]]
 //               [--launcher-play] [--launcher-mw1]
 #include <SDL3/SDL.h>
 
@@ -16,10 +16,10 @@
 #include <vector>
 
 #include "platform/pointer_hands_off.h"
-#include "gamez/zutil/zutl_path.h"
 #include "frontend/sdl/crash_report.h"
-#include "frontend/sdl/data_folder_start.h"
+#include "frontend/sdl/launcher_folder.h"
 #include "frontend/sdl/launcher.h"
+#include "frontend/sdl/launcher_own.h"
 #include "frontend/sdl/run_log.h"
 #include "frontend/sdl/sdl_child.h"
 
@@ -33,6 +33,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#endif
+#ifndef _WIN32
+#include <unistd.h>
 #endif
 
 namespace {
@@ -76,9 +79,9 @@ void read_config(const std::string& write_dir, sdlfe::LauncherOptions& o) {
   std::string line;
   while (std::getline(f, line)) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
-    if (line.rfind("install=", 0) == 0) o.cfg_install = zutl::path_from_config(line.substr(8));
-    if (line.rfind("mw1_game=", 0) == 0) o.cfg_mw1_game = zutl::path_from_config(line.substr(9));
-    if (line.rfind("pm_install=", 0) == 0) o.cfg_pm_install = zutl::path_from_config(line.substr(11));
+    if (line.rfind("install=", 0) == 0) o.cfg_install = sdlfe::own::path_from_config(line.substr(8));
+    if (line.rfind("mw1_game=", 0) == 0) o.cfg_mw1_game = sdlfe::own::path_from_config(line.substr(9));
+    if (line.rfind("pm_install=", 0) == 0) o.cfg_pm_install = sdlfe::own::path_from_config(line.substr(11));
     if (line.rfind("pm_notes=", 0) == 0) o.cfg_pm_notes = line.substr(9);
     if (line.rfind("mw3_notes=", 0) == 0) o.cfg_mw3_notes = line.substr(10);
   }
@@ -88,6 +91,20 @@ void read_config(const std::string& write_dir, sdlfe::LauncherOptions& o) {
 
 int main(int argc, char** argv) {
   if (sdlfe::crash_box_main(argc, argv)) return 0;
+#ifndef _WIN32
+  // MW3 alone's AppImage starts this launcher: asked its status, or started by another launcher that linked it
+  // (docs/launcher.md, Copies installed without the launcher), it is the game beside this one that answers.
+  for (int i = 1; i < argc; ++i)
+    if (const std::string s = argv[i]; s == "--status" || s == "--setup" || s == "--ready-file") {
+      if (const std::string game = beside("MW3_GAME_BIN", "mw3"); !game.empty()) {
+        argv[0] = const_cast<char*>(game.c_str());
+        execv(game.c_str(), argv);
+        std::perror("mw3launcher: the game beside it");
+        return 1;
+      }
+      break;
+    }
+#endif
   sdlfe::LauncherOptions o;
   bool windowed = false, window_given = false, hidden_log = false;
   for (int i = 1; i < argc; ++i) {
@@ -113,10 +130,11 @@ int main(int argc, char** argv) {
     else {
       std::fprintf(stderr,
                    "usage: mw3launcher [--version] [--write-dir DIR] [--windowed | --window WxH] [--nosound] [--hidden] [--no-import]\n"
-                   "    [--launcher-shot FILE [--launcher-screen main|setup|work|notes]] [--launcher-play] [--launcher-mw1]\n");
+                   "    [--launcher-shot FILE [--launcher-screen main|setup|work|notes|found]] [--launcher-play] [--launcher-mw1]\n");
       return 2;
     }
   }
+  if (platform::pointer_hands_off()) SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");  // as mw3_main: no focus taken
   if (!SDL_Init(SDL_INIT_VIDEO)) {
     std::fprintf(stderr, "mw3launcher: SDL_Init: %s\n", SDL_GetError());
     return 1;
@@ -124,7 +142,7 @@ int main(int argc, char** argv) {
   const bool write_dir_given = !o.write_dir.empty();
   o.write_dir_fixed = write_dir_given;
   bool pointer = false;  // --write-dir wins; else the usual folder, or the one its pointer names
-  if (!write_dir_given && !sdlfe::data_folder_at_start(&o.write_dir, !hidden_log && !o.hidden, &pointer)) {
+  if (!write_dir_given && !sdlfe::own::data_folder_at_start(&o.write_dir, !hidden_log && !o.hidden, &pointer)) {
     SDL_Quit();
     return 1;
   }
@@ -135,20 +153,22 @@ int main(int argc, char** argv) {
   sdlfe::RunLog run_log;
   if (!hidden_log && !sdlfe::log_to_file(o.write_dir, "mw3launcher") && !o.write_dir.empty())
     run_log.open(o.write_dir, "mw3launcher");
-  zutl::repair_old_names(o.write_dir);
+  sdlfe::own::repair_old_names(o.write_dir);
   std::printf("mw3launcher (MechWarrior 3 rebuild) %s, write dir %s\n", MW3_VERSION, o.write_dir.c_str());
   if (!hidden_log && !o.write_dir.empty()) sdlfe::crash_report_install("mw3launcher", o.write_dir + "/mw3launcher.log", true);
+  // Pirate's Moon's folder in place before its saved path is read (family_move; its old nested folder mw3pm's own).
+  if (!write_dir_given && !std::getenv("MW3_USUAL_FOLDER")) sdlfe::own::usual_folder("Pirate's Moon");
   read_config(o.write_dir, o);
-#ifdef MW3_GAME_DIR
-  if (!std::getenv("MW3_FIND_INSTALL")) o.more_installs.push_back(MW3_GAME_DIR);
-#endif
   // Windowed always (2026-11-20): on the Mac a fullscreen launcher is a fullscreen game to macOS (the bundle's
   // games category), so Game Mode slowed the file picker to 7-12 s (docs/launcher.md). The games keep fullscreen.
   o.fullscreen = false;
   o.program_dir = own_dir().string();
   o.game_bin = beside("MW3_GAME_BIN", "mw3");
   o.pm_bin = beside("MW3_PM_BIN", "mw3pm");
-  o.mw1_bin = beside("MW3_MW1_BIN", "mw1");  // MW1: the remake; when there, in place of Elthial's port
+  o.mw1_bin = beside("MW3_MW1_BIN", "mw1");  // MechWarrior 1 Remake, when there
+  o.mw1r_bin = beside("MW3_MW1R_BIN", "mw1r");  // MW1 Rebuild (MW1's ORIGINAL tab)
+  o.chi_bin = beside("MW3_CHI_BIN", "chi");        // Inception Rebuild (INCEPTION's ORIGINAL tab)
+  o.chirm_bin = beside("MW3_CHIRM_BIN", "chirm");  // Inception Remake (its REMAKE tab)
   if (const char* d = std::getenv("MW3_PM_WRITE_DIR")) o.pm_write_dir = d;  // checks
   if (o.game_bin.empty()) std::printf("mw3launcher: no mw3 beside this program: MECHWARRIOR 3 cannot start\n");
   // The games get this start's choices; MW3 a named write dir too (Pirate's Moon has its own).

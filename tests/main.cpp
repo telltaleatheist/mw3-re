@@ -84,10 +84,13 @@ int main() {
   // Ours (MW1's FIXES 30): no test touches the system's pointer, nor do the programs a test starts (they inherit
   // the variable): pointer_hands_off.h.
   platform::set_pointer_hands_off(true);
+  // SDL_MAC_BACKGROUND_APP (SDL's hint, read from the environment): on the Mac every test program and every program it
+  // starts stays a background process, never taking the keyboard from the app in front (MW1 lead, 2026-11-23).
 #if defined(_WIN32)
   _putenv_s("MW3_POINTER_HANDS_OFF", "1");
 #else
   setenv("MW3_POINTER_HANDS_OFF", "1", 1);
+  setenv("SDL_MAC_BACKGROUND_APP", "1", 1);
 #endif
 #if defined(_WIN32)
   // No crash dialogs: a test that crashes exits (the run is often headless, over ssh).

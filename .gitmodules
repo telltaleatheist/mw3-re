@@ -1,0 +1,3 @@
+[submodule "extern/re-setup-kit"]
+	path = extern/re-setup-kit
+	url = https://github.com/telltaleatheist/re-setup-kit.git

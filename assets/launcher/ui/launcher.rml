@@ -1,0 +1,158 @@
+<rml>
+<!--
+  The launcher's screens (docs/launcher.md, How it is drawn). {{...}} and data-* are UiModel's members
+  (src/frontend/sdl/launcher_ui.h); <x buttons="group"> is filled with that group's buttons (launcher_ui.cpp, markup);
+  <fit> keeps its words inside its width (smaller down to `least`, then cut in the middle).
+-->
+<head>
+  <title>BattleTech</title>
+  <link type="text/rcss" href="launcher.rcss"/>
+</head>
+<body data-model="launcher">
+  <div class="stars" data-class-near="screen == 'main'"><img src="bg_stars.png"/><img src="bg_stars.png"/></div>
+
+  <!-- The games -->
+  <div id="main" data-if="screen == 'main'">
+    <div id="top">
+      <img class="emblem" src="emblem.png?46"/>
+      <div class="name">{{heading}}</div>
+      <div class="status {{status_kind}}" data-attr-class="'status ' + status_kind">{{status}}</div>
+      <div buttons="pill" id="pill"/>
+    </div>
+    <div id="view">
+      <div id="list">
+        <div class="panel" data-for="p : panels" data-class-off="!p.on">
+          <div class="rim"/>
+          <div class="badge"><img data-if="p.badge != ''" data-attr-src="p.badge"/><div class="disc" data-if="p.badge == ''"/></div>
+          <div class="about">
+            <fit class="title" data-attr-text="p.title"/>
+            <div data-for="l : p.lines"><fit data-attr-class="l.kind" data-attr-keep="l.keep" data-attr-text="l.text"/></div>
+          </div>
+          <div class="buttons" data-attr-buttons="p.buttons"/>
+        </div>
+      </div>
+      <div id="more_up"/>
+      <div id="more_down"/>
+    </div>
+    <div id="bottom">
+      <div id="row" buttons="row"/>
+      <div class="legal">
+        <div class="package">{{package}}</div>
+        <div class="fan">Unofficial  fan  rebuild.  MechWarrior  is  a  trademark  of  Microsoft.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHECK FOR UPDATES found a launcher: over the games -->
+  <div id="cover" data-if="screen == 'main' &amp;&amp; variant == 'updates'">
+    <div class="box">
+      <div class="title">{{title}}</div>
+      <div data-for="l : lines">{{l.text}}</div>
+      <div class="buttons" buttons="box"/>
+    </div>
+  </div>
+
+  <!-- Every other screen: the steel bands, the header, its part below -->
+  <div id="page" data-if="screen != 'main'">
+    <div class="band top"><img src="bg_metal.png"/></div>
+    <div class="band bottom"><img src="bg_metal.png"/></div>
+    <div id="head">
+      <img class="emblem" data-if="head == 'launcher' &amp;&amp; game == ''" src="emblem.png?72"/>
+      <img class="emblem small" data-if="head == 'launcher' &amp;&amp; game != ''" src="emblem.png?66"/>
+      <img class="emblem badge" data-if="head == 'game'" data-attr-src="badge"/>
+      <div data-attr-class="'names ' + heading_kind">
+        <div class="name">{{heading}}</div>
+        <div class="game" data-if="game != ''">{{game}}</div>
+      </div>
+    </div>
+
+    <div class="part find" data-if="screen == 'find'">
+      <div class="box words">{{words}}</div>
+      <div class="status slot" data-attr-class="'status slot ' + status_kind">{{status}}</div>
+      <div class="col first" buttons="find"/>
+      <div class="col small" buttons="pick"/>
+      <div class="col disc" buttons="disc"/>
+      <div class="foot" buttons="foot"/>
+    </div>
+
+    <div class="part copies" data-if="screen == 'copies'">
+      <fit class="title" data-attr-text="title"/>
+      <div class="dim">{{words}}</div>
+      <div class="col" buttons="copies"/>
+      <div class="col small" buttons="pick"/>
+      <div class="foot" buttons="foot"/>
+    </div>
+
+    <div class="part gamepage" data-if="screen == 'game'" data-class-ask="variant == 'ask'">
+      <fit class="title" data-if="title != ''" data-attr-text="title"/>
+      <div class="lines"><div class="line" data-for="l : lines" data-attr-class="'line ' + l.kind">{{l.text}}</div></div>
+      <div class="rows">
+        <div class="row" data-for="r : rows">
+          <div class="about">
+            <div class="title">{{r.title}}</div>
+            <div data-for="l : r.lines" data-attr-class="l.kind">{{l.text}}</div>
+          </div>
+          <div class="buttons" data-attr-buttons="r.buttons"/>
+        </div>
+        <div class="links" buttons="links"/>
+      </div>
+      <div class="col plates" buttons="plates"/>
+      <div class="status over" data-attr-class="'status over ' + status_kind">{{status}}</div>
+      <div class="foot" buttons="foot"/>
+    </div>
+
+    <div class="part data" data-if="screen == 'data'">
+      <div class="words">{{words}}</div>
+      <div class="path">{{path}}</div>
+      <div class="col plates" buttons="plates"/>
+      <div class="status over" data-attr-class="'status over ' + status_kind">{{status}}</div>
+      <div class="foot" buttons="foot"/>
+    </div>
+
+    <div class="part confirm" data-if="screen == 'confirm'" data-attr-class="'part confirm ' + variant">
+      <fit class="title" data-if="title != ''" data-attr-text="title"/>
+      <div class="col found" data-if="variant == 'found'" buttons="found"/>
+      <div class="answer">
+        <div class="words">{{words}}</div>
+        <div class="path" data-if="path != ''">{{path}}</div>
+        <div class="status" data-if="status != ''" data-attr-class="'status ' + status_kind">{{status}}</div>
+      </div>
+      <div class="col plates" buttons="plates"/>
+      <div class="col small" buttons="pick"/>
+      <div class="go" buttons="go"/>
+      <div class="foot" buttons="foot"/>
+    </div>
+
+    <div class="part work" data-if="screen == 'work'">
+      <fit class="title" data-attr-text="title"/>
+      <div class="bar"><div class="done" data-style-width="fraction * 100 + '%'"/><div class="percent">{{percent}}</div></div>
+      <div class="stage">{{stage}}</div>
+      <div class="message">{{message}}</div>
+      <div class="foot" buttons="foot"/>
+    </div>
+    <div class="note" data-if="screen == 'work'">Cancel  stops  within  a  file  and  changes  nothing.</div>
+
+    <div class="part notes" data-if="screen == 'notes'">
+      <fit class="title" text="BEFORE YOU PLAY"/>
+      <div class="holder">
+        <div class="paragraphs" data-style-width="notes_width + 'dp'" data-style-font-size="notes_size + 'dp'" data-style-line-height="notes_line + 'dp'">
+          <p data-for="n : notes" data-style-margin-bottom="notes_gap + 'dp'">{{n}}</p>
+        </div>
+        <div class="status" data-if="status != ''" data-attr-class="'status ' + status_kind" data-style-margin-top="notes_gap - 8 > 0 ? '-' + (notes_gap - 8) + 'dp' : '1dp'">{{status}}</div>
+      </div>
+      <div class="col disc" buttons="disc"/>
+      <div class="foot" buttons="foot"/>
+    </div>
+
+    <div class="part update" data-if="screen == 'update'">
+      <fit class="title" data-attr-text="title"/>
+      <div id="update_notes"><p data-for="n : notes">{{n}}</p></div>
+      <div id="update_more">Scroll  for  more</div>
+      <div class="words" data-attr-class="'words ' + status_kind">{{words}}</div>
+      <div class="foot" buttons="foot"/>
+    </div>
+  </div>
+
+  <div id="picker" data-if="picker != ''">{{picker}}</div>
+</body>
+</rml>

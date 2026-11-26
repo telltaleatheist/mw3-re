@@ -1,6 +1,7 @@
 #include "frontend/sdl/sdl_child.h"
 
 #include "frontend/sdl/log_start.h"
+#include "rekit/sdl/child.h"
 
 #include <string>
 
@@ -19,26 +20,16 @@
 #else
 #include <unistd.h>
 #endif
+#if !defined(_WIN32)
+#include <fcntl.h>
+#include <sys/resource.h>
+#endif
 
 #include <cstdio>
 
 namespace sdlfe {
 
-SDL_Process* start_child(const char* const* args) {
-#if defined(_WIN32)
-  if (!GetConsoleWindow()) {
-    const SDL_PropertiesID p = SDL_CreateProperties();
-    SDL_SetPointerProperty(p, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char**>(args));
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_APP);
-    SDL_SetNumberProperty(p, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
-    SDL_SetBooleanProperty(p, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
-    SDL_Process* proc = SDL_CreateProcessWithProperties(p);
-    SDL_DestroyProperties(p);
-    return proc;
-  }
-#endif
-  return SDL_CreateProcess(args, true);
-}
+SDL_Process* start_child(const char* const* args) { return rekit::sdl::start_child(args); }
 
 namespace {
 std::string g_ready_file;
@@ -135,5 +126,28 @@ size_t resident_kb() {
   return ok ? static_cast<size_t>(rss) * static_cast<size_t>(sysconf(_SC_PAGESIZE)) / 1024 : 0;
 #endif
 }
+
+#if defined(_WIN32)
+void raise_open_file_limit() {}
+std::string open_files() { return "unknown"; }
+#else
+namespace {
+constexpr rlim_t kOpenFiles = 10240;  // the Mac takes no more (OPEN_MAX)
+}
+void raise_open_file_limit() {
+  rlimit l{};
+  if (getrlimit(RLIMIT_NOFILE, &l) != 0 || l.rlim_cur >= kOpenFiles) return;
+  l.rlim_cur = l.rlim_max == RLIM_INFINITY || l.rlim_max > kOpenFiles ? kOpenFiles : l.rlim_max;
+  setrlimit(RLIMIT_NOFILE, &l);
+}
+std::string open_files() {  // asked one by one: with none left to open, /proc cannot be read
+  rlimit l{};
+  if (getrlimit(RLIMIT_NOFILE, &l) != 0) return "unknown";
+  const int top = static_cast<int>(l.rlim_cur < 65536 ? l.rlim_cur : 65536);
+  int n = 0;
+  for (int fd = 0; fd < top; ++fd) n += fcntl(fd, F_GETFD) != -1;
+  return std::to_string(n) + " of " + std::to_string(static_cast<unsigned long long>(l.rlim_cur));
+}
+#endif
 
 }  // namespace sdlfe

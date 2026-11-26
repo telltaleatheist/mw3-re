@@ -1,5 +1,7 @@
 #include "upgrades/update/update.h"
 
+#include "upgrades/update/json_reader.h"
+
 #include <cctype>
 #include <filesystem>
 #include <system_error>
@@ -8,162 +10,16 @@
 #include <cstring>
 #include <utility>
 
+#if defined(__APPLE__)
+#include <stdio.h>     // renamex_np
+#include <sys/time.h>  // utimes
+#endif
+
 namespace upgrades::update {
 namespace {
 
-// A JSON value, as much as GitHub's answer needs.
-struct Json {
-  enum Type { kNull, kBool, kNumber, kString, kArray, kObject } type = kNull;
-  bool b = false;
-  std::string s;  // a string, or a number's text
-  std::vector<Json> items;
-  std::vector<std::pair<std::string, Json>> fields;
-  const Json* at(const char* key) const {
-    for (const auto& [k, v] : fields)
-      if (k == key) return &v;
-    return nullptr;
-  }
-};
-
-class Reader {
- public:
-  explicit Reader(const std::string& t) : t_(t) {}
-  bool value(Json* out, int depth = 0) {
-    if (depth > 64) return fail("nested too deep");
-    space();
-    if (i_ >= t_.size()) return fail("ends early");
-    const char c = t_[i_];
-    if (c == '{') return object(out, depth);
-    if (c == '[') return array(out, depth);
-    if (c == '"') return out->type = Json::kString, string(&out->s);
-    if (word("true")) return out->type = Json::kBool, out->b = true, true;
-    if (word("false")) return out->type = Json::kBool, out->b = false, true;
-    if (word("null")) return out->type = Json::kNull, true;
-    if (c == '-' || std::isdigit(static_cast<unsigned char>(c))) {
-      const size_t from = i_;
-      while (i_ < t_.size() && (std::isdigit(static_cast<unsigned char>(t_[i_])) || std::strchr("+-.eE", t_[i_]))) ++i_;
-      out->type = Json::kNumber, out->s = t_.substr(from, i_ - from);
-      return true;
-    }
-    return fail("not JSON");
-  }
-  bool end() {
-    space();
-    return i_ == t_.size() || fail("text after the value");
-  }
-  std::string error;
-
- private:
-  bool fail(const char* why) {
-    if (error.empty()) error = std::string(why) + " at byte " + std::to_string(i_);
-    return false;
-  }
-  void space() {
-    while (i_ < t_.size() && std::isspace(static_cast<unsigned char>(t_[i_]))) ++i_;
-  }
-  bool word(const char* w) {
-    const size_t n = std::strlen(w);
-    if (t_.compare(i_, n, w) != 0) return false;
-    i_ += n;
-    return true;
-  }
-  bool object(Json* out, int depth) {
-    out->type = Json::kObject;
-    ++i_;
-    space();
-    if (i_ < t_.size() && t_[i_] == '}') return ++i_, true;
-    for (;;) {
-      space();
-      std::string key;
-      if (i_ >= t_.size() || t_[i_] != '"' || !string(&key)) return fail("a key expected");
-      space();
-      if (i_ >= t_.size() || t_[i_] != ':') return fail("':' expected");
-      ++i_;
-      Json v;
-      if (!value(&v, depth + 1)) return false;
-      out->fields.emplace_back(std::move(key), std::move(v));
-      space();
-      if (i_ < t_.size() && t_[i_] == ',') { ++i_; continue; }
-      if (i_ < t_.size() && t_[i_] == '}') return ++i_, true;
-      return fail("',' or '}' expected");
-    }
-  }
-  bool array(Json* out, int depth) {
-    out->type = Json::kArray;
-    ++i_;
-    space();
-    if (i_ < t_.size() && t_[i_] == ']') return ++i_, true;
-    for (;;) {
-      Json v;
-      if (!value(&v, depth + 1)) return false;
-      out->items.push_back(std::move(v));
-      space();
-      if (i_ < t_.size() && t_[i_] == ',') { ++i_; continue; }
-      if (i_ < t_.size() && t_[i_] == ']') return ++i_, true;
-      return fail("',' or ']' expected");
-    }
-  }
-  static void utf8(uint32_t c, std::string* out) {
-    if (c < 0x80) {
-      *out += static_cast<char>(c);
-    } else if (c < 0x800) {
-      *out += static_cast<char>(0xc0 | (c >> 6)), *out += static_cast<char>(0x80 | (c & 0x3f));
-    } else if (c < 0x10000) {
-      *out += static_cast<char>(0xe0 | (c >> 12)), *out += static_cast<char>(0x80 | ((c >> 6) & 0x3f));
-      *out += static_cast<char>(0x80 | (c & 0x3f));
-    } else {
-      *out += static_cast<char>(0xf0 | (c >> 18)), *out += static_cast<char>(0x80 | ((c >> 12) & 0x3f));
-      *out += static_cast<char>(0x80 | ((c >> 6) & 0x3f)), *out += static_cast<char>(0x80 | (c & 0x3f));
-    }
-  }
-  bool hex4(uint32_t* out) {
-    if (i_ + 4 > t_.size()) return fail("a short \\u");
-    *out = 0;
-    for (int k = 0; k < 4; ++k) {
-      const char h = t_[i_++];
-      *out <<= 4;
-      if (h >= '0' && h <= '9') *out |= h - '0';
-      else if (h >= 'a' && h <= 'f') *out |= h - 'a' + 10;
-      else if (h >= 'A' && h <= 'F') *out |= h - 'A' + 10;
-      else return fail("a bad \\u");
-    }
-    return true;
-  }
-  bool string(std::string* out) {
-    ++i_;
-    out->clear();
-    while (i_ < t_.size()) {
-      const char c = t_[i_++];
-      if (c == '"') return true;
-      if (c != '\\') { *out += c; continue; }
-      if (i_ >= t_.size()) break;
-      const char e = t_[i_++];
-      switch (e) {
-        case 'n': *out += '\n'; break;
-        case 't': *out += '\t'; break;
-        case 'r': *out += '\r'; break;
-        case 'b': *out += '\b'; break;
-        case 'f': *out += '\f'; break;
-        case 'u': {
-          uint32_t c1 = 0;
-          if (!hex4(&c1)) return false;
-          if (c1 >= 0xd800 && c1 < 0xdc00 && t_.compare(i_, 2, "\\u") == 0) {  // a surrogate pair
-            i_ += 2;
-            uint32_t c2 = 0;
-            if (!hex4(&c2)) return false;
-            c1 = 0x10000 + ((c1 - 0xd800) << 10) + (c2 - 0xdc00);
-          }
-          utf8(c1, out);
-          break;
-        }
-        default: *out += e; break;  // \" \\ \/
-      }
-    }
-    return fail("a string not closed");
-  }
-  const std::string& t_;
-  size_t i_ = 0;
-};
+using detail::Json;
+using detail::Reader;
 
 std::string text_of(const Json* j) { return j && j->type == Json::kString ? j->s : std::string(); }
 bool bool_of(const Json* j) { return j && j->type == Json::kBool && j->b; }
@@ -221,10 +77,11 @@ bool package_tag(const std::string& tag) {
   return numbers(tag).size() == 3 && rest.front() != '.' && rest.back() != '.' && rest.find("..") == std::string::npos;
 }
 
-const Release* newest_package(const std::vector<Release>& releases) {
+const Release* newest_package(const std::vector<Release>& releases, Platform p) {
   const Release* best = nullptr;
   for (const Release& r : releases)
-    if (!r.draft && !r.prerelease && package_tag(r.tag) && (!best || compare_versions(r.tag, best->tag) > 0)) best = &r;
+    if (!r.draft && !r.prerelease && package_tag(r.tag) && platform_asset(r, p) && (!best || compare_versions(r.tag, best->tag) > 0))
+      best = &r;
   return best;
 }
 
@@ -359,6 +216,17 @@ bool swap_in(const std::string& fresh, const std::string& target, std::string* e
     return *error = "the new copy could not be written beside the old one (" + why + ")", false;
   }
   fs::permissions(staged, fs::status(fresh, ec).permissions(), ec);  // an AppImage's execute bit
+#if defined(__APPLE__)
+  // A Mac app keeps its own folder and takes the new one's Contents, the two exchanged in one step: the Dock follows
+  // the folder it was shown, so one renamed to X.app.old became a plain folder there (docs/launcher.md). Where the
+  // disk can't exchange (or it may not), the whole folder is moved as before.
+  if (fs::is_directory(staged, ec) && fs::is_directory(staged / "Contents", ec) && fs::is_directory(to / "Contents", ec) &&
+      renamex_np((staged / "Contents").c_str(), (to / "Contents").c_str(), RENAME_SWAP) == 0) {
+    utimes(to.c_str(), nullptr);  // the Finder and the Dock read the new icon and name
+    fs::remove_all(staged, ec);   // the old Contents; a failure leaves a stale .new, cleared by the next update
+    return true;
+  }
+#endif
   fs::rename(to, old, ec);
   if (ec) {
     const std::string why = ec.message();
@@ -382,38 +250,64 @@ std::string plain_version(const std::string& tag) {
 }
 
 Verdict judge(const std::string& current, const std::string& json, const std::string& fetch_error) {
-  return judge(current, std::vector<Answer>{{json, fetch_error}});
+  return judge(current, std::vector<Answer>{{json, fetch_error}}, this_platform());
 }
 
-Verdict judge(const std::string& current, const std::vector<Answer>& answers) {
-  Verdict v;
-  std::vector<Release> all;
-  bool read = false;
+Verdict judge(const std::string& current, const std::vector<Answer>& answers) { return judge(current, answers, this_platform()); }
+
+Homes read_homes(const std::vector<Answer>& answers) {
+  Homes h;
   for (const Answer& a : answers) {
     std::vector<Release> some;
     std::string error;
     if (a.json.empty()) {
-      if (v.words.empty())
-        v.words = "Could not check for updates" + (a.fetch_error.empty() ? std::string(".") : ": " + a.fetch_error + ".") +
-                  " Is this computer online?";
+      if (!h.failed) h.failed = &a;
     } else if (!parse_releases(a.json, &some, &error)) {
-      if (v.words.empty()) v.words = "Could not check for updates: GitHub's answer could not be read (" + error + ").";
+      if (!h.failed) h.failed = &a, h.parse_error = error;
     } else {
-      read = true;
-      all.insert(all.end(), some.begin(), some.end());
+      ++h.read;
+      for (Release& r : some) h.releases.push_back(std::move(r)), h.first.push_back(a.download_first);
     }
   }
-  if (!read) {
-    if (v.words.empty()) v.words = "Could not check for updates.";
+  return h;
+}
+
+Release with_homes(const Homes& h, const std::string& tag, const std::function<bool(const Release&)>& usable) {
+  std::vector<size_t> order;
+  for (bool first : {true, false})
+    for (size_t i = 0; i < h.releases.size(); ++i)
+      if (h.first[i] == first && h.releases[i].tag == tag && !h.releases[i].draft && !h.releases[i].prerelease) order.push_back(i);
+  Release out;
+  size_t base = h.releases.size();
+  for (size_t i : order)
+    if (usable(h.releases[i])) {
+      base = i, out = h.releases[i];
+      break;
+    }
+  if (base == h.releases.size()) return {};
+  out.other_homes.clear();
+  for (size_t i : order)
+    if (i != base && !h.releases[i].assets.empty()) out.other_homes.push_back(h.releases[i].assets);
+  return out;
+}
+
+Verdict judge(const std::string& current, const std::vector<Answer>& answers, Platform p) {
+  Verdict v;
+  const Homes h = read_homes(answers);
+  if (h.read == 0) {
+    if (!h.failed) v.words = "Could not check for updates.";
+    else if (!h.parse_error.empty()) v.words = "Could not check for updates: the releases list could not be read (" + h.parse_error + ").";
+    else
+      v.words = "Could not check for updates" + (h.failed->fetch_error.empty() ? std::string(".") : ": " + h.failed->fetch_error + ".") +
+                " Is this computer online?";
     return v;
   }
-  v.words.clear();
-  const Release* newest = newest_package(all);
+  const Release* newest = newest_package(h.releases, p);
   if (!newest) {
     v.words = "Could not check for updates: no release of MechWarrior 3 Rebuild was found.";
     return v;
   }
-  v.release = *newest;
+  v.release = with_homes(h, newest->tag, [p](const Release& r) { return platform_asset(r, p) != nullptr; });
   if (numbers(current).empty() || compare_versions(newest->tag, current) > 0) {
     v.kind = Verdict::kNewer;
     v.words = "MechWarrior 3 Rebuild " + plain_version(newest->tag) + " is out (this is " + plain_version(current) + ").";
