@@ -202,7 +202,7 @@ games is simpler, and always your choice.
   FILES?"), and holding Shift at a game's start lets you choose again.
 - Pirate's Moon and MechWarrior (1989) are set up the same way.
 - MechWarrior 1 Remake 1.0.6: its new name on the window and save folder,
-  reach contracts that can be reached, the arctic defence contract back.
+  reach contracts that can be reached, the arctic defense contract back.
 
 **1.2.2 (2026-11-21)** (the full notes are in
 [docs/release-notes-1.2.2.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.2.2.md)): fixes from your
@@ -285,7 +285,7 @@ for MechWarrior 1 Remake, now 1.0.4.
   in multiplayer the host decides and everyone needs the same mods.
 - **An UPGRADES page**: the one bug-fixes switch becomes five (water
   movement, MFB regroup, improved AI, Artemis tracking, small fixes).
-- Fixes from the playtests: the Windows cursor stuck at the centre, a slow
+- Fixes from the playtests: the Windows cursor stuck at the center, a slow
   mouse not moving the aim, the game's boxes in its own look, and more.
 
 <details>
@@ -395,7 +395,7 @@ for MechWarrior 1 Remake, now 1.0.4.
   ground they still tip more than at 30 fps, and they still jump off steep
   banks at full speed, as in the original.
 - **A band under the sky:** where nothing is drawn between the far ground and
-  the sky, the game now shows the fog's colour.
+  the sky, the game now shows the fog's color.
 - Smaller fixes: a memory leak in the zoom views, a light's position, and the
   pitch of moving sounds.
 
@@ -572,7 +572,7 @@ installed copy does not have. Two ways to get it back:
   `--no-wide-menus`).
 - The movies keep their shape on a wide screen: the intro and the ending,
   whose black bars were part of the picture, fill the screen's width; the
-  4:3 movies are centred with black sides.
+  4:3 movies are centered with black sides.
 
 ### Multiplayer
 
@@ -778,17 +778,17 @@ tool, as it was in 1999: expect rough edges.
 ## Building from source
 
 The code is in the game repos (see [Where everything lives](#where-everything-lives)).
-For MechWarrior 3 and the launcher, see [docs/building.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/building.md). How the code is organised (the
+For MechWarrior 3 and the launcher, see [docs/building.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/building.md). How the code is organized (the
 shared engine, MechWarrior 3, Pirate's Moon and the launcher):
 [docs/games-layout.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/games-layout.md).
 
-## Credits and licence
+## Credits and license
 
 - **MechWarrior 3** and **Pirate's Moon** were made by Zipper Interactive
   and published by MicroProse in 1999. **MechWarrior** (1989) was made by
   Dynamix and published by Activision. All the games' content is theirs and
   comes from your own copies.
-- The rebuild is under the [MIT licence](LICENSE). The
+- The rebuild is under the [MIT license](LICENSE). The
   original's code was studied with Ghidra and
   [REA](https://github.com/morluto/rea), the data formats cross-checked with
   [mech3ax](https://github.com/TerranMechworks/mech3ax), and the port checked
@@ -797,7 +797,7 @@ shared engine, MechWarrior 3, Pirate's Moon and the launcher):
 - It runs on [SDL3](https://www.libsdl.org/) (with SDL3_ttf, FreeType and
   SDL3_sound), and converts the movies with a minimal LGPL build of
   [FFmpeg](https://ffmpeg.org/). Each download lists them in
-  `THIRD-PARTY.txt`, with their own licence files.
+  `THIRD-PARTY.txt`, with their own license files.
 - The launcher is drawn with [RmlUi](https://github.com/mikke89/RmlUi), and
   its lettering is Saira Condensed (SIL Open Font License).
 

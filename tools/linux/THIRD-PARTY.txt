@@ -2,7 +2,7 @@ Third-party software in this AppImage
 =====================================
 
 mw3launcher uses the libraries below; SDL 3 and SDL_ttf are in usr/lib,
-the rest are built into the launcher itself. Each library's own licence
+the rest are built into the launcher itself. Each library's own license
 files are in licenses/<library>/ beside this file. Each was built unmodified
 from its official release source. Thank you to all of their authors.
 
@@ -10,14 +10,14 @@ from its official release source. Thank you to all of their authors.
 SDL 3 (libSDL3)
 ---------------
 Simple DirectMedia Layer, https://www.libsdl.org/
-Copyright (C) 1997-2026 Sam Lantinga and others. zlib licence
+Copyright (C) 1997-2026 Sam Lantinga and others. zlib license
 (licenses/SDL3-*/LICENSE.txt).
 
 
 SDL_ttf 3 (libSDL3_ttf)
 -----------------------
 https://github.com/libsdl-org/SDL_ttf. Copyright (C) 1997-2025 Sam Lantinga
-and others. zlib licence (licenses/SDL3_ttf-*/LICENSE.txt). The fonts the
+and others. zlib license (licenses/SDL3_ttf-*/LICENSE.txt). The fonts the
 launcher finds on the system for letters its own fonts lack. FreeType
 (below) is built into it too.
 
@@ -40,14 +40,14 @@ https://github.com/Omnibus-Type/Saira. SIL Open Font License 1.1
 miniz's inflate, tinfl (built into the launcher)
 ------------------------------------------------
 Rich Geldreich, RAD Game Tools and Valve Software,
-https://github.com/richgel999/miniz. MIT licence (licenses/miniz/LICENSE).
+https://github.com/richgel999/miniz. MIT license (licenses/miniz/LICENSE).
 It unpacks zip files for the setup kit.
 
 
 libarchive 3.7.9 (built into the launcher)
 ------------------------------------------
 https://www.libarchive.org/. Copyright (c) 2003-2018 Tim Kientzle and
-others. Two-clause BSD licence (licenses/libarchive-3.7.9/COPYING, which also
+others. Two-clause BSD license (licenses/libarchive-3.7.9/COPYING, which also
 names the few source files under other terms). It reads a game's Windows zip
 and what a game's files are picked from: zip, 7z, RAR, tar and disc images.
 
@@ -79,20 +79,20 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 zlib 1.3.1 (built into the launcher)
 ------------------------------------
 https://zlib.net/. (C) 1995-2022 Jean-loup Gailly and Mark Adler. zlib
-licence (licenses/zlib-1.3.1/LICENSE). libarchive's deflate (zip).
+license (licenses/zlib-1.3.1/LICENSE). libarchive's deflate (zip).
 
 
 liblzma from XZ Utils 5.8.1 (built into the launcher)
 -----------------------------------------------------
 https://tukaani.org/xz/. Lasse Collin and the XZ Utils contributors. liblzma
 is under the BSD Zero Clause License, 0BSD (licenses/xz-5.8.1/COPYING.0BSD;
-licenses/xz-5.8.1/COPYING says which licence covers which part of XZ
+licenses/xz-5.8.1/COPYING says which license covers which part of XZ
 Utils: only liblzma is used). libarchive's LZMA and LZMA2 (7z, xz).
 
 
 RmlUi 6.3 (built into the launcher)
 -----------------------------------
-The launcher's screens, https://github.com/mikke89/RmlUi. MIT licence
+The launcher's screens, https://github.com/mikke89/RmlUi. MIT license
 (licenses/rmlui/LICENSE.txt; the containers it carries, robin_hood
 and itlib, also MIT: LICENSE-containers.txt beside it). Its text is drawn
 with FreeType 2.14.3 (above).

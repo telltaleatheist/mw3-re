@@ -200,7 +200,7 @@ bool curl_download(const std::string& url, const std::string& to, uint64_t size,
       SDL_DestroyProcess(p);
       fs::remove(part, ec);
       *cancelled = true;
-      return *error = "cancelled", false;
+      return *error = "canceled", false;
     }
     if (wait_quiet(p, false, &code)) break;
     char buf[256];
@@ -341,7 +341,7 @@ Downloaded download_update(const upgrades::update::Release& r, const std::string
       d.ok = true, d.path = path;
       d.words = "Downloaded and checked: " + package->name + ".";
       break;
-    case Fetched::kCancelled: d.cancelled = true, d.words = "The download was cancelled. Nothing was installed."; break;
+    case Fetched::kCancelled: d.cancelled = true, d.words = "The download was canceled. Nothing was installed."; break;
     case Fetched::kNoSums: d.words = "This release has no SHA256SUMS to check the download against, so nothing was downloaded."; break;
     case Fetched::kSumsFailed: d.words = "Could not download the release's SHA256SUMS: " + f.error + "."; break;
     case Fetched::kNoLine: d.words = "The release's SHA256SUMS has no line for " + package->name + ", so nothing was downloaded."; break;

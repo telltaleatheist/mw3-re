@@ -171,7 +171,7 @@ bool unzip(const std::string& file, const fs::path& into, const Progress& progre
     if (!out) return *error = "could not write " + to.string(), false;
     for (int64_t n; (n = r.read(buf.data(), buf.size())) > 0;) out.write(reinterpret_cast<const char*>(buf.data()), n);
     if (!out || !r.error().empty()) return *error = "could not unpack " + e.path + (r.error().empty() ? "" : " (" + r.error() + ")"), false;
-    if (progress && !progress(static_cast<double>(r.position()) / total, "Unpacking")) return *error = "cancelled", false;
+    if (progress && !progress(static_cast<double>(r.position()) / total, "Unpacking")) return *error = "canceled", false;
   }
   if (!r.error().empty()) return *error = "the zip could not be read (" + r.error() + ")", false;
   return true;
@@ -410,7 +410,7 @@ Done install_release(const std::string& root, u::Game g, const u::Release& r, co
                                      allow_file(), "games download");
   switch (f.why) {
     case Fetched::kOk: break;
-    case Fetched::kCancelled: d.cancelled = true; return d.words = "The download was cancelled. Nothing was installed.", d;
+    case Fetched::kCancelled: d.cancelled = true; return d.words = "The download was canceled. Nothing was installed.", d;
     case Fetched::kNoSums:
       return d.words = "This release of " + name + " has no SHA256SUMS to check the download against, so nothing was downloaded.", d;
     case Fetched::kSumsFailed: return d.words = "Could not download the release's SHA256SUMS: " + f.error + ".", d;

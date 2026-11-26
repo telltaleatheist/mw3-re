@@ -42,9 +42,8 @@ Each game has a panel in the list, its button at the right.
   it when there is one) and UNINSTALL.
 - CHECK FOR UPDATES asks again for the launcher and every game; when the
   launcher itself has a new version, UPDATE LAUNCHER installs it.
-- LAUNCHER SETTINGS chooses what the launcher does when a game starts:
-  KEEP OPEN (the default: it stays up, the game's button says RUNNING, and
-  other games can be started), MINIMISE or CLOSE.
+- The launcher stays open while a game runs: the game's button says
+  RUNNING until it closes, and other games can be started meanwhile.
 - MechWarrior 1 Remake plays from MechWarrior 3's and Pirate's Moon's game
   files, so it needs both set up first.
 
@@ -75,9 +74,9 @@ launcher (a game's own problems: that game's repo, linked from its page)
 with what you did and what happened, and mw3launcher.log from the folder
 above (mw3launcher.old.log too if you started it again since).
 
-Licences
+Licenses
 --------
-The libraries this program uses and their licences are listed in
-THIRD-PARTY.txt beside this file; their own licence files are in licenses/.
+The libraries this program uses and their licenses are listed in
+THIRD-PARTY.txt beside this file; their own license files are in licenses/.
 The AppImage's own start program, with libfuse (LGPL 2.1) in it:
 licenses/appimage-runtime/NOTICE.txt.

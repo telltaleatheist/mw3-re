@@ -101,13 +101,6 @@
       <div class="foot" buttons="foot"/>
     </div>
 
-    <div class="part settings" data-if="screen == 'settings'">
-      <fit class="title" data-attr-text="title"/>
-      <div class="words">{{words}}</div>
-      <div class="col plates" buttons="plates"/>
-      <div class="foot" buttons="foot"/>
-    </div>
-
     <div class="part data" data-if="screen == 'data'">
       <div class="words">{{words}}</div>
       <div class="path">{{path}}</div>

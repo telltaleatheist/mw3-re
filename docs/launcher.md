@@ -814,8 +814,7 @@ shown when `mw1` (`mw1.exe`) is beside the launcher or installed by it
   ship together (docs/launcher-split.md, c4).
 - Its line is "Ready: <MW1 folder>" ("Ready, mw1-v1.0.0: <MW1 folder>" when its
   file holds a version, read as mw3pm's is), also on the log's programs line;
-  the launcher does as WHEN A GAME STARTS says while it runs (CLOSE: hidden until it exits), then its status is
-  asked again.
+  the launcher stays open while it runs (While a game runs), then its status is asked again.
 - Checks: `sdl_program_launcher_starts_mechwarrior_1` (a stand-in `mw1`: an
   older one's arguments, the needs, an older one without `mw1_game=`, a served
   one's status and start, its setup through the launcher's screens, GAME
@@ -955,41 +954,39 @@ named install or `--install-from`/`--patch`; `--no-launcher` skips it):
 - `--launcher-shot FILE [--launcher-screen main|setup|work|notes]` draws one
   screen into a BMP; `sdl_program_launcher_screens` checks the four.
 
-## When a game starts (KEEP OPEN, 2026-11-26)
+## While a game runs (2026-11-26)
 
-LAUNCHER SETTINGS, on the main screen's bottom row beside CHECK FOR UPDATES, opens a page with one choice, WHEN A
-GAME STARTS: KEEP OPEN (the default), MINIMISE or CLOSE, kept in mw3.cfg as `game_start=open|minimise|close` (no
-line is KEEP OPEN). A game's own setup (mw3 or mw3pm started alone, `setup_only`) is not the launcher and always
-closes once its game is up.
+The launcher stays open beside the games it starts (the owner, 2026-11-26: "just keep the launcher open. if they
+want it closed they can close it."; no setting: a `game_start=` line an earlier build wrote to mw3.cfg is ignored).
+A game's own setup (mw3 or mw3pm started alone, `setup_only`) is not the launcher and still closes once its game is
+up.
 
-- Each game started is a run of its own (`Launcher::Run`, one a game): its panel's PLAY says RUNNING, greyed, until
+- Each game started is a run of its own (`Launcher::Run`, one a game): its panel's PLAY says RUNNING, grayed, until
   its process exits; the other games start as usual. MechWarrior 3 and Pirate's Moon count as running from their
   first frame (the ready file, as below; input is ignored before it, as it always was); a kit game and MechWarrior 1
-  Remake, which have no first-frame signal, from their start.
-- KEEP OPEN: at the first frame the launcher stays as it is, its status line "<game> is running."; the game is
-  let to the front on Windows (`allow_foreground`, FIX (A) W4; now for the kit games too, whose start the launcher
-  no longer hides from). MINIMISE: minimised at the first frame (a kit game: at its start), restored and raised
-  when the last game running exits, never over a game still up. CLOSE: as before 2026-11-26: MechWarrior 3 and
-  Pirate's Moon close the launcher at their first frame; a kit game and the Remake hide it until they exit (their
-  status is read again then), as they always did.
-- A game's end: "<game> closed." (or its error) on the status line, its PLAY back; a kit game's status asked again.
+  Remake, which have no first-frame signal, from their start (until 2026-11-26 the launcher hid for them and blocked
+  until they exited).
+- At the first frame the status line says "<game> is running."; the game is let to the front on Windows
+  (`allow_foreground`, FIX (A) W4; now for the kit games too). A game's end: "<game> closed." (or its error), its
+  PLAY back, a kit game's status asked again, and the launcher raised once no game runs.
 - UPDATE (the split's arrow, or UPDATE ALL) for a running game waits for its end: "<game> updates when it closes",
   begun by the run loop once the game exits and nothing else is being done; UPDATE ALL's own launcher update comes
-  after it (the launcher's restart would lose it). The game's page keeps its buttons greyed while it runs (no
+  after it (the launcher's restart would lose it). The game's page keeps its buttons grayed while it runs (no
   CHANGE, UNINSTALL or UNLINK under a running game).
 - Pacing while a full-screen game covers the launcher (1.5.1's rule, Built below): a window the system calls covered,
-  minimised or hidden waits 100 ms between frames; with a game running, so does a window without the input focus,
+  minimized or hidden waits 100 ms between frames; with a game running, so does a window without the input focus,
   so the rule holds where the system does not report the cover (Windows under an exclusive full-screen game).
-- A Windows game that starts itself again (a MODS campaign's restart, `kStartedAgainExit`) after its first frame: the
-  game goes on as a process the launcher did not start. CLOSE ends the launcher, as before; KEEP OPEN and MINIMISE
-  stay and say "<game> started itself again: it runs on, but its panel can't follow it." (PLAY is then live again:
-  the restarted process does not tell the launcher its id; a later game build could, beside the ready file.)
-- An AppImage-mounted game (`in_own_mount`, a game beside the launcher in its AppImage): the launcher never ends from
-  under it. CLOSE waits hidden at the first frame as before; KEEP OPEN and MINIMISE are up anyway, and a quit while
-  it runs waits for it hidden (`mount_wait`); its crash box is the launcher's in every mode.
-- Quitting the launcher while games run leaves them running.
-- Shots: `--launcher-screen settings`. Tests: `sdl_program_launcher_keeps_open_while_the_game_runs` (KEEP OPEN with
-  no line, MINIMISE, the restart); the earlier game-start tests set `game_start=close` (`run_launcher_with`).
+- A Windows game that starts itself again (a MODS campaign's restart, `kStartedAgainExit`): the game goes on as a
+  process the launcher did not start. The launcher stays and says "<game> started itself again: it runs on, but its
+  panel can't follow it." (PLAY is then live again: the restarted process does not tell the launcher its id; a later
+  game build could, beside the ready file.) A game's own setup closes, as before.
+- Quitting the launcher while games run leaves them running. An AppImage-mounted game (`in_own_mount`, a game
+  beside the launcher in its AppImage): the launcher never ends from under it; a quit waits for it hidden
+  (`mount_wait`, FIX (A)), and its crash box is the launcher's.
+- Tests: `sdl_program_launcher_starts_mw3_as_its_own_program` (stays open, quits at the game's end with
+  --launcher-play), `sdl_program_launcher_stays_when_the_game_fails_or_is_slow` (the restart before and after the
+  first frame), `sdl_program_launcher_waits_for_the_game_in_an_appimage` (a quit leaves the game; in an AppImage it
+  waits).
 
 ## The two programs (2026-11-01, the launcher split; games-layout.md)
 
@@ -1017,8 +1014,8 @@ anything is opened or made (2026-11-11: a package check wants all three programs
   launcher stays on screen ("Starting MechWarrior 3...", input ignored)
   until the game writes F at its first frame with a swapchain image
   (`sdlfe::mark_ready`, sdl_render3d.cpp), so the switch shows no empty
-  moment, then does as WHEN A GAME STARTS says (below; until 2026-11-26 it
-  always **closed**, the game running on alone, as CLOSE does now). A failed start
+  moment, then stays open beside it (While a game runs, above; from
+  2026-11-01 to 2026-11-26 it **closed** there, the game running on alone). A failed start
   leaves it up: a game that exits first has its exit code on the status
   line; no first frame in 20 s says so on the status line ("has not shown
   a picture yet") and the launcher keeps watching, closing at the frame if

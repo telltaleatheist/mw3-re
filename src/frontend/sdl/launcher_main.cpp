@@ -84,7 +84,6 @@ void read_config(const std::string& write_dir, sdlfe::LauncherOptions& o) {
     if (line.rfind("pm_install=", 0) == 0) o.cfg_pm_install = sdlfe::own::path_from_config(line.substr(11));
     if (line.rfind("pm_notes=", 0) == 0) o.cfg_pm_notes = line.substr(9);
     if (line.rfind("mw3_notes=", 0) == 0) o.cfg_mw3_notes = line.substr(10);
-    if (line.rfind("game_start=", 0) == 0) o.cfg_game_start = line.substr(11);
   }
 }
 

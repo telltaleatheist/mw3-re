@@ -52,9 +52,8 @@ Each game has a panel in the list, its button at the right.
   it when there is one) and UNINSTALL.
 - CHECK FOR UPDATES asks again for the launcher and every game; when the
   launcher itself has a new version, UPDATE LAUNCHER installs it.
-- LAUNCHER SETTINGS chooses what the launcher does when a game starts:
-  KEEP OPEN (the default: it stays up, the game's button says RUNNING, and
-  other games can be started), MINIMISE or CLOSE.
+- The launcher stays open while a game runs: the game's button says
+  RUNNING until it closes, and other games can be started meanwhile.
 - MechWarrior 1 Remake plays from MechWarrior 3's and Pirate's Moon's game
   files, so it needs both set up first.
 
@@ -85,7 +84,7 @@ launcher (a game's own problems: that game's repo, linked from its page)
 with what you did and what happened, and mw3launcher.log from the folder
 above (mw3launcher.old.log too if you started it again since).
 
-Licences
+Licenses
 --------
-The libraries this app uses and their licences: THIRD-PARTY.txt inside the
-app (Contents/Resources), with their licence files in Contents/Resources/licenses.
+The libraries this app uses and their licenses: THIRD-PARTY.txt inside the
+app (Contents/Resources), with their license files in Contents/Resources/licenses.
