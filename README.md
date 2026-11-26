@@ -23,8 +23,8 @@ for you:
 
 - **MechWarrior 3**, rebuilt as above;
 - **Pirate's Moon**, the expansion, rebuilt the same way from its own exe;
-- **MechWarrior 1 Reverse Engineered**, MechWarrior (1989) rebuilt in C++
-  from Elthial's SDL port; plays from your own DOS copy;
+- **MechWarrior 1: Reverse Engineered** (MW1 Rebuild for short), MechWarrior
+  (1989) reverse engineered and rebuilt in C++; plays from your own DOS copy;
 - **MechWarrior 1 Remake** (formerly MW1: Critical Hit), a fan remake of
   MechWarrior (1989)'s mercenary campaign on MechWarrior 3's combat, worlds
   and 'Mechs;
@@ -51,7 +51,7 @@ one is the front door.
 | Pirate's Moon | [mech3-pm-re](https://github.com/telltaleatheist/mech3-pm-re) | [Pirate's Moon alone](https://github.com/telltaleatheist/mech3-pm-re/releases) |
 | MechWarrior 1 Remake | [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) | [its releases](https://github.com/telltaleatheist/mech1-remake-re/releases) |
 | The shared "find your game files" setup | [re-setup-kit](https://github.com/telltaleatheist/re-setup-kit) | (a library the games build in) |
-| MechWarrior 1 Reverse Engineered: MechWarrior (1989) rebuilt as C++ | [mech1-re](https://github.com/telltaleatheist/mech1-re) | [its releases](https://github.com/telltaleatheist/mech1-re/releases) |
+| MechWarrior 1: Reverse Engineered: MechWarrior (1989) rebuilt as C++ | [mech1-re](https://github.com/telltaleatheist/mech1-re) | [its releases](https://github.com/telltaleatheist/mech1-re/releases) |
 | BattleTech: The Crescent Hawk's Inception rebuilt | [inception-re](https://github.com/telltaleatheist/inception-re) | [its releases](https://github.com/telltaleatheist/inception-re/releases) |
 | Inception Remake | [inception-remake-re](https://github.com/telltaleatheist/inception-remake-re) | not released yet |
 
