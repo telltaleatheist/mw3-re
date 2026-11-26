@@ -635,6 +635,19 @@ setup in the launcher, on MW3_GAME_DIR, behind a shell stand-in for mw3
   `sdl_program_splash_keeps_its_shape_on_a_wide_screen` and
   `sdl_pm_find_screen_lists_its_copy`.
   `sdl_program_plain_start_goes_straight_in_or_to_setup` stays mw3's (d2).
+  **The packaging, on the hub:** `tools/package/combined.sh` and `.cmd`
+  build the launcher's package alone from one ref (each game's package is
+  its repo's); make_app.sh, package.cmd and make-appimage.sh build
+  `mw3launcher` only, with no game program, game font or game-only licence
+  in it; installer.iss and check_dist.ps1 keep only their launcher-only side
+  (the old programs still removed over an earlier install). The version is
+  CMake's (`mw3_version.txt` in the build folder), which before the hub's own
+  first tag (v1.6.1) reads `<newest vX.Y.Z>-dev-g<commit>`, never the older
+  v1.2.2 behind main. `catalog/games.json` (v1.6.0's built-in catalog at
+  revision 2) and `catalog/art/` are where released launchers fetch them.
+  Left as they were: build_deps.sh (it also builds SDL3_sound and FFmpeg, for
+  the games' packages from the same deps folder) and the packages'
+  README.txt and THIRD-PARTY.txt, which still describe the game's programs.
 - **c3, an upgrade over 1.5.2 on each system,** hidden: the Setup over an
   installed 1.5.2 on the PC, the DMG's swap-in on the Mac, and the AppImage's
   swap on Linux. Each keeps the BattleTech folder, `mw3.cfg`'s lines and the

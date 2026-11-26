@@ -24,9 +24,27 @@ execute_process(COMMAND git describe --tags --match "v[0-9]*" --always --dirty W
                 OUTPUT_VARIABLE MW3_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 execute_process(COMMAND git rev-list --count HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                 OUTPUT_VARIABLE MW3_BUILD_NUMBER OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+# Before the hub's own first tag (v1.6.1) the nearest tag behind main is v1.2.2: the launchers released in between
+# were tagged on mech3-re's commits. A build is never older than those: when the describe's tag is not the newest
+# vX.Y.Z here, it is "<newest>-dev-g<commit>", which the update check counts as that release (update.h).
+execute_process(COMMAND git tag --list "v[0-9]*" --sort=-v:refname WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                OUTPUT_VARIABLE MW3_TAGS OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+string(REGEX MATCH "^[^\n]+" MW3_NEWEST_TAG "${MW3_TAGS}")
+string(REGEX MATCH "^v[0-9][^-]*" MW3_DESCRIBED_TAG "${MW3_VERSION}")
+if(MW3_NEWEST_TAG AND NOT MW3_DESCRIBED_TAG STREQUAL MW3_NEWEST_TAG)
+  execute_process(COMMAND git rev-parse --short HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                  OUTPUT_VARIABLE MW3_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+  set(MW3_DIRTY "")
+  if(MW3_VERSION MATCHES "-dirty$")
+    set(MW3_DIRTY "-dirty")
+  endif()
+  set(MW3_VERSION "${MW3_NEWEST_TAG}-dev-g${MW3_COMMIT}${MW3_DIRTY}")
+endif()
 if(NOT MW3_VERSION)
   set(MW3_VERSION "unknown")
 endif()
+# The package scripts name their files and the Mac app's version by this one (tools/macos, tools/windows, tools/linux).
+file(WRITE ${CMAKE_BINARY_DIR}/mw3_version.txt "${MW3_VERSION}")
 if(NOT MW3_BUILD_NUMBER)
   set(MW3_BUILD_NUMBER 0)
 endif()

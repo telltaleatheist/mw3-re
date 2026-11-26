@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!-- The hardened runtime's exceptions the app needs: none. Every library in
+     Contents/Frameworks is signed with the app's own identity, nothing is
+     generated at run time, and the app is not sandboxed. -->
+<dict/>
+</plist>

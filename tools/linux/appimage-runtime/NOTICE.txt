@@ -1,0 +1,26 @@
+The AppImage runtime
+====================
+
+The AppImage file starts with a small program, the type-2 AppImage runtime
+(release 20251108, https://github.com/AppImage/type2-runtime/releases/tag/20251108),
+copyright (c) 2004-23 probonopd, MIT licence (type2-runtime-LICENSE.txt). It is
+a separate program from the games and the launcher. It is used unmodified, as
+released, and has these libraries linked in statically, by the versions its
+build recipe at that tag names:
+
+- libfuse 3.15.0, with the patch patches/libfuse/mount.c.diff of that tag.
+  GNU Lesser General Public License, version 2.1 (libfuse-LGPL2.txt; which
+  files it covers: libfuse-LICENSE.txt). Source: https://github.com/libfuse/libfuse/releases/tag/fuse-3.15.0
+- squashfuse 0.5.2. BSD 2-Clause (squashfuse-LICENSE.txt).
+  Source: https://github.com/vasi/squashfuse/releases/tag/0.5.2
+- Zstandard, as Alpine Linux 3.21 packages it. BSD 3-Clause (zstd-LICENSE.txt).
+- zlib, as Alpine Linux 3.21 packages it. zlib licence (zlib-LICENSE.txt).
+- mimalloc, as Alpine Linux 3.21 packages it. MIT licence (mimalloc-LICENSE.txt).
+- musl, as Alpine Linux 3.21 packages it. MIT licence (musl-COPYRIGHT.txt).
+
+The runtime's complete source, the libfuse patch and the scripts that build it
+(scripts/common/install-dependencies.sh fetches libfuse and squashfuse by
+checksum) are at https://github.com/AppImage/type2-runtime/tree/20251108. With
+them anyone can change libfuse and link the runtime again; the AppImage runs
+with another type-2 runtime by putting it in place of this one (an AppImage's
+contents are unpacked with --appimage-extract).
