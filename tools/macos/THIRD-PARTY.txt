@@ -10,7 +10,8 @@ official release source. Thank you to all of their authors.
 SDL 3 (libSDL3), version 3.4.12
 -------------------------------
 Simple DirectMedia Layer, https://www.libsdl.org/
-Copyright (C) 1997-2026 Sam Lantinga and others. zlib licence.
+Copyright (C) 1997-2026 Sam Lantinga and others. zlib licence
+(licenses/SDL3-3.4.12/LICENSE.txt).
 
 
 FreeType 2.14.3 (built into the launcher)
@@ -84,7 +85,7 @@ Utils: only liblzma is used). libarchive's LZMA and LZMA2 (7z, xz).
 RmlUi 6.3 (built into the launcher)
 -----------------------------------
 The launcher's screens, https://github.com/mikke89/RmlUi. MIT licence
-(licenses/rmlui\LICENSE.txt; the containers it carries, robin_hood
+(licenses/rmlui/LICENSE.txt; the containers it carries, robin_hood
 and itlib, also MIT: LICENSE-containers.txt beside it). Its text is drawn
 with FreeType 2.14.3 (above).
 Copyright (c) 2008-2014 CodePoint Ltd, Shift Technology Ltd, and contributors

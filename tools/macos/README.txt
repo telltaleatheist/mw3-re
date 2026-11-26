@@ -20,11 +20,16 @@ Installing
 It runs on macOS 12 (Monterey) or later, on Apple silicon and Intel Macs.
 Drag "MechWarrior 3" (shown as BattleTech) into Applications and start it.
 
+[notarized]
+The app is signed with a Developer ID and notarized by Apple: it opens like
+any other app.
+[unsigned]
 The first time, macOS says it cannot check the app for malicious software
-(it is a free fan project, not registered with Apple). Open it once this way:
-right-click (or Control-click) the app, choose Open, then Open again. Or, after
-macOS has blocked it once: System Settings > Privacy & Security, and click
-"Open Anyway" beside its name. After that it starts normally.
+(this build is not notarized by Apple). Open it once this way: right-click
+(or Control-click) the app, choose Open, then Open again. Or, after macOS has
+blocked it once: System Settings > Privacy & Security, and click "Open
+Anyway" beside its name. After that it starts normally.
+[end]
 
 Using it
 --------

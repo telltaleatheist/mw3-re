@@ -2,21 +2,32 @@
 # Builds the launcher's app, "MechWarrior 3.app" (shown as BattleTech), and its DMG for Mac players (docs/launcher.md,
 # Games on demand: the launcher downloads each game, so no game is in it): a package build (MW3_PACKAGE), the
 # libraries it loads copied into Contents/Frameworks with their paths rewritten to @rpath, the icon, Info.plist,
-# every binary signed ad hoc (no identity, so no name in the signature: the releases are not Developer ID signed or
-# notarized), then the DMG. The names and the bundle ID are every earlier launcher's, so the updater takes it.
+# every Mach-O and the app signed, then the DMG, signed, notarized and stapled when the keychain has what that needs
+# (docs/launcher.md, Mac signing). The names and the bundle ID are every earlier launcher's, so the updater takes it.
 #
 #   tools/macos/make_app.sh                          run from the repo root
-#   tools/macos/make_app.sh --identity "<IDENTITY>"  opt-in, never for releases:
-#        signs with that keychain identity and the hardened runtime instead
 #   tools/macos/make_app.sh --deps                   the release form: universal
 #        (arm64, x86_64), macOS 12 and later, against the libraries
 #        tools/deps/build_deps.sh mac built (build-deps/mac/prefix), not Homebrew's
+#
+# Signing (2026-11-26: releases are Developer ID signed and notarized from 1.7.0), from the environment, so no name
+# or team is ever in the repo:
+#   MW3_SIGN_IDENTITY   the keychain's "Developer ID Application: ..." identity (its name or SHA-1): every Mach-O,
+#                       the app and the DMG signed with it, the hardened runtime and a secure timestamp. Unset: ad
+#                       hoc, as every release before 1.7.0 (macOS then asks once before the first open, README.txt).
+#   MW3_NOTARY_PROFILE  a notarytool keychain profile (xcrun notarytool store-credentials): the DMG notarized
+#                       (submit --wait), its ticket stapled, Gatekeeper's verdict checked.
+#   MW3_ALLOW_UNSIGNED=1  a build that will not be notarized (no identity, no profile, or no such profile in the
+#                       keychain): refused without it, so an unnotarized DMG never reaches a release. Development
+#                       and check builds set it; their README.txt keeps the "Open Anyway" paragraph.
+#   --identity "<IDENTITY>" is MW3_SIGN_IDENTITY given on the command line.
 #
 # Out: build-mac/dist/MechWarrior 3.app and
 #      build-mac/dist/MW3-Rebuild-<git describe>-mac.dmg
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-ID="-"  # ad hoc
+ID="${MW3_SIGN_IDENTITY:--}"  # "-": ad hoc
+NOTARY="${MW3_NOTARY_PROFILE:-}"
 DEPS=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -26,6 +37,20 @@ while [ $# -gt 0 ]; do
   esac
 done
 if [ -n "$DEPS" ] && [ ! -d "$DEPS/lib" ]; then echo "no $DEPS: run tools/deps/build_deps.sh mac first" >&2; exit 1; fi
+# Notarized, or said why not, before anything is built.
+NOTARIZE=0 WHY=""
+if [ "$ID" = "-" ]; then WHY="no MW3_SIGN_IDENTITY (ad hoc)"
+elif [ -z "$NOTARY" ]; then WHY="no MW3_NOTARY_PROFILE"
+elif ! xcrun notarytool history --keychain-profile "$NOTARY" >/dev/null 2>&1; then
+  WHY="no notarytool profile \"$NOTARY\" in the keychain (xcrun notarytool store-credentials)"
+else NOTARIZE=1; fi
+if [ "$NOTARIZE" = 0 ]; then
+  if [ "${MW3_ALLOW_UNSIGNED:-}" != 1 ]; then
+    echo "refused: this DMG would not be notarized: $WHY. Set MW3_ALLOW_UNSIGNED=1 for a build not for release." >&2
+    exit 1
+  fi
+  echo "note: not notarized: $WHY (MW3_ALLOW_UNSIGNED=1)" >&2
+fi
 if [ -z "$DEPS" ]; then
   echo "note: Homebrew's libraries (this Mac's macOS, arm64 only); THIRD-PARTY.txt describes the --deps build: not for release" >&2
 fi
@@ -78,16 +103,15 @@ def licences(real, name):
         stem = name.split('.')[0].removeprefix('lib')
         srcs = [d for d in glob.glob(os.path.join(os.path.dirname(prefix), 'work/src/*'))
                 if os.path.basename(d).lower().startswith(stem.lower() + '-')]
+        # Into licenses/<its source folder> (SDL3-3.4.12), as the Windows package names it.
+        if not srcs:
+            sys.exit(f'{name}: no source folder in {os.path.dirname(prefix)}/work/src for its licence')
         for d in srcs:
+            sub = os.path.join(app, 'Contents/Resources/licenses', os.path.basename(d))
             for n in os.listdir(d):
                 if n.upper().startswith(('LICEN', 'COPYING')) and os.path.isfile(os.path.join(d, n)):
-                    sub = os.path.join(dst, os.path.basename(d))
                     os.makedirs(sub, exist_ok=True)
                     shutil.copy2(os.path.join(d, n), sub)
-            # FreeType's LICENSE.TXT points to the FTL it is used under.
-            ftl = os.path.join(d, 'docs', 'FTL.TXT')
-            if os.path.isfile(ftl):
-                shutil.copy2(ftl, os.path.join(dst, os.path.basename(d)))
         return
     # Its licence files, from its keg (Cellar/<formula>/<version>/).
     keg = os.path.dirname(os.path.dirname(real))
@@ -197,8 +221,22 @@ SHOWN="BattleTech"
 mkdir -p "$APP/Contents/Resources/en.lproj"
 printf 'CFBundleName = "%s";\nCFBundleDisplayName = "%s";\n' "$SHOWN" "$SHOWN" > "$APP/Contents/Resources/en.lproj/InfoPlist.strings"
 
-# The read-me and the notices beside the program.
-cp tools/macos/README.txt "$APP/Contents/Resources/README.txt"
+# The read-me and the notices beside the program: its first-open paragraph the notarized build's or the other's.
+mkdir -p build-mac
+python3 -I - "$NOTARIZE" tools/macos/README.txt build-mac/README.txt <<'PY'
+import sys
+want = '[notarized]' if sys.argv[1] == '1' else '[unsigned]'
+out, keep = [], True
+for line in open(sys.argv[2]).read().splitlines(keepends=True):
+    tag = line.strip()
+    if tag in ('[notarized]', '[unsigned]', '[end]'):
+        keep = tag in (want, '[end]')
+        continue
+    if keep:
+        out.append(line)
+open(sys.argv[3], 'w').write(''.join(out))
+PY
+cp build-mac/README.txt "$APP/Contents/Resources/README.txt"
 if [ -f LICENSE ]; then cp LICENSE "$APP/Contents/Resources/LICENSE.txt"; fi
 mkdir -p "$APP/Contents/Resources/licenses/saira-condensed"
 cp assets/launcher/font-OFL.txt "$APP/Contents/Resources/licenses/saira-condensed/OFL.txt"
@@ -210,22 +248,28 @@ cp extern/re-setup-kit/third_party/miniz/LICENSE "$APP/Contents/Resources/licens
 cp tools/macos/THIRD-PARTY.txt "$APP/Contents/Resources/THIRD-PARTY.txt"
 # libarchive, zlib, liblzma and FreeType: linked in with --deps (build_deps.sh
 # keeps their licences in the prefix); Homebrew's are dylibs, their licences
-# copied with them above.
+# copied with them above. Only those: the prefix also has SDL3_ttf's (the Linux
+# launcher's alone) and SDL3's, which is beside its dylib already.
 if [ -n "$DEPS" ]; then
-  for l in libarchive-3.7.9 freetype-2.14.3; do
+  for l in libarchive-3.7.9 freetype-2.14.3 xz-5.8.1 zlib-1.3.1; do
     [ -d "$DEPS/share/licenses/$l" ] || { echo "no $l licences in $DEPS/share/licenses: run tools/deps/build_deps.sh mac again" >&2; exit 1; }
+    cp -R "$DEPS/share/licenses/$l" "$APP/Contents/Resources/licenses/"
   done
-  cp -R "$DEPS/share/licenses/." "$APP/Contents/Resources/licenses/"
 fi
 
-# Signing: the libraries first, then the app. Ad hoc by default (the
-# release form: macOS asks once before the first open, README.txt). With
-# --identity: the hardened runtime and a secure timestamp too.
-# tools/macos/mw3.entitlements grants nothing: the app needs no exception.
-if [ "$ID" = "-" ]; then SIGN=(--force --sign -); else SIGN=(--force --timestamp --options runtime --sign "$ID"); fi
-for f in "$APP"/Contents/Frameworks/*.dylib; do
-  codesign "${SIGN[@]}" "$f"
-done
+# Signing: every Mach-O inside first (the libraries; any other program), then the app, whose own executable is
+# signed with it. With an identity: the hardened runtime and a secure timestamp, as notarization requires.
+# tools/macos/mw3.entitlements grants nothing: no JIT, nothing loaded at run time, no sandbox.
+if [ "$ID" = "-" ]; then
+  echo "note: signed ad hoc (no MW3_SIGN_IDENTITY): macOS asks once before the first open" >&2
+  SIGN=(--force --sign -)
+else
+  SIGN=(--force --timestamp --options runtime --sign "$ID")
+fi
+MAIN="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
+while IFS= read -r -d '' f; do
+  if [ "$f" != "$MAIN" ] && [[ "$(file -b "$f")" == Mach-O* ]]; then codesign "${SIGN[@]}" "$f"; fi
+done < <(find "$APP/Contents" -type f -print0)
 codesign "${SIGN[@]}" --entitlements tools/macos/mw3.entitlements "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 # The launcher alone, as the app's executable: no game program in it.
@@ -239,10 +283,29 @@ STAGE="build-mac/dmg"
 rm -rf "$STAGE" "$DMG" && mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-cp tools/macos/README.txt "$STAGE/Read me.txt"
+cp build-mac/README.txt "$STAGE/Read me.txt"
 # No local path or user name in anything shipped (release.md, Privacy).
 python3 -I tools/deps/check_paths.py "$STAGE" || exit 1
 hdiutil create -volname "$NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 if [ "$ID" != "-" ]; then codesign --force --timestamp --sign "$ID" "$DMG"; fi
+
+# Notarization: the DMG (the app inside it with it), its ticket stapled to the DMG and to the app here, and
+# Gatekeeper's verdict on both. A missing profile is said and skipped; a rejection stops the build with Apple's log.
+if [ "$NOTARIZE" = 1 ]; then
+  echo "Notarizing $DMG (a few minutes)..."
+  SAID=$(xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY" --wait --output-format json) || true
+  STATUS=$(printf '%s' "$SAID" | python3 -I -c 'import json,sys; d=json.load(sys.stdin); print(d.get("status",""), d.get("id",""))' 2>/dev/null || true)
+  if [ "${STATUS%% *}" != "Accepted" ]; then
+    echo "notarization: ${STATUS:-no answer}" >&2
+    [ -n "${STATUS#* }" ] && xcrun notarytool log "${STATUS#* }" --keychain-profile "$NOTARY" >&2 || true
+    exit 1
+  fi
+  echo "notarization: Accepted (${STATUS#* })"
+  xcrun stapler staple "$DMG"
+  xcrun stapler staple "$APP"
+  xcrun stapler validate "$DMG"
+  spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
+  spctl --assess --type execute --verbose=2 "$APP"
+fi
 echo "App: $APP"
 echo "DMG: $DMG"
