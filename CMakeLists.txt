@@ -27,21 +27,30 @@ execute_process(COMMAND git rev-list --count HEAD WORKING_DIRECTORY ${CMAKE_SOUR
 # Before the hub's own first tag (v1.6.1) the nearest tag behind main is v1.2.2: the launchers released in between
 # were tagged on mech3-re's commits. A build is never older than those: when the describe's tag is not the newest
 # vX.Y.Z here, it is "<newest>-dev-g<commit>", which the update check counts as that release (update.h).
+# A checkout with no vX.Y.Z tag at all (a bundle, a source tarball): a package refuses to build, as its version would
+# rank below every release and be offered each one; a development build is "v0.0.0-dev-g<commit>".
 execute_process(COMMAND git tag --list "v[0-9]*" --sort=-v:refname WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                 OUTPUT_VARIABLE MW3_TAGS OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 string(REGEX MATCH "^[^\n]+" MW3_NEWEST_TAG "${MW3_TAGS}")
+if(NOT MW3_NEWEST_TAG)
+  if(MW3_PACKAGE)
+    message(FATAL_ERROR "No vX.Y.Z tag in this checkout: a package needs the repo's tags for its version (git fetch --tags)")
+  endif()
+  set(MW3_NEWEST_TAG "v0.0.0")
+endif()
 string(REGEX MATCH "^v[0-9][^-]*" MW3_DESCRIBED_TAG "${MW3_VERSION}")
-if(MW3_NEWEST_TAG AND NOT MW3_DESCRIBED_TAG STREQUAL MW3_NEWEST_TAG)
+if(NOT MW3_DESCRIBED_TAG STREQUAL MW3_NEWEST_TAG)
   execute_process(COMMAND git rev-parse --short HEAD WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                   OUTPUT_VARIABLE MW3_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
   set(MW3_DIRTY "")
   if(MW3_VERSION MATCHES "-dirty$")
     set(MW3_DIRTY "-dirty")
   endif()
-  set(MW3_VERSION "${MW3_NEWEST_TAG}-dev-g${MW3_COMMIT}${MW3_DIRTY}")
-endif()
-if(NOT MW3_VERSION)
-  set(MW3_VERSION "unknown")
+  if(MW3_COMMIT)
+    set(MW3_VERSION "${MW3_NEWEST_TAG}-dev-g${MW3_COMMIT}${MW3_DIRTY}")
+  else()  # not a git checkout
+    set(MW3_VERSION "${MW3_NEWEST_TAG}-dev")
+  endif()
 endif()
 # The package scripts name their files and the Mac app's version by this one (tools/macos, tools/windows, tools/linux).
 file(WRITE ${CMAKE_BINARY_DIR}/mw3_version.txt "${MW3_VERSION}")
