@@ -24,7 +24,8 @@ for you:
 - **MechWarrior 3**, rebuilt as above;
 - **Pirate's Moon**, the expansion, rebuilt the same way from its own exe;
 - **MechWarrior 1: Reverse Engineered** (MW1 Rebuild for short), MechWarrior
-  (1989) reverse engineered and rebuilt in C++; plays from your own DOS copy;
+  (1989) reverse engineered and rebuilt in C++, built on
+  [Elthial's SDL port](https://github.com/Elthial/Mechwarrior-sdl-port); plays from your own DOS copy;
 - **MechWarrior 1 Remake** (formerly MW1: Critical Hit), a fan remake of
   MechWarrior (1989)'s mercenary campaign on MechWarrior 3's combat, worlds
   and 'Mechs;
