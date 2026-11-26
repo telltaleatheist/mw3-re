@@ -489,7 +489,8 @@ TEST(sdl_program_launcher_follows_the_mouse) {
 // programs): MECHWARRIOR 3 (--launcher-play) runs MW3_GAME_BIN, here a
 // stand-in with the install and this start's options, as `script` says
 // (it keeps its arguments; READY writes the ready file, DONE its end's
-// mark, which it also writes when it reaches the script's end). The launcher ends at
+// mark, which it also writes when it reaches the script's end). With
+// WHEN A GAME STARTS at CLOSE (`game_start`, these checks' default) the launcher ends at
 // the game's first frame and leaves it running (2026-11-01); a game
 // that ends first or is slow leaves it up. Hidden, without sound.
 namespace {
@@ -504,13 +505,15 @@ struct LauncherRun {
 // (its write dir is <dir>/wd) to lay out files first.
 LauncherRun run_launcher_with(const std::string& name, const std::string& script, const char* ready_ms = nullptr,
                               const std::vector<std::pair<std::string, std::string>>& env = {},
-                              const std::function<void(const std::string&)>& before = nullptr, bool play = true) {
+                              const std::function<void(const std::string&)>& before = nullptr, bool play = true,
+                              const char* game_start = "close") {
   LauncherRun out;
   const std::string dir = std::string(MW3_TEST_TMP) + "/" + name;
   std::error_code ec;
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir + "/wd", ec);
   if (before) before(dir);
+  if (game_start) std::ofstream(dir + "/wd/mw3.cfg", std::ios::app) << "game_start=" << game_start << "\n";  // WHEN A GAME STARTS
   const std::string game = dir + "/mw3", done = dir + "/done";
   {
     std::ofstream sh(game);
@@ -570,6 +573,26 @@ TEST(sdl_program_launcher_waits_for_the_game_in_an_appimage) {
   const LauncherRun r = run_launcher_with("launcher_game_image", "READY\nsleep 2", nullptr, {{"APPIMAGE", "/x.AppImage"}});
   EXPECT(r.exited && !r.game_alive && r.game_finished);
   EXPECT(has(r.log, "the game's first frame") && has(r.log, "MechWarrior 3 exited (0)"));
+}
+
+
+// KEEP OPEN (the default, 2026-11-26) and MINIMISE: the launcher stays at the game's first frame and watches it to its
+// end (--launcher-play then quits); no game_start= in mw3.cfg is KEEP OPEN.
+TEST(sdl_program_launcher_keeps_open_while_the_game_runs) {
+  const LauncherRun open = run_launcher_with("launcher_game_open", "READY\nsleep 2", nullptr, {}, nullptr, true, nullptr);
+  std::printf("KEEP OPEN: stayed %d, saw the game's end %d, ended after it %d\n", has(open.log, "the launcher stays open"),
+              has(open.log, "MechWarrior 3 exited (0)"), open.exited && !open.game_alive);
+  EXPECT(open.exited && !open.game_alive && open.game_finished);
+  EXPECT(has(open.log, "the game's first frame") && has(open.log, "the launcher stays open") && !has(open.log, "the launcher closes"));
+  EXPECT(has(open.log, "MechWarrior 3 exited (0)"));
+  const LauncherRun min = run_launcher_with("launcher_game_min", "READY\nsleep 2", nullptr, {}, nullptr, true, "minimise");
+  EXPECT(min.exited && !min.game_alive && has(min.log, "the launcher minimises") && has(min.log, "MechWarrior 3 exited (0)"));
+  // A game that starts itself again after its first frame (Windows' restart): it goes on; the launcher stays without a
+  // word of an error, its panel no longer following it.
+  const LauncherRun again = run_launcher_with("launcher_game_open_again", "READY\nsleep 1\nDONE\nexit " + std::to_string(sdlfe::kStartedAgainExit),
+                                              nullptr, {}, nullptr, true, "open");
+  EXPECT(again.exited && has(again.log, "started itself again") && has(again.log, "no longer watched"));
+  EXPECT(!has(again.log, "closed with an error") && !has(again.log, "the launcher closes"));
 }
 
 

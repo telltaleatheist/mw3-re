@@ -44,6 +44,9 @@ Each game has a panel in the list, its button at the right.
   it when there is one) and UNINSTALL.
 - CHECK FOR UPDATES asks again for the launcher and every game; when the
   launcher itself has a new version, UPDATE LAUNCHER installs it.
+- LAUNCHER SETTINGS chooses what the launcher does when a game starts:
+  KEEP OPEN (the default: it stays up, the game's button says RUNNING, and
+  other games can be started), MINIMISE or CLOSE.
 - MechWarrior 1 Remake plays from MechWarrior 3's and Pirate's Moon's game
   files, so it needs both set up first.
 

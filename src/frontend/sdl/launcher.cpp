@@ -256,6 +256,7 @@ enum Id {
   kGameUnlink, kGameUninstall, kGameFilesPick, kGameBack,
   kGameRemove,  // UNINSTALL of the linked copy (2026-11-24)
   kUninstallGo, kUninstallAll, kUninstallBack,  // UNINSTALL's confirm: the program, the program and its game files, KEEP IT  // its PICK A FILE: the one picker (1.3.4 had it at kCopy + 1, the second row's id: that row opened the picker)
+  kSettings = 190, kOnStart,  // LAUNCHER SETTINGS; + 0 KEEP OPEN, 1 MINIMISE, 2 CLOSE (2026-11-26)
 };
 
 // A copy of a game's files on this computer, as GAME FILES lists them (2026-11-24: "the user should be able to pick
@@ -323,7 +324,10 @@ struct Pick {
 
 class Launcher {
  public:
-  explicit Launcher(const LauncherOptions& o) : o_(o) { sdlfe::stop_asking(false); }  // an earlier one's quit set it
+  explicit Launcher(const LauncherOptions& o) : o_(o) {
+    sdlfe::stop_asking(false);  // an earlier one's quit set it
+    on_start_ = o.cfg_game_start == "minimise" ? kMinimise : o.cfg_game_start == "close" ? kClose : kKeepOpen;
+  }
   ~Launcher() {
     // A quit never waits on the network (lead 2026-11-23): the checks' curls stopped before their threads are
     // joined (games_check_, self_check_), else a home that hangs held the quit for its timeouts.
@@ -428,7 +432,7 @@ class Launcher {
   LauncherUi ui_;
   Text text_{&ui_, false};
   Text body_{&ui_, true};  // the panels' small lines (font_body.ttf)
-  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kUpdateScreen, kCopies, kGamePage } screen_ = kMain;
+  enum Screen { kMain, kSetupScreen, kConfirm, kWorking, kNotes, kDataScreen, kUpdateScreen, kCopies, kGamePage, kSettingsScreen } screen_ = kMain;
   std::vector<Copy> copies_;  // kCopies' rows (find_copies)
   void find_copies();
   std::vector<std::string> notes_;  // the first start's (launcher_notes)
@@ -601,19 +605,39 @@ class Launcher {
   std::shared_ptr<sdlfe::games::Done> game_done_;
   std::shared_ptr<sdlfe::games::FileCheck> file_check_;
   std::string install_file_;
-  bool watch_mount_ = false;
   bool install_file_asked_ = false;  // MW3_LAUNCHER_INSTALL_FILE (checks): pressed once  // the game started runs from this AppImage's mount (start_game)
   std::string pm_data_;                  // ... its data's version ("1.0", "unknown", "incomplete")
   std::vector<std::string> mw3_check_notes_;  // start_check's for MW3, part of notes_ (notes_refresh)
   std::string mw3_program_, pm_program_, mw1_program_;  // each game's program's version (--version), once at the start
   bool entries_logged_ = false;
-  std::string game_name_ = "MechWarrior 3";  // the one started, for the status lines
-  SDL_Process* game_ = nullptr;  // mw3, started by MECHWARRIOR 3 (game_bin)
-  Uint64 game_click_ = 0;
-  bool game_slow_ = false;
-  std::string game_status_;     // the game's own status line before its first frame
-  double status_read_ms_ = -1e9;  // no first frame within ready_wait_ms(): the status line says so
-  std::string ready_file_;
+  // The games running, one a game (KEEP OPEN, 2026-11-26: the launcher stays beside them, docs/launcher.md, When a
+  // game starts). MechWarrior 3 and Pirate's Moon say their first frame through the ready file; a kit game is
+  // counted up from its start.
+  struct Run {
+    SDL_Process* p = nullptr;
+    std::string name, ready_file;
+    Uint64 click = 0;
+    bool ready = false;   // its first frame seen (a kit game: started)
+    bool slow = false;    // no first frame within ready_wait_ms(): the status line says so
+    bool mount = false;   // it runs from this AppImage's mount (start_game)
+    bool kit = false;     // a kit game or MechWarrior 1 Remake: its status read again after it exits
+    std::string said;     // the game's own status line before its first frame
+    double read_ms = -1e9;
+  };
+  Run runs_[upgrades::update::kMaxGames];
+  bool running(int i) const { return i >= 0 && i < upgrades::update::kMaxGames && runs_[i].p; }
+  bool any_running() const;
+  bool any_starting() const;  // a game before its first frame: the launcher waits for it, as it always has
+  bool update_after_[upgrades::update::kMaxGames] = {};  // an UPDATE pressed while its game ran: done when it exits
+  enum OnStart { kKeepOpen, kMinimise, kClose };
+  OnStart on_start_ = kKeepOpen;  // LAUNCHER SETTINGS' WHEN A GAME STARTS (mw3.cfg's game_start=)
+  // A game's own setup (mw3 or mw3pm started alone) is not the launcher: it goes once the game is up.
+  OnStart on_start() const { return o_.setup_only || o_.pm ? kClose : on_start_; }
+  void set_on_start(OnStart v);
+  void track(int i, SDL_Process* p, const std::string& name, bool kit);
+  void game_exited(int i, int code);
+  void mount_wait(Run& r);
+  void restore_window();
   bool mw1_logged_ = false;  // MW1: its entry's line said once
   bool mw1_remake_ = false;  // MechWarrior 1 Remake's mw1 beside ours
   // MechWarrior 1 Remake's program; its MechWarrior (1989) folder: its status's where (b5), an older one's mw1_game=
@@ -1161,6 +1185,8 @@ void Launcher::next_update() {
     install_game_now(i);
     if (work_) return;
   }
+  for (bool w : update_after_)  // UPDATE ALL's launcher last, after a game waiting for its end (its start would lose it)
+    if (w) return;
   if (std::exchange(update_queue_self_, false) && self_update_) update_ = self_update_, read_update_notes(), activate(kUpdateGo);
 }
 
@@ -1201,6 +1227,12 @@ void Launcher::ask_place(int i) {
 void Launcher::install_game_now(int i) {
   using namespace upgrades::update;
   if (i < 0 || i >= upgrades::update::game_count() || work_ || checks_[i].kind != GameCheck::kNewer) return;
+  if (running(i)) {  // KEEP OPEN: never under a running game; begun when it exits (game_exited)
+    update_after_[i] = true;
+    status_ = runs_[i].name + " updates when it closes.", status_good_ = true;
+    std::printf("mw3: launcher: %s\n", status_.c_str());
+    return layout();
+  }
   const Game g = upgrades::update::game_at(i);
   const bool update = !game_bin(i).empty();
   work_ = std::make_unique<Work>();
@@ -1361,6 +1393,7 @@ void Launcher::run_mw1_remake() {
   std::vector<const char*> raw;
   for (const std::string& a : args) raw.push_back(a.c_str());
   raw.push_back(nullptr);
+  if (running(2)) return;
   SDL_Process* p = SDL_CreateProcess(raw.data(), false);
   if (!p) {
     status_ = std::string("MechWarrior 1 did not start: ") + SDL_GetError(), status_good_ = false;
@@ -1368,18 +1401,7 @@ void Launcher::run_mw1_remake() {
     return;
   }
   std::printf("mw3: launcher: MechWarrior 1 started\n");
-  if (win_) SDL_HideWindow(win_);
-  int code = 0;
-  while (!SDL_WaitProcess(p, false, &code)) {
-    SDL_PumpEvents();
-    SDL_Delay(50);
-  }
-  SDL_DestroyProcess(p);
-  std::printf("mw3: launcher: MechWarrior 1 exited (%d)\n", code);
-  status_ = code == 0 ? "MechWarrior 1 closed." : "MechWarrior 1 closed with an error (" + std::to_string(code) + "): see its log.";
-  status_good_ = code == 0;
-  if (win_ && !o_.hidden) SDL_ShowWindow(win_), SDL_RaiseWindow(win_);
-  kit_refresh(2);  // what it did to its files (b5)
+  track(2, p, "MechWarrior 1", true);  // its status read again when it exits: what it did to its files (b5)
 }
 
 // An older Remake (no served setup) with no MechWarrior (1989) kept: only the launcher's finder gave it one, and that
@@ -1502,6 +1524,7 @@ void Launcher::run_kit(int i, bool set_up) {
   const std::string bin = game_bin(i), name = upgrades::update::game_info(upgrades::update::game_at(i)).name;
   if (bin.empty() || work_) return;
   if (!set_up && kit_serves(i) && !kit_set_up(i)) return open_kit_files(i, true);
+  if (running(i)) return;
   const char* args[] = {bin.c_str(), nullptr};
   SDL_Process* p = SDL_CreateProcess(args, false);
   if (!p) {
@@ -1510,19 +1533,24 @@ void Launcher::run_kit(int i, bool set_up) {
     return layout();
   }
   std::printf("mw3: launcher: %s started\n", name.c_str());
-  if (win_) SDL_HideWindow(win_);
-  int code = 0;
-  while (!SDL_WaitProcess(p, false, &code)) {
-    SDL_PumpEvents();
-    SDL_Delay(50);
-  }
-  SDL_DestroyProcess(p);
-  std::printf("mw3: launcher: %s exited (%d)\n", name.c_str(), code);
-  status_ = code == 0 ? name + " closed." : name + " closed with an error (" + std::to_string(code) + "): see its log.";
-  status_good_ = code == 0;
-  if (win_ && !o_.hidden) SDL_ShowWindow(win_), SDL_RaiseWindow(win_);
-  kit_refresh(i);
+  track(i, p, name, true);  // its status read again when it exits
   layout();
+}
+
+// A kit game or MechWarrior 1 Remake started (no first-frame signal: running from its start). The window as WHEN A
+// GAME STARTS says: kept, minimised, or (CLOSE) hidden until the game exits, as these always were: the launcher
+// reads its status again then.
+void Launcher::track(int i, SDL_Process* p, const std::string& name, bool kit) {
+  Run& r = runs_[i];
+  r = Run();
+  r.p = p, r.name = name, r.kit = kit, r.ready = kit, r.click = SDL_GetTicksNS();
+  if (!kit) return;
+  allow_foreground(p);  // FIX (A), W4 as start_game's: the launcher stays up, so the game is let to the front
+  status_ = name + " is running.", status_good_ = true;
+  if (win_ && !o_.hidden) {
+    if (on_start() == kMinimise) SDL_MinimizeWindow(win_);
+    else if (on_start() == kClose) SDL_HideWindow(win_);
+  }
 }
 
 void Launcher::open_kit_files(int i, bool play) {
@@ -1726,13 +1754,17 @@ std::vector<std::string> Launcher::pm_notes(own::Result* check) {
 
 // MechWarrior 3 as its own program (game_bin): the install and the options
 // passed on, the launcher kept on screen until the game's first frame
-// (mw3 --ready-file) so the switch shows no empty moment, then closed: the
-// game goes on alone (2026-11-01).
+// (mw3 --ready-file) so the switch shows no empty moment; then as WHEN A GAME
+// STARTS says (2026-11-26: kept up beside it, minimised, or closed with the
+// game going on alone, as since 2026-11-01).
 void Launcher::start_game(bool pm) {
   std::error_code ec;
-  game_name_ = pm ? "Pirate's Moon" : "MechWarrior 3";
-  ready_file_ = (fs::temp_directory_path(ec) / ("mw3-ready-" + std::to_string(SDL_GetTicksNS()))).string();
-  fs::remove(ready_file_, ec);
+  const int gi = pm ? 1 : 0;
+  if (running(gi)) return;
+  Run run;
+  run.name = pm ? "Pirate's Moon" : "MechWarrior 3";
+  run.ready_file = (fs::temp_directory_path(ec) / ("mw3-ready-" + std::to_string(SDL_GetTicksNS()))).string();
+  fs::remove(run.ready_file, ec);
   // PM has its own install, settings and saves: nothing of MW3's goes to it.
   std::vector<std::string> args;
   // b6 (decided 2026-11-26): a game that serves its setup finds the copy its status shows on its own (mw3_status_find),
@@ -1751,7 +1783,7 @@ void Launcher::start_game(bool pm) {
     if (!served) args.push_back(install_.dir);
     args.insert(args.end(), o_.game_args.begin(), o_.game_args.end());
   }
-  args.push_back("--ready-file"), args.push_back(ready_file_);
+  args.push_back("--ready-file"), args.push_back(run.ready_file);
   // W15: the other game's data folder and install, where a mod imported for it is added.
   const std::string other_wd = pm ? o_.write_dir : pm_wd(), other_install = pm ? (install_.ok ? install_.dir : "") : pm_dir_;
   if (!other_wd.empty() && !other_install.empty())
@@ -1761,7 +1793,7 @@ void Launcher::start_game(bool pm) {
   for (const std::string& a : args) argv.push_back(a.c_str()), line += (line.empty() ? "" : " ") + a;
   argv.push_back(nullptr);
   if (!pm && !served) own::save_install(o_.write_dir, install_.dir);
-  game_click_ = SDL_GetTicksNS(), game_slow_ = false, game_status_.clear(), status_read_ms_ = -1e9;
+  run.click = SDL_GetTicksNS();
   // Its own stdio, none of ours: the game writes mw3.log itself, and our
   // log's pipe in its stdout would hold this program's exit until the game's.
   const SDL_PropertiesID props = SDL_CreateProperties();
@@ -1772,102 +1804,167 @@ void Launcher::start_game(bool pm) {
   // The game's box after a crash would page from a mount going away: this
   // program's instead (watch_game), which stays for an AppImage.
   // A game the launcher installed runs from its own folder: nothing to wait for (sdl_games.h).
-  watch_mount_ = sdlfe::games::in_own_mount(args.front());
-  SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "MW3_LAUNCHER_WATCHES", watch_mount_ ? "1" : "", true);
-  game_ = SDL_CreateProcessWithProperties(props);
+  run.mount = sdlfe::games::in_own_mount(args.front());
+  SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "MW3_LAUNCHER_WATCHES", run.mount ? "1" : "", true);
+  run.p = SDL_CreateProcessWithProperties(props);
   SDL_DestroyProperties(props);
-  if (!game_) {
-    status_ = game_name_ + " did not start: " + SDL_GetError(), status_good_ = false;
+  if (!run.p) {
+    status_ = run.name + " did not start: " + SDL_GetError(), status_good_ = false;
     std::printf("mw3launcher: %s (%s)\n", status_.c_str(), line.c_str());
     layout();
     return;
   }
   // FIX (A), playtest W4 (sdl_focus.h): the game's window may come to the front over ours (Windows gives the
   // foreground only to a process the foreground one allows), so it starts with the keyboard and the mouse.
-  const bool front = allow_foreground(game_);
+  const bool front = allow_foreground(run.p);
   std::printf("mw3launcher: started %s%s\n", line.c_str(), front ? " (it may take the foreground)" : "");
-  status_ = "Starting " + game_name_ + "...", status_good_ = true;
+  status_ = "Starting " + run.name + "...", status_good_ = true;
+  runs_[gi] = std::move(run);
+  layout();  // its PLAY says RUNNING
 }
 
-// Each pass while the game starts: at its first frame the launcher closes,
-// the game left running; a game that exits first (an error) or shows no
-// frame in 20 s leaves the launcher up with a status line, still watching.
-void Launcher::watch_game() {
-  if (!game_) return;
-  std::error_code ec;
-  const double ms = static_cast<double>(SDL_GetTicksNS() - game_click_) / 1e6;
+bool Launcher::any_running() const {
+  for (const Run& r : runs_)
+    if (r.p) return true;
+  return false;
+}
+
+bool Launcher::any_starting() const {
+  for (const Run& r : runs_)
+    if (r.p && !r.ready) return true;
+  return false;
+}
+
+// LAUNCHER SETTINGS' choice, kept in mw3.cfg (game_start=open, minimise or close).
+void Launcher::set_on_start(OnStart v) {
+  static const char* const kWords[] = {"open", "minimise", "close"};
+  on_start_ = v;
+  own::save_config_value(o_.write_dir, "game_start", kWords[v]);
+  std::printf("mw3: launcher: when a game starts: %s\n", kWords[v]);
+  layout();
+}
+
+// The launcher back from MINIMISE (or a kit game's CLOSE, hidden) once no game runs; never over a game still up.
+void Launcher::restore_window() {
+  if (!win_ || o_.hidden || any_running()) return;
+  const SDL_WindowFlags f = SDL_GetWindowFlags(win_);
+  if (f & SDL_WINDOW_HIDDEN) SDL_ShowWindow(win_);
+  if (f & SDL_WINDOW_MINIMIZED) SDL_RestoreWindow(win_);
+  SDL_RaiseWindow(win_);
+}
+
+// FIX (A): an AppImage unmounts when its first process (this) ends, with the game still paging its code and libraries
+// from there: it would die when it reaches a page not yet read, after the intro. So the launcher waits for such a
+// game before it ends, hidden, and says if the game crashes (docs/linux.md, Packaging).
+void Launcher::mount_wait(Run& r) {
   int code = 0;
-  if (SDL_WaitProcess(game_, false, &code)) {
-    SDL_DestroyProcess(game_);
-    game_ = nullptr;
-    fs::remove(ready_file_, ec);
-    fs::remove(ready_file_ + ".status", ec);
-    // The game started itself again as a new process (Windows, into or out of a MODS campaign: sdl_restart.h).
-    // It reaches this only when the launcher never saw the game's first frame (else it has closed): the game
-    // goes on, so the launcher ends as it does at a first frame, and does not come back beside it.
-    if (code == kStartedAgainExit) {
-      std::printf("mw3launcher: %s started itself again after %.1f s (the game goes on): the launcher closes\n", game_name_.c_str(), ms / 1000.0);
+  if (win_) SDL_HideWindow(win_);
+  std::fflush(stdout);  // a long wait: the log has this far
+  SDL_WaitProcess(r.p, true, &code);
+  std::printf("mw3launcher: %s exited (%d) after %.1f s\n", r.name.c_str(), code, static_cast<double>(SDL_GetTicksNS() - r.click) / 1e9);
+  std::fflush(stdout);
+  if (code < 0) {
+    const std::string text = r.name + " crashed (signal " + std::to_string(-code) + ").\n\nThe log is " + o_.write_dir +
+                             "/mw3.log\nPlease include it if you report this.";
+    // Said in the log always; the box only for a player (never a hidden run's: pointer_hands_off.h).
+    std::printf("mw3launcher: %s\n", text.c_str());
+    if (!o_.hidden && !platform::pointer_hands_off()) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, r.name.c_str(), text.c_str(), nullptr);
+  }
+  SDL_DestroyProcess(r.p);
+  r = Run();
+}
+
+// A game's end: said on the status line, its PLAY back, an UPDATE pressed meanwhile begun, the window back.
+void Launcher::game_exited(int i, int code) {
+  Run& r = runs_[i];
+  std::error_code ec;
+  const double secs = static_cast<double>(SDL_GetTicksNS() - r.click) / 1e9;
+  const std::string name = r.name;
+  const bool was_ready = r.ready, kit = r.kit, mount = r.mount;
+  if (!r.ready_file.empty()) fs::remove(r.ready_file, ec), fs::remove(r.ready_file + ".status", ec);
+  SDL_DestroyProcess(r.p);
+  r = Run();
+  // The game started itself again as a new process (Windows, into or out of a MODS campaign: sdl_restart.h). The
+  // game goes on: with CLOSE the launcher ends as it does at a first frame; else it stays, no longer seeing it.
+  if (code == kStartedAgainExit && !kit) {
+    if (on_start() == kClose || !was_ready) {
+      std::printf("mw3launcher: %s started itself again after %.1f s (the game goes on): the launcher closes\n", name.c_str(), secs);
       done_ = true;
       return;
     }
-    std::printf("mw3launcher: %s exited (%d) after %.1f s\n", game_name_.c_str(), code, ms / 1000.0);
-    status_ = code == 0 ? "" : game_name_ + " closed with an error (" + std::to_string(code) + "): see mw3.log.";
-    status_good_ = code == 0;
-    if (win_ && !o_.hidden) SDL_ShowWindow(win_), SDL_RaiseWindow(win_);
-    if (o_.quit_after_game) done_ = true;
-    layout();
-    return;
+    std::printf("mw3launcher: %s started itself again after %.1f s (the game goes on, no longer watched)\n", name.c_str(), secs);
+    status_ = name + " started itself again: it runs on, but its panel can't follow it.", status_good_ = true;
+    return layout();
   }
-  if (fs::exists(ready_file_, ec)) {
-    std::printf("mw3launcher: the game's first frame %.0f ms after MECHWARRIOR 3 was pressed: the launcher closes\n", ms);
-    fs::remove(ready_file_, ec);
-    fs::remove(ready_file_ + ".status", ec);
-    if (win_) SDL_HideWindow(win_);
-    // FIX (A): an AppImage unmounts when its first process (this) ends, with
-    // the game still paging its code and libraries from there: it would die
-    // when it reaches a page not yet read, after the intro. So here this
-    // waits, hidden, and says if the game crashes (docs/linux.md, Packaging).
-    if (watch_mount_) {
-      int code = 0;
-      std::fflush(stdout);  // a long wait: the log has this far
-      SDL_WaitProcess(game_, true, &code);
-      std::printf("mw3launcher: MechWarrior 3 exited (%d) after %.1f s\n", code,
-                  static_cast<double>(SDL_GetTicksNS() - game_click_) / 1e9);
-      std::fflush(stdout);
-      if (code < 0) {
-        const std::string text = "MechWarrior 3 crashed (signal " + std::to_string(-code) + ").\n\nThe log is " +
-                                 o_.write_dir + "/mw3.log\nPlease include it if you report this.";
-        // Said in the log always; the box only for a player (never a hidden run's: pointer_hands_off.h).
-        std::printf("mw3launcher: %s\n", text.c_str());
-        if (!o_.hidden && !platform::pointer_hands_off())
-          SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "MechWarrior 3", text.c_str(), nullptr);
+  if (kit) std::printf("mw3: launcher: %s exited (%d)\n", name.c_str(), code);
+  else std::printf("mw3launcher: %s exited (%d) after %.1f s\n", name.c_str(), code, secs);
+  if (code < 0 && mount && !o_.hidden && !platform::pointer_hands_off()) {  // the game's own box is off while we watch
+    const std::string text = name + " crashed (signal " + std::to_string(-code) + ").\n\nThe log is " + o_.write_dir +
+                             "/mw3.log\nPlease include it if you report this.";
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, name.c_str(), text.c_str(), nullptr);
+  }
+  if (kit) status_ = code == 0 ? name + " closed." : name + " closed with an error (" + std::to_string(code) + "): see its log.";
+  else status_ = code == 0 ? (was_ready ? name + " closed." : std::string()) : name + " closed with an error (" + std::to_string(code) + "): see mw3.log.";
+  status_good_ = code == 0;
+  restore_window();
+  if (kit) kit_refresh(i);
+  if (o_.quit_after_game && !any_running()) done_ = true;
+  layout();  // an UPDATE pressed meanwhile: begun by the run loop, once nothing else is being done
+}
+
+// Each pass, each game running: an end, and MechWarrior 3's or Pirate's Moon's first frame (then the launcher as WHEN A
+// GAME STARTS says); a game that exits first (an error) or shows no frame in 20 s leaves the launcher up with a
+// status line, still watching.
+void Launcher::watch_game() {
+  for (int i = 0; i < upgrades::update::game_count() && !done_; ++i) {
+    Run& r = runs_[i];
+    if (!r.p) continue;
+    std::error_code ec;
+    const double ms = static_cast<double>(SDL_GetTicksNS() - r.click) / 1e6;
+    int code = 0;
+    if (SDL_WaitProcess(r.p, false, &code)) {
+      game_exited(i, code);
+      continue;
+    }
+    if (r.ready) continue;
+    if (fs::exists(r.ready_file, ec)) {
+      const OnStart how = on_start();
+      std::printf("mw3launcher: the game's first frame %.0f ms after %s was started: %s\n", ms, r.name.c_str(),
+                  how == kClose ? "the launcher closes" : how == kMinimise ? "the launcher minimises" : "the launcher stays open");
+      fs::remove(r.ready_file, ec);
+      fs::remove(r.ready_file + ".status", ec);
+      r.ready = true;
+      if (how == kClose) {
+        if (r.mount) mount_wait(r);  // FIX (A): the AppImage's mount stays while the game pages from it
+        else SDL_DestroyProcess(r.p), r = Run();  // let go: the game runs on
+        done_ = true;
+        return;
+      }
+      if (how == kMinimise && win_ && !o_.hidden) SDL_MinimizeWindow(win_);
+      status_ = r.name + " is running.", status_good_ = true;
+      layout();
+      continue;
+    }
+    // What the game says it is doing before its first frame (its first start's movie import, sdl_child.h), read four
+    // times a second: on the status line instead of the wait's.
+    if (ms - r.read_ms >= 250.0) {
+      r.read_ms = ms;
+      std::ifstream in(r.ready_file + ".status");
+      std::string line;
+      std::getline(in, line);
+      if (!line.empty() && line != r.said) {
+        r.said = line;
+        std::printf("mw3launcher: the game says: %s\n", line.c_str());
+        status_ = line, status_good_ = true;
+        layout();
       }
     }
-    SDL_DestroyProcess(game_);  // let go: the game runs on, where it has not ended above
-    game_ = nullptr;
-    done_ = true;
-    return;
-  }
-  // What the game says it is doing before its first frame (its first start's
-  // movie import, sdl_child.h), read four times a second: on the status line
-  // instead of the wait's.
-  if (ms - status_read_ms_ >= 250.0) {
-    status_read_ms_ = ms;
-    std::ifstream in(ready_file_ + ".status");
-    std::string line;
-    std::getline(in, line);
-    if (!line.empty() && line != game_status_) {
-      game_status_ = line;
-      std::printf("mw3launcher: the game says: %s\n", line.c_str());
-      status_ = line, status_good_ = true;
+    if (!r.slow && r.said.empty() && ms > ready_wait_ms()) {
+      r.slow = true;
+      std::printf("mw3launcher: no first frame from the game after %.0f s: the launcher stays\n", ready_wait_ms() / 1000.0);
+      status_ = r.name + " has not shown a picture yet: still waiting (see mw3.log).", status_good_ = false;
       layout();
     }
-  }
-  if (!game_slow_ && game_status_.empty() && ms > ready_wait_ms()) {
-    game_slow_ = true;
-    std::printf("mw3launcher: no first frame from the game after %.0f s: the launcher stays\n", ready_wait_ms() / 1000.0);
-    status_ = "MechWarrior 3 has not shown a picture yet: still waiting (see mw3.log).", status_good_ = false;
-    layout();
   }
 }
 
@@ -2101,19 +2198,22 @@ void Launcher::layout() {
         panels_.push_back(std::move(c));
         // Its button at the right; `upd`, a game with a newer release, splits it: PLAY and, at its end, that game's
         // UPDATE.
-        const bool split = p.upd >= 0 && can_update(p.upd);
+        // A game running (KEEP OPEN, 2026-11-26): RUNNING, greyed, until it exits; its UPDATE waits for that (pressed,
+        // it is begun then).
+        const int gi = rows[k].game;
+        const bool split = p.upd >= 0 && can_update(p.upd), run = running(gi);
         {
-          Button& b = add(p.id, group.c_str(), p.label, "", p.on);
+          Button& b = add(p.id, group.c_str(), run ? "RUNNING" : p.label, "", p.on && !run);
           b.kind = split ? "amber split" : "amber", b.name = p.name;
         }
         if (split) {
-          Button& b = add(kGameUpdate + p.upd, group.c_str(), "UPDATE TO " + upgrades::update::game_version(checks_[p.upd].release.tag), "", !work_);
+          Button& b = add(kGameUpdate + p.upd, group.c_str(), "UPDATE TO " + upgrades::update::game_version(checks_[p.upd].release.tag), "",
+                          !work_ && !update_after_[p.upd]);
           b.kind = "seg", b.name = p.name + " UPDATE";
         }
         // Its gear (2026-11-24): the game's page (where it is, link an install, uninstall), a square left of the
         // button; after it in the focus order, so a pad's first press is still PLAY.
         // Not while its repo is still being asked about a game not here (it may turn out COMING SOON).
-        const int gi = rows[k].game;
         if (games_on_ && !p.soon && (!game_bin(gi).empty() || checks_[gi].kind != GC::kAsking)) {
           Button& b = add(kGear + gi, group.c_str(), "", "", !work_);
           b.kind = "gear", b.name = p.name + " SETTINGS";
@@ -2123,6 +2223,7 @@ void Launcher::layout() {
       // DOWNLOADED FILE are on a game's page (2026-11-24).
       add(kUpdates, "row", rechecking_ ? "CHECKING..." : "CHECK FOR UPDATES", "", !work_ && !rechecking_).kind = "flat updates";
       buttons_.back().name = "CHECK FOR UPDATES";
+      add(kSettings, "row", "LAUNCHER SETTINGS", "", !work_).kind = "flat updates";  // the launcher's own (2026-11-26)
       add(kQuit, "row", "QUIT").kind = "flat";
       // A newer launcher found by the start's check: an amber UPDATE AVAILABLE <v> in the header's top right, beside
       // the mark, as Discord's and Chrome's (2026-11-23: the footer's button was too small to see). After QUIT
@@ -2206,8 +2307,8 @@ void Launcher::layout() {
         p.lines = {{text, "text"}, {path, "path", 3}};
         rows_.push_back(p);
       };
-      auto button = [&](int id, const char* label, const char* name = "", bool on = true) {
-        Button& b = add(id, ("r" + std::to_string(rows_.size() - 1)).c_str(), label, "", on && !work_);
+      auto button = [&](int id, const char* label, const char* name = "", bool on = true) {  // none under a running game
+        Button& b = add(id, ("r" + std::to_string(rows_.size() - 1)).c_str(), label, "", on && !work_ && !running(i));
         b.kind = "flat", b.name = name;
       };
       auto ver = [](const std::string& t) { return t.empty() || t == "unknown" ? std::string() : "Version " + upgrades::update::game_version(t) + ", "; };
@@ -2244,6 +2345,18 @@ void Launcher::layout() {
       if (source_[i] != kBeside) {
         add(kGameLink, "links", linked_[i].empty() ? "LINK A COPY ALREADY INSTALLED" : "LINK ANOTHER COPY", "", !work_).kind = "flat";
         add(kInstallFile, "links", "INSTALL FROM A DOWNLOADED FILE", "", !work_).kind = "flat";
+      }
+      add(kBack, "foot", "BACK");
+      break;
+    }
+    case kSettingsScreen: {  // LAUNCHER SETTINGS (2026-11-26): WHEN A GAME STARTS, the chosen one amber
+      static const char* const kLabels[] = {"KEEP OPEN", "MINIMISE", "CLOSE"};
+      static const char* const kSubs[] = {"The launcher stays up beside the game: start another game from it",
+                                          "The launcher minimises, and comes back when the game closes",
+                                          "The launcher closes once the game is up"};
+      for (int v = 0; v < 3; ++v) {
+        Button& b = add(kOnStart + v, "plates", kLabels[v], kSubs[v]);
+        if (v == on_start_) b.kind = "amber", b.name = std::string(kLabels[v]) + " (CHOSEN)", first_focus = v;
       }
       add(kBack, "foot", "BACK");
       break;
@@ -2312,7 +2425,7 @@ void Launcher::layout() {
     }
   }
   {  // the screen and its plates (the checks follow them)
-    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "update", "copies", "game"};
+    static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "update", "copies", "game", "settings"};
     std::string labels;
     for (const Button& b : buttons_) labels += (labels.empty() ? "" : ", ") + b.log_name();
     std::printf("mw3: launcher: screen %s: %s\n", kNames[screen_], labels.c_str());
@@ -2326,6 +2439,7 @@ void Launcher::layout() {
 int Launcher::header_game() const {
   switch (screen_) {
     case kMain:
+    case kSettingsScreen:
     case kUpdateScreen: return -1;
     case kGamePage: return page_game_;
     case kConfirm:
@@ -2377,7 +2491,7 @@ Launcher::NotesLayout Launcher::notes_layout() {
 
 // What the screens show now (assets/launcher/ui/launcher.rml places it).
 UiModel Launcher::model() {
-  static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "update", "copies", "game"};
+  static const char* const kNames[] = {"main", "find", "confirm", "work", "notes", "data", "update", "copies", "game", "settings"};
   UiModel m;
   m.screen = kNames[screen_];
   for (size_t i = 0; i < buttons_.size(); ++i) {
@@ -2483,6 +2597,10 @@ UiModel Launcher::model() {
       if (status_.empty()) m.status_kind = "good";
       break;
     }
+    case kSettingsScreen:
+      m.title = "WHEN A GAME STARTS";
+      m.words = "What the launcher does once a game is up. It is kept for the next start.";
+      break;
     case kDataScreen:
       m.words = "Your settings, pilots, saved games and converted movies are in:";
       m.path = text_.fit(files_wd(), 14, 480);
@@ -2808,7 +2926,7 @@ void Launcher::play() {
   }
   if (!o_.setup_only && !o_.game_bin.empty()) {
     screen_ = kMain, layout();
-    if (!game_) start_game();
+    if (!running(0)) start_game();
     return;
   }
   choice_ = {LauncherChoice::kPlay, install_.dir};
@@ -3288,6 +3406,10 @@ void Launcher::activate(int id) {
       else from_files_ = false, screen_ = kSetupScreen, status_.clear(), layout();  // its files to find first
       break;
     case kQuit: done_ = true; break;
+    case kSettings: status_.clear(), screen_ = kSettingsScreen, layout(); break;
+    case kOnStart:
+    case kOnStart + 1:
+    case kOnStart + 2: set_on_start(static_cast<OnStart>(id - kOnStart)); break;
     case kData:
       status_.clear();
       screen_ = kDataScreen, layout();
@@ -3626,6 +3748,7 @@ LauncherChoice Launcher::run() {
     }
     if (o_.screen == "pmdisc") status_ = "No disc in a drive. Pick its image (.cue .iso), a download (.zip) or any file of the disc.";
     if (o_.screen == "data") screen_ = kDataScreen;
+    if (o_.screen == "settings") screen_ = kSettingsScreen;  // LAUNCHER SETTINGS
     if (o_.screen == "found") {  // a find offered: its plate (click: other files), INSTALL, BACK
       screen_ = kConfirm, confirm_go_ = 1, found_name_ = "MechWarrior 3", found_sub_ = "Click to pick other files";
       files_words_ = "An installed copy of MechWarrior 3 version 1.2.";
@@ -3754,7 +3877,7 @@ LauncherChoice Launcher::run() {
     if (pm_dir_.empty() && !pm_found_.empty() && SDL_getenv("MW3_LAUNCHER_GO"))  // checks: the find offered, INSTALL
       auto_play_ = true, o_.quit_after_game = true, activate(kPm);           // pressed, copied in, then started
     else if (pm_dir_.empty()) done_ = true;
-    else auto_ok_ = true, activate(kPm), o_.quit_after_game = true, done_ = !game_;  // its notes' OK; refused: quit
+    else auto_ok_ = true, activate(kPm), o_.quit_after_game = true, done_ = !running(1);  // its notes' OK; refused: quit
   }
   while (!done_) {
     for (bool& f : status_fresh_) f = false;  // a status asked again when a panel's lines are made after now (b2)
@@ -3767,7 +3890,7 @@ LauncherChoice Launcher::run() {
         std::printf("mw3: launcher: the picker took the focus %.0f ms after it was asked for\n",
                     static_cast<double>(SDL_GetTicksNS() - ask_at_) / 1e6);
       }
-      if (game_) continue;  // the game is starting or running
+      if (any_starting()) continue;  // a game is starting: the launcher waits for its first frame
       if (asking_ || screen_ == kWorking) {
         if (screen_ == kWorking && e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_LEFT) {
           sync_ui();
@@ -3850,6 +3973,8 @@ LauncherChoice Launcher::run() {
     if (work_ && work_->done) finish_work();
     take_games_check();
     take_self_check();
+    for (int i = 0; i < upgrades::update::kMaxGames && !work_; ++i)  // an UPDATE that waited for its game's end
+      if (update_after_[i] && !running(i)) update_after_[i] = false, install_game(i);
     if (const char* late = SDL_getenv("MW3_LAUNCHER_NAV_LATE"); late && !games_check_ && !self_check_ && !nav_late_) {  // checks: the steps once the start's checks have answered (a path: and that file is there)
       std::error_code ec;
       std::fflush(stdout);  // the check reads it as it goes
@@ -3857,7 +3982,7 @@ LauncherChoice Launcher::run() {
     }
     if (games_on_ && !install_file_asked_ && SDL_getenv("MW3_LAUNCHER_INSTALL_FILE") && screen_ == kMain && !work_)
       install_file_asked_ = true, activate(kInstallFile);  // checks: INSTALL FROM A DOWNLOADED FILE pressed (the picker's MW3_LAUNCHER_PICKER)
-    if (quit_after_mw1_ && !asking_ && !ask_pending_ && !work_) done_ = true;
+    if (quit_after_mw1_ && !asking_ && !ask_pending_ && !work_ && !any_running()) done_ = true;
     watch_game();
     const Uint64 ta = SDL_GetTicksNS();
     draw();
@@ -3878,7 +4003,11 @@ LauncherChoice Launcher::run() {
     const Uint64 spent = SDL_GetTicksNS() - ta, frame = vsync_ ? display_frame() : 1000000000ull / 60;
     if (spent < frame) SDL_DelayPrecise(frame - spent);
     // Covered or minimised: a few frames a second, any event at once.
-    if (!o_.hidden && (SDL_GetWindowFlags(win_) & (SDL_WINDOW_OCCLUDED | SDL_WINDOW_MINIMIZED))) SDL_WaitEventTimeout(nullptr, 100);
+    // A game running and this window not the one in use (KEEP OPEN, 2026-11-26): the same, wherever the system does
+    // not say a full-screen game covers it.
+    if (!o_.hidden && (SDL_GetWindowFlags(win_) & (SDL_WINDOW_OCCLUDED | SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN) ||
+                       (any_running() && !(SDL_GetWindowFlags(win_) & SDL_WINDOW_INPUT_FOCUS))))
+      SDL_WaitEventTimeout(nullptr, 100);
   }
   if (const char* path = SDL_getenv("MW3_LAUNCHER_FRAME_SHOT")) save_frame(path);  // checks: the last frame, as this renderer draws it
   if (frames_) {
@@ -3888,9 +4017,10 @@ LauncherChoice Launcher::run() {
     std::printf("mw3: launcher: paced by %s\n", vsync_ ? "vsync" : "a timed sleep to 60 a second");
   }
   if (work_) work_->cancel = true;
-  if (game_) {  // quit while the game runs: it goes on, we stop watching
-    SDL_DestroyProcess(game_);
-    game_ = nullptr;
+  for (Run& r : runs_) {  // quit while a game runs: it goes on, we stop watching
+    if (!r.p) continue;
+    if (r.mount) mount_wait(r);  // FIX (A): not from under a game paging from this AppImage
+    else SDL_DestroyProcess(r.p), r = Run();
   }
   if (choice_.kind == LauncherChoice::kPlay) {
     own::save_install(o_.write_dir, choice_.install);

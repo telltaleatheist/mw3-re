@@ -201,6 +201,11 @@ btn.seg.off .divider { background: #5a616a; }
 .part > .status.over { top: 251dp; }
 .gamepage > .status.over { left: 0; width: 640dp; top: 254dp; line-height: 17dp; }
 
+.settings fit.title { top: 10dp; }
+.settings .words { position: absolute; top: 44dp; left: 80dp; width: 480dp; font-size: 14dp; color: #bebeb4; }
+.settings .plates { top: 92dp; }
+.settings .plates btn { height: 50dp; margin-bottom: 8dp; }
+.settings .plates btn.amber .sub { font-size: 12dp; line-height: 15dp; }
 .data .words { position: absolute; top: 20dp; left: 80dp; width: 480dp; font-size: 16dp; }
 .data .path { position: absolute; top: 68dp; left: 80dp; width: 480dp; }
 .data .plates { top: 153dp; }
