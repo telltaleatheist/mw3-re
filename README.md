@@ -103,6 +103,19 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
+**1.7.0 (2026-11-26)** (the full notes are in
+[docs/release-notes-1.7.0.md](docs/release-notes-1.7.0.md)): the launcher stays
+open while a game runs, its button saying RUNNING, and an update for a running
+game waits until it closes; the Mac launcher is signed and notarized, so it
+opens like any other app; new menu sounds.
+
+**1.6.0 (2026-11-26)** (the full notes are in
+[docs/release-notes-1.6.0.md](https://github.com/telltaleatheist/mech3-re/blob/v1.6.0/docs/release-notes-1.6.0.md)): the mouse wheel
+scrolls the menus' lists (issue #20, under SMALL FIXES); each game sets
+itself up and the launcher only asks it, with its own menu sounds and a
+download about 40% smaller; new games can appear in the launcher without an update.
+After updating the launcher, press UPDATE ALL.
+
 **1.5.2 (2026-11-25)** (the full notes are in
 [docs/release-notes-1.5.2.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.5.2.md)): RAW MOUSE is on
 the Game Options screen under MOUSE SENSITIVITY, off on the Mac (switched off
@@ -456,22 +469,26 @@ each game when you press its DOWNLOAD:
 | Mac | `MW3-Rebuild-<version>-mac.dmg` | Drag the app to Applications. |
 | Linux | `MW3-Rebuild-<version>-x86_64.AppImage` | Make it executable (`chmod +x`) and run it. |
 
-Each game alone, without the launcher, is there too (`MW3-alone-*`,
-`PM-Rebuild-*`, `MW1-Remake-*`), and on its own repo's Releases.
+Each game alone, without the launcher, is on its own repo's Releases
+([MechWarrior 3](https://github.com/telltaleatheist/mech3-re/releases),
+[Pirate's Moon](https://github.com/telltaleatheist/mech3-pm-re/releases),
+[MechWarrior 1 Remake](https://github.com/telltaleatheist/mech1-remake-re/releases)).
 
-**On a Mac, the first time:** the app is not signed by Apple, so macOS stops
-it the first time you open it ("BattleTech Not Opened"; click **Done**,
-not Move to Trash).
+**On a Mac:** the launcher is signed and notarized by Apple from 1.7.0, so it
+opens like any other app. The games' own downloads are not signed yet: the
+first time you open one of those, macOS stops it ("Not Opened"; click
+**Done**, not Move to Trash).
 
 - **macOS 15 Sequoia and later:** open **System Settings > Privacy &
-  Security**, scroll down to the line about BattleTech, click **Open
+  Security**, scroll down to the line about the app, click **Open
   Anyway**, then **Open** (and your password if asked). Right-click > Open
   no longer gets past it on these versions.
 - **macOS 12 to 14:** right-click (or Control-click) the app, choose
   **Open**, then **Open** again. Open Anyway in Privacy & Security works
   there too.
 
-macOS remembers your choice after that.
+macOS remembers your choice after that. Games the launcher installs for you
+are not stopped.
 
 **On Windows**, SmartScreen may warn about an unknown publisher: click
 **More info**, then **Run anyway**.
