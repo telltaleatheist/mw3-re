@@ -23,10 +23,13 @@ for you:
 
 - **MechWarrior 3**, rebuilt as above;
 - **Pirate's Moon**, the expansion, rebuilt the same way from its own exe;
-- **MechWarrior 1 Remake** (formerly MW1: Critical Hit), a fan remake of MechWarrior (1989)'s mercenary
-  campaign on MechWarrior 3's combat, worlds and 'Mechs;
+- **MechWarrior 1 Reverse Engineered**, MechWarrior (1989) rebuilt in C++
+  from Elthial's SDL port; plays from your own DOS copy;
+- **MechWarrior 1 Remake** (formerly MW1: Critical Hit), a fan remake of
+  MechWarrior (1989)'s mercenary campaign on MechWarrior 3's combat, worlds
+  and 'Mechs;
 - **The Crescent Hawk's Inception** (1988), rebuilt; plays from your own
-  DOS 1.03 or Amiga 2.3 copy.
+  DOS 1.03 or Amiga 2.3 copy. An Inception Remake is coming.
 
 Each game also starts on its own and comes as a separate download too.
 
@@ -48,8 +51,9 @@ one is the front door.
 | Pirate's Moon | [mech3-pm-re](https://github.com/telltaleatheist/mech3-pm-re) | [Pirate's Moon alone](https://github.com/telltaleatheist/mech3-pm-re/releases) |
 | MechWarrior 1 Remake | [mech1-remake-re](https://github.com/telltaleatheist/mech1-remake-re) | [its releases](https://github.com/telltaleatheist/mech1-remake-re/releases) |
 | The shared "find your game files" setup | [re-setup-kit](https://github.com/telltaleatheist/re-setup-kit) | (a library the games build in) |
-| MechWarrior (1989) rebuilt as C++ | [mech1-re](https://github.com/telltaleatheist/mech1-re) | not released yet (a first preview once it runs from its own files) |
+| MechWarrior 1 Reverse Engineered: MechWarrior (1989) rebuilt as C++ | [mech1-re](https://github.com/telltaleatheist/mech1-re) | [its releases](https://github.com/telltaleatheist/mech1-re/releases) |
 | BattleTech: The Crescent Hawk's Inception rebuilt | [inception-re](https://github.com/telltaleatheist/inception-re) | [its releases](https://github.com/telltaleatheist/inception-re/releases) |
+| Inception Remake | [inception-remake-re](https://github.com/telltaleatheist/inception-remake-re) | not released yet |
 
 **Why it was split:**
 
@@ -91,9 +95,93 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
-### Coming in the next release
+**1.5.2 (2026-11-25)** (the full notes are in
+[docs/release-notes-1.5.2.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.5.2.md)): RAW MOUSE is on
+the Game Options screen under MOUSE SENSITIVITY, off on the Mac (switched off
+once with this update), and MOUSE SENSITIVITY goes down to 0.1; on a Mac the
+Dock no longer shows the updated launcher as a folder.
 
-Nothing yet.
+**1.5.1 (2026-11-25)** (the full notes are in
+[docs/release-notes-1.5.1.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.5.1.md)): a launcher fix.
+
+- On a Mac the launcher could use tens of gigabytes of memory while a
+  full-screen game covered it.
+- It finds MechWarrior 1 Rebuild and Inception installed by their own Setups,
+  and sets them up on its own screens.
+
+**1.5.0 (2026-11-24)** (the full notes are in
+[docs/release-notes-1.5.0.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.5.0.md)): the launcher is
+drawn sharp at any window size; each game's files and copies are on its gear
+page; CHECK FOR UPDATES checks every game and the launcher.
+
+**1.4.1 (2026-11-24)** (the full notes are in
+[docs/release-notes-1.4.1.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.4.1.md)): a fix: Inception's
+game files can be changed at any time, and every find screen has PICK A FILE.
+
+**1.4.0 (2026-11-24)** (the full notes are in
+[docs/release-notes-1.4.0.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.4.0.md)): the launcher sets up
+Inception on its own screens, shows every file in its pickers, reads zips in ADD
+FROM MY DISC, and finds Pirate's Moon's data from Windows versions up to 1.3.1.
+
+**1.3.6 (2026-11-24)** (the full notes are in
+[docs/release-notes-1.3.6.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.3.6.md)): fixes: Linux with
+NVIDIA loading a mission, the silent menu buttons, MechWarrior 1 Remake's
+buttons.
+
+**1.3.5 (2026-11-24)** (the full notes are in
+[docs/release-notes-1.3.5.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.3.5.md)): the launcher
+finds MechWarrior 3 and Pirate's Moon installed without it and links them,
+and each game's gear opens its page: where it's installed, link another
+copy, unlink, uninstall.
+
+**1.3.4 (2026-11-24)** (the full notes are in
+[docs/release-notes-1.3.4.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.3.4.md)): GAME FILES lists
+every copy of a game on your computer and what each is missing, so you pick
+the one to use; every launcher screen says BATTLETECH.
+
+**1.3.3 (2026-11-24)** (the full notes are in
+[docs/release-notes-1.3.3.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.3.3.md)): the launcher
+lists the games as panels that scroll, like the download page.
+
+**1.3.2 (2026-11-23)** (the full notes are in
+[docs/release-notes-1.3.2.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.3.2.md)): the BattleTech
+launcher, and fixes.
+
+- **The BattleTech launcher:** one card for each game family, with its games
+  as tabs; it checks for its own updates.
+- **Your folders move from MicroProse to BattleTech** on the first start (a
+  rename, nothing copied).
+- **Fixes:** a crash starting a campaign mission on Linux, low frame rates on
+  Windows 10, the MFB command, game files from an older install on another
+  drive.
+
+**1.3.1 (2026-11-22)** (the full notes are in
+[docs/release-notes-1.3.1.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.3.1.md)): each game goes
+where you choose.
+
+- **Install each game where you want,** on any drive: the launcher's DOWNLOAD
+  asks the first time, and each game's setup puts its game files, music and
+  converted movies there too. Pilots, saves, settings and mods stay in your
+  user folder.
+- Each game's setup shows its own name instead of "MW3 Rebuild".
+
+**1.3.0 (2026-11-22)** (the full notes are in
+[docs/release-notes-1.3.0.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.3.0.md)): the launcher
+downloads the games.
+
+- **The launcher's download is the launcher alone.** Each game's card shows
+  DOWNLOAD, or UPDATE TO x.y.z when a newer version is out, and gets the game
+  from its own release. Nothing downloads until you press it, every download
+  is checked, and your game files, pilots, saves and mods are kept. Offline,
+  installed games just play, and ADD FROM FILE takes a game's download
+  you already have.
+- MechWarrior 1 Remake gets a download of its own (1.0.7).
+
+**1.2.4 (2026-11-22)** (the full notes are in
+[docs/release-notes-1.2.4.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.2.4.md)): a small fix.
+
+- Standing up from a crouch obeys the sound volume, in MechWarrior 3 and
+  Pirate's Moon (the original played it at full volume).
 
 **1.2.3 (2026-11-21)** (the full notes are in
 [docs/release-notes-1.2.3.md](https://github.com/telltaleatheist/mech3-re/blob/main/docs/release-notes-1.2.3.md)): setting up your
@@ -339,9 +427,9 @@ for MechWarrior 1 Remake, now 1.0.4.
   - macOS 12 or later, Apple silicon or Intel;
   - Linux, x86-64, with your distribution's Vulkan driver.
 
-Pirate's Moon, the expansion, is in the same download as its own program, and
-needs your own Pirate's Moon the same way (an installed copy, its disc or a
-disc image). Each game works without the other.
+Pirate's Moon, the expansion, is a program of its own that the launcher
+downloads, and needs your own Pirate's Moon the same way (an installed copy,
+its disc or a disc image). Each game works without the other.
 
 MechWarrior 1 Remake needs your own MechWarrior (1989), MechWarrior 3 and
 Pirate's Moon: it is fought on their worlds with their 'Mechs. The launcher
@@ -350,13 +438,18 @@ takes its `BTECH.EXE`, its folder or the `.zip` it came in.
 
 ## Download
 
-From the [Releases](../../releases) page:
+The launcher, from the [Releases](../../releases) page (or
+[owenmorgan.com/battletech](https://owenmorgan.com/battletech/)); it downloads
+each game when you press its DOWNLOAD:
 
 | | File | |
 |---|---|---|
 | Windows | `MW3-Rebuild-Setup-<version>.exe` | An installer. A `.zip` of the same files is there too. |
 | Mac | `MW3-Rebuild-<version>-mac.dmg` | Drag the app to Applications. |
 | Linux | `MW3-Rebuild-<version>-x86_64.AppImage` | Make it executable (`chmod +x`) and run it. |
+
+Each game alone, without the launcher, is there too (`MW3-alone-*`,
+`PM-Rebuild-*`, `MW1-Remake-*`), and on its own repo's Releases.
 
 **On a Mac, the first time:** the app is not signed by Apple, so macOS stops
 it the first time you open it ("BattleTech Not Opened"; click **Done**,
@@ -378,7 +471,9 @@ macOS remembers your choice after that.
 ## The first start
 
 Start **BattleTech** (the launcher; **MechWarrior 3** in the MechWarrior 3
-alone download) and click a game. MechWarrior 3 goes straight into the game
+alone download). Each game is a panel in a list that scrolls: **DOWNLOAD**
+gets a game, **PLAY** starts it, and **UPDATE** appears beside PLAY when a
+newer version is out. Press **PLAY** on MechWarrior 3: it goes straight into the game
 when it finds your install: where the original installer put it, `Program Files`,
 `C:\Games`, a Wine, Proton or Lutris copy on Linux and the Mac, or a copy it
 installed itself earlier. It says which version it found in its log.
@@ -402,7 +497,7 @@ game:
   **Cancel**. An installed copy is used where it is. No Windows and no
   original installer needed. Versions 1.0 and 1.2 both work as they are:
   1.0 plays as 1.2. Pirate's Moon is found or installed the same way, from the
-  launcher's GAME FILES.
+  game's gear page in the launcher.
 
 If something is wrong (not enough space, a damaged download, a file that
 is not MechWarrior 3) it says so in plain words and changes nothing.
@@ -410,12 +505,14 @@ is not MechWarrior 3) it says so in plain words and changes nothing.
 - **The launcher**, installed as "BattleTech" (the Start-menu and desktop
   shortcut on Windows, the Mac's app, the Linux desktop entry; a search for
   "MechWarrior 3" finds it too), is the rebuild's own front screen, in a
-  window: a card for each game. It starts
-  the game and closes as soon as the game's first frame is on screen (if
-  the game fails to start, it stays and says so). **Game files** there
-  opens the same find-your-game screen at any time: to use another copy,
-  install again from your disc, or add movies and music it lacks. `mw3`
-  (`mw3.exe`) also starts the game directly. The arrow keys and a gamepad
+  window: a panel for each game. It starts the game and closes as soon as
+  the game's first frame is on screen (if the game fails to start, it stays
+  and says so). The **gear** beside a game's button opens its page: where
+  it's installed, **GAME FILES** (the same find-your-game screen, any time:
+  another copy, installing again from your disc, adding movies and music it
+  lacks, MY DATA FOLDER), the copies found on this computer, and link,
+  unlink or uninstall. **CHECK FOR UPDATES** checks every game and the
+  launcher. `mw3` (`mw3.exe`) also starts the game directly. The arrow keys and a gamepad
   work in the launcher as well as the mouse.
 - Before the first game it tells you anything worth knowing about your
   copy: no movies (a CD-type install leaves them on the disc), no music, or
@@ -693,8 +790,8 @@ shared engine, MechWarrior 3, Pirate's Moon and the launcher):
   SDL3_sound), and converts the movies with a minimal LGPL build of
   [FFmpeg](https://ffmpeg.org/). Each download lists them in
   `THIRD-PARTY.txt`, with their own licence files.
-- The MW1 card's PLAY ORIGINAL (MechWarrior as released in 1989) is coming
-  later.
+- The launcher is drawn with [RmlUi](https://github.com/mikke89/RmlUi), and
+  its lettering is Saira Condensed (SIL Open Font License).
 
 MechWarrior and BattleTech are trademarks of their owners. This project is not
 affiliated with or endorsed by Microsoft, MicroProse, Zipper Interactive,
