@@ -36,7 +36,7 @@ cp third_party/rmlui/LICENSE.txt "$APPDIR/usr/share/doc/mw3/licenses/rmlui/"
 cp third_party/rmlui/Include/RmlUi/Core/Containers/LICENSE.txt "$APPDIR/usr/share/doc/mw3/licenses/rmlui/LICENSE-containers.txt"
 mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/miniz"
 cp extern/re-setup-kit/third_party/miniz/LICENSE "$APPDIR/usr/share/doc/mw3/licenses/miniz/"
-cp tools/linux/README.txt tools/windows/dist/THIRD-PARTY.txt "$APPDIR/usr/share/doc/mw3/"
+cp tools/linux/README.txt tools/linux/THIRD-PARTY.txt "$APPDIR/usr/share/doc/mw3/"
 [ -f LICENSE ] && cp LICENSE "$APPDIR/usr/share/doc/mw3/LICENSE.txt"
 # Each library's licence files: from its source tree when the prefix is
 # build_deps.sh's, else what the prefix installed.

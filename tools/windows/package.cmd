@@ -62,8 +62,9 @@ copy /y assets\launcher\hover.wav "%DIST%\assets\launcher\" >nul || exit /b 1
 copy /y tools\windows\dist\THIRD-PARTY.txt "%DIST%\" >nul || exit /b 1
 if exist LICENSE copy /y LICENSE "%DIST%\LICENSE.txt" >nul
 rem libarchive, zlib and liblzma: linked into mw3launcher.exe, their licences from
-rem tools\windows\build_deps_archive.cmd's prefix; SDL3_ttf's and its FreeType's from build_deps_ttf.cmd's.
-for /d %%d in (deps\archive\share\licenses\* deps\ttf\share\licenses\*) do (
+rem tools\windows\build_deps_archive.cmd's prefix; FreeType's (static in mw3launcher.exe, RmlUi's text) from
+rem build_deps_ttf.cmd's. The launcher loads no SDL3_ttf (only the Linux launcher does).
+for /d %%d in (deps\archive\share\licenses\* deps\ttf\share\licenses\freetype-*) do (
   mkdir "%DIST%\licenses\%%~nxd" 2>nul
   copy /y "%%d\*" "%DIST%\licenses\%%~nxd\" >nul || exit /b 1
 )

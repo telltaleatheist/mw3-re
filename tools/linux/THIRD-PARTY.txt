@@ -1,0 +1,114 @@
+Third-party software in this AppImage
+=====================================
+
+mw3launcher uses the libraries below; SDL 3 and SDL_ttf are in usr/lib,
+the rest are built into the launcher itself. Each library's own licence
+files are in licenses/<library>/ beside this file. Each was built unmodified
+from its official release source. Thank you to all of their authors.
+
+
+SDL 3 (libSDL3)
+---------------
+Simple DirectMedia Layer, https://www.libsdl.org/
+Copyright (C) 1997-2026 Sam Lantinga and others. zlib licence
+(licenses/SDL3-*/LICENSE.txt).
+
+
+SDL_ttf 3 (libSDL3_ttf)
+-----------------------
+https://github.com/libsdl-org/SDL_ttf. Copyright (C) 1997-2025 Sam Lantinga
+and others. zlib licence (licenses/SDL3_ttf-*/LICENSE.txt). The fonts the
+launcher finds on the system for letters its own fonts lack. FreeType
+(below) is built into it too.
+
+
+FreeType 2.14.3 (built into the launcher)
+-----------------------------------------
+https://freetype.org/. Portions of this software are copyright (C) The
+FreeType Project (www.freetype.org). All rights reserved. Under the FreeType
+License (FTL, licenses/freetype-2.14.3/FTL.TXT), https://freetype.org/license.html.
+RmlUi's text (below).
+
+
+Saira Condensed Bold and Medium (usr/bin/assets/launcher)
+---------------------------------------------------------
+The launcher's lettering. Copyright 2016 The Saira Project Authors,
+https://github.com/Omnibus-Type/Saira. SIL Open Font License 1.1
+(licenses/saira-condensed/OFL.txt). Unchanged, under its reserved name.
+
+
+miniz's inflate, tinfl (built into the launcher)
+------------------------------------------------
+Rich Geldreich, RAD Game Tools and Valve Software,
+https://github.com/richgel999/miniz. MIT licence (licenses/miniz/LICENSE).
+It unpacks zip files for the setup kit.
+
+
+libarchive 3.7.9 (built into the launcher)
+------------------------------------------
+https://www.libarchive.org/. Copyright (c) 2003-2018 Tim Kientzle and
+others. Two-clause BSD licence (licenses/libarchive-3.7.9/COPYING, which also
+names the few source files under other terms). It reads a game's Windows zip
+and what a game's files are picked from: zip, 7z, RAR, tar and disc images.
+
+Copyright (c) 2003-2018 <author(s)>
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer
+   in this position and unchanged.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+zlib 1.3.1 (built into the launcher)
+------------------------------------
+https://zlib.net/. (C) 1995-2022 Jean-loup Gailly and Mark Adler. zlib
+licence (licenses/zlib-1.3.1/LICENSE). libarchive's deflate (zip).
+
+
+liblzma from XZ Utils 5.8.1 (built into the launcher)
+-----------------------------------------------------
+https://tukaani.org/xz/. Lasse Collin and the XZ Utils contributors. liblzma
+is under the BSD Zero Clause License, 0BSD (licenses/xz-5.8.1/COPYING.0BSD;
+licenses/xz-5.8.1/COPYING says which licence covers which part of XZ
+Utils: only liblzma is used). libarchive's LZMA and LZMA2 (7z, xz).
+
+
+RmlUi 6.3 (built into the launcher)
+-----------------------------------
+The launcher's screens, https://github.com/mikke89/RmlUi. MIT licence
+(licenses/rmlui/LICENSE.txt; the containers it carries, robin_hood
+and itlib, also MIT: LICENSE-containers.txt beside it). Its text is drawn
+with FreeType 2.14.3 (above).
+Copyright (c) 2008-2014 CodePoint Ltd, Shift Technology Ltd, and contributors
+Copyright (c) 2019-2026 The RmlUi Team, and contributors
+
+
+The AppImage's start program
+----------------------------
+The AppImage runtime, with libfuse (LGPL 2.1) in it: licenses/appimage-runtime/NOTICE.txt.
+
+
+The games
+---------
+No game is in this AppImage: the launcher downloads each rebuilt game from its
+own release, and each game reads your own copy of the original. Each game's
+own package lists the libraries it uses. BattleTech and MechWarrior are
+trademarks of their owners; this project is not affiliated with or endorsed
+by them.

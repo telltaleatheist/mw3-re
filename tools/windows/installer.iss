@@ -83,8 +83,7 @@ Type: files; Name: "{app}\av*.dll"
 Type: files; Name: "{app}\sw*.dll"
 
 [Icons]
-; The launcher is the shortcut; mw3.exe is installed
-; and starts alone too, but has no shortcut (2026-11-02; launcher.md).
+; The launcher is the shortcut (each game is its own download, docs/launcher.md, Games on demand).
 Name: "{autoprograms}\{#Shortcut}"; Filename: "{app}\mw3launcher.exe"; WorkingDir: "{app}"; Comment: "{#ShortcutComment}"
 Name: "{autoprograms}\MechWarrior 3 Rebuild - Read me"; Filename: "{app}\README.txt"
 Name: "{autodesktop}\{#Shortcut}"; Filename: "{app}\mw3launcher.exe"; WorkingDir: "{app}"; Comment: "{#ShortcutComment}"; Tasks: desktopicon

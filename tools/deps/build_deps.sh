@@ -1,23 +1,23 @@
 #!/bin/bash
-# The libraries the release bundles, built from their official release
-# sources (2026-10-30; docs/deps.md): SDL3, SDL3_ttf (with FreeType,
-# built in), SDL3_sound, a minimal LGPL FFmpeg for mw3import, and libarchive
-# with zlib and liblzma (static, for SETUP's "Point to your game"). Each
+# The libraries the launcher's package bundles, built from their official
+# release sources (2026-10-30): SDL3, FreeType (static: RmlUi's text, and
+# inside SDL3_ttf, which the Linux launcher and the tests use), and libarchive
+# with zlib and liblzma (static, for a game's download and its files). Each
 # tarball is pinned by its sha256 (checked against the release's own
-# signature when the pin was made, docs/deps.md); a download that does not
-# match is refused.
+# signature when the pin was made); a download that does not match is
+# refused. The games' own packages build theirs in their repos (with
+# SDL3_sound and FFmpeg); on Windows the launcher's come from
+# tools/windows/build_deps_ttf.cmd, build_deps_archive.cmd and SDL3's release.
 #
 #   tools/deps/build_deps.sh mac     universal (arm64, x86_64), macOS 12 and later
 #   tools/deps/build_deps.sh linux   this machine's architecture
-#   tools/deps/build_deps.sh win     FFmpeg only, for Windows x64, cross-built
-#                                    with mingw-w64 (the PC takes the rest
-#                                    from their official Windows releases)
 #
 # Out: build-deps/<platform>/prefix (include, lib, lib/cmake, lib/pkgconfig),
 # which tools/macos/make_app.sh and the Linux build take as CMAKE_PREFIX_PATH.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-PLATFORM="${1:?mac, linux or win}"
+PLATFORM="${1:?mac or linux}"
+case "$PLATFORM" in mac|linux) ;; *) echo "mac or linux, not $PLATFORM" >&2; exit 2 ;; esac
 ROOT="$PWD/build-deps"
 DL="$ROOT/downloads"
 PREFIX="$ROOT/$PLATFORM/prefix"
@@ -29,8 +29,6 @@ PINS=(
   "SDL3-3.4.12.tar.gz|https://github.com/libsdl-org/SDL/releases/download/release-3.4.12/SDL3-3.4.12.tar.gz|f07b958a9ac5020fb7a44cadb957f658b2149c3c8abb4f63145fac9303249db7"
   "freetype-2.14.3.tar.xz|https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz|36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f"
   "SDL3_ttf-3.2.2.tar.gz|https://github.com/libsdl-org/SDL_ttf/releases/download/release-3.2.2/SDL3_ttf-3.2.2.tar.gz|63547d58d0185c833213885b635a2c0548201cc8f301e6587c0be1a67e1e045d"
-  "SDL3_sound-3.2.0.tar.gz|https://github.com/icculus/SDL_sound/releases/download/v3.2.0/SDL3_sound-3.2.0.tar.gz|3348f3ecc653e21f2b7ed8e409f07c67b179fbbfba3b99c85698e6e5d7b5924c"
-  "ffmpeg-8.1.2.tar.xz|https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz|464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
   "zlib-1.3.1.tar.gz|https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz|9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23"
   "xz-5.8.1.tar.xz|https://github.com/tukaani-project/xz/releases/download/v5.8.1/xz-5.8.1.tar.xz|0b54f79df85912504de0b14aec7971e3f964491af1812d83447005807513cd9e"
   "libarchive-3.7.9.tar.xz|https://www.libarchive.org/downloads/libarchive-3.7.9.tar.xz|ed8b5732e4cd6e30fae909fb945cad8ff9cb7be5c6cdaa3944ec96e4a200c04c"
@@ -66,10 +64,9 @@ cmake_build() {  # source dir, then its options
   cmake --install "$src/_build" >/dev/null
 }
 
-if [ "$PLATFORM" != win ]; then
 unpack SDL3-3.4.12.tar.gz
 # Linux: XTest only feeds synthetic input; without its headers SDL refuses
-# to configure X11 (docs/linux.md).
+# to configure X11.
 SDL_EXTRA=()
 [ "$PLATFORM" = linux ] && SDL_EXTRA+=(-DSDL_X11_XTEST=OFF)
 cmake_build "$WORK/src/SDL3-3.4.12" -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
@@ -77,108 +74,26 @@ cmake_build "$WORK/src/SDL3-3.4.12" -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_
 echo "built SDL3"
 
 # FreeType inside SDL3_ttf (static, position-independent), with none of its
-# optional libraries: the game's TrueType fonts need none of them. 2.14.3, as
-# the Mac's Homebrew: TTF text depends on FreeType's version (docs/deps.md).
+# optional libraries: the launcher's TrueType fonts need none of them. 2.14.3,
+# as the Mac's Homebrew: TTF text depends on FreeType's version.
 unpack freetype-2.14.3.tar.xz
 cmake_build "$WORK/src/freetype-2.14.3" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
   -DFT_DISABLE_ZLIB=ON -DFT_DISABLE_BZIP2=ON -DFT_DISABLE_PNG=ON -DFT_DISABLE_HARFBUZZ=ON -DFT_DISABLE_BROTLI=ON
 echo "built FreeType"
 
 # SDL3_ttf without HarfBuzz (complex-script shaping) or PlutoSVG (SVG fonts):
-# the game draws Latin text in its own TrueType fonts.
+# the launcher draws Latin text in its own TrueType fonts.
 unpack SDL3_ttf-3.2.2.tar.gz
 cmake_build "$WORK/src/SDL3_ttf-3.2.2" -DBUILD_SHARED_LIBS=ON -DSDLTTF_VENDORED=OFF -DSDLTTF_HARFBUZZ=OFF \
   -DSDLTTF_PLUTOSVG=OFF -DSDLTTF_SAMPLES=OFF
 echo "built SDL3_ttf"
 
-unpack SDL3_sound-3.2.0.tar.gz
-cmake_build "$WORK/src/SDL3_sound-3.2.0" -DSDLSOUND_BUILD_SHARED=ON -DSDLSOUND_BUILD_STATIC=OFF \
-  -DSDLSOUND_BUILD_TEST=OFF -DSDLSOUND_BUILD_DOCS=OFF
-echo "built SDL3_sound"
-fi
-
-# FFmpeg: only what mw3import uses (the AVI demuxer, the Indeo 5 decoder,
-# the MPEG-1 video encoder and muxer, swscale, the file protocol), LGPL 2.1,
-# shared. FFmpeg configures one architecture at a time: on the Mac each is
-# built and installed apart, then the dylibs are joined with lipo.
-FFMPEG_OPTS=(--enable-shared --disable-static --disable-everything --disable-autodetect --disable-programs
-             --disable-doc --disable-network --disable-avdevice --disable-avfilter --disable-swresample
-             --enable-protocol=file --enable-demuxer=avi --enable-decoder=indeo5 --enable-encoder=mpeg1video
-             --enable-muxer=mpeg1video --enable-swscale)
-unpack ffmpeg-8.1.2.tar.xz
-# FFmpeg keeps its configure line in each library (avutil_configuration()),
-# so the prefix is a neutral /ffbuild and the install goes through DESTDIR:
-# the build folder (and the user name in it) stays out of the package.
-ff_build() {  # staging dir (the tree lands in <dir>/ffbuild), then extra configure options
-  local dst="$1"; shift
-  local b="$WORK/ffmpeg-build-$(basename "$dst")"
-  rm -rf "$b" "$dst" && mkdir -p "$b"
-  (cd "$b" && "$WORK/src/ffmpeg-8.1.2/configure" --prefix=/ffbuild "${FFMPEG_OPTS[@]}" "$@" >/dev/null &&
-     ff_config_edit && make -j "$JOBS" >/dev/null && make install DESTDIR="$dst" >/dev/null)
-}
-# mingw-w64 has clock_gettime and nanosleep only in libwinpthread-1.dll:
-# without them avutil uses Windows' own clock and Sleep, and the DLLs load
-# only system DLLs (docs/deps.md).
-ff_config_edit() {
-  [ "$PLATFORM" = win ] || return 0
-  sed -i.orig -e 's/^#define HAVE_CLOCK_GETTIME 1$/#define HAVE_CLOCK_GETTIME 0/' \
-    -e 's/^#define HAVE_NANOSLEEP 1$/#define HAVE_NANOSLEEP 0/' config.h
-}
-ff_pc() {  # the staged .pc files into PREFIX, pointed at it
-  mkdir -p "$PREFIX/lib/pkgconfig"
-  for f in "$1"/ffbuild/lib/pkgconfig/*.pc; do
-    sed "s|/ffbuild|$PREFIX|g" "$f" > "$PREFIX/lib/pkgconfig/$(basename "$f")"
-  done
-}
-if [ "$PLATFORM" = mac ]; then
-  for arch in arm64 x86_64; do
-    extra=(--arch="$arch" --cc="clang -arch $arch" --extra-cflags="-mmacosx-version-min=12.0"
-           --extra-ldflags="-arch $arch -mmacosx-version-min=12.0" --install-name-dir=@rpath)
-    [ "$arch" = "$(uname -m)" ] || extra+=(--enable-cross-compile --target-os=darwin --disable-x86asm)
-    ff_build "$WORK/ffmpeg-$arch" "${extra[@]}"
-  done
-  # One tree (headers, pkg-config) with each dylib joined.
-  cp -R "$WORK/ffmpeg-arm64/ffbuild/include/." "$PREFIX/include/"
-  for f in "$WORK"/ffmpeg-arm64/ffbuild/lib/*.dylib; do
-    n="$(basename "$f")"
-    if [ -L "$f" ]; then cp -P "$f" "$PREFIX/lib/$n"; else lipo -create "$f" "$WORK/ffmpeg-x86_64/ffbuild/lib/$n" -output "$PREFIX/lib/$n"; fi
-  done
-  ff_pc "$WORK/ffmpeg-arm64"
-elif [ "$PLATFORM" = win ]; then
-  # Windows x64 with mingw-w64's GCC (its UCRT), Windows threads, libgcc
-  # linked in, no x86 assembly (no nasm here). The layout is a shared build's
-  # (include\, lib\*.lib, bin\*.dll), as CMake takes it from deps\ffmpeg-*shared*.
-  ff_build "$WORK/ffmpeg-win64" --target-os=mingw32 --arch=x86_64 --cross-prefix=x86_64-w64-mingw32- \
-    --enable-cross-compile --disable-x86asm --enable-w32threads --extra-ldflags=-static-libgcc
-  st="$WORK/ffmpeg-win64/ffbuild"
-  mkdir -p "$PREFIX/bin" "$PREFIX/lib"
-  cp -R "$st/include" "$PREFIX/"
-  cp "$st"/bin/*.dll "$PREFIX/bin/"
-  cp "$st"/bin/*.lib "$PREFIX/lib/"   # dlltool's import libraries, which MSVC links
-  cp "$WORK/src/ffmpeg-8.1.2/COPYING.LGPLv2.1" "$WORK/src/ffmpeg-8.1.2/LICENSE.md" "$PREFIX/"
-  # Each DLL loads only Windows' own (KERNEL32, bcrypt, the UCRT's
-  # api-ms-win-crt-*) and the other FFmpeg DLLs: no libgcc or winpthread.
-  for f in "$PREFIX"/bin/*.dll; do
-    other=$(x86_64-w64-mingw32-objdump -p "$f" | awk '/DLL Name:/{print $3}' |
-            grep -viE '^(kernel32|bcrypt)\.dll$|^api-ms-win-crt-|^(avutil|avcodec|avformat|swscale)-[0-9]+\.dll$' || true)
-    [ -z "$other" ] || { echo "$(basename "$f") loads $other: refused" >&2; exit 1; }
-  done
-else
-  # Without nasm FFmpeg's x86 assembly is left out (the Indeo decoder a little slower).
-  asm=(); command -v nasm >/dev/null || asm=(--disable-x86asm)
-  ff_build "$WORK/ffmpeg-native" --enable-pic --extra-ldflags='-Wl,-rpath,$$ORIGIN' ${asm[@]+"${asm[@]}"}
-  cp -R "$WORK/ffmpeg-native/ffbuild/include/." "$PREFIX/include/"
-  cp -P "$WORK"/ffmpeg-native/ffbuild/lib/*.so* "$PREFIX/lib/"
-  ff_pc "$WORK/ffmpeg-native"
-fi
-echo "built FFmpeg"
-if [ "$PLATFORM" = win ]; then echo "prefix: $PREFIX"; exit 0; fi
-
-# SETUP's archives (docs/setup-sources.md): libarchive reading zip, 7z, RAR4/5,
-# tar and ISO 9660, with zlib (deflate) and liblzma (7z's LZMA/LZMA2, xz);
-# all three static and position-independent, linked into the programs, so the
-# packages carry no more libraries. No crypto, XML, bzip2, zstd, LZ4 or iconv:
-# none of the game's sources needs them.
+# The archives (a game's Windows zip, and through the setup kit whatever a
+# game's files are picked from): libarchive reading zip, 7z, RAR4/5, tar and
+# ISO 9660, with zlib (deflate) and liblzma (7z's LZMA/LZMA2, xz); all three
+# static and position-independent, linked into the launcher, so the package
+# carries no more libraries. No crypto, XML, bzip2, zstd, LZ4 or iconv:
+# none of the games' downloads or sources needs them.
 unpack zlib-1.3.1.tar.gz
 cmake_build "$WORK/src/zlib-1.3.1" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DZLIB_BUILD_EXAMPLES=OFF
 rm -f "$PREFIX"/lib/libz*.dylib "$PREFIX"/lib/libz.so*  # the static one only
@@ -196,8 +111,9 @@ cmake_build "$WORK/src/libarchive-3.7.9" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITIO
   -DENABLE_ICONV=OFF -DENABLE_ACL=OFF -DENABLE_XATTR=OFF -DENABLE_LZO=OFF
 rm -f "$PREFIX"/lib/libarchive*.dylib "$PREFIX"/lib/libarchive.so*
 echo "built libarchive"
-# Their licences, for the packages (linked in, so no library file carries them).
-for l in "libarchive-3.7.9 COPYING" "zlib-1.3.1 LICENSE" "xz-5.8.1 COPYING COPYING.0BSD"; do
+# Their licences, for the packages (linked in, so no library file carries them); FreeType's too, static in the
+# launcher (RmlUi's text): its LICENSE.TXT points to the FTL it is used under.
+for l in "libarchive-3.7.9 COPYING" "zlib-1.3.1 LICENSE" "xz-5.8.1 COPYING COPYING.0BSD" "freetype-2.14.3 LICENSE.TXT docs/FTL.TXT"; do
   set -- $l; d=$1; shift
   mkdir -p "$PREFIX/share/licenses/$d"
   for f in "$@"; do cp "$WORK/src/$d/$f" "$PREFIX/share/licenses/$d/"; done

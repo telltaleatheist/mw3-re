@@ -1,71 +1,76 @@
-MechWarrior 3 Rebuild for Linux (x86-64)
-========================================
+BattleTech launcher for Linux (x86-64)
+======================================
 
-A fan rebuild of the programs of MechWarrior 3 and its expansion Pirate's
-Moon: the original games' logic, rewritten to run natively on today's
-computers. A personal learning project: free, not sold, and not affiliated
-with or endorsed by MicroProse, Microsoft or anyone who holds the
-MechWarrior name.
+A launcher for fan rebuilds of the BattleTech games: MechWarrior 3 and its
+expansion Pirate's Moon, MechWarrior 1 (the rebuild, and the remake on
+MechWarrior 3's engine), and The Crescent Hawk's Inception. Each game is
+the original's logic rewritten to run natively on today's computers.
+A personal learning project: free, not sold, and not affiliated with or
+endorsed by Microsoft, MicroProse or anyone who holds the BattleTech or
+MechWarrior names.
 
-It contains no part of either game: you need your own MechWarrior 3, on its
-disc, as a disc image (.iso, or .cue with its .bin files) or a download of
-one (.zip, .7z, .rar), or an installed copy (a Wine, Proton or Lutris copy
-works). Pirate's Moon needs your own Pirate's Moon the same way; each game
-works without the other.
+The launcher holds no game. It downloads each rebuilt game when you ask for
+it, and each game needs your own copy of the original: MechWarrior 3, for
+example, on its disc, as a disc image (.iso, or .cue with its .bin files) or
+a download of one (.zip, .7z, .rar), or an installed copy (a Wine, Proton or
+Lutris copy works). No part of an original game is in any download.
 
 Running it
 ----------
-Make the AppImage executable (chmod +x) and run it. It needs your
-distribution's Vulkan driver. It opens a launcher: click MECHWARRIOR 3 or
-PIRATE'S MOON. On the first start it looks for your installed copy and
-offers what it finds (INSTALL copies it in, so your copy can be deleted
-afterwards; clicking it picks other files); FIND THE GAME takes whatever you have (the disc, a disc image, a
-download, or Mech3.exe in an installed copy), installs it into a folder of
-its own and comes back to the launcher's games, so you can set up the other
-game too; click the game to play. It converts the game's movies once.
-GAME FILES finds or installs either game later and adds music from the disc;
-UPDATES looks for a newer release.
+Make the AppImage executable (chmod +x) and run it. The games need your
+distribution's Vulkan driver; the launcher says which package to install
+when it is missing.
 
-Mods
-----
-A start from the launcher or the main menu always plays the original game.
-Mods are turned on inside the game, per campaign:
+Using it
+--------
+Each game has a panel in the list, its button at the right.
+- DOWNLOAD fetches the game from its own release (its size is shown),
+  checks it against the release's checksums and installs it. Nothing is
+  downloaded until you press it.
+- PLAY starts the game. On its first start a game looks for your own copy
+  of the original and offers what it finds (INSTALL copies it into the
+  game's folder, so your copy can be deleted afterwards), or asks you to
+  point to it: the disc, a disc image, a download or an installed copy. It
+  remembers it.
+- When a newer version of a game is out, its PLAY button gets an arrow at
+  its end with the new version: press the arrow to update that game. Your
+  pilots, saves, settings and mods are kept.
+- The gear beside the button opens the game's page: its GAME FILES (CHANGE
+  picks other ones; ADD FROM MY DISC adds the music from a disc), the copy
+  PLAY starts, LINK A COPY ALREADY INSTALLED, INSTALL FROM A DOWNLOADED FILE
+  (a game's download from anywhere, checked against a SHA256SUMS file beside
+  it when there is one) and UNINSTALL.
+- CHECK FOR UPDATES asks again for the launcher and every game; when the
+  launcher itself has a new version, UPDATE LAUNCHER installs it.
+- MechWarrior 1 Remake plays from MechWarrior 3's and Pirate's Moon's game
+  files, so it needs both set up first.
 
-1. MODS on the main menu. Campaigns are at the left (the game's own first),
-   your mods at the right.
-2. IMPORT adds a mod: pick the file you downloaded.
-3. Click a mod's box to turn it on for the campaign chosen at the left.
-4. PLAY starts that campaign with its ticked mods. It has its own pilots
-   and saved games; your main-menu pilots are never changed.
+Each game also starts on its own, without the launcher, and keeps its own
+settings, saves and mods. How to play, the mods and each game's own options:
+the read-me in that game's folder and its page on GitHub.
 
-Importing a community mod (the weapons mods, map packs): download it. Its
-installer is a Windows program made for the original game: do not run it
-(not under Wine either; it would overwrite that game's files). Choose MODS,
-IMPORT and pick the downloaded file itself (the installer .exe, a .zip, .7z
-or .rar, or a file inside an unpacked folder): the rebuild reads the mod out
-of it without running it. Then click its box for a campaign and PLAY.
+Your settings, saves and the games
+----------------------------------
+The launcher's settings and its log (mw3launcher.log) are in
 
-If IMPORT says "N warnings", the mod has files the game cannot use as they
-are; the rest is added, and INFO lists each warning. Every button says what
-it does when the mouse is over it.
-Pirate's Moon has its own MODS screen. A Pirate's Moon mod imported in
-MechWarrior 3 (or the other way round), with the game started from the
-launcher, is handed to the other game, which adds it at its next start.
-In multiplayer every player needs the same mods.
+    ~/.local/share/BattleTech/MechWarrior 3/
 
-Your settings and saves
------------------------
-In ~/.local/share/BattleTech/MechWarrior 3/ : mw3.cfg, your pilots and
-saves, the settings, the installed game, its music, the converted movies,
-your mods and mw3.log (what the game reported while it ran; send it with a
-bug report). Pirate's Moon keeps its own beside it, in
-~/.local/share/BattleTech/Pirate's Moon/. Deleting the AppImage keeps
-them, and a new version keeps your pilots, saves, settings and mods.
+with MechWarrior 3's settings, pilots and saves; each other game keeps its
+own beside it (Pirate's Moon in .../BattleTech/Pirate's Moon/). The games it
+downloads go to
+
+    ~/.local/share/BattleTech/games/
+
+one folder a game. Deleting the AppImage keeps all of them, and a new
+version keeps them too. To keep your data on another drive: GAME FILES, MY
+DATA FOLDER.
 
 Reporting a bug
 ---------------
-Open an issue at https://github.com/telltaleatheist/mw3-re/issues with what
-you did and what happened, the mission, and mw3.log from the folder above.
+Open an issue at https://github.com/telltaleatheist/mw3-re/issues for the
+launcher (a game's own problems: that game's repo, linked from its page)
+with what you did and what happened, and mw3launcher.log from the folder
+above (mw3launcher.old.log too if you started it again since).
 
 Licences
 --------

@@ -78,10 +78,6 @@ def licences(real, name):
         stem = name.split('.')[0].removeprefix('lib')
         srcs = [d for d in glob.glob(os.path.join(os.path.dirname(prefix), 'work/src/*'))
                 if os.path.basename(d).lower().startswith(stem.lower() + '-')]
-        if stem.startswith('av') or stem.startswith('sw'):
-            srcs = glob.glob(os.path.join(os.path.dirname(prefix), 'work/src/ffmpeg-*'))
-        if stem == 'SDL3_ttf':  # FreeType is built into it
-            srcs += glob.glob(os.path.join(os.path.dirname(prefix), 'work/src/freetype-*'))
         for d in srcs:
             for n in os.listdir(d):
                 if n.upper().startswith(('LICEN', 'COPYING')) and os.path.isfile(os.path.join(d, n)):
@@ -212,11 +208,13 @@ cp third_party/rmlui/Include/RmlUi/Core/Containers/LICENSE.txt "$APP/Contents/Re
 mkdir -p "$APP/Contents/Resources/licenses/miniz"
 cp extern/re-setup-kit/third_party/miniz/LICENSE "$APP/Contents/Resources/licenses/miniz/"
 cp tools/macos/THIRD-PARTY.txt "$APP/Contents/Resources/THIRD-PARTY.txt"
-# libarchive, zlib and liblzma: linked in with --deps (build_deps.sh keeps
-# their licences in the prefix); Homebrew's libarchive is a dylib, its
-# licences copied with it above.
+# libarchive, zlib, liblzma and FreeType: linked in with --deps (build_deps.sh
+# keeps their licences in the prefix); Homebrew's are dylibs, their licences
+# copied with them above.
 if [ -n "$DEPS" ]; then
-  [ -d "$DEPS/share/licenses/libarchive-3.7.9" ] || { echo "no licences in $DEPS/share/licenses: run tools/deps/build_deps.sh mac again" >&2; exit 1; }
+  for l in libarchive-3.7.9 freetype-2.14.3; do
+    [ -d "$DEPS/share/licenses/$l" ] || { echo "no $l licences in $DEPS/share/licenses: run tools/deps/build_deps.sh mac again" >&2; exit 1; }
+  done
   cp -R "$DEPS/share/licenses/." "$APP/Contents/Resources/licenses/"
 fi
 

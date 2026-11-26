@@ -645,9 +645,12 @@ setup in the launcher, on MW3_GAME_DIR, behind a shell stand-in for mw3
   first tag (v1.6.1) reads `<newest vX.Y.Z>-dev-g<commit>`, never the older
   v1.2.2 behind main. `catalog/games.json` (v1.6.0's built-in catalog at
   revision 2) and `catalog/art/` are where released launchers fetch them.
-  Left as they were: build_deps.sh (it also builds SDL3_sound and FFmpeg, for
-  the games' packages from the same deps folder) and the packages'
-  README.txt and THIRD-PARTY.txt, which still describe the game's programs.
+  The packages' README.txt and THIRD-PARTY.txt describe the launcher alone
+  (the Linux AppImage has its own notice now, with SDL_ttf and without the
+  Visual C++ runtime), and build_deps.sh builds only the launcher's libraries:
+  no SDL3_sound or FFmpeg, no `win` mode (FFmpeg only); FreeType's licence
+  kept in the prefix, as it is static in the launcher now and no
+  libSDL3_ttf carries it in the Mac app.
 - **c3, an upgrade over 1.5.2 on each system,** hidden: the Setup over an
   installed 1.5.2 on the PC, the DMG's swap-in on the Mac, and the AppImage's
   swap on Linux. Each keeps the BattleTech folder, `mw3.cfg`'s lines and the
