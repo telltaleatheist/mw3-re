@@ -621,7 +621,28 @@ bool kit_status(const std::string& bin, rekit::Status* out, const std::vector<st
   if (ran == Ran::kNotStarted) return no(std::string("it did not start (") + SDL_GetError() + ")");
   if (ran == Ran::kTimedOut) return no("no answer in " + std::to_string(seconds) + " s: stopped");
   if (code != 0) return no("it exited " + std::to_string(code) + ": " + first_line());
-  const size_t a = said.find('{'), b = said.rfind('}');  // the object alone, should a log line come with it
+  // The object alone, whatever else came with it (2.1.1, mech1-remake-re #2: its errors share the stream, and a line
+  // holding a '{' before the status broke the first-'{' slice): from the writer's own start, rekit::status_json's
+  // {"kit":, the last one, to its matching '}' (strings skipped); else the first '{' to the last '}' as before.
+  size_t a = said.rfind("{\"kit\":"), b = std::string::npos;
+  if (a != std::string::npos) {
+    int depth = 0;
+    bool in_string = false;
+    for (size_t i = a; i < said.size() && b == std::string::npos; ++i) {
+      const char c = said[i];
+      if (in_string) {
+        if (c == '\\') ++i;
+        else if (c == '"') in_string = false;
+      } else if (c == '"') {
+        in_string = true;
+      } else if (c == '{') {
+        ++depth;
+      } else if (c == '}' && --depth == 0) {
+        b = i;
+      }
+    }
+  }
+  if (a == std::string::npos || b == std::string::npos) a = said.find('{'), b = said.rfind('}');
   if (a == std::string::npos || b == std::string::npos || b <= a) return no("no status in its answer: " + first_line());
   if (!rekit::parse_status(said.substr(a, b - a + 1), out, &error)) return no("its status could not be read (" + error + ")");
   return true;

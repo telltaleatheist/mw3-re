@@ -104,6 +104,11 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
+**2.1.1 (2026-11-27)** (the full notes are in
+[docs/release-notes-2.1.1.md](docs/release-notes-2.1.1.md)): a game's answer
+to the launcher is read correctly when the game prints other text alongside
+it (issue: MechWarrior 1 Remake "did not answer the launcher").
+
 **2.1.0 (2026-11-27)** (the full notes are in
 [docs/release-notes-2.1.0.md](docs/release-notes-2.1.0.md)): after an update
 the launcher tells reverse-engineered.com which game and versions (counts

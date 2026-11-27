@@ -1392,6 +1392,16 @@ saying only "no answer". Now:
   stopped`, `it exited 1: ...`, `no status in its answer: ...`, its status
   unreadable, `not asked: its program file carries no version of ours`), in
   the log line `games: <key>: status no answer (<why>)`.
+- Its answer is read whatever else the program prints (2.1.1, mech1-remake-re
+  #2): the launcher merges the program's errors into its output, and the game
+  points its own stdout at stderr while it builds the status, so a line
+  holding a `{` before it (a log line) shifted the old slice, first `{` to
+  last `}`, and every status failed with "',' or '}' expected". The object
+  is now found from the writer's own start, `rekit::status_json`'s
+  `{"kit":` (the last one), to its matching `}` (strings skipped), the old
+  slice only when there is none. A served setup's messages need no change:
+  only its stdout is read, each whole line parsed, any other line passed
+  over. Checked by `sdl_games_reads_a_status_among_other_text`.
 - The Remake's start ask runs on its own thread (`ask_later`, 30 s), its
   panel "Checking the Remake..." meanwhile; the first frame no longer waits
   for it. MechWarrior 3's and Pirate's Moon's start asks still run beside the

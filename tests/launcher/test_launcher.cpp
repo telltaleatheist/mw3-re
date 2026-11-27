@@ -3387,6 +3387,49 @@ TEST(sdl_program_launcher_counts_updates) {
 }
 #endif
 
+#if !defined(_WIN32)
+// A game's --status read whatever else it prints (2.1.1, mech1-remake-re #2): its errors share the stream, so a line
+// holding a '{' before the status (here {"x": "y"}, on stdout and on stderr) or text with a '}' after it must not
+// shift the object; the status is found from its own {"kit": to its matching '}'. A plain answer reads as before.
+TEST(sdl_games_reads_a_status_among_other_text) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/status_slice";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir, ec);
+  const std::string status =
+      "{\"kit\": 1, \"game\": \"btech\", \"version\": \"0.1.0\", \"files\": {\"state\": \"ready\", \"where\": \"C:\\\\Games\\\\{x}\"}, "
+      "\"first_run\": {\"pending\": []}, \"needs\": []}";
+  struct Case {
+    const char* name;
+    std::string before, after, err;  // printed before and after the status, and on stderr first
+  };
+  const Case cases[] = {
+      {"plain", "", "", ""},
+      {"before", "log: {\"x\": \"y\"}\nsome text\n", "", ""},
+      {"after", "", "\ndone {\"x\": \"y\"} }\n", ""},
+      {"stderr", "", "", "warning: {\"x\": \"y\"}\n"},
+      {"both", "{\"x\": \"y\"}\n", "\n}\n", "{oops\n"},
+  };
+  for (const Case& c : cases) {
+    const std::string bin = dir + "/" + c.name;
+    {
+      std::ofstream sh(bin);
+      sh << "#!/bin/sh\n";
+      if (!c.err.empty()) sh << "printf '%s' '" << c.err << "' >&2\n";
+      sh << "printf '%s' '" << c.before << status << c.after << "'\nexit 0\n";
+    }
+    fs::permissions(bin, fs::perms::owner_all);
+    rekit::Status s;
+    std::string why;
+    const bool ok = sdlfe::games::kit_status(bin, &s, {}, 10, &why);
+    std::printf("status, %s: %s%s\n", c.name, ok ? "read" : "not read: ", why.c_str());
+    EXPECT(ok && s.game == "btech" && s.version == "0.1.0" && s.state == rekit::Status::kReady && s.where == "C:\\Games\\{x}");
+  }
+  if (!check::failures) fs::remove_all(dir, ec);
+}
+#endif
+
 // The launcher's settings file (2026-11-27, docs/launcher-config.md): the shipped file is the table's text (every key at
 // its default; MW3_WRITE_SETTINGS=1 writes it); a player's values clamped to their ranges, wrong types and unknown keys
 // falling back with a line each, a broken file changing nothing, and nothing of trust read from it.
