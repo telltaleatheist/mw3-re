@@ -25,7 +25,7 @@ git -C "%DIR%" submodule update --init --quiet || exit /b 1
 if exist "%ROOT%\deps" mklink /J "%DIR%\deps" "%ROOT%\deps" >nul || exit /b 1
 for /f "usebackq delims=" %%v in (`git -C "%DIR%" describe --tags --always --dirty`) do echo main: %%v
 rem The built-in games catalog is the live one, its badges shipped (DEPLOY.md, step 1): refused otherwise.
-python tools\package\check_catalog.py "%DIR%" || exit /b 1
+python "%DIR%\tools\package\check_catalog.py" "%DIR%" || exit /b 1
 if exist "%OUT%" rmdir /s /q "%OUT%"
 mkdir "%OUT%" || exit /b 1
 
