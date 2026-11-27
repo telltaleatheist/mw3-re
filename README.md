@@ -93,7 +93,8 @@ in the game's own repo.
   pull request there. For the launcher, here: `git clone --recursive`, then
   `cmake -S . -B build && cmake --build build` (SDL3, SDL3_ttf and FreeType;
   the setup kit comes in as a submodule); `build/launchertests` runs its
-  tests, which need no game files.
+  tests, which need no game files ([docs/testing.md](docs/testing.md): the
+  test ledger, so a passed test is not run again on the same code).
 - **Understand how the repos fit together**, how the launcher brings in each
   game and how updates and releases work: [DEPLOY.md](DEPLOY.md).
 
