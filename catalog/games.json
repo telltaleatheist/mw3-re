@@ -1,6 +1,6 @@
 {
   "catalog": 1,
-  "revision": 4,
+  "revision": 5,
   "homes": [
     {"key": "gh", "releases": "https://api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}", "order": 1},
     {"key": "om", "releases": "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/{repo}/releases?limit=40", "order": 2}
@@ -23,7 +23,12 @@
       "description": "Zipper and MicroProse, 1999, rebuilt from the original Mech3.exe.",
       "repo": "mech3-re", "tag_prefix": "v", "program": "mw3",
       "assets": {"windows": "MW3-alone-{tag}-win64.zip", "mac": "MW3-alone-{tag}-mac.dmg", "linux": "MW3-alone-{tag}-x86_64.AppImage"},
-      "badge": "badge_mw3.png", "badge_sha256": "68657adc2f873894757385b0c5fc45ca56ab8a6de9fbf723a9b7804f054d0938", "needs": [], "min_launcher": "1.5.2"
+      "badge": "badge_mw3.png", "badge_sha256": "68657adc2f873894757385b0c5fc45ca56ab8a6de9fbf723a9b7804f054d0938", "needs": [], "min_launcher": "1.5.2",
+      "original": [
+        {"url": "https://archive.org/download/MechWarrior3USA/MechWarrior%203%20(USA).zip",
+         "sha256": "00f365a48c907ccd07b793fb0c3ae7a2e4eed1cbad84c152ae9869d2eb4c2eb5", "size": 624970304,
+         "name": "MechWarrior 3 (USA).zip", "note": "the Internet Archive"}
+      ]
     },
     {
       "key": "pm", "family": "mw3", "order": 2, "state": "released",
@@ -31,7 +36,12 @@
       "description": "The 1999 expansion, rebuilt from its own exe. Plays without MW3.",
       "repo": "mech3-pm-re", "tag_prefix": "pm-v", "program": "mw3pm",
       "assets": {"windows": "mw3pm-{tag}-win64.zip", "mac": "PM-Rebuild-{tag}-mac.dmg", "linux": "PM-Rebuild-{tag}-x86_64.AppImage"},
-      "badge": "badge_pm.png", "badge_sha256": "dddb11ab6a26c71a4581a472f3570938d65ac61b23484f3a0a6e1addd3137d92", "needs": [], "min_launcher": "1.5.2"
+      "badge": "badge_pm.png", "badge_sha256": "dddb11ab6a26c71a4581a472f3570938d65ac61b23484f3a0a6e1addd3137d92", "needs": [], "min_launcher": "1.5.2",
+      "original": [
+        {"url": "https://archive.org/download/MechWarrior3PiratesMoonExpansionPackUSA/MechWarrior%203%20-%20Pirate%27s%20Moon%20%28Expansion%20Pack%29%20%28USA%29.zip",
+         "sha256": "1b7a6b8f9ffa44470a12c4c4f653d0ab22f4dd52d724cce91609645c20a1935d", "size": 323446564,
+         "name": "MechWarrior 3 - Pirate's Moon (USA).zip", "note": "the Internet Archive"}
+      ]
     },
     {
       "key": "mw1r", "family": "mw1", "order": 3, "state": "released",
