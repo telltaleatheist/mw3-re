@@ -1,10 +1,11 @@
 {
   "catalog": 1,
-  "revision": 2,
+  "revision": 3,
   "families": [
     {"key": "mw3", "name": "MechWarrior 3", "order": 1},
     {"key": "mw1", "name": "MechWarrior 1", "order": 2},
-    {"key": "inception", "name": "The Crescent Hawk's Inception", "order": 3}
+    {"key": "inception", "name": "The Crescent Hawk's Inception", "order": 3},
+    {"key": "revenge", "name": "The Crescent Hawks' Revenge", "order": 4}
   ],
   "games": [
     {
@@ -56,6 +57,15 @@
       "repo": "inception-remake-re", "tag_prefix": "chirm-v", "program": "chirm",
       "assets": {"windows": "CHI-Remake-{tag}-win64.zip", "mac": "CHI-Remake-{tag}-mac.dmg", "linux": "CHI-Remake-{tag}-x86_64.AppImage"},
       "badge": "badge_inception.png", "needs": [], "min_launcher": "1.5.2"
+    },
+    {
+      "key": "chr", "family": "revenge", "order": 7, "state": "coming_soon",
+      "name": "Revenge Rebuild", "title": "THE CRESCENT HAWKS' REVENGE", "heading": "THE CRESCENT HAWKS' REVENGE",
+      "button": "REVENGE ORIGINAL",
+      "description": "The 1990 game, rebuilt. Built on Elthial's SDL port. Bring your own DOS copy.",
+      "repo": "revenge-re", "tag_prefix": "chr-v", "program": "chr",
+      "assets": {"windows": "CHR-Rebuild-{tag}-win64.zip", "mac": "CHR-Rebuild-{tag}-mac.dmg", "linux": "CHR-Rebuild-{tag}-x86_64.AppImage"},
+      "badge": "badge_revenge.png", "needs": [], "min_launcher": "1.6.0"
     }
   ]
 }
