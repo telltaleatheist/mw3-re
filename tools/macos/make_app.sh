@@ -95,7 +95,7 @@ def licences(real, name):
         stem = name.split('.')[0].removeprefix('lib')
         srcs = [d for d in glob.glob(os.path.join(os.path.dirname(prefix), 'work/src/*'))
                 if os.path.basename(d).lower().startswith(stem.lower() + '-')]
-        # Into licenses/<its source folder> (SDL3-3.4.12), as the Windows package names it.
+        # Into licenses/<its source folder> (SDL3-3.4.20), as the Windows package names it.
         if not srcs:
             sys.exit(f'{name}: no source folder in {os.path.dirname(prefix)}/work/src for its licence')
         for d in srcs:
