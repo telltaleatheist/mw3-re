@@ -1440,10 +1440,11 @@ TEST(sdl_program_launcher_takes_only_a_signed_catalog) {
   put("a", 5, {3});
   log = run("revoke-6", rev);
   EXPECT(has(log, "catalog: revision 5 cached"));
-  // sources.json missing: the built-in copy, no key, nothing taken, its real addresses not asked.
+  // sources.json missing: the built-in copy (the release key; no test key), nothing taken, its real addresses not
+  // asked.
   w = wd(), log = run("builtin", w, (dir + "/missing-sources.json").c_str());
   EXPECT(has(log, ("launcher: sources: the built-in copy (" + dir + "/missing-sources.json: it is not there)\n").c_str()));
-  EXPECT(has(log, "catalog: sources.json lists no key: no fetched catalog is taken") && !fs::exists(w + "/catalog/games.json"));
+  EXPECT(!has(log, "catalog: sources.json lists no key") && !fs::exists(w + "/catalog/games.json"));
   EXPECT(has(log, "catalog at https://reverse-engineered.com/launcher/catalog.json: not asked in a check run"));
   if (!check::failures) fs::remove_all(dir, ec);
 }

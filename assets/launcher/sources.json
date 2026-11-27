@@ -5,7 +5,7 @@
     "https://raw.githubusercontent.com/telltaleatheist/mw3-re/main/catalog/games.json",
     "https://git.owenmorgan.com/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json"
   ],
-  "keys": [],
+  "keys": ["4e2d26a76ab9f92876ca86aa915b9d61de1ed93b854610be07c70179136bfced"],
   "unsigned_sums": [
     "https://api.github.com/repos/telltaleatheist/"
   ]

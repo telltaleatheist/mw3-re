@@ -781,6 +781,7 @@ TEST(sources_read_shipped_and_built_in) {
   EXPECT(s.catalog.size() == 3 && s.catalog[0] == "https://reverse-engineered.com/launcher/catalog.json" &&
          s.catalog[1].rfind("https://raw.githubusercontent.com/", 0) == 0 && s.catalog[2].rfind("https://git.owenmorgan.com/", 0) == 0);
   EXPECT(s.unsigned_sums.size() == 1 && s.unsigned_sums[0] == "https://api.github.com/repos/telltaleatheist/");
+  EXPECT(s.keys.size() == 1 && s.keys[0] == "4e2d26a76ab9f92876ca86aa915b9d61de1ed93b854610be07c70179136bfced");  // the release key
   {  // the built-in copy is the shipped file, byte for byte
     std::ifstream f(fs::path(MW3_ASSETS_FOR_TESTS) / "launcher" / "sources.json", std::ios::binary);
     EXPECT(std::string(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>()) == u::builtin_sources_text());
