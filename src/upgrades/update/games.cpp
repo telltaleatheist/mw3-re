@@ -172,6 +172,12 @@ bool read_catalog(const std::string& json, Catalog* out, std::string* why, std::
     else if (!ignored) return *why = bad, false;
     else ignored->push_back(bad + " (left out)");
   }
+  if (const Json* v = root.at("counts")) {  // where finished updates are counted (2.1.0): bad, refused (strict) or left out
+    std::string s = v->s;
+    if (v->type == Json::kString && check_address(&s)) out->counts = s;
+    else if (!ignored) return *why = "counts: " + v->s + " is not an https:// address", false;
+    else ignored->push_back("counts: " + v->s + " is not an https:// address (left out)");
+  }
   // A bad entry: the whole refused (strict) or the entry left out.
   auto bad = [&]() {
     if (!ignored) return false;
@@ -392,6 +398,7 @@ Catalog merged_catalog(const Catalog& builtin, const Catalog& fetched, std::vect
   out.revision = fetched.revision;
   if (fetched.has_homes) out.has_homes = true, out.homes = fetched.homes;
   out.catalog_sources = fetched.catalog_sources, out.next_keys = fetched.next_keys, out.revoked_keys = fetched.revoked_keys;
+  out.counts = fetched.counts;
   for (const CatalogFamily& f : fetched.families) {
     auto at = std::find_if(out.families.begin(), out.families.end(), [&](const CatalogFamily& o) { return o.key == f.key; });
     if (at != out.families.end()) *at = f;

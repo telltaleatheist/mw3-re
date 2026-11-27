@@ -25,6 +25,7 @@ struct Release {
   // a signed one (SHA256SUMS.sig) is taken from any home. `other_unsigned_sums` parallel to other_homes.
   bool unsigned_sums = false;
   std::vector<bool> other_unsigned_sums;
+  bool first_home = false;  // `assets` are GitHub's (the list a download asks first); false: another home's (2.1.0, counts)
 };
 
 // GitHub's JSON for the releases list (an array of releases): false with `error` when it is not one.

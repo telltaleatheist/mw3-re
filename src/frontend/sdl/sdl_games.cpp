@@ -511,7 +511,7 @@ Done install_release(const std::string& root, u::Game g, const u::Release& r, co
     clear_ours(staged, kStagingMark, &e2);
     return d.words = "Nothing was installed: " + error + ".", d;
   }
-  d.ok = true;
+  d.ok = true, d.github = f.github;
   d.program = program_in((fs::path(root) / u::game_info(g).key).string(), g);
   d.words = name + " " + version + " is installed.";
   return d;

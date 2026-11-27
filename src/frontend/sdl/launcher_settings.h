@@ -48,6 +48,7 @@ enum Id {
   kHiddenWakeMs,          // covered, minimized or behind a game: woken this often
   kHoverGain,             // the menu's rollover sound, 0 to 1
   kSelectGain,            // its select sound
+  kSendUpdateCounts,      // a finished update reported to the site's counts (2.1.0; 1 on, 0 off)
   kCount
 };
 

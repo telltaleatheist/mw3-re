@@ -57,6 +57,7 @@ struct Done {
   std::string words, program;  // program: the installed game's, when ok
   std::string where;           // get_original: the folder now holding the game's files, when ok
   u::Game game = u::Game::kMw3;
+  bool github = false;  // install_release, ok: its package came from GitHub, not another home (2.1.0, counts)
 };
 
 // INSTALL and UPDATE: the release's file for this platform and its SHA256SUMS downloaded, the file checked

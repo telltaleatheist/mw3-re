@@ -1997,6 +1997,49 @@ is missing as before (MechWarrior 1, above).
   `got_original` (use_install, use_pm) are not run by a check.
 - `MW3_LAUNCHER_NEEDS_GO` (checks): INSTALL ALL pressed.
 
+### Update counts (2.1.0, 2026-11-27)
+
+GitHub's download counts hold every update as well as every new install, so
+the launcher reports each finished update once, and new installs are
+GitHub's total less the updates fetched from GitHub.
+
+- **What is sent.** One request, after a game's UPDATE (UPDATE ALL's too)
+  has installed and passed its checks, and after the launcher's own update:
+  `GET <counts>?kind=update|self&game=<catalog key, or launcher>&from=<old
+  version>&to=<new version>&launcher=<this launcher's version>&src=github|mirror`.
+  `src` is the home the package actually came from (`Fetched::github`:
+  GitHub's list, `Release::first_home`, served it), since mirror downloads
+  are not in GitHub's totals. Each value is cut to the site's
+  `[A-Za-z0-9._-]{1,40}` (another character becomes `_`). Nothing else from
+  the launcher: no name, no account, no machine id, no file paths. The site
+  keeps counts only.
+- **When.** A first install (DOWNLOAD) sends nothing; neither does INSTALL
+  FROM A DOWNLOADED FILE. A game's update is sent from `finish_work` on
+  its own thread (`count_update`), 3 s at most, never retried, its answer
+  ignored; a failure is one log line. The launcher's own update is sent by
+  the new launcher: the old one writes `launcher-updated.txt` in its data
+  folder before the restart (on Windows the new Setup runs after it quits,
+  so "installed" is only known there), and the new one takes it at its
+  first start (read and removed, so never twice) and sends it once a
+  catalog naming counts is in use, or drops it after the start's catalog
+  fetch when none does. A note whose `to` is not this launcher's version
+  (a Setup that did not finish) is dropped.
+- **Where.** The catalog's top-level `"counts"`
+  (`https://reverse-engineered.com/launcher/hit`), https only. A newer
+  fetched catalog's value wins over the built-in's, none included, so the
+  site can stop it without a release. Older launchers ignore the field.
+- **Off.** `"send_update_counts": false` (or 0) in the player's
+  `launcher-settings.json` (docs/launcher-config.md) sends nothing.
+- **Launcher starts.** Every `curl_get` (the catalog fetch, its `.sig`, the
+  releases lists) sends `User-Agent: MW3-Rebuild-launcher/<version>`, so the
+  site counts the catalog fetches by launcher version.
+- Checked by `sdl_program_launcher_counts_updates` (a stand-in server:
+  update from GitHub and from the mirror, install, switch off, no field,
+  the new launcher's note and one for another version, the User-Agent) and
+  `sdl_program_launcher_takes_a_catalog_while_open` (a real self-update's
+  note taken by the relaunched launcher). `MW3_COUNTS_TO` (checks) sends to
+  a local server in place of the catalog's address.
+
 ### The Mac's disk image (2.0.1, 2026-11-27)
 
 A game's package on the Mac is a disk image: attached read-only out of

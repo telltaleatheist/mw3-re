@@ -87,6 +87,10 @@ struct Catalog {
   // catalog's only: the built-in one's are not used. "revoked_keys": keys (shipped or learned) that never verify
   // again once a signed catalog naming them is taken (a leaked key cannot mint itself successors).
   std::vector<std::string> catalog_sources, next_keys, revoked_keys;
+  // "counts" (2.1.0, docs/launcher.md, Update counts): the https address a finished update is reported to (which game,
+  // from and to which version, the launcher's version, which home it came from); "" sends nothing. A newer fetched
+  // catalog's own wins over the built-in's, none included, so the site can switch it off.
+  std::string counts;
 };
 // A catalog's JSON read and checked: every key once, each game's family listed, a known state, the fields the
 // launcher needs present. False and `why` (the entry and what is wrong) when not.

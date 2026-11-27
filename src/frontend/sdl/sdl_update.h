@@ -77,6 +77,7 @@ bool curl_download(const std::string& url, const std::string& to, uint64_t size,
 struct Fetched {
   enum Why { kOk, kCancelled, kNoSums, kSumsFailed, kNoLine, kStopped, kMismatch, kUnsigned } why = kStopped;
   std::string sha256, error, want, got;
+  bool github = false;  // ok: the file came from GitHub (r.assets, r.first_home), not another home (2.1.0, counts)
 };
 Fetched download_checked(const upgrades::update::Release& r, const std::string& name, const std::string& path,
                          const DownloadFn& progress, bool allow_file, const char* log);
@@ -87,6 +88,7 @@ Fetched download_checked(const upgrades::update::Release& r, const std::string& 
 struct Downloaded {
   bool ok = false, cancelled = false;
   std::string path, words;
+  bool github = false;  // Fetched's
 };
 Downloaded download_update(const upgrades::update::Release& r, const std::string& dir, const DownloadFn& progress);
 
@@ -106,6 +108,27 @@ bool start_detached(const std::string& program);
 // started or past `seconds`), its output and errors in `said`; `ran` says which. `quits` (a game's --status): stopped
 // as the launcher closes (stop_asking), as the curls are.
 enum class Ran { kEnded, kNotStarted, kTimedOut };
+
+// This launcher's version without its "v" ("2.1.0"; a development build's "2.1.0-dev-g..."), and the User-Agent every
+// curl_get sends, "MW3-Rebuild-launcher/2.1.0" (2.1.0: the site counts the launcher's starts by version from the
+// catalog fetch's).
+std::string own_version();
+std::string user_agent();
+
+// Update counts (2.1.0, docs/launcher.md, Update counts): GitHub's download counts hold updates as well as new
+// installs, so each finished update is reported once, and new installs are GitHub's total less the updates fetched
+// from it. `base` the catalog's "counts" address; `kind` "update" (a game's) or "self" (the launcher's own, `game`
+// "launcher"); the versions as players read them; src "github" or "mirror" (where the package came from).
+std::string count_url(const std::string& base, const std::string& kind, const std::string& game, const std::string& from,
+                      const std::string& to, bool github);
+// The request sent and its answer ignored: 3 s at most, no retry; a failure is one log line. Blocks: a thread's.
+void send_count(const std::string& url);
+// The launcher's own update reported by the new launcher, at its first start (on Windows the new Setup runs after this
+// one quits): the old one leaves this note in its data folder before the restart, the new one takes it (read and
+// removed, so never twice) and reports it when `to` is its own version.
+constexpr const char* kUpdateNote = "launcher-updated.txt";
+void write_update_note(const std::string& dir, const std::string& from, const std::string& to, bool github);
+bool take_update_note(const std::string& dir, std::string* from, std::string* to, bool* github);
 int run_program(const std::vector<std::string>& args, int seconds, std::string* said, Ran* ran = nullptr, bool quits = false);
 
 }  // namespace sdlfe

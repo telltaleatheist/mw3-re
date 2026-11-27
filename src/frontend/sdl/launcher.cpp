@@ -22,6 +22,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <utility>
 #include <thread>
 
@@ -363,6 +364,8 @@ class Launcher {
     if (win_) SDL_DestroyWindow(win_);
     for (std::thread& t : status_ask_)
       if (t.joinable()) t.join();
+    for (std::thread& t : counts_th_)  // its curl stopped by stop_asking above: at once
+      if (t.joinable()) t.join();
   }
   LauncherChoice run();
   // The games catalog while open (2026-11-27): where its fetches write, and whether this is a check run (hidden, a
@@ -371,6 +374,17 @@ class Launcher {
 
  private:
   void start_catalog_fetch(const char* why);
+  // Update counts (2.1.0, docs/launcher.md, Update counts): a finished update reported once, on its own thread, when the
+  // catalog in use names "counts" and send_update_counts is on. MW3_COUNTS_TO (checks): sent there instead.
+  void count_update(const std::string& kind, const std::string& game, const std::string& from, const std::string& to, bool github);
+  std::vector<std::thread> counts_th_;
+  std::string count_from_, count_to_;  // the game update under way (install_game_now): from and to which tag; "" an install
+  struct SelfCount {
+    std::string from, to;
+    bool github = false;
+  };
+  std::optional<SelfCount> self_count_;  // the launcher's own update, from the old one's note, until the catalog is known
+  void self_count_try(bool final);       // sent once the catalog in use names counts; dropped at `final` when it never does
   job::Part game_part(int i, const char* words) const;
   void add_original_parts(int i, std::vector<job::Part>* parts) const;
   void start_job(const std::string& name, std::vector<job::Part> parts);
@@ -486,6 +500,7 @@ class Launcher {
   std::shared_ptr<upgrades::update::Verdict> update_;  // the last CHECK FOR UPDATES' verdict
   std::vector<std::string> update_lines_;  // its release's notes wrapped to the screen (show_update)
   std::shared_ptr<std::string> update_file_;  // after UPDATE: the program to start next (empty: none)
+  std::shared_ptr<bool> update_github_;  // the update download came from GitHub (Downloaded::github; counts)
   static constexpr int kUpdateWidth = 500;
   void show_update();
   void read_update_notes();
@@ -1268,6 +1283,7 @@ void Launcher::take_catalog() {
     catalog_pending_ = catalog_pending_ || catalog_new_;
   }
   if (!catalog_asking_ && catalog_next_ms_ && SDL_GetTicks() >= catalog_next_ms_) start_catalog_fetch("every few hours");
+  if (!catalog_asking_ && !catalog_pending_) self_count_try(true);  // the fetched catalog nothing newer: the one in use
   if (!catalog_pending_) return;
   if (const char* w = catalog_waits_for()) {
     if (catalog_waiting_ != w) catalog_waiting_ = w, std::printf("mw3: launcher: catalog: a newer one waits: %s\n", w);
@@ -1275,7 +1291,9 @@ void Launcher::take_catalog() {
   }
   catalog_pending_ = false, catalog_waiting_.clear();
   const int before = upgrades::update::game_count();
-  if (!catalog::apply_newer(here_)) return;
+  const bool applied = catalog::apply_newer(here_);
+  self_count_try(true);
+  if (!applied) return;
   for (int i = before; i < upgrades::update::game_count(); ++i) {  // the new games looked up as at the start
     if (!o_.write_dir.empty())
       games_place_[i] = cfg_path(o_.write_dir, std::string("games_") + upgrades::update::game_info(upgrades::update::game_at(i)).key);
@@ -1288,6 +1306,28 @@ void Launcher::take_catalog() {
   }
   start_games_check();  // every game's releases again (the new ones', and the homes may have changed)
   layout();
+}
+
+void Launcher::count_update(const std::string& kind, const std::string& game, const std::string& from, const std::string& to, bool github) {
+  if (!settings::on(settings::kSendUpdateCounts)) {
+    std::printf("mw3: launcher: counts: %s %s %s to %s not sent (send_update_counts is off)\n", kind.c_str(), game.c_str(), from.c_str(), to.c_str());
+    return;
+  }
+  std::string base = upgrades::update::active_catalog().counts;
+  if (base.empty()) {
+    std::printf("mw3: launcher: counts: %s %s %s to %s not sent (the catalog names no counts address)\n", kind.c_str(), game.c_str(), from.c_str(), to.c_str());
+    return;
+  }
+  if (const char* to_here = SDL_getenv("MW3_COUNTS_TO"); to_here && *to_here) base = to_here;  // checks: a stand-in server
+  counts_th_.emplace_back([url = sdlfe::count_url(base, kind, game, from, to, github)] { sdlfe::send_count(url); });
+}
+
+void Launcher::self_count_try(bool final) {
+  if (!self_count_) return;
+  if (upgrades::update::active_catalog().counts.empty() && !final) return;  // the fetched catalog may name it
+  const SelfCount c = *self_count_;
+  self_count_.reset();
+  count_update("self", "launcher", c.from, c.to, c.github);
 }
 
 // A game's release as a part of the bar: the file for this computer, its size from the releases list.
@@ -1575,6 +1615,7 @@ void Launcher::install_game_now(int i) {
   work_->kind = Work::kGameInstall;
   auto done = game_done_ = std::make_shared<sdlfe::games::Done>();
   const Release r = checks_[i].release;
+  count_from_ = update ? tag_of(i) : std::string(), count_to_ = update ? r.tag : std::string();  // an install counts nothing
   const std::string root = place_game_ == i ? (place_.empty() ? games_root_ : place_) : game_root(i);
   work_game_ = i;
   std::string title = std::string(update ? "UPDATING " : "DOWNLOADING ") + game_info(g).name;
@@ -1598,7 +1639,7 @@ void Launcher::install_game_now(int i) {
 
 void Launcher::install_file_go() {
   if (work_ || install_file_.empty()) return;
-  confirm_go_ = 0, work_game_ = -1;
+  confirm_go_ = 0, work_game_ = -1, count_from_.clear(), count_to_.clear();  // a file of the player's: never counted
   work_ = std::make_unique<Work>();
   work_->kind = Work::kGameInstall;
   auto done = game_done_ = std::make_shared<sdlfe::games::Done>();
@@ -3786,6 +3827,10 @@ void Launcher::finish_work() {
   if (kind == Work::kGameInstall) {  // games on demand: in use at once, or why not on the status line
     status_ = r.summary, status_good_ = r.ok || r.cancelled, screen_ = kMain;
     if (r.ok) start_catalog_fetch("an install or update");  // put in use once the work is done (catalog_waits_for)
+    if (r.ok && game_done_ && work_game_ == static_cast<int>(game_done_->game) && !count_to_.empty())  // an UPDATE, installed and checked
+      count_update("update", upgrades::update::game_info(game_done_->game).key, upgrades::update::game_version(count_from_),
+                   upgrades::update::game_version(count_to_), game_done_->github);
+    count_from_.clear(), count_to_.clear();
     if (r.ok && game_done_) {
       const int g = static_cast<int>(game_done_->game);
       const bool first = !has_installed_[g] && work_game_ == g;  // a card's DOWNLOAD: not an UPDATE, not a file of the player's
@@ -3814,6 +3859,8 @@ void Launcher::finish_work() {
   }
   if (kind == Work::kUpdateDownload) {  // installed: the new launcher started and this one gone; else why, on the screen
     std::printf("mw3: launcher: update: %s\n", r.summary.c_str());
+    if (r.ok && update_)  // counted by the new launcher at its first start (count_update), never by this one
+      sdlfe::write_update_note(o_.write_dir, sdlfe::own_version(), upgrades::update::plain_version(update_->release.tag), update_github_ && *update_github_);
     status_ = r.summary, status_good_ = r.ok || r.cancelled;
     screen_ = kUpdateScreen, layout();
     if (r.ok && !SDL_getenv("MW3_UPDATE_NO_RESTART")) {  // checks keep this launcher
@@ -4008,6 +4055,7 @@ void Launcher::activate(int id) {
       work_->kind = Work::kUpdateDownload;
       const upgrades::update::Release release = update_->release;
       auto file = update_file_ = std::make_shared<std::string>();
+      auto from_github = update_github_ = std::make_shared<bool>(false);
       std::error_code ec;
       const std::string dir = (fs::temp_directory_path(ec) / "MW3-Rebuild-update").string();  // ours alone, never a settings folder
       if (!job_ || !job_->has("launcher")) {
@@ -4016,7 +4064,7 @@ void Launcher::activate(int id) {
       }
       work_->job_key = "launcher";
       Work* w = work_.get();
-      work_->start("DOWNLOADING THE UPDATE", [release, dir, file, w](const own::ProgressFn& f) {
+      work_->start("DOWNLOADING THE UPDATE", [release, dir, file, from_github, w](const own::ProgressFn& f) {
         const Downloaded d = download_update(release, dir, [&](double x, uint64_t got, bool checking) {
           w->got = got, w->phase = checking ? 2 : 1;
           return f(own::Progress{checking ? std::string("Checking the download")
@@ -4027,6 +4075,7 @@ void Launcher::activate(int id) {
         own::Result r;
         r.ok = d.ok, r.cancelled = d.cancelled, r.summary = d.words;
         if (!d.ok) return r;
+        *from_github = d.github;
         std::printf("mw3: launcher: update: %s\n", d.words.c_str());
         f(own::Progress{"Installing", 0.95, ""});  // sitting 4: the platform's own way
         const Installed in = install_update(d.path);
@@ -4302,12 +4351,20 @@ LauncherChoice Launcher::run() {
   std::printf("\n");
   start_games_check();
   start_self_check();  // the launcher's own update, quietly (2026-11-23)
+  {  // the launcher's own update, counted here (the new one) once: the old one's note taken, whatever comes of it (2.1.0)
+    SelfCount c;
+    if (sdlfe::take_update_note(o_.write_dir, &c.from, &c.to, &c.github)) {
+      if (c.to == sdlfe::own_version()) self_count_ = c;
+      else std::printf("mw3: launcher: counts: an update note to %s, but this is %s: not sent\n", c.to.c_str(), sdlfe::own_version().c_str());
+    }
+  }
   {  // the catalog: a player's start fetches on a thread, the list on screen meanwhile (a check run fetched first, but
      // MW3_CATALOG_START=late leaves it to this, as a player's start)
     const char* start = SDL_getenv("MW3_CATALOG_START");
     if ((!check_run_ && settings::on(settings::kCatalogAtStart)) || (start && std::strcmp(start, "late") == 0)) start_catalog_fetch("the start");
     else catalog_next_ms_ = SDL_GetTicks() + catalog_every_ms();
   }
+  self_count_try(!catalog_asking_);  // the catalog in use names counts now, or no fetch will come
   std::printf("mw3: launcher: art %.0f ms, font %.0f ms, the statuses and the install search %.0f ms\n", ms(t0, t_art),
               ms(t_art, t_font), ms(t_font, t_install));
   sounds_on_ = o_.sound && !shot;

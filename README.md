@@ -104,6 +104,12 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
+**2.1.0 (2026-11-27)** (the full notes are in
+[docs/release-notes-2.1.0.md](docs/release-notes-2.1.0.md)): after an update
+the launcher tells reverse-engineered.com which game and versions (counts
+only, nothing personal), so new downloads can be told from updates; turn it
+off with `"send_update_counts": false` in `launcher-settings.json`.
+
 **2.0.1 (2026-11-27)** (the full notes are in
 [docs/release-notes-2.0.1.md](docs/release-notes-2.0.1.md)): DOWNLOAD on the
 MechWarrior 1 Remake installs MechWarrior 3 and Pirate's Moon first when they

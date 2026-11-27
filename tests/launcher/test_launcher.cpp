@@ -16,6 +16,7 @@
 #include <chrono>
 #include <csignal>
 #include <thread>
+#include <mutex>
 #if !defined(_WIN32)
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -2219,6 +2220,8 @@ TEST(sdl_program_launcher_takes_a_catalog_while_open) {
     EXPECT(has(old_log, "launcher: update: Installed. The BattleTech launcher starts again now.") && !has(old_log, "BATTLETECH"));
     EXPECT(has(old_log, "job: The BattleTech launcher: launcher ") && has(old_log, " | the launcher's update ("));  // its one bar
     EXPECT(read(dir + "/relaunched.done") == "0\n" && has(log, "catalog: the built-in one (revision 1)"));
+    // The update counted by the new launcher (2.1.0): the old one's note taken once; 98.1.0 is not this build, so dropped.
+    EXPECT(has(log, "counts: an update note to 98.1.0, but this is ") && !fs::exists(dir + "/wd/launcher-updated.txt", ec));
     EXPECT(has(log, "catalog: revision 2 in use (fetched while open") && !has(line(log, "screen main: "), "BATTLETECH") &&
            has(line(log, "screen main: ", true), "BATTLETECH, BATTLETECH SETTINGS, CHECK FOR UPDATES"));
   }
@@ -3199,6 +3202,188 @@ TEST(launcher_download_resumes_after_a_dropped_connection) {
   EXPECT(ok && !cancelled && got == body);
   EXPECT(asked.size() == 2 && asked[1].find("Range: bytes=" + std::to_string(body.size() / 2) + "-") != std::string::npos);
   EXPECT(!std::filesystem::exists(dir + "/game.zip.part"));
+}
+#endif
+
+#if !defined(_WIN32)
+// Update counts (2.1.0, docs/launcher.md, Update counts), against a stand-in server: a game's UPDATE, installed and
+// checked, sends one GET to the catalog's "counts" (MW3_COUNTS_TO here) with the game, both versions, the launcher's
+// and where the package came from (github; mirror when GitHub's copy fails); a first install, send_update_counts
+// false, or a catalog without the field send nothing. The launcher's own update is sent by the new launcher from the
+// old one's note (taken once; one to another version is dropped). Every curl_get says MW3-Rebuild-launcher/<version>.
+TEST(sdl_program_launcher_counts_updates) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string base = std::string(MW3_TEST_TMP) + "/launcher_counts";
+  fs::remove_all(base, ec);
+  fs::create_directories(base, ec);
+  auto read = [](const std::string& f) {
+    std::ifstream in(f, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  std::string version;  // this build's, as --version says it, without its "v"
+  if (FILE* p = popen((std::string("'") + MW3_LAUNCHER_BIN + "' --version").c_str(), "r")) {
+    char buf[256];
+    if (std::fgets(buf, sizeof buf, p)) version = buf;
+    pclose(p);
+  }
+  version = version.substr(version.rfind(' ') + 1);
+  while (!version.empty() && (version.back() == '\n' || version.back() == '\r')) version.pop_back();
+  if (!version.empty() && version[0] == 'v') version.erase(0, 1);
+  EXPECT(!version.empty());
+  // The stand-in counts server: every request kept, 204 for each.
+  const int srv = socket(AF_INET, SOCK_STREAM, 0);
+  sockaddr_in a{};
+  a.sin_family = AF_INET, a.sin_addr.s_addr = htonl(INADDR_LOOPBACK), a.sin_port = 0;
+  EXPECT(srv >= 0 && bind(srv, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0 && listen(srv, 8) == 0);
+  socklen_t al = sizeof a;
+  getsockname(srv, reinterpret_cast<sockaddr*>(&a), &al);
+  const int port = ntohs(a.sin_port);
+  std::mutex mu;
+  std::vector<std::string> asked;
+  std::thread server([&] {
+    for (;;) {
+      const int c = accept(srv, nullptr, nullptr);
+      if (c < 0) return;
+      std::string req;
+      char buf[2048];
+      while (req.find("\r\n\r\n") == std::string::npos) {
+        const ssize_t got = recv(c, buf, sizeof buf, 0);
+        if (got <= 0) break;
+        req.append(buf, static_cast<size_t>(got));
+      }
+      {
+        std::lock_guard<std::mutex> l(mu);
+        asked.push_back(req);
+      }
+      const char* reply = "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n";
+      send(c, reply, std::strlen(reply), 0);
+      close(c);
+    }
+  });
+  struct Case {
+    const char* name;
+    bool installed;     // btech 0.1.0 installed: DOWNLOAD is an UPDATE to 0.2.0
+    bool field;         // the catalog names counts
+    bool off;           // send_update_counts false in the player's settings
+    bool mirror;        // GitHub's copy missing: the download from the other home
+    const char* note;   // the old launcher's note, its to= ("" none; "SELF" this build's version)
+    const char* want;   // the request's line, "" none
+  };
+  const std::string self = "kind=self&game=launcher&from=1.9.9&to=" + version + "&launcher=" + version + "&src=github";
+  const std::string upd = "kind=update&game=btech&from=0.1.0&to=0.2.0&launcher=" + version;
+  const std::string want_github = upd + "&src=github", want_mirror = upd + "&src=mirror";
+  const Case cases[] = {
+      {"update", true, true, false, false, "", want_github.c_str()},
+      {"mirror", true, true, false, true, "", want_mirror.c_str()},
+      {"install", false, true, false, false, "", ""},
+      {"off", true, true, true, false, "", ""},
+      {"no_field", true, false, false, false, "", ""},
+      {"self", false, true, false, false, "SELF", self.c_str()},
+      {"self_other", false, true, false, false, "0.0.1", ""},
+  };
+  for (const Case& c : cases) {
+    const std::string dir = base + "/" + c.name;
+    for (const char* d : {"/api", "/backup", "/games", "/wd/music", "/tmp", "/rel"}) fs::create_directories(dir + d, ec);
+    std::ofstream(dir + "/wd/music/track02.wav") << "x";
+    if (c.off) std::ofstream(dir + "/wd/launcher-settings.json") << "{\"send_update_counts\": false}";
+    if (*c.note)
+      std::ofstream(dir + "/wd/launcher-updated.txt") << "from=1.9.9\nto=" << (std::strcmp(c.note, "SELF") == 0 ? version : std::string(c.note)) << "\nsrc=github\n";
+    for (const char* repo : {"mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re", "revenge-re"})
+      std::ofstream(dir + "/api/" + repo + ".json") << "[]", std::ofstream(dir + "/backup/" + repo + ".json") << "[]";
+    const std::string sh = "#!/bin/sh\nif [ \"$1\" = --status ]; then echo '{\"kit\": 1, \"game\": \"btech\", \"version\": \"0.1.0\", \"files\": "
+                           "{\"state\": \"ready\", \"where\": \"" + dir + "\"}, \"first_run\": {\"pending\": []}, \"needs\": []}'; exit 0; fi\n"
+                           ": > '" + dir + "/played'\nexit 0\n";
+    if (c.installed) {
+      fs::create_directories(dir + "/games/btech", ec);
+      std::ofstream(dir + "/games/rebuild-games.txt") << "# the launcher's games folder\n";  // as an install leaves it
+      std::ofstream(dir + "/games/btech/rebuild-game.txt") << "game=btech\ntag=btech-v0.1.0\nfrom=github\n";
+      std::ofstream(dir + "/games/btech/btech") << sh;
+      fs::permissions(dir + "/games/btech/btech", fs::perms::owner_all);
+    }
+    const std::string zip = dir + "/rel/btech-v0.2.0-test.zip";
+    {
+      archive* z = archive_write_new();
+      archive_write_set_format_zip(z);
+      archive_write_open_filename(z, zip.c_str());
+      archive_entry* e = archive_entry_new();
+      archive_entry_set_pathname(e, "btech");
+      archive_entry_set_size(e, static_cast<la_int64_t>(sh.size()));
+      archive_entry_set_filetype(e, AE_IFREG);
+      archive_entry_set_perm(e, 0755);
+      archive_write_header(z, e);
+      archive_write_data(z, sh.data(), sh.size());
+      archive_entry_free(e);
+      archive_write_close(z);
+      archive_write_free(z);
+    }
+    const std::string zbytes = read(zip);
+    std::ofstream(dir + "/rel/SHA256SUMS") << rekit::sha256_hex(reinterpret_cast<const uint8_t*>(zbytes.data()), zbytes.size()) << "  btech-v0.2.0-test.zip\n";
+    auto list = [&](const std::string& file_url) {
+      return "[{\"tag_name\": \"btech-v0.2.0\", \"draft\": false, \"prerelease\": false, \"body\": \"x\", \"assets\": [{\"name\": \"btech-v0.2.0-test.zip\", "
+             "\"size\": " + std::to_string(zbytes.size()) + ", \"browser_download_url\": \"" + file_url + "\"}, {\"name\": \"SHA256SUMS\", \"size\": 10, "
+             "\"browser_download_url\": \"file://" + dir + "/rel/SHA256SUMS\"}]}]";
+    };
+    std::ofstream(dir + "/api/battletech-re.json") << list(c.mirror ? "file://" + dir + "/rel/gone.zip" : "file://" + zip);  // GitHub's
+    std::ofstream(dir + "/backup/battletech-re.json") << list("file://" + zip);
+    std::ofstream(dir + "/catalog.json")
+        << "{\"catalog\": 1, \"revision\": 4, " << (c.field ? "\"counts\": \"https://reverse-engineered.com/launcher/hit\", " : "")
+        << "\"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": [{\"key\": \"btech\", \"family\": \"bt\", "
+           "\"order\": 7, \"state\": \"released\", \"name\": \"BattleTech Rebuild\", \"title\": \"T\", \"heading\": \"H\", \"button\": \"B\", "
+           "\"description\": \"A line.\", \"repo\": \"battletech-re\", \"tag_prefix\": \"btech-v\", \"program\": \"btech\", \"assets\": {\"windows\": "
+           "\"{tag}-test.zip\", \"mac\": \"{tag}-test.zip\", \"linux\": \"{tag}-test.zip\"}, \"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\"}]}";
+    std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", c.mirror ? "file://" + dir + "/backup/{repo}.json|file://" + dir + "/api/{repo}.json" : "file://" + dir + "/api/{repo}.json"},
+        {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_CATALOG_URL", "file://" + dir + "/catalog.json"}, {"MW3_LAUNCHER_FRAMES", "300"},
+        {"MW3_NO_IMPORT", "1"}, {"TMPDIR", dir + "/tmp"}, {"MW3_COUNTS_TO", "http://127.0.0.1:" + std::to_string(port) + "/hit"},
+        {"MW3_DOWNLOAD_LOCAL_HTTP", "1"}, {"MW3_CURL_ARGS_TO", dir + "/curl-args"}, {"MW3_PM_BIN", ""}, {"MW3_MW1_BIN", ""},
+        {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}};
+    if (!*c.note) env.push_back({"MW3_LAUNCHER_GAME_INSTALL", "btech"});
+    const char* tmp_was = std::getenv("TMPDIR");
+    const std::string tmp_keep = tmp_was ? tmp_was : "";
+    size_t before;
+    {
+      std::lock_guard<std::mutex> l(mu);
+      before = asked.size();
+    }
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/launcher.log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    if (tmp_was) setenv("TMPDIR", tmp_keep.c_str(), 1);
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::vector<std::string> mine;
+    {
+      std::lock_guard<std::mutex> l(mu);
+      mine.assign(asked.begin() + static_cast<long>(before), asked.end());
+    }
+    const std::string log = read(dir + "/launcher.log"), args = read(dir + "/curl-args");
+    std::printf("counts, %s: %zu request(s)\n", c.name, mine.size());
+    for (const std::string& r : mine) std::printf("    %s\n", r.substr(0, r.find("\r\n")).c_str());
+    for (const char* what : {"counts: ", "games: btech now", "Nothing was installed"})
+      for (size_t at = 0; (at = log.find(what, at)) != std::string::npos; ++at) std::printf("    %s\n", log.substr(at, log.find('\n', at) - at).c_str());
+    if (*c.want) {
+      EXPECT(mine.size() == 1);
+      if (!mine.empty()) {
+        EXPECT(mine[0].rfind(std::string("GET /hit?") + c.want + " HTTP/1.1\r\n", 0) == 0);
+        EXPECT(has(mine[0], ("\r\nUser-Agent: MW3-Rebuild-launcher/" + version + "\r\n").c_str()));
+      }
+      EXPECT(has(log, "counts: sent http://127.0.0.1:"));
+    } else {
+      EXPECT(mine.empty());
+    }
+    if (c.installed && !*c.note) EXPECT(has(log, "games: btech now btech-v0.2.0 at "));
+    if (c.off) EXPECT(has(log, "not sent (send_update_counts is off)"));
+    if (!c.field) EXPECT(has(log, "not sent (the catalog names no counts address)"));
+    if (std::strcmp(c.name, "self_other") == 0) EXPECT(has(log, ("counts: an update note to 0.0.1, but this is " + version + ": not sent").c_str()));
+    if (*c.note) EXPECT(!fs::exists(dir + "/wd/launcher-updated.txt", ec));  // taken: never twice
+    // The catalog fetch's User-Agent: exactly MW3-Rebuild-launcher/<version>.
+    EXPECT(has(args, ("\n--user-agent\nMW3-Rebuild-launcher/" + version + "\n").c_str()) && !has(args, "\n--user-agent\nMW3-Rebuild-launcher\n"));
+    EXPECT(!fs::exists(dir + "/played", ec));
+  }
+  shutdown(srv, SHUT_RDWR), close(srv);
+  server.join();
+  if (!check::failures) fs::remove_all(base, ec);
 }
 #endif
 

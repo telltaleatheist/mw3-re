@@ -22,6 +22,7 @@
 #include <SDL3/SDL.h>
 
 #include <cstdio>
+#include <cctype>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -115,12 +116,14 @@ bool curl_get(const std::string& url, int seconds, std::string* out, std::string
   if (curl.empty()) return *error = "this computer has no curl to ask for releases with", false;
   const bool file = url.rfind("file://", 0) == 0;
   if (file && !allow_file) return *error = "not an https address", false;
+  // MW3_DOWNLOAD_LOCAL_HTTP (checks): plain http to this computer only, a stand-in server (curl_download's rule).
+  const bool local = SDL_getenv("MW3_DOWNLOAD_LOCAL_HTTP") && url.rfind("http://127.0.0.1:", 0) == 0;
   std::error_code ec;
   const fs::path body = fs::temp_directory_path(ec) / ("mw3-update-" + unique_part() + ".json");
   const std::string limit = std::to_string(seconds);
   std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--max-time", limit,
-                                   "--proto", file ? "=file" : "=https", "--proto-redir", "=https",
-                                   "--header", "Accept: application/vnd.github+json", "--user-agent", "MW3-Rebuild-launcher"};
+                                   "--proto", file ? "=file" : local ? "=http" : "=https", "--proto-redir", "=https",
+                                   "--header", "Accept: application/vnd.github+json", "--user-agent", user_agent()};
   if (fresh) args.insert(args.end(), {"--header", "Cache-Control: no-cache", "--header", "Pragma: no-cache"});
   args.insert(args.end(), {"--output", body.string(), url});
   if (const char* to = std::getenv("MW3_CURL_ARGS_TO"))  // checks: the arguments written, a line each
@@ -396,7 +399,7 @@ Fetched download_checked(const upgrades::update::Release& r, const std::string& 
     }
     if (k > 0) std::printf("mw3: launcher: %s: %s downloaded from %s\n", log, name.c_str(), host_of(file->url).c_str());
     Fetched ok;
-    ok.why = Fetched::kOk, ok.sha256 = got;
+    ok.why = Fetched::kOk, ok.sha256 = got, ok.github = k == 0 && r.first_home;
     return ok;
   }
   fs::remove(path, ec);
@@ -416,7 +419,7 @@ Downloaded download_update(const upgrades::update::Release& r, const std::string
   const Fetched f = download_checked(r, package->name, path, progress, allow_file, "update download");
   switch (f.why) {
     case Fetched::kOk:
-      d.ok = true, d.path = path;
+      d.ok = true, d.path = path, d.github = f.github;
       d.words = "Downloaded and checked: " + package->name + ".";
       break;
     case Fetched::kCancelled: d.cancelled = true, d.words = "The download was canceled. Nothing was installed."; break;
@@ -613,6 +616,59 @@ upgrades::update::Verdict check_for_updates(const std::string& current) {
       for (upgrades::update::Answer& a : ask_lists(release_lists(nullptr, repo, sdlfe::settings::whole(sdlfe::settings::kUpdateCount)), sdlfe::settings::whole(sdlfe::settings::kUpdateSeconds), false, "update check")) answers.push_back(std::move(a));
   }
   return upgrades::update::judge(current, answers);
+}
+
+#ifndef MW3_VERSION
+#define MW3_VERSION ""
+#endif
+std::string own_version() { return upgrades::update::plain_version(MW3_VERSION); }
+std::string user_agent() { return own_version().empty() ? std::string("MW3-Rebuild-launcher") : "MW3-Rebuild-launcher/" + own_version(); }
+
+namespace {
+// A value as the site takes it, [A-Za-z0-9._-]{1,40} (anything else is counted as rejected): another letter becomes _.
+std::string query_part(const std::string& s) {
+  std::string out;
+  for (unsigned char c : s.substr(0, 40)) out += std::isalnum(c) || c == '-' || c == '.' || c == '_' ? static_cast<char>(c) : '_';
+  return out.empty() ? std::string("unknown") : out;
+}
+}  // namespace
+
+std::string count_url(const std::string& base, const std::string& kind, const std::string& game, const std::string& from,
+                      const std::string& to, bool github) {
+  return base + (base.find('?') == std::string::npos ? "?" : "&") + "kind=" + query_part(kind) + "&game=" + query_part(game) +
+         "&from=" + query_part(from.empty() ? "unknown" : from) + "&to=" + query_part(to) + "&launcher=" + query_part(own_version()) +
+         "&src=" + (github ? "github" : "mirror");
+}
+
+void send_count(const std::string& url) {
+  std::string body, error;
+  if (curl_get(url, 3, &body, &error, false)) std::printf("mw3: launcher: counts: sent %s\n", url.c_str());
+  else std::printf("mw3: launcher: counts: not sent (%s): %s\n", error.c_str(), url.c_str());
+}
+
+void write_update_note(const std::string& dir, const std::string& from, const std::string& to, bool github) {
+  if (dir.empty()) return;
+  std::ofstream f(fs::path(dir) / kUpdateNote, std::ios::binary | std::ios::trunc);
+  f << "# The launcher's own update, reported once by the new launcher (docs/launcher.md, Update counts)\nfrom=" << from << "\nto=" << to
+    << "\nsrc=" << (github ? "github" : "mirror") << "\n";
+}
+
+bool take_update_note(const std::string& dir, std::string* from, std::string* to, bool* github) {
+  if (dir.empty()) return false;
+  const fs::path p = fs::path(dir) / kUpdateNote;
+  std::ifstream f(p, std::ios::binary);
+  if (!f) return false;
+  from->clear(), to->clear(), *github = false;
+  for (std::string line; std::getline(f, line);) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line.rfind("from=", 0) == 0) *from = line.substr(5);
+    else if (line.rfind("to=", 0) == 0) *to = line.substr(3);
+    else if (line == "src=github") *github = true;
+  }
+  f.close();
+  std::error_code ec;
+  fs::remove(p, ec);  // taken: never reported twice, whatever comes of it
+  return !to->empty();
 }
 
 }  // namespace sdlfe

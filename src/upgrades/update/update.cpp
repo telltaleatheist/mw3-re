@@ -285,6 +285,7 @@ Release with_homes(const Homes& h, const std::string& tag, const std::function<b
       break;
     }
   if (base == h.releases.size()) return {};
+  out.first_home = h.first[base];
   out.other_homes.clear(), out.other_unsigned_sums.clear();
   for (size_t i : order)
     if (i != base && !h.releases[i].assets.empty())

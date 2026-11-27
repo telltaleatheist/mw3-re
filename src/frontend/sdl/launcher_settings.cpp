@@ -49,6 +49,8 @@ const std::vector<Key> kKeys = {
     {kHiddenWakeMs, "hidden_wake_ms", 100, 50, 500, true, false, "milliseconds", "while covered, minimized or behind a game, the launcher wakes this often"},
     {kHoverGain, "sound_hover_volume", 0.7, 0, 1, false, false, "0 to 1", "the menu's rollover sound"},
     {kSelectGain, "sound_select_volume", 1.0, 0, 1, false, false, "0 to 1", "the menu's select sound"},
+    {kSendUpdateCounts, "send_update_counts", 1, 0, 1, true, false, "1 on, 0 off (or true, false)",
+     "after an update, tell reverse-engineered.com which game and versions (counts only, nothing about you)"},
 };
 
 double g_values[kCount];

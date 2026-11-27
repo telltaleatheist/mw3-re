@@ -203,7 +203,9 @@ the uninstaller; the 30 s for Inno's copy after it stays); C `bar_setup_share`,
 `bar_speed_seconds`, `bar_starting_seconds`, `bar_waiting_seconds`,
 `log_progress_seconds`; D `window_width`, `window_height`, `vsync`,
 `frames_without_vsync`, `hidden_wake_ms`, `sound_hover_volume`,
-`sound_select_volume`. Everything marked no or never above stays compiled in.
+`sound_select_volume`; and (2.1.0) `send_update_counts` (1 or true: a finished update is
+reported to the site's counts; 0 or false: nothing is sent; docs/launcher.md, Update counts).
+Everything marked no or never above stays compiled in.
 
 Checked: `launcher_settings_shipped_file_is_the_table`,
 `launcher_settings_clamp_and_fall_back`, `sdl_program_launcher_reads_its_settings`
