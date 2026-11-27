@@ -103,12 +103,16 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
-**1.9.0 (2026-11-27)** (the full notes are in
-[docs/release-notes-1.9.0.md](docs/release-notes-1.9.0.md)): DOWNLOAD fetches
-MechWarrior 3's and Pirate's Moon's original files from the Internet Archive
-when you don't already have the game; one progress bar with size, speed and
-time left for each download or update; a newer games list is used without a
-restart.
+**1.10.0 (2026-11-27)** (the full notes are in
+[docs/release-notes-1.10.0.md](docs/release-notes-1.10.0.md)): DOWNLOAD fetches
+a game's original files when you don't already have them, with a compact copy
+on reverse-engineered.com for MechWarrior 3 and Pirate's Moon, and a disc in a
+drive used first; one progress bar with size, speed and time left; a dropped
+download picks up where it stopped; the games list has sections, updates
+without a restart and shows only your installed games offline; a crash at quit
+after the sound output changed is fixed; a settings file for the launcher's
+timings. With MechWarrior 3 1.7.0, Pirate's Moon 1.3.0 and the MechWarrior 1
+Remake 1.1.5: press UPDATE ALL.
 
 **1.8.0 (2026-11-26)** (the full notes are in
 [docs/release-notes-1.8.0.md](docs/release-notes-1.8.0.md)): where the launcher
