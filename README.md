@@ -104,8 +104,8 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
-**1.10.0 (2026-11-27)** (the full notes are in
-[docs/release-notes-1.10.0.md](docs/release-notes-1.10.0.md)): DOWNLOAD fetches
+**2.0.0 (2026-11-27)** (the full notes are in
+[docs/release-notes-2.0.0.md](docs/release-notes-2.0.0.md)): DOWNLOAD fetches
 a game's original files when you don't already have them, with a compact copy
 on reverse-engineered.com for MechWarrior 3 and Pirate's Moon, and a disc in a
 drive used first; one progress bar with size, speed and time left; a dropped

@@ -1,4 +1,4 @@
-# Launcher 1.10.0 (2026-11-27)
+# Launcher 2.0.0 (2026-11-27)
 
 A launcher release, with new versions of the games beside it: MechWarrior 3
 1.7.0, Pirate's Moon 1.3.0 and MechWarrior 1 Remake 1.1.5. After updating the
