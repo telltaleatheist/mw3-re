@@ -65,8 +65,10 @@ void say_in_use(const std::string& write_dir) {
   for (const std::string& s : sources(write_dir)) where += (where.empty() ? "" : ", ") + s;
   std::printf("mw3: launcher: catalog: homes: %s\n", homes.empty() ? "(none)" : homes.c_str());
   std::printf("mw3: launcher: catalog: asked at %s\n", where.c_str());
-  for (const u::CatalogGame& g : u::active_catalog().games)
+  for (const u::CatalogGame& g : u::active_catalog().games) {
     if (!g.original.empty()) std::printf("mw3: launcher: catalog: %s names an original download\n", g.key.c_str());
+    if (!g.compact.empty()) std::printf("mw3: launcher: catalog: %s names a compact download\n", g.key.c_str());
+  }
 }
 
 // The keys signed catalogs changed (<cache>/keys.txt): a key a line learned from next_keys, "revoked <key>" one

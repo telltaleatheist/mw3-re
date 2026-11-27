@@ -55,8 +55,13 @@ struct CatalogGame {
   struct Original {
     std::string url, sha256, name, note;  // the sha256 lower case; `name` the file's ("MechWarrior 3 (USA).zip")
     unsigned long long size = 0;
+    std::string game_min;  // "compact" only: the oldest game version that sets it up ("1.7.0"), "" any
   };
   std::vector<Original> original;
+  // "compact" (2026-11-27, docs/launcher.md, The original game files): the same files made small (the game's
+  // docs/compact.md), read with the same checks, tried after every "original"; one with game_min only when the game's
+  // own version is known and reaches it. Launchers before 1.9.0 never read the key.
+  std::vector<Original> compact;
 };
 constexpr int kMaxOriginals = 4;
 // A home (2026-11-26, docs/launcher.md, Where the launcher looks): where a repo's releases list is asked, as an
@@ -185,6 +190,11 @@ GameCheck judge_game(Game g, const std::string& installed, const std::vector<Ans
 std::string game_version(const std::string& tag);
 // Two of a game's tags (or versions) by their numbers: <0, 0, >0.
 int compare_game(const std::string& a, const std::string& b);
+
+// The sources a download of a game's original files tries, in order: every "original", then each "compact" the game
+// sets up: no game_min, or `installed` (the game's own version, its status's: "v1.7.0", "pm-v1.2.12") known and not
+// older than it.
+std::vector<CatalogGame::Original> original_sources(const CatalogGame& g, const std::string& installed);
 
 // The size of a download for the words: "48 MB".
 std::string size_words(uint64_t bytes);

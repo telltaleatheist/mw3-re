@@ -1282,8 +1282,8 @@ job::Part Launcher::game_part(int i, const char* words) const {
 void Launcher::add_original_parts(int i, std::vector<job::Part>* parts) const {
   using namespace upgrades::update;
   const CatalogGame& e = catalog_game(game_at(i));
-  if (e.original.empty()) return;
-  const CatalogGame::Original& o = e.original.front();
+  if (e.original.empty() && e.compact.empty()) return;
+  const CatalogGame::Original& o = e.original.empty() ? e.compact.front() : e.original.front();
   std::string from = o.note;
   if (from.empty()) {
     const size_t at = o.url.find("://");
@@ -1542,7 +1542,7 @@ bool Launcher::get_original(int i) {
   using namespace upgrades::update;
   if (i < 0 || i >= game_count() || game_bin(i).empty()) return false;
   const CatalogGame& e = catalog_game(game_at(i));
-  if (e.original.empty()) return false;
+  if (e.original.empty() && e.compact.empty()) return false;
   rekit::Status s;
   std::string why;
   if (!sdlfe::games::kit_status(game_bin(i), &s, status_args(i), 10, &why)) {
@@ -1557,7 +1557,13 @@ bool Launcher::get_original(int i) {
     std::printf("mw3: launcher: original: %s: not fetched: its setup is not one the launcher drives\n", e.key.c_str());
     return job_drop(i, e.name + " sets its game files up itself: GAME FILES on its page"), false;
   }
-  std::printf("mw3: launcher: original: %s: getting its original game files (%d sources)\n", e.key.c_str(), static_cast<int>(e.original.size()));
+  const std::vector<CatalogGame::Original> sources = original_sources(e, s.version);
+  if (sources.empty()) {
+    std::printf("mw3: launcher: original: %s: not fetched: its compact copies need a newer game than %s\n", e.key.c_str(), s.version.c_str());
+    return job_drop(i, e.name + " needs updating before its game files can be downloaded"), false;
+  }
+  std::printf("mw3: launcher: original: %s: getting its original game files (%d sources: %d original, %d compact)\n", e.key.c_str(),
+              static_cast<int>(sources.size()), static_cast<int>(e.original.size()), static_cast<int>(sources.size() - e.original.size()));
   work_ = std::make_unique<Work>();
   work_->kind = Work::kOriginal;
   work_game_ = i;
@@ -1565,7 +1571,6 @@ bool Launcher::get_original(int i) {
   done->game = game_at(i);
   const std::string bin = game_bin(i), folder = games_place_[i];
   const std::vector<std::string> more = status_args(i);
-  const std::vector<CatalogGame::Original> sources = e.original;
   work_->job_key = "original:" + e.key, work_->setup_key = "setup:" + e.key;
   Work* w = work_.get();
   work_->start("GETTING THE ORIGINAL GAME FILES", [done, bin, sources, more, folder, w](const own::ProgressFn& f) {

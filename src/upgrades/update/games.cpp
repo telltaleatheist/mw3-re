@@ -86,17 +86,24 @@ bool plain_file_name(const std::string& n) {
   return true;
 }
 
-// A game's "original" (a list of sources) into `g`; the first thing wrong in `why` (and `g` left without one).
-void read_original(const Json& o, CatalogGame* g, std::string* why) {
-  if (o.type != Json::kArray || o.items.empty()) return void(*why = "its original is not a list of sources");
-  if (o.items.size() > static_cast<size_t>(kMaxOriginals)) return void(*why = "its original lists more than " + std::to_string(kMaxOriginals));
+// A game's "original" or "compact" (`key`, a list of sources) into `out`; the first thing wrong in `why` (and `out`
+// left empty).
+void read_original(const Json& o, const std::string& key, std::vector<CatalogGame::Original>* out, std::string* why) {
+  if (o.type != Json::kArray || o.items.empty()) return void(*why = "its " + key + " is not a list of sources");
+  if (o.items.size() > static_cast<size_t>(kMaxOriginals)) return void(*why = "its " + key + " lists more than " + std::to_string(kMaxOriginals));
   std::vector<CatalogGame::Original> list;
   for (size_t i = 0; i < o.items.size(); ++i) {
     const Json& j = o.items[i];
-    Fields f{j, "its original[" + std::to_string(i) + "]", why};
+    Fields f{j, "its " + key + "[" + std::to_string(i) + "]", why};
     CatalogGame::Original s;
     if (j.type != Json::kObject) return void(f.fail("not an entry"));
     if (!f.text("url", &s.url) || !f.text("sha256", &s.sha256) || !f.text("name", &s.name) || !f.text("note", &s.note, false)) return;
+    if (key == "compact") {
+      if (!f.text("game_min", &s.game_min, false)) return;
+      bool dotted = !s.game_min.empty() && s.game_min.size() <= 24 && s.game_min.front() != '.' && s.game_min.back() != '.' &&
+                    s.game_min.find("..") == std::string::npos && s.game_min.find_first_not_of("0123456789.") == std::string::npos;
+      if (j.at("game_min") && !dotted) return void(f.fail("its game_min " + s.game_min + " is not a dotted version (\"1.7.0\")"));
+    }
     const Json* size = j.at("size");
     if (!size || size->type != Json::kNumber || size->s.empty() || size->s.find_first_not_of("0123456789") != std::string::npos || size->s.size() > 12)
       return void(f.fail("no size in bytes"));
@@ -111,7 +118,7 @@ void read_original(const Json& o, CatalogGame* g, std::string* why) {
     if (!plain_file_name(s.name)) return void(f.fail("its name " + s.name + " is not a plain file name"));
     list.push_back(std::move(s));
   }
-  g->original = std::move(list);
+  *out = std::move(list);
 }
 
 }  // namespace
@@ -225,14 +232,15 @@ bool read_catalog(const std::string& json, Catalog* out, std::string* why, std::
         if (b->type != Json::kBool) return f.fail("panel_before_release is not true or false");
         g.panel_before_release = b->b;
       }
-      if (const Json* o = j.at("original")) {  // bad: the whole refused (strict) or the slot left out, the game kept
-        std::string bad_original;
-        read_original(*o, &g, &bad_original);
-        if (!bad_original.empty()) {
-          if (!ignored) return f.fail(bad_original);
-          ignored->push_back(f.where + ": " + bad_original + " (left out, the game kept)");
+      for (const char* key : {"original", "compact"})
+        if (const Json* o = j.at(key)) {  // bad: the whole refused (strict) or the slot left out, the game kept
+          std::string bad_original;
+          read_original(*o, key, std::string(key) == "original" ? &g.original : &g.compact, &bad_original);
+          if (!bad_original.empty()) {
+            if (!ignored) return f.fail(bad_original);
+            ignored->push_back(f.where + ": " + bad_original + " (left out, the game kept)");
+          }
         }
-      }
       return true;
     }();
     if (ok) out->games.push_back(std::move(g));
@@ -522,6 +530,14 @@ const Asset* game_asset(Game g, const Release& r, Platform p) {
 
 // compare_versions reads from the first digit, which in "mw1-v" is mw1's own "1".
 int compare_game(const std::string& a, const std::string& b) { return compare_versions(game_version(a), game_version(b)); }
+
+std::vector<CatalogGame::Original> original_sources(const CatalogGame& g, const std::string& installed) {
+  std::vector<CatalogGame::Original> out = g.original;
+  const bool known = release_version(game_version(installed));
+  for (const CatalogGame::Original& c : g.compact)
+    if (c.game_min.empty() || (known && compare_game(installed, c.game_min) >= 0)) out.push_back(c);
+  return out;
+}
 
 const Release* newest_game(Game g, const std::vector<Release>& releases, Platform p) {
   const Release* best = nullptr;

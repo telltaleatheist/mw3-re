@@ -591,6 +591,17 @@ catalog lists an original source today, and without one nothing is ever
 fetched. Launchers 1.6.0 to 1.7.1 ignore the field. Checked:
 `games_catalog_original_read_and_unused`.
 
+An entry's `"compact"` (2026-11-27) lists the same files made small
+(mech3-re's docs/compact.md: a .tar.xz the game's own setup takes and
+checks against the manifest inside it), with the same fields and checks
+plus an optional `game_min`, a dotted version ("1.7.0"). An entry may have
+`"compact"` without `"original"`. DOWNLOAD tries every original first,
+then each compact whose `game_min` the game's own version (its status's,
+"v1.7.0", "pm-v1.2.12", a build's tail read past) reaches; one with a
+`game_min` is skipped when the version is unknown or older
+(`upgrades::update::original_sources`). Launchers before 1.9.0 never read
+the key. Checked: `games_catalog_compact_and_game_min`.
+
 Trust: an entry whose `repo` names another owner (`owner/repo`) is left
 out, so is one whose `min_launcher` is newer than this launcher (a build's
 "unknown" version takes every entry), and one whose art is not a plain
