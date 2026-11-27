@@ -195,7 +195,7 @@ bool read_catalog(const std::string& json, Catalog* out, std::string* why, std::
           !f.text("description", &g.description) || !f.text("repo", &g.repo) || !f.text("tag_prefix", &g.tag_prefix) ||
           !f.text("program", &g.program) || !f.text("badge", &g.badge) || !f.text("heading_badge", &g.heading_badge, false) ||
           !f.text("card", &g.card, false) || !f.text("min_launcher", &g.min_launcher) || !f.text("badge_sha256", &g.badge_sha256, false) ||
-          !f.text("heading_badge_sha256", &g.heading_badge_sha256, false) || !f.text("card_sha256", &g.card_sha256, false))
+          !f.text("heading_badge_sha256", &g.heading_badge_sha256, false) || !f.text("card_sha256", &g.card_sha256, false) || !f.text("section", &g.section, false))
         return false;
       if (state == "coming_soon") g.state = CatalogGame::kComingSoon;
       else if (state == "released") g.state = CatalogGame::kReleased;

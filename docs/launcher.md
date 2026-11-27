@@ -449,6 +449,22 @@ that port; mech1-re credits it). The cards' tabs are gone (an old `tab_<card>=` 
 - The log names each panel's button by its game, then the bottom row, then
   UPDATE AVAILABLE: "screen main: MECHWARRIOR 3, MECHWARRIOR 3 SETTINGS,
   PIRATE'S MOON, PIRATE'S MOON SETTINGS, ..., CHECK FOR UPDATES, QUIT" (a gear is "<GAME> SETTINGS"). `MW3_LAUNCHER_LIST_Y=<px>` starts the list scrolled (shots).
+- Sections (2026-11-27): a game's optional `"section"` in the catalog is a
+  heading over the list (the title font, amber, a rule under it), drawn above
+  a panel whose section differs from the panel above it, so a hidden first
+  game never takes its section's heading with it. The words are data: renamed
+  or moved by a catalog revision, no launcher release. Launchers before 1.9.1
+  ignore the field (a plain list). The log says "section <TITLE>".
+- Sounds (2026-11-27): hover.wav and click.wav play through one logical
+  device on the default output, each its own stream bound to it. Before, each
+  opened its own (`SDL_OpenAudioDeviceStream` twice), and SDL 3.4.12 broke its
+  list of logical devices when the default output changed with more than one
+  on it (fixed upstream in 3.4.14, 5e53f67155): SDL_Quit then crashed at the
+  launcher's exit (a 1.8.0 report, after a two-hour session). The games open
+  two as well (music, effects); the SDL 3.4.20 move covers them.
+- Its log (run_log.cpp) sets stdout and stderr unbuffered once they are the
+  pipe: buffered, a crash lost the lines still waiting (the report above kept
+  only the crash handler's).
 
 The two sections below are the layouts before it; the game states, the COMING
 SOON rule and the kit's contract are unchanged.

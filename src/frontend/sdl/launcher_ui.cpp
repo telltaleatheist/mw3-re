@@ -274,6 +274,7 @@ struct LauncherUi::Impl {
     if (auto h = c.RegisterStruct<UiPanel>()) {
       h.RegisterMember("badge", &UiPanel::badge), h.RegisterMember("title", &UiPanel::title), h.RegisterMember("on", &UiPanel::on);
       h.RegisterMember("lines", &UiPanel::lines), h.RegisterMember("buttons", &UiPanel::buttons);
+      h.RegisterMember("section", &UiPanel::section);
     }
     c.RegisterArray<std::vector<UiPanel>>();
     const std::pair<const char*, std::string*> strings[] = {

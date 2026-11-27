@@ -52,7 +52,11 @@ scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc { width: 0; h
   border: 1dp #3c424b; border-radius: 2dp;
   decorator: vertical-gradient(#2c313ac4 #1a1d22c4);
 }
-.panel:last-child { margin-bottom: 0; }
+.entry:last-child .panel { margin-bottom: 0; }
+/* A catalog section's heading over its first panel (2026-11-27): the title font, amber, a rule under it. */
+.section { width: 752dp; height: 30dp; margin: 6dp 0 8dp 0; border-bottom: 1dp #f0a02080; }
+.entry:first-child .section { margin-top: 0; }
+.section fit { font-family: title; font-size: 16dp; line-height: 28dp; color: #f0a020; padding-left: 2dp; }
 .panel.hot { border-color: #f0a020; decorator: vertical-gradient(#343942c4 #22252ac4); }
 .panel .rim { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 1dp #f0a020; pointer-events: none; }
 .panel.hot .rim { display: block; }

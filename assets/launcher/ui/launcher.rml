@@ -21,7 +21,9 @@
     </div>
     <div id="view">
       <div id="list">
-        <div class="panel" data-for="p : panels" data-class-off="!p.on">
+        <div class="entry" data-for="p : panels">
+        <div class="section" data-if="p.section != ''"><fit data-attr-text="p.section"/></div>
+        <div class="panel" data-class-off="!p.on">
           <div class="rim"/>
           <div class="badge"><img data-if="p.badge != ''" data-attr-src="p.badge"/><div class="disc" data-if="p.badge == ''"/></div>
           <div class="about">
@@ -29,6 +31,7 @@
             <div data-for="l : p.lines"><fit data-attr-class="l.kind" data-attr-keep="l.keep" data-attr-text="l.text"/></div>
           </div>
           <div class="buttons" data-attr-buttons="p.buttons"/>
+        </div>
         </div>
       </div>
       <div id="more_up"/>

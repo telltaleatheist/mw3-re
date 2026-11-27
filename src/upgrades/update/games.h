@@ -45,6 +45,9 @@ struct CatalogGame {
   std::string badge_sha256, heading_badge_sha256, card_sha256;
   std::vector<std::string> needs;  // other games' keys it needs to play
   std::string min_launcher;  // the oldest launcher version that reads the entry ("1.5.2")
+  // The launcher's list heading this game's panel is under ("": none); a heading is drawn above a panel whose section
+  // differs from the panel above it (2026-11-27).
+  std::string section;
   bool panel_before_release = true;  // false: no panel until a release is found or it is installed
   // "original" (2026-11-26): where the original game's files can be fetched from, the same file at each address,
   // tried in order. Read and checked (an https address, a 64-hex sha256, a size, a plain file name); absent, nothing

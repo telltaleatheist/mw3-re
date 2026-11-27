@@ -89,6 +89,9 @@ bool RunLog::open(const std::string& dir, const std::string& name) {
     if (t.console >= 0) fd_private(t.console);
     fd_dup2(p[1], t.fd);
     fd_close(p[1]);
+    // Unbuffered (2026-11-27): a pipe makes stdio buffer 4 KB, and a crash lost every line still in it (a 1.8.0
+    // launcher's log held only the crash handler's own lines). _IONBF, as MSVC's _IOLBF buffers fully.
+    std::setvbuf(i == 0 ? stdout : stderr, nullptr, _IONBF, 0);
     Impl* self = impl.get();
     t.thread = std::thread([self, &t] { self->pass(t); });
   }

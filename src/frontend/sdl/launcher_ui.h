@@ -29,9 +29,10 @@ struct UiLine {
 };
 struct UiPanel {
   std::string badge, title, buttons;  // the badge's picture ("" none), the group its buttons are
+  std::string section;                // a heading above it ("": none)
   bool on = true;                     // false: not out yet
   std::vector<UiLine> lines;
-  bool operator==(const UiPanel& o) const { return std::tie(badge, title, buttons, on, lines) == std::tie(o.badge, o.title, o.buttons, o.on, o.lines); }
+  bool operator==(const UiPanel& o) const { return std::tie(badge, title, buttons, section, on, lines) == std::tie(o.badge, o.title, o.buttons, o.section, o.on, o.lines); }
 };
 // What the document shows. Every string is a data variable of its name (launcher.rml).
 struct UiModel {

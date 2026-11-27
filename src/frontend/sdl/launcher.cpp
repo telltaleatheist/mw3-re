@@ -185,8 +185,12 @@ const char* const kFindWordsPm =
 // The menu's sounds, the launcher's own (b6, 2026-11-26; assets/launcher/README.md): hover.wav on a rollover at 0.7
 // and click.wav on a select, the gains of the main menu's (sounds.zrd's MAINMENU set). Before b6 they were the game's
 // own sfx_button2 and sfx_button6, read from the install's sound archive.
+// Both on one logical device (2026-11-27): two opened on the default output each, and SDL before 3.4.14 broke its
+// list of them when that default changed (a new output chosen), which crashed SDL_Quit at the launcher's exit
+// (SDL 5e53f67155; docs/launcher.md, Sounds).
 struct Sounds {
   enum { kRollover, kSelect };
+  SDL_AudioDeviceID device = 0;
   SDL_AudioStream* stream[2] = {};
   Uint8* audio[2] = {};
   Uint32 len[2] = {};
@@ -195,18 +199,24 @@ struct Sounds {
       if (stream[i]) SDL_DestroyAudioStream(stream[i]);
       SDL_free(audio[i]);
     }
+    if (device) SDL_CloseAudioDevice(device);
   }
   bool load(const std::string& dir) {
     static const char* const kFiles[2] = {"hover.wav", "click.wav"};
     static const float kGain[2] = {0.7f, 1.0f};
     int got = 0;
-    for (int i = 0; i < 2 && !dir.empty(); ++i) {
+    if (dir.empty() || !(device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, nullptr))) return false;
+    SDL_AudioSpec out{};
+    SDL_GetAudioDeviceFormat(device, &out, nullptr);
+    for (int i = 0; i < 2; ++i) {
       SDL_AudioSpec spec{};
       if (!SDL_LoadWAV((fs::path(dir) / kFiles[i]).string().c_str(), &spec, &audio[i], &len[i])) continue;
-      stream[i] = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+      stream[i] = SDL_CreateAudioStream(&spec, &out);
+      if (stream[i] && !SDL_BindAudioStream(device, stream[i])) SDL_DestroyAudioStream(stream[i]), stream[i] = nullptr;
       // MW3_LAUNCHER_MUTE (checks): loaded and played at no volume.
       if (stream[i]) SDL_SetAudioStreamGain(stream[i], SDL_getenv("MW3_LAUNCHER_MUTE") ? 0.0f : kGain[i]), ++got;
     }
+    if (!got) SDL_CloseAudioDevice(device), device = 0;
     if (got) std::printf("mw3: launcher: the menu's sounds from %s (%d of 2)\n", dir.c_str(), got);
     return got > 0;
   }
@@ -214,7 +224,6 @@ struct Sounds {
     if (!stream[i]) return;
     SDL_ClearAudioStream(stream[i]);
     SDL_PutAudioStreamData(stream[i], audio[i], static_cast<int>(len[i]));
-    SDL_ResumeAudioStreamDevice(stream[i]);
   }
 };
 
@@ -2599,6 +2608,11 @@ void Launcher::layout() {
         const std::string group = "panel" + std::to_string(k);
         c.buttons = group, c.title = rows[k].entry->title, c.on = !p.soon;
         c.badge = rows[k].entry->badge + "?76";
+        // The catalog's sections (2026-11-27): a heading where a panel's differs from the one above it.
+        if (k == 0 ? !rows[k].entry->section.empty() : rows[k].entry->section != rows[k - 1].entry->section) {
+          c.section = rows[k].entry->section;
+          if (!c.section.empty()) std::printf("mw3: launcher: section %s\n", c.section.c_str());
+        }
         // Three small lines under the name: the status's first line (with its second when both fit) in amber, the rest
         // of it, then the game's line only when it fits whole (2026-11-24: a cut one could not be read anywhere).
         size_t i = 0;
