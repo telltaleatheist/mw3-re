@@ -10,6 +10,13 @@
 #include "rekit/program_record.h"
 
 #include <SDL3/SDL.h>
+#if defined(__APPLE__)
+#include <fcntl.h>
+#include <spawn.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+extern char** environ;
+#endif
 
 #include <algorithm>
 #include <atomic>
@@ -198,9 +205,7 @@ bool from_dmg(const std::string& file, const fs::path& into, std::string* error)
     if (cec) why = cec.message();
     else any = true;
   }
-  std::string detach_said;
-  run_program({"/usr/bin/hdiutil", "detach", mnt.string(), "-force"}, 60, &detach_said);
-  fs::remove(mnt, ec);
+  detach_soon(mnt.string());  // copied: the install is done (2.0.1); the detach and the folder's removal go on behind
   if (!why.empty()) return *error = "the app could not be copied off the disk image (" + why + ")", false;
   if (!any) return *error = "the disk image holds no app", false;
   return true;
@@ -285,6 +290,61 @@ void make_runnable(const std::string& program) {
 }
 
 }  // namespace
+
+#if defined(__APPLE__)
+void detach_soon(const std::string& mount) {
+  static const char* const kScript =
+      "( for k in 1 2 3; do /usr/bin/hdiutil detach \"$1\" -force && break; sleep 5; done; /bin/rmdir \"$1\" ) "
+      "</dev/null >/dev/null 2>&1 &";
+  // Its own session (POSIX_SPAWN_SETSID): what ends the launcher's process group (a terminal closed) never cuts it off.
+  const char* argv[] = {"/bin/sh", "-c", kScript, "sh", mount.c_str(), nullptr};
+  posix_spawnattr_t attr;
+  posix_spawnattr_init(&attr);
+  posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID);
+  posix_spawn_file_actions_t io;
+  posix_spawn_file_actions_init(&io);
+  for (int fd : {0, 1, 2}) posix_spawn_file_actions_addopen(&io, fd, "/dev/null", fd == 0 ? O_RDONLY : O_WRONLY, 0);
+  pid_t pid = -1;
+  int code = posix_spawn(&pid, argv[0], &io, &attr, const_cast<char* const*>(argv), environ);
+  posix_spawn_file_actions_destroy(&io);
+  posix_spawnattr_destroy(&attr);
+  if (code == 0) {
+    int status = 0;
+    waitpid(pid, &status, 0);  // the shell ends at once; its background part goes on
+    code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+  }
+  std::printf("mw3: launcher: games: %s detaching behind the install (%d)\n", mount.c_str(), code);
+}
+
+int clear_old_mounts() {
+  std::error_code ec;
+  const fs::path tmp = fs::temp_directory_path(ec);
+  if (ec) return 0;
+  const long long now = static_cast<long long>(std::chrono::steady_clock::now().time_since_epoch().count());
+  const long long ten_minutes = static_cast<long long>(std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::minutes(10)).count());
+  int cleared = 0;
+  for (const auto& e : fs::directory_iterator(tmp, ec)) {
+    const std::string name = e.path().filename().string();
+    std::string rest;
+    for (const char* prefix : {"MW3-Rebuild-game-mount-", "MW3-Rebuild-update-mount-"})
+      if (name.rfind(prefix, 0) == 0) rest = name.substr(std::strlen(prefix));
+    if (rest.empty() || !e.is_directory(ec)) continue;
+    char* end = nullptr;
+    const long long made = std::strtoll(rest.c_str(), &end, 10);
+    if (end == rest.c_str() || (made <= now && now - made < ten_minutes)) continue;  // an install or a detach under way
+    struct stat in{}, above{};
+    const bool mounted = ::stat(e.path().c_str(), &in) == 0 && ::stat(tmp.c_str(), &above) == 0 && in.st_dev != above.st_dev;
+    if (mounted) detach_soon(e.path().string());
+    else if (fs::is_empty(e.path(), ec) && fs::remove(e.path(), ec)) std::printf("mw3: launcher: games: removed the empty %s\n", e.path().string().c_str());
+    else continue;
+    ++cleared;
+  }
+  return cleared;
+}
+#else
+void detach_soon(const std::string&) {}
+int clear_old_mounts() { return 0; }
+#endif
 
 std::string root(bool hidden) {
   if (const char* d = std::getenv("MW3_GAMES_DIR")) return d;

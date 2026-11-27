@@ -1,5 +1,6 @@
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/launcher_settings.h"
+#include "frontend/sdl/sdl_games.h"  // detach_soon
 
 #include "rekit/hash.h"
 #include "rekit/sign.h"
@@ -540,9 +541,7 @@ Installed install_update(const std::string& download) {
     if (is_our_app(e.path())) fresh = e.path();
   std::string error;
   const bool swapped = !fresh.empty() && upgrades::update::swap_in(fresh.string(), target, &error);
-  std::string detach_said;
-  run_tool({"/usr/bin/hdiutil", "detach", mnt.string(), "-force"}, 60, &detach_said);
-  fs::remove(mnt, ec);
+  sdlfe::games::detach_soon(mnt.string());  // swapped in: the restart does not wait for the detach (2.0.1)
   if (fresh.empty()) return in.words = "The downloaded disk image holds no MW3 Rebuild app, so nothing was installed.", in;
   if (!swapped) return in.words = "The new app could not be put in place: " + error + ".", in;
   in.restart = (fs::path(target) / "Contents" / "MacOS" / "mw3launcher").string();

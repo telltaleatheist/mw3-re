@@ -250,6 +250,7 @@ enum Id {
   kGo = 30, kCancel, kNotesOk, kPickOther,
   kPickFile, kPickFolder, kPlayNoMusic,  // ours: PICK A FILE; PICK A FOLDER; the no-music dialog's PLAY WITHOUT MUSIC (2026-11-24)
   kInstallTo, kPlaceGo,  // ours: CHANGE FOLDER (the game's folder, picked) and the card INSTALL's go once asked where
+  kNeedsGo,              // ours (2.0.1): INSTALL ALL, a DOWNLOAD's games it needs first (confirm 9)
   kData = 40, kDataPick, kDataUsual, kMoveGo, kRemoveOld, kKeepOld,
   kUpdates = 49,
   kSelfUpdate = 50,  // the header's UPDATE AVAILABLE <v> when the start's check found one (2026-11-23)
@@ -508,6 +509,15 @@ class Launcher {
   std::vector<int> update_queue_;         // UPDATE ALL: the games still to go, then the launcher
   bool update_queue_self_ = false;
   void next_update();
+  // A DOWNLOAD whose game needs others not installed (2.0.1, docs/launcher.md, A game's needs): asked once (confirm
+  // 9), then each need installed as its own DOWNLOAD would be, then the game, on the queue above in one job.
+  std::string need_where(int n) const;  // the game files of a needed game in use ("" none known): --with's
+  bool ask_needs(int i);                // false: nothing missing that the launcher can install
+  std::vector<job::Part> needs_parts(int i) const;  // the job's parts: each need, its original files unless found, then i
+  void needs_go();
+  int needs_game_ = -1;
+  std::vector<int> needs_missing_;  // the games it needs that are not installed, in the catalog's order
+  uint64_t needs_bytes_ = 0;        // up to this much downloaded: the packages, and original files not found yet
   void take_games_check();
   void install_game(int i);
   void install_game_now(int i);
@@ -1473,8 +1483,69 @@ std::string Launcher::game_words(int i) const {
 void Launcher::install_game(int i) {
   using namespace upgrades::update;
   if (i < 0 || i >= upgrades::update::game_count() || work_ || checks_[i].kind != GameCheck::kNewer) return;
-  if (game_bin(i).empty()) return ask_place(i);  // a first install: where, asked (an UPDATE goes where it is)
+  if (game_bin(i).empty() && ask_needs(i)) return;  // the games it needs first, asked (2.0.1)
+  if (game_bin(i).empty()) return ask_place(i);     // a first install: where, asked (an UPDATE goes where it is)
   install_game_now(i);
+}
+
+// A DOWNLOAD whose game needs games not installed (2.0.1, "we're getting a lot of remake downloads"): the catalog's
+// needs, each one the launcher can install (a release for this computer), asked once with how much may come, for
+// players on metered connections. "Up to": a need's original files are counted unless its game files are known, and
+// a copy its setup finds (a disc, an install) skips their download. The game's place is not asked: each goes into its
+// usual folder. MW3_LAUNCHER_NEEDS_GO (checks): INSTALL ALL pressed.
+std::vector<job::Part> Launcher::needs_parts(int i) const {
+  using namespace upgrades::update;
+  std::vector<job::Part> parts;
+  for (int n : needs_missing_) {
+    parts.push_back(game_part(n, catalog_game(game_at(n)).name.c_str()));
+    if (need_where(n).empty()) add_original_parts(n, &parts);
+  }
+  parts.push_back(game_part(i, catalog_game(game_at(i)).name.c_str()));
+  if (!has_installed_[i]) add_original_parts(i, &parts);
+  return parts;
+}
+
+bool Launcher::ask_needs(int i) {
+  using namespace upgrades::update;
+  needs_missing_.clear(), needs_bytes_ = 0, needs_game_ = -1;
+  if (!games_on_) return false;
+  const CatalogGame& e = catalog_game(game_at(i));
+  for (const std::string& key : e.needs) {
+    Game g;
+    if (!game_of_key(key, &g)) continue;
+    const int n = static_cast<int>(g);
+    if (n == i || beside_[n] || !game_bin(n).empty()) continue;  // there already
+    if (checks_[n].kind != GameCheck::kNewer) {  // no release to install from (offline, none for this computer): as before
+      std::printf("mw3: launcher: needs: %s needs %s, which cannot be installed from here now\n", e.key.c_str(), key.c_str());
+      continue;
+    }
+    needs_missing_.push_back(n);
+  }
+  if (needs_missing_.empty()) return false;
+  for (const job::Part& p : needs_parts(i)) needs_bytes_ += p.bytes;
+  std::string names;
+  for (size_t k = 0; k < needs_missing_.size(); ++k)
+    names += (k == 0 ? "" : k + 1 == needs_missing_.size() ? " and " : ", ") + catalog_game(game_at(needs_missing_[k])).name;
+  const size_t all = needs_missing_.size() + 1;
+  confirm_text_ = e.name + " needs " + names + ". Install " + (all == 2 ? std::string("both") : all == 3 ? std::string("all three") : "all " + std::to_string(all)) +
+                  "? Up to " + job::mb(needs_bytes_) + ".";
+  needs_game_ = i, confirm_go_ = 9, screen_ = kConfirm, status_.clear();
+  std::printf("mw3: launcher: needs: %s\n", confirm_text_.c_str());
+  layout();
+  if (SDL_getenv("MW3_LAUNCHER_NEEDS_GO")) activate(kNeedsGo);
+  return true;
+}
+
+// INSTALL ALL: the needs, then the game, each through install_game_now as its own DOWNLOAD (its package, then its
+// original files when its setup finds none: get_original), one job for the bar. A failure or CANCEL stops the queue
+// there; what is installed stays.
+void Launcher::needs_go() {
+  const int i = needs_game_;
+  if (i < 0 || work_ || needs_missing_.empty()) return;
+  start_job(upgrades::update::catalog_game(upgrades::update::game_at(i)).name, needs_parts(i));
+  update_queue_ = needs_missing_, update_queue_.push_back(i), update_queue_self_ = false;
+  needs_game_ = -1, needs_missing_.clear(), confirm_go_ = 0, place_game_ = -1;
+  next_update();
 }
 
 // A card's first INSTALL (2026-11-22): where the game goes, the folder shown with CHANGE FOLDER; its pilots,
@@ -1630,6 +1701,7 @@ void Launcher::got_original(const own::Result& r) {
   status_fresh_[i] = false;
   screen_ = kMain;
   if (!r.ok) {
+    if (r.cancelled) update_queue_.clear(), update_queue_self_ = false;  // CANCEL: a DOWNLOAD's needs stop here (2.0.1)
     std::printf("mw3: launcher: original: %s: not set up: %s\n", key.c_str(), r.summary.c_str());
     status_ = name + " is installed. " +
               (r.cancelled ? std::string("Getting its original game files was canceled") : "Its original game files could not be fetched (" + r.summary + ")") +
@@ -1642,9 +1714,9 @@ void Launcher::got_original(const own::Result& r) {
     if (i == 0 && !where.empty()) {
       own::save_install(o_.write_dir, where), o_.cfg_install = where;
       find_install();
-      if (install_.ok) return use_install(install_.dir, install_.version, status_);
+      if (install_.ok) return use_install(install_.dir, install_.version, status_), next_update();  // a DOWNLOAD's needs go on
     } else if (i == 1 && !where.empty()) {
-      return use_pm(where, status_);
+      return use_pm(where, status_), next_update();
     } else {
       kit_refresh(i);
     }
@@ -1952,14 +2024,17 @@ std::vector<std::string> Launcher::with_args(int i) {
   for (const std::string& key : upgrades::update::catalog_game(upgrades::update::game_at(i)).needs) {
     upgrades::update::Game g;
     if (!upgrades::update::game_of_key(key, &g)) continue;
-    const int n = static_cast<int>(g);
-    const std::string where = n == 0 ? (install_.ok ? install_.dir : std::string())
-                              : n == 1 ? pm_dir_
-                              : kit_known_[n] && kit_set_up(n) ? kit_status_[n].where : std::string();
+    const std::string where = need_where(static_cast<int>(g));
     const std::string id = sdlfe::games::kit_id(g);
     if (!where.empty() && !id.empty()) out.push_back("--with"), out.push_back(id + "=" + where);
   }
   return out;
+}
+
+std::string Launcher::need_where(int n) const {
+  return n == 0 ? (install_.ok ? install_.dir : std::string())
+         : n == 1 ? pm_dir_
+         : kit_known_[n] && kit_set_up(n) ? kit_status_[n].where : std::string();
 }
 
 // The start's asks, each waited for (the first frame waits as it did for the checks in this program), then logged.
@@ -2855,6 +2930,11 @@ void Launcher::layout() {
       } else if (confirm_go_ == 7) {  // a card's first DOWNLOAD: where to (2026-11-22)
         add_go(kPlaceGo, "DOWNLOAD");
         break;
+      } else if (confirm_go_ == 9) {  // ours (2.0.1): a DOWNLOAD's games it needs, and how much may come
+        add(kNeedsGo, "go", "INSTALL ALL").kind = "amber";
+        first_focus = static_cast<int>(buttons_.size()) - 1;
+        add(kBack, "go", "CANCEL");
+        break;
       } else if (confirm_go_ == 8) {  // ours: no music came out of ADD FROM MY DISC's pick (2026-11-24)
         add(kPlayNoMusic, "plates", "PLAY WITHOUT MUSIC").kind = "amber";
         first_focus = 0;
@@ -2904,6 +2984,7 @@ int Launcher::header_game() const {
     case kConfirm:
       if (confirm_go_ == 4 || confirm_go_ == 6) return -1;  // Vulkan's question; a game's download, checked
       if (confirm_go_ == 7) return place_game_;              // a card's INSTALL: where to
+      if (confirm_go_ == 9) return needs_game_;              // a DOWNLOAD's games it needs (2.0.1)
       if (confirm_go_ == 8) return files_pm_ ? 1 : 0;        // no music in ADD FROM MY DISC's pick
       break;
     case kWorking:
@@ -3043,6 +3124,8 @@ UiModel Launcher::model() {
                   upgrades::update::game_version(checks_[place_game_].release.tag) + "?";
         m.words = "The game and its game files go into this folder. Your pilots, saves, settings and mods stay in your user folder.";
         m.path = text_.fit(place_.empty() ? (fs::path(games_root_) / upgrades::update::game_info(upgrades::update::game_at(place_game_)).key).make_preferred().string() : place_, 14, 440, 3);
+      } else if (confirm_go_ == 9 && needs_game_ >= 0) {
+        m.title = "DOWNLOAD " + upper(upgrades::update::catalog_game(upgrades::update::game_at(needs_game_)).name) + "?";
       } else if (confirm_go_ == 8) {
         m.variant = "nomusic", m.title = "NO MUSIC ADDED";
       } else if (confirm_go_ == 4 || confirm_go_ == 6) {
@@ -3520,6 +3603,10 @@ void Launcher::use_install(const std::string& dir, const std::string& version, c
     fs::remove_all(own, ec);
   }
   notes_refresh();
+  if (!update_queue_.empty()) {  // a DOWNLOAD's needs still to go (2.0.1): its notes wait for PLAY (mw3_ready, unseen)
+    screen_ = kMain, layout();
+    return;
+  }
   if (from_files_) {  // GAME FILES: back to the games, the new files in use
     from_files_ = false;
     screen_ = kMain, layout();
@@ -4025,6 +4112,7 @@ void Launcher::activate(int id) {
       else if (screen_ == kConfirm && confirm_go_ == 4) screen_ = kMain, layout();  // Vulkan's: the main screen
       else if (screen_ == kConfirm && confirm_go_ == 8) screen_ = disc_back_ == kSetupScreen ? kSetupScreen : kNotes, layout();
       else if (screen_ == kConfirm && confirm_go_ == 7) place_game_ = -1, screen_ = kMain, layout();  // INSTALL's where: nothing done
+      else if (screen_ == kConfirm && confirm_go_ == 9) needs_game_ = -1, needs_missing_.clear(), screen_ = kMain, layout();  // nothing done
       else if (screen_ == kConfirm) screen_ = kSetupScreen, layout();
       else if (screen_ == kDataScreen) screen_ = kSetupScreen, status_.clear(), layout();
       else if (screen_ == kCopies) screen_ = kSetupScreen, status_.clear(), layout();
@@ -4090,6 +4178,7 @@ void Launcher::activate(int id) {
       status_ = "Pick where the game goes. A folder that holds other files gets a folder of the game's own inside it.", status_good_ = true;
       ask_folder(kInstallTo);
       break;
+    case kNeedsGo: needs_go(); break;
     case kPlaceGo: {  // the card's INSTALL, once asked where
       const int i = place_game_;
       if (i < 0 || i >= upgrades::update::game_count()) break;
@@ -4560,6 +4649,7 @@ LauncherChoice run_launcher(const LauncherOptions& given) {
   // data folder.
   for (const std::string& line : settings::load(assets_dir(), given.write_dir))
     std::printf("mw3: launcher: %s\n", line.c_str());
+  sdlfe::games::clear_old_mounts();  // Mac: a disk image an earlier install's detach left (2.0.1)
   LauncherOptions o = given;
   if (!o.window_given) o.win_w = settings::whole(settings::kWindowWidth), o.win_h = settings::whole(settings::kWindowHeight);
   const std::string games_root = sdlfe::games::root(o.hidden);

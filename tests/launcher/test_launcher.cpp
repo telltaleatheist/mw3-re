@@ -1715,6 +1715,143 @@ TEST(sdl_program_launcher_gets_a_games_original_files) {
   if (!check::failures) fs::remove_all(base, ec);
 }
 
+// A DOWNLOAD whose game needs another not installed (2.0.1, docs/launcher.md, A game's needs): asked once with how much
+// may come ("Up to": the packages and the need's original files, its game files not known), then the need installed
+// as its own DOWNLOAD would be (its package, its original files through its setup), then the game, one job. Not
+// pressed: nothing installed. CANCEL while the need's original files come: the need stays, the game is not installed.
+TEST(sdl_program_launcher_installs_what_a_game_needs) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string base = std::string(MW3_TEST_TMP) + "/launcher_needs";
+  fs::remove_all(base, ec);
+  const std::string good(300000, 'o');
+  const std::string good_sum = rekit::sha256_hex(reinterpret_cast<const uint8_t*>(good.data()), good.size());
+  auto read = [](const std::string& f) {
+    std::ifstream in(f, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  std::atomic<bool> stop{false};
+  auto feed = [&stop](const std::string& path, const std::string& bytes, size_t chunk, int ms) {  // a slow server (FIFO)
+    return std::thread([&stop, path, bytes, chunk, ms] {
+      int fd = -1;
+      while (!stop && (fd = ::open(path.c_str(), O_WRONLY | O_NONBLOCK)) < 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      if (fd < 0) return;
+      ::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL) & ~O_NONBLOCK);
+      for (size_t at = 0; at < bytes.size() && !stop; at += chunk) {
+        if (::write(fd, bytes.data() + at, std::min(chunk, bytes.size() - at)) < 0) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+      }
+      ::close(fd);
+    });
+  };
+  const auto pipe_was = std::signal(SIGPIPE, SIG_IGN);
+  struct Case {
+    const char* name;
+    bool go;      // INSTALL ALL pressed
+    bool cancel;  // CANCEL while the need's original files come (served slowly)
+  };
+  for (const Case& c : {Case{"all", true, false}, Case{"not_pressed", false, false}, Case{"cancel", true, true}}) {
+    const std::string dir = base + "/" + c.name;
+    for (const char* d : {"/api", "/games", "/wd/music", "/tmp", "/rel"}) fs::create_directories(dir + d, ec);
+    std::ofstream(dir + "/wd/music/track02.wav") << "x";
+    for (const char* repo : {"mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re", "revenge-re"})
+      std::ofstream(dir + "/api/" + repo + ".json") << "[]";
+    // Each stand-in game in its release's .zip: its status (files in or not), its setup taking the original files.
+    uint64_t packages = 0;
+    for (const char* key : {"btneed", "btech"}) {
+      const std::string k = key, repo = k == "btech" ? "battletech-re" : "btneed-re";
+      const std::string sh = "#!/bin/sh\nR='" + dir + "'\necho \"" + k + " $*\" >> \"$R/asked\"\ncase \"$1 $2\" in\n"
+                             "'--status ') if [ -f \"$R/" + k + "-in\" ]; then ST=ready; else ST=missing; fi\n"
+                             "  echo '{\"kit\": 1, \"game\": \"" + k + "\", \"version\": \"0.1.0\", \"files\": {\"state\": \"'$ST'\", \"where\": \"'\"$R\"'/" + k +
+                             "\"}, \"first_run\": {\"pending\": []}, \"needs\": [], \"setup\": 1}';;\n"
+                             "'--setup --look') echo '{\"done\": true, \"ok\": true, \"words\": \"A copy.\", \"into\": \"'\"$R\"'/" + k + "\"}';;\n"
+                             "'--setup --install') : > \"$R/" + k + "-in\"; echo '{\"done\": true, \"ok\": true, \"where\": \"'\"$R\"'/" + k +
+                             "\", \"summary\": \"" + k + " is set up.\"}';;\n*) : > \"$R/played\";;\nesac\nexit 0\n";
+      const std::string zip = dir + "/rel/" + k + "-v0.1.0-test.zip";
+      archive* a = archive_write_new();
+      archive_write_set_format_zip(a);
+      archive_write_open_filename(a, zip.c_str());
+      archive_entry* e = archive_entry_new();
+      archive_entry_set_pathname(e, key);
+      archive_entry_set_size(e, static_cast<la_int64_t>(sh.size()));
+      archive_entry_set_filetype(e, AE_IFREG);
+      archive_entry_set_perm(e, 0755);
+      archive_write_header(a, e);
+      archive_write_data(a, sh.data(), sh.size());
+      archive_entry_free(e);
+      archive_write_close(a);
+      archive_write_free(a);
+      const std::string zbytes = read(zip);
+      packages += zbytes.size();
+      std::ofstream(dir + "/rel/" + k + "-SHA256SUMS") << rekit::sha256_hex(reinterpret_cast<const uint8_t*>(zbytes.data()), zbytes.size()) << "  " << k << "-v0.1.0-test.zip\n";
+      std::ofstream(dir + "/api/" + repo + ".json")
+          << "[{\"tag_name\": \"" << k << "-v0.1.0\", \"draft\": false, \"prerelease\": false, \"body\": \"x\", \"assets\": [{\"name\": \"" << k
+          << "-v0.1.0-test.zip\", \"size\": " << zbytes.size() << ", \"browser_download_url\": \"file://" << zip << "\"}, {\"name\": \"SHA256SUMS\", "
+          << "\"size\": 10, \"browser_download_url\": \"file://" << dir << "/rel/" << k << "-SHA256SUMS\"}]}]";
+    }
+    const std::string src = dir + "/need-disc.zip";
+    std::thread server;
+    if (c.cancel) {
+      EXPECT(::mkfifo(src.c_str(), 0600) == 0);
+      server = feed(src, good, 4096, 150);
+    } else {
+      std::ofstream(src, std::ios::binary) << good;
+    }
+    auto game = [](const char* key, const char* name, const char* repo, int order, const std::string& more) {
+      return std::string("{\"key\": \"") + key + "\", \"family\": \"bt\", \"order\": " + std::to_string(order) + ", \"state\": \"released\", \"name\": \"" + name +
+             "\", \"title\": \"T\", \"heading\": \"H\", \"button\": \"B\", \"description\": \"A line.\", \"repo\": \"" + repo + "\", \"tag_prefix\": \"" + key +
+             "-v\", \"program\": \"" + key + "\", \"assets\": {\"windows\": \"{tag}-test.zip\", \"mac\": \"{tag}-test.zip\", \"linux\": \"{tag}-test.zip\"}, \"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\"" + more + "}";
+    };
+    std::ofstream(dir + "/catalog.json")
+        << "{\"catalog\": 1, \"revision\": 4, \"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": ["
+        << game("btneed", "Need Rebuild", "btneed-re", 7,
+                ", \"original\": [{\"url\": \"file://" + src + "\", \"sha256\": \"" + good_sum + "\", \"size\": 300000, \"name\": \"need disc.zip\"}]")
+        << ", " << game("btech", "BattleTech Rebuild", "battletech-re", 8, ", \"needs\": [\"btneed\"]") << "]}";
+    std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_CATALOG_URL", "file://" + dir + "/catalog.json"},
+        {"MW3_LAUNCHER_FRAMES", c.cancel ? "900" : "600"}, {"MW3_LAUNCHER_GAME_INSTALL", "btech"}, {"MW3_NO_IMPORT", "1"}, {"TMPDIR", dir + "/tmp"},
+        {"MW3_PM_BIN", ""}, {"MW3_MW1_BIN", ""}, {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}};
+    if (c.go) env.push_back({"MW3_LAUNCHER_NEEDS_GO", "1"});
+    if (c.cancel) env.push_back({"MW3_LAUNCHER_CANCEL_AT", "original:btneed"});
+    const char* tmp_was = std::getenv("TMPDIR");
+    const std::string tmp_keep = tmp_was ? tmp_was : "";
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/launcher.log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    if (tmp_was) setenv("TMPDIR", tmp_keep.c_str(), 1);
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    stop = true;
+    if (server.joinable()) server.join();
+    stop = false;
+    const std::string log = read(dir + "/launcher.log"), asked = read(dir + "/asked");
+    std::printf("needs, %s:\n", c.name);
+    for (const char* what : {"needs: ", "job: BattleTech", "games: bt", "original: bt", "CANCEL pressed"})
+      for (size_t a = 0; (a = log.find(what, a)) != std::string::npos; ++a) std::printf("    %s\n", log.substr(a, log.find('\n', a) - a).c_str());
+    char up_to[64];
+    std::snprintf(up_to, sizeof up_to, "Up to %.1f MB.", static_cast<double>(packages + good.size()) / 1e6);
+    EXPECT(has(log, (std::string("needs: BattleTech Rebuild needs Need Rebuild. Install both? ") + up_to).c_str()));
+    const size_t need_at = log.find("games: btneed now btneed-v0.1.0 at "), game_at = log.find("games: btech now btech-v0.1.0 at ");
+    if (!c.go) {
+      EXPECT(need_at == std::string::npos && game_at == std::string::npos && !has(log, "job: "));
+    } else if (!c.cancel) {
+      EXPECT(need_at != std::string::npos && game_at != std::string::npos && need_at < game_at);  // the need first
+      EXPECT(has(log, "original: btneed: set up at ") && fs::exists(dir + "/btneed-in", ec));
+      // One job for the press: the need's package, its original files and their setup, then the game.
+      EXPECT(has(log, "job: BattleTech Rebuild: game:btneed ") && has(log, ", original:btneed 0.3 MB, setup:btneed, game:btech "));
+      size_t jobs = 0;
+      for (size_t a = 0; (a = log.find(" in all)\n", a)) != std::string::npos; ++a) ++jobs;  // each job's first line
+      EXPECT(jobs == 1 && !has(log, "job: Need Rebuild: "));
+    } else {
+      EXPECT(has(log, "CANCEL pressed during original:btneed") && need_at != std::string::npos && game_at == std::string::npos);
+      EXPECT(has(log, "original: btneed: not set up: ") && !fs::exists(dir + "/btneed-in", ec));
+    }
+    EXPECT(!fs::exists(dir + "/played", ec));  // DOWNLOAD never starts a game
+  }
+  std::signal(SIGPIPE, pipe_was);
+  if (!check::failures) fs::remove_all(base, ec);
+}
+
 // One bar for a DOWNLOAD (2026-11-27, docs/launcher.md, One bar for a press), served slowly (FIFOs fed at a pace):
 // the game's .zip and its original files (the catalog's size and note) one rising total, each part named on the smaller
 // line, the speed once settled, then the setup; a status that says the game has its files leaves the original out
@@ -2597,6 +2734,75 @@ TEST(sdl_update_download_falls_back_to_the_backup) {
 
 #if !defined(_WIN32)  // the rest of the launcher's tests: posix_spawn, FIFOs
 #if defined(__APPLE__)
+// A disk image's detach behind an install (2.0.1, sdl_games.h detach_soon) and the leftovers cleared at a start
+// (clear_old_mounts): detach_soon returns at once, then the image is detached and its mount folder removed; at a start, a
+// mount folder of ours from long ago is detached when attached and removed when empty, and one made just now (an install
+// under way), one with files in it, and anything not named as ours are left alone.
+TEST(sdl_games_detaches_disk_images_behind_the_install) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path root = fs::path(MW3_TEST_TMP) / "detach_soon";
+  fs::remove_all(root, ec);
+  fs::create_directories(root / "dmg-src", ec);
+  std::ofstream(root / "dmg-src" / "readme.txt") << "x";
+  const std::string dmg = (root / "test.dmg").string();
+  if (std::system(("/usr/bin/hdiutil create -quiet -fs HFS+ -volname 'MW3 Detach' -srcfolder '" + (root / "dmg-src").string() + "' -format UDZO '" + dmg + "'").c_str()) != 0) {
+    std::printf("  no hdiutil here: skipped\n");
+    return;
+  }
+  // The temp folder on the system's volume, as a player's: macOS refuses a mount on an external volume's folder.
+  const fs::path tmp = fs::temp_directory_path(ec) / ("mw3-detach-" + std::to_string(getpid()));
+  fs::remove_all(tmp, ec);
+  fs::create_directories(tmp, ec);
+  const auto attach = [&](const fs::path& mnt) {
+    fs::create_directories(mnt, ec);
+    return std::system(("/usr/bin/hdiutil attach -quiet -nobrowse -readonly -noautoopen -mountpoint '" + mnt.string() + "' '" + dmg + "'").c_str()) == 0;
+  };
+  const auto mounted = [](const fs::path& mnt) {
+    std::string all;
+    FILE* p = popen("/sbin/mount", "r");
+    char buf[1024];
+    while (p && std::fgets(buf, sizeof buf, p)) all += buf;
+    if (p) pclose(p);
+    return all.find(" on " + mnt.string() + " ") != std::string::npos || all.find(" on /private" + mnt.string() + " ") != std::string::npos;
+  };
+  const auto gone_soon = [&](const fs::path& mnt) {
+    for (int i = 0; i < 300 && (mounted(mnt) || fs::exists(mnt, ec)); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    return !mounted(mnt) && !fs::exists(mnt, ec);
+  };
+  const std::string now = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+  // detach_soon: back at once, the image detached and its folder removed soon after.
+  const fs::path a = tmp / ("MW3-Rebuild-game-mount-" + now + "-1");
+  EXPECT(attach(a) && mounted(a) && fs::exists(a / "readme.txt", ec));
+  const auto t0 = std::chrono::steady_clock::now();
+  sdlfe::games::detach_soon(a.string());
+  const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+  std::printf("  detach_soon returned in %.2f s\n", took);
+  EXPECT(took < 2.0);
+  EXPECT(gone_soon(a));
+  // clear_old_mounts, TMPDIR the test's folder.
+  const fs::path old_attached = tmp / "MW3-Rebuild-update-mount-1-1", old_empty = tmp / "MW3-Rebuild-game-mount-2-1",
+                 fresh = tmp / ("MW3-Rebuild-game-mount-" + now + "-2"), old_full = tmp / "MW3-Rebuild-game-mount-3-1",
+                 unnumbered = tmp / "MW3-Rebuild-game-mount-mine", other = tmp / "Somebody-mount-1-1";
+  EXPECT(attach(old_attached));
+  for (const fs::path& d : {old_empty, fresh, old_full, unnumbered, other}) fs::create_directories(d, ec);
+  std::ofstream(old_full / "keep.txt") << "mine";
+  const char* tmp_was = std::getenv("TMPDIR");
+  const std::string tmp_keep = tmp_was ? tmp_was : "";
+  setenv("TMPDIR", tmp.c_str(), 1);
+  const int cleared = sdlfe::games::clear_old_mounts();
+  if (tmp_was) setenv("TMPDIR", tmp_keep.c_str(), 1);
+  else unsetenv("TMPDIR");
+  std::printf("  clear_old_mounts: %d cleared\n", cleared);
+  EXPECT(cleared == 2 && !fs::exists(old_empty, ec));
+  EXPECT(gone_soon(old_attached));
+  EXPECT(fs::exists(fresh, ec) && fs::exists(old_full / "keep.txt", ec) && fs::exists(unnumbered, ec) && fs::exists(other, ec));
+  for (const fs::path& m : {a, old_attached})
+    if (mounted(m)) std::system(("/usr/bin/hdiutil detach -quiet -force '" + m.string() + "'").c_str());  // never left attached
+  fs::remove_all(tmp, ec);
+  if (!check::failures) fs::remove_all(root, ec);
+}
+
 // The Mac's install (sitting 4): a real DMG holding a new app, attached read-only, its app swapped in for the old
 // one (MW3_UPDATE_TARGET in place of the running app), detached; a target that is not our app, or a DMG without one,
 // changes nothing. The settings folder beside it untouched.
@@ -2639,11 +2845,14 @@ TEST(sdl_update_installs_the_mac_app) {
          !fs::exists(root / "Applications" / "MW3 Rebuild.app.old") && !fs::exists(root / "Applications" / "MW3 Rebuild.app.new"));
   EXPECT(text(root / "Library" / "MicroProse" / "MechWarrior 3" / "mw3.cfg") == "mod=one\n");
   std::string mounted;
-  {
+  for (int i = 0; i < 300; ++i) {  // detached behind the swap (2.0.1, detach_soon): soon, not before install_update returns
+    mounted.clear();
     FILE* p = popen("/sbin/mount", "r");
     char buf[512];
     while (p && std::fgets(buf, sizeof buf, p)) mounted += buf;
     if (p) pclose(p);
+    if (mounted.find("MW3-Rebuild-update-mount") == std::string::npos) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   EXPECT(mounted.find("MW3-Rebuild-update-mount") == std::string::npos);  // detached
   // A DMG without our app: nothing installed.

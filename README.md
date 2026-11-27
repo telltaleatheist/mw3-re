@@ -104,6 +104,12 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
+**2.0.1 (2026-11-27)** (the full notes are in
+[docs/release-notes-2.0.1.md](docs/release-notes-2.0.1.md)): DOWNLOAD on the
+MechWarrior 1 Remake installs MechWarrior 3 and Pirate's Moon first when they
+are missing, after one question with the total size; on a Mac an install no
+longer sits at 100% for about 10 seconds.
+
 **2.0.0 (2026-11-27)** (the full notes are in
 [docs/release-notes-2.0.0.md](docs/release-notes-2.0.0.md)): DOWNLOAD fetches
 a game's original files when you don't already have them, with a compact copy

@@ -113,6 +113,17 @@ Done get_original(const std::string& bin, const std::vector<u::CatalogGame::Orig
 // Whether `bin` is inside the AppImage this program runs from ($APPDIR), so goes away with it.
 bool in_own_mount(const std::string& bin);
 
+// Mac (2.0.1): a disk image's detach started and not waited for, so an install ends once its app is copied (the first
+// detach after macOS sees a new app took 10.6 s while its first look held the volume; repeats under 1 s). A shell
+// starts it in the background and ends at once; the detach (tried 3 times, 5 s apart) then removes the empty mount
+// folder. Elsewhere it does nothing.
+void detach_soon(const std::string& mount);
+// Mac, at the launcher's start: a MW3-Rebuild-game-mount-* or -update-mount-* left in the temp folder (a detach that
+// failed, or one cut off) detached when still attached, removed when empty (never its contents). Only one from over
+// 10 minutes ago or from before a restart of the computer (its name's clock is the system's since it started), so
+// another launcher's install now is left alone. Returns how many were cleared.
+int clear_old_mounts();
+
 // Ours (2026-11-24, docs/launcher.md, Copies installed without the launcher): a game of ours installed by its own
 // Setup, disk image or AppImage is found and linked, and a player can link one by hand (a panel's gear).
 // Each of our programs keeps this file in its user folder: where it is and its version (rebuild-program.txt).

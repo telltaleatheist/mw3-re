@@ -486,7 +486,7 @@ panel's `badge_mw1o.png`). The panels go
 by `order`; `panel_before_release: false` keeps a panel away until a
 release is found or the game is installed (Inception Remake). `state`,
 `needs` and `min_launcher` are read and checked, and acted on since the
-fetched catalog (b7, below; `needs` not yet). The code still knows each game by its
+fetched catalog (b7, below; `needs` by DOWNLOAD since 2.0.1, Games on demand, A game's needs). The code still knows each game by its
 `Game` (games.h), linked to its entry by key; a built-in catalog without
 one of them stops the program at its first read (the test stops it
 first).
@@ -1958,6 +1958,64 @@ drops: curl's codes 6, 7, 18, 28, 35, 52, 55 and 56, or a file of known size tha
 so a resume can never install a bad file. Test: `launcher_download_resumes_after_a_dropped_connection`, where a
 stand-in server on this computer (plain http, allowed only for 127.0.0.1 under `MW3_DOWNLOAD_LOCAL_HTTP`) drops a 3 MB
 file halfway.
+
+### A game's needs (2.0.1, 2026-11-27)
+
+DOWNLOAD on a game whose catalog `needs` names a game that is not installed
+(the MechWarrior 1 Remake: MechWarrior 3 and Pirate's Moon) asks once, in
+the launcher's usual box: "MechWarrior 1 Remake needs MechWarrior 3 and
+Pirate's Moon. Install all three? Up to N MB.", INSTALL ALL or CANCEL
+(confirm 9, `ask_needs`). Only DOWNLOAD asks; the panels and PLAY say what
+is missing as before (MechWarrior 1, above).
+
+- **Which needs.** Each key in `needs` whose game has no program here (not
+  installed, not beside the launcher) and has a release for this computer.
+  One without a release (offline, none for this platform) is left out and
+  logged, and the game installs as before.
+- **N** is the sum of the job's parts (`needs_parts`): each missing need's
+  package, its original files (the catalog's first `original`, else
+  `compact`) unless its game files are already known (`need_where`, the
+  same folder `--with` would give), then the game's package and, on a first
+  install, its own original files. "Up to": a need's setup that finds a
+  copy (a disc in a drive, an install) skips their download.
+- **INSTALL ALL** starts one job (one bar, `launcher_job.h`) and queues
+  the needs, then the game, on `update_queue_`; each is installed by
+  `install_game_now` exactly as its own DOWNLOAD would (its package, then
+  `get_original` when its status says its files are missing), into its
+  usual folder (the place screen is not asked). `got_original` goes on to
+  the next in the queue after MechWarrior 3's or Pirate's Moon's files are
+  put in use; MechWarrior 3's notes screen waits for PLAY (`mw3_ready`,
+  still unseen) while the queue runs.
+- **CANCEL** during the job, or a failure, stops the queue there: what is
+  installed stays, the rest is not started (`r.cancelled` clears the queue).
+- **The Remake's status** is then asked with the new copies (`--with`),
+  as `find_mw1` does after any install.
+- Checked by `sdl_program_launcher_installs_what_a_game_needs` (a stand-in
+  game needing another: the box's words and total, the need installed and
+  set up first in the same job, not pressed, CANCEL during the need's
+  original files). The MechWarrior 3 and Pirate's Moon branches of
+  `got_original` (use_install, use_pm) are not run by a check.
+- `MW3_LAUNCHER_NEEDS_GO` (checks): INSTALL ALL pressed.
+
+### The Mac's disk image (2.0.1, 2026-11-27)
+
+A game's package on the Mac is a disk image: attached read-only out of
+sight (`MW3-Rebuild-game-mount-*` in the temp folder), its app copied out,
+detached. The first detach after macOS sees a new app took 10.6 s (its
+first look holds the volume), so the bar sat at 100%. Since 2.0.1 the
+install ends once the app is copied: `detach_soon` starts the detach in a
+shell of its own session (`POSIX_SPAWN_SETSID`, so nothing that ends the
+launcher's process group cuts it off), tried 3 times 5 s apart, which then
+removes the empty mount folder. The launcher's own update (its
+`-update-mount-*`) does the same, so the restart does not wait.
+
+At each start `clear_old_mounts` looks at the temp folder for either name:
+one from over 10 minutes ago (its name's number is the system clock since
+boot, so also any from before a restart) is detached when still attached
+and removed when empty; one made just now (another launcher's install), one
+with files in it, or any other name is left alone. Checked by
+`sdl_games_detaches_disk_images_behind_the_install` and
+`sdl_update_installs_the_mac_app`.
 
 ## Where a game goes (2026-11-22)
 
