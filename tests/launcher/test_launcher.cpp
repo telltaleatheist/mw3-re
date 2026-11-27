@@ -392,16 +392,28 @@ TEST(launcher_narrow_spaces_widen) {
   TTF_Quit();
 }
 
-// The launcher (ours, docs/launcher.md), drawn once into a BMP: with the
-// development copy found, the games' screen; with none (MW3_FIND_INSTALL=1,
-// an empty write dir), the setup screen; the progress screen. Each a
-// lit 854x480 canvas (16:9), and the log says what it found.
+// The launcher (ours, docs/launcher.md), drawn once into a BMP: with a stand-in
+// MechWarrior 3 found (kAsksAsMw3: ready, 1.2 data, no music), the games' screen;
+// with none (MW3_FIND_INSTALL=1, an empty write dir), the setup screen; the
+// progress screen. Each a lit 854x480 canvas (16:9), and the log says what it
+// found. The games folder is the test's own, empty (2026-11-27: the computer's
+// installed games, read before, made it pass or fail by what was installed).
 TEST(sdl_program_launcher_screens) {
   const std::string dir = std::string(MW3_TEST_TMP) + "/launcher";
   std::error_code ec;
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir + "/wd", ec);
   std::filesystem::create_directories(dir + "/wd2", ec);
+  std::filesystem::create_directories(dir + "/games", ec);
+  std::filesystem::create_directories(dir + "/wd/install", ec);  // the stand-in's install (its status's "where")
+  {
+    std::ofstream sh(dir + "/mw3");
+    sh << "#!/bin/sh\n" << kAsksAsMw3 << "exit 0\n" << kVersionLine;
+  }
+  std::filesystem::permissions(dir + "/mw3", std::filesystem::perms::owner_all, ec);
+  setenv("MW3_GAME_BIN", (dir + "/mw3").c_str(), 1);
+  setenv("MW3_GAMES_DIR", (dir + "/games").c_str(), 1);
+  for (const char* other : {"MW3_MW1_BIN", "MW3_MW1R_BIN", "MW3_CHI_BIN", "MW3_CHIRM_BIN"}) setenv(other, "", 1);
   // The first entry hovered (the PC's fresh install): a square plate lights its edge (at edge_x, edge_y,
   // the plate's top, the 640 block 107 in) in amber. The main screen's panels (2026-11-24): MW3's PLAY, at the
   // right of the first, lights too, no ripple.
@@ -427,6 +439,7 @@ TEST(sdl_program_launcher_screens) {
     std::ifstream f(log);
     const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
     EXPECT(text.find("/launcher/font.ttf\n") != std::string::npos);  // the package's font, no system one asked
+    EXPECT(text.find("BattleTech/games/") == std::string::npos);  // the computer's own installed games never read
     SDL_Surface* img = SDL_LoadBMP(bmp.c_str());
     int lit = 0, n = 0;
     bool edge = s.edge_x < 0;
@@ -452,6 +465,7 @@ TEST(sdl_program_launcher_screens) {
     EXPECT((text.find("launcher: header MECHWARRIOR 3\n") != std::string::npos) == (std::string(s.screen) != "main"));
     if (img) SDL_DestroySurface(img);
   }
+  for (const char* v : {"MW3_GAME_BIN", "MW3_GAMES_DIR", "MW3_MW1_BIN", "MW3_MW1R_BIN", "MW3_CHI_BIN", "MW3_CHIRM_BIN"}) unsetenv(v);
 }
 
 // The mouse on the launcher (2026-11-24): the panels scroll under it with the wheel and by the scrollbar, the button
