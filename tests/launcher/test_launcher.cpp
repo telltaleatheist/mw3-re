@@ -2975,12 +2975,13 @@ TEST(launcher_download_resumes_after_a_dropped_connection) {
   std::error_code ec;
   std::filesystem::remove_all(dir, ec);
   std::filesystem::create_directories(dir, ec);
-  setenv("MW3_DOWNLOAD_LOCAL_HTTP", "1", 1);
+  // SDL_getenv reads SDL's own copy of the environment once one exists (an earlier test in this process made it).
+  setenv("MW3_DOWNLOAD_LOCAL_HTTP", "1", 1), SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "MW3_DOWNLOAD_LOCAL_HTTP", "1", true);
   std::string error;
   bool cancelled = false;
   const bool ok = sdlfe::curl_download("http://127.0.0.1:" + std::to_string(port) + "/game.zip", dir + "/game.zip", body.size(),
                                        [](double, uint64_t, bool) { return true; }, &error, &cancelled);
-  unsetenv("MW3_DOWNLOAD_LOCAL_HTTP");
+  unsetenv("MW3_DOWNLOAD_LOCAL_HTTP"), SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(), "MW3_DOWNLOAD_LOCAL_HTTP");
   shutdown(srv, SHUT_RDWR), close(srv);
   server.join();
   std::ifstream f(dir + "/game.zip", std::ios::binary);
