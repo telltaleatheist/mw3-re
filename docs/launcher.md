@@ -483,9 +483,10 @@ build before (66 shots, the version text pinned).
 
 ### Fetched (2026-11-26, launcher-split.md b7)
 
-A newer catalog comes from the hub's main, `catalog/games.json` in mw3-re
-(git.owenmorgan.com's raw file first, then GitHub's raw file; both asked,
-the higher `revision` wins), with no word about the player sent. It is
+A newer catalog comes from the addresses sources.json lists (Where the
+launcher looks, below: reverse-engineered.com, then the hub's main on
+GitHub and the mirror), each asked and checked against its signature, the
+higher `revision` winning, with no word about the player sent. It is
 fetched on a thread while the launcher is open and cached in the write
 dir, `catalog/games.json`, with the art it names that the package does not
 carry (`catalog/art/<name>` beside it on the hub; kept only when it is a
@@ -495,8 +496,9 @@ game, and anything it does not list stays as built in. Offline, the cache
 serves; with no cache, or one whose `revision` is not above the built-in's
 (the built-in has `"revision": 1`), the built-in catalog is used. The
 catalog in use is fixed for the run once a game is looked up
-(`use_catalog`); a check run (hidden, a shot) fetches first, and only from
-`MW3_CATALOG_URL` (one address, or `BACKUP|GITHUB`; `file://` there).
+(`use_catalog`); a check run (hidden, a shot) fetches first, and only when
+`MW3_CATALOG_URL` (one address, or `A|B`; `file://` there) or
+`MW3_SOURCES_FILE` is set, and never from an address that is not file://.
 
 What an entry does:
 
@@ -530,7 +532,7 @@ order: up to `kMaxOriginals` (4) of `{"url", "sha256", "size", "name",
 "note"}`, `url` https, `sha256` 64 hex digits, `size` in bytes, `name`
 a plain file name. It is read and checked (a bad one is left out, said
 in the log, and its game kept). The start's log line,
-`catalog: <key> names an original download (not used)`, only means it is
+`catalog: <key> names an original download`, only means it is
 listed: what fetches it is DOWNLOAD (Games on demand, The original game's
 files). file:/// is taken only in checks (`MW3_GAMES_API` set). No
 catalog lists an original source today, and without one nothing is ever
@@ -542,7 +544,8 @@ out, so is one whose `min_launcher` is newer than this launcher (a build's
 "unknown" version takes every entry), and one whose art is not a plain
 `.png` name. A bad entry is left out and the rest read; a catalog that is
 not JSON, or in a newer format (`"catalog"` above 1), is not used at all.
-Each is said in the log (`catalog: ... left out: ...`). No signing yet.
+Each is said in the log (`catalog: ... left out: ...`). A catalog is taken
+only when signed (Where the launcher looks, below).
 
 Checked: `games_catalog_fetched_leaves_out_bad_entries`,
 `games_catalog_fetched_merges_over_the_built_in` (mw3tests) and
@@ -553,6 +556,82 @@ cache; offline with none), `sdl_program_launcher_keeps_an_installed_games_entry`
 (revision 2 adds a game, installed; revision 3 leaves it out: kept, and it
 plays; uninstalled: forgotten). `tools/launcher/shots.sh` takes every screen for
 the byte-for-byte check: the built-in catalog's 66 shots are as before.
+
+## Where the launcher looks, and signed data (2026-11-26)
+
+Nothing the launcher fetches from is fixed in its code. Three files say
+where to look, each trusted for what it holds:
+
+- **sources.json** (`assets/launcher/sources.json`, shipped beside the
+  badges): `{"sources": 1, "catalog": [...], "keys": [...],
+  "unsigned_sums": [...]}`. `catalog` is the catalog's addresses in order
+  (reverse-engineered.com's `/launcher/catalog.json`, the hub's main on
+  GitHub, the mirror's copy; up to 6, https and a plain host), `keys` the
+  public Ed25519 keys (64 hex digits, up to 8) that sign the catalog and
+  the releases' sums, and `unsigned_sums` the releases lists (address
+  prefixes) whose unsigned `SHA256SUMS` are still taken: GitHub's. It is
+  the source of truth: the build embeds the same file
+  (`sources_builtin.cpp`, from CMake), used only when the shipped one is
+  missing or does not read (`sources: the built-in copy (<path>: <why>)`
+  in the log; a build whose embedded copy does not read stops at the
+  start). CMake warns while `keys` is empty: such a build takes no fetched
+  catalog (`catalog: sources.json lists no key`), and its built-in catalog
+  is used. A check run reads `MW3_SOURCES_FILE` instead (file:// taken
+  there). `upgrades/update/sources.h`.
+- **The catalog** names everything else: `homes` (below, Two homes) for
+  every repo's releases, the games and their `original`, and
+  `catalog_sources`, its own addresses. The launcher keeps the last good
+  catalog (the cache); the next start asks the cached catalog's
+  `catalog_sources` first, then sources.json's, each once
+  (`sdlfe::catalog::addresses`), so the catalog can move without a
+  launcher release. Each is asked; the newest signed one is cached with
+  its `.sig` (the first on a tie). The start says them:
+  `catalog: asked at ...`.
+- **Signatures.** Ed25519 (Monocypher 4.0.2, in re-setup-kit: `rekit/sign.h`;
+  the launcher uses the kit's copy). A signature is a detached `<file>.sig`,
+  one line of 128 hex digits per key, each over the whole file; several
+  lines let the old key and the next both sign while keys move. A fetched
+  catalog is taken only if a line checks against a key the launcher knows;
+  otherwise it is logged (`catalog at <address>: not used: no signature`, or
+  `its signature does not check against the launcher's keys`) and the next
+  address asked. A signed catalog may name `next_keys` (up to 4): they are
+  learned (kept in `<write dir>/catalog/keys.txt`, read at each start), so
+  a later catalog signed only by the next key is taken (key rotation; a
+  launcher that never saw the vouching catalog needs its sources.json to
+  list the new key). The cache itself is trusted: it is written only after
+  a verified fetch.
+- **Release sums.** A release may carry `SHA256SUMS.sig` beside
+  `SHA256SUMS`. Signed sums are taken from any home; unsigned ones only
+  from a list sources.json names in `unsigned_sums` (GitHub's), so a
+  mirror or another home can serve a file only when its sums are signed,
+  or when GitHub's line vouches for it (`sdlfe::download_checked`). A
+  refusal is said: `The release's SHA256SUMS could not be trusted (its
+  SHA256SUMS is not signed), so nothing was downloaded.`
+- **Signing** (`tools/package/sign.py`, Python's `cryptography`): the
+  private key never goes in a repo; `MW3_SIGNING_KEY` names its file
+  (several, `:`-separated, sign with each). `sign.py <file>` writes
+  `<file>.sig`, `--public` prints the public keys for sources.json,
+  `--new-key <path>` makes one, `--check <file> <key>` checks.
+  `sums.py` signs `SHA256SUMS` when the variable is set;
+  `publish_catalog.py <folder>` signs `catalog/games.json` (its `.sig`
+  committed beside it on the hub's main) and stages `catalog.json`,
+  `catalog.json.sig` and `art/` for the site's `/launcher/` path, served
+  as plain files (DEPLOY.md).
+
+Checked: `sources_read_shipped_and_built_in`,
+`games_catalog_sources_and_next_keys` (mw3tests),
+`sdl_homes_lists_and_catalog_addresses`, `sdl_update_download_takes_signed_sums`
+(signed sums from an untrusted home taken, unsigned and another key's
+refused there, GitHub's unsigned taken, another home's signed line vouching
+for GitHub's file), `sdl_program_launcher_takes_only_a_signed_catalog` (the
+order with each address failing in turn, the newest winning, unsigned,
+another key's, a changed text, a bad .sig, a key learned and used, refused
+in a fresh write dir, signed by both; `catalog_sources` asked first on the
+next start; sources.json missing: the built-in copy, nothing taken, its real
+addresses not asked) and `sdl_program_launcher_checks_for_updates` (an
+unsigned newest on the backup: shown, not downloaded). Tests not about
+signing have their catalogs signed by test key 1 (`spawn_launcher`); test
+keys come from the kit's `tests/test_keys.h`.
 
 ## The launcher's own small copies (2026-11-26, launcher-split.md b1)
 
@@ -1483,29 +1562,34 @@ to a read-only Forgejo at `git.owenmorgan.com`, under the same paths
 (`git.owenmorgan.com/telltaleatheist/<repo>`). The launcher reads both, so it keeps working if one is forgotten
 or GitHub goes away.
 
-- **The list of homes (2026-11-26).** The copies are data: the catalog's
-  `"homes"`, each `{"key", "url", "order"}`, `url` a Forgejo or Gitea
-  base address (`https://` and a plain host, no port, path or user),
-  asked by `order` before GitHub. GitHub is not in the list: it is
-  fixed in the code, the root the catalog itself comes from. The
-  built-in catalog's list is `git.owenmorgan.com`; a fetched catalog
-  with a higher revision replaces it the way it replaces games
-  (`merged_catalog`), `[]` meaning GitHub alone, and one without
-  `"homes"` keeps the built-in list. A bad list (not a list, more than
-  `kMaxHomes` (4), an address that is not https and a plain host, a key
-  or address twice, a field missing) is left out whole, said in the log
-  (`catalog: ... left out: homes[0]: ... (the built-in homes kept)`),
-  and the built-in list stays; the games read as before. The start says
-  the list in use (`catalog: homes: https://git.owenmorgan.com, then
-  GitHub`). The releases lists (`release_lists`, through `home_lists`),
-  the catalog's fetch (`sdlfe::catalog::addresses`:
-  `<home>/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json`)
-  and so the download's fallback (`other_homes`, in the homes' order)
-  all take the catalog in use's list (`upgrades::update::active_homes`).
-  A move of the mirror is a catalog edit with its revision raised.
-  Launchers 1.6.0 to 1.7.1 ignore `"homes"` (an unknown field is never
-  read; checked by running 1.7.1's own reader on such a catalog) and
-  keep asking git.owenmorgan.com, built into them, so that name stays.
+- **The list of homes (2026-11-26; GitHub an entry since the signing).**
+  The copies are data: the catalog's `"homes"`, each `{"key",
+  "releases", "order"}`, `releases` a releases list's address with
+  `{repo}` in it once (and `{count}` where the list takes a page size),
+  https and a plain host (file:/// in checks), asked by `order`; the
+  first is the one downloads come from first. The built-in list is
+  GitHub's (`gh`, `api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}`)
+  then the mirror's (`om`, Forgejo, `limit=40`); a fetched catalog with a
+  higher revision replaces it the way it replaces games
+  (`merged_catalog`), and one without `"homes"` keeps the built-in list.
+  A bad list (not a list, empty, more than `kMaxHomes` (4), an address
+  that is not https and a plain host or lacks `{repo}`, a key or address
+  twice, a field missing, the older `url` shape) is left out whole, said
+  in the log (`catalog: ... left out: homes[0]: ... (the built-in homes
+  kept)`), and the built-in list stays; the games read as before. The
+  start says the list in use (`catalog: homes: gh, om`). The releases
+  lists (`release_lists`, through `home_lists`) and so the download's
+  fallback (`other_homes`, in the homes' order) take the catalog in
+  use's list (`upgrades::update::active_homes`); the catalog's own
+  addresses are sources.json's and `catalog_sources` (Where the launcher
+  looks). Unsigned `SHA256SUMS` are taken only from a list sources.json
+  names (GitHub's). A move of the mirror is a catalog edit with its
+  revision raised. Launchers 1.6.0 to 1.7.1 ignore `"homes"`,
+  `"catalog_sources"` and `"next_keys"` (1.7.1's `read_catalog` looks
+  each field up by name, so an unknown one is never read) and keep
+  asking git.owenmorgan.com and GitHub, built into them, for releases and
+  for `catalog/games.json` on the hub's main, unsigned: so that name and
+  that file stay.
 
 - **The lists.** Each repo is asked in both homes, git.owenmorgan.com first
   (`https://git.owenmorgan.com/api/v1/repos/telltaleatheist/<repo>/releases?limit=40`:
@@ -1534,7 +1618,8 @@ or GitHub goes away.
   tries the other home. The log names the home that failed and the one
   that served the file.
 - **Checks.** `MW3_UPDATE_API` and `MW3_GAMES_API` name one list (taken as
-  GitHub's) or two as `BACKUP|GITHUB` (`{repo}` in each for the games).
+  a trusted first home, as GitHub's) or two as `UNTRUSTED|TRUSTED`, the
+  second downloaded from first (`{repo}` in each for the games).
   The list of homes: `games_catalog_homes_built_in_and_fetched`,
   `games_catalog_bad_homes_leave_the_built_in`,
   `sdl_homes_lists_and_catalog_addresses`,

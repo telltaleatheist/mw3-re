@@ -418,6 +418,7 @@ Done install_release(const std::string& root, u::Game g, const u::Release& r, co
     case Fetched::kStopped: return d.words = "The download stopped: " + f.error + ". Nothing was installed.", d;
     case Fetched::kMismatch:
       return d.words = "The download did not match its checksum, so nothing was installed. Try again; if it happens again, tell us.", d;
+    case Fetched::kUnsigned: return d.words = "The release's SHA256SUMS could not be trusted (" + f.error + "), so nothing was downloaded.", d;
   }
   const std::string got = f.sha256;
   const fs::path staged = fs::path(root) / kIncoming;

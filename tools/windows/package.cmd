@@ -59,6 +59,8 @@ copy /y assets\launcher\font_body.ttf "%DIST%\assets\launcher\" >nul || exit /b 
 rem The menu's two sounds (ours: assets\launcher\README.md).
 copy /y assets\launcher\click.wav "%DIST%\assets\launcher\" >nul || exit /b 1
 copy /y assets\launcher\hover.wav "%DIST%\assets\launcher\" >nul || exit /b 1
+rem Where the launcher looks (docs\launcher.md): the catalog's addresses and the signing keys.
+copy /y assets\launcher\sources.json "%DIST%\assets\launcher\" >nul || exit /b 1
 copy /y tools\windows\dist\THIRD-PARTY.txt "%DIST%\" >nul || exit /b 1
 if exist LICENSE copy /y LICENSE "%DIST%\LICENSE.txt" >nul
 rem libarchive, zlib and liblzma: linked into mw3launcher.exe, their licences from
@@ -81,6 +83,8 @@ copy /y third_party\rmlui\LICENSE.txt "%DIST%\licenses\rmlui\" >nul || exit /b 1
 copy /y third_party\rmlui\Include\RmlUi\Core\Containers\LICENSE.txt "%DIST%\licenses\rmlui\LICENSE-containers.txt" >nul || exit /b 1
 mkdir "%DIST%\licenses\miniz"
 copy /y extern\re-setup-kit\third_party\miniz\LICENSE "%DIST%\licenses\miniz\" >nul || exit /b 1
+mkdir "%DIST%\licenses\monocypher"
+copy /y extern\re-setup-kit\third_party\monocypher\LICENCE.md "%DIST%\licenses\monocypher\" >nul || exit /b 1
 
 rem Every DLL the launcher loads is in the folder or part of Windows; no game file or game program is.
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\windows\check_dist.ps1 "%DIST%" || exit /b 1

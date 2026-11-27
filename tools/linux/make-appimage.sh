@@ -29,6 +29,7 @@ EXES="-e $APPDIR/usr/bin/mw3launcher"
 # The launcher's art (ours): beside the program, where SDL_GetBasePath finds it.
 cp assets/launcher/ui/* "$APPDIR/usr/bin/assets/launcher/ui/"
 cp assets/launcher/*.png assets/launcher/font.ttf assets/launcher/font_body.ttf assets/launcher/click.wav assets/launcher/hover.wav "$APPDIR/usr/bin/assets/launcher/"
+cp assets/launcher/sources.json "$APPDIR/usr/bin/assets/launcher/"  # where it looks (docs/launcher.md)
 mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed"
 cp assets/launcher/font-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed/OFL.txt"
 mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/rmlui"
@@ -36,6 +37,8 @@ cp third_party/rmlui/LICENSE.txt "$APPDIR/usr/share/doc/mw3/licenses/rmlui/"
 cp third_party/rmlui/Include/RmlUi/Core/Containers/LICENSE.txt "$APPDIR/usr/share/doc/mw3/licenses/rmlui/LICENSE-containers.txt"
 mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/miniz"
 cp extern/re-setup-kit/third_party/miniz/LICENSE "$APPDIR/usr/share/doc/mw3/licenses/miniz/"
+mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/monocypher"
+cp extern/re-setup-kit/third_party/monocypher/LICENCE.md "$APPDIR/usr/share/doc/mw3/licenses/monocypher/"
 cp tools/linux/README.txt tools/linux/THIRD-PARTY.txt "$APPDIR/usr/share/doc/mw3/"
 [ -f LICENSE ] && cp LICENSE "$APPDIR/usr/share/doc/mw3/LICENSE.txt"
 # Each library's licence files: from its source tree when the prefix is

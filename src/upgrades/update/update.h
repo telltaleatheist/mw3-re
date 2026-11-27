@@ -21,6 +21,10 @@ struct Release {
   // The same release in the other home (2026-11-22: GitHub and its copy at git.owenmorgan.com): that home's
   // assets, tried by a download after `assets` fails. Empty when only one home has it (with_homes).
   std::vector<std::vector<Asset>> other_homes;
+  // Whether its home's unsigned SHA256SUMS is taken (sources.json's unsigned_sums: GitHub's, from before signing);
+  // a signed one (SHA256SUMS.sig) is taken from any home. `other_unsigned_sums` parallel to other_homes.
+  bool unsigned_sums = false;
+  std::vector<bool> other_unsigned_sums;
 };
 
 // GitHub's JSON for the releases list (an array of releases): false with `error` when it is not one.
@@ -57,6 +61,7 @@ Verdict judge(const std::string& current, const std::string& json, const std::st
 struct Answer {
   std::string json, fetch_error;
   bool download_first = false;
+  bool unsigned_sums = false;  // its releases' unsigned SHA256SUMS taken (Release::unsigned_sums)
 };
 Verdict judge(const std::string& current, const std::vector<Answer>& answers);
 Verdict judge(const std::string& current, const std::vector<Answer>& answers, Platform p);

@@ -34,6 +34,8 @@ $game = Get-ChildItem -LiteralPath $Dist -Recurse -File |
   Where-Object { $_.FullName -notin $ourWavs } |
   Where-Object { $_.Extension -in '.zbd', '.avi', '.fmv', '.m1v', '.zrd', '.wav', '.ogg', '.flac' -or $_.Name -ieq 'mech3.exe' -or
                  ($_.Extension -ieq '.ttf' -and $_.Name -cnotin $ours) }
+# Where the launcher looks (docs\launcher.md): without it, only the built-in copy.
+if (-not (Test-Path -LiteralPath (Join-Path $Dist 'assets\launcher\sources.json'))) { $missing += 'assets\launcher\sources.json' }
 # The launcher (the main shortcut) and no game program.
 foreach ($exe in 'mw3.exe', 'mw3pm.exe', 'mw1.exe', 'mw3import.exe', 'mw3indeo.exe') {
   if (Test-Path -LiteralPath (Join-Path $Dist $exe)) { $missing += "$exe should not be in the launcher's package" }
@@ -44,7 +46,7 @@ Get-ChildItem -LiteralPath $Dist -File -Filter '*.dll' | Where-Object { $_.Name 
 if (-not (Test-Path -LiteralPath (Join-Path $Dist 'mw3launcher.exe'))) { $missing += "mw3launcher.exe (the program itself)" }
 # The libraries linked into mw3launcher.exe carry no file of their own: their licences must be there (FreeType's,
 # RmlUi's font engine, from build_deps_ttf.cmd's prefix).
-foreach ($lib in 'libarchive-*', 'zlib-*', 'xz-*', 'rmlui', 'miniz', 'freetype-*') {
+foreach ($lib in 'libarchive-*', 'zlib-*', 'xz-*', 'rmlui', 'miniz', 'monocypher', 'freetype-*') {
   $dir = Get-ChildItem -LiteralPath (Join-Path $Dist 'licenses') -Directory -Filter $lib -ErrorAction SilentlyContinue
   if (-not $dir -or -not (Get-ChildItem -LiteralPath $dir[0].FullName -File)) { $missing += "licenses\$lib (its licence)" }
 }

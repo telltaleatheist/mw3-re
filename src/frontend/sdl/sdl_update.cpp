@@ -1,6 +1,8 @@
 #include "frontend/sdl/sdl_update.h"
 
 #include "rekit/hash.h"
+#include "rekit/sign.h"
+#include "upgrades/update/sources.h"
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -242,7 +244,9 @@ Fetched download_checked(const upgrades::update::Release& r, const std::string& 
                          const std::function<bool(double)>& progress, bool allow_file, const char* log) {
   namespace u = upgrades::update;
   std::vector<const std::vector<u::Asset>*> homes = {&r.assets};
-  for (const std::vector<u::Asset>& h : r.other_homes) homes.push_back(&h);
+  std::vector<bool> unsigned_ok = {r.unsigned_sums};
+  for (size_t i = 0; i < r.other_homes.size(); ++i)
+    homes.push_back(&r.other_homes[i]), unsigned_ok.push_back(i < r.other_unsigned_sums.size() && r.other_unsigned_sums[i]);
   const auto find = [](const std::vector<u::Asset>& assets, const std::string& n) -> const u::Asset* {
     for (const u::Asset& a : assets)
       if (a.name == n && !a.url.empty()) return &a;
@@ -264,6 +268,18 @@ Fetched download_checked(const upgrades::update::Release& r, const std::string& 
     if (!sums) l.why = Fetched::kNoSums;
     else if (!curl_get(sums->url, 60, &list, &l.error, allow_file)) l.why = Fetched::kSumsFailed;
     else if ((l.line = u::sums_line(list, name)).empty()) l.why = Fetched::kNoLine;
+    if (!l.line.empty()) {  // signed (SHA256SUMS.sig, any home), or unsigned from a home sources.json allows that of
+      const u::Asset* sig = find(*homes[k], "SHA256SUMS.sig");
+      std::string sig_text, sig_error;
+      const bool signed_ok = sig && curl_get(sig->url, 30, &sig_text, &sig_error, allow_file) && !rekit::signed_by(list, sig_text, u::signing_keys()).empty();
+      if (!signed_ok && !unsigned_ok[k]) {
+        l.why = Fetched::kUnsigned, l.line.clear();
+        l.error = sig ? "its SHA256SUMS.sig does not check against the launcher's keys" : "its SHA256SUMS is not signed";
+        std::printf("mw3: launcher: %s: %s from %s: %s\n", log, name.c_str(), host_of(sums->url).c_str(), l.error.c_str());
+      } else if (!signed_ok) {
+        std::printf("mw3: launcher: %s: %s's SHA256SUMS from %s: unsigned, taken (a home sources.json allows that of)\n", log, name.c_str(), host_of(sums->url).c_str());
+      }
+    }
     return l;
   };
   std::error_code ec;
@@ -349,6 +365,7 @@ Downloaded download_update(const upgrades::update::Release& r, const std::string
     case Fetched::kMismatch:
       d.words = "The download did not match its checksum, so nothing was installed. Try again; if it happens again, download it from the release's page.";
       break;
+    case Fetched::kUnsigned: d.words = "The release's SHA256SUMS could not be trusted (" + f.error + "), so nothing was downloaded."; break;
   }
   return d;
 }
@@ -492,17 +509,22 @@ std::vector<ReleaseList> release_lists(const char* env, const std::string& repo,
   if (env) {
     const std::string s = env;
     const size_t bar = s.find('|');
-    if (bar == std::string::npos) return {{with_repo(s), true}};
-    return {{with_repo(s.substr(0, bar)), false}, {with_repo(s.substr(bar + 1)), true}};
+    // Checks: one list, taken as a trusted first home; "UNTRUSTED|TRUSTED", the second downloaded from first.
+    if (bar == std::string::npos) return {{with_repo(s), true, true}};
+    return {{with_repo(s.substr(0, bar)), false, false}, {with_repo(s.substr(bar + 1)), true, true}};
   }
   return home_lists(upgrades::update::active_homes(), repo, github_per_page);
 }
 
-std::vector<ReleaseList> home_lists(const std::vector<upgrades::update::CatalogHome>& homes, const std::string& repo, int github_per_page) {
+std::vector<ReleaseList> home_lists(const std::vector<upgrades::update::CatalogHome>& homes, const std::string& repo, int count) {
   std::vector<ReleaseList> out;
-  const std::string owner = upgrades::update::catalog_owner();
-  for (const upgrades::update::CatalogHome& h : homes) out.push_back({h.url + "/api/v1/repos/" + owner + "/" + repo + "/releases?limit=40", false});
-  out.push_back({"https://api.github.com/repos/telltaleatheist/" + repo + "/releases?per_page=" + std::to_string(github_per_page), true});
+  for (const upgrades::update::CatalogHome& h : homes) {
+    std::string url = h.releases;
+    for (const auto& [mark, value] : {std::pair<std::string, std::string>{"{repo}", repo}, {"{count}", std::to_string(count)}})
+      for (size_t at; (at = url.find(mark)) != std::string::npos;) url.replace(at, mark.size(), value);
+    const bool first = out.empty();
+    out.push_back({url, first, upgrades::update::takes_unsigned_sums(url)});
+  }
   return out;
 }
 
@@ -510,7 +532,7 @@ std::vector<upgrades::update::Answer> ask_lists(const std::vector<ReleaseList>& 
   std::vector<upgrades::update::Answer> answers;
   for (const ReleaseList& l : lists) {
     upgrades::update::Answer a;
-    a.download_first = l.download_first;
+    a.download_first = l.download_first, a.unsigned_sums = l.unsigned_sums;
     curl_get(l.url, seconds, &a.json, &a.fetch_error, allow_file);
     std::printf("mw3: launcher: %s at %s: %s\n", log.c_str(), l.url.c_str(), a.json.empty() ? a.fetch_error.c_str() : "answered");
     answers.push_back(std::move(a));

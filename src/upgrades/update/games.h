@@ -53,22 +53,28 @@ struct CatalogGame {
   std::vector<Original> original;
 };
 constexpr int kMaxOriginals = 4;
-// A home (2026-11-26, docs/launcher.md, Two homes): a Forgejo or Gitea copy of the GitHub account, by its base
-// address ("https://git.owenmorgan.com"), asked before GitHub in `order`. GitHub is not one: it is fixed in the code.
+// A home (2026-11-26, docs/launcher.md, Where the launcher looks): where a repo's releases list is asked, as an
+// address with {repo} in it (and {count}, the releases wanted), e.g.
+// "https://api.github.com/repos/<owner>/{repo}/releases?per_page={count}". GitHub is one like any other. Asked in
+// `order`; the first is where a download comes from first.
 struct CatalogHome {
-  std::string key, url;
+  std::string key, releases;
   int order = 0;
 };
-constexpr int kMaxHomes = 4;
+constexpr int kMaxHomes = 4, kMaxCatalogSources = 6, kMaxNextKeys = 4;
 struct Catalog {
   int version = 0;   // "catalog": 1, the format
   int revision = 0;  // "revision": which wins, the built-in or a fetched one (the higher)
   std::vector<CatalogFamily> families;
   std::vector<CatalogGame> games;  // by order
-  // "homes": the copies asked before GitHub, by order. A fetched catalog without the list, or with a bad one (left
-  // out, said in `ignored`), leaves the built-in's in force; "homes": [] is GitHub alone.
+  // "homes": where every repo's releases are asked, by order. A fetched catalog without the list, or with a bad one
+  // (left out, said in `ignored`), leaves the built-in's in force.
   bool has_homes = false;
   std::vector<CatalogHome> homes;
+  // "catalog_sources": the catalog's own further addresses, asked first at the next start (before sources.json's);
+  // "next_keys": public keys a signed catalog vouches for, learned for the next catalogs (key rotation). A fetched
+  // catalog's only: the built-in one's are not used.
+  std::vector<std::string> catalog_sources, next_keys;
 };
 // A catalog's JSON read and checked: every key once, each game's family listed, a known state, the fields the
 // launcher needs present. False and `why` (the entry and what is wrong) when not.

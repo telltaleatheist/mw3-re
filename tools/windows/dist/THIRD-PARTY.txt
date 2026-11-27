@@ -35,6 +35,12 @@ Rich Geldreich, RAD Game Tools and Valve Software,
 https://github.com/richgel999/miniz. MIT license (licenses\miniz\LICENSE).
 It unpacks zip files for the setup kit.
 
+Monocypher 4.0.2 with its optional Ed25519 (built into mw3launcher.exe)
+-----------------------------------------------------------------------
+Loup Vaillant, Michael Savage and Fabio Scotoni, https://monocypher.org.
+CC0 or the BSD 2-clause license, either (licenses\monocypher\LICENCE.md).
+It checks the signatures of the games catalog and of each release's SHA256SUMS.
+
 
 libarchive 3.7.9 (built into mw3launcher.exe)
 ---------------------------------------------

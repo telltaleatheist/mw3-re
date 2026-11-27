@@ -1,0 +1,12 @@
+{
+  "sources": 1,
+  "catalog": [
+    "https://reverse-engineered.com/launcher/catalog.json",
+    "https://raw.githubusercontent.com/telltaleatheist/mw3-re/main/catalog/games.json",
+    "https://git.owenmorgan.com/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json"
+  ],
+  "keys": [],
+  "unsigned_sums": [
+    "https://api.github.com/repos/telltaleatheist/"
+  ]
+}

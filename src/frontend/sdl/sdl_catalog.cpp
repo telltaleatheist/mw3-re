@@ -12,7 +12,9 @@
 #include <vector>
 
 #include "frontend/sdl/sdl_update.h"
+#include "rekit/sign.h"
 #include "upgrades/update/games.h"
+#include "upgrades/update/sources.h"
 
 namespace fs = std::filesystem;
 namespace u = upgrades::update;
@@ -21,28 +23,62 @@ namespace sdlfe::catalog {
 
 namespace {
 
-// The hub's main on GitHub (docs/launcher-split.md, b7), asked after the homes.
-const char* const kGithub = "https://raw.githubusercontent.com/telltaleatheist/mw3-re/main/catalog/games.json";
+std::string read_file(const fs::path& p);
 
-// Only after the start (fetch's thread): the homes are the catalog in use's. A check run's fetch, before it, has
-// MW3_CATALOG_URL and asks only that.
-std::vector<std::string> sources() {
+// The catalog's addresses in the order asked: MW3_CATALOG_URL's in checks ("A|B"), else the cached catalog's own
+// (catalog_sources: read from the cache, which a check run's fetch asks before the cache is in use) and then
+// sources.json's, each once.
+std::vector<std::string> sources(const std::string& write_dir) {
   if (const char* env = std::getenv("MW3_CATALOG_URL")) {
     const std::string s = env;
     const size_t bar = s.find('|');
     if (bar == std::string::npos) return {s};
     return {s.substr(0, bar), s.substr(bar + 1)};
   }
-  return addresses(u::active_homes());
+  u::Catalog cached;
+  std::vector<std::string> ignored;
+  std::string why;
+  const std::string text = write_dir.empty() ? std::string() : read_file(fs::path(write_dir) / "catalog" / "games.json");
+  if (text.empty() || !u::read_fetched_catalog(text, "unknown", &cached, &ignored, &why)) cached.catalog_sources.clear();
+  return addresses(cached.catalog_sources, u::active_sources().catalog);
 }
 
-// The catalog in use, said: its homes, and each game's original download (a slot for later, never fetched).
-void say_in_use() {
-  std::string homes;
-  for (const u::CatalogHome& h : u::active_homes()) homes += h.url + ", ";
-  std::printf("mw3: launcher: catalog: homes: %sthen GitHub\n", homes.c_str());
+// The catalog in use, said: its homes and addresses, and each game's original download.
+void say_in_use(const std::string& write_dir) {
+  std::string homes, where;
+  for (const u::CatalogHome& h : u::active_homes()) homes += (homes.empty() ? "" : ", ") + h.key;
+  for (const std::string& s : sources(write_dir)) where += (where.empty() ? "" : ", ") + s;
+  std::printf("mw3: launcher: catalog: homes: %s\n", homes.empty() ? "(none)" : homes.c_str());
+  std::printf("mw3: launcher: catalog: asked at %s\n", where.c_str());
   for (const u::CatalogGame& g : u::active_catalog().games)
-    if (!g.original.empty()) std::printf("mw3: launcher: catalog: %s names an original download (not used)\n", g.key.c_str());
+    if (!g.original.empty()) std::printf("mw3: launcher: catalog: %s names an original download\n", g.key.c_str());
+}
+
+// The keys learned from signed catalogs' next_keys (<cache>/keys.txt, a key a line), read and added to.
+fs::path keys_file(const std::string& write_dir) { return fs::path(cache_dir(write_dir)) / "keys.txt"; }
+void read_learned(const std::string& write_dir) {
+  std::vector<std::string> keys;
+  std::ifstream f(keys_file(write_dir));
+  for (std::string line; std::getline(f, line);) {
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+    if (!line.empty()) keys.push_back(line);
+  }
+  u::learn_keys(keys);
+}
+void write_learned(const std::string& write_dir, const std::vector<std::string>& next) {
+  if (next.empty()) return;
+  u::learn_keys(next);
+  std::vector<std::string> have = u::signing_keys();
+  const std::vector<std::string>& shipped = u::active_sources().keys;
+  std::string text;
+  for (const std::string& k : have)
+    if (std::find(shipped.begin(), shipped.end(), k) == shipped.end()) text += k + "\n";
+  std::error_code ec;
+  const fs::path file = keys_file(write_dir), part = file.string() + ".part";
+  { std::ofstream(part, std::ios::binary) << text; }
+  fs::rename(part, file, ec);
+  if (ec) fs::remove(part, ec);
+  else std::printf("mw3: launcher: catalog: its next keys learned (%d)\n", static_cast<int>(next.size()));
 }
 
 std::string read_file(const fs::path& p) {
@@ -192,16 +228,30 @@ bool fetch(const Here& h, bool allow_file) {
   u::Catalog best;
   std::string best_text, best_url;
   bool got = false;
-  for (const std::string& url : sources()) {  // both asked: the newest wins (one home may lag)
-    std::string text, error;
+  std::string best_sig;
+  const std::vector<std::string> keys = u::signing_keys();
+  for (const std::string& url : sources(h.write_dir)) {  // each asked: the newest signed one wins (one may lag), the first on a tie
+    std::string text, error, sig;
+    if (allow_file && url.rfind("file://", 0) != 0) {  // a check run never asks the real addresses
+      std::printf("mw3: launcher: catalog at %s: not asked in a check run\n", url.c_str());
+      continue;
+    }
     if (!sdlfe::curl_get(url, 15, &text, &error, allow_file)) {
       std::printf("mw3: launcher: catalog at %s: %s\n", url.c_str(), error.c_str());
       continue;
     }
-    std::printf("mw3: launcher: catalog at %s: answered\n", url.c_str());
+    if (!sdlfe::curl_get(url + ".sig", 15, &sig, &error, allow_file)) {
+      std::printf("mw3: launcher: catalog at %s: not used: no signature (%s)\n", url.c_str(), error.c_str());
+      continue;
+    }
+    if (rekit::signed_by(text, sig, keys).empty()) {
+      std::printf("mw3: launcher: catalog at %s: not used: its signature does not check against the launcher's keys\n", url.c_str());
+      continue;
+    }
+    std::printf("mw3: launcher: catalog at %s: answered, signed\n", url.c_str());
     u::Catalog c;
     if (!read(text, h.version, url, &c) || (got && c.revision <= best.revision)) continue;
-    best = std::move(c), best_text = std::move(text), best_url = url, got = true;
+    best = std::move(c), best_text = std::move(text), best_sig = std::move(sig), best_url = url, got = true;
   }
   if (!got) return false;
   std::error_code ec;
@@ -216,16 +266,27 @@ bool fetch(const Here& h, bool allow_file) {
     return false;
   }
   fetch_art(best, best_url, dir, h.carried, allow_file);
-  const fs::path part = dir / "games.json.part";
-  { std::ofstream(part, std::ios::binary) << best_text; }
-  fs::rename(part, dir / "games.json", ec);
-  if (ec) return fs::remove(part, ec), false;
+  for (const auto& [name, body] : {std::pair<const char*, const std::string*>{"games.json.sig", &best_sig}, {"games.json", &best_text}}) {
+    const fs::path part = dir / (std::string(name) + ".part");
+    { std::ofstream(part, std::ios::binary) << *body; }
+    fs::rename(part, dir / name, ec);
+    if (ec) return fs::remove(part, ec), false;
+  }
+  write_learned(h.write_dir, best.next_keys);
   std::printf("mw3: launcher: catalog: revision %d cached\n", best.revision);
   return true;
 }
 
 void at_start(const Here& h, bool check_run) {
-  if (check_run && std::getenv("MW3_CATALOG_URL")) fetch(h, true);
+  {  // where to look: the shipped sources.json (a check run's MW3_SOURCES_FILE), else the built-in copy
+    const char* file = check_run ? std::getenv("MW3_SOURCES_FILE") : nullptr;
+    std::string said;
+    u::use_sources(u::load_sources(file ? std::string(file) : (fs::path(h.carried) / "sources.json").string(), file != nullptr, &said));
+    std::printf("mw3: launcher: %s\n", said.c_str());
+    if (u::active_sources().keys.empty()) std::printf("mw3: launcher: catalog: sources.json lists no key: no fetched catalog is taken\n");
+    if (!h.write_dir.empty()) read_learned(h.write_dir);
+  }
+  if (check_run && (std::getenv("MW3_CATALOG_URL") || std::getenv("MW3_SOURCES_FILE"))) fetch(h, true);
   else if (check_run) std::printf("mw3: launcher: catalog: not asked in a check run\n");
   const u::Catalog& builtin = u::builtin_catalog();
   const std::string text = h.write_dir.empty() ? std::string() : read_file(fs::path(cache_dir(h.write_dir)) / "games.json");
@@ -254,14 +315,14 @@ void at_start(const Here& h, bool check_run) {
     if (from_cache) std::printf("mw3: launcher: catalog: revision %d, fetched (%d games)\n", fetched.revision, u::game_count());
     else std::printf("mw3: launcher: catalog: the built-in one and the kept entries (%d games)\n", u::game_count());
   }
-  say_in_use();
+  say_in_use(h.write_dir);
 }
 
-std::vector<std::string> addresses(const std::vector<u::CatalogHome>& homes) {
+std::vector<std::string> addresses(const std::vector<std::string>& catalogs, const std::vector<std::string>& shipped) {
   std::vector<std::string> out;
-  const std::string owner = u::catalog_owner();
-  for (const u::CatalogHome& h : homes) out.push_back(h.url + "/" + owner + "/mw3-re/raw/branch/main/catalog/games.json");
-  out.push_back(kGithub);
+  for (const std::vector<std::string>* l : {&catalogs, &shipped})
+    for (const std::string& s : *l)
+      if (std::find(out.begin(), out.end(), s) == out.end()) out.push_back(s);
   return out;
 }
 

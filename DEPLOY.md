@@ -92,7 +92,10 @@ The launcher's own update (src/upgrades/update, src/frontend/sdl/sdl_update.cpp)
    DOWNLOAD AND INSTALL.
 4. Downloads the package and the release's `SHA256SUMS`, and installs only if
    the package's SHA-256 matches its line. A missing line, a mismatch or a cut
-   download installs nothing.
+   download installs nothing. From the next launcher on, `SHA256SUMS` from a
+   home other than GitHub is taken only with its `SHA256SUMS.sig` checking
+   against a key in the launcher's `sources.json` (docs/launcher.md, Where
+   the launcher looks, and signed data).
 5. Installs it each platform's normal way: Windows runs the new Setup over
    the install; the Mac copies the new app beside the old one and swaps it
    in; Linux writes the new AppImage beside the old one and swaps it in. The
@@ -131,20 +134,47 @@ Releases are cut by the lead session when the project owner clears them.
    game file, no local path or user name, and no version ending in `-dirty`.
    If a platform fails, fix it on main, move the local tag, and rebuild every
    platform from the new tag. The tag is pushed only once all three build.
-5. **Gather and sum:** the four files in one folder, each checked against its
-   platform's `SHA256SUMS`, then `python3 -I tools/package/sums.py <folder>`
-   writes the release's `SHA256SUMS`.
+5. **Gather, sum and sign:** the four files in one folder, each checked
+   against its platform's `SHA256SUMS`, then
+   `MW3_SIGNING_KEY=<key file> python3 -I tools/package/sums.py <folder>`
+   writes the release's `SHA256SUMS` and `SHA256SUMS.sig`. Without the
+   variable it writes no `.sig`, and only GitHub's copy of the release
+   installs.
 6. **Push the tag and publish** the `vX.Y.Z` release on mw3-re with the four
-   files and `SHA256SUMS`, not a draft or a prerelease.
+   files, `SHA256SUMS` and `SHA256SUMS.sig`, not a draft or a prerelease.
 7. **Check it live:** download every asset again and check its checksum, then
    run the previous release's launcher, press its update, and confirm it
    finds the new one.
 
 **A game release** is built and published in the game's own repo, by its
 own checklist (mech3-re's `docs/release.md`), with its files and their lines
-of `SHA256SUMS`. It needs no launcher release: installed launchers find it by
+of `SHA256SUMS` (signed the same way, `sums.py` with `MW3_SIGNING_KEY`, so
+the mirror's copy installs too). It needs no launcher release: installed launchers find it by
 the catalog. A new game, or a game's new asset names, is a catalog change on
 the hub.
+
+**The catalog** (a change to `catalog/games.json`, its `revision` raised):
+
+1. `MW3_SIGNING_KEY=<key file> python3 -I tools/package/publish_catalog.py <folder>`
+   checks that it reads as a catalog, writes `catalog/games.json.sig` beside
+   it, and stages `catalog.json`, `catalog.json.sig` and `art/` in `<folder>`.
+2. Commit `catalog/games.json` and `catalog/games.json.sig` together on the
+   hub's main (GitHub's raw copy and the mirror's then carry both).
+3. Copy `<folder>` to the site's `/launcher/` path, served as plain files by
+   the web server (`MW3_CATALOG_DEST`, an rsync destination, does it in
+   step 1; no address is kept in the repo).
+
+A catalog that is not signed, or signed by a key the launcher does not know,
+is passed over by every launcher from the next release on; released ones
+(1.7.1 and older) read the hub's file unsigned, so it stays where it is.
+
+**The keys.** The public keys are in `assets/launcher/sources.json`
+(`"keys"`, `sign.py --public` prints them); CMake warns while it lists none,
+and such a build takes no fetched catalog. The private key is kept by the
+lead outside every repo, with a backup. To move to a new key: list it in a
+signed catalog's `next_keys` and in sources.json at the next launcher
+release, sign with both (`MW3_SIGNING_KEY=old:new`) until every launcher in
+use has it, then drop the old one.
 
 After a release: issue replies announcing it are the project owner's to
 approve.
@@ -154,8 +184,10 @@ approve.
 - The hub's Releases page stays the launcher's download and update source.
   Don't archive mw3-re (archiving locks its releases), and never create
   another repo named mw3-re.
-- Every release carries `SHA256SUMS`; neither the launcher nor a game is
-  installed without its line.
+- Every release carries `SHA256SUMS` and its `SHA256SUMS.sig`; neither the
+  launcher nor a game is installed without its line, and a home other than
+  GitHub is trusted only through the signature.
+- The signing key never goes in a repo, a package or a log.
 - The launcher package's file names are fixed (`MW3-Rebuild-...`), and only
   the hub's releases carry them.
 - `catalog/games.json` stays on the hub's main (released launchers fetch it

@@ -33,12 +33,14 @@ void at_start(const Here& h, bool check_run);
 // entry back ("catalog: <key> kept: installed here"). One no longer here is forgotten at the next start.
 void keep(const std::string& write_dir, const std::string& key);
 
-// Both homes asked (MW3_CATALOG_URL in checks: one address, or "BACKUP|GITHUB"; file:// there too); the newest
-// good one written to the cache with its art, unless the cache's is as new. False: nothing new cached.
+// Every address asked (sources(): MW3_CATALOG_URL in checks, one address or "A|B"; file:// there too), each with its
+// <address>.sig: one not signed by a key the launcher knows (sources.json's, or learned from a signed catalog's
+// next_keys) is passed over; the newest signed one written to the cache with its .sig and art, unless the cache's is
+// as new, and its next_keys learned (<cache>/keys.txt). False: nothing new cached.
 bool fetch(const Here& h, bool allow_file);
 
-// The catalog's addresses in order (2026-11-26, docs/launcher.md, Two homes): each home's copy of the hub's main
-// (<home>/<owner>/mw3-re/raw/branch/main/catalog/games.json), then GitHub's. The fetch asks the catalog in use's.
-std::vector<std::string> addresses(const std::vector<upgrades::update::CatalogHome>& homes);
+// The catalog's addresses in the order asked (2026-11-26, docs/launcher.md, Where the launcher looks): the catalog in
+// use's own (`catalogs`, its catalog_sources) first, then sources.json's (`shipped`), each once.
+std::vector<std::string> addresses(const std::vector<std::string>& catalogs, const std::vector<std::string>& shipped);
 
 }  // namespace sdlfe::catalog

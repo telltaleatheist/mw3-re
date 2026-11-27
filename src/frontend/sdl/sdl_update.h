@@ -38,6 +38,7 @@ bool wait_quiet(SDL_Process* p, bool block, int* code);
 struct ReleaseList {
   std::string url;
   bool download_first = false;
+  bool unsigned_sums = false;  // its releases' unsigned SHA256SUMS taken (sources.json's unsigned_sums)
 };
 std::vector<ReleaseList> release_lists(const char* env, const std::string& repo, int github_per_page);
 // The same for a given list of homes (release_lists passes the catalog in use's, active_homes).
@@ -61,7 +62,7 @@ bool curl_download(const std::string& url, const std::string& to, uint64_t size,
 // unless `ok`. `why` is the first home's failure (the one a player would have met with one home); `error` its
 // reason (curl's words), `want`/`got` a mismatch's sums. `log` heads the log's lines ("update", "games").
 struct Fetched {
-  enum Why { kOk, kCancelled, kNoSums, kSumsFailed, kNoLine, kStopped, kMismatch } why = kStopped;
+  enum Why { kOk, kCancelled, kNoSums, kSumsFailed, kNoLine, kStopped, kMismatch, kUnsigned } why = kStopped;
   std::string sha256, error, want, got;
 };
 Fetched download_checked(const upgrades::update::Release& r, const std::string& name, const std::string& path,

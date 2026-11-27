@@ -5,11 +5,13 @@
 #include <cctype>
 #include <iterator>
 #include <mutex>
+#include <tuple>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 #include "upgrades/update/json_reader.h"
+#include "upgrades/update/sources.h"
 
 namespace upgrades::update {
 
@@ -46,46 +48,29 @@ struct Fields {
   }
 };
 
-// A host name as a home's or an original's address may name: letters, digits, '-' and '.', with a dot, no empty
-// label, no "..", no port, no user.
-bool plain_host(const std::string& h) {
-  if (h.empty() || h.size() > 253 || h.find('.') == std::string::npos || h.find("..") != std::string::npos || h.front() == '.' ||
-      h.back() == '.' || h.front() == '-')
-    return false;
-  for (char c : h)
-    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '.') return false;
-  return true;
-}
-
-// "https://" and a plain host, then (`path`) a path of printable characters without spaces, '\\' or ".."; without
-// `path`, nothing after the host but one '/' (taken off).
-bool https_address(std::string* url, bool path) {
-  const std::string kScheme = "https://";
-  if (url->compare(0, kScheme.size(), kScheme) != 0) return false;
-  const size_t slash = url->find('/', kScheme.size());
-  if (!plain_host(url->substr(kScheme.size(), slash == std::string::npos ? std::string::npos : slash - kScheme.size()))) return false;
-  if (slash == std::string::npos) return true;
-  if (!path) return slash + 1 == url->size() ? (url->pop_back(), true) : false;
-  if (url->find("..", slash) != std::string::npos) return false;
-  for (size_t i = slash; i < url->size(); ++i)
-    if ((*url)[i] <= ' ' || (*url)[i] > '~' || (*url)[i] == '\\') return false;
-  return true;
+// Checks may name file:/// addresses (a stand-in catalog or release): MW3_GAMES_API or MW3_SOURCES_FILE set.
+bool check_address(std::string* url) {
+  if ((std::getenv("MW3_GAMES_API") || std::getenv("MW3_SOURCES_FILE")) && url->rfind("file:///", 0) == 0) return url->find("..") == std::string::npos;
+  return https_address(url, true);
 }
 
 // The catalog's "homes" into `out`; the first thing wrong in `why` (and `out` left as it was).
 void read_homes(const Json& homes, Catalog* out, std::string* why) {
   if (homes.type != Json::kArray) return void(*why = "homes is not a list");
   if (homes.items.size() > static_cast<size_t>(kMaxHomes)) return void(*why = "homes lists more than " + std::to_string(kMaxHomes));
+  if (homes.items.empty()) return void(*why = "homes lists none (nothing could be asked)");
   std::vector<CatalogHome> list;
   for (size_t i = 0; i < homes.items.size(); ++i) {
     const Json& j = homes.items[i];
     Fields f{j, "homes[" + std::to_string(i) + "]", why};
     CatalogHome h;
     if (j.type != Json::kObject) return void(f.fail("not an entry"));
-    if (!f.text("key", &h.key) || !f.text("url", &h.url) || !f.number("order", &h.order)) return;
-    if (!https_address(&h.url, false)) return void(f.fail(h.url + " is not https:// and a plain host"));
+    if (!f.text("key", &h.key) || !f.text("releases", &h.releases) || !f.number("order", &h.order)) return;
+    const size_t repo = h.releases.find("{repo}");
+    if (repo == std::string::npos || h.releases.find("{repo}", repo + 1) != std::string::npos || !check_address(&h.releases))
+      return void(f.fail(h.releases + " is not https:// and a plain host with {repo} once"));
     for (const CatalogHome& o : list)
-      if (o.key == h.key || o.url == h.url) return void(f.fail("the home " + h.url + " twice"));
+      if (o.key == h.key || o.releases == h.releases) return void(f.fail("the home " + h.releases + " twice"));
     list.push_back(std::move(h));
   }
   std::stable_sort(list.begin(), list.end(), [](const CatalogHome& a, const CatalogHome& b) { return a.order < b.order; });
@@ -159,6 +144,24 @@ bool read_catalog(const std::string& json, Catalog* out, std::string* why, std::
       if (!ignored) return *why = bad_homes, false;
       ignored->push_back(bad_homes + " (the built-in homes kept)");
     }
+  }
+  // The catalog's own addresses and the keys it vouches for: a bad list refused whole (strict) or left out.
+  for (const auto& [key, list, most, address] : {std::tuple<const char*, std::vector<std::string>*, int, bool>{"catalog_sources", &out->catalog_sources, kMaxCatalogSources, true},
+                                                 {"next_keys", &out->next_keys, kMaxNextKeys, false}}) {
+    const Json* v = root.at(key);
+    if (!v) continue;
+    std::string bad;
+    std::vector<std::string> got;
+    if (v->type != Json::kArray || v->items.size() > static_cast<size_t>(most)) bad = std::string(key) + " is not a list of at most " + std::to_string(most);
+    for (size_t i = 0; bad.empty() && i < v->items.size(); ++i) {
+      std::string s = v->items[i].s;
+      if (v->items[i].type != Json::kString || !(address ? check_address(&s) : is_key_hex(&s)) || std::find(got.begin(), got.end(), s) != got.end())
+        bad = std::string(key) + "[" + std::to_string(i) + "]: " + v->items[i].s + (address ? " is not an https:// address" : " is not a key (64 hex digits)") + " or is there twice";
+      got.push_back(s);
+    }
+    if (bad.empty()) *list = std::move(got);
+    else if (!ignored) return *why = bad, false;
+    else ignored->push_back(bad + " (left out)");
   }
   // A bad entry: the whole refused (strict) or the entry left out.
   auto bad = [&]() {
@@ -369,6 +372,7 @@ Catalog merged_catalog(const Catalog& builtin, const Catalog& fetched, std::vect
   Catalog out = builtin;
   out.revision = fetched.revision;
   if (fetched.has_homes) out.has_homes = true, out.homes = fetched.homes;
+  out.catalog_sources = fetched.catalog_sources, out.next_keys = fetched.next_keys;
   for (const CatalogFamily& f : fetched.families) {
     auto at = std::find_if(out.families.begin(), out.families.end(), [&](const CatalogFamily& o) { return o.key == f.key; });
     if (at != out.families.end()) *at = f;

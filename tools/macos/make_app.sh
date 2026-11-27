@@ -68,6 +68,7 @@ cp build-mac-pkg/mw3launcher "$APP/Contents/MacOS/mw3launcher"
 mkdir -p "$APP/Contents/Resources/assets/launcher/ui"
 cp assets/launcher/ui/* "$APP/Contents/Resources/assets/launcher/ui/"
 cp assets/launcher/*.png assets/launcher/font.ttf assets/launcher/font_body.ttf assets/launcher/click.wav assets/launcher/hover.wav "$APP/Contents/Resources/assets/launcher/"
+cp assets/launcher/sources.json "$APP/Contents/Resources/assets/launcher/"  # where it looks (docs/launcher.md)
 
 # Every library outside the system, followed through the ones they load:
 # copied by their real file, named by their install name's file, and every
@@ -236,6 +237,8 @@ cp third_party/rmlui/LICENSE.txt "$APP/Contents/Resources/licenses/rmlui/"
 cp third_party/rmlui/Include/RmlUi/Core/Containers/LICENSE.txt "$APP/Contents/Resources/licenses/rmlui/LICENSE-containers.txt"
 mkdir -p "$APP/Contents/Resources/licenses/miniz"
 cp extern/re-setup-kit/third_party/miniz/LICENSE "$APP/Contents/Resources/licenses/miniz/"
+mkdir -p "$APP/Contents/Resources/licenses/monocypher"
+cp extern/re-setup-kit/third_party/monocypher/LICENCE.md "$APP/Contents/Resources/licenses/monocypher/"
 cp tools/macos/THIRD-PARTY.txt "$APP/Contents/Resources/THIRD-PARTY.txt"
 # libarchive, zlib, liblzma and FreeType: linked in with --deps (build_deps.sh
 # keeps their licences in the prefix); Homebrew's are dylibs, their licences

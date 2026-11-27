@@ -76,11 +76,27 @@ endif()
 file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/games_catalog.cpp
      CONTENT "// Written by CMake from src/upgrades/update/games.json: do not edit.\nnamespace upgrades::update {\nextern const char kBuiltinCatalog[];\nconst char kBuiltinCatalog[] = R\"mw3catalog(@MW3_CATALOG_TEXT@)mw3catalog\";\n}  // namespace upgrades::update\n"
      @ONLY)
+# Where the launcher looks (assets/launcher/sources.json, shipped beside the badges): the same file built in as the
+# last resort, written from it here (docs/launcher.md, Where the launcher looks).
+set(MW3_SOURCES_JSON ${CMAKE_CURRENT_SOURCE_DIR}/assets/launcher/sources.json)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${MW3_SOURCES_JSON})
+file(READ ${MW3_SOURCES_JSON} MW3_SOURCES_TEXT)
+if(MW3_SOURCES_TEXT MATCHES "\\)mw3sources\"")
+  message(FATAL_ERROR "sources.json holds the literal's end")
+endif()
+if(NOT MW3_SOURCES_TEXT MATCHES "\"keys\": \\[[ \t\r\n]*\"[0-9a-fA-F]")
+  message(WARNING "assets/launcher/sources.json lists no signing key: this build takes no fetched catalog (the built-in one only)")
+endif()
+file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/sources_builtin.cpp
+     CONTENT "// Written by CMake from assets/launcher/sources.json: do not edit.\nnamespace upgrades::update {\nextern const char kBuiltinSources[];\nconst char kBuiltinSources[] = R\"mw3sources(@MW3_SOURCES_TEXT@)mw3sources\";\n}  // namespace upgrades::update\n"
+     @ONLY)
 # The update check and the games catalog (src/upgrades/update).
 add_library(mw3update STATIC
   src/upgrades/update/update.cpp
   src/upgrades/update/games.cpp
-  ${CMAKE_BINARY_DIR}/games_catalog.cpp)
+  src/upgrades/update/sources.cpp
+  ${CMAKE_BINARY_DIR}/games_catalog.cpp
+  ${CMAKE_BINARY_DIR}/sources_builtin.cpp)
 target_include_directories(mw3update PUBLIC src)
 
 # The setup kit's archive reader takes libarchive (with zlib and liblzma) when found: the release's are static, from
@@ -194,7 +210,8 @@ add_executable(launchertests
 if(NOT (UNIX AND NOT APPLE))
   target_sources(launchertests PRIVATE src/frontend/sdl/font_search.cpp)
 endif()
-target_include_directories(launchertests PRIVATE tests)
+# The kit's test keys (tests/test_keys.h, Monocypher's signer) sign the fixtures; never a real key.
+target_include_directories(launchertests PRIVATE tests extern/re-setup-kit/tests extern/re-setup-kit/third_party)
 target_link_libraries(launchertests PRIVATE mw3launcherlib SDL3_ttf::SDL3_ttf)
 target_compile_definitions(launchertests PRIVATE MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"
                                                  MW3_LAUNCHER_BIN="$<TARGET_FILE:mw3launcher>"

@@ -2,7 +2,13 @@
   "catalog": 1,
   "revision": 3,
   "homes": [
-    {"key": "om", "url": "https://git.owenmorgan.com", "order": 1}
+    {"key": "gh", "releases": "https://api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}", "order": 1},
+    {"key": "om", "releases": "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/{repo}/releases?limit=40", "order": 2}
+  ],
+  "catalog_sources": [
+    "https://reverse-engineered.com/launcher/catalog.json",
+    "https://raw.githubusercontent.com/telltaleatheist/mw3-re/main/catalog/games.json",
+    "https://git.owenmorgan.com/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json"
   ],
   "families": [
     {"key": "mw3", "name": "MechWarrior 3", "order": 1},

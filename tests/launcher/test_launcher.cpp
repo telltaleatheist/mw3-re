@@ -33,6 +33,7 @@ int unsetenv(const char* name) { return _putenv_s(name, ""); }
 
 #include "check.h"
 #include "rekit/hash.h"
+#include "test_keys.h"
 #if MW3_HAVE_LIBARCHIVE
 #if defined(_WIN32)  // archive_entry.h brings in <windows.h>: none of its macros (max, near, small) past here
 #ifndef NOMINMAX
@@ -52,6 +53,7 @@ int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #endif
 #include "frontend/sdl/sdl_games.h"
 #include "frontend/sdl/sdl_catalog.h"
+#include "upgrades/update/sources.h"
 #include <archive.h>
 #include <archive_entry.h>
 #include "frontend/sdl/sdl_update.h"
@@ -172,10 +174,41 @@ const std::string kVersionLine = std::string("# MW3-PROGRAM") + "-VERSION:v0.0.0
 // mw3launcher, the launcher's own program (docs/launcher.md, The two programs).
 // A stale mw3pm beside the build's launcher would make PIRATE'S MOON a live
 // entry and move every key walk: none, unless a test names its stand-in.
+// Signed fixtures (test keys only, test_keys.h): <file>.sig by the test keys `seeds`, one line each.
+void sign_fixture(const std::string& file, std::initializer_list<uint8_t> seeds) {
+  std::ifstream in(file, std::ios::binary);
+  const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::string sig;
+  for (uint8_t s : seeds) sig += test_keys::sign(text, s);
+  std::ofstream(file + ".sig", std::ios::binary) << sig;
+}
+// A sources.json (docs/launcher.md, Where the launcher looks) at `file`: the catalog's addresses and the test keys.
+void write_sources(const std::string& file, const std::vector<std::string>& catalog, std::initializer_list<uint8_t> seeds) {
+  std::string c, k;
+  for (const std::string& s : catalog) c += (c.empty() ? "\"" : ", \"") + s + "\"";
+  for (uint8_t s : seeds) k += (k.empty() ? "\"" : ", \"") + test_keys::public_key(s) + "\"";
+  std::ofstream(file) << "{\"sources\": 1, \"catalog\": [" << c << "], \"keys\": [" << k << "]}\n";
+}
+// A check run asking MW3_CATALOG_URL's catalogs (tests that are not about signing) has them signed by test key 1
+// and a sources file naming that key, unless the test gives its own MW3_SOURCES_FILE.
 pid_t spawn_launcher(const std::vector<std::string>& args, const std::string& log) {
   const bool named = std::getenv("MW3_PM_BIN") != nullptr;
   if (!named) setenv("MW3_PM_BIN", "", 1);
+  const char* cat = std::getenv("MW3_CATALOG_URL");
+  const bool sources = cat && !std::getenv("MW3_SOURCES_FILE");
+  if (sources) {
+    for (std::string s = cat; !s.empty();) {
+      const size_t bar = s.find('|');
+      const std::string url = s.substr(0, bar);
+      s = bar == std::string::npos ? std::string() : s.substr(bar + 1);
+      if (url.rfind("file://", 0) == 0 && std::filesystem::is_regular_file(url.substr(7))) sign_fixture(url.substr(7), {1});
+    }
+    const std::string file = log + ".sources.json";
+    write_sources(file, {"file:///nowhere/catalog.json"}, {1});
+    setenv("MW3_SOURCES_FILE", file.c_str(), 1);
+  }
   const pid_t pid = spawn_bin(MW3_LAUNCHER_BIN, args, log);
+  if (sources) unsetenv("MW3_SOURCES_FILE");
   if (!named) unsetenv("MW3_PM_BIN");
   return pid;
 }
@@ -1208,9 +1241,9 @@ TEST(sdl_program_launcher_keeps_an_installed_games_entry) {
   if (!check::failures) fs::remove_all(dir, ec);
 }
 
-// The homes in use (2026-11-26, docs/launcher.md, Two homes), said at the start: the built-in list with no catalog
-// fetched; a fetched one's (revision 4, a stand-in host) once cached; a later one with a bad list leaves the built-in
-// one in force. A game's "original" is said and not fetched (its stand-in address never asked).
+// The homes in use (2026-11-26, docs/launcher.md, Where the launcher looks), said at the start: the built-in list with
+// no catalog fetched; a fetched one's (revision 4, a stand-in host) once cached; a later one with a bad list leaves the
+// built-in one in force. A game's "original" is said, and fetched only after its DOWNLOAD (not here).
 TEST(sdl_program_launcher_uses_the_catalogs_homes) {
   namespace fs = std::filesystem;
   std::error_code ec;
@@ -1229,8 +1262,8 @@ TEST(sdl_program_launcher_uses_the_catalogs_homes) {
            "\"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\", \"original\": [{\"url\": \"https://files.example.org/bt.zip\", \"sha256\": \"" +
            std::string(64, 'a') + "\", \"size\": 10, \"name\": \"bt.zip\"}]}]}";
   };
-  std::ofstream(dir + "/v4.json") << catalog(4, "[{\"key\": \"re\", \"url\": \"https://git.reverse-engineered.com\", \"order\": 1}]");
-  std::ofstream(dir + "/v5.json") << catalog(5, "[{\"key\": \"re\", \"url\": \"http://git.reverse-engineered.com\", \"order\": 1}]");
+  std::ofstream(dir + "/v4.json") << catalog(4, "[{\"key\": \"re\", \"releases\": \"https://releases.reverse-engineered.com/{repo}.json\", \"order\": 1}]");
+  std::ofstream(dir + "/v5.json") << catalog(5, "[{\"key\": \"re\", \"releases\": \"http://releases.reverse-engineered.com/{repo}.json\", \"order\": 1}]");
   auto run = [&](const char* name, const char* cat) {
     std::vector<std::pair<std::string, std::string>> env{
         {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_LAUNCHER_FRAMES", "60"},
@@ -1248,13 +1281,130 @@ TEST(sdl_program_launcher_uses_the_catalogs_homes) {
     return log;
   };
   const std::string a = run("builtin", nullptr);
-  EXPECT(has(a, "catalog: homes: https://git.owenmorgan.com, then GitHub\n") && !has(a, "names an original"));
+  EXPECT(has(a, "catalog: homes: gh, om\n") && !has(a, "names an original"));
   const std::string b = run("v4", "v4.json");
-  EXPECT(has(b, "catalog: revision 4, fetched") && has(b, "catalog: homes: https://git.reverse-engineered.com, then GitHub\n"));
-  EXPECT(has(b, "catalog: btech names an original download (not used)") && !has(b, "files.example.org"));
+  EXPECT(has(b, "catalog: revision 4, fetched") && has(b, "catalog: homes: re\n"));
+  EXPECT(has(b, "catalog: btech names an original download\n") && !has(b, "files.example.org"));
   const std::string c = run("v5", "v5.json");
-  EXPECT(has(c, "catalog: revision 5, fetched") && has(c, "left out: homes[0]: http://git.reverse-engineered.com is not https://") &&
-         has(c, "catalog: homes: https://git.owenmorgan.com, then GitHub\n") && has(c, "entry BATTLETECH: "));
+  EXPECT(has(c, "catalog: revision 5, fetched") && has(c, "left out: homes[0]: http://releases.reverse-engineered.com/{repo}.json is not https://") &&
+         has(c, "catalog: homes: gh, om\n") && has(c, "entry BATTLETECH: "));
+  if (!check::failures) fs::remove_all(dir, ec);
+}
+
+// Signed catalogs (2026-11-26, docs/launcher.md, Where the launcher looks): sources.json's addresses asked in order,
+// each with its .sig, the newest signed by a key the launcher knows cached (the first on a tie); one missing, unsigned,
+// signed by another key or not its own text passed over for the next; none left, the built-in catalog. A signed
+// catalog's next_keys learned (<cache>/keys.txt) so a catalog signed only by the next key is taken there, not in a
+// fresh write dir; its catalog_sources asked first on the next start. sources.json missing: its built-in copy, which
+// lists no key yet, so nothing fetched is taken, and a check run never asks its real addresses.
+TEST(sdl_program_launcher_takes_only_a_signed_catalog) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_signed_catalog";
+  fs::remove_all(dir, ec);
+  for (const char* d : {"/api", "/games", "/src"}) fs::create_directories(dir + d, ec);
+  for (const char* repo : {"mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re", "battletech-re", "revenge-re"})
+    std::ofstream(dir + "/api/" + repo + ".json") << "[]";
+  const auto src = [&](const char* n) { return dir + "/src/" + n + ".json"; };
+  const auto url = [&](const char* n) { return "file://" + src(n); };
+  const auto read = [](const std::string& f) {
+    std::ifstream in(f, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  // A catalog from `from` (its description says which), at `revision`, with `extra` fields; signed by `seeds`.
+  const auto put = [&](const char* n, int revision, std::initializer_list<uint8_t> seeds, const std::string& extra = "") {
+    std::ofstream(src(n)) << "{\"catalog\": 1, \"revision\": " << revision << extra
+                          << ", \"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": [{\"key\": \"btech\", "
+                             "\"family\": \"bt\", \"order\": 7, \"state\": \"released\", \"name\": \"BattleTech Rebuild\", \"title\": \"BATTLETECH\", "
+                             "\"heading\": \"BATTLETECH\", \"button\": \"BATTLETECH\", \"description\": \"From "
+                          << n << ".\", \"repo\": \"battletech-re\", \"tag_prefix\": \"btech-v\", \"program\": \"btech\", \"assets\": {\"windows\": "
+                             "\"BT-{tag}-win64.zip\", \"mac\": \"BT-{tag}-mac.dmg\", \"linux\": \"BT-{tag}-x86_64.AppImage\"}, \"badge\": "
+                             "\"badge_mw3.png\", \"min_launcher\": \"1.5.2\"}]}";
+    fs::remove(src(n) + ".sig", ec);
+    if (seeds.size()) sign_fixture(src(n), seeds);
+  };
+  const std::string sources = dir + "/sources.json";
+  auto run = [&](const char* name, const std::string& wd, const char* sources_file = nullptr) {
+    std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_LAUNCHER_FRAMES", "30"},
+        {"MW3_NO_IMPORT", "1"}, {"MW3_PM_BIN", ""}, {"MW3_MW1_BIN", ""}, {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""},
+        {"MW3_SOURCES_FILE", sources_file ? sources_file : sources}};
+    fs::create_directories(wd, ec);
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", wd, "--window", "640x480", "--nosound", "--hidden"}, dir + "/" + name + ".log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    const std::string log = read(dir + "/" + name + ".log");
+    for (size_t a = 0; (a = log.find("catalog at ", a)) != std::string::npos; ++a)
+      std::printf("  %s: %s\n", name, log.substr(a + 11, log.find('\n', a) - a - 11).c_str());
+    return log;
+  };
+  const auto cached = [&](const std::string& wd) { return read(wd + "/catalog/games.json"); };
+  int fresh = 0;
+  const auto wd = [&]() { return dir + "/wd" + std::to_string(++fresh); };
+  write_sources(sources, {url("a"), url("b"), url("c")}, {1});
+  // In order, each failing in turn; all three answering, the first (a tie).
+  put("a", 2, {1}), put("b", 2, {1}), put("c", 2, {1});
+  std::string w = wd(), log = run("all", w);
+  EXPECT(cached(w) == read(src("a")) && read(w + "/catalog/games.json.sig") == read(src("a") + ".sig"));
+  EXPECT(log.find("catalog at " + url("a")) < log.find("catalog at " + url("b")) && log.find("catalog at " + url("b")) < log.find("catalog at " + url("c")));
+  fs::remove(src("a"), ec);
+  w = wd(), run("no-a", w);
+  EXPECT(cached(w) == read(src("b")));
+  fs::remove(src("b"), ec);
+  w = wd(), run("no-b", w);
+  EXPECT(cached(w) == read(src("c")));
+  fs::remove(src("c"), ec);
+  w = wd(), log = run("none", w);
+  EXPECT(!fs::exists(w + "/catalog/games.json") && has(log, "catalog: the built-in one (revision 1)"));
+  put("a", 2, {1}), put("b", 3, {1});  // the newest wins (one may lag)
+  w = wd(), run("newest", w);
+  EXPECT(cached(w) == read(src("b")));
+  // Signatures: none, another key's, another text's, not one; each passed over for b.
+  put("b", 2, {1});
+  put("a", 2, {});
+  w = wd(), log = run("unsigned", w);
+  EXPECT(cached(w) == read(src("b")) && has(log, ("catalog at " + url("a") + ": not used: no signature").c_str()));
+  put("a", 2, {9});
+  w = wd(), log = run("other-key", w);
+  EXPECT(cached(w) == read(src("b")) && has(log, ("catalog at " + url("a") + ": not used: its signature does not check").c_str()));
+  put("a", 2, {1});
+  std::ofstream(src("a"), std::ios::app) << " ";  // its text changed after signing
+  w = wd(), run("changed", w);
+  EXPECT(cached(w) == read(src("b")));
+  put("a", 2, {1});
+  std::ofstream(src("a") + ".sig") << "not a signature\n";
+  w = wd(), run("garbage", w);
+  EXPECT(cached(w) == read(src("b")));
+  // Key rotation: a (key 1) names key 2 next; a signed by key 2 alone is then taken there, not in a fresh write dir;
+  // signed by both, anywhere.
+  fs::remove(src("b"), ec), fs::remove(src("c"), ec);
+  put("a", 2, {1}, ", \"next_keys\": [\"" + test_keys::public_key(2) + "\"]");
+  const std::string rot = wd();
+  log = run("rotate-1", rot);
+  EXPECT(cached(rot) == read(src("a")) && has(log, "catalog: its next keys learned (1)") && read(rot + "/catalog/keys.txt") == test_keys::public_key(2) + "\n");
+  put("a", 3, {2});
+  log = run("rotate-2", rot);
+  EXPECT(cached(rot) == read(src("a")) && has(log, "catalog: revision 3 cached"));
+  w = wd(), log = run("rotate-fresh", w);
+  EXPECT(!fs::exists(w + "/catalog/games.json") && has(log, "its signature does not check"));
+  put("a", 3, {2, 1});
+  w = wd(), run("rotate-both", w);
+  EXPECT(cached(w) == read(src("a")));
+  // The catalog's own addresses: a names d; on the next start d is asked first, and its newer catalog taken.
+  put("a", 2, {1}, ", \"catalog_sources\": [\"" + url("d") + "\"]");
+  const std::string follow = wd();
+  log = run("follow-1", follow);  // said after the fetch: the cached catalog's address first
+  EXPECT(cached(follow) == read(src("a")) && has(log, ("catalog: asked at " + url("d") + ", " + url("a") + ", " + url("b") + ", " + url("c") + "\n").c_str()));
+  put("d", 4, {1});
+  log = run("follow-2", follow);
+  EXPECT(cached(follow) == read(src("d")) && log.find("catalog at " + url("d")) < log.find("catalog at " + url("a")));
+  // sources.json missing: the built-in copy, no key, nothing taken, its real addresses not asked.
+  w = wd(), log = run("builtin", w, (dir + "/missing-sources.json").c_str());
+  EXPECT(has(log, ("launcher: sources: the built-in copy (" + dir + "/missing-sources.json: it is not there)\n").c_str()));
+  EXPECT(has(log, "catalog: sources.json lists no key: no fetched catalog is taken") && !fs::exists(w + "/catalog/games.json"));
+  EXPECT(has(log, "catalog at https://reverse-engineered.com/launcher/catalog.json: not asked in a check run"));
   if (!check::failures) fs::remove_all(dir, ec);
 }
 
@@ -1627,6 +1777,7 @@ TEST(sdl_update_download_and_its_check) {
   u::Release r;
   r.tag = "v9.0.0";
   r.assets = {{"mw3-9.0.0-win64.zip", url("nothing"), 1}, {ours, url(ours), bytes.size()}, {"SHA256SUMS", url("SHA256SUMS"), 0}};
+  r.unsigned_sums = true;  // a home whose unsigned SHA256SUMS are taken (GitHub's); sdl_update_download_takes_signed_sums
   setenv("MW3_UPDATE_API", "file:///fixture", 1);  // checks: file:// assets allowed
   const std::string to = (dir / "download").string();
   const auto leftovers = [&]() {
@@ -1668,37 +1819,40 @@ TEST(sdl_update_download_and_its_check) {
   fs::remove_all(dir, ec);
 }
 
-// The lists asked for a repo (2026-11-22): git.owenmorgan.com's Forgejo (limit=) then GitHub (per_page=, the
-// home downloads come from first); in checks MW3_UPDATE_API / MW3_GAMES_API name one list (GitHub's) or two.
+// The lists asked for a repo (2026-11-26: the catalog in use's homes, the built-in's GitHub then git.owenmorgan.com's
+// Forgejo, the first downloaded from first); in checks MW3_UPDATE_API / MW3_GAMES_API name one list (a trusted first
+// home) or two ("UNTRUSTED|TRUSTED").
 TEST(sdl_release_lists_both_homes) {
   const auto l = sdlfe::release_lists(nullptr, "mech3-pm-re", 20);
-  EXPECT(l.size() == 2 && l[0].url == "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/mech3-pm-re/releases?limit=40" &&
-         !l[0].download_first && l[1].url == "https://api.github.com/repos/telltaleatheist/mech3-pm-re/releases?per_page=20" &&
-         l[1].download_first);
+  EXPECT(l.size() == 2 && l[0].url == "https://api.github.com/repos/telltaleatheist/mech3-pm-re/releases?per_page=20" && l[0].download_first &&
+         l[0].unsigned_sums && l[1].url == "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/mech3-pm-re/releases?limit=40" &&
+         !l[1].download_first && !l[1].unsigned_sums);
   const auto one = sdlfe::release_lists("file:///t/{repo}.json", "mech1-re", 20);
-  EXPECT(one.size() == 1 && one[0].url == "file:///t/mech1-re.json" && one[0].download_first);
+  EXPECT(one.size() == 1 && one[0].url == "file:///t/mech1-re.json" && one[0].download_first && one[0].unsigned_sums);
   const auto two = sdlfe::release_lists("file:///b/{repo}.json|file:///g/{repo}.json", "mech1-re", 20);
-  EXPECT(two.size() == 2 && two[0].url == "file:///b/mech1-re.json" && !two[0].download_first && two[1].url == "file:///g/mech1-re.json" &&
-         two[1].download_first);
+  EXPECT(two.size() == 2 && two[0].url == "file:///b/mech1-re.json" && !two[0].download_first && !two[0].unsigned_sums &&
+         two[1].url == "file:///g/mech1-re.json" && two[1].download_first && two[1].unsigned_sums);
 }
 
 // The lists and the catalog's addresses from a homes list (2026-11-26, docs/launcher.md, Two homes): each home by
 // order, then GitHub; the catalog in use's (the built-in: git.owenmorgan.com) as before; none, GitHub alone.
 TEST(sdl_homes_lists_and_catalog_addresses) {
   namespace u = upgrades::update;
-  const std::vector<u::CatalogHome> homes{{"a", "https://git.reverse-engineered.com", 1}, {"b", "https://git.example.org", 2}};
+  // Each home's address with {repo} and {count} filled, in order; the first downloaded from first; the unsigned
+  // SHA256SUMS taken only from a list sources.json names (the built-in copy: GitHub's).
+  const std::vector<u::CatalogHome> homes{{"a", "https://releases.reverse-engineered.com/{repo}/list.json?n={count}", 1},
+                                          {"gh", "https://api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}", 2}};
   const auto l = sdlfe::home_lists(homes, "mech1-re", 20);
-  EXPECT(l.size() == 3 && l[0].url == "https://git.reverse-engineered.com/api/v1/repos/telltaleatheist/mech1-re/releases?limit=40" &&
-         l[1].url == "https://git.example.org/api/v1/repos/telltaleatheist/mech1-re/releases?limit=40" && !l[0].download_first && !l[1].download_first &&
-         l[2].url == "https://api.github.com/repos/telltaleatheist/mech1-re/releases?per_page=20" && l[2].download_first);
-  const auto none = sdlfe::home_lists({}, "mech1-re", 20);
-  EXPECT(none.size() == 1 && none[0].download_first);
-  const auto c = sdlfe::catalog::addresses(homes);
-  EXPECT(c.size() == 3 && c[0] == "https://git.reverse-engineered.com/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json" &&
-         c[1] == "https://git.example.org/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json" &&
-         c[2] == "https://raw.githubusercontent.com/telltaleatheist/mw3-re/main/catalog/games.json");
-  const auto in_use = sdlfe::catalog::addresses(u::active_homes());
-  EXPECT(in_use.size() == 2 && in_use[0] == "https://git.owenmorgan.com/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json");
+  EXPECT(l.size() == 2 && l[0].url == "https://releases.reverse-engineered.com/mech1-re/list.json?n=20" && l[0].download_first && !l[0].unsigned_sums);
+  EXPECT(l[1].url == "https://api.github.com/repos/telltaleatheist/mech1-re/releases?per_page=20" && !l[1].download_first && l[1].unsigned_sums);
+  EXPECT(sdlfe::home_lists({}, "mech1-re", 20).empty());
+  const auto in_use = sdlfe::home_lists(u::active_homes(), "mech3-pm-re", 40);
+  EXPECT(in_use.size() == 2 && in_use[0].url == "https://api.github.com/repos/telltaleatheist/mech3-pm-re/releases?per_page=40" && in_use[0].download_first &&
+         in_use[1].url == "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/mech3-pm-re/releases?limit=40" && !in_use[1].unsigned_sums);
+  // The catalog's addresses: the catalog in use's own first, then sources.json's, each once.
+  const auto c = sdlfe::catalog::addresses({"https://b.example.org/c.json", "https://a.example.org/c.json"},
+                                           {"https://a.example.org/c.json", "https://s.example.org/c.json"});
+  EXPECT(c.size() == 3 && c[0] == "https://b.example.org/c.json" && c[1] == "https://a.example.org/c.json" && c[2] == "https://s.example.org/c.json");
 }
 
 // Three homes (2026-11-26): the lists of two homes and GitHub judged, the release's other_homes in the homes' order;
@@ -1727,7 +1881,8 @@ TEST(sdl_update_download_falls_back_to_the_second_home) {
       std::ofstream(dir / home / "SHA256SUMS") << sum << "  " << ours << "\n";
     }
   };
-  const u::Verdict v = u::judge("v1.0.0", {{list("h1"), "", false}, {list("h2"), "", false}, {list("gh"), "", true}}, u::this_platform());
+  // Each home's unsigned SHA256SUMS taken here (sdl_update_download_takes_signed_sums checks which are).
+  const u::Verdict v = u::judge("v1.0.0", {{list("h1"), "", false, true}, {list("h2"), "", false, true}, {list("gh"), "", true, true}}, u::this_platform());
   EXPECT(v.kind == u::Verdict::kNewer && v.release.assets.size() == 2 && v.release.assets[0].url == url("gh", ours));
   EXPECT(v.release.other_homes.size() == 2 && v.release.other_homes[0][0].url == url("h1", ours) && v.release.other_homes[1][0].url == url("h2", ours));
   setenv("MW3_UPDATE_API", "file:///fixture", 1);  // checks: file:// assets allowed
@@ -1742,6 +1897,69 @@ TEST(sdl_update_download_falls_back_to_the_second_home) {
   d = sdlfe::download_update(v.release, to, nullptr);
   EXPECT(!d.ok && !fs::exists(fs::path(to) / ours));
   unsetenv("MW3_UPDATE_API");
+  if (!check::failures) fs::remove_all(dir, ec);
+}
+
+// Signed sums (2026-11-26, docs/launcher.md, Signed data): a home whose unsigned SHA256SUMS are not taken (not
+// GitHub's) has its file downloaded only when its SHA256SUMS.sig checks against a key the launcher knows; unsigned or
+// another key's: refused and said. GitHub's (unsigned_sums) taken unsigned.
+TEST(sdl_update_download_takes_signed_sums) {
+  namespace fs = std::filesystem;
+  namespace u = upgrades::update;
+  std::error_code ec;
+  const fs::path dir = fs::path(MW3_TEST_TMP) / "update_download_signed";
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir, ec);
+  const char* names[] = {"MW3-Rebuild-Setup-9.0.0.exe", "MW3-Rebuild-9.0.0-mac.dmg", "MW3-Rebuild-9.0.0-x86_64.AppImage"};
+  const std::string ours = names[u::this_platform() == u::Platform::kWindows ? 0 : u::this_platform() == u::Platform::kMac ? 1 : 2];
+  const std::string bytes(120000, 's');
+  const std::string sum = rekit::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+  std::ofstream(dir / ours, std::ios::binary) << bytes;
+  std::ofstream(dir / "SHA256SUMS") << sum << "  " << ours << "\n";
+  const auto url = [&](const std::string& n) { return "file://" + (dir / n).string(); };
+  const u::Sources keep = u::active_sources();
+  u::Sources s = keep;
+  s.keys = {test_keys::public_key(1)};
+  u::use_sources(s);
+  setenv("MW3_UPDATE_API", "file:///fixture", 1);
+  const std::string to = (dir / "download").string();
+  const auto get = [&](bool trusted, bool with_sig) {
+    u::Release r;
+    r.tag = "v9.0.0";
+    r.assets = {{ours, url(ours), bytes.size()}, {"SHA256SUMS", url("SHA256SUMS"), 0}};
+    if (with_sig) r.assets.push_back({"SHA256SUMS.sig", url("SHA256SUMS.sig"), 0});
+    r.unsigned_sums = trusted;
+    return sdlfe::download_update(r, to, nullptr);
+  };
+  sign_fixture((dir / "SHA256SUMS").string(), {1});
+  sdlfe::Downloaded d = get(false, true);
+  std::printf("  signed, untrusted home: %s\n", d.ok ? "downloaded" : d.words.c_str());
+  EXPECT(d.ok && rekit::sha256_file_hex(d.path) == sum);
+  d = get(false, false);
+  std::printf("  unsigned, untrusted home: %s\n", d.words.c_str());
+  EXPECT(!d.ok && d.words == "The release's SHA256SUMS could not be trusted (its SHA256SUMS is not signed), so nothing was downloaded." &&
+         !fs::exists(fs::path(to) / ours));
+  d = get(true, false);
+  EXPECT(d.ok);
+  sign_fixture((dir / "SHA256SUMS").string(), {9});
+  d = get(false, true);
+  std::printf("  another key's, untrusted home: %s\n", d.words.c_str());
+  EXPECT(!d.ok && d.words.find("its SHA256SUMS.sig does not check against the launcher's keys") != std::string::npos && !fs::exists(fs::path(to) / ours));
+  EXPECT(get(true, true).ok);  // GitHub's: its unsigned sums taken whatever the .sig
+  // Another home's signed sums vouch for GitHub's file when GitHub has none; unsigned ones from it do not.
+  sign_fixture((dir / "SHA256SUMS").string(), {1});
+  u::Release r;
+  r.tag = "v9.0.0";
+  r.assets = {{ours, url(ours), bytes.size()}};
+  r.unsigned_sums = true;
+  r.other_homes = {{{ours, url("gone"), bytes.size()}, {"SHA256SUMS", url("SHA256SUMS"), 0}, {"SHA256SUMS.sig", url("SHA256SUMS.sig"), 0}}};
+  r.other_unsigned_sums = {false};
+  EXPECT(sdlfe::download_update(r, to, nullptr).ok);
+  r.other_homes[0].pop_back();
+  d = sdlfe::download_update(r, to, nullptr);
+  EXPECT(!d.ok && !fs::exists(fs::path(to) / ours));
+  unsetenv("MW3_UPDATE_API");
+  u::use_sources(keep);
   if (!check::failures) fs::remove_all(dir, ec);
 }
 
@@ -1772,6 +1990,7 @@ TEST(sdl_update_download_falls_back_to_the_backup) {
   r.tag = "v9.0.0";
   r.assets = {{ours, url("gh", ours), bytes.size()}, {"SHA256SUMS", url("gh", "SHA256SUMS"), 0}};
   r.other_homes = {{{ours, url("bk", ours), bytes.size()}, {"SHA256SUMS", url("bk", "SHA256SUMS"), 0}}};
+  r.unsigned_sums = true, r.other_unsigned_sums = {true};  // both homes' unsigned SHA256SUMS taken here
   setenv("MW3_UPDATE_API", "file:///fixture", 1);
   const std::string to = (dir / "download").string();
   // Both there: GitHub's (the backup's file removed afterwards would not matter; its copy is never read).
@@ -1904,11 +2123,19 @@ TEST(sdl_program_launcher_checks_for_updates) {
   const std::string bytes(5000, 'n');
   std::ofstream(dir / ours, std::ios::binary) << bytes;
   std::ofstream(dir / "SHA256SUMS") << rekit::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()) << "  " << ours << "\n";
-  std::string newest = rel("v98.1.0", false);
-  newest.replace(newest.find("\"assets\":[]"), 11, "\"assets\":[{\"name\":\"" + ours + "\",\"size\":5000,\"browser_download_url\":\"file://" +
-                                                   (dir / ours).string() + "\"},{\"name\":\"SHA256SUMS\",\"browser_download_url\":\"file://" +
-                                                   (dir / "SHA256SUMS").string() + "\"}]");
+  // Its SHA256SUMS signed by test key 1 (the sources file's), so a home whose unsigned sums are not taken (the
+  // first of two lists) has it downloaded too; newer-unsigned's carries no .sig.
+  sign_fixture((dir / "SHA256SUMS").string(), {1});
+  write_sources((dir / "sources.json").string(), {"file:///nowhere/catalog.json"}, {1});
+  std::string plain = rel("v98.1.0", false);
+  plain.replace(plain.find("\"assets\":[]"), 11, "\"assets\":[{\"name\":\"" + ours + "\",\"size\":5000,\"browser_download_url\":\"file://" +
+                                                 (dir / ours).string() + "\"},{\"name\":\"SHA256SUMS\",\"browser_download_url\":\"file://" +
+                                                 (dir / "SHA256SUMS").string() + "\"}]");
+  std::string newest = plain;
+  newest.replace(newest.rfind("}]"), 2, "},{\"name\":\"SHA256SUMS.sig\",\"browser_download_url\":\"file://" + (dir / "SHA256SUMS.sig").string() + "\"}]");
   std::ofstream(dir / "newer.json") << "[" << rel("pm-v99.0.0", false) << "," << rel("v99.0.0", true) << "," << newest << "]";
+  std::ofstream(dir / "newer-unsigned.json") << "[" << plain << "]";
+  setenv("MW3_SOURCES_FILE", (dir / "sources.json").c_str(), 1);
   std::string older = newest;  // an older release with its bundle (one without is never the update)
   older.replace(older.find("v98.1.0"), 7, "v0.0.1");
   std::ofstream(dir / "older.json") << "[" << older << "]";
@@ -1926,6 +2153,7 @@ TEST(sdl_program_launcher_checks_for_updates) {
     }
     std::replace(name.begin(), name.end(), '|', '_');
     const bool is_newer = name.find("newer") != std::string::npos;  // 98.1.0 on either home
+    const bool refused = name.find("unsigned") != std::string::npos;  // its download refused: unsigned on the untrusted home
     setenv("MW3_UPDATE_API", api.c_str(), 1);
     if (is_newer) setenv("MW3_LAUNCHER_UPDATE_GO", "1", 1);
     else unsetenv("MW3_LAUNCHER_UPDATE_GO");
@@ -1939,7 +2167,7 @@ TEST(sdl_program_launcher_checks_for_updates) {
     if (tmp_was.empty()) unsetenv("TMPDIR");
     else setenv("TMPDIR", tmp_was.c_str(), 1);
     if (is_newer) {
-      EXPECT(fs::exists(dir / "tmp" / "MW3-Rebuild-update" / ours, ec));
+      EXPECT(fs::exists(dir / "tmp" / "MW3-Rebuild-update" / ours, ec) != refused);
       fs::remove(dir / "tmp" / "MW3-Rebuild-update" / ours, ec);
     }
     std::ifstream f(log);
@@ -1950,7 +2178,10 @@ TEST(sdl_program_launcher_checks_for_updates) {
     const size_t at = text.find("launcher: update: ");
     const std::string said = at == std::string::npos ? "(none)" : text.substr(at + 18, text.find('\n', at) - at - 18);
     std::printf("  %s: %s\n", spec, said.c_str());
-    if (is_newer)  // sitting 2: the notes and the question
+    if (refused)
+      EXPECT(text.find("QUIT, UPDATE AVAILABLE 98.1.0, UPDATE LAUNCHER, NOT NOW\n") != std::string::npos &&
+             text.find("its SHA256SUMS is not signed") != std::string::npos && text.find("Downloaded and checked") == std::string::npos);
+    else if (is_newer)  // sitting 2: the notes and the question
       EXPECT(text.find("QUIT, UPDATE AVAILABLE 98.1.0, UPDATE LAUNCHER, NOT NOW\n") != std::string::npos &&  // the box over the games
              text.find("update notes: Fixes\n") != std::string::npos && text.find("update notes: \xe2\x80\xa2 Lasers hit again\n") != std::string::npos &&
              text.find("update notes: \xe2\x80\xa2 The c1m2 crash\n") != std::string::npos &&
@@ -1969,7 +2200,9 @@ TEST(sdl_program_launcher_checks_for_updates) {
   EXPECT(run("newer|missing").rfind("MechWarrior 3 Rebuild 98.1.0 is out (this is ", 0) == 0);  // GitHub down
   EXPECT(run("missing|older").rfind("This is the newest MechWarrior 3 Rebuild (", 0) == 0);  // the backup down
   EXPECT(run("missing|broken").find("Could not check for updates") == 0);
-  for (const char* k : {"MW3_LAUNCHER_FRAMES", "MW3_LAUNCHER_NAV", "MW3_UPDATE_API", "MW3_LAUNCHER_UPDATE_GO"}) unsetenv(k);
+  // Signed data (2026-11-26): the newest only on the first list, its SHA256SUMS unsigned: shown, not downloaded.
+  EXPECT(run("newer-unsigned|older").rfind("MechWarrior 3 Rebuild 98.1.0 is out (this is ", 0) == 0);  // and run() finds it refused
+  for (const char* k : {"MW3_LAUNCHER_FRAMES", "MW3_LAUNCHER_NAV", "MW3_UPDATE_API", "MW3_LAUNCHER_UPDATE_GO", "MW3_SOURCES_FILE"}) unsetenv(k);
   fs::remove_all(dir, ec);
 }
 

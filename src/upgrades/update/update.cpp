@@ -266,7 +266,7 @@ Homes read_homes(const std::vector<Answer>& answers) {
       if (!h.failed) h.failed = &a, h.parse_error = error;
     } else {
       ++h.read;
-      for (Release& r : some) h.releases.push_back(std::move(r)), h.first.push_back(a.download_first);
+      for (Release& r : some) r.unsigned_sums = a.unsigned_sums, h.releases.push_back(std::move(r)), h.first.push_back(a.download_first);
     }
   }
   return h;
@@ -285,9 +285,10 @@ Release with_homes(const Homes& h, const std::string& tag, const std::function<b
       break;
     }
   if (base == h.releases.size()) return {};
-  out.other_homes.clear();
+  out.other_homes.clear(), out.other_unsigned_sums.clear();
   for (size_t i : order)
-    if (i != base && !h.releases[i].assets.empty()) out.other_homes.push_back(h.releases[i].assets);
+    if (i != base && !h.releases[i].assets.empty())
+      out.other_homes.push_back(h.releases[i].assets), out.other_unsigned_sums.push_back(h.releases[i].unsigned_sums);
   return out;
 }
 
