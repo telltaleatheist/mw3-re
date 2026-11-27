@@ -1834,7 +1834,7 @@ TEST(sdl_program_launcher_shows_one_bar_for_a_download) {
     return out;
   };
   {  // the game, then its original files: one total, rising
-    const Run r = run("total", false, 150, nullptr);
+    const Run r = run("total", false, 300, nullptr);  // the original's 0.3 MB over some 6 s: seconds of speed past the settle
     const std::vector<std::string> ls = lines(r.log);
     double last = -1;
     bool rising = true, totals = true, speed = false;
