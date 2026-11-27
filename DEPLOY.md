@@ -166,6 +166,11 @@ the hub.
 
 **The catalog** (a change to `catalog/games.json`, its `revision` raised):
 
+0. Look at it first: sign a copy with a throwaway key (`sign.py --new-key`),
+   list that key and the copy's `file://` address in a sources file, and run
+   `MW3_SOURCES_FILE=<it> mw3launcher --launcher-shot <file>.bmp --nosound --write-dir <scratch>`
+   (`MW3_LAUNCHER_LIST_Y=<px>` scrolls the list). The real key signs only
+   what was looked at.
 1. `MW3_SIGNING_KEY=<key file> python3 -I tools/package/publish_catalog.py <folder>`
    checks that it reads as a catalog, writes each art's SHA-256 into it from
    `catalog/art` (`badge_sha256`; a stale one corrected and said; a named art
@@ -177,6 +182,11 @@ the hub.
 3. Copy `<folder>` to the site's `/launcher/` path, served as plain files by
    the web server (`MW3_CATALOG_DEST`, an rsync destination, does it in
    step 1; no address is kept in the repo).
+4. Check the live copy: byte-identical to the signed one, the new
+   revision, its signature checking, served uncached; then a launcher's run
+   logs `catalog: revision N, fetched`. The site's own runbook (kept with the
+   site, not here) has the server's side: where it goes and what is never
+   touched there.
 
 A catalog that is not signed, or signed by a key the launcher does not know,
 is passed over by every launcher from the next release on; released ones
