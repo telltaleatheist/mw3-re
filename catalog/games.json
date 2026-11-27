@@ -1,6 +1,6 @@
 {
   "catalog": 1,
-  "revision": 5,
+  "revision": 6,
   "homes": [
     {"key": "gh", "releases": "https://api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}", "order": 1},
     {"key": "om", "releases": "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/{repo}/releases?limit=40", "order": 2}
@@ -50,7 +50,12 @@
       "description": "MechWarrior (1989), reverse engineered and rebuilt. Built on Elthial's SDL port. Bring your own DOS copy.",
       "repo": "mech1-re", "tag_prefix": "mw1r-v", "program": "mw1r",
       "assets": {"windows": "MW1-Rebuild-{tag}-win64.zip", "mac": "MW1-Rebuild-{tag}-mac.dmg", "linux": "MW1-Rebuild-{tag}-x86_64.AppImage"},
-      "badge": "badge_mw1o.png", "badge_sha256": "855d75c78f79bf568a6554abfcf24a4a7991e09abe3e952373c8fa89dbd2493b", "needs": [], "min_launcher": "1.5.2"
+      "badge": "badge_mw1o.png", "badge_sha256": "855d75c78f79bf568a6554abfcf24a4a7991e09abe3e952373c8fa89dbd2493b", "needs": [], "min_launcher": "1.5.2",
+      "original": [
+        {"url": "https://archive.org/download/msdos_MechWarrior_1989/MechWarrior_1989.zip",
+         "sha256": "4a021357987a77b8d81f55b63a3f5bfc2719cf921803f499a83015884ab4e2c2", "size": 1031629,
+         "name": "MechWarrior_1989.zip", "note": "the Internet Archive"}
+      ]
     },
     {
       "key": "mw1", "family": "mw1", "order": 4, "state": "released",
@@ -58,7 +63,12 @@
       "description": "MechWarrior (1989)'s campaign, fought with MechWarrior 3's combat.",
       "repo": "mech1-remake-re", "tag_prefix": "mw1-v", "program": "mw1",
       "assets": {"windows": "MW1-Remake-{tag}-win64.zip", "mac": "MW1-Remake-{tag}-mac.dmg", "linux": "MW1-Remake-{tag}-x86_64.AppImage"},
-      "badge": "badge_mw1.png", "badge_sha256": "fb2a4e3ca87026b6df8df3bd5ef7ab394e01af9f58099079d2120b21a3f3347a", "needs": ["mw3", "pm"], "min_launcher": "1.5.2"
+      "badge": "badge_mw1.png", "badge_sha256": "fb2a4e3ca87026b6df8df3bd5ef7ab394e01af9f58099079d2120b21a3f3347a", "needs": ["mw3", "pm"], "min_launcher": "1.5.2",
+      "original": [
+        {"url": "https://archive.org/download/msdos_MechWarrior_1989/MechWarrior_1989.zip",
+         "sha256": "4a021357987a77b8d81f55b63a3f5bfc2719cf921803f499a83015884ab4e2c2", "size": 1031629,
+         "name": "MechWarrior_1989.zip", "note": "the Internet Archive"}
+      ]
     },
     {
       "key": "chi", "family": "inception", "order": 5, "state": "released",
@@ -84,7 +94,12 @@
       "description": "The 1990 game, rebuilt. Built on Elthial's SDL port. Bring your own DOS copy.",
       "repo": "revenge-re", "tag_prefix": "chr-v", "program": "chr",
       "assets": {"windows": "CHR-Rebuild-{tag}-win64.zip", "mac": "CHR-Rebuild-{tag}-mac.dmg", "linux": "CHR-Rebuild-{tag}-x86_64.AppImage"},
-      "badge": "badge_revenge.png", "badge_sha256": "90ba6785c31bbc4fd7075011ad23b311c9309cbaf6db8117cfbd805ff56a90ca", "needs": [], "min_launcher": "1.6.0"
+      "badge": "badge_revenge.png", "badge_sha256": "90ba6785c31bbc4fd7075011ad23b311c9309cbaf6db8117cfbd805ff56a90ca", "needs": [], "min_launcher": "1.6.0",
+      "original": [
+        {"url": "https://archive.org/download/msdos_BattleTech_-_The_Crescent_Hawks_Revenge_1990/BattleTech_-_The_Crescent_Hawks_Revenge_1990.zip",
+         "sha256": "7194e781e819485844c2bfbf63f8c464bfa64452c78a89db576fb3c89e5111e3", "size": 1352026,
+         "name": "BattleTech_-_The_Crescent_Hawks_Revenge_1990.zip", "note": "the Internet Archive"}
+      ]
     }
   ]
 }
