@@ -181,7 +181,10 @@ the hub.
    hub's main (GitHub's raw copy and the mirror's then carry both).
 3. Copy `<folder>` to the site's `/launcher/` path, served as plain files by
    the web server (`MW3_CATALOG_DEST`, an rsync destination, does it in
-   step 1; no address is kept in the repo).
+   step 1; no address is kept in the repo). A server that caches open
+   files (nginx's `open_file_cache`) is reloaded right after: until then it
+   may serve the old `catalog.json` beside the new `.sig`, a pair that does
+   not check, and launchers fall back to GitHub for that minute.
 4. Check the live copy: byte-identical to the signed one, the new
    revision, its signature checking, served uncached; then a launcher's run
    logs `catalog: revision N, fetched`. The site's own runbook (kept with the
