@@ -1455,9 +1455,12 @@ or GitHub goes away.
 ## Mac signing (2026-11-26, from 1.7.0)
 
 The Mac launcher is Developer ID signed and notarized from 1.7.0 (every release before it was signed ad hoc, and
-macOS asked once before the first open). `tools/macos/make_app.sh` takes both from the environment, so no name or
-team ID is ever in the repo: `MW3_SIGN_IDENTITY` (the keychain's Developer ID Application identity, its name or
-SHA-1) and `MW3_NOTARY_PROFILE` (a `xcrun notarytool store-credentials` profile).
+macOS asked once before the first open). `tools/macos/make_app.sh` does it through the setup kit's
+`tools/macos/sign_notarize.sh` (the same script every game's build uses: the kit's README, Mac signing), which
+takes both from the environment, so no name or team ID is ever in the repo: `RE_SIGN_IDENTITY` (the keychain's
+Developer ID Application identity, its name or SHA-1) and `RE_NOTARY_PROFILE` (a `xcrun notarytool
+store-credentials` profile). The `MW3_SIGN_IDENTITY`, `MW3_NOTARY_PROFILE` and `MW3_ALLOW_UNSIGNED` names are read
+too.
 
 - Signed: every Mach-O inside the app (the libraries in Frameworks), then the app, with the hardened runtime and a
   secure timestamp; `mw3.entitlements` grants nothing (no JIT, nothing loaded at run time, no sandbox). Then the
@@ -1466,12 +1469,14 @@ SHA-1) and `MW3_NOTARY_PROFILE` (a `xcrun notarytool store-credentials` profile)
   `stapler validate`, and `spctl` must say "Notarized Developer ID" for both. A rejection prints Apple's log and
   fails the build.
 - A build that would not be notarized (no identity, no profile, or the profile not in the keychain) is refused before
-  anything is built unless `MW3_ALLOW_UNSIGNED=1` (development and check builds), so an unnotarized DMG never
+  anything is built unless `RE_ALLOW_UNSIGNED=1` (development and check builds), so an unnotarized DMG never
   reaches a release. Its README.txt keeps the right-click > Open paragraph; a notarized one says it opens like any
   other app (`[notarized]`/`[unsigned]` in tools/macos/README.txt, picked by make_app.sh).
 - Checked 2026-11-26: a dev DMG notarized at the first submission; the released 1.6.0 (ad hoc) updated itself to it
   through a file:// release, and the swapped app passed `codesign --verify --deep --strict` and `spctl` (Notarized
   Developer ID), its bundle ID and the player's files kept.
+- Gatekeeper checks only what carries the quarantine flag (a browser's download). The games the launcher downloads
+  and installs itself carry none, so the launcher's own DMG is the one players meet first.
 - No Windows signing for now.
 
 ## Games on demand (2026-11-22)
