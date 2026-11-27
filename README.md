@@ -465,7 +465,7 @@ takes its `BTECH.EXE`, its folder or the `.zip` it came in.
 ## Download
 
 The launcher, from the [Releases](../../releases) page (or
-[owenmorgan.com/battletech](https://owenmorgan.com/battletech/)); it downloads
+[reverse-engineered.com](https://reverse-engineered.com)); it downloads
 each game when you press its DOWNLOAD:
 
 | | File | |
