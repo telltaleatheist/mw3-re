@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "upgrades/update/games.h"
 #include "upgrades/update/update.h"
 
 namespace sdlfe {
@@ -29,8 +30,9 @@ void stop_asking(bool stop = true);
 SDL_Process* start_quiet(SDL_PropertiesID props);
 bool wait_quiet(SDL_Process* p, bool block, int* code);
 
-// A repo's releases lists in both homes, in the order they are asked (2026-11-22): git.owenmorgan.com's
-// (Forgejo, `limit`) then GitHub's (`per_page`, download_first: a download comes from it first). `env` replaces them
+// A repo's releases lists in every home, in the order they are asked (2026-11-22; the homes from the catalog in use
+// since 2026-11-26): each of the catalog's homes' (Forgejo, `limit`; built in, git.owenmorgan.com) then GitHub's
+// (`per_page`, download_first: a download comes from it first). `env` replaces them
 // in checks (MW3_UPDATE_API, MW3_GAMES_API; {repo} in it becomes `repo`): one list, taken as GitHub's, or two
 // as "BACKUP|GITHUB".
 struct ReleaseList {
@@ -38,6 +40,8 @@ struct ReleaseList {
   bool download_first = false;
 };
 std::vector<ReleaseList> release_lists(const char* env, const std::string& repo, int github_per_page);
+// The same for a given list of homes (release_lists passes the catalog in use's, active_homes).
+std::vector<ReleaseList> home_lists(const std::vector<upgrades::update::CatalogHome>& homes, const std::string& repo, int github_per_page);
 // Each list asked in turn (`seconds` each), its answer logged as "mw3: launcher: <log> at <url>: answered".
 std::vector<upgrades::update::Answer> ask_lists(const std::vector<ReleaseList>& lists, int seconds, bool allow_file, const std::string& log);
 

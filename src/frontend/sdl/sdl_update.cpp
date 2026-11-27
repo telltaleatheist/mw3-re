@@ -495,8 +495,15 @@ std::vector<ReleaseList> release_lists(const char* env, const std::string& repo,
     if (bar == std::string::npos) return {{with_repo(s), true}};
     return {{with_repo(s.substr(0, bar)), false}, {with_repo(s.substr(bar + 1)), true}};
   }
-  return {{"https://git.owenmorgan.com/api/v1/repos/telltaleatheist/" + repo + "/releases?limit=40", false},
-          {"https://api.github.com/repos/telltaleatheist/" + repo + "/releases?per_page=" + std::to_string(github_per_page), true}};
+  return home_lists(upgrades::update::active_homes(), repo, github_per_page);
+}
+
+std::vector<ReleaseList> home_lists(const std::vector<upgrades::update::CatalogHome>& homes, const std::string& repo, int github_per_page) {
+  std::vector<ReleaseList> out;
+  const std::string owner = upgrades::update::catalog_owner();
+  for (const upgrades::update::CatalogHome& h : homes) out.push_back({h.url + "/api/v1/repos/" + owner + "/" + repo + "/releases?limit=40", false});
+  out.push_back({"https://api.github.com/repos/telltaleatheist/" + repo + "/releases?per_page=" + std::to_string(github_per_page), true});
+  return out;
 }
 
 std::vector<upgrades::update::Answer> ask_lists(const std::vector<ReleaseList>& lists, int seconds, bool allow_file, const std::string& log) {
@@ -512,8 +519,8 @@ std::vector<upgrades::update::Answer> ask_lists(const std::vector<ReleaseList>& 
 }
 
 // Both repos of the package (2026-11-21): the hub mw3-re, where every copy up to 1.2.1 looks, and mech3-re,
-// MechWarrior 3's own repo after the split; each in both homes (2026-11-22: git.owenmorgan.com, then GitHub);
-// the newest package on any of the four wins. MW3_UPDATE_API: one list or two (release_lists), for checks.
+// MechWarrior 3's own repo after the split; each in every home (the catalog's homes, then GitHub; 2026-11-26);
+// the newest package on any of them wins. MW3_UPDATE_API: one list or two (release_lists), for checks.
 upgrades::update::Verdict check_for_updates(const std::string& current) {
   const char* api = std::getenv("MW3_UPDATE_API");
   std::vector<upgrades::update::Answer> answers;

@@ -46,6 +46,86 @@ struct Fields {
   }
 };
 
+// A host name as a home's or an original's address may name: letters, digits, '-' and '.', with a dot, no empty
+// label, no "..", no port, no user.
+bool plain_host(const std::string& h) {
+  if (h.empty() || h.size() > 253 || h.find('.') == std::string::npos || h.find("..") != std::string::npos || h.front() == '.' ||
+      h.back() == '.' || h.front() == '-')
+    return false;
+  for (char c : h)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '.') return false;
+  return true;
+}
+
+// "https://" and a plain host, then (`path`) a path of printable characters without spaces, '\\' or ".."; without
+// `path`, nothing after the host but one '/' (taken off).
+bool https_address(std::string* url, bool path) {
+  const std::string kScheme = "https://";
+  if (url->compare(0, kScheme.size(), kScheme) != 0) return false;
+  const size_t slash = url->find('/', kScheme.size());
+  if (!plain_host(url->substr(kScheme.size(), slash == std::string::npos ? std::string::npos : slash - kScheme.size()))) return false;
+  if (slash == std::string::npos) return true;
+  if (!path) return slash + 1 == url->size() ? (url->pop_back(), true) : false;
+  if (url->find("..", slash) != std::string::npos) return false;
+  for (size_t i = slash; i < url->size(); ++i)
+    if ((*url)[i] <= ' ' || (*url)[i] > '~' || (*url)[i] == '\\') return false;
+  return true;
+}
+
+// The catalog's "homes" into `out`; the first thing wrong in `why` (and `out` left as it was).
+void read_homes(const Json& homes, Catalog* out, std::string* why) {
+  if (homes.type != Json::kArray) return void(*why = "homes is not a list");
+  if (homes.items.size() > static_cast<size_t>(kMaxHomes)) return void(*why = "homes lists more than " + std::to_string(kMaxHomes));
+  std::vector<CatalogHome> list;
+  for (size_t i = 0; i < homes.items.size(); ++i) {
+    const Json& j = homes.items[i];
+    Fields f{j, "homes[" + std::to_string(i) + "]", why};
+    CatalogHome h;
+    if (j.type != Json::kObject) return void(f.fail("not an entry"));
+    if (!f.text("key", &h.key) || !f.text("url", &h.url) || !f.number("order", &h.order)) return;
+    if (!https_address(&h.url, false)) return void(f.fail(h.url + " is not https:// and a plain host"));
+    for (const CatalogHome& o : list)
+      if (o.key == h.key || o.url == h.url) return void(f.fail("the home " + h.url + " twice"));
+    list.push_back(std::move(h));
+  }
+  std::stable_sort(list.begin(), list.end(), [](const CatalogHome& a, const CatalogHome& b) { return a.order < b.order; });
+  out->has_homes = true, out->homes = std::move(list);
+}
+
+// A file name a download is saved as: letters, digits, spaces and "-_.()',", not starting with a dot or a space.
+bool plain_file_name(const std::string& n) {
+  if (n.empty() || n.size() > 120 || n.front() == '.' || n.front() == ' ' || n.find("..") != std::string::npos) return false;
+  for (char c : n)
+    if (!std::isalnum(static_cast<unsigned char>(c)) && !std::strchr(" -_.()',", c)) return false;
+  return true;
+}
+
+// A game's "original" (a list of sources) into `g`; the first thing wrong in `why` (and `g` left without one).
+void read_original(const Json& o, CatalogGame* g, std::string* why) {
+  if (o.type != Json::kArray || o.items.empty()) return void(*why = "its original is not a list of sources");
+  if (o.items.size() > static_cast<size_t>(kMaxOriginals)) return void(*why = "its original lists more than " + std::to_string(kMaxOriginals));
+  std::vector<CatalogGame::Original> list;
+  for (size_t i = 0; i < o.items.size(); ++i) {
+    const Json& j = o.items[i];
+    Fields f{j, "its original[" + std::to_string(i) + "]", why};
+    CatalogGame::Original s;
+    if (j.type != Json::kObject) return void(f.fail("not an entry"));
+    if (!f.text("url", &s.url) || !f.text("sha256", &s.sha256) || !f.text("name", &s.name) || !f.text("note", &s.note, false)) return;
+    const Json* size = j.at("size");
+    if (!size || size->type != Json::kNumber || size->s.empty() || size->s.find_first_not_of("0123456789") != std::string::npos || size->s.size() > 12)
+      return void(f.fail("no size in bytes"));
+    s.size = std::strtoull(size->s.c_str(), nullptr, 10);
+    if (s.size == 0) return void(f.fail("no size in bytes"));
+    if (!https_address(&s.url, true)) return void(f.fail(s.url + " is not an https:// address"));
+    bool hex = s.sha256.size() == 64;
+    for (char& c : s.sha256) hex = hex && std::isxdigit(static_cast<unsigned char>(c)), c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (!hex) return void(f.fail("its sha256 is not 64 hex digits"));
+    if (!plain_file_name(s.name)) return void(f.fail("its name " + s.name + " is not a plain file name"));
+    list.push_back(std::move(s));
+  }
+  g->original = std::move(list);
+}
+
 }  // namespace
 
 namespace {
@@ -70,6 +150,14 @@ bool read_catalog(const std::string& json, Catalog* out, std::string* why, std::
   const Json* games = root.at("games");
   if (!families || families->type != Json::kArray) return top.fail("no families list");
   if (!games || games->type != Json::kArray) return top.fail("no games list");
+  if (const Json* homes = root.at("homes")) {  // bad: the whole refused (strict) or the built-in's homes kept
+    std::string bad_homes;
+    read_homes(*homes, out, &bad_homes);
+    if (!bad_homes.empty()) {
+      if (!ignored) return *why = bad_homes, false;
+      ignored->push_back(bad_homes + " (the built-in homes kept)");
+    }
+  }
   // A bad entry: the whole refused (strict) or the entry left out.
   auto bad = [&]() {
     if (!ignored) return false;
@@ -128,6 +216,14 @@ bool read_catalog(const std::string& json, Catalog* out, std::string* why, std::
       if (const Json* b = j.at("panel_before_release")) {
         if (b->type != Json::kBool) return f.fail("panel_before_release is not true or false");
         g.panel_before_release = b->b;
+      }
+      if (const Json* o = j.at("original")) {  // bad: the whole refused (strict) or the slot left out, the game kept
+        std::string bad_original;
+        read_original(*o, &g, &bad_original);
+        if (!bad_original.empty()) {
+          if (!ignored) return f.fail(bad_original);
+          ignored->push_back(f.where + ": " + bad_original + " (left out, the game kept)");
+        }
       }
       return true;
     }();
@@ -224,10 +320,7 @@ bool read_fetched_catalog(const std::string& json, const std::string& launcher_v
   ignored->clear();
   if (!read_catalog(json, out, why, ignored)) return false;
   std::vector<CatalogGame> kept;
-  // Read through a volatile pointer: clang folded the compare with the constant into the name's bytes as immediates
-  // in the code, outside its address (mw3pm pm-v1.2.11, check_paths.py).
-  static const char* const volatile owner_at = kCatalogOwner;
-  const std::string owner = owner_at;
+  const std::string owner = catalog_owner();
   for (CatalogGame& g : out->games) {
     const std::string where = "games (" + g.key + "): ";
     const size_t slash = g.repo.find('/');
@@ -262,10 +355,18 @@ bool read_fetched_catalog(const std::string& json, const std::string& launcher_v
   return true;
 }
 
+std::string catalog_owner() {
+  // Read through a volatile pointer: clang folded the compare with the constant into the name's bytes as immediates
+  // in the code, outside its address (mw3pm pm-v1.2.11, check_paths.py).
+  static const char* const volatile owner_at = kCatalogOwner;
+  return owner_at;
+}
+
 Catalog merged_catalog(const Catalog& builtin, const Catalog& fetched, std::vector<std::string>* ignored) {
   if (fetched.revision <= builtin.revision) return builtin;
   Catalog out = builtin;
   out.revision = fetched.revision;
+  if (fetched.has_homes) out.has_homes = true, out.homes = fetched.homes;
   for (const CatalogFamily& f : fetched.families) {
     auto at = std::find_if(out.families.begin(), out.families.end(), [&](const CatalogFamily& o) { return o.key == f.key; });
     if (at != out.families.end()) *at = f;
@@ -315,6 +416,7 @@ bool use_catalog(const Catalog& c) {
 }
 
 const Catalog& active_catalog() { return active().cat; }
+const std::vector<CatalogHome>& active_homes() { return active().cat.homes; }
 int game_count() { return static_cast<int>(active().by_game.size()); }
 Game game_at(int i) { return static_cast<Game>(i); }
 

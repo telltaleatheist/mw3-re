@@ -524,6 +524,17 @@ What an entry does:
   kept file is removed at the next start (`catalog: <key> forgotten`). An
   entry set to `removed` is in the catalog, so it is not replaced.
 
+An entry's `"original"` (2026-11-26) lists where the original game's
+files can be fetched from, the same file at each address, tried in
+order: up to `kMaxOriginals` (4) of `{"url", "sha256", "size", "name",
+"note"}`, `url` https, `sha256` 64 hex digits, `size` in bytes, `name`
+a plain file name. It is read and checked (a bad one is left out, said
+in the log, and its game kept) and said at the start (`catalog: <key>
+names an original download (not used)`); nothing fetches it yet. No
+catalog lists an original source today, and without one nothing is ever
+fetched. Launchers 1.6.0 to 1.7.1 ignore the field. Checked:
+`games_catalog_original_read_and_unused`.
+
 Trust: an entry whose `repo` names another owner (`owner/repo`) is left
 out, so is one whose `min_launcher` is newer than this launcher (a build's
 "unknown" version takes every entry), and one whose art is not a plain
@@ -1470,6 +1481,30 @@ to a read-only Forgejo at `git.owenmorgan.com`, under the same paths
 (`git.owenmorgan.com/telltaleatheist/<repo>`). The launcher reads both, so it keeps working if one is forgotten
 or GitHub goes away.
 
+- **The list of homes (2026-11-26).** The copies are data: the catalog's
+  `"homes"`, each `{"key", "url", "order"}`, `url` a Forgejo or Gitea
+  base address (`https://` and a plain host, no port, path or user),
+  asked by `order` before GitHub. GitHub is not in the list: it is
+  fixed in the code, the root the catalog itself comes from. The
+  built-in catalog's list is `git.owenmorgan.com`; a fetched catalog
+  with a higher revision replaces it the way it replaces games
+  (`merged_catalog`), `[]` meaning GitHub alone, and one without
+  `"homes"` keeps the built-in list. A bad list (not a list, more than
+  `kMaxHomes` (4), an address that is not https and a plain host, a key
+  or address twice, a field missing) is left out whole, said in the log
+  (`catalog: ... left out: homes[0]: ... (the built-in homes kept)`),
+  and the built-in list stays; the games read as before. The start says
+  the list in use (`catalog: homes: https://git.owenmorgan.com, then
+  GitHub`). The releases lists (`release_lists`, through `home_lists`),
+  the catalog's fetch (`sdlfe::catalog::addresses`:
+  `<home>/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json`)
+  and so the download's fallback (`other_homes`, in the homes' order)
+  all take the catalog in use's list (`upgrades::update::active_homes`).
+  A move of the mirror is a catalog edit with its revision raised.
+  Launchers 1.6.0 to 1.7.1 ignore `"homes"` (an unknown field is never
+  read; checked by running 1.7.1's own reader on such a catalog) and
+  keep asking git.owenmorgan.com, built into them, so that name stays.
+
 - **The lists.** Each repo is asked in both homes, git.owenmorgan.com first
   (`https://git.owenmorgan.com/api/v1/repos/telltaleatheist/<repo>/releases?limit=40`:
   Forgejo takes `limit`, not `per_page`), then GitHub. Forgejo's JSON has
@@ -1498,6 +1533,13 @@ or GitHub goes away.
   that served the file.
 - **Checks.** `MW3_UPDATE_API` and `MW3_GAMES_API` name one list (taken as
   GitHub's) or two as `BACKUP|GITHUB` (`{repo}` in each for the games).
+  The list of homes: `games_catalog_homes_built_in_and_fetched`,
+  `games_catalog_bad_homes_leave_the_built_in`,
+  `sdl_homes_lists_and_catalog_addresses`,
+  `sdl_update_download_falls_back_to_the_second_home` (two homes and
+  GitHub: GitHub's file and the first home's gone, the second's served)
+  and `sdl_program_launcher_uses_the_catalogs_homes` (built in, fetched,
+  a bad list).
   Tests: `update_reads_both_homes` and `games_read_both_homes` (the same
   release in both: GitHub's file with the backup's behind it, in either
   order; newest on GitHub only; newest on the backup only; either home

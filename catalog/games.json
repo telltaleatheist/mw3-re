@@ -1,6 +1,9 @@
 {
   "catalog": 1,
   "revision": 3,
+  "homes": [
+    {"key": "om", "url": "https://git.owenmorgan.com", "order": 1}
+  ],
   "families": [
     {"key": "mw3", "name": "MechWarrior 3", "order": 1},
     {"key": "mw1", "name": "MechWarrior 1", "order": 2},

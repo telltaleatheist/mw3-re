@@ -43,12 +43,32 @@ struct CatalogGame {
   std::vector<std::string> needs;  // other games' keys it needs to play
   std::string min_launcher;  // the oldest launcher version that reads the entry ("1.5.2")
   bool panel_before_release = true;  // false: no panel until a release is found or it is installed
+  // "original" (2026-11-26): where the original game's files can be fetched from, the same file at each address,
+  // tried in order. Read and checked (an https address, a 64-hex sha256, a size, a plain file name); absent, nothing
+  // is ever fetched. No live catalog names one.
+  struct Original {
+    std::string url, sha256, name, note;  // the sha256 lower case; `name` the file's ("MechWarrior 3 (USA).zip")
+    unsigned long long size = 0;
+  };
+  std::vector<Original> original;
 };
+constexpr int kMaxOriginals = 4;
+// A home (2026-11-26, docs/launcher.md, Two homes): a Forgejo or Gitea copy of the GitHub account, by its base
+// address ("https://git.owenmorgan.com"), asked before GitHub in `order`. GitHub is not one: it is fixed in the code.
+struct CatalogHome {
+  std::string key, url;
+  int order = 0;
+};
+constexpr int kMaxHomes = 4;
 struct Catalog {
   int version = 0;   // "catalog": 1, the format
   int revision = 0;  // "revision": which wins, the built-in or a fetched one (the higher)
   std::vector<CatalogFamily> families;
   std::vector<CatalogGame> games;  // by order
+  // "homes": the copies asked before GitHub, by order. A fetched catalog without the list, or with a bad one (left
+  // out, said in `ignored`), leaves the built-in's in force; "homes": [] is GitHub alone.
+  bool has_homes = false;
+  std::vector<CatalogHome> homes;
 };
 // A catalog's JSON read and checked: every key once, each game's family listed, a known state, the fields the
 // launcher needs present. False and `why` (the entry and what is wrong) when not.
@@ -60,6 +80,11 @@ const Catalog& builtin_catalog();
 // strings stay put for the run (GameInfo points into them).
 bool use_catalog(const Catalog& c);
 const Catalog& active_catalog();
+// The homes in use this run (the catalog in use's), by order: what the releases lists and the catalog fetch ask
+// before GitHub, and so what a download falls back on (other_homes).
+const std::vector<CatalogHome>& active_homes();
+// kCatalogOwner ("telltaleatheist"), read so the program holds the name only at its GitHub address (check_paths.py).
+std::string catalog_owner();
 // Its games this run, kMaxGames at most: the six the code knows by their Game (kGames, in that order), then the
 // catalog's others (a fetched catalog's new games, on the setup kit's contract: their Game is their place, 6 and up).
 constexpr int kMaxGames = 10;  // the launcher's per-game button ids leave room for ten

@@ -554,3 +554,145 @@ TEST(games_catalog_fetched_merges_over_the_built_in) {
   // Once the games are looked up, the catalog in use stays for the run (GameInfo points into it).
   EXPECT(u::game_count() == 6 && !u::use_catalog(m) && u::game_count() == 6 && u::active_catalog().revision == builtin.revision);
 }
+
+// The homes (2026-11-26, docs/launcher.md, Two homes): the built-in list (git.owenmorgan.com; GitHub is the code's),
+// a fetched catalog's list in force only when its revision is higher, by order, its trailing '/' taken off; a fetched
+// one without the list keeps the built-in's; [] is GitHub alone.
+namespace {
+std::string with_homes(int revision, const std::string& homes) {
+  const std::string c = fetched_catalog(revision);
+  return "{\"homes\": " + homes + ", " + c.substr(1);
+}
+}  // namespace
+
+TEST(games_catalog_homes_built_in_and_fetched) {
+  const u::Catalog& builtin = u::builtin_catalog();
+  EXPECT(builtin.has_homes && builtin.homes.size() == 1 && builtin.homes[0].url == "https://git.owenmorgan.com");
+  EXPECT(u::active_homes().size() == 1 && u::active_homes()[0].url == "https://git.owenmorgan.com");
+  u::Catalog f;
+  std::vector<std::string> ignored;
+  std::string why;
+  EXPECT(u::read_fetched_catalog(with_homes(2, "[{\"key\": \"b\", \"url\": \"https://git.example.org\", \"order\": 2}, "
+                                               "{\"key\": \"a\", \"url\": \"https://git.reverse-engineered.com/\", \"order\": 1}]"),
+                                 "v1.5.2", &f, &ignored, &why));
+  for (const std::string& i : ignored) std::printf("  left out: %s\n", i.c_str());
+  EXPECT(f.has_homes && f.homes.size() == 2 && f.homes[0].url == "https://git.reverse-engineered.com" && f.homes[1].key == "b");
+  EXPECT(ignored.size() == 4);  // fetched_catalog's own four bad games, no more
+  u::Catalog m = u::merged_catalog(builtin, f);
+  EXPECT(m.homes.size() == 2 && m.homes[0].url == "https://git.reverse-engineered.com" && m.homes[1].url == "https://git.example.org");
+  // Not newer: the built-in's.
+  EXPECT(u::read_fetched_catalog(with_homes(1, "[{\"key\": \"a\", \"url\": \"https://git.reverse-engineered.com\", \"order\": 1}]"), "v1.5.2", &f,
+                                 &ignored, &why));
+  m = u::merged_catalog(builtin, f);
+  EXPECT(m.homes.size() == 1 && m.homes[0].url == "https://git.owenmorgan.com");
+  // No list: the built-in's.
+  EXPECT(u::read_fetched_catalog(fetched_catalog(2), "v1.5.2", &f, &ignored, &why) && !f.has_homes);
+  m = u::merged_catalog(builtin, f);
+  EXPECT(m.homes.size() == 1 && m.homes[0].url == "https://git.owenmorgan.com");
+  // An empty list: GitHub alone.
+  EXPECT(u::read_fetched_catalog(with_homes(2, "[]"), "v1.5.2", &f, &ignored, &why) && f.has_homes);
+  m = u::merged_catalog(builtin, f);
+  EXPECT(m.has_homes && m.homes.empty());
+}
+
+// A bad homes list is left out whole, said once, and the built-in's stays in force; the games read as before. The
+// built-in catalog's own would fail it (a build's data).
+TEST(games_catalog_bad_homes_leave_the_built_in) {
+  const char* bad[] = {
+      "{\"key\": \"a\"}",
+      "[{\"key\": \"a\", \"url\": \"http://git.example.org\", \"order\": 1}]",
+      "[{\"key\": \"a\", \"url\": \"https://git.example.org/path\", \"order\": 1}]",
+      "[{\"key\": \"a\", \"url\": \"https://git.example.org:8080\", \"order\": 1}]",
+      "[{\"key\": \"a\", \"url\": \"https://me@git.example.org\", \"order\": 1}]",
+      "[{\"key\": \"a\", \"url\": \"https://localhost\", \"order\": 1}]",
+      "[{\"key\": \"a\", \"url\": \"https://git..example.org\", \"order\": 1}]",
+      "[{\"key\": \"a\", \"url\": \"https://git.example.org\"}]",
+      "[{\"key\": \"a\", \"url\": \"https://git.example.org\", \"order\": 1}, {\"key\": \"b\", \"url\": \"https://git.example.org\", \"order\": 2}]",
+      "[{\"key\": \"a\", \"url\": \"https://a.example.org\", \"order\": 1}, {\"key\": \"b\", \"url\": \"https://b.example.org\", \"order\": 2}, "
+      "{\"key\": \"c\", \"url\": \"https://c.example.org\", \"order\": 3}, {\"key\": \"d\", \"url\": \"https://d.example.org\", \"order\": 4}, "
+      "{\"key\": \"e\", \"url\": \"https://e.example.org\", \"order\": 5}]",
+  };
+  for (const char* homes : bad) {
+    u::Catalog f;
+    std::vector<std::string> ignored;
+    std::string why;
+    const bool read = u::read_fetched_catalog(with_homes(2, homes), "v1.5.2", &f, &ignored, &why);
+    std::string said;
+    for (const std::string& i : ignored)
+      if (i.find("(the built-in homes kept)") != std::string::npos) said += i;
+    std::printf("  %s\n", said.c_str());
+    EXPECT(read && !f.has_homes && f.homes.empty() && ignored.size() == 5 && !said.empty() && f.games.size() == 5);
+    const u::Catalog m = u::merged_catalog(u::builtin_catalog(), f);
+    EXPECT(m.homes.size() == 1 && m.homes[0].url == "https://git.owenmorgan.com" && m.games.size() == 8);
+  }
+  // Five homes is one too many; four are taken.
+  {
+    u::Catalog f;
+    std::vector<std::string> ignored;
+    std::string why;
+    EXPECT(u::read_fetched_catalog(with_homes(2, "[{\"key\": \"a\", \"url\": \"https://a.example.org\", \"order\": 1}, {\"key\": \"b\", \"url\": "
+                                                 "\"https://b.example.org\", \"order\": 2}, {\"key\": \"c\", \"url\": \"https://c.example.org\", "
+                                                 "\"order\": 3}, {\"key\": \"d\", \"url\": \"https://d.example.org\", \"order\": 4}]"),
+                                   "v1.5.2", &f, &ignored, &why) &&
+           f.has_homes && f.homes.size() == 4);
+  }
+  std::string text = u::builtin_catalog_text(), why;
+  text.replace(text.find("https://git.owenmorgan.com"), 26, "http://git.owenmorgan.com");
+  u::Catalog c;
+  EXPECT(!u::parse_catalog(text, &c, &why) && why.find("homes[0]") != std::string::npos);
+}
+
+// "original" (2026-11-26): a list of sources of the original game's files. Read and checked (https, a 64-hex sha256,
+// lower-cased, a size, a plain file name); a bad one left out with its game kept.
+TEST(games_catalog_original_read_and_unused) {
+  auto with_original = [](const std::string& original) {
+    std::string c = fetched_catalog(2);
+    const std::string at = "\"key\": \"btech\"";
+    return c.replace(c.find(at), at.size(), at + ", \"original\": " + original);
+  };
+  const std::string sha(64, 'A');
+  u::Catalog f;
+  std::vector<std::string> ignored;
+  std::string why;
+  const auto src = [&](const std::string& url, const std::string& more = "") {
+    return "{\"url\": \"" + url + "\", \"sha256\": \"" + sha + "\", \"size\": 1234, \"name\": \"MechWarrior 3 (USA).zip\"" + more + "}";
+  };
+  EXPECT(u::read_fetched_catalog(with_original("[" + src("https://files.example.org/x/y.zip", ", \"note\": \"A note.\"") + ", " +
+                                               src("https://other.example.org/y.zip") + "]"),
+                                 "v1.5.2", &f, &ignored, &why));
+  const u::CatalogGame* bt = nullptr;
+  for (const u::CatalogGame& g : f.games)
+    if (g.key == "btech") bt = &g;
+  EXPECT(bt && bt->original.size() == 2 && bt->original[0].url == "https://files.example.org/x/y.zip" &&
+         bt->original[0].sha256 == std::string(64, 'a') && bt->original[0].size == 1234 && bt->original[0].name == "MechWarrior 3 (USA).zip" &&
+         bt->original[0].note == "A note." && bt->original[1].url == "https://other.example.org/y.zip" && ignored.size() == 4);
+  for (const u::CatalogGame& g : u::builtin_catalog().games) EXPECT(g.original.empty());
+  const std::string u0 = "https://files.example.org/x.zip";
+  const std::string bad[] = {
+      src(u0),  // not a list
+      "[]",
+      "[" + src(u0) + "," + src(u0) + "," + src(u0) + "," + src(u0) + "," + src(u0) + "]",
+      "[" + src("http://files.example.org/x.zip") + "]",
+      "[" + src("file:///x.zip") + "]",
+      "[" + src("https://files.example.org/../x.zip") + "]",
+      "[" + src("https://files.example.org/a b.zip") + "]",
+      "[{\"url\": \"" + u0 + "\", \"sha256\": \"" + sha.substr(1) + "\", \"size\": 1, \"name\": \"x.zip\"}]",
+      "[{\"url\": \"" + u0 + "\", \"sha256\": \"" + sha.substr(1) + "g\", \"size\": 1, \"name\": \"x.zip\"}]",
+      "[{\"url\": \"" + u0 + "\", \"sha256\": \"" + sha + "\", \"name\": \"x.zip\"}]",
+      "[{\"url\": \"" + u0 + "\", \"sha256\": \"" + sha + "\", \"size\": -5, \"name\": \"x.zip\"}]",
+      "[{\"url\": \"" + u0 + "\", \"sha256\": \"" + sha + "\", \"size\": 1, \"name\": \"../x.zip\"}]",
+      "[{\"url\": \"" + u0 + "\", \"sha256\": \"" + sha + "\", \"size\": 1}]",
+      "[" + src(u0, ", \"note\": 3") + "]",
+  };
+  for (const std::string& o : bad) {
+    EXPECT(u::read_fetched_catalog(with_original(o), "v1.5.2", &f, &ignored, &why));
+    bt = nullptr;
+    for (const u::CatalogGame& g : f.games)
+      if (g.key == "btech") bt = &g;
+    std::string said;
+    for (const std::string& i : ignored)
+      if (i.find("(left out, the game kept)") != std::string::npos) said = i;
+    std::printf("  %s\n", said.c_str());
+    EXPECT(bt && bt->original.empty() && ignored.size() == 5 && said.find("games[2] (btech): its original") == 0);
+  }
+}

@@ -21,10 +21,11 @@ namespace sdlfe::catalog {
 
 namespace {
 
-// The hub's main (docs/launcher-split.md, b7): the mirror's first, then GitHub's, as the update check asks.
-const char* const kMirror = "https://git.owenmorgan.com/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json";
+// The hub's main on GitHub (docs/launcher-split.md, b7), asked after the homes.
 const char* const kGithub = "https://raw.githubusercontent.com/telltaleatheist/mw3-re/main/catalog/games.json";
 
+// Only after the start (fetch's thread): the homes are the catalog in use's. A check run's fetch, before it, has
+// MW3_CATALOG_URL and asks only that.
 std::vector<std::string> sources() {
   if (const char* env = std::getenv("MW3_CATALOG_URL")) {
     const std::string s = env;
@@ -32,7 +33,16 @@ std::vector<std::string> sources() {
     if (bar == std::string::npos) return {s};
     return {s.substr(0, bar), s.substr(bar + 1)};
   }
-  return {kMirror, kGithub};
+  return addresses(u::active_homes());
+}
+
+// The catalog in use, said: its homes, and each game's original download (a slot for later, never fetched).
+void say_in_use() {
+  std::string homes;
+  for (const u::CatalogHome& h : u::active_homes()) homes += h.url + ", ";
+  std::printf("mw3: launcher: catalog: homes: %sthen GitHub\n", homes.c_str());
+  for (const u::CatalogGame& g : u::active_catalog().games)
+    if (!g.original.empty()) std::printf("mw3: launcher: catalog: %s names an original download (not used)\n", g.key.c_str());
 }
 
 std::string read_file(const fs::path& p) {
@@ -233,17 +243,26 @@ void at_start(const Here& h, bool check_run) {
   }
   if (from_cache) refresh_kept(h, fetched, text);
   const bool put_back = put_back_kept(h, &c);
-  if (!from_cache && !put_back) return;
-  if (!u::use_catalog(c)) {
+  if (!from_cache && !put_back) {
+  } else if (!u::use_catalog(c)) {
     std::printf("mw3: launcher: catalog: the built-in one (the games were looked up already)\n");
-    return;
+  } else {
+    if (from_cache) {
+      std::lock_guard<std::mutex> lock(g_used_mutex);
+      g_used_text = text;
+    }
+    if (from_cache) std::printf("mw3: launcher: catalog: revision %d, fetched (%d games)\n", fetched.revision, u::game_count());
+    else std::printf("mw3: launcher: catalog: the built-in one and the kept entries (%d games)\n", u::game_count());
   }
-  if (from_cache) {
-    std::lock_guard<std::mutex> lock(g_used_mutex);
-    g_used_text = text;
-  }
-  if (from_cache) std::printf("mw3: launcher: catalog: revision %d, fetched (%d games)\n", fetched.revision, u::game_count());
-  else std::printf("mw3: launcher: catalog: the built-in one and the kept entries (%d games)\n", u::game_count());
+  say_in_use();
+}
+
+std::vector<std::string> addresses(const std::vector<u::CatalogHome>& homes) {
+  std::vector<std::string> out;
+  const std::string owner = u::catalog_owner();
+  for (const u::CatalogHome& h : homes) out.push_back(h.url + "/" + owner + "/mw3-re/raw/branch/main/catalog/games.json");
+  out.push_back(kGithub);
+  return out;
 }
 
 }  // namespace sdlfe::catalog

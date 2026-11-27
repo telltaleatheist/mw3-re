@@ -51,6 +51,7 @@ int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #endif
 #endif
 #include "frontend/sdl/sdl_games.h"
+#include "frontend/sdl/sdl_catalog.h"
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher.h"
@@ -1205,6 +1206,56 @@ TEST(sdl_program_launcher_keeps_an_installed_games_entry) {
   if (!check::failures) fs::remove_all(dir, ec);
 }
 
+// The homes in use (2026-11-26, docs/launcher.md, Two homes), said at the start: the built-in list with no catalog
+// fetched; a fetched one's (revision 4, a stand-in host) once cached; a later one with a bad list leaves the built-in
+// one in force. A game's "original" is said and not fetched (its stand-in address never asked).
+TEST(sdl_program_launcher_uses_the_catalogs_homes) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_homes";
+  fs::remove_all(dir, ec);
+  for (const char* d : {"/api", "/games", "/wd/music"}) fs::create_directories(dir + d, ec);
+  std::ofstream(dir + "/wd/music/track02.wav") << "x";
+  for (const char* repo : {"mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re", "battletech-re", "revenge-re"})
+    std::ofstream(dir + "/api/" + repo + ".json") << "[]";
+  const auto catalog = [&](int revision, const std::string& homes) {
+    return "{\"catalog\": 1, \"revision\": " + std::to_string(revision) + ", \"homes\": " + homes +
+           ", \"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": [{\"key\": \"btech\", \"family\": \"bt\", "
+           "\"order\": 7, \"state\": \"released\", \"name\": \"BattleTech Rebuild\", \"title\": \"BATTLETECH\", \"heading\": \"BATTLETECH\", "
+           "\"button\": \"BATTLETECH\", \"description\": \"A line.\", \"repo\": \"battletech-re\", \"tag_prefix\": \"btech-v\", \"program\": "
+           "\"btech\", \"assets\": {\"windows\": \"BT-{tag}-win64.zip\", \"mac\": \"BT-{tag}-mac.dmg\", \"linux\": \"BT-{tag}-x86_64.AppImage\"}, "
+           "\"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\", \"original\": [{\"url\": \"https://files.example.org/bt.zip\", \"sha256\": \"" +
+           std::string(64, 'a') + "\", \"size\": 10, \"name\": \"bt.zip\"}]}]}";
+  };
+  std::ofstream(dir + "/v4.json") << catalog(4, "[{\"key\": \"re\", \"url\": \"https://git.reverse-engineered.com\", \"order\": 1}]");
+  std::ofstream(dir + "/v5.json") << catalog(5, "[{\"key\": \"re\", \"url\": \"http://git.reverse-engineered.com\", \"order\": 1}]");
+  auto run = [&](const char* name, const char* cat) {
+    std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_LAUNCHER_FRAMES", "60"},
+        {"MW3_NO_IMPORT", "1"}, {"MW3_PM_BIN", ""}, {"MW3_MW1_BIN", ""}, {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}};
+    if (cat) env.push_back({"MW3_CATALOG_URL", "file://" + dir + "/" + cat});
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/" + name + ".log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(dir + "/" + std::string(name) + ".log");
+    const std::string log((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    for (size_t a = 0; (a = log.find("catalog: ", a)) != std::string::npos; ++a)
+      std::printf("  %s: %s\n", name, log.substr(a, log.find('\n', a) - a).c_str());
+    return log;
+  };
+  const std::string a = run("builtin", nullptr);
+  EXPECT(has(a, "catalog: homes: https://git.owenmorgan.com, then GitHub\n") && !has(a, "names an original"));
+  const std::string b = run("v4", "v4.json");
+  EXPECT(has(b, "catalog: revision 4, fetched") && has(b, "catalog: homes: https://git.reverse-engineered.com, then GitHub\n"));
+  EXPECT(has(b, "catalog: btech names an original download (not used)") && !has(b, "files.example.org"));
+  const std::string c = run("v5", "v5.json");
+  EXPECT(has(c, "catalog: revision 5, fetched") && has(c, "left out: homes[0]: http://git.reverse-engineered.com is not https://") &&
+         has(c, "catalog: homes: https://git.owenmorgan.com, then GitHub\n") && has(c, "entry BATTLETECH: "));
+  if (!check::failures) fs::remove_all(dir, ec);
+}
+
 // A present that does not wait for the display (macOS: a window not on screen) does not run away: 1.5.0 drew some 950
 // frames a second behind a fullscreen game, and its drawables took tens of gigabytes. MW3_LAUNCHER_UNPACED stands in.
 TEST(sdl_program_launcher_never_runs_away) {
@@ -1500,6 +1551,69 @@ TEST(sdl_release_lists_both_homes) {
   const auto two = sdlfe::release_lists("file:///b/{repo}.json|file:///g/{repo}.json", "mech1-re", 20);
   EXPECT(two.size() == 2 && two[0].url == "file:///b/mech1-re.json" && !two[0].download_first && two[1].url == "file:///g/mech1-re.json" &&
          two[1].download_first);
+}
+
+// The lists and the catalog's addresses from a homes list (2026-11-26, docs/launcher.md, Two homes): each home by
+// order, then GitHub; the catalog in use's (the built-in: git.owenmorgan.com) as before; none, GitHub alone.
+TEST(sdl_homes_lists_and_catalog_addresses) {
+  namespace u = upgrades::update;
+  const std::vector<u::CatalogHome> homes{{"a", "https://git.reverse-engineered.com", 1}, {"b", "https://git.example.org", 2}};
+  const auto l = sdlfe::home_lists(homes, "mech1-re", 20);
+  EXPECT(l.size() == 3 && l[0].url == "https://git.reverse-engineered.com/api/v1/repos/telltaleatheist/mech1-re/releases?limit=40" &&
+         l[1].url == "https://git.example.org/api/v1/repos/telltaleatheist/mech1-re/releases?limit=40" && !l[0].download_first && !l[1].download_first &&
+         l[2].url == "https://api.github.com/repos/telltaleatheist/mech1-re/releases?per_page=20" && l[2].download_first);
+  const auto none = sdlfe::home_lists({}, "mech1-re", 20);
+  EXPECT(none.size() == 1 && none[0].download_first);
+  const auto c = sdlfe::catalog::addresses(homes);
+  EXPECT(c.size() == 3 && c[0] == "https://git.reverse-engineered.com/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json" &&
+         c[1] == "https://git.example.org/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json" &&
+         c[2] == "https://raw.githubusercontent.com/telltaleatheist/mw3-re/main/catalog/games.json");
+  const auto in_use = sdlfe::catalog::addresses(u::active_homes());
+  EXPECT(in_use.size() == 2 && in_use[0] == "https://git.owenmorgan.com/telltaleatheist/mw3-re/raw/branch/main/catalog/games.json");
+}
+
+// Three homes (2026-11-26): the lists of two homes and GitHub judged, the release's other_homes in the homes' order;
+// GitHub's file and the first home's gone, the second home's is downloaded; the second's gone too, nothing.
+TEST(sdl_update_download_falls_back_to_the_second_home) {
+  namespace fs = std::filesystem;
+  namespace u = upgrades::update;
+  std::error_code ec;
+  const fs::path dir = fs::path(MW3_TEST_TMP) / "update_download_second_home";
+  fs::remove_all(dir, ec);
+  const char* names[] = {"MW3-Rebuild-Setup-9.0.0.exe", "MW3-Rebuild-9.0.0-mac.dmg", "MW3-Rebuild-9.0.0-x86_64.AppImage"};
+  const std::string ours = names[u::this_platform() == u::Platform::kWindows ? 0 : u::this_platform() == u::Platform::kMac ? 1 : 2];
+  const std::string bytes(150000, 'h');
+  const std::string sum = rekit::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+  const auto url = [&](const char* home, const std::string& n) { return "file://" + (dir / home / n).string(); };
+  const auto list = [&](const char* home) {
+    return "[{\"tag_name\": \"v9.0.0\", \"draft\": false, \"prerelease\": false, \"body\": \"x\", \"assets\": [{\"name\": \"" + ours +
+           "\", \"size\": " + std::to_string(bytes.size()) + ", \"browser_download_url\": \"" + url(home, ours) +
+           "\"}, {\"name\": \"SHA256SUMS\", \"browser_download_url\": \"" + url(home, "SHA256SUMS") + "\"}]}]";
+  };
+  const auto lay = [&]() {
+    fs::remove_all(dir, ec);
+    for (const char* home : {"gh", "h1", "h2"}) {
+      fs::create_directories(dir / home, ec);
+      std::ofstream(dir / home / ours, std::ios::binary) << bytes;
+      std::ofstream(dir / home / "SHA256SUMS") << sum << "  " << ours << "\n";
+    }
+  };
+  const u::Verdict v = u::judge("v1.0.0", {{list("h1"), "", false}, {list("h2"), "", false}, {list("gh"), "", true}}, u::this_platform());
+  EXPECT(v.kind == u::Verdict::kNewer && v.release.assets.size() == 2 && v.release.assets[0].url == url("gh", ours));
+  EXPECT(v.release.other_homes.size() == 2 && v.release.other_homes[0][0].url == url("h1", ours) && v.release.other_homes[1][0].url == url("h2", ours));
+  setenv("MW3_UPDATE_API", "file:///fixture", 1);  // checks: file:// assets allowed
+  const std::string to = (dir / "download").string();
+  lay();
+  fs::remove(dir / "gh" / ours, ec), fs::remove(dir / "h1" / ours, ec);
+  sdlfe::Downloaded d = sdlfe::download_update(v.release, to, nullptr);
+  std::printf("  github's and the first home's gone: %s\n", d.ok ? "downloaded" : d.words.c_str());
+  EXPECT(d.ok && fs::file_size(d.path, ec) == bytes.size() && rekit::sha256_file_hex(d.path) == sum);
+  lay();
+  for (const char* home : {"gh", "h1", "h2"}) fs::remove(dir / home / ours, ec);
+  d = sdlfe::download_update(v.release, to, nullptr);
+  EXPECT(!d.ok && !fs::exists(fs::path(to) / ours));
+  unsetenv("MW3_UPDATE_API");
+  if (!check::failures) fs::remove_all(dir, ec);
 }
 
 // Both homes (2026-11-22): a release in both downloads from GitHub's copy (here gh/) and falls back to the
