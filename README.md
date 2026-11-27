@@ -103,6 +103,13 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
+**1.8.0 (2026-11-26)** (the full notes are in
+[docs/release-notes-1.8.0.md](docs/release-notes-1.8.0.md)): where the launcher
+looks is data now (reverse-engineered.com first, then GitHub and the backup),
+and the games list and every release's checksums are signed, so a copy from any
+server is checked before use. A game's entry can also name where its original
+files may be fetched; none does yet.
+
 **1.7.1 (2026-11-26)** (the full notes are in
 [docs/release-notes-1.7.1.md](docs/release-notes-1.7.1.md)): the launcher no
 longer calls a current game "older than the launcher" when the game was slow
