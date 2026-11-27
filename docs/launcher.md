@@ -1140,6 +1140,50 @@ through the real mw3's status and setup (`kAsksAsMw3` and `kVersionLine` in the
 stand-ins; Pirate's Moon's stand-ins carry no version, so they test the
 older path).
 
+**A status unknown is not an older program (1.7.1, mech1-remake-re #2,
+2026-11-26).** Launcher 1.7.0 told players with Remake 1.1.3 that it was
+"older than the launcher": its status had not come, and no status was taken
+for no served setup. Three ways it had none: a Linux AppImage the player
+downloaded and the launcher linked carries its version only inside its
+packed files, so it was never asked; an ask past 10 s (a first start under a
+virus scan, a slow disk) counted as none; any other failure (it did not
+start, it exited with an error, it printed no status) was folded in, the log
+saying only "no answer". Now:
+- An AppImage linked is asked when its own `--status` said it is the game
+  (`find_link`'s `identify`, which runs AppImages): `may_ask`. Its version
+  in the panels comes from that answer too (`program_tag`).
+- `kit_status` says why it had none (`it did not start`, `no answer in 10 s:
+  stopped`, `it exited 1: ...`, `no status in its answer: ...`, its status
+  unreadable, `not asked: its program file carries no version of ours`), in
+  the log line `games: <key>: status no answer (<why>)`.
+- The Remake's start ask runs on its own thread (`ask_later`, 30 s), its
+  panel "Checking the Remake..." meanwhile; the first frame no longer waits
+  for it. MechWarrior 3's and Pirate's Moon's start asks still run beside the
+  fonts (10 s); one that gave none is asked once more on its own thread.
+- PLAY (or GAME FILES, ADD FROM MY DISC and the other `older_game` callers)
+  on a game whose status is unknown asks it again on its own thread, with
+  "Checking <game>..."; once it answers, the PLAY is pressed again. One that
+  still gives none says "<game> did not answer the launcher (see
+  mw3launcher.log)" and nothing about updating. Only a status that came
+  without `"setup": 1` is older (`older_game`, `mw1_too_old`). The panels
+  say "Checking ..." or "did not answer: PLAY asks again" instead of
+  "Update it".
+- A panel's lines do not ask again while an ask is on its thread, nor after
+  one gave none (a program that hangs would hold every frame); an event
+  (PLAY, a run's end, an install, a link) asks again.
+- A quit does not wait for an ask on its thread: its answer is its own
+  (`LaterAsk`), and its program is stopped with the curls (`stop_asking`,
+  `run_program`'s `quits`), the launcher waiting at most a second for that.
+- A link to a copy older than one found elsewhere (the program's own record,
+  a Setup's, Applications) moves to the newer one (`find_link`); before, a
+  link kept the older copy asked after the player installed a new one.
+
+`MW3_STATUS_SECONDS` (checks) sets every ask's limit. Test:
+`sdl_program_launcher_says_an_unknown_status_is_not_older` (stand-ins: a
+Remake without our version, one too slow, one slow only the first time, a
+linked AppImage, one without a served setup; MechWarrior 3 slow at the
+start, and one without our version).
+
 **GAME FILES through the game (b3, 2026-11-26).** MechWarrior 3's and
 Pirate's Moon's GAME FILES keep their own screens (the find screen's words
 and buttons, the copies list, USE THESE GAME FILES?, the notes, NO MUSIC

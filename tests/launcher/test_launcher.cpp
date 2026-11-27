@@ -1044,6 +1044,106 @@ TEST(sdl_program_launcher_sets_a_kit_game_up) {
     if (!check::failures) fs::remove_all(d, ec);
 }
 
+// A status the launcher could not have is never an older program (mech1-remake-re #2, 2026-11-26: Remake 1.1.3 was
+// told it was older than launcher 1.7.0). MECHWARRIOR 1 pressed with the Remake's stand-in: one without our version
+// beside the launcher (never run), one too slow for the ask (MW3_STATUS_SECONDS), one slow only the first time (PLAY's
+// ask answers and the press goes on), an AppImage linked (asked though its version is packed away), and one that
+// serves no setup (the older message, still).
+TEST(sdl_program_launcher_says_an_unknown_status_is_not_older) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string root = std::string(MW3_TEST_TMP) + "/launcher_unknown";
+  fs::remove_all(root, ec);
+  for (const char* d : {"/api", "/games", "/inst/mw3", "/inst/pm"}) fs::create_directories(root + d, ec);
+  for (const char* repo : {"mech3-re", "mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re"})
+    std::ofstream(root + "/api/" + repo + ".json") << "[]";
+  auto program = [&](const std::string& name, const std::string& game, const std::string& files, const std::string& before,
+                     const char* setup, bool tagged) {
+    std::ofstream sh(root + "/" + name);
+    sh << "#!/bin/sh\ncase \"$1\" in --status) " << before << "echo '{\"kit\": 1, \"game\": \"" << game
+       << "\", \"version\": \"v0.0.0-test\", \"files\": " << files << ", \"first_run\": {\"pending\": []}, \"needs\": [], \"setup\": "
+       << setup << ", \"play\": 1}';;\n--setup) echo '{\"done\": true, \"ok\": true, \"title\": \"T\", \"pick_words\": \"x\", "
+       << "\"find_sub\": \"x\", \"find_words\": \"x\"}';;\nesac\nexit 0\n";
+    if (tagged) sh << "# MW3-PROGRAM" << "-VERSION:" << (game == "mech1-remake" ? "mw1-v1.1.3" : "v0.0.0-test") << '\0' << "\n";
+    sh.close();
+    fs::permissions(root + "/" + name, fs::perms::owner_all, ec);
+  };
+  const std::string missing = "{\"state\": \"missing\"}";
+  program("mw3", "mech3", "{\"state\": \"ready\", \"where\": \"" + root + "/inst/mw3\", \"data\": \"1.2\"}", "", "1", true);
+  program("mw3pm", "mech3-pm", "{\"state\": \"ready\", \"where\": \"" + root + "/inst/pm\", \"data\": \"1.0\"}", "", "1", true);
+  program("untagged", "mech1-remake", missing, "", "1", false);
+  program("slow", "mech1-remake", missing, "sleep 4; ", "1", true);
+  program("once", "mech1-remake", missing, "[ -f \"$0.asked\" ] || { : > \"$0.asked\"; sleep 4; }; ", "1", true);
+  program("mw1.AppImage", "mech1-remake", missing, "", "1", false);
+  program("old", "mech1-remake", missing, "", "0", true);
+  const std::string mw3_files = "{\"state\": \"ready\", \"where\": \"" + root + "/inst/mw3\", \"data\": \"1.2\"}";
+  program("mw3_once", "mech3", mw3_files, "[ -f \"$0.asked\" ] || { : > \"$0.asked\"; sleep 4; }; ", "1", true);
+  program("mw3_untagged", "mech3", mw3_files, "", "1", false);
+  // MECHWARRIOR 1 pressed (--launcher-mw1), or MECHWARRIOR 3 (`mw3` given: --launcher-play, no Remake)
+  auto run = [&](const char* name, const std::string& mw1, const std::string& link, const std::string& mw3 = "") {
+    const std::string dir = root + "/run_" + name;  // beside the stand-ins, not in their names
+    fs::create_directories(dir + "/wd", ec);
+    if (!link.empty()) std::ofstream(dir + "/wd/mw3.cfg") << "link_mw1=" << link << "\n";
+    const std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + root + "/api/{repo}.json"}, {"MW3_GAMES_DIR", root + "/games"},
+        {"MW3_GAME_BIN", mw3.empty() ? root + "/mw3" : mw3},
+        {"MW3_PM_BIN", root + "/mw3pm"}, {"MW3_PM_WRITE_DIR", dir + "/pmwd"}, {"MW3_MW1_BIN", mw1}, {"MW3_NO_IMPORT", "1"},
+        {"MW3_LAUNCHER_FRAMES", "300"}, {"MW3_STATUS_SECONDS", "2"}};
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden",
+                                      mw3.empty() ? "--launcher-mw1" : "--launcher-play"}, dir + "/launcher.log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    int status = 0;
+    const bool exited = waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    std::ifstream f(dir + "/launcher.log");
+    const std::string log((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    const bool older = has(log, "older than the launcher") || has(log, "cannot be given its MechWarrior");
+    std::printf("unknown status, %s: exited %d, checking %d, did not answer %d, its screens %d, older %d\n", name, exited,
+                has(log, "Checking MechWarrior"), has(log, "did not answer the launcher"),
+                has(log, "its game files, on the launcher's screens"), older);
+    if (!exited) std::printf("its log's end:\n%s\n", log.substr(log.size() > 1500 ? log.size() - 1500 : 0).c_str());
+    EXPECT(exited);
+    return log;
+  };
+  for (const char* name : {"untagged", "slow"}) {  // asked again at PLAY, and still none: said, never "older"
+    const std::string log = run(name, root + "/" + name, "");
+    EXPECT(has(log, "Checking MechWarrior 1 Remake..."));
+    EXPECT(has(log, "MechWarrior 1 Remake did not answer the launcher (see mw3launcher.log)."));
+    EXPECT(!has(log, "older than the launcher") && !has(log, "cannot be given its MechWarrior"));
+    EXPECT(has(log, std::strcmp(name, "slow") ? "carries no version of ours" : "no answer in 2 s"));
+  }
+  {  // none at the start, PLAY's ask answers: the press goes on to its setup's screens
+    const std::string log = run("once", root + "/once", "");
+    EXPECT(has(log, "no answer in 2 s") && has(log, "Checking MechWarrior 1 Remake..."));
+    EXPECT(has(log, "games: mw1: its game files, on the launcher's screens"));
+    EXPECT(!has(log, "did not answer the launcher") && !has(log, "older than the launcher"));
+  }
+  {  // a linked AppImage: no version readable in its file, asked because its status said it is the Remake
+    const std::string log = run("appimage", "", root + "/mw1.AppImage");
+    EXPECT(has(log, ("games: mw1: linked v0.0.0-test at " + root + "/mw1.AppImage").c_str()));
+    EXPECT(has(log, "games: mw1: status missing") && has(log, "games: mw1: its game files, on the launcher's screens"));
+    EXPECT(!has(log, "Checking MechWarrior 1 Remake...") && !has(log, "older than the launcher"));
+  }
+  {  // one that answers without a served setup is older: its update offered or said, as before
+    const std::string log = run("old", root + "/old", "");
+    EXPECT(has(log, "games: mw1: status missing") && has(log, "cannot be given its MechWarrior (1989)"));
+    EXPECT(!has(log, "Checking MechWarrior 1 Remake..."));
+  }
+  {  // MechWarrior 3's start ask gave none: asked once more on its own thread, then found, and PLAY starts it
+    const std::string log = run("mw3_once", "", "", root + "/mw3_once");
+    EXPECT(has(log, "games: mw3: status no answer (no answer in 2 s: stopped)") && has(log, "games: mw3: status ready"));
+    EXPECT(has(log, ("Found MechWarrior 3 1.2 at " + root + "/inst/mw3.").c_str()) && has(log, "MechWarrior 3 exited (0)"));
+    EXPECT(!has(log, "older than the launcher") && !has(log, "did not answer the launcher"));
+    EXPECT(!has(log, "Checking MechWarrior 3..."));  // known before PLAY: the retry's, not PLAY's own ask
+  }
+  {  // MechWarrior 3's PLAY with its status unknown: asked again, and still none said (older_game's callers)
+    const std::string log = run("mw3_untagged", "", "", root + "/mw3_untagged");
+    EXPECT(has(log, "Checking MechWarrior 3...") && has(log, "MechWarrior 3 did not answer the launcher (see mw3launcher.log)."));
+    EXPECT(!has(log, "older than the launcher") && !has(log, "does not set up its game files here"));
+  }
+  if (!check::failures) fs::remove_all(root, ec);
+}
+
 // A present that does not wait for the display (macOS: a window not on screen) does not run away: 1.5.0 drew some 950
 // frames a second behind a fullscreen game, and its drawables took tens of gigabytes. MW3_LAUNCHER_UNPACED stands in.
 TEST(sdl_program_launcher_never_runs_away) {

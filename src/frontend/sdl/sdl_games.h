@@ -77,7 +77,9 @@ bool claim_game_folder(const std::string& dir, u::Game g, std::string* error);
 
 // A kit game's answer to `bin --status` (re-setup-kit's launcher contract: one JSON object, exit 0, nothing on
 // screen; MechWarrior 1 Rebuild first): false when it did not answer in time or its answer is not one.
-bool kit_status(const std::string& bin, rekit::Status* out, const std::vector<std::string>& more = {});  // more: after --status
+// more: after --status. False with `why` (for the log: "no answer in 10 s", "exited 1: ...") when it gave none.
+bool kit_status(const std::string& bin, rekit::Status* out, const std::vector<std::string>& more = {}, int seconds = 10,
+                std::string* why = nullptr);
 // A game's id in its --status ("mech3", "mech3-pm", ...), "" when the launcher knows none (b5: --with names them).
 const char* kit_id(upgrades::update::Game g);
 

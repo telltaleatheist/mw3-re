@@ -330,6 +330,10 @@ class Launcher {
     // A quit never waits on the network (lead 2026-11-23): the checks' curls stopped before their threads are
     // joined (games_check_, self_check_), else a home that hangs held the quit for its timeouts.
     sdlfe::stop_asking();
+    // A status still being asked on its thread (asks_collect): its program stopped by stop_asking in moments, not
+    // left running past the launcher; never waited for longer than a second.
+    for (int n = 0; n < 100 && std::any_of(std::begin(later_), std::end(later_), [](const auto& a) { return a && !a->done; }); ++n)
+      SDL_Delay(10);
     games_check_.reset();
     self_check_.reset();
     SDL_RemoveEventWatch(&Launcher::exposed, this);
@@ -344,7 +348,7 @@ class Launcher {
  private:
   void find_install();
   void find_install_older();  // the older programs' path (b2): below
-  void find_mw1();
+  void find_mw1(bool start = false);
   void run_mw1_remake();          // MW1: the remake's start
   std::string mw1_needs() const;  // MW1: what it still needs, "" when nothing
   void mw1_others(bool* mw3, bool* pm) const;  // MW1: whether it has MechWarrior 3 and Pirate's Moon
@@ -358,7 +362,7 @@ class Launcher {
   bool mw1_served() const { return kit_known_[2] && kit_status_[2].setup >= rekit::kServedSetup; }  // b5: its own setup
   std::vector<std::string> with_args(int i);  // --with <id>=<where> for each game game i needs (b5)
   void mw1_too_old();                         // an older Remake without its MechWarrior (1989): its update offered
-  void older_game(int i);                     // b6: MechWarrior 3 or Pirate's Moon without a served setup: the same
+  void older_game(int i, int play = 0);       // b6: MechWarrior 3 or Pirate's Moon without a served setup: the same
   // The mouse is followed as the list scrolls under it (after a wheel or a drag, until the next screen).
   bool follow_ = false, ui_stale_ = true;
   // GAME FILES on Pirate's Moon (files_pm_): its settings folder as mw3pm
@@ -515,11 +519,42 @@ class Launcher {
   std::thread status_ask_[upgrades::update::kMaxGames];
   rekit::Status status_said_[upgrades::update::kMaxGames];
   bool status_ok_[upgrades::update::kMaxGames] = {};
+  std::string status_why_[upgrades::update::kMaxGames];  // the start's asks: why one gave no status
   std::vector<std::string> status_args(int i);
   void status_collect();
+  // A panel's lines ask again, but not while it is being asked, nor after it gave none: a program that hangs would
+  // hold every frame (mech1-remake-re #2). An event (a run's end, an install, PLAY) asks it again.
   void status_refresh(int i) {
-    if (!status_fresh_[i]) kit_refresh(i);
+    if (!status_fresh_[i] && !checking(i) && kit_why_[i].empty()) kit_refresh(i);
   }
+  // A status unknown is never an older program (mech1-remake-re #2, 2026-11-26): it is asked again on its own thread,
+  // "Checking ..." meanwhile (the Remake's at the start too), and what was pressed is pressed again once it answers;
+  // one that still gives none is said, its reason in the log. Nothing waits on such an ask, a quit neither: its answer
+  // is its own (later_), taken each frame (asks_collect); the program is stopped as the launcher closes.
+  struct LaterAsk {
+    std::atomic<bool> done{false};
+    std::string bin, why;
+    rekit::Status said;
+    bool ok = false;
+  };
+  std::shared_ptr<LaterAsk> later_[upgrades::update::kMaxGames];
+  std::string kit_why_[upgrades::update::kMaxGames];  // why its last ask gave no status ("" when it gave one)
+  int play_after_[upgrades::update::kMaxGames] = {};  // the button pressed while it was asked (0: none)
+  bool said_after_[upgrades::update::kMaxGames] = {};  // a press asked: no answer is said
+  bool checking(int i) const { return later_[i] != nullptr; }
+  bool any_checking() const {
+    for (const auto& a : later_)
+      if (a) return true;
+    return false;
+  }
+  bool may_ask(int i);
+  bool ask_later(int i, int play = 0, bool said = false);
+  void asks_collect(bool lay = true);
+  void asks_wait();
+  void not_answered(int i, int play);
+  void log_status(int i);
+  std::string asked_name(int i) const;
+  std::string program_tag(int i);
   // MechWarrior 3's or Pirate's Moon's program answers for its files ("setup": 1) about the copy in use (`dir`, ""
   // any). Else, an older program or the game's own find screen (no program of its own to ask), the launcher checks
   // the files itself as before: the older programs' path, which ends at b6 (docs/launcher-split.md).
@@ -817,9 +852,9 @@ void Launcher::resolve_game(int i, bool refresh) {
   kit_refresh(i);
   if (!refresh) return;
   const std::string bin = game_bin(i);
-  if (i == 0) mw3_program_ = bin.empty() ? std::string() : program_version(bin), find_install();
-  if (i == 1) pm_program_ = bin.empty() ? std::string() : program_version(bin), find_pm(), pm_refresh();
-  if (i == 2) find_mw1(), mw1_program_ = mw1_remake_ ? program_version(mw1_exe_) : std::string();
+  if (i == 0) mw3_program_ = program_tag(0), find_install();
+  if (i == 1) pm_program_ = program_tag(1), find_pm(), pm_refresh();
+  if (i == 2) find_mw1(), mw1_program_ = mw1_remake_ ? program_tag(2) : std::string();
   using GC = upgrades::update::GameCheck;
   GC& c = checks_[i];
   if ((c.kind == GC::kNewer || c.kind == GC::kUpToDate) && !c.release.tag.empty())
@@ -851,16 +886,27 @@ void Launcher::find_link(int i) {
   const std::string key = upgrades::update::game_info(g).key;
   linked_[i].clear(), linked_tag_[i].clear();
   const std::string prog = cfg_path(o_.write_dir, "link_" + key);
+  const std::string skip = cfg_path(o_.write_dir, "unlinked_" + key);
+  const bool system = !o_.hidden && o_.shot.empty();
   if (!prog.empty()) {
     const std::string v = sdlfe::games::identify(prog, g, kit_game(i) || is_appimage(prog));
     if (!v.empty()) {
       linked_[i] = prog, linked_tag_[i] = v;
+      // A newer release found elsewhere takes over from the link (mech1-remake-re #2: a link to an older copy kept
+      // the older one asked after the player installed the new one somewhere else).
+      for (const sdlfe::games::Found& f : sdlfe::games::found_elsewhere(g, record_folder(i), system)) {
+        if (f.program == skip || f.program == prog || upgrades::update::compare_game(f.version, linked_tag_[i]) <= 0) continue;
+        linked_[i] = f.program, linked_tag_[i] = f.version;
+      }
+      if (linked_[i] != prog) {
+        own::save_config_value(o_.write_dir, "link_" + key, linked_[i]);
+        std::printf("mw3: launcher: games: %s: found %s (%s), newer than the linked %s (%s): linked\n", key.c_str(),
+                    linked_[i].c_str(), linked_tag_[i].c_str(), prog.c_str(), v.c_str());
+      }
       return;
     }
     std::printf("mw3: launcher: games: %s: the linked %s is gone or not this game's now\n", key.c_str(), prog.c_str());
   }
-  const std::string skip = cfg_path(o_.write_dir, "unlinked_" + key);
-  const bool system = !o_.hidden && o_.shot.empty();
   for (const sdlfe::games::Found& f : sdlfe::games::found_elsewhere(g, record_folder(i), system)) {
     if (f.program == skip) continue;
     linked_[i] = f.program, linked_tag_[i] = f.version;
@@ -911,7 +957,9 @@ UiPanel Launcher::files_row(int i) {
   };
   auto data = [](const std::string& name, const std::string& v) { return v.empty() || v == "unknown" ? name : name + " " + v; };
   auto asks_of = [&](int g) {  // b6: a program without a served setup sets its files up after its update
-    return status_for(g) ? asks : std::string("Update it to set up its game files");
+    if (status_for(g)) return asks;
+    if (!kit_known_[g]) return std::string(checking(g) ? "Checking its program..." : "Its program did not answer: PLAY asks again");
+    return std::string("Update it to set up its game files");
   };
   if (i == 0) {
     if (install_.ok) is(lacks(data("MechWarrior 3", install_.version), lacks_music_, "movies", lacks_movies_), install_.dir);
@@ -922,6 +970,7 @@ UiPanel Launcher::files_row(int i) {
   } else if (i == 2 && mw1_remake_) {  // its MechWarrior (1989): through its setup (b5); an older Remake's mw1_game=
     if (!mw1_game_.empty()) is("MechWarrior (1989)", mw1_game_);
     else if (mw1_served()) is(none, "Your MechWarrior (1989): PLAY finds it, or pick it here");
+    else if (!kit_known_[2]) is(none, checking(2) ? "Checking MechWarrior 1 Remake..." : "MechWarrior 1 Remake did not answer: PLAY asks again");
     else is(none, "Update MechWarrior 1 Remake to set up your MechWarrior (1989)");
   } else if (kit_game(i) && !game_bin(i).empty()) {
     const rekit::Status& s = kit_status_[i];
@@ -1294,12 +1343,14 @@ void Launcher::game_installed(const sdlfe::games::Done& d) {
 // own setup's (b5: its status's where, the launcher's screens through its served setup); an older Remake's is
 // mw3.cfg's mw1_game=, taken as it is (the launcher's own finder went with the raw port, b5). Its status is asked with
 // MechWarrior 3's and Pirate's Moon's copies, so it is asked after they are found.
-void Launcher::find_mw1() {
+// At the start its status is asked on its own thread (its panel "checking"): the first frame does not wait for it.
+void Launcher::find_mw1(bool start) {
   mw1_remake_ = !o_.mw1_bin.empty();
   if (!mw1_remake_) return;
   mw1_exe_ = o_.mw1_bin;
   std::printf("mw3: launcher: MechWarrior 1 at %s\n", mw1_exe_.c_str());
-  kit_refresh(2);
+  if (start) ask_later(2);
+  else kit_refresh(2);
 }
 
 std::string Launcher::files_out() {
@@ -1413,7 +1464,8 @@ void Launcher::mw1_too_old() {
 
 // MechWarrior 3 or Pirate's Moon whose program does not serve its setup ("setup": 1), in the launcher alone (b6):
 // the launcher no longer finds or copies its game files itself; its update does. UPDATE when one is known, else said.
-void Launcher::older_game(int i) {
+void Launcher::older_game(int i, int play) {
+  if (!kit_known_[i]) return not_answered(i, play);  // its status unknown: not older (mech1-remake-re #2)
   using GC = upgrades::update::GameCheck;
   const std::string name = upgrades::update::game_info(upgrades::update::game_at(i)).name;
   std::printf("mw3: launcher: %s does not set up its game files here: %s\n", name.c_str(),
@@ -1427,31 +1479,147 @@ void Launcher::older_game(int i) {
 // A game's --status (rekit/status.h): a kit game's for its card; MechWarrior 3's and Pirate's Moon's for their panels
 // (b2), with the user folder the launcher knows for each. At the start (starting_) only asked, on its own thread:
 // status_collect takes the answers.
+namespace {
+const char kNotOurs[] = "not asked: its program file carries no version of ours";
+// An ask's limit: 10 s where the launcher waits on it, 30 s on its own thread; MW3_STATUS_SECONDS (checks) for both.
+int status_seconds(int usual) {
+  const char* env = SDL_getenv("MW3_STATUS_SECONDS");
+  return env && std::atoi(env) > 0 ? std::atoi(env) : usual;
+}
+}  // namespace
+
 void Launcher::kit_refresh(int i) {
+  if (checking(i)) return;  // being asked on its thread: its answer comes in asks_collect
   kit_known_[i] = false, status_fresh_[i] = false;
+  kit_why_[i].clear();
   if ((!kit_game(i) && i > 2) || game_bin(i).empty()) return;
   kit_status_[i] = {};
   if (i == 2) mw1_game_.clear();
-  // MechWarrior 3's, Pirate's Moon's and MechWarrior 1 Remake's programs asked only when they carry our version (a
-  // program file without one, a script or not ours, is never run: sdl_program_launcher_shows_each_games_versions); the
-  // older path checks them. The Remake's is asked with the other two's copies (--with), once they are found (find_mw1).
-  auto ask = [i](const std::string& bin, rekit::Status* out, const std::vector<std::string>& args) {
-    return (i > 2 || !program_version(bin).empty()) && sdlfe::games::kit_status(bin, out, args);
-  };
+  // MechWarrior 3's, Pirate's Moon's and MechWarrior 1 Remake's programs asked only when they are ours (may_ask). The
+  // Remake's is asked with the other two's copies (--with), once they are found (find_mw1).
+  const bool may = may_ask(i);
   if (starting_ && i == 2) return;
   if (starting_) {
     if (status_ask_[i].joinable()) status_ask_[i].join();
-    status_ask_[i] = std::thread([this, i, ask, bin = game_bin(i), args = status_args(i)] {
-      status_said_[i] = {};
-      status_ok_[i] = ask(bin, &status_said_[i], args);
+    status_ask_[i] = std::thread([this, i, may, bin = game_bin(i), args = status_args(i)] {
+      status_said_[i] = {}, status_why_[i] = may ? "" : kNotOurs;
+      status_ok_[i] = may && sdlfe::games::kit_status(bin, &status_said_[i], args, status_seconds(10), &status_why_[i]);
     });
     return;
   }
-  kit_known_[i] = ask(game_bin(i), &kit_status_[i], status_args(i));
+  std::string why = may ? "" : kNotOurs;
+  kit_known_[i] = may && sdlfe::games::kit_status(game_bin(i), &kit_status_[i], status_args(i), status_seconds(10), &why);
   status_fresh_[i] = true;
+  if (!kit_known_[i]) kit_why_[i] = why.empty() ? "no status" : why;
   if (i == 2) mw1_game_ = mw1_served() ? (kit_set_up(2) ? kit_status_[2].where : std::string()) : o_.cfg_mw1_game;
+  log_status(i);
+}
+
+// A program file that is ours: our version in it (a file without one, a script or not ours, is never run:
+// sdl_program_launcher_shows_each_games_versions), or a linked AppImage whose own --status said it is this game
+// (find_link's identify): an AppImage's version is inside its packed files, unreadable from outside (mech1-remake-re
+// #2). Kit games are always asked.
+bool Launcher::may_ask(int i) {
+  const std::string& bin = game_bin(i);
+  if (i > 2 || !program_version(bin).empty()) return true;
+  return is_appimage(bin) && bin == linked_[i] && !linked_tag_[i].empty();
+}
+
+// Its program's version: from its file, else what a linked AppImage's status said (unknown "").
+std::string Launcher::program_tag(int i) {
+  const std::string& bin = game_bin(i);
+  if (bin.empty()) return {};
+  const std::string v = program_version(bin);
+  if (!v.empty() || bin != linked_[i] || linked_tag_[i] == "unknown") return v;
+  return linked_tag_[i];
+}
+
+std::string Launcher::asked_name(int i) const {
+  return i == 2 ? "MechWarrior 1 Remake" : upgrades::update::game_info(upgrades::update::game_at(i)).name;
+}
+
+void Launcher::log_status(int i) {
   std::printf("mw3: launcher: games: %s: status %s\n", upgrades::update::game_info(upgrades::update::game_at(i)).key,
-              kit_known_[i] ? rekit::state_name(kit_status_[i].state).c_str() : "no answer");
+              kit_known_[i] ? rekit::state_name(kit_status_[i].state).c_str() : ("no answer (" + kit_why_[i] + ")").c_str());
+}
+
+// Game i's status asked on its own thread (status_seconds): `play` is pressed again once it
+// answers, and `said` says when it gives none. False when it has no program to ask.
+bool Launcher::ask_later(int i, int play, bool said) {
+  if (game_bin(i).empty()) return false;
+  if (play) play_after_[i] = play;
+  if (said) said_after_[i] = true;
+  if (checking(i)) return true;
+  kit_known_[i] = false, kit_status_[i] = {}, kit_why_[i].clear(), status_fresh_[i] = false;
+  if (i == 2) mw1_game_ = o_.cfg_mw1_game;  // as an unknown Remake's
+  const int secs = status_seconds(30);
+  auto a = std::make_shared<LaterAsk>();
+  a->bin = game_bin(i);
+  const bool may = may_ask(i);
+  later_[i] = a;
+  std::printf("mw3: launcher: games: %s: status asked on its own thread (%d s)\n",
+              upgrades::update::game_info(upgrades::update::game_at(i)).key, secs);
+  std::thread([a, may, secs, args = status_args(i)] {
+    if (!may) a->why = kNotOurs;
+    else a->ok = sdlfe::games::kit_status(a->bin, &a->said, args, secs, &a->why);
+    if (!a->ok && a->why.empty()) a->why = "no status";
+    a->done = true;
+  }).detach();
+  return true;
+}
+
+// Each pass: the answers of the asks on their own threads, taken as kit_refresh's are; what was pressed meanwhile
+// pressed again, or a press's ask that gave none said.
+void Launcher::asks_collect(bool lay) {
+  for (int i = 0; i < upgrades::update::game_count(); ++i) {
+    const std::shared_ptr<LaterAsk> a = later_[i];
+    if (!a || !a->done) continue;
+    later_[i].reset();
+    const int play = play_after_[i];
+    const bool said = said_after_[i];
+    play_after_[i] = 0, said_after_[i] = false;
+    if (a->bin != game_bin(i)) {  // another copy since (an install): asked again as it is now
+      ask_later(i, play, said);
+      continue;
+    }
+    kit_status_[i] = a->said, kit_known_[i] = a->ok, status_fresh_[i] = true, kit_why_[i] = a->ok ? "" : a->why;
+    if (i == 2) mw1_game_ = mw1_served() ? (kit_set_up(2) ? kit_status_[2].where : std::string()) : o_.cfg_mw1_game;
+    log_status(i);
+    if (i == 0) find_install(), notes_refresh();
+    if (i == 1) find_pm(), pm_refresh();
+    if (a->ok && i <= 1 && mw1_remake_) ask_later(2);  // the Remake's --with: this game's copy now
+    if (!lay) continue;
+    if (!a->ok && said) {
+      status_ = asked_name(i) + " did not answer the launcher (see mw3launcher.log).", status_good_ = false;
+      std::printf("mw3: launcher: %s\n", status_.c_str());
+    } else if (said) {
+      status_.clear();
+    }
+    if (a->ok && play && screen_ == kMain && !work_) activate(play);
+    layout();
+  }
+}
+
+// Checks and shots: the asks on their own threads waited for, as the start's are, so their panels are known.
+void Launcher::asks_wait() {
+  while (any_checking()) {
+    bool all = true;
+    for (const auto& a : later_) all = all && (!a || a->done);
+    if (all) break;
+    SDL_Delay(5);
+  }
+  asks_collect(false);
+}
+
+// Pressed while its status is unknown: asked again, "Checking ..." meanwhile, pressed again once it answers.
+void Launcher::not_answered(int i, int play) {
+  if (!ask_later(i, play, true)) {
+    status_ = asked_name(i) + " is not installed here.", status_good_ = false;
+    return layout();
+  }
+  status_ = "Checking " + asked_name(i) + "...", status_good_ = true;
+  std::printf("mw3: launcher: %s\n", status_.c_str());
+  layout();
 }
 
 // MechWarrior 3's status for the launcher's own user folder (they share it), Pirate's Moon's for its own (pm_wd);
@@ -1486,8 +1654,11 @@ void Launcher::status_collect() {
     if (!status_ask_[i].joinable()) continue;
     status_ask_[i].join();
     kit_status_[i] = status_said_[i], kit_known_[i] = status_ok_[i], status_fresh_[i] = true;
-    std::printf("mw3: launcher: games: %s: status %s\n", upgrades::update::game_info(upgrades::update::game_at(i)).key,
-                kit_known_[i] ? rekit::state_name(kit_status_[i].state).c_str() : "no answer");
+    kit_why_[i] = status_ok_[i] ? "" : status_why_[i].empty() ? "no status" : status_why_[i];
+    log_status(i);
+    // MechWarrior 3's or Pirate's Moon's that gave none (a first start's virus scan, a slow disk): asked once more on
+    // its own thread, its panel "checking" meanwhile; the first frame does not wait for it.
+    if (i <= 1 && !status_ok_[i] && kit_why_[i] != kNotOurs) ask_later(i);
   }
 }
 
@@ -2089,6 +2260,8 @@ void Launcher::layout() {
             p.lines.push_back(mw1_game_);
           } else if (mw1_served()) {
             p.lines.push_back("PLAY finds your MechWarrior (1989)");
+          } else if (!kit_known_[2]) {  // never "update" for a status unknown (mech1-remake-re #2)
+            p.lines.push_back(checking(2) ? "Checking the Remake..." : "It did not answer: PLAY asks again");
           } else {
             p.lines.push_back("Update it to find the 1989 game");  // an older Remake: the finder was the launcher's (b5)
           }
@@ -2110,13 +2283,14 @@ void Launcher::layout() {
         else if (games_on_) install(p, i, name);
         else later(p, kKitPlay + i, name);
       }
-      if (!mw1_logged_) {  // the lines the round entries had, for the log and the checks
+      if (!mw1_logged_ && !checking(2)) {  // the lines the round entries had, for the log and the checks (once known)
         if (games_on_ && !mw1_remake_) {
           std::printf("mw3: launcher: entry MECHWARRIOR 1: Not installed\n");
         } else {
           const std::string line = !mw1_remake_            ? std::string("Coming later")
                                    : !needs.empty()        ? "Not ready: " + needs
                                    : mw1_game_.empty() && mw1_served() ? "Not found yet: click to find your MechWarrior (1989)"
+                                   : mw1_game_.empty() && !kit_known_[2] ? "Did not answer: PLAY asks again"
                                    : mw1_game_.empty()     ? "Not set up: update MechWarrior 1 Remake to find your MechWarrior (1989)"
                                    : mw1_program_.empty()  ? "Ready: " + mw1_game_
                                                            : "Ready, " + mw1_program_ + ": " + mw1_game_;
@@ -3362,7 +3536,7 @@ void Launcher::activate(int id) {
         if (SDL_getenv("MW3_LAUNCHER_GO")) auto_go_ = auto_ok_ = true;  // checks: its INSTALL (and notes' OK) pressed
         from_files_ = false, status_.clear(), look_at(install_.dir);
       } else if (install_.ok) play();
-      else if (!status_for(0)) older_game(0);  // b6: only its update finds its files
+      else if (!status_for(0)) older_game(0, kMw3);  // b6: only its update finds its files
       else from_files_ = false, screen_ = kSetupScreen, status_.clear(), layout();  // its files to find first
       break;
     case kQuit: done_ = true; break;
@@ -3452,7 +3626,7 @@ void Launcher::activate(int id) {
         look_at(pm_found_);
       } else if (pm_dir_.empty()) {  // its files to find first, as MechWarrior 3's
         if (!status_for(1)) {  // b6: only its update finds its files
-          older_game(1);
+          older_game(1, kPm);
           break;
         }
         files_pm_ = true, from_files_ = false, status_.clear();
@@ -3466,6 +3640,8 @@ void Launcher::activate(int id) {
       if (!mw1_needs().empty()) {  // MW1: the other two games first, said (before its own folder too)
         status_ = "MechWarrior 1 " + mw1_needs() + ".", status_good_ = false;
         layout();
+      } else if (!kit_known_[2] && mw1_game_.empty()) {
+        not_answered(2, kMw1);  // its status unknown: asked again, never "older" (mech1-remake-re #2)
       } else if (mw1_served() && !kit_set_up(2)) {
         open_kit_files(2, true);  // its MechWarrior (1989) through its own setup, on the launcher's screens (b5)
       } else if (!mw1_served() && mw1_game_.empty()) {
@@ -3669,13 +3845,14 @@ LauncherChoice Launcher::run() {
   const Uint64 t_install = SDL_GetTicksNS();
   find_pm();
   pm_refresh();
-  find_mw1();  // after the two it needs: its status is asked with their copies (b5)
+  find_mw1(true);  // after the two it needs: its status is asked with their copies (b5), on its own thread
+  if (!o_.shot.empty() || o_.play_mw1 || o_.play_pm || o_.play || quit_after_ > 0) asks_wait();  // checks, shots: known
   // Each game's program's own version, read from its file (the package's
   // programs come from different tags: mw3 and this one from main's, mw3pm
   // from pm's).
-  mw3_program_ = o_.game_bin.empty() ? (games_on_ ? std::string() : std::string(MW3_VERSION)) : program_version(o_.game_bin);
-  if (!o_.pm_bin.empty()) pm_program_ = program_version(o_.pm_bin);
-  if (mw1_remake_) mw1_program_ = program_version(mw1_exe_);  // MechWarrior 1 Remake's, from a mw1-vX.Y.Z tag on mw1
+  mw3_program_ = o_.game_bin.empty() ? (games_on_ ? std::string() : std::string(MW3_VERSION)) : program_tag(0);
+  if (!o_.pm_bin.empty()) pm_program_ = program_tag(1);
+  if (mw1_remake_) mw1_program_ = program_tag(2);  // MechWarrior 1 Remake's, from a mw1-vX.Y.Z tag on mw1
   std::printf("mw3: launcher: programs: MechWarrior 3 %s", mw3_program_.empty() ? "unknown" : mw3_program_.c_str());
   if (!o_.pm_bin.empty()) std::printf(", Pirate's Moon %s", pm_program_.empty() ? "unknown" : pm_program_.c_str());
   if (mw1_remake_) std::printf(", MechWarrior 1 %s", mw1_program_.empty() ? "unknown" : mw1_program_.c_str());
@@ -3825,8 +4002,8 @@ LauncherChoice Launcher::run() {
     if (pick && mw1_served() && !kit_set_up(2)) auto_go_ = true;
     activate(kMw1);
     if (pick && kit_files_ == 2 && screen_ == kSetupScreen) kit_look(pick);
-    done_ = !asking_ && !work_;
-    quit_after_mw1_ = !done_;  // a pick or an install still to come: ended once done (the loop below)
+    done_ = !asking_ && !work_ && !any_checking();
+    quit_after_mw1_ = !done_;  // a pick, an install or its status still to come: ended once done (the loop below)
   }
   if (o_.play_pm && !pm_pick) {  // never the picker: a check has nobody to answer it
     if (pm_dir_.empty() && !pm_found_.empty() && SDL_getenv("MW3_LAUNCHER_GO"))  // checks: the find offered, INSTALL
@@ -3836,6 +4013,7 @@ LauncherChoice Launcher::run() {
   }
   while (!done_) {
     for (bool& f : status_fresh_) f = false;  // a status asked again when a panel's lines are made after now (b2)
+    asks_collect();
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
       SDL_ConvertEventToRenderCoordinates(ren_, &e);
@@ -3937,7 +4115,7 @@ LauncherChoice Launcher::run() {
     }
     if (games_on_ && !install_file_asked_ && SDL_getenv("MW3_LAUNCHER_INSTALL_FILE") && screen_ == kMain && !work_)
       install_file_asked_ = true, activate(kInstallFile);  // checks: INSTALL FROM A DOWNLOADED FILE pressed (the picker's MW3_LAUNCHER_PICKER)
-    if (quit_after_mw1_ && !asking_ && !ask_pending_ && !work_ && !any_running()) done_ = true;
+    if (quit_after_mw1_ && !asking_ && !ask_pending_ && !work_ && !any_running() && !any_checking()) done_ = true;
     watch_game();
     const Uint64 ta = SDL_GetTicksNS();
     draw();
@@ -3951,7 +4129,7 @@ LauncherChoice Launcher::run() {
     }
     mouse_steps();
     ++frames_, draw_ms_ += ms(ta, tb), present_ms_ += ms(tb, tc);
-    if (quit_after_ > 0 && frames_ >= quit_after_) done_ = true;  // MW3_LAUNCHER_FRAMES (checks)
+    if (quit_after_ > 0 && frames_ >= quit_after_ && !any_checking()) done_ = true;  // MW3_LAUNCHER_FRAMES (checks)
     // No vsync: the rest of a 60th of a second, to the nanosecond. With it, never faster than a little over the display:
     // macOS does not hold a present back for a window not on screen (behind a fullscreen game), and at some 950 frames a
     // second its drawables piled up to tens of gigabytes (2026-11-25, docs/launcher.md, Pacing).

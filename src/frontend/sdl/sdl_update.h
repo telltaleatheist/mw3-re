@@ -85,7 +85,9 @@ Installed install_update(const std::string& download);
 // The new launcher started on its own (no stdio of ours); false when it could not be.
 bool start_detached(const std::string& program);
 // A program run to its end, its arguments as an array: its exit code (-1 not
-// started or past `seconds`), its output and errors in `said`.
-int run_program(const std::vector<std::string>& args, int seconds, std::string* said);
+// started or past `seconds`), its output and errors in `said`; `ran` says which. `quits` (a game's --status): stopped
+// as the launcher closes (stop_asking), as the curls are.
+enum class Ran { kEnded, kNotStarted, kTimedOut };
+int run_program(const std::vector<std::string>& args, int seconds, std::string* said, Ran* ran = nullptr, bool quits = false);
 
 }  // namespace sdlfe

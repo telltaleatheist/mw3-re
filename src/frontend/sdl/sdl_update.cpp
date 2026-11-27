@@ -355,7 +355,7 @@ Downloaded download_update(const upgrades::update::Release& r, const std::string
 
 namespace {
 // A tool run to its end with its arguments as an array (hdiutil): its exit code, its output in `said`.
-int run_tool(const std::vector<std::string>& args, int seconds, std::string* said) {
+int run_tool(const std::vector<std::string>& args, int seconds, std::string* said, Ran* ran = nullptr, bool quits = false) {
   std::vector<const char*> argv;
   for (const std::string& a : args) argv.push_back(a.c_str());
   argv.push_back(nullptr);
@@ -366,18 +366,20 @@ int run_tool(const std::vector<std::string>& args, int seconds, std::string* sai
   SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
   SDL_Process* p = start_quiet(props);
   SDL_DestroyProperties(props);
+  if (ran) *ran = p ? Ran::kEnded : Ran::kNotStarted;
   if (!p) return -1;
   int code = -1;
   bool ended = false;
   SDL_IOStream* io = SDL_GetProcessOutput(p);
   const Uint64 until = SDL_GetTicks() + static_cast<Uint64>(seconds) * 1000;
-  while (!(ended = wait_quiet(p, false, &code)) && SDL_GetTicks() < until) {
+  while (!(ended = wait_quiet(p, false, &code)) && SDL_GetTicks() < until && !(quits && g_stop_asking)) {
     char buf[256];
     const size_t n = io ? SDL_ReadIO(io, buf, sizeof buf) : 0;
     said->append(buf, n);
     if (n == 0) SDL_Delay(20);
   }
   if (!ended) SDL_KillProcess(p, true), wait_quiet(p, true, &code), code = -1;
+  if (!ended && ran) *ran = Ran::kTimedOut;
   if (io)
     for (char buf[256]; const size_t n = SDL_ReadIO(io, buf, sizeof buf);) said->append(buf, n);
   SDL_DestroyProcess(p);
@@ -409,7 +411,9 @@ bool is_our_app(const fs::path& app) {
 }
 }  // namespace
 
-int run_program(const std::vector<std::string>& args, int seconds, std::string* said) { return run_tool(args, seconds, said); }
+int run_program(const std::vector<std::string>& args, int seconds, std::string* said, Ran* ran, bool quits) {
+  return run_tool(args, seconds, said, ran, quits);
+}
 
 bool start_detached(const std::string& program) {
   const char* args[] = {program.c_str(), nullptr};

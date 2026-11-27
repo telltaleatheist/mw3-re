@@ -534,13 +534,29 @@ bool claim_game_folder(const std::string& dir, u::Game g, std::string* error) {
   return true;
 }
 
-bool kit_status(const std::string& bin, rekit::Status* out, const std::vector<std::string>& more) {
-  std::string said;
+bool kit_status(const std::string& bin, rekit::Status* out, const std::vector<std::string>& more, int seconds, std::string* why) {
+  std::string said, error;
   std::vector<std::string> args = {bin, "--status"};
   args.insert(args.end(), more.begin(), more.end());
-  if (bin.empty() || run_program(args, 10, &said) != 0) return false;
+  auto no = [&](const std::string& w) {
+    if (why) *why = w;
+    return false;
+  };
+  auto first_line = [&] {  // what it printed, for the log
+    std::string l = said.substr(0, said.find_first_of("\r\n"));
+    if (l.size() > 160) l = l.substr(0, 160) + "...";
+    return l.empty() ? std::string("nothing printed") : l;
+  };
+  if (bin.empty()) return no("no program");
+  Ran ran = Ran::kEnded;
+  const int code = run_program(args, seconds, &said, &ran, true);
+  if (ran == Ran::kNotStarted) return no(std::string("it did not start (") + SDL_GetError() + ")");
+  if (ran == Ran::kTimedOut) return no("no answer in " + std::to_string(seconds) + " s: stopped");
+  if (code != 0) return no("it exited " + std::to_string(code) + ": " + first_line());
   const size_t a = said.find('{'), b = said.rfind('}');  // the object alone, should a log line come with it
-  return a != std::string::npos && b != std::string::npos && b > a && rekit::parse_status(said.substr(a, b - a + 1), out);
+  if (a == std::string::npos || b == std::string::npos || b <= a) return no("no status in its answer: " + first_line());
+  if (!rekit::parse_status(said.substr(a, b - a + 1), out, &error)) return no("its status could not be read (" + error + ")");
+  return true;
 }
 
 bool kit_setup(const std::string& bin, const std::vector<std::string>& args, int seconds,
