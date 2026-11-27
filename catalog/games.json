@@ -1,6 +1,6 @@
 {
   "catalog": 1,
-  "revision": 6,
+  "revision": 7,
   "homes": [
     {"key": "gh", "releases": "https://api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}", "order": 1},
     {"key": "om", "releases": "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/{repo}/releases?limit=40", "order": 2}
@@ -77,7 +77,12 @@
       "description": "The 1988 game, rebuilt. Bring your own copy: DOS 1.03 or Amiga 2.3.",
       "repo": "inception-re", "tag_prefix": "chi-v", "program": "chi",
       "assets": {"windows": "CHI-Rebuild-{tag}-win64.zip", "mac": "CHI-Rebuild-{tag}-mac.dmg", "linux": "CHI-Rebuild-{tag}-x86_64.AppImage"},
-      "badge": "badge_inception.png", "badge_sha256": "14ee9f96db1d36a6a2be7b730ba1741a50af65c2f517eacc04bfccb3c136a582", "needs": [], "min_launcher": "1.5.2"
+      "badge": "badge_inception.png", "badge_sha256": "14ee9f96db1d36a6a2be7b730ba1741a50af65c2f517eacc04bfccb3c136a582", "needs": [], "min_launcher": "1.5.2",
+      "original": [
+        {"url": "https://reverse-engineered.com/launcher/originals/BattleTech-The-Crescent-Hawks-Inception_DOS_EN.zip",
+         "sha256": "e3e5e597dcdb10a4fc0044ea4bf736956e9f9bf11a416c9551d621ff3c5bcf87", "size": 332110,
+         "name": "BattleTech-The-Crescent-Hawks-Inception_DOS_EN.zip", "note": "reverse-engineered.com"}
+      ]
     },
     {
       "key": "chirm", "family": "inception", "order": 6, "state": "coming_soon", "panel_before_release": false,
