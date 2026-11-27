@@ -330,6 +330,7 @@ class Launcher {
     // A quit never waits on the network (lead 2026-11-23): the checks' curls stopped before their threads are
     // joined (games_check_, self_check_), else a home that hangs held the quit for its timeouts.
     sdlfe::stop_asking();
+    if (catalog_th_.joinable()) catalog_th_.join();  // its curl stopped above: at once
     // A status still being asked on its thread (asks_collect): its program stopped by stop_asking in moments, not
     // left running past the launcher; never waited for longer than a second.
     for (int n = 0; n < 100 && std::any_of(std::begin(later_), std::end(later_), [](const auto& a) { return a && !a->done; }); ++n)
@@ -344,8 +345,14 @@ class Launcher {
       if (t.joinable()) t.join();
   }
   LauncherChoice run();
+  // The games catalog while open (2026-11-27): where its fetches write, and whether this is a check run (hidden, a
+  // shot; catalog::may_fetch).
+  void set_catalog(const catalog::Here& h, bool check_run) { here_ = h, check_run_ = check_run; }
 
  private:
+  void start_catalog_fetch(const char* why);
+  void take_catalog();
+  const char* catalog_waits_for() const;
   void find_install();
   void find_install_older();  // the older programs' path (b2): below
   void find_mw1(bool start = false);
@@ -619,6 +626,16 @@ class Launcher {
     }
   };
   std::unique_ptr<GamesCheck> games_check_;
+  // The catalog fetched while open (2026-11-27, docs/launcher.md, A catalog fetched while open): one fetch at a time on
+  // its thread; what it cached put in use at the next idle moment (catalog_waits_for), never one start later.
+  catalog::Here here_;
+  bool check_run_ = false;
+  std::thread catalog_th_;
+  std::atomic<bool> catalog_done_{false}, catalog_new_{false};
+  bool catalog_asking_ = false, catalog_pending_ = false;
+  bool game_install_pressed_ = false;  // MW3_LAUNCHER_GAME_INSTALL's press made (checks): once, not again at a later games check
+  std::string catalog_waiting_;  // what the newer one waits for, said once
+  Uint64 catalog_next_ms_ = 0;   // the next fetch every few hours (MW3_CATALOG_EVERY_S, checks; 4 h)
   // The launcher's own update, asked at every start (2026-11-23): check_for_updates on a thread, both homes,
   // never a prompt; a newer one shows UPDATE AVAILABLE <v> in the header (kSelfUpdate), which opens the UPDATE
   // screen. Nothing downloads until the player presses UPDATE there.
@@ -1165,6 +1182,65 @@ void Launcher::self_verdict(const upgrades::update::Verdict& v) {
   std::printf("mw3: launcher: header UPDATE AVAILABLE %s\n", upgrades::update::plain_version(v.release.tag).c_str());
 }
 
+// How often the catalog is fetched again while open: every 4 hours (MW3_CATALOG_EVERY_S, checks).
+static Uint64 catalog_every_ms() {
+  const char* s = SDL_getenv("MW3_CATALOG_EVERY_S");
+  const long v = s ? std::strtol(s, nullptr, 10) : 0;
+  return v > 0 ? static_cast<Uint64>(v) * 1000 : Uint64{4} * 3600 * 1000;
+}
+
+// A catalog fetch on its thread (one at a time): at the start (a player's; the list on screen meanwhile), on CHECK
+// FOR UPDATES, after an install or update, and every few hours. What it caches is put in use by take_catalog.
+void Launcher::start_catalog_fetch(const char* why) {
+  bool allow_file = false;
+  if (catalog_asking_ || here_.write_dir.empty() || !catalog::may_fetch(check_run_, &allow_file)) return;
+  catalog_next_ms_ = SDL_GetTicks() + catalog_every_ms();
+  catalog_asking_ = true, catalog_done_ = false, catalog_new_ = false;
+  std::printf("mw3: launcher: catalog: fetched again (%s)\n", why);
+  catalog_th_ = std::thread([this, h = here_, allow_file] {
+    catalog_new_ = catalog::fetch(h, allow_file);
+    catalog_done_ = true;
+  });
+}
+
+// What a newer catalog waits for before it is put in use: nothing installing, updating or setting up, the start's
+// and CHECK FOR UPDATES' asks answered, the list on screen. Null: now.
+const char* Launcher::catalog_waits_for() const {
+  if (work_ || !update_queue_.empty()) return "an install, an update or a setup is running";
+  if (games_check_) return "the games' releases are being asked";
+  if (screen_ != kMain) return "another screen is open";
+  return nullptr;
+}
+
+void Launcher::take_catalog() {
+  if (catalog_asking_ && catalog_done_) {
+    catalog_th_.join();
+    catalog_asking_ = false;
+    catalog_pending_ = catalog_pending_ || catalog_new_;
+  }
+  if (!catalog_asking_ && catalog_next_ms_ && SDL_GetTicks() >= catalog_next_ms_) start_catalog_fetch("every few hours");
+  if (!catalog_pending_) return;
+  if (const char* w = catalog_waits_for()) {
+    if (catalog_waiting_ != w) catalog_waiting_ = w, std::printf("mw3: launcher: catalog: a newer one waits: %s\n", w);
+    return;
+  }
+  catalog_pending_ = false, catalog_waiting_.clear();
+  const int before = upgrades::update::game_count();
+  if (!catalog::apply_newer(here_)) return;
+  for (int i = before; i < upgrades::update::game_count(); ++i) {  // the new games looked up as at the start
+    if (!o_.write_dir.empty())
+      games_place_[i] = cfg_path(o_.write_dir, std::string("games_") + upgrades::update::game_info(upgrades::update::game_at(i)).key);
+    if (!games_on_) {
+      kit_refresh(i);
+      continue;
+    }
+    beside_[i] = !game_bin(i).empty();
+    resolve_game(i, false);
+  }
+  start_games_check();  // every game's releases again (the new ones', and the homes may have changed)
+  layout();
+}
+
 void Launcher::take_games_check() {
   if (!games_check_ || !games_check_->done) return;
   games_check_->th.join();
@@ -1181,7 +1257,7 @@ void Launcher::take_games_check() {
   games_check_.reset();
   if (screen_ == kMain) layout();
   recheck_done();
-  if (const char* k = SDL_getenv("MW3_LAUNCHER_GAME_INSTALL"))  // checks: a card's INSTALL or UPDATE pressed once it can be
+  if (const char* k = SDL_getenv("MW3_LAUNCHER_GAME_INSTALL"); k && !std::exchange(game_install_pressed_, true))  // checks: a card's INSTALL or UPDATE pressed once it can be
     for (int i = 0; i < upgrades::update::game_count(); ++i)
       if (std::strcmp(k, upgrades::update::game_info(upgrades::update::game_at(i)).key) == 0) install_game(i);
 }
@@ -1196,6 +1272,7 @@ std::vector<int> Launcher::game_updates() const {
 void Launcher::recheck() {
   if (rechecking_ || work_) return;
   rechecking_ = true;
+  start_catalog_fetch("CHECK FOR UPDATES");  // the list too, fresh (the owner, 2026-11-27)
   status_ = "Checking for updates...", status_good_ = true;
   if (!games_check_) start_games_check();  // the start's own still out: its answer is this one's
   if (!self_check_) start_self_check();
@@ -3450,6 +3527,7 @@ void Launcher::finish_work() {
   if (kind == Work::kOriginal) return got_original(r);
   if (kind == Work::kGameInstall) {  // games on demand: in use at once, or why not on the status line
     status_ = r.summary, status_good_ = r.ok || r.cancelled, screen_ = kMain;
+    if (r.ok) start_catalog_fetch("an install or update");  // put in use once the work is done (catalog_waits_for)
     if (r.ok && game_done_) {
       const int g = static_cast<int>(game_done_->game);
       const bool first = !has_installed_[g] && work_game_ == g;  // a card's DOWNLOAD: not an UPDATE, not a file of the player's
@@ -3947,6 +4025,12 @@ LauncherChoice Launcher::run() {
   std::printf("\n");
   start_games_check();
   start_self_check();  // the launcher's own update, quietly (2026-11-23)
+  {  // the catalog: a player's start fetches on a thread, the list on screen meanwhile (a check run fetched first, but
+     // MW3_CATALOG_START=late leaves it to this, as a player's start)
+    const char* start = SDL_getenv("MW3_CATALOG_START");
+    if (!check_run_ || (start && std::strcmp(start, "late") == 0)) start_catalog_fetch("the start");
+    else catalog_next_ms_ = SDL_GetTicks() + catalog_every_ms();
+  }
   std::printf("mw3: launcher: art %.0f ms, font %.0f ms, the statuses and the install search %.0f ms\n", ms(t0, t_art),
               ms(t_art, t_font), ms(t_font, t_install));
   sounds_on_ = o_.sound && !shot;
@@ -4194,6 +4278,7 @@ LauncherChoice Launcher::run() {
     if (work_ && work_->done) finish_work();
     take_games_check();
     take_self_check();
+    take_catalog();
     for (int i = 0; i < upgrades::update::kMaxGames && !work_; ++i)  // an UPDATE that waited for its game's end
       if (update_after_[i] && !running(i)) update_after_[i] = false, install_game(i);
     if (const char* late = SDL_getenv("MW3_LAUNCHER_NAV_LATE"); late && !games_check_ && !self_check_ && !nav_late_) {  // checks: the steps once the start's checks have answered (a path: and that file is there)
@@ -4286,14 +4371,12 @@ LauncherChoice run_launcher(const LauncherOptions& o) {
                            [w = o.write_dir, games_root](const std::string& key) { return game_here(w, games_root, key); }};
   const bool check_run = o.hidden || !o.shot.empty();
   catalog::at_start(here, check_run);
-  std::thread fetch;
   LauncherChoice c;
   {
-    Launcher l(o);  // stop_asking(false): the fetch after it
-    if (!check_run && !o.write_dir.empty()) fetch = std::thread([here] { catalog::fetch(here, std::getenv("MW3_CATALOG_URL") != nullptr); });  // checks: a stand-in's file://
+    Launcher l(o);  // stop_asking(false); its fetches after it (start_catalog_fetch)
+    l.set_catalog(here, check_run);
     c = l.run();
   }  // stop_asking(): a fetch still asking ends at once
-  if (fetch.joinable()) fetch.join();
   return c;
 }
 

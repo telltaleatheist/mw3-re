@@ -490,15 +490,36 @@ higher `revision` winning, with no word about the player sent. It is
 fetched on a thread while the launcher is open and cached in the write
 dir, `catalog/games.json`, with the art it names that the package does not
 carry (`catalog/art/<name>` beside it on the hub; kept only when it is a
-PNG). The next start reads the cache and merges it over the built-in
-catalog: an entry by its key replaces the built-in's, a new key adds a
-game, and anything it does not list stays as built in. Offline, the cache
-serves; with no cache, or one whose `revision` is not above the built-in's
-(the built-in has `"revision": 1`), the built-in catalog is used. The
-catalog in use is fixed for the run once a game is looked up
-(`use_catalog`); a check run (hidden, a shot) fetches first, and only when
-`MW3_CATALOG_URL` (one address, or `A|B`; `file://` there) or
+PNG). A start reads the cache and merges it over the built-in catalog:
+an entry by its key replaces the built-in's, a new key adds a game, and
+anything it does not list stays as built in. Offline, the cache serves;
+with no cache, or one whose `revision` is not above the built-in's, the
+built-in catalog is used. A check run (hidden, a shot) fetches first, and
+only when `MW3_CATALOG_URL` (one address, or `A|B`; `file://` there) or
 `MW3_SOURCES_FILE` is set, and never from an address that is not file://.
+
+**A catalog fetched while open** (2026-11-27): every fetch is put in use as
+soon as it lands and checks (signed, newer than the one in use), never one
+start later. The window never waits on the network: the cached or built-in
+list is on screen at once and the new one is swapped in when it arrives.
+The fetches: the start's (on its thread), CHECK FOR UPDATES (the list
+fresh too), the end of a game's install or update, every 4 hours while
+open, and the start after the launcher's own update (an ordinary start, so
+the first of these). A newer one waits while an install, an update or a
+setup is running, while the games' releases are being asked, or while
+another screen is open (`catalog: a newer one waits: ...`), then is merged
+over the built-in as at a start (`catalog::apply_newer`,
+`u::replace_catalog`): every game keeps its place in the launcher's tables
+(a thread may hold one), a game the new catalog lacks keeps its last entry
+(catalogs never drop one), new games follow; the catalog replaced is never
+freed. The new games are looked up, every game's releases asked again, the
+cards laid out again, their art read from the cache the fetch filled. Said
+as `catalog: revision N in use (fetched while open, G games)`. Checks:
+`MW3_CATALOG_START=late` leaves a check run's start fetch to the
+launcher's thread (as a player's), `none` makes none;
+`MW3_CATALOG_EVERY_S` sets the interval; the test
+`sdl_program_launcher_takes_a_catalog_while_open` covers the start, an
+install, CHECK FOR UPDATES and a real self-update's relaunch.
 
 **A live check** (`MW3_LIVE_CHECK=1`, 2026-11-27) lifts that one rule, so
 a release is checked without a window: a check run then asks the real

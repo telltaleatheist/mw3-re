@@ -1709,6 +1709,217 @@ TEST(sdl_program_launcher_gets_a_games_original_files) {
   if (!check::failures) fs::remove_all(base, ec);
 }
 
+// A catalog fetched while the launcher is open (2026-11-27, docs/launcher.md, A catalog fetched while open): put in use
+// as soon as it lands and checks, never one start later; the list on screen at once, the new cards swapped in. A
+// stand-in serves a newer catalog (signed by test key 1) adding a game. "open": the start's fetch on its thread (as a
+// player's start; MW3_CATALOG_START=late), BATTLETECH added in that run. "install": one served while btech's original
+// files are set up (its setup's --install puts revision 3 there and takes 3 s, a fetch every second) waits for the
+// end, then adds BATTLETECH TWO. "check": no fetch at the start; CHECK FOR UPDATES fetches and adds BATTLETECH.
+// "relaunch" (Mac, Linux): the launcher's own update installed (a DMG's app or the AppImage, MW3_UPDATE_TARGET) and
+// started as it starts after an update (no arguments); the new one (a stand-in app running this build's launcher)
+// finds the catalog newer than at the update and shows its card in its first run.
+TEST(sdl_program_launcher_takes_a_catalog_while_open) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string base = std::string(MW3_TEST_TMP) + "/launcher_catalog_open";
+  fs::remove_all(base, ec);
+  fs::create_directories(base, ec);
+  auto read = [](const std::string& f) {
+    std::ifstream in(f, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  auto line = [](const std::string& log, const std::string& head, bool last = false) {
+    const size_t at = last ? log.rfind(head) : log.find(head);
+    return at == std::string::npos ? std::string() : log.substr(at, log.find('\n', at) - at);
+  };
+  auto at = [](const std::string& log, const std::string& s) { return log.find(s); };
+  const std::string good(200000, 'o');
+  const std::string good_sum = rekit::sha256_hex(reinterpret_cast<const uint8_t*>(good.data()), good.size());
+  std::ofstream(base + "/good.zip", std::ios::binary) << good;
+  auto entry = [](const char* key, int order, const char* button, const char* repo, const std::string& original) {
+    return std::string("{\"key\": \"") + key + "\", \"family\": \"bt\", \"order\": " + std::to_string(order) +
+           ", \"state\": \"released\", \"name\": \"" + button + " Rebuild\", \"title\": \"" + button + "\", \"heading\": \"" + button +
+           "\", \"button\": \"" + button + "\", \"description\": \"A line.\", \"repo\": \"" + repo + "\", \"tag_prefix\": \"" + key +
+           "-v\", \"program\": \"" + key + "\", \"assets\": {\"windows\": \"BT-{tag}-test.zip\", \"mac\": \"BT-{tag}-test.zip\", \"linux\": "
+           "\"BT-{tag}-test.zip\"}, \"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\"" +
+           (original.empty() ? std::string() : ", \"original\": " + original) + "}";
+  };
+  // Revision 2 adds BATTLETECH (its original files listed); 3 adds BATTLETECH TWO beside it.
+  const std::string original = "[{\"url\": \"file://" + base + "/good.zip\", \"sha256\": \"" + good_sum + "\", \"size\": " +
+                               std::to_string(good.size()) + ", \"name\": \"BT disc.zip\"}]";
+  auto catalog = [&](int revision) {
+    std::string games = entry("btech", 7, "BATTLETECH", "battletech-re", original);
+    if (revision >= 3) games += ", " + entry("btwo", 8, "BATTLETECH TWO", "battletech-two-re", "");
+    return "{\"catalog\": 1, \"revision\": " + std::to_string(revision) +
+           ", \"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": [" + games + "]}";
+  };
+  std::ofstream(base + "/cat2.json") << catalog(2);
+  std::ofstream(base + "/cat3.json") << catalog(3);
+  sign_fixture(base + "/cat2.json", {1});
+  sign_fixture(base + "/cat3.json", {1});
+  // btech's release: a stand-in game whose setup's --install serves revision 3 and takes 3 s.
+  auto release = [&](const std::string& dir) {
+    for (const char* repo : {"mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re", "revenge-re", "battletech-two-re"})
+      std::ofstream(dir + "/api/" + repo + ".json") << "[]";
+    std::string sh = "#!/bin/sh\nR='" + dir + "'\necho \"$*\" >> \"$R/asked\"\ncase \"$1 $2\" in\n"
+                     "'--status ') if [ -f \"$R/files-in\" ]; then ST=ready; else ST=missing; fi\n"
+                     "  echo '{\"kit\": 1, \"game\": \"btech\", \"version\": \"0.1.0\", \"files\": {\"state\": \"'$ST'\"}, \"first_run\": {\"pending\": []}, "
+                     "\"needs\": [], \"setup\": 1}';;\n"
+                     "'--setup --look') echo '{\"done\": true, \"ok\": true, \"words\": \"A copy of BattleTech.\", \"into\": \"'\"$R\"'/files\"}';;\n"
+                     "'--setup --install') cp '" + base + "/cat3.json' \"$R/served.json\"; cp '" + base + "/cat3.json.sig' \"$R/served.json.sig\"\n"
+                     "  echo '{\"done\": false, \"at\": 500000, \"stage\": \"Copying\", \"message\": \"\"}'; sleep 3; : > \"$R/files-in\"\n"
+                     "  echo '{\"done\": true, \"ok\": true, \"where\": \"'\"$R\"'/files\", \"summary\": \"BattleTech is set up.\"}';;\n"
+                     "*) : > \"$R/played\";;\nesac\nexit 0\n";
+    const std::string zip = dir + "/rel/BT-btech-v0.1.0-test.zip";
+    archive* a = archive_write_new();
+    archive_write_set_format_zip(a);
+    archive_write_open_filename(a, zip.c_str());
+    archive_entry* e = archive_entry_new();
+    archive_entry_set_pathname(e, "btech");
+    archive_entry_set_size(e, static_cast<la_int64_t>(sh.size()));
+    archive_entry_set_filetype(e, AE_IFREG);
+    archive_entry_set_perm(e, 0755);
+    archive_write_header(a, e);
+    archive_write_data(a, sh.data(), sh.size());
+    archive_entry_free(e);
+    archive_write_close(a);
+    archive_write_free(a);
+    const std::string zbytes = read(zip);
+    std::ofstream(dir + "/rel/SHA256SUMS") << rekit::sha256_hex(reinterpret_cast<const uint8_t*>(zbytes.data()), zbytes.size()) << "  BT-btech-v0.1.0-test.zip\n";
+    std::ofstream(dir + "/api/battletech-re.json")
+        << "[{\"tag_name\": \"btech-v0.1.0\", \"draft\": false, \"prerelease\": false, \"body\": \"x\", \"assets\": [{\"name\": \"BT-btech-v0.1.0-test.zip\", "
+           "\"size\": " << zbytes.size() << ", \"browser_download_url\": \"file://" << zip << "\"}, {\"name\": \"SHA256SUMS\", \"size\": 10, "
+           "\"browser_download_url\": \"file://" << dir << "/rel/SHA256SUMS\"}]}]";
+  };
+  struct Run {
+    std::string log;
+    bool exited = false;
+  };
+  auto run = [&](const char* name, const std::vector<std::pair<std::string, std::string>>& extra, int served, const std::string& frames) {
+    const std::string dir = base + "/" + name;
+    for (const char* d : {"/api", "/games", "/wd/music", "/tmp", "/rel"}) fs::create_directories(dir + d, ec);
+    std::ofstream(dir + "/wd/music/track02.wav") << "x";
+    release(dir);
+    if (served) std::ofstream(dir + "/served.json") << read(base + "/cat" + std::to_string(served) + ".json");
+    std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_CATALOG_URL", "file://" + dir + "/served.json"},
+        {"MW3_LAUNCHER_FRAMES", frames}, {"MW3_NO_IMPORT", "1"}, {"TMPDIR", dir + "/tmp"}, {"MW3_PM_BIN", ""}, {"MW3_MW1_BIN", ""},
+        {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}};
+    env.insert(env.end(), extra.begin(), extra.end());
+    const char* tmp_was = std::getenv("TMPDIR");
+    const std::string tmp_keep = tmp_was ? tmp_was : "";
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/launcher.log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    if (tmp_was) setenv("TMPDIR", tmp_keep.c_str(), 1);
+    int status = 0;
+    Run r;
+    r.exited = waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    r.log = read(dir + "/launcher.log");
+    std::printf("catalog while open, %s:\n", name);
+    for (const char* what : {"catalog: the built-in", "catalog: fetched again", "catalog: a newer one waits", "(fetched while open", "BattleTech is set up", "focus ", " frames, "})
+      for (size_t a = 0; (a = r.log.find(what, a)) != std::string::npos; ++a) std::printf("    %s\n", r.log.substr(a, r.log.find('\n', a) - a).c_str());
+    std::printf("    first %s\n    last  %s\n", line(r.log, "screen main: ").c_str(), line(r.log, "screen main: ", true).c_str());
+    return r;
+  };
+  {  // open: the start's fetch lands while the built-in list is on screen
+    const Run r = run("open", {{"MW3_CATALOG_START", "late"}}, 2, "600");
+    EXPECT(r.exited && has(r.log, "catalog: the built-in one (revision 1)") && has(r.log, "catalog: fetched again (the start)"));
+    EXPECT(has(r.log, "catalog: revision 2 in use (fetched while open"));
+    EXPECT(!has(line(r.log, "screen main: "), "BATTLETECH") && has(line(r.log, "screen main: ", true), "BATTLETECH, BATTLETECH SETTINGS, CHECK FOR UPDATES"));
+    std::printf("    %s\n", line(r.log, "games: btech: ", true).c_str());
+    EXPECT(has(r.log, "/api/battletech-re.json: answered") && has(r.log, "games: btech: "));  // its releases asked once it is known
+  }
+  {  // install: revision 3 served during btech's setup waits for its end
+    const Run r = run("install", {{"MW3_LAUNCHER_GAME_INSTALL", "btech"}, {"MW3_CATALOG_EVERY_S", "1"}}, 2, "1500");
+    const size_t waits = at(r.log, "catalog: a newer one waits: an install, an update or a setup is running");
+    const size_t set_up = at(r.log, "BattleTech is set up."), used = at(r.log, "catalog: revision 3 in use (fetched while open");
+    EXPECT(r.exited && has(r.log, "catalog: revision 2, fetched"));  // the start's (a check run's, before the window)
+    EXPECT(waits != std::string::npos && set_up != std::string::npos && used != std::string::npos && waits < set_up && set_up < used);
+    EXPECT(has(line(r.log, "screen main: ", true), "BATTLETECH, BATTLETECH SETTINGS, BATTLETECH TWO, CHECK FOR UPDATES"));
+  }
+  {  // check: nothing at the start; CHECK FOR UPDATES fetches and adds the card
+    const Run r = run("check", {{"MW3_CATALOG_START", "none"}, {"MW3_LAUNCHER_NAV", "next,prev,prev,press"}}, 2, "600");
+    EXPECT(r.exited && has(r.log, "focus CHECK FOR UPDATES\n") && !has(r.log, "catalog: fetched again (the start)"));
+    EXPECT(has(r.log, "catalog: fetched again (CHECK FOR UPDATES)") && has(r.log, "catalog: revision 2 in use (fetched while open"));
+    EXPECT(at(r.log, "catalog: fetched again (CHECK FOR UPDATES)") < at(r.log, "catalog: revision 2 in use (fetched while open"));
+    EXPECT(!has(line(r.log, "screen main: "), "BATTLETECH") && has(line(r.log, "screen main: ", true), "BATTLETECH, BATTLETECH SETTINGS, CHECK FOR UPDATES"));
+  }
+#if defined(__APPLE__) || defined(__linux__)
+  {  // relaunch: the launcher's own update installed and started; the new one shows the catalog newer than at the update
+    const std::string dir = base + "/relaunch";
+    for (const char* d : {"/api", "/games", "/wd/music", "/tmp", "/rel", "/pkg"}) fs::create_directories(dir + d, ec);
+    std::ofstream(dir + "/wd/music/track02.wav") << "x";
+    release(dir);
+    // The new launcher: this build's, started as after an update (no arguments of its own); it serves revision 2 first
+    // (the catalog moved on while the update ran), and is told not to update again.
+    const std::string start = "#!/bin/sh\nR='" + dir + "'\ncp '" + base + "/cat2.json' \"$R/served.json\"; cp '" + base + "/cat2.json.sig' \"$R/served.json.sig\"\n"
+                              "unset MW3_LAUNCHER_UPDATE_GO MW3_UPDATE_TARGET MW3_UPDATE_API MW3_UPDATE_NO_RESTART MW3_LAUNCHER_NAV\n"
+                              "MW3_CATALOG_START=late MW3_LAUNCHER_FRAMES=600 '" + std::string(MW3_LAUNCHER_BIN) + "' --write-dir \"$R/wd\" --window 640x480 "
+                              "--nosound --hidden > \"$R/relaunched.log\" 2>&1\necho $? > \"$R/relaunched.done\"\n";
+#if defined(__APPLE__)
+    const std::string ours = "MW3-Rebuild-98.1.0-mac.dmg";
+    const std::string target = dir + "/Applications/MW3 Rebuild.app";
+    fs::create_directories(target + "/Contents/MacOS", ec);
+    std::ofstream(target + "/Contents/MacOS/mw3launcher") << "#!/bin/sh\necho old\n";
+    fs::create_directories(dir + "/dmg-src/MW3 Rebuild.app/Contents/MacOS", ec);
+    std::ofstream(dir + "/dmg-src/MW3 Rebuild.app/Contents/MacOS/mw3launcher") << start;
+    fs::permissions(dir + "/dmg-src/MW3 Rebuild.app/Contents/MacOS/mw3launcher", fs::perms::owner_all);
+    std::ofstream(dir + "/dmg-src/MW3 Rebuild.app/Contents/Info.plist") << "<plist/>\n";
+    const std::string make = "/usr/bin/hdiutil create -quiet -fs HFS+ -volname 'MW3 Rebuild' -srcfolder '" + dir + "/dmg-src' -format UDZO '" + dir + "/pkg/" + ours + "'";
+    EXPECT(std::system(make.c_str()) == 0);
+#else
+    const std::string ours = "MW3-Rebuild-98.1.0-x86_64.AppImage";
+    const std::string target = dir + "/MW3-Rebuild.AppImage";
+    std::ofstream(target) << "#!/bin/sh\necho old\n";
+    std::ofstream(dir + "/pkg/" + ours) << start;
+#endif
+    const std::string bytes = read(dir + "/pkg/" + ours);
+    std::ofstream(dir + "/pkg/SHA256SUMS") << rekit::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size()) << "  " << ours << "\n";
+    sign_fixture(dir + "/pkg/SHA256SUMS", {1});
+    std::ofstream(dir + "/update.json")
+        << "[{\"tag_name\": \"v98.1.0\", \"draft\": false, \"prerelease\": false, \"body\": \"x\", \"assets\": [{\"name\": \"" << ours << "\", \"size\": "
+        << bytes.size() << ", \"browser_download_url\": \"file://" << dir << "/pkg/" << ours << "\"}, {\"name\": \"SHA256SUMS\", "
+        << "\"browser_download_url\": \"file://" << dir << "/pkg/SHA256SUMS\"}, {\"name\": \"SHA256SUMS.sig\", \"browser_download_url\": \"file://"
+        << dir << "/pkg/SHA256SUMS.sig\"}]}]";
+    write_sources(dir + "/sources.json", {"file:///nowhere/catalog.json"}, {1});
+    // Its temp on the system's volume, as a player's: macOS refuses a DMG mounted on an external volume's folder.
+    const std::string sys_tmp = (fs::temp_directory_path(ec) / ("mw3-relaunch-" + std::to_string(getpid()))).string();
+    fs::create_directories(sys_tmp, ec);
+    const std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_CATALOG_URL", "file://" + dir + "/served.json"},
+        {"MW3_SOURCES_FILE", dir + "/sources.json"}, {"MW3_UPDATE_API", "file://" + dir + "/update.json"}, {"MW3_LAUNCHER_UPDATE_GO", "1"},
+        {"MW3_LAUNCHER_NAV", "next,prev,prev,press"},  // CHECK FOR UPDATES, then its box's UPDATE LAUNCHER
+        {"MW3_UPDATE_TARGET", target}, {"MW3_LAUNCHER_FRAMES", "600"}, {"MW3_NO_IMPORT", "1"}, {"TMPDIR", sys_tmp}, {"MW3_PM_BIN", ""},
+        {"MW3_MW1_BIN", ""}, {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}};
+    const char* tmp_was = std::getenv("TMPDIR");
+    const std::string tmp_keep = tmp_was ? tmp_was : "";
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/launcher.log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    if (tmp_was) setenv("TMPDIR", tmp_keep.c_str(), 1);
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    for (int i = 0; i < 1200 && !fs::exists(dir + "/relaunched.done", ec); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    const std::string old_log = read(dir + "/launcher.log"), log = read(dir + "/relaunched.log");
+    fs::remove_all(sys_tmp, ec);
+    std::printf("catalog while open, relaunch:\n    %s\n    %s\n", line(old_log, "launcher: update: ").c_str(), line(old_log, "catalog: the built-in").c_str());
+    for (const char* what : {"catalog: the built-in", "catalog: fetched again", "(fetched while open"})
+      std::printf("    new: %s\n", line(log, what).c_str());
+    std::printf("    new: first %s\n    new: last  %s\n", line(log, "screen main: ").c_str(), line(log, "screen main: ", true).c_str());
+    if (!has(old_log, "starts again now"))
+      for (const char* what : {"update", "UPDATE", "SHA256", "catalog"})
+        for (size_t a = 0; (a = old_log.find(what, a)) != std::string::npos; a = old_log.find('\n', a))
+          std::printf("    old: %s\n", old_log.substr(old_log.rfind('\n', a) + 1, old_log.find('\n', a) - old_log.rfind('\n', a) - 1).c_str());
+    EXPECT(has(old_log, "launcher: update: Installed. The BattleTech launcher starts again now.") && !has(old_log, "BATTLETECH"));
+    EXPECT(read(dir + "/relaunched.done") == "0\n" && has(log, "catalog: the built-in one (revision 1)"));
+    EXPECT(has(log, "catalog: revision 2 in use (fetched while open") && !has(line(log, "screen main: "), "BATTLETECH") &&
+           has(line(log, "screen main: ", true), "BATTLETECH, BATTLETECH SETTINGS, CHECK FOR UPDATES"));
+  }
+#endif
+  if (!check::failures) fs::remove_all(base, ec);
+}
+
 // A present that does not wait for the display (macOS: a window not on screen) does not run away: 1.5.0 drew some 950
 // frames a second behind a fullscreen game, and its drawables took tens of gigabytes. MW3_LAUNCHER_UNPACED stands in.
 TEST(sdl_program_launcher_never_runs_away) {

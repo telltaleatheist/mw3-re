@@ -2,8 +2,10 @@
 #include "frontend/sdl/sdl_catalog.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <filesystem>
 #include <fstream>
@@ -156,6 +158,7 @@ void fetch_art(const u::Catalog& c, const std::string& url, const fs::path& dir,
     }
 }
 
+std::atomic<int> g_in_use{0};  // the revision in use (the built-in one's, or the cache's put in use)
 std::mutex g_used_mutex;
 std::string g_used_text;  // the fetched catalog put in use at the start, as cached: what keep() copies
 
@@ -332,7 +335,10 @@ void at_start(const Here& h, bool check_run) {
     if (u::active_sources().keys.empty()) std::printf("mw3: launcher: catalog: sources.json lists no key: no fetched catalog is taken\n");
     if (!h.write_dir.empty()) read_learned(h.write_dir);
   }
-  if (check_run && sdlfe::live_check()) {  // a release checked without a window: the real addresses, https only
+  const char* start = check_run ? std::getenv("MW3_CATALOG_START") : nullptr;  // checks: "late" or "none" (header)
+  if (start && (std::strcmp(start, "late") == 0 || std::strcmp(start, "none") == 0)) {
+    std::printf("mw3: launcher: catalog: the start's fetch %s (MW3_CATALOG_START)\n", start[0] == 'l' ? "left to the launcher's own" : "not made");
+  } else if (check_run && sdlfe::live_check()) {  // a release checked without a window: the real addresses, https only
     std::printf("mw3: launcher: catalog: a live check: the real addresses asked\n");
     fetch(h, false);
   } else if (check_run && (std::getenv("MW3_CATALOG_URL") || std::getenv("MW3_SOURCES_FILE"))) {
@@ -357,6 +363,7 @@ void at_start(const Here& h, bool check_run) {
     from_cache = true;
   }
   if (from_cache) refresh_kept(h, fetched, text);
+  g_in_use = from_cache ? fetched.revision : builtin.revision;
   const bool put_back = put_back_kept(h, &c);
   if (!from_cache && !put_back) {
   } else if (!u::use_catalog(c)) {
@@ -371,6 +378,42 @@ void at_start(const Here& h, bool check_run) {
   }
   if (!h.write_dir.empty()) check_cached_art(h);
   say_in_use(h.write_dir);
+}
+
+bool may_fetch(bool check_run, bool* allow_file) {
+  const bool stand_in = std::getenv("MW3_CATALOG_URL") || std::getenv("MW3_SOURCES_FILE");
+  *allow_file = check_run ? stand_in && !sdlfe::live_check() : std::getenv("MW3_CATALOG_URL") != nullptr;
+  return !check_run || sdlfe::live_check() || stand_in;
+}
+
+int in_use_revision() { return g_in_use; }
+
+bool apply_newer(const Here& h) {
+  if (h.write_dir.empty()) return false;
+  const std::string text = signed_cache(h.write_dir);
+  u::Catalog fetched;
+  if (text.empty() || !read(text, h.version, "the cache", &fetched)) return false;
+  const u::Catalog& builtin = u::builtin_catalog();
+  if (fetched.revision <= g_in_use || fetched.revision <= builtin.revision) return false;
+  std::vector<std::string> ignored;
+  u::Catalog c = u::merged_catalog(builtin, fetched, &ignored);
+  for (const std::string& i : ignored) std::printf("mw3: launcher: catalog: the cache: left out: %s\n", i.c_str());
+  refresh_kept(h, fetched, text);
+  put_back_kept(h, &c);
+  if (!u::replace_catalog(c)) {
+    std::printf("mw3: launcher: catalog: revision %d not put in use: it lacks a game the launcher knows\n", fetched.revision);
+    g_in_use = fetched.revision;  // not tried again
+    return false;
+  }
+  {
+    std::lock_guard<std::mutex> lock(g_used_mutex);
+    g_used_text = text;
+  }
+  g_in_use = fetched.revision;
+  std::printf("mw3: launcher: catalog: revision %d in use (fetched while open, %d games)\n", fetched.revision, u::game_count());
+  check_cached_art(h);
+  say_in_use(h.write_dir);
+  return true;
 }
 
 std::vector<std::string> addresses(const std::vector<std::string>& catalogs, const std::vector<std::string>& shipped) {

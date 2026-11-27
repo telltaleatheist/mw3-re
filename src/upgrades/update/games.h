@@ -90,6 +90,10 @@ const Catalog& builtin_catalog();
 // one cached, merged over it) before any game was looked up. A later use_catalog is refused (false): the catalog's
 // strings stay put for the run (GameInfo points into them).
 bool use_catalog(const Catalog& c);
+// A newer catalog put in use while the launcher is open (2026-11-27): every game keeps its Game (its index), a game
+// the new one lacks keeps its last entry (catalogs never drop one), and new games follow, up to kMaxGames. The
+// catalog it replaces stays alive (a thread may still hold its entries). False when `c` lacks one of the six known.
+bool replace_catalog(const Catalog& c);
 const Catalog& active_catalog();
 // The homes in use this run (the catalog in use's), by order: what the releases lists and the catalog fetch ask
 // before GitHub, and so what a download falls back on (other_homes).

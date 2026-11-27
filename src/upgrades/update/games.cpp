@@ -433,6 +433,37 @@ const Catalog& builtin_catalog() {
   return c;
 }
 
+bool replace_catalog(const Catalog& c) {
+  std::lock_guard<std::mutex> lock(g_active_mutex);
+  const Active* old = g_active.load(std::memory_order_relaxed);
+  if (!old) {
+    std::string missing;
+    const Active* a = make_active(c, &missing);
+    if (!a) return false;
+    g_active.store(a, std::memory_order_release);
+    return true;
+  }
+  Catalog cat = c;
+  for (const CatalogGame* e : old->by_game) {  // one it lacks: its last entry kept
+    bool there = false;
+    for (const CatalogGame& g : cat.games) there = there || g.key == e->key;
+    if (!there) cat.games.push_back(*e);
+  }
+  std::stable_sort(cat.games.begin(), cat.games.end(), [](const CatalogGame& x, const CatalogGame& y) { return x.order < y.order; });
+  auto* a = new Active{std::move(cat), {}, {}};  // kept for the run: GameInfo points into it
+  for (const CatalogGame* e : old->by_game)  // the games known keep their places
+    for (const CatalogGame& g : a->cat.games)
+      if (g.key == e->key) a->by_game.push_back(&g);
+  if (a->by_game.size() != old->by_game.size()) return delete a, false;
+  for (const CatalogGame& g : a->cat.games) {  // then the new ones
+    if (a->by_game.size() >= static_cast<size_t>(kMaxGames)) break;
+    if (std::find(a->by_game.begin(), a->by_game.end(), &g) == a->by_game.end()) a->by_game.push_back(&g);
+  }
+  for (const CatalogGame* e : a->by_game) a->info.push_back({e->key.c_str(), e->name.c_str(), e->repo.c_str(), e->tag_prefix.c_str(), e->program.c_str()});
+  g_active.store(a, std::memory_order_release);  // the old one never freed: a thread may still read it
+  return true;
+}
+
 bool use_catalog(const Catalog& c) {
   std::lock_guard<std::mutex> lock(g_active_mutex);
   if (g_active.load(std::memory_order_relaxed)) return false;
