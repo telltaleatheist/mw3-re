@@ -215,6 +215,7 @@ target_include_directories(launchertests PRIVATE tests extern/re-setup-kit/tests
 target_link_libraries(launchertests PRIVATE mw3launcherlib SDL3_ttf::SDL3_ttf)
 target_compile_definitions(launchertests PRIVATE MW3_TEST_TMP_ROOT="${CMAKE_BINARY_DIR}"
                                                  MW3_LAUNCHER_BIN="$<TARGET_FILE:mw3launcher>"
-                                                 MW3_ASSETS_FOR_TESTS="${CMAKE_SOURCE_DIR}/assets")
+                                                 MW3_ASSETS_FOR_TESTS="${CMAKE_SOURCE_DIR}/assets"
+                                                 MW3_TEST_FIXTURES="${CMAKE_SOURCE_DIR}/tests/fixtures")
 add_dependencies(launchertests mw3launcher)
 add_test(NAME launchertests COMMAND launchertests)

@@ -381,6 +381,19 @@ TEST(games_installed_record) {
 
 // The games catalog built in (games.json; docs/launcher-split.md b0, 2026-11-26): every family and game as the code's
 // tables had them before it (copied here as they were), read alone.
+// The shipped built-in catalog (refreshed from catalog/games.json at each launcher release; the checks use their own,
+// tests/fixtures/builtin-catalog.json): it reads, and every game it names is whole. That it is the live one is the
+// release's gate (tools/package/check_catalog.py), not a check here: the live catalog may move ahead between releases.
+TEST(games_catalog_shipped_reads) {
+  u::Catalog c;
+  std::string why;
+  const bool ok = u::parse_catalog(u::shipped_catalog_text(), &c, &why);
+  std::printf("  shipped: revision %d, %d games, %d families%s%s\n", c.revision, static_cast<int>(c.games.size()),
+              static_cast<int>(c.families.size()), ok ? "" : ": ", why.c_str());
+  EXPECT(ok && c.revision >= 1 && !c.games.empty() && !c.families.empty());
+  EXPECT(u::builtin_catalog_text() != u::shipped_catalog_text() || std::getenv("MW3_BUILTIN_CATALOG_FILE") == nullptr);
+}
+
 TEST(games_catalog_built_in_as_the_tables_were) {
   u::Catalog c;
   std::string why;

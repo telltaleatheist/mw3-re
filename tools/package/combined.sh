@@ -40,6 +40,8 @@ git -C "$dir" -c protocol.file.allow=always submodule update --init --quiet
 # The deps the package scripts read from the checkout (build_deps.sh's), linked in.
 [ -d "$ROOT/build-deps" ] && ln -s "$ROOT/build-deps" "$dir/build-deps"
 echo "main: $(git -C "$dir" describe --tags --always --dirty) ($(git -C "$dir" rev-parse --short HEAD))"
+# The built-in games catalog is the live one, its badges shipped (DEPLOY.md, step 1): refused otherwise.
+python3 -I tools/package/check_catalog.py "$dir"
 rm -rf "$OUT" && mkdir -p "$OUT"
 
 if [ "$PLATFORM" = mac ]; then

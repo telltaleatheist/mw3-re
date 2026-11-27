@@ -86,9 +86,14 @@ int main() {
   platform::set_pointer_hands_off(true);
   // SDL_MAC_BACKGROUND_APP (SDL's hint, read from the environment): on the Mac every test program and every program it
   // starts stays a background process, never taking the keyboard from the app in front (MW1 lead, 2026-11-23).
+  // The checks' own built-in games catalog (revision 1, as 1.8.0 shipped it), for this program and every launcher it
+  // starts: the shipped one follows the live catalog at each release (games_catalog_shipped_reads checks that one).
+  const std::string builtin = std::string(MW3_TEST_FIXTURES) + "/builtin-catalog.json";
 #if defined(_WIN32)
+  _putenv_s("MW3_BUILTIN_CATALOG_FILE", builtin.c_str());
   _putenv_s("MW3_POINTER_HANDS_OFF", "1");
 #else
+  setenv("MW3_BUILTIN_CATALOG_FILE", builtin.c_str(), 1);
   setenv("MW3_POINTER_HANDS_OFF", "1", 1);
   setenv("SDL_MAC_BACKGROUND_APP", "1", 1);
 #endif

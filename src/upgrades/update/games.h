@@ -83,7 +83,8 @@ struct Catalog {
 // A catalog's JSON read and checked: every key once, each game's family listed, a known state, the fields the
 // launcher needs present. False and `why` (the entry and what is wrong) when not.
 bool parse_catalog(const std::string& json, Catalog* out, std::string* why);
-const std::string& builtin_catalog_text();  // games.json as built in
+const std::string& builtin_catalog_text();  // games.json as built in (MW3_BUILTIN_CATALOG_FILE's in the checks)
+const char* shipped_catalog_text();         // games.json as built in, always
 const Catalog& builtin_catalog();
 // The catalog in use this run (b7, 2026-11-26): the built-in one unless the launcher's start set another (the fetched
 // one cached, merged over it) before any game was looked up. A later use_catalog is refused (false): the catalog's

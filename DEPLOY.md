@@ -118,8 +118,16 @@ Releases are cut by the lead session when the project owner clears them.
 1. **Get main ready:** the launcher's changes, its tests for what changed
    passing (`build/launchertests`), the release notes, and the catalog: a
    change to the games list goes in `catalog/games.json` with its `revision`
-   raised, and the built-in copy follows it at the launcher's next release,
-   its revision kept at or below the fetched one's.
+   raised, and the built-in copy follows it at the launcher's next release:
+   `catalog/games.json` (with its art sums) copied over
+   `src/upgrades/update/games.json`, and any new badge from `catalog/art`
+   into `assets/launcher`. The package build refuses otherwise
+   (`tools/package/check_catalog.py`, run by `combined.sh` and
+   `combined.cmd` on the tag's checkout): a launcher with an older built-in
+   shows an older list on any start without a signed cache (1.8.0 shipped
+   revision 1, with no Revenge, while 4 was live). The checks use their own
+   built-in (`tests/fixtures/builtin-catalog.json`, `MW3_BUILTIN_CATALOG_FILE`),
+   so they don't move with it.
 2. **Choose the version.** Features raise the second number, fixes alone the
    third (1.3.9 is followed by 1.3.10).
 3. **Tag locally, don't push yet:** `vX.Y.Z` on the hub's main.

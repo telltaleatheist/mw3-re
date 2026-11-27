@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <fstream>
 #include <iterator>
 #include <mutex>
 #include <tuple>
@@ -403,10 +404,21 @@ Catalog merged_catalog(const Catalog& builtin, const Catalog& fetched, std::vect
   return out;
 }
 
+// MW3_BUILTIN_CATALOG_FILE (checks): a fixed built-in read from that file in place of the shipped one, so the checks
+// do not follow the live catalog the shipped copy is refreshed from at each release (tests/fixtures).
 const std::string& builtin_catalog_text() {
-  static const std::string text = kBuiltinCatalog;
+  static const std::string text = [] {
+    if (const char* file = std::getenv("MW3_BUILTIN_CATALOG_FILE"); file && *file) {
+      std::ifstream f(file, std::ios::binary);
+      std::string t((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+      if (!t.empty()) return t;
+    }
+    return std::string(kBuiltinCatalog);
+  }();
   return text;
 }
+
+const char* shipped_catalog_text() { return kBuiltinCatalog; }
 
 const Catalog& builtin_catalog() {
   static const Catalog c = [] {

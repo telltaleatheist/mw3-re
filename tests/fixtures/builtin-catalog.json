@@ -1,0 +1,65 @@
+{
+  "catalog": 1,
+  "revision": 1,
+  "homes": [
+    {"key": "gh", "releases": "https://api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}", "order": 1},
+    {"key": "om", "releases": "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/{repo}/releases?limit=40", "order": 2}
+  ],
+  "families": [
+    {"key": "mw3", "name": "MechWarrior 3", "order": 1},
+    {"key": "mw1", "name": "MechWarrior 1", "order": 2},
+    {"key": "inception", "name": "The Crescent Hawk's Inception", "order": 3}
+  ],
+  "games": [
+    {
+      "key": "mw3", "family": "mw3", "order": 1, "state": "released",
+      "name": "MechWarrior 3", "title": "MECHWARRIOR 3", "heading": "MECHWARRIOR 3", "button": "MECHWARRIOR 3",
+      "description": "Zipper and MicroProse, 1999, rebuilt from the original Mech3.exe.",
+      "repo": "mech3-re", "tag_prefix": "v", "program": "mw3",
+      "assets": {"windows": "MW3-alone-{tag}-win64.zip", "mac": "MW3-alone-{tag}-mac.dmg", "linux": "MW3-alone-{tag}-x86_64.AppImage"},
+      "badge": "badge_mw3.png", "needs": [], "min_launcher": "1.5.2"
+    },
+    {
+      "key": "pm", "family": "mw3", "order": 2, "state": "released",
+      "name": "Pirate's Moon", "title": "PIRATE'S MOON", "heading": "MECHWARRIOR 3: PIRATE'S MOON", "button": "PIRATE'S MOON",
+      "description": "The 1999 expansion, rebuilt from its own exe. Plays without MW3.",
+      "repo": "mech3-pm-re", "tag_prefix": "pm-v", "program": "mw3pm",
+      "assets": {"windows": "mw3pm-{tag}-win64.zip", "mac": "PM-Rebuild-{tag}-mac.dmg", "linux": "PM-Rebuild-{tag}-x86_64.AppImage"},
+      "badge": "badge_pm.png", "needs": [], "min_launcher": "1.5.2"
+    },
+    {
+      "key": "mw1r", "family": "mw1", "order": 3, "state": "released",
+      "name": "MechWarrior 1 Rebuild", "title": "MECHWARRIOR 1: REVERSE ENGINEERED", "heading": "MECHWARRIOR 1",
+      "button": "MECHWARRIOR 1 ORIGINAL",
+      "description": "MechWarrior (1989), reverse engineered and rebuilt. Built on Elthial's SDL port. Bring your own DOS copy.",
+      "repo": "mech1-re", "tag_prefix": "mw1r-v", "program": "mw1r",
+      "assets": {"windows": "MW1-Rebuild-{tag}-win64.zip", "mac": "MW1-Rebuild-{tag}-mac.dmg", "linux": "MW1-Rebuild-{tag}-x86_64.AppImage"},
+      "badge": "badge_mw1o.png", "needs": [], "min_launcher": "1.5.2"
+    },
+    {
+      "key": "mw1", "family": "mw1", "order": 4, "state": "released",
+      "name": "MechWarrior 1 Remake", "title": "MECHWARRIOR 1 REMAKE", "heading": "MECHWARRIOR 1 REMAKE", "button": "MECHWARRIOR 1",
+      "description": "MechWarrior (1989)'s campaign, fought with MechWarrior 3's combat.",
+      "repo": "mech1-remake-re", "tag_prefix": "mw1-v", "program": "mw1",
+      "assets": {"windows": "MW1-Remake-{tag}-win64.zip", "mac": "MW1-Remake-{tag}-mac.dmg", "linux": "MW1-Remake-{tag}-x86_64.AppImage"},
+      "badge": "badge_mw1.png", "needs": ["mw3", "pm"], "min_launcher": "1.5.2"
+    },
+    {
+      "key": "chi", "family": "inception", "order": 5, "state": "released",
+      "name": "Inception Rebuild", "title": "THE CRESCENT HAWK'S INCEPTION", "heading": "THE CRESCENT HAWK'S INCEPTION",
+      "button": "INCEPTION ORIGINAL",
+      "description": "The 1988 game, rebuilt. Bring your own copy: DOS 1.03 or Amiga 2.3.",
+      "repo": "inception-re", "tag_prefix": "chi-v", "program": "chi",
+      "assets": {"windows": "CHI-Rebuild-{tag}-win64.zip", "mac": "CHI-Rebuild-{tag}-mac.dmg", "linux": "CHI-Rebuild-{tag}-x86_64.AppImage"},
+      "badge": "badge_inception.png", "needs": [], "min_launcher": "1.5.2"
+    },
+    {
+      "key": "chirm", "family": "inception", "order": 6, "state": "coming_soon", "panel_before_release": false,
+      "name": "Inception Remake", "title": "INCEPTION REMAKE", "heading": "INCEPTION REMAKE", "button": "INCEPTION REMAKE",
+      "description": "The Crescent Hawk's Inception (1988), remade.",
+      "repo": "inception-remake-re", "tag_prefix": "chirm-v", "program": "chirm",
+      "assets": {"windows": "CHI-Remake-{tag}-win64.zip", "mac": "CHI-Remake-{tag}-mac.dmg", "linux": "CHI-Remake-{tag}-x86_64.AppImage"},
+      "badge": "badge_inception.png", "needs": [], "min_launcher": "1.5.2"
+    }
+  ]
+}
