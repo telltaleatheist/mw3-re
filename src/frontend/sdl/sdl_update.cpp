@@ -176,7 +176,7 @@ bool curl_get(const std::string& url, int seconds, std::string* out, std::string
   return true;
 }
 
-bool curl_download(const std::string& url, const std::string& to, uint64_t size, const std::function<bool(double)>& progress,
+bool curl_download(const std::string& url, const std::string& to, uint64_t size, const DownloadFn& progress,
                    std::string* error, bool* cancelled, bool allow_file) {
   *cancelled = false;
   const std::string curl = curl_path();
@@ -205,7 +205,7 @@ bool curl_download(const std::string& url, const std::string& to, uint64_t size,
   SDL_IOStream* io = SDL_GetProcessOutput(p);
   for (;;) {  // the bar (and a cancel) asked before each wait, so even a quick copy can be stopped
     const uint64_t got = fs::exists(part, ec) ? static_cast<uint64_t>(fs::file_size(part, ec)) : 0;
-    if (g_stop_asking || (progress && !progress(size ? std::min(1.0, static_cast<double>(got) / static_cast<double>(size)) : 0.0))) {  // a cancel, or the launcher closing
+    if (g_stop_asking || (progress && !progress(size ? std::min(1.0, static_cast<double>(got) / static_cast<double>(size)) : 0.0, got, false))) {  // a cancel, or the launcher closing
       SDL_KillProcess(p, true);
       wait_quiet(p, true, &code);
       SDL_DestroyProcess(p);
@@ -250,7 +250,7 @@ std::string host_of(const std::string& url) {
 }  // namespace
 
 Fetched download_checked(const upgrades::update::Release& r, const std::string& name, const std::string& path,
-                         const std::function<bool(double)>& progress, bool allow_file, const char* log) {
+                         const DownloadFn& progress, bool allow_file, const char* log) {
   namespace u = upgrades::update;
   std::vector<const std::vector<u::Asset>*> homes = {&r.assets};
   std::vector<bool> unsigned_ok = {r.unsigned_sums};
@@ -334,6 +334,12 @@ Fetched download_checked(const upgrades::update::Release& r, const std::string& 
       fail(f, k, "the download stopped: " + error);
       continue;
     }
+    if (progress && !progress(1.0, file->size, true)) {  // its bytes in: checked next (a cancel here keeps nothing)
+      fs::remove(path, ec);
+      Fetched c;
+      c.why = Fetched::kCancelled;
+      return c;
+    }
     const std::string got = rekit::sha256_file_hex(path);
     if (got != want) {
       fs::remove(path, ec);
@@ -350,7 +356,7 @@ Fetched download_checked(const upgrades::update::Release& r, const std::string& 
   return first;
 }
 
-Downloaded download_update(const upgrades::update::Release& r, const std::string& dir, const std::function<bool(double)>& progress) {
+Downloaded download_update(const upgrades::update::Release& r, const std::string& dir, const DownloadFn& progress) {
   namespace u = upgrades::update;
   Downloaded d;
   const bool allow_file = std::getenv("MW3_UPDATE_API") != nullptr;  // checks: a fixture's file:// assets

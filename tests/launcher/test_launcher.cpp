@@ -1,6 +1,7 @@
 // The launcher's tests (docs/launcher.md): its screens, the update check and games on demand, each game a
 // stand-in script answering as the game would (docs/launcher-split.md, The tests that start mw3 beside the launcher).
 #include <sstream>
+#include "frontend/sdl/launcher_job.h"
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -767,6 +768,7 @@ TEST(sdl_program_launcher_rechecks_while_open) {
       const size_t work = std::min(after.find("screen work"), after.size());  // none: the check below fails, the run goes on
       std::printf("    %s\n", after.substr(work, 600).c_str());
       EXPECT(work < after.size() && has(after.substr(work), "screen main: "));
+      EXPECT(has(after, "job: Updates: game:pm 0.0 MB, launcher 0.0 MB (0.0 MB in all)") && has(after, "job: ended at "));  // one bar for them all
     }
     if (!check::failures) fs::remove_all(d, ec);
   }
@@ -1709,6 +1711,168 @@ TEST(sdl_program_launcher_gets_a_games_original_files) {
   if (!check::failures) fs::remove_all(base, ec);
 }
 
+// One bar for a DOWNLOAD (2026-11-27, docs/launcher.md, One bar for a press), served slowly (FIFOs fed at a pace):
+// the game's .zip and its original files (the catalog's size and note) one rising total, each part named on the smaller
+// line, the speed once settled, then the setup; a status that says the game has its files leaves the original out
+// (said, the total smaller); CANCEL while the original comes keeps the game installed and leaves no .part.
+TEST(sdl_program_launcher_shows_one_bar_for_a_download) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string base = std::string(MW3_TEST_TMP) + "/launcher_one_bar";
+  fs::remove_all(base, ec);
+  fs::create_directories(base + "/src", ec);
+  const std::string good(300000, 'o');
+  const std::string good_sum = rekit::sha256_hex(reinterpret_cast<const uint8_t*>(good.data()), good.size());
+  std::ofstream(base + "/src/good.zip", std::ios::binary) << good;
+  std::string pad(200000, '\0');  // the game's .zip about 0.2 MB: bytes that do not compress
+  uint32_t x = 12345;
+  for (char& c : pad) x = x * 1103515245u + 12345u, c = static_cast<char>(x >> 24);
+  auto read = [](const std::string& f) {
+    std::ifstream in(f, std::ios::binary);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  struct Run {
+    std::string log;
+    bool exited = false;
+    std::string dir;
+  };
+  // A slow server: `bytes` into the FIFO `path`, `chunk` at a time every `ms`, once a reader opens it (curl's file://).
+  std::atomic<bool> stop{false};
+  auto feed = [&stop](const std::string& path, const std::string& bytes, size_t chunk, int ms) {
+    return std::thread([&stop, path, bytes, chunk, ms] {
+      int fd = -1;
+      while (!stop && (fd = ::open(path.c_str(), O_WRONLY | O_NONBLOCK)) < 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      if (fd < 0) return;
+      ::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL) & ~O_NONBLOCK);
+      for (size_t at = 0; at < bytes.size() && !stop; at += chunk) {
+        if (::write(fd, bytes.data() + at, std::min(chunk, bytes.size() - at)) < 0) break;  // its reader gone (a CANCEL)
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+      }
+      ::close(fd);
+    });
+  };
+  const auto pipe_was = std::signal(SIGPIPE, SIG_IGN);  // a CANCEL closes the reading end
+  auto run = [&](const char* name, bool has_files, int original_ms, const char* cancel_at) {
+    Run r;
+    const std::string dir = r.dir = base + "/" + name;
+    for (const char* d : {"/api", "/games", "/wd/music", "/tmp", "/rel"}) fs::create_directories(dir + d, ec);
+    std::ofstream(dir + "/wd/music/track02.wav") << "x";
+    if (has_files) std::ofstream(dir + "/files-in") << "x";
+    for (const char* repo : {"mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re", "revenge-re"})
+      std::ofstream(dir + "/api/" + repo + ".json") << "[]";
+    const std::string sh = "#!/bin/sh\nR='" + dir + "'\necho \"$*\" >> \"$R/asked\"\ncase \"$1 $2\" in\n"
+                           "'--status ') if [ -f \"$R/files-in\" ]; then ST=ready; else ST=missing; fi\n"
+                           "  echo '{\"kit\": 1, \"game\": \"btech\", \"version\": \"0.1.0\", \"files\": {\"state\": \"'$ST'\"}, \"first_run\": {\"pending\": []}, "
+                           "\"needs\": [], \"setup\": 1}';;\n"
+                           "'--setup --look') echo '{\"done\": true, \"ok\": true, \"words\": \"A copy of BattleTech.\", \"into\": \"'\"$R\"'/files\"}';;\n"
+                           "'--setup --install') echo '{\"done\": false, \"at\": 500000, \"stage\": \"Copying the game files\", \"message\": \"\"}'; sleep 1\n"
+                           "  : > \"$R/files-in\"; echo '{\"done\": true, \"ok\": true, \"where\": \"'\"$R\"'/files\", \"summary\": \"BattleTech is set up.\"}';;\n"
+                           "*) : > \"$R/played\";;\nesac\nexit 0\n";
+    const std::string zip = dir + "/rel/BT-btech-v0.1.0-test.zip";
+    archive* a = archive_write_new();
+    archive_write_set_format_zip(a);
+    archive_write_open_filename(a, (zip + ".real").c_str());
+    for (const auto& [path, bytes] : {std::pair<std::string, const std::string*>{"btech", &sh}, {"pad.bin", &pad}}) {
+      archive_entry* e = archive_entry_new();
+      archive_entry_set_pathname(e, path.c_str());
+      archive_entry_set_size(e, static_cast<la_int64_t>(bytes->size()));
+      archive_entry_set_filetype(e, AE_IFREG);
+      archive_entry_set_perm(e, 0755);
+      archive_write_header(a, e);
+      archive_write_data(a, bytes->data(), bytes->size());
+      archive_entry_free(e);
+    }
+    archive_write_close(a);
+    archive_write_free(a);
+    const std::string zbytes = read(zip + ".real");
+    const std::string src = dir + "/good.zip";
+    EXPECT(::mkfifo(zip.c_str(), 0600) == 0 && ::mkfifo(src.c_str(), 0600) == 0);
+    std::ofstream(dir + "/rel/SHA256SUMS") << rekit::sha256_hex(reinterpret_cast<const uint8_t*>(zbytes.data()), zbytes.size()) << "  BT-btech-v0.1.0-test.zip\n";
+    std::ofstream(dir + "/api/battletech-re.json")
+        << "[{\"tag_name\": \"btech-v0.1.0\", \"draft\": false, \"prerelease\": false, \"body\": \"x\", \"assets\": [{\"name\": \"BT-btech-v0.1.0-test.zip\", "
+           "\"size\": " << zbytes.size() << ", \"browser_download_url\": \"file://" << zip << "\"}, {\"name\": \"SHA256SUMS\", \"size\": 10, "
+           "\"browser_download_url\": \"file://" << dir << "/rel/SHA256SUMS\"}]}]";
+    std::ofstream(dir + "/catalog.json")
+        << "{\"catalog\": 1, \"revision\": 4, \"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": [{\"key\": \"btech\", "
+           "\"family\": \"bt\", \"order\": 7, \"state\": \"released\", \"name\": \"BattleTech Rebuild\", \"title\": \"BATTLETECH\", \"heading\": "
+           "\"BATTLETECH\", \"button\": \"BATTLETECH\", \"description\": \"A line.\", \"repo\": \"battletech-re\", \"tag_prefix\": \"btech-v\", "
+           "\"program\": \"btech\", \"assets\": {\"windows\": \"BT-{tag}-test.zip\", \"mac\": \"BT-{tag}-test.zip\", \"linux\": \"BT-{tag}-test.zip\"}, "
+           "\"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\", \"original\": [{\"url\": \"file://" << src << "\", \"sha256\": \""
+        << good_sum << "\", \"size\": " << good.size() << ", \"name\": \"BT disc.zip\", \"note\": \"a test server\"}]}]}";
+    std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_CATALOG_URL", "file://" + dir + "/catalog.json"},
+        {"MW3_LAUNCHER_FRAMES", "1200"}, {"MW3_LAUNCHER_GAME_INSTALL", "btech"}, {"MW3_NO_IMPORT", "1"}, {"TMPDIR", dir + "/tmp"}, {"MW3_PM_BIN", ""}, {"MW3_MW1_BIN", ""}, {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}};
+    if (cancel_at) env.push_back({"MW3_LAUNCHER_CANCEL_AT", cancel_at});
+    const char* tmp_was = std::getenv("TMPDIR");
+    const std::string tmp_keep = tmp_was ? tmp_was : "";
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    stop = false;
+    std::thread zip_feed = feed(zip, zbytes, 16000, 150), src_feed = feed(src, good, 16000, original_ms);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/launcher.log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    if (tmp_was) setenv("TMPDIR", tmp_keep.c_str(), 1);
+    int status = 0;
+    r.exited = waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    stop = true;
+    zip_feed.join(), src_feed.join();
+    r.log = read(dir + "/launcher.log");
+    std::printf("one bar, %s:\n", name);
+    std::string last;
+    for (size_t at = 0; (at = r.log.find("launcher: job: ", at)) != std::string::npos; ++at) {
+      const std::string l = r.log.substr(at + 15, r.log.find('\n', at) - at - 15);
+      const size_t bar = l.find(" | ");
+      const std::string part = bar == std::string::npos ? l : l.substr(bar);
+      if (part != last) std::printf("    %s\n", l.c_str());
+      last = part;
+    }
+    return r;
+  };
+  // Every logged line's total, its fraction never falling, the parts named.
+  auto lines = [](const std::string& log) {
+    std::vector<std::string> out;
+    for (size_t at = 0; (at = log.find("launcher: job: ", at)) != std::string::npos; ++at) out.push_back(log.substr(at + 15, log.find('\n', at) - at - 15));
+    return out;
+  };
+  {  // the game, then its original files: one total, rising
+    const Run r = run("total", false, 150, nullptr);
+    const std::vector<std::string> ls = lines(r.log);
+    double last = -1;
+    bool rising = true, totals = true, speed = false;
+    std::string zip_mb;
+    for (const std::string& l : ls) {
+      const size_t open = l.rfind(" ("), of = l.find(" of ");
+      if (l.find(" | ") != std::string::npos && open != std::string::npos) {
+        const double f = std::atof(l.c_str() + open + 2);
+        if (f < last) std::printf("    fell: %s\n", l.c_str());
+        rising = rising && f >= last, last = f;
+      }
+      if (l.rfind("BattleTech Rebuild: ", 0) == 0 && of != std::string::npos) totals = totals && l.compare(of, 13, " of 0.5 MB \xc2\xb7") == 0;
+      speed = speed || l.find(" KB/s \xc2\xb7 ") != std::string::npos;
+    }
+    EXPECT(r.exited && has(r.log, "job: BattleTech Rebuild: game:btech 0.2 MB, original:btech 0.3 MB, setup:btech (0.5 MB in all)"));
+    EXPECT(rising && totals && speed);
+    EXPECT(has(r.log, " | the game (0.2 MB) (") && has(r.log, " | the original game files from a test server (0.3 MB) (") &&
+           has(r.log, "BattleTech Rebuild: Copying the game files | setting up ("));
+    EXPECT(has(r.log, "job: ended at 0.5 of 0.5 MB: ") && has(r.log, "(1.000)\n") && has(r.log, "BattleTech is set up.") && fs::exists(r.dir + "/files-in"));
+  }
+  {  // its status says it has its files: the original left out, said
+    const Run r = run("has-files", true, 150, nullptr);
+    EXPECT(r.exited && has(r.log, "job: original:btech left out: BattleTech Rebuild has its game files already: nothing more to download (0.2 MB in all)"));
+    EXPECT(has(r.log, "job: ended at 0.2 of 0.2 MB: ") && has(r.log, "| BattleTech Rebuild has its game files already: nothing more to download (1.000)"));
+    EXPECT(!has(r.log, "work: GETTING THE ORIGINAL GAME FILES"));
+  }
+  {  // CANCEL while the original comes: the game installed, no .part, nothing set up
+    const Run r = run("cancel", false, 400, "original:btech");
+    EXPECT(r.exited && has(r.log, "CANCEL pressed during original:btech") && has(r.log, "games: btech now btech-v0.1.0 at "));
+    bool part_left = false;
+    for (const auto& e : fs::recursive_directory_iterator(r.dir + "/tmp", ec)) part_left = part_left || e.path().extension() == ".part" || e.path().filename() == "BT disc.zip";
+    EXPECT(!part_left && !fs::exists(r.dir + "/files-in") && fs::exists(r.dir + "/games"));
+    EXPECT(has(r.log, "job: ended at ") && !has(r.log, "BattleTech is set up."));
+  }
+  std::signal(SIGPIPE, pipe_was);
+  if (!check::failures) fs::remove_all(base, ec);
+}
+
 // A catalog fetched while the launcher is open (2026-11-27, docs/launcher.md, A catalog fetched while open): put in use
 // as soon as it lands and checks, never one start later; the list on screen at once, the new cards swapped in. A
 // stand-in serves a newer catalog (signed by test key 1) adding a game. "open": the start's fetch on its thread (as a
@@ -1912,6 +2076,7 @@ TEST(sdl_program_launcher_takes_a_catalog_while_open) {
         for (size_t a = 0; (a = old_log.find(what, a)) != std::string::npos; a = old_log.find('\n', a))
           std::printf("    old: %s\n", old_log.substr(old_log.rfind('\n', a) + 1, old_log.find('\n', a) - old_log.rfind('\n', a) - 1).c_str());
     EXPECT(has(old_log, "launcher: update: Installed. The BattleTech launcher starts again now.") && !has(old_log, "BATTLETECH"));
+    EXPECT(has(old_log, "job: The BattleTech launcher: launcher ") && has(old_log, " | the launcher's update ("));  // its one bar
     EXPECT(read(dir + "/relaunched.done") == "0\n" && has(log, "catalog: the built-in one (revision 1)"));
     EXPECT(has(log, "catalog: revision 2 in use (fetched while open") && !has(line(log, "screen main: "), "BATTLETECH") &&
            has(line(log, "screen main: ", true), "BATTLETECH, BATTLETECH SETTINGS, CHECK FOR UPDATES"));
@@ -2173,7 +2338,7 @@ TEST(sdl_update_download_and_its_check) {
   // Good.
   sums(sum + "  " + ours + "\n");
   int calls = 0;
-  sdlfe::Downloaded d = sdlfe::download_update(r, to, [&](double) { return ++calls, true; });
+  sdlfe::Downloaded d = sdlfe::download_update(r, to, [&](double, uint64_t, bool) { return ++calls, true; });
   std::printf("  good: %s (%d progress calls)\n", d.words.c_str(), calls);
   EXPECT(d.ok && d.path == (fs::path(to) / ours).string() && fs::file_size(d.path, ec) == bytes.size() && calls > 0 && leftovers() == 1);
   // A wrong sum: removed.
@@ -2192,7 +2357,7 @@ TEST(sdl_update_download_and_its_check) {
   EXPECT(sdlfe::download_update(no_package, to, nullptr).words.rfind("This release has no ", 0) == 0);
   // Cancelled at once: nothing kept, said so.
   sums(sum + "  " + ours + "\n");
-  d = sdlfe::download_update(r, to, [](double) { return false; });
+  d = sdlfe::download_update(r, to, [](double, uint64_t, bool) { return false; });
   std::printf("  canceled: %s\n", d.words.c_str());
   EXPECT(!d.ok && d.cancelled && d.words.find("canceled") != std::string::npos && leftovers() == 0);
   // The package gone from the release's place: curl's reason.
@@ -2420,7 +2585,7 @@ TEST(sdl_update_download_falls_back_to_the_backup) {
   // Cancelled on GitHub's: the backup is not tried.
   lay();
   int calls = 0;
-  d = sdlfe::download_update(r, to, [&](double) { return ++calls, false; });
+  d = sdlfe::download_update(r, to, [&](double, uint64_t, bool) { return ++calls, false; });
   EXPECT(!d.ok && d.cancelled && calls == 1);
   unsetenv("MW3_UPDATE_API");
   fs::remove_all(dir, ec);
@@ -2678,3 +2843,79 @@ namespace {
 
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 #endif
+
+// One bar for a press (2026-11-27, docs/launcher.md, One bar for a press), on a fake clock: two parts of known sizes
+// give one rising total; the speed settles after "starting..."; the time left; a part dropped (its game has its files)
+// leaves the total and says why; a stall says "waiting for the server..."; no size known, MB only; a setup's share of
+// the bar after the bytes.
+TEST(launcher_job_one_bar_for_a_press) {
+  using sdlfe::job::Job;
+  const std::string dot = " \xc2\xb7 ";
+  {  // two files, 300,000 and 200,000 bytes: one total, rising across the part's change
+    Job j("BattleTech", {{"game:btech", "the game", 300000}, {"original:btech", "the original game files from file", 200000}});
+    double last = -1;
+    bool rising = true;
+    for (int s = 0; s <= 30; ++s) {
+      const double t = s * 0.5;
+      if (s <= 15) j.bytes("game:btech", 20000ull * s, t);
+      else j.bytes("original:btech", 13333ull * (s - 15) + (s == 30 ? 5 : 0), t);
+      const sdlfe::job::View v = j.view(t);
+      rising = rising && v.fraction >= last, last = v.fraction;
+      if (s == 1 || s == 10 || s == 16 || s == 30) std::printf("  t %.1f: %.3f %s | %s\n", t, v.fraction, v.line.c_str(), v.part.c_str());
+      if (s == 1) EXPECT(v.line == "BattleTech: 0.0 of 0.5 MB" + dot + "starting..." && v.part == "the game (0.3 MB)");
+      if (s == 10) EXPECT(v.line == "BattleTech: 0.2 of 0.5 MB" + dot + "40 KB/s" + dot + "less than a minute left");
+      if (s == 16) EXPECT(v.line == "BattleTech: 0.3 of 0.5 MB" + dot + "starting..." && v.part == "the original game files from file (0.2 MB)");
+    }
+    EXPECT(rising && j.total() == 500000 && j.got() == 500000 && std::fabs(last - 1.0) < 1e-9);
+  }
+  {  // the lead's example: 287 of 668 MB at 4.1 MB/s, about 2 min left
+    Job k("MechWarrior 3", {{"game:mw3", "the game", 43000000}, {"original:mw3", "the original game files from the Internet Archive", 625000000},
+                            {"setup:mw3", "setting up", 0, true}});
+    k.bytes("game:mw3", 43000000, 0);
+    for (int s = 0; s <= 6; ++s) k.bytes("original:mw3", 219400000ull + 4100000ull * s, 1 + s);
+    const sdlfe::job::View w = k.view(7);
+    std::printf("  %s | %s (%.3f)\n", w.line.c_str(), w.part.c_str(), w.fraction);
+    EXPECT(w.line == "MechWarrior 3: 287 of 668 MB" + dot + "4.1 MB/s" + dot + "about 2 min left");
+    EXPECT(w.part == "the original game files from the Internet Archive (625 MB)");
+    EXPECT(std::fabs(w.fraction - 0.85 * 287.0 / 668.0) < 0.002);
+    // Its check, then the setup's share by its own fractions.
+    k.stage("original:mw3", "Checking the original game files", 0, 8);
+    EXPECT(k.view(8).line == "MechWarrior 3: Checking the original game files" && std::fabs(k.view(8).fraction - 0.85) < 1e-9);
+    k.stage("setup:mw3", "Copying the game files", 0.5, 9);
+    std::printf("  %s | %s (%.3f)\n", k.view(9).line.c_str(), k.view(9).part.c_str(), k.view(9).fraction);
+    EXPECT(k.view(9).line == "MechWarrior 3: Copying the game files" && k.view(9).part == "setting up" && std::fabs(k.view(9).fraction - 0.925) < 1e-9);
+  }
+  {  // the game's status says it has its files: the original and its setup dropped, said; the bar jumps forward
+    Job j("MechWarrior 3", {{"game:mw3", "the game", 43000000}, {"original:mw3", "the original game files from the Internet Archive", 625000000},
+                            {"setup:mw3", "setting up", 0, true}});
+    j.bytes("game:mw3", 21500000, 0);
+    EXPECT(j.total() == 668000000 && j.view(0).line.rfind("MechWarrior 3: 22 of 668 MB", 0) == 0);
+    j.stage("game:mw3", "Unpacking", 0, 1);
+    j.drop("original:mw3", "MechWarrior 3 has its game files already: nothing more to download");
+    j.drop("setup:mw3", "MechWarrior 3 has its game files already: nothing more to download");
+    const sdlfe::job::View v = j.view(2);
+    std::printf("  dropped: %s | %s (%.3f)\n", v.line.c_str(), v.part.c_str(), v.fraction);
+    EXPECT(j.total() == 43000000 && !j.has("original:mw3") && v.fraction == 1.0 && v.part == "MechWarrior 3 has its game files already: nothing more to download");
+  }
+  {  // a stall: waiting for the server before curl's minute ends it
+    Job j("PM", {{"game:pm", "the game", 10000000}});
+    j.bytes("game:pm", 0, 0);
+    j.bytes("game:pm", 1000000, 1);
+    j.bytes("game:pm", 2000000, 3);
+    j.bytes("game:pm", 2000000, 12);
+    EXPECT(j.view(12).line.find("waiting") == std::string::npos);
+    j.bytes("game:pm", 2000000, 13.5);
+    std::printf("  stalled: %s\n", j.view(13.5).line.c_str());
+    EXPECT(j.view(13.5).line == "PM: 2.0 of 10 MB" + dot + "waiting for the server...");
+    j.bytes("game:pm", 2100000, 14);
+    EXPECT(j.view(14).line.find("waiting") == std::string::npos);
+  }
+  {  // no size known: MB done only
+    Job j("Revenge", {{"game:rev", "the game", 0}});
+    j.bytes("game:rev", 0, 0);
+    j.bytes("game:rev", 1500000, 3);
+    EXPECT(j.view(3).line == "Revenge: 1.5 MB" && j.view(3).part == "the game");
+  }
+  EXPECT(sdlfe::job::left_words(30) == "less than a minute left" && sdlfe::job::left_words(4800) == "about 1 h 20 min left" &&
+         sdlfe::job::speed_words(850000) == "850 KB/s" && sdlfe::job::mb(624970304) == "625 MB");
+}

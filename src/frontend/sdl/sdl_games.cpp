@@ -393,7 +393,7 @@ u::GameCheck check(u::Game g, const std::string& installed_tag) {
   return u::judge_game(g, installed_tag, answers, u::this_platform());
 }
 
-Done install_release(const std::string& root, u::Game g, const u::Release& r, const Progress& progress) {
+Done install_release(const std::string& root, u::Game g, const u::Release& r, const Progress& progress, const Meter* meter) {
   Done d;
   d.game = g;
   const std::string name = u::game_info(g).name, version = u::game_version(r.tag);
@@ -406,8 +406,14 @@ Done install_release(const std::string& root, u::Game g, const u::Release& r, co
   fs::create_directories(dl_dir, ec);
   const std::string path = (dl_dir / file->name).string();
   // GitHub first, git.owenmorgan.com when it fails (download_checked), each against its SHA256SUMS line.
-  const Fetched f = download_checked(r, file->name, path, [&](double x) { return !progress || progress(x * 0.8, "Downloading " + name + " " + version); },
+  const Fetched f = download_checked(r, file->name, path,
+                                     [&](double x, uint64_t got, bool checking) {
+                                       if (meter && checking && meter->ended) meter->ended();
+                                       else if (meter && !checking && meter->bytes) meter->bytes(got);
+                                       return !progress || progress(x * 0.8, checking ? std::string("Checking the download") : "Downloading " + name + " " + version);
+                                     },
                                      allow_file(), "games download");
+  if (meter && meter->ended) meter->ended();  // a failure's words, a cancel: past the bytes
   switch (f.why) {
     case Fetched::kOk: break;
     case Fetched::kCancelled: d.cancelled = true; return d.words = "The download was canceled. Nothing was installed.", d;
@@ -618,7 +624,7 @@ std::string originals_dir() {
 }
 
 Done get_original(const std::string& bin, const std::vector<u::CatalogGame::Original>& sources, const std::vector<std::string>& more,
-                  const std::string& folder, const Progress& progress) {
+                  const std::string& folder, const Progress& progress, const Meter* meter) {
   Done d;
   std::error_code ec;
   const fs::path dir = originals_dir();
@@ -633,8 +639,13 @@ Done get_original(const std::string& bin, const std::vector<u::CatalogGame::Orig
     const fs::path file = dir / s.name;
     std::string error;
     bool cancelled = false;
-    const bool fetched = curl_download(s.url, file.string(), s.size, [&](double x) { return !progress || progress(x * 0.6, "Getting the original game files"); },
+    const bool fetched = curl_download(s.url, file.string(), s.size,
+                                       [&](double x, uint64_t got, bool) {
+                                         if (meter && meter->bytes) meter->bytes(got);
+                                         return !progress || progress(x * kOriginalSetupFrom, "Getting the original game files");
+                                       },
                                        &error, &cancelled, allow_file());
+    if (meter && meter->ended) meter->ended();
     if (cancelled) {
       fs::remove(file, ec), fs::remove(file.string() + ".part", ec);
       return d.cancelled = true, d.words = "canceled", d;
@@ -642,7 +653,7 @@ Done get_original(const std::string& bin, const std::vector<u::CatalogGame::Orig
     std::string bad;
     if (!fetched) bad = error.empty() ? "it could not be downloaded" : error;
     else if (fs::file_size(file, ec) != s.size) bad = "it is " + std::to_string(fs::file_size(file, ec)) + " bytes, not " + std::to_string(s.size);
-    else if (progress && !progress(0.6, "Checking the original game files")) {
+    else if (progress && !progress(kOriginalSetupFrom, "Checking the original game files")) {
       fs::remove(file, ec);
       return d.cancelled = true, d.words = "canceled", d;
     } else if (rekit::sha256_file_hex(file.string()) != s.sha256) bad = "it does not match its SHA-256";
@@ -665,9 +676,10 @@ Done get_original(const std::string& bin, const std::vector<u::CatalogGame::Orig
     return [&progress, from, span](const rekit::SetupMessage& m) { return !progress || progress(from + span * m.fraction, m.stage); };
   };
   rekit::SetupMessage look, done;
+  if (meter && meter->setup) meter->setup();
   std::vector<std::string> args{"--look", got.string()};
   args.insert(args.end(), more.begin(), more.end());
-  if (!kit_setup(bin, args, 0, step(0.6, 0.1), &look) || !look.ok) {
+  if (!kit_setup(bin, args, 0, step(kOriginalSetupFrom, 0.1), &look) || !look.ok) {
     d.cancelled = look.cancelled;
     tidy();
     return d.words = "its setup did not take the file" + (look.summary.empty() ? std::string() : ": " + look.summary), d;

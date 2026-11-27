@@ -27,6 +27,7 @@
 #include "frontend/sdl/launcher_own.h"
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/sdl_catalog.h"
+#include "frontend/sdl/launcher_job.h"
 #include "frontend/sdl/sdl_games.h"
 #include "upgrades/update/games.h"
 
@@ -283,6 +284,14 @@ struct Work {
   own::Result result;
   std::atomic<bool> cancel{false}, done{false};
   std::string title;
+  // Its share of the press's one bar (launcher_job.h): the parts it fills, its download's bytes, and its phase (0 not
+  // yet, 1 the bytes coming, 2 past them, 3 the game's setup).
+  std::string job_key, setup_key;
+  std::atomic<uint64_t> got{0};
+  std::atomic<int> phase{0};
+  sdlfe::games::Meter meter() {
+    return {[this](uint64_t g) { got = g, phase = 1; }, [this] { phase = 2; }, [this] { phase = 3; }};
+  }
   enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData, kUpdateDownload, kGameInstall, kGameFileCheck, kUninstall, kKitLook, kKitInstall, kOriginal } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
   ~Work() {
     cancel = true;
@@ -351,6 +360,11 @@ class Launcher {
 
  private:
   void start_catalog_fetch(const char* why);
+  job::Part game_part(int i, const char* words) const;
+  void add_original_parts(int i, std::vector<job::Part>* parts) const;
+  void start_job(const std::string& name, std::vector<job::Part> parts);
+  void job_drop(int i, const std::string& why);
+  void job_tick();
   void take_catalog();
   const char* catalog_waits_for() const;
   void find_install();
@@ -633,7 +647,13 @@ class Launcher {
   std::thread catalog_th_;
   std::atomic<bool> catalog_done_{false}, catalog_new_{false};
   bool catalog_asking_ = false, catalog_pending_ = false;
-  bool game_install_pressed_ = false;  // MW3_LAUNCHER_GAME_INSTALL's press made (checks): once, not again at a later games check
+  bool game_install_pressed_ = false;
+  // One bar for a press (2026-11-27, docs/launcher.md, One bar for a press): DOWNLOAD (the game, its original files,
+  // their setup), UPDATE, UPDATE ALL, the launcher's own update; its parts' bytes one total.
+  std::unique_ptr<job::Job> job_;
+  std::string job_said_;     // its last logged part line
+  Uint64 job_logged_ms_ = 0;
+  bool job_cancel_pressed_ = false;  // MW3_LAUNCHER_CANCEL_AT's press (checks)  // MW3_LAUNCHER_GAME_INSTALL's press made (checks): once, not again at a later games check
   std::string catalog_waiting_;  // what the newer one waits for, said once
   Uint64 catalog_next_ms_ = 0;   // the next fetch every few hours (MW3_CATALOG_EVERY_S, checks; 4 h)
   // The launcher's own update, asked at every start (2026-11-23): check_for_updates on a thread, both homes,
@@ -1241,6 +1261,81 @@ void Launcher::take_catalog() {
   layout();
 }
 
+// A game's release as a part of the bar: the file for this computer, its size from the releases list.
+job::Part Launcher::game_part(int i, const char* words) const {
+  using namespace upgrades::update;
+  const Game g = game_at(i);
+  const Asset* a = game_asset(g, checks_[i].release, this_platform());
+  return {std::string("game:") + game_info(g).key, words, a ? static_cast<uint64_t>(a->size) : 0};
+}
+
+// Its original files (the catalog's first source: its "size", its "note" or its host) and their setup.
+void Launcher::add_original_parts(int i, std::vector<job::Part>* parts) const {
+  using namespace upgrades::update;
+  const CatalogGame& e = catalog_game(game_at(i));
+  if (e.original.empty()) return;
+  const CatalogGame::Original& o = e.original.front();
+  std::string from = o.note;
+  if (from.empty()) {
+    const size_t at = o.url.find("://");
+    from = at == std::string::npos ? o.url : o.url.substr(at + 3, o.url.find('/', at + 3) - at - 3);
+  }
+  parts->push_back({"original:" + e.key, "the original game files from " + from, static_cast<uint64_t>(o.size)});
+  parts->push_back({"setup:" + e.key, "setting up", 0, true});
+}
+
+void Launcher::start_job(const std::string& name, std::vector<job::Part> parts) {
+  std::string said;
+  for (const job::Part& p : parts) said += (said.empty() ? "" : ", ") + p.key + (p.bytes ? " " + job::mb(p.bytes) : std::string());
+  job_ = std::make_unique<job::Job>(name, std::move(parts));
+  job_said_.clear(), job_logged_ms_ = 0;
+  std::printf("mw3: launcher: job: %s: %s (%s in all)\n", name.c_str(), said.c_str(), job::mb(job_->total()).c_str());
+}
+
+void Launcher::job_drop(int i, const std::string& why) {
+  if (!job_) return;
+  const std::string key = upgrades::update::game_info(upgrades::update::game_at(i)).key;
+  if (!job_->has("original:" + key)) return;
+  job_->drop("original:" + key, why), job_->drop("setup:" + key, why);
+  std::printf("mw3: launcher: job: original:%s left out: %s (%s in all)\n", key.c_str(), why.c_str(), job::mb(job_->total()).c_str());
+}
+
+// The bar brought up to date from the work under way, each frame; logged as its part changes and once a second.
+void Launcher::job_tick() {
+  if (!job_) return;
+  const double now = static_cast<double>(SDL_GetTicks()) / 1000.0;
+  if (!work_) {
+    if (!update_queue_.empty() || update_queue_self_) return;
+    const job::View v = job_->view(now);
+    const std::string in = job::mb(job_->got());
+    std::printf("mw3: launcher: job: ended at %s of %s: %s | %s (%.3f)\n", in.substr(0, in.size() - 3).c_str(), job::mb(job_->total()).c_str(),
+                v.line.c_str(), v.part.c_str(), v.fraction);
+    job_.reset();
+    return;
+  }
+  own::Progress p;
+  {
+    std::lock_guard<std::mutex> g(work_->m);
+    p = work_->progress;
+  }
+  const int phase = work_->phase;
+  if (phase == 1) job_->bytes(work_->job_key, work_->got, now);
+  else if (phase == 2) job_->stage(work_->job_key, p.stage, 0, now);
+  else if (phase == 3)
+    job_->stage(work_->setup_key, p.stage, (p.fraction - sdlfe::games::kOriginalSetupFrom) / (1 - sdlfe::games::kOriginalSetupFrom), now);
+  const job::View v = job_->view(now);
+  const Uint64 ms = SDL_GetTicks();
+  if (v.part != job_said_ || ms >= job_logged_ms_ + 1000) {
+    std::printf("mw3: launcher: job: %s | %s (%.3f)\n", v.line.c_str(), v.part.c_str(), v.fraction);
+    job_said_ = v.part, job_logged_ms_ = ms;
+  }
+  if (const char* at = SDL_getenv("MW3_LAUNCHER_CANCEL_AT"); at && phase == 1 && work_->got > 0 && work_->job_key == at &&
+      !std::exchange(job_cancel_pressed_, true)) {  // checks: CANCEL pressed once that part's bytes come
+    std::printf("mw3: launcher: CANCEL pressed during %s\n", at);
+    activate(kCancel);
+  }
+}
+
 void Launcher::take_games_check() {
   if (!games_check_ || !games_check_->done) return;
   games_check_->th.join();
@@ -1369,8 +1464,16 @@ void Launcher::install_game_now(int i) {
   work_game_ = i;
   std::string title = std::string(update ? "UPDATING " : "DOWNLOADING ") + game_info(g).name;
   for (char& ch : title) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-  work_->start(title, [done, g, r, root](const own::ProgressFn& f) {
-    *done = sdlfe::games::install_release(root, g, r, [&](double x, const std::string& w) { return f(own::Progress{w, x, ""}); });
+  if (!job_ || !job_->has(std::string("game:") + game_info(g).key)) {  // its own press (not UPDATE ALL's): the game, then its original files
+    std::vector<job::Part> parts{game_part(i, update ? "the update" : "the game")};
+    if (!update && !has_installed_[i]) add_original_parts(i, &parts);
+    start_job(game_info(g).name, std::move(parts));
+  }
+  work_->job_key = std::string("game:") + game_info(g).key;
+  Work* w = work_.get();
+  work_->start(title, [done, g, r, root, w](const own::ProgressFn& f) {
+    const sdlfe::games::Meter m = w->meter();
+    *done = sdlfe::games::install_release(root, g, r, [&](double x, const std::string& words) { return f(own::Progress{words, x, ""}); }, &m);
     own::Result res;
     res.ok = done->ok, res.cancelled = done->cancelled, res.summary = done->words;
     return res;
@@ -1435,15 +1538,15 @@ bool Launcher::get_original(int i) {
   std::string why;
   if (!sdlfe::games::kit_status(game_bin(i), &s, status_args(i), 10, &why)) {
     std::printf("mw3: launcher: original: %s: not fetched: its status did not answer (%s)\n", e.key.c_str(), why.c_str());
-    return false;
+    return job_drop(i, e.name + " did not say whether it has its game files: GAME FILES on its page finds them"), false;
   }
   if (s.state != rekit::Status::kMissing) {  // ready, or some there (incomplete): its own GAME FILES, never replaced unasked
     std::printf("mw3: launcher: original: %s: not fetched: it has its game files\n", e.key.c_str());
-    return false;
+    return job_drop(i, e.name + " has its game files already: nothing more to download"), false;
   }
   if (s.setup < rekit::kServedSetup) {
     std::printf("mw3: launcher: original: %s: not fetched: its setup is not one the launcher drives\n", e.key.c_str());
-    return false;
+    return job_drop(i, e.name + " sets its game files up itself: GAME FILES on its page"), false;
   }
   std::printf("mw3: launcher: original: %s: getting its original game files (%d sources)\n", e.key.c_str(), static_cast<int>(e.original.size()));
   work_ = std::make_unique<Work>();
@@ -1454,9 +1557,12 @@ bool Launcher::get_original(int i) {
   const std::string bin = game_bin(i), folder = games_place_[i];
   const std::vector<std::string> more = status_args(i);
   const std::vector<CatalogGame::Original> sources = e.original;
-  work_->start("GETTING THE ORIGINAL GAME FILES", [done, bin, sources, more, folder](const own::ProgressFn& f) {
+  work_->job_key = "original:" + e.key, work_->setup_key = "setup:" + e.key;
+  Work* w = work_.get();
+  work_->start("GETTING THE ORIGINAL GAME FILES", [done, bin, sources, more, folder, w](const own::ProgressFn& f) {
     const upgrades::update::Game g = done->game;
-    *done = sdlfe::games::get_original(bin, sources, more, folder, [&](double x, const std::string& w) { return f(own::Progress{w, x, ""}); });
+    const sdlfe::games::Meter m = w->meter();
+    *done = sdlfe::games::get_original(bin, sources, more, folder, [&](double x, const std::string& words) { return f(own::Progress{words, x, ""}); }, &m);
     done->game = g;
     own::Result res;
     res.ok = done->ok, res.cancelled = done->cancelled, res.summary = done->words;
@@ -2904,6 +3010,10 @@ UiModel Launcher::model() {
         std::lock_guard<std::mutex> g(work_->m);
         p = work_->progress, m.title = work_->title;
       }
+      if (job_) {  // a press's one bar: its line, its part
+        const job::View v = job_->view(static_cast<double>(SDL_GetTicks()) / 1000.0);
+        p.fraction = v.fraction, p.stage = v.line, p.message = v.part;
+      }
       m.fraction = static_cast<float>(std::clamp(p.fraction, 0.0, 1.0));
       m.percent = std::to_string(std::lround(p.fraction * 100)) + "%", m.stage = p.stage, m.message = p.message;
       break;
@@ -3493,6 +3603,10 @@ void Launcher::finish_work() {
   }
   if (work_->th.joinable()) work_->th.join();
   const Work::Kind kind = work_->kind;
+  if (job_ && r.ok) {  // its parts of the bar done, though it ended between two frames
+    if (!work_->job_key.empty()) job_->done(work_->job_key);
+    if (!work_->setup_key.empty()) job_->done(work_->setup_key);
+  }
   work_.reset();
   const bool served = std::exchange(served_work_, false);
   if (served) status_fresh_[served_game_] = false;  // what the game did: its status asked again
@@ -3752,10 +3866,20 @@ void Launcher::activate(int id) {
       auto file = update_file_ = std::make_shared<std::string>();
       std::error_code ec;
       const std::string dir = (fs::temp_directory_path(ec) / "MW3-Rebuild-update").string();  // ours alone, never a settings folder
-      work_->start("DOWNLOADING THE UPDATE", [release, dir, file](const own::ProgressFn& f) {
-        const Downloaded d = download_update(release, dir, [&](double x) {
-          return f(own::Progress{"Downloading MechWarrior 3 Rebuild " + upgrades::update::plain_version(release.tag), x * 0.9, ""});
+      if (!job_ || !job_->has("launcher")) {
+        const upgrades::update::Asset* a = upgrades::update::platform_asset(release, upgrades::update::this_platform());
+        start_job("The BattleTech launcher", {{"launcher", "the launcher's update", a ? static_cast<uint64_t>(a->size) : 0}});
+      }
+      work_->job_key = "launcher";
+      Work* w = work_.get();
+      work_->start("DOWNLOADING THE UPDATE", [release, dir, file, w](const own::ProgressFn& f) {
+        const Downloaded d = download_update(release, dir, [&](double x, uint64_t got, bool checking) {
+          w->got = got, w->phase = checking ? 2 : 1;
+          return f(own::Progress{checking ? std::string("Checking the download")
+                                          : "Downloading MechWarrior 3 Rebuild " + upgrades::update::plain_version(release.tag),
+                                 x * 0.9, ""});
         });
+        w->phase = 2;
         own::Result r;
         r.ok = d.ok, r.cancelled = d.cancelled, r.summary = d.words;
         if (!d.ok) return r;
@@ -3782,6 +3906,13 @@ void Launcher::activate(int id) {
     case kUpdateAll:
       if (!self_update_ || work_) break;
       update_box_ = false, update_queue_ = game_updates(), update_queue_self_ = true;
+      {  // one bar for them all: each game's update, the launcher's last
+        std::vector<job::Part> parts;
+        for (int i : update_queue_) parts.push_back(game_part(i, upgrades::update::game_info(upgrades::update::game_at(i)).name));
+        const upgrades::update::Asset* a = upgrades::update::platform_asset(self_update_->release, upgrades::update::this_platform());
+        parts.push_back({"launcher", "the launcher", a ? static_cast<uint64_t>(a->size) : 0});
+        start_job("Updates", std::move(parts));
+      }
       next_update();
       break;
     case kPm:
@@ -4279,6 +4410,7 @@ LauncherChoice Launcher::run() {
     take_games_check();
     take_self_check();
     take_catalog();
+    job_tick();
     for (int i = 0; i < upgrades::update::kMaxGames && !work_; ++i)  // an UPDATE that waited for its game's end
       if (update_after_[i] && !running(i)) update_after_[i] = false, install_game(i);
     if (const char* late = SDL_getenv("MW3_LAUNCHER_NAV_LATE"); late && !games_check_ && !self_check_ && !nav_late_) {  // checks: the steps once the start's checks have answered (a path: and that file is there)

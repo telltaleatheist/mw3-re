@@ -57,9 +57,14 @@ std::vector<upgrades::update::Answer> ask_lists(const std::vector<ReleaseList>& 
 // judged against `current`.
 upgrades::update::Verdict check_for_updates(const std::string& current);
 
+// A download's progress (2026-11-27, the launcher's one bar): the fraction of its size, the bytes in, and `checking`
+// once they are all in and its SHA-256 is taken. False stops it.
+using DownloadFn = std::function<bool(double fraction, uint64_t got, bool checking)>;
+
 // `url` into the file `to` (written as `to`.part, renamed once complete), `progress` told the fraction of `size`
-// bytes (0 when unknown) and stopping it with false; no overall time limit, but a minute without data ends it.
-bool curl_download(const std::string& url, const std::string& to, uint64_t size, const std::function<bool(double)>& progress,
+// bytes (0 when unknown) and the bytes in, and stopping it with false; no overall time limit, but a minute without
+// data ends it.
+bool curl_download(const std::string& url, const std::string& to, uint64_t size, const DownloadFn& progress,
                    std::string* error, bool* cancelled, bool allow_file = false);
 
 // A release's file `name` into `path`, from its homes in order (2026-11-22): `r.assets` (GitHub's when it has
@@ -73,7 +78,7 @@ struct Fetched {
   std::string sha256, error, want, got;
 };
 Fetched download_checked(const upgrades::update::Release& r, const std::string& name, const std::string& path,
-                         const std::function<bool(double)>& progress, bool allow_file, const char* log);
+                         const DownloadFn& progress, bool allow_file, const char* log);
 
 // Sitting 3: the release's package for this platform and its SHA256SUMS into `dir`, the package checked against its
 // line (download_checked: GitHub first, git.owenmorgan.com when it fails). `path` the checked file; on any failure
@@ -82,7 +87,7 @@ struct Downloaded {
   bool ok = false, cancelled = false;
   std::string path, words;
 };
-Downloaded download_update(const upgrades::update::Release& r, const std::string& dir, const std::function<bool(double)>& progress);
+Downloaded download_update(const upgrades::update::Release& r, const std::string& dir, const DownloadFn& progress);
 
 // Sitting 4: the checked download installed the platform's normal way. Windows: the new Setup started (it upgrades
 // in place; the launcher then quits). The Mac: the DMG attached read-only, its app swapped in for the running one

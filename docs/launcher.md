@@ -593,6 +593,45 @@ cache; offline with none), `sdl_program_launcher_keeps_an_installed_games_entry`
 plays; uninstalled: forgotten). `tools/launcher/shots.sh` takes every screen for
 the byte-for-byte check: the built-in catalog's 66 shots are as before.
 
+## One bar for a press (2026-11-27)
+
+Everything one press starts shows one progress line and one bar, with a
+total: a card's DOWNLOAD (the game's package, then its original files when
+the catalog lists them and the game was not installed, then their setup),
+an UPDATE, UPDATE ALL (each game's update, the launcher's last) and the
+launcher's own update. `launcher_job.h` holds it (`job::Job`, time passed
+in, so the checks run it on a fake clock); the launcher feeds it each frame
+from the work under way (`job_tick`): the download's bytes (curl's `.part`,
+through `DownloadFn` and the games' `Meter`), the words past them, and the
+setup's own fractions.
+
+- The total: the release asset's `size` from the releases list, plus the
+  catalog's `size` of the original's first source. A part whose game turns
+  out to have its files (its `--status` after the install) is left out,
+  the reason on the smaller line, the total smaller; the bar may jump
+  forward. A setup has the last 15% of the bar, by its own fractions.
+- The line: `MechWarrior 3: 287 of 668 MB · 4.1 MB/s · about 2 min left`;
+  `starting...` until the bytes have come for 2 s (the speed is taken over
+  the last 5 s, afresh at each part); `waiting for the server...` after
+  10 s without a byte, before curl's minute ends it; MB only with no size
+  known; past the bytes, the step's words (`Checking the download`, the
+  setup's stages).
+- The smaller line: the part, `the game (43 MB)`, then `the original game
+  files from the Internet Archive (625 MB)` (the source's `note`, else its
+  host), then `setting up`.
+- CANCEL stops the whole press: parts installed stay, the partial file is
+  removed, UPDATE ALL's queue is dropped.
+- The log: `job: <name>: <parts> (<total> in all)` at the press, a line as
+  the part changes and once a second, `job: <key> left out: <why>`, and
+  `job: ended at <in> of <total>: ...`. The SHA256SUMS fetched first (a few
+  hundred bytes) is not counted.
+- Checks: `MW3_LAUNCHER_CANCEL_AT=<part key>` presses CANCEL once that
+  part's bytes come; the test serves its files through FIFOs at a set pace
+  (curl's `--limit-rate` does not slow `file://`).
+  `launcher_job_one_bar_for_a_press` (the model) and
+  `sdl_program_launcher_shows_one_bar_for_a_download` (two files one
+  rising total, a status with files, a CANCEL in part 2).
+
 ## Where the launcher looks, and signed data (2026-11-26)
 
 Nothing the launcher fetches from is fixed in its code. Three files say

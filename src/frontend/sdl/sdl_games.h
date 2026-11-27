@@ -45,6 +45,13 @@ std::string program_version(const std::string& bin);
 u::GameCheck check(u::Game g, const std::string& installed_tag);
 
 using Progress = std::function<bool(double, const std::string&)>;  // the fraction, the words; false cancels
+// The launcher's one bar (2026-11-27, launcher_job.h): a download's bytes as they come, the end of its bytes (its check
+// and the rest follow, said through Progress), and the start of the game's own setup. Any may be empty.
+struct Meter {
+  std::function<void(uint64_t got)> bytes;
+  std::function<void()> ended, setup;
+};
+constexpr double kOriginalSetupFrom = 0.6;  // get_original's Progress: its setup's steps from here to 1
 struct Done {
   bool ok = false, cancelled = false;
   std::string words, program;  // program: the installed game's, when ok
@@ -54,7 +61,7 @@ struct Done {
 
 // INSTALL and UPDATE: the release's file for this platform and its SHA256SUMS downloaded, the file checked
 // against its line (nothing installed without it), unpacked, and put in place of the game's folder.
-Done install_release(const std::string& root, u::Game g, const u::Release& r, const Progress& progress);
+Done install_release(const std::string& root, u::Game g, const u::Release& r, const Progress& progress, const Meter* meter = nullptr);
 
 // INSTALL FROM FILE: what a SHA256SUMS beside the file says of it.
 struct FileCheck {
@@ -101,7 +108,7 @@ bool kit_setup(const std::string& bin, const std::vector<std::string>& args, int
 constexpr const char* kOriginalMark = "rebuild-original-download.txt";
 std::string originals_dir();
 Done get_original(const std::string& bin, const std::vector<u::CatalogGame::Original>& sources, const std::vector<std::string>& more,
-                  const std::string& folder, const Progress& progress);
+                  const std::string& folder, const Progress& progress, const Meter* meter = nullptr);
 
 // Whether `bin` is inside the AppImage this program runs from ($APPDIR), so goes away with it.
 bool in_own_mount(const std::string& bin);
