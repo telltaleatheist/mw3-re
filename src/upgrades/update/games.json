@@ -1,10 +1,11 @@
 {
   "catalog": 1,
-  "revision": 10,
+  "revision": 11,
   "homes": [
     {"key": "gh", "releases": "https://api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}", "order": 1},
     {"key": "om", "releases": "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/{repo}/releases?limit=40", "order": 2}
   ],
+  "counts": "https://reverse-engineered.com/launcher/hit",
   "catalog_sources": [
     "https://reverse-engineered.com/launcher/catalog.json",
     "https://raw.githubusercontent.com/telltaleatheist/mw3-re/main/catalog/games.json",
