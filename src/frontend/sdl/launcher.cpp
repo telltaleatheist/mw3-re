@@ -283,7 +283,7 @@ struct Work {
   own::Result result;
   std::atomic<bool> cancel{false}, done{false};
   std::string title;
-  enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData, kUpdateDownload, kGameInstall, kGameFileCheck, kUninstall, kKitLook, kKitInstall } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
+  enum Kind { kOther, kLook, kInstallIt, kAddDisc, kConvert, kMoveData, kRemoveData, kUpdateDownload, kGameInstall, kGameFileCheck, kUninstall, kKitLook, kKitInstall, kOriginal } kind = kOther;  // a look, an install, ADD FROM MY DISC, the movies
   ~Work() {
     cancel = true;
     if (th.joinable()) th.join();
@@ -480,6 +480,8 @@ class Launcher {
   void files_confirm_text();
   void install_file_go();
   void game_installed(const sdlfe::games::Done& d);
+  bool get_original(int i);  // after its DOWNLOAD: its original files from its catalog entry, when it lacks them
+  void got_original(const own::Result& r);
   std::string game_words(int i) const;  // a card's line for a game not installed
   std::string& game_bin(int i) {
     return i == 0 ? o_.game_bin : i == 1 ? o_.pm_bin : i == 2 ? o_.mw1_bin : i == 3 ? o_.mw1r_bin : i == 4 ? o_.chi_bin : i == 5 ? o_.chirm_bin : more_bin_[i];
@@ -1340,6 +1342,82 @@ void Launcher::game_installed(const sdlfe::games::Done& d) {
   GameCheck& c = checks_[i];
   if (c.kind == GameCheck::kNewer && has_installed_[i] && compare_game(c.release.tag, installed_[i].tag) <= 0) c.kind = GameCheck::kUpToDate;
   std::printf("mw3: launcher: games: %s now %s at %s\n", game_info(d.game).key, installed_[i].tag.c_str(), prog.c_str());
+}
+
+// A game just installed whose catalog entry lists its original files (2026-11-26, docs/launcher.md, Games on demand)
+// and whose status says it lacks them: they are fetched and handed to its own setup at once (the DOWNLOAD press is the
+// player's say; no question), its progress and CANCEL on the work screen. False: nothing to do, or it cannot be
+// (said in the log), and the launcher goes on as before.
+bool Launcher::get_original(int i) {
+  using namespace upgrades::update;
+  if (i < 0 || i >= game_count() || game_bin(i).empty()) return false;
+  const CatalogGame& e = catalog_game(game_at(i));
+  if (e.original.empty()) return false;
+  rekit::Status s;
+  std::string why;
+  if (!sdlfe::games::kit_status(game_bin(i), &s, status_args(i), 10, &why)) {
+    std::printf("mw3: launcher: original: %s: not fetched: its status did not answer (%s)\n", e.key.c_str(), why.c_str());
+    return false;
+  }
+  if (s.state != rekit::Status::kMissing) {  // ready, or some there (incomplete): its own GAME FILES, never replaced unasked
+    std::printf("mw3: launcher: original: %s: not fetched: it has its game files\n", e.key.c_str());
+    return false;
+  }
+  if (s.setup < rekit::kServedSetup) {
+    std::printf("mw3: launcher: original: %s: not fetched: its setup is not one the launcher drives\n", e.key.c_str());
+    return false;
+  }
+  std::printf("mw3: launcher: original: %s: getting its original game files (%d sources)\n", e.key.c_str(), static_cast<int>(e.original.size()));
+  work_ = std::make_unique<Work>();
+  work_->kind = Work::kOriginal;
+  work_game_ = i;
+  auto done = game_done_ = std::make_shared<sdlfe::games::Done>();
+  done->game = game_at(i);
+  const std::string bin = game_bin(i), folder = games_place_[i];
+  const std::vector<std::string> more = status_args(i);
+  const std::vector<CatalogGame::Original> sources = e.original;
+  work_->start("GETTING THE ORIGINAL GAME FILES", [done, bin, sources, more, folder](const own::ProgressFn& f) {
+    const upgrades::update::Game g = done->game;
+    *done = sdlfe::games::get_original(bin, sources, more, folder, [&](double x, const std::string& w) { return f(own::Progress{w, x, ""}); });
+    done->game = g;
+    own::Result res;
+    res.ok = done->ok, res.cancelled = done->cancelled, res.summary = done->words;
+    return res;
+  });
+  screen_ = kWorking, layout();
+  return true;
+}
+
+// Its original files in: in use as a PICK A FILE's would be. Not: the game installed as before, GAME FILES for them.
+void Launcher::got_original(const own::Result& r) {
+  using namespace upgrades::update;
+  const int i = game_done_ ? static_cast<int>(game_done_->game) : work_game_;
+  const std::string name = game_info(game_at(i)).name, key = game_info(game_at(i)).key;
+  const std::string where = game_done_ ? game_done_->where : std::string();
+  status_fresh_[i] = false;
+  screen_ = kMain;
+  if (!r.ok) {
+    std::printf("mw3: launcher: original: %s: not set up: %s\n", key.c_str(), r.summary.c_str());
+    status_ = name + " is installed. " +
+              (r.cancelled ? std::string("Getting its original game files was canceled") : "Its original game files could not be fetched (" + r.summary + ")") +
+              ": add them from GAME FILES on its gear.";
+    status_good_ = r.cancelled;
+    std::printf("mw3: launcher: %s\n", status_.c_str());
+  } else {
+    std::printf("mw3: launcher: original: %s: set up at %s\n", key.c_str(), where.c_str());
+    status_ = r.summary.empty() ? name + "'s original game files are in." : r.summary, status_good_ = true;
+    if (i == 0 && !where.empty()) {
+      own::save_install(o_.write_dir, where), o_.cfg_install = where;
+      find_install();
+      if (install_.ok) return use_install(install_.dir, install_.version, status_);
+    } else if (i == 1 && !where.empty()) {
+      return use_pm(where, status_);
+    } else {
+      kit_refresh(i);
+    }
+  }
+  layout();
+  next_update();
 }
 
 // MW1's card (docs/launcher.md, The cards): MechWarrior 1 Remake's `mw1` beside ours. Its MechWarrior (1989) is its
@@ -3368,9 +3446,15 @@ void Launcher::finish_work() {
     layout();
     return;
   }
+  if (kind == Work::kOriginal) return got_original(r);
   if (kind == Work::kGameInstall) {  // games on demand: in use at once, or why not on the status line
     status_ = r.summary, status_good_ = r.ok || r.cancelled, screen_ = kMain;
-    if (r.ok && game_done_) game_installed(*game_done_);
+    if (r.ok && game_done_) {
+      const int g = static_cast<int>(game_done_->game);
+      const bool first = !has_installed_[g] && work_game_ == g;  // a card's DOWNLOAD: not an UPDATE, not a file of the player's
+      game_installed(*game_done_);
+      if (first && get_original(g)) return;  // its original files first; the queue after them
+    }
     layout();
     if (!r.ok) update_queue_.clear(), update_queue_self_ = false;
     next_update();

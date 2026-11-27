@@ -48,6 +48,7 @@ using Progress = std::function<bool(double, const std::string&)>;  // the fracti
 struct Done {
   bool ok = false, cancelled = false;
   std::string words, program;  // program: the installed game's, when ok
+  std::string where;           // get_original: the folder now holding the game's files, when ok
   u::Game game = u::Game::kMw3;
 };
 
@@ -90,6 +91,17 @@ const char* kit_id(upgrades::update::Game g);
 bool kit_setup(const std::string& bin, const std::vector<std::string>& args, int seconds,
                const std::function<bool(const rekit::SetupMessage&)>& progress, rekit::SetupMessage* out,
                const std::function<void(const rekit::SetupMessage&)>& each = nullptr);
+
+// Ours (2026-11-26, docs/launcher.md, Games on demand): a game's original files from its catalog entry's "original",
+// after its DOWNLOAD, when its status says they are missing. Each source in turn is downloaded into the launcher's own
+// marked folder (temp/MW3-Rebuild-originals, kOriginalMark), its size and SHA-256 checked, then handed to the game's
+// served setup as a pick (`--setup --look`, then `--install`, `more` after each, `--folder` when given), as PICK A
+// FILE does: the game's own import puts its files where it expects them. The file is removed afterwards, whatever
+// happened. Not ok: `words` says why (the launcher's fallback is the usual GAME FILES).
+constexpr const char* kOriginalMark = "rebuild-original-download.txt";
+std::string originals_dir();
+Done get_original(const std::string& bin, const std::vector<u::CatalogGame::Original>& sources, const std::vector<std::string>& more,
+                  const std::string& folder, const Progress& progress);
 
 // Whether `bin` is inside the AppImage this program runs from ($APPDIR), so goes away with it.
 bool in_own_mount(const std::string& bin);

@@ -611,6 +611,78 @@ bool kit_setup(const std::string& bin, const std::vector<std::string>& args, int
   return false;
 }
 
+std::string originals_dir() {
+  std::error_code ec;
+  return (fs::temp_directory_path(ec) / "MW3-Rebuild-originals").string();
+}
+
+Done get_original(const std::string& bin, const std::vector<u::CatalogGame::Original>& sources, const std::vector<std::string>& more,
+                  const std::string& folder, const Progress& progress) {
+  Done d;
+  std::error_code ec;
+  const fs::path dir = originals_dir();
+  if (fs::exists(dir, ec) && !fs::exists(dir / kOriginalMark, ec) && !fs::is_empty(dir, ec))
+    return d.words = dir.string() + " is not the launcher's folder, so nothing was downloaded", d;
+  fs::create_directories(dir, ec);
+  if (!write_text(dir / kOriginalMark, "the launcher's downloads of original game files, removed after each\n"))
+    return d.words = "could not write in " + dir.string(), d;
+  std::string why;  // each source's reason, in order
+  fs::path got;
+  for (const u::CatalogGame::Original& s : sources) {
+    const fs::path file = dir / s.name;
+    std::string error;
+    bool cancelled = false;
+    const bool fetched = curl_download(s.url, file.string(), s.size, [&](double x) { return !progress || progress(x * 0.6, "Getting the original game files"); },
+                                       &error, &cancelled, allow_file());
+    if (cancelled) {
+      fs::remove(file, ec), fs::remove(file.string() + ".part", ec);
+      return d.cancelled = true, d.words = "canceled", d;
+    }
+    std::string bad;
+    if (!fetched) bad = error.empty() ? "it could not be downloaded" : error;
+    else if (fs::file_size(file, ec) != s.size) bad = "it is " + std::to_string(fs::file_size(file, ec)) + " bytes, not " + std::to_string(s.size);
+    else if (progress && !progress(0.6, "Checking the original game files")) {
+      fs::remove(file, ec);
+      return d.cancelled = true, d.words = "canceled", d;
+    } else if (rekit::sha256_file_hex(file.string()) != s.sha256) bad = "it does not match its SHA-256";
+    if (bad.empty()) {
+      got = file;
+      break;
+    }
+    std::printf("mw3: launcher: original: %s: %s\n", s.url.c_str(), bad.c_str());
+    why += (why.empty() ? "" : "; ") + bad;
+    fs::remove(file, ec), fs::remove(file.string() + ".part", ec);
+  }
+  const auto tidy = [&]() {  // ours alone: the file, then the folder once only the mark is left
+    if (!got.empty()) fs::remove(got, ec);
+    std::size_t left = 0;
+    for (const auto& e : fs::directory_iterator(dir, ec)) left += e.path().filename() != kOriginalMark;
+    if (left == 0) fs::remove(dir / kOriginalMark, ec), fs::remove(dir, ec);
+  };
+  if (got.empty()) return tidy(), d.words = why.empty() ? "no source answered" : why, d;
+  const auto step = [&](double from, double span) {
+    return [&progress, from, span](const rekit::SetupMessage& m) { return !progress || progress(from + span * m.fraction, m.stage); };
+  };
+  rekit::SetupMessage look, done;
+  std::vector<std::string> args{"--look", got.string()};
+  args.insert(args.end(), more.begin(), more.end());
+  if (!kit_setup(bin, args, 0, step(0.6, 0.1), &look) || !look.ok) {
+    d.cancelled = look.cancelled;
+    tidy();
+    return d.words = "its setup did not take the file" + (look.summary.empty() ? std::string() : ": " + look.summary), d;
+  }
+  if (look.in_place) return tidy(), d.ok = true, d.words = look.words, d.where = look.where, d;  // the copy in use already: nothing to install
+  args = {"--install", got.string()};  // the pick itself, as PICK A FILE gives it
+  if (!folder.empty()) args.push_back("--folder"), args.push_back(folder);
+  args.insert(args.end(), more.begin(), more.end());
+  const bool said = kit_setup(bin, args, 0, step(0.7, 0.3), &done);
+  tidy();
+  d.cancelled = done.cancelled;
+  if (!said || !done.ok) return d.words = "its setup did not install the file" + (done.summary.empty() ? std::string() : ": " + done.summary), d;
+  d.ok = true, d.words = done.summary, d.where = done.where;
+  return d;
+}
+
 bool in_own_mount(const std::string& bin) {
   const char* appdir = std::getenv("APPDIR");
   if (!std::getenv("APPIMAGE")) return false;

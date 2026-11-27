@@ -52,6 +52,8 @@ int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #endif
 #include "frontend/sdl/sdl_games.h"
 #include "frontend/sdl/sdl_catalog.h"
+#include <archive.h>
+#include <archive_entry.h>
 #include "frontend/sdl/sdl_update.h"
 #include "frontend/sdl/font_search.h"
 #include "frontend/sdl/launcher.h"
@@ -1254,6 +1256,133 @@ TEST(sdl_program_launcher_uses_the_catalogs_homes) {
   EXPECT(has(c, "catalog: revision 5, fetched") && has(c, "left out: homes[0]: http://git.reverse-engineered.com is not https://") &&
          has(c, "catalog: homes: https://git.owenmorgan.com, then GitHub\n") && has(c, "entry BATTLETECH: "));
   if (!check::failures) fs::remove_all(dir, ec);
+}
+
+// A game's original files fetched after its DOWNLOAD (2026-11-26, docs/launcher.md, Games on demand): its catalog
+// entry lists sources, its status (a stand-in, setup served) says its files are missing, so the first source that is
+// whole and its SHA-256 is downloaded and handed to its setup (--look, then --install the file), no question asked;
+// the file and the launcher's temp folder are gone afterwards. A wrong sum, a cut file, a missing one (the next tried),
+// a setup refusing the file: the game installed as before, the reason said and logged. No "original": nothing fetched.
+TEST(sdl_program_launcher_gets_a_games_original_files) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string base = std::string(MW3_TEST_TMP) + "/launcher_original";
+  fs::remove_all(base, ec);
+  const std::string good(300000, 'o'), other(300000, 'x');
+  const std::string good_sum = rekit::sha256_hex(reinterpret_cast<const uint8_t*>(good.data()), good.size());
+  const std::string other_sum = rekit::sha256_hex(reinterpret_cast<const uint8_t*>(other.data()), other.size());
+  struct Case {
+    const char* name;
+    std::string sources;  // the entry's "original", "" for none
+    bool refuse;          // its setup says no to the file
+    bool set_up;          // the files in, through its setup
+    const char* said;     // in the log
+    bool foreign = false;  // the temp folder's name taken by someone's own folder (no mark): never written to
+    bool ready = false;    // its files in already: nothing fetched
+  };
+  auto src = [&](const std::string& file, const std::string& sum, size_t size) {
+    return "{\"url\": \"file://" + base + "/src/" + file + "\", \"sha256\": \"" + sum + "\", \"size\": " + std::to_string(size) + ", \"name\": \"BT disc.zip\"}";
+  };
+  const Case cases[] = {
+      {"good", "[" + src("good.zip", good_sum, good.size()) + "]", false, true, "original: btech: set up at "},
+      {"sum", "[" + src("good.zip", other_sum, good.size()) + "]", false, false, "it does not match its SHA-256"},
+      {"cut", "[" + src("good.zip", good_sum, good.size() * 2) + "]", false, false, "bytes, not 600000"},
+      {"next", "[" + src("gone.zip", good_sum, good.size()) + ", " + src("good.zip", good_sum, good.size()) + "]", false, true, "original: btech: set up at "},
+      {"refused", "[" + src("good.zip", good_sum, good.size()) + "]", true, false, "its setup did not install the file: Not a copy of BattleTech."},
+      {"none", "", false, false, ""},
+      {"foreign", "[" + src("good.zip", good_sum, good.size()) + "]", false, false, "MW3-Rebuild-originals is not the launcher's folder", true},
+      {"ready", "[" + src("good.zip", good_sum, good.size()) + "]", false, true, "original: btech: not fetched: it has its game files", false, true},
+  };
+  for (const Case& c : cases) {
+    const std::string dir = base + "/" + c.name;
+    for (const char* d : {"/api", "/games", "/wd/music", "/tmp", "/rel", "/pkg"}) fs::create_directories(dir + d, ec);
+    fs::create_directories(base + "/src", ec);
+    std::ofstream(base + "/src/good.zip", std::ios::binary) << good;
+    std::ofstream(dir + "/wd/music/track02.wav") << "x";
+    for (const char* repo : {"mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re", "revenge-re"})
+      std::ofstream(dir + "/api/" + repo + ".json") << "[]";
+    if (c.foreign) fs::create_directories(dir + "/tmp/MW3-Rebuild-originals", ec), std::ofstream(dir + "/tmp/MW3-Rebuild-originals/mine.txt") << "mine";
+    if (c.ready) std::ofstream(dir + "/files-in") << "x";
+    // The stand-in game, as its release's .zip holds it.
+    std::string sh = "#!/bin/sh\nR='" + dir + "'\necho \"$*\" >> \"$R/asked\"\ncase \"$1 $2\" in\n"
+                     "'--status ') if [ -f \"$R/files-in\" ]; then ST=ready; else ST=missing; fi\n"
+                     "  echo '{\"kit\": 1, \"game\": \"btech\", \"version\": \"0.1.0\", \"files\": {\"state\": \"'$ST'\"}, \"first_run\": {\"pending\": []}, "
+                     "\"needs\": [], \"setup\": 1}';;\n"
+                     "'--setup --look') if [ -f \"$3\" ]; then echo '{\"done\": true, \"ok\": true, \"words\": \"A copy of BattleTech.\", \"into\": \"'\"$R\"'/files\"}';"
+                     " else echo '{\"done\": true, \"ok\": false, \"summary\": \"No such file.\"}'; fi;;\n"
+                     "'--setup --install') cp \"$3\" \"$R/handed\"\n";
+    sh += c.refuse ? "  echo '{\"done\": true, \"ok\": false, \"summary\": \"Not a copy of BattleTech.\"}';;\n"
+                   : "  : > \"$R/files-in\"; echo '{\"done\": false, \"at\": 500000, \"stage\": \"Copying\", \"message\": \"\"}'\n"
+                     "  echo '{\"done\": true, \"ok\": true, \"where\": \"'\"$R\"'/files\", \"summary\": \"BattleTech is set up.\"}';;\n";
+    sh += "*) : > \"$R/played\";;\nesac\nexit 0\n";
+    {
+      archive* a = archive_write_new();
+      archive_write_set_format_zip(a);
+      archive_write_open_filename(a, (dir + "/rel/BT-btech-v0.1.0-test.zip").c_str());
+      archive_entry* e = archive_entry_new();
+      archive_entry_set_pathname(e, "btech");
+      archive_entry_set_size(e, static_cast<la_int64_t>(sh.size()));
+      archive_entry_set_filetype(e, AE_IFREG);
+      archive_entry_set_perm(e, 0755);
+      archive_write_header(a, e);
+      archive_write_data(a, sh.data(), sh.size());
+      archive_entry_free(e);
+      archive_write_close(a);
+      archive_write_free(a);
+    }
+    const std::string zip = dir + "/rel/BT-btech-v0.1.0-test.zip";
+    std::ifstream zf(zip, std::ios::binary);
+    const std::string zbytes((std::istreambuf_iterator<char>(zf)), std::istreambuf_iterator<char>());
+    std::ofstream(dir + "/rel/SHA256SUMS") << rekit::sha256_hex(reinterpret_cast<const uint8_t*>(zbytes.data()), zbytes.size()) << "  BT-btech-v0.1.0-test.zip\n";
+    std::ofstream(dir + "/api/battletech-re.json")
+        << "[{\"tag_name\": \"btech-v0.1.0\", \"draft\": false, \"prerelease\": false, \"body\": \"x\", \"assets\": [{\"name\": \"BT-btech-v0.1.0-test.zip\", "
+           "\"size\": " << zbytes.size() << ", \"browser_download_url\": \"file://" << zip << "\"}, {\"name\": \"SHA256SUMS\", \"size\": 10, "
+           "\"browser_download_url\": \"file://" << dir << "/rel/SHA256SUMS\"}]}]";
+    std::ofstream(dir + "/catalog.json")
+        << "{\"catalog\": 1, \"revision\": 4, \"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": [{\"key\": \"btech\", "
+           "\"family\": \"bt\", \"order\": 7, \"state\": \"released\", \"name\": \"BattleTech Rebuild\", \"title\": \"BATTLETECH\", \"heading\": "
+           "\"BATTLETECH\", \"button\": \"BATTLETECH\", \"description\": \"A line.\", \"repo\": \"battletech-re\", \"tag_prefix\": \"btech-v\", "
+           "\"program\": \"btech\", \"assets\": {\"windows\": \"BT-{tag}-test.zip\", \"mac\": \"BT-{tag}-test.zip\", \"linux\": \"BT-{tag}-test.zip\"}, "
+           "\"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\""
+        << (c.sources.empty() ? std::string() : ", \"original\": " + c.sources) << "}]}";
+    const std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_CATALOG_URL", "file://" + dir + "/catalog.json"},
+        {"MW3_LAUNCHER_FRAMES", "600"}, {"MW3_LAUNCHER_GAME_INSTALL", "btech"}, {"MW3_NO_IMPORT", "1"}, {"TMPDIR", dir + "/tmp"}, {"MW3_PM_BIN", ""},
+        {"MW3_MW1_BIN", ""}, {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}};
+    const char* tmp_was = std::getenv("TMPDIR");
+    const std::string tmp_keep = tmp_was ? tmp_was : "";
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/launcher.log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    if (tmp_was) setenv("TMPDIR", tmp_keep.c_str(), 1);
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream lf(dir + "/launcher.log");
+    const std::string log((std::istreambuf_iterator<char>(lf)), std::istreambuf_iterator<char>());
+    std::ifstream af(dir + "/asked");
+    const std::string asked((std::istreambuf_iterator<char>(af)), std::istreambuf_iterator<char>());
+    std::ifstream hf(dir + "/handed", std::ios::binary);
+    const std::string handed((std::istreambuf_iterator<char>(hf)), std::istreambuf_iterator<char>());
+    std::printf("original, %s:\n", c.name);
+    for (const char* what : {"original: ", "games: btech now", "focus ", "BattleTech is set up", "could not be fetched"})
+      for (size_t a = 0; (a = log.find(what, a)) != std::string::npos; ++a) std::printf("    %s\n", log.substr(a, log.find('\n', a) - a).c_str());
+    EXPECT(has(log, "games: btech now btech-v0.1.0 at "));  // the game itself installed every time
+    if (c.foreign) EXPECT(fs::exists(dir + "/tmp/MW3-Rebuild-originals/mine.txt", ec) && !fs::exists(dir + "/tmp/MW3-Rebuild-originals/BT disc.zip", ec));
+    else EXPECT(!fs::exists(dir + "/tmp/MW3-Rebuild-originals", ec));  // the download and its folder gone
+    if (c.sources.empty() || c.ready) {
+      EXPECT(has(log, c.said) && !has(log, "GETTING THE ORIGINAL") && !has(asked, "--setup"));
+    } else {
+      EXPECT(has(log, c.said) && has(log, "work: GETTING THE ORIGINAL GAME FILES"));
+      EXPECT(fs::exists(dir + "/files-in", ec) == c.set_up);
+      const bool handed_it = c.set_up || c.refuse;
+      EXPECT(handed_it ? handed == good && has(asked, ("--setup --look " + dir + "/tmp/MW3-Rebuild-originals/BT disc.zip").c_str())
+                       : !has(asked, "--setup --install"));
+      if (c.set_up) EXPECT(has(log, "BattleTech is set up."));
+      else EXPECT(has(log, "BattleTech Rebuild is installed. Its original game files could not be fetched ("));
+    }
+    EXPECT(!fs::exists(dir + "/played", ec));  // DOWNLOAD never starts the game
+  }
+  if (!check::failures) fs::remove_all(base, ec);
 }
 
 // A present that does not wait for the display (macOS: a window not on screen) does not run away: 1.5.0 drew some 950

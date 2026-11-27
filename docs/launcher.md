@@ -529,8 +529,10 @@ files can be fetched from, the same file at each address, tried in
 order: up to `kMaxOriginals` (4) of `{"url", "sha256", "size", "name",
 "note"}`, `url` https, `sha256` 64 hex digits, `size` in bytes, `name`
 a plain file name. It is read and checked (a bad one is left out, said
-in the log, and its game kept) and said at the start (`catalog: <key>
-names an original download (not used)`); nothing fetches it yet. No
+in the log, and its game kept). The start's log line,
+`catalog: <key> names an original download (not used)`, only means it is
+listed: what fetches it is DOWNLOAD (Games on demand, The original game's
+files). file:/// is taken only in checks (`MW3_GAMES_API` set). No
 catalog lists an original source today, and without one nothing is ever
 fetched. Launchers 1.6.0 to 1.7.1 ignore the field. Checked:
 `games_catalog_original_read_and_unused`.
@@ -1674,6 +1676,52 @@ release.
   `MW3_LAUNCHER_GAME_INSTALL=<mw3|pm|mw1>` (DOWNLOAD or UPDATE pressed once
   the answer is in), `MW3_LAUNCHER_INSTALL_FILE=1` with
   `MW3_LAUNCHER_PICKER=path:<file>`, `MW3_LAUNCHER_INSTALL_ANYWAY=1`.
+
+### The original game's files (2026-11-26)
+
+No catalog lists a source today, so nothing below ever runs yet. A game
+whose catalog entry lists `"original"` sources (The games catalog) gets
+them on DOWNLOAD, right after its own release is installed.
+DOWNLOAD is the player's consent, so no question and no confirm screen
+follows (decided 2026-11-26). Only the progress and the usual CANCEL show.
+
+- **When.** Once a card's DOWNLOAD is installed (not an UPDATE, not INSTALL
+  FROM A DOWNLOADED FILE), the launcher asks
+  the game's `--status` (its write folder passed, as for every status). It
+  fetches only when the game has no files yet (`missing`; `incomplete` is
+  some of them, left to its GAME FILES) and answers a served setup
+  (`setup` >= 1). Otherwise the log says why
+  (`original: <key>: not fetched: it has its game files`, `...: no answer`,
+  `...: its setup is not one the launcher drives`).
+- **The fetch** (`sdlfe::games::get_original`). The work is "GETTING THE
+  ORIGINAL GAME FILES". Each source is fetched in turn with the release
+  downloads' curl (`curl_download`: HTTPS only, redirects too), into
+  `<temp>/MW3-Rebuild-originals/<name>`. That folder carries the mark
+  `rebuild-original-download.txt`. A folder of that name without the mark
+  that holds anything is never written to, and the fetch stops there. Each
+  file's size and then its SHA-256 are checked. A bad one is logged
+  (`original: <url>: <why>`), deleted and the next source tried.
+- **The hand-over.** The good file goes to the game's own served setup
+  exactly as PICK A FILE sends a pick: `--setup --look <file>`, then
+  `--install <file>` with the game's folder. The game imports it by its own
+  recipe. The launcher copies nothing into a game's folder.
+- **Afterwards** the file is deleted, success or not, and the folder goes
+  with its mark once nothing else is in it.
+  - Success: `original: <key>: set up at <where>`, and the game's panel
+    reads its status again.
+  - Failure of any kind (every source bad, the setup refusing the file, a
+    cancel, the folder not ours): `original: <key>: not set up: <why>`. The
+    status line then says "<name> is installed. Its original game files
+    could not be fetched (<why>): add them from GAME FILES on its gear.",
+    which is today's flow.
+- **A game run on its own** offers the same download from its find screen
+  when its recipe names a catalog (re-setup-kit DESIGN.md, Original files).
+- Checked: `sdl_program_launcher_gets_a_games_original_files`. A stand-in
+  game's release is served by file://. Its status lacks files until its
+  setup is handed a file. The cases are a good source, a wrong sum, a cut
+  file, a missing source then a good one, a setup that refuses the file, no
+  source, the temp folder's name taken by someone's own folder, and a game
+  that has its files already. Each checks that the temp file is gone.
 
 ## Where a game goes (2026-11-22)
 

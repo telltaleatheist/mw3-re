@@ -116,7 +116,9 @@ void read_original(const Json& o, CatalogGame* g, std::string* why) {
       return void(f.fail("no size in bytes"));
     s.size = std::strtoull(size->s.c_str(), nullptr, 10);
     if (s.size == 0) return void(f.fail("no size in bytes"));
-    if (!https_address(&s.url, true)) return void(f.fail(s.url + " is not an https:// address"));
+    // file:// only in checks (MW3_GAMES_API set: stand-in releases and downloads), as the games' downloads take it.
+    const bool check_file = std::getenv("MW3_GAMES_API") && s.url.rfind("file:///", 0) == 0 && s.url.find("..") == std::string::npos;
+    if (!check_file && !https_address(&s.url, true)) return void(f.fail(s.url + " is not an https:// address"));
     bool hex = s.sha256.size() == 64;
     for (char& c : s.sha256) hex = hex && std::isxdigit(static_cast<unsigned char>(c)), c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (!hex) return void(f.fail("its sha256 is not 64 hex digits"));

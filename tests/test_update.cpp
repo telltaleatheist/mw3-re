@@ -684,6 +684,12 @@ TEST(games_catalog_original_read_and_unused) {
       "[{\"url\": \"" + u0 + "\", \"sha256\": \"" + sha + "\", \"size\": 1}]",
       "[" + src(u0, ", \"note\": 3") + "]",
   };
+  // file:// only in checks (MW3_GAMES_API set, as the games' stand-in downloads).
+  EXPECT(u::read_fetched_catalog(with_original("[" + src("file:///t/x.zip") + "]"), "v1.5.2", &f, &ignored, &why) && ignored.size() == 5);
+  setenv("MW3_GAMES_API", "file:///t/{repo}.json", 1);
+  EXPECT(u::read_fetched_catalog(with_original("[" + src("file:///t/x.zip") + "]"), "v1.5.2", &f, &ignored, &why) && ignored.size() == 4);
+  EXPECT(u::read_fetched_catalog(with_original("[" + src("file:///t/../x.zip") + "]"), "v1.5.2", &f, &ignored, &why) && ignored.size() == 5);
+  unsetenv("MW3_GAMES_API");
   for (const std::string& o : bad) {
     EXPECT(u::read_fetched_catalog(with_original(o), "v1.5.2", &f, &ignored, &why));
     bt = nullptr;
