@@ -662,8 +662,10 @@ TEST(games_catalog_sources_and_next_keys) {
                                  "v1.5.2", &f, &ignored, &why));
   EXPECT(f.catalog_sources.size() == 2 && f.catalog_sources[1] == "https://b.example.org/x/c.json" && ignored.size() == 4);
   EXPECT(f.next_keys.size() == 2 && f.next_keys[0] == std::string(64, 'a') && f.next_keys[1] == k2);
+  EXPECT(u::read_fetched_catalog(with("\"revoked_keys\": [\"" + k2 + "\"], \"next_keys\": [\"" + k1 + "\"]"), "v1.5.2", &f, &ignored, &why));
+  EXPECT(f.revoked_keys.size() == 1 && f.revoked_keys[0] == k2 && f.next_keys.size() == 1 && ignored.size() == 4);
   const u::Catalog m = u::merged_catalog(u::builtin_catalog(), f);
-  EXPECT(m.catalog_sources == f.catalog_sources && m.next_keys == f.next_keys);
+  EXPECT(m.catalog_sources == f.catalog_sources && m.next_keys == f.next_keys && m.revoked_keys == f.revoked_keys);
   const std::string bad[] = {
       "\"catalog_sources\": \"https://a.example.org/c.json\"",
       "\"catalog_sources\": [\"http://a.example.org/c.json\"]",
@@ -676,11 +678,15 @@ TEST(games_catalog_sources_and_next_keys) {
       "\"next_keys\": [\"" + std::string(64, 'g') + "\"]",
       "\"next_keys\": [\"" + k1 + "\", \"" + k1 + "\"]",
       "\"next_keys\": [\"" + k1 + "\", \"" + k2 + "\", \"" + std::string(64, 'c') + "\", \"" + std::string(64, 'd') + "\", \"" + std::string(64, 'e') + "\"]",
+      "\"revoked_keys\": [\"" + k1.substr(2) + "\"]",
+      "\"revoked_keys\": \"" + k1 + "\"",
   };
   for (const std::string& b : bad) {
-    EXPECT(u::read_fetched_catalog(with(b), "v1.5.2", &f, &ignored, &why) && f.catalog_sources.empty() && f.next_keys.empty() && f.games.size() == 5);
+    EXPECT(u::read_fetched_catalog(with(b), "v1.5.2", &f, &ignored, &why) && f.catalog_sources.empty() && f.next_keys.empty() &&
+           f.revoked_keys.empty() && f.games.size() == 5);
     const bool said = std::any_of(ignored.begin(), ignored.end(), [](const std::string& i) {
-      return (i.rfind("catalog_sources", 0) == 0 || i.rfind("next_keys", 0) == 0) && i.find("(left out)") != std::string::npos;
+      return (i.rfind("catalog_sources", 0) == 0 || i.rfind("next_keys", 0) == 0 || i.rfind("revoked_keys", 0) == 0) &&
+             i.find("(left out)") != std::string::npos;
     });
     EXPECT(ignored.size() == 5 && said);
     std::printf("  %s\n", ignored.front().c_str());
@@ -820,5 +826,14 @@ TEST(sources_read_shipped_and_built_in) {
   const std::vector<std::string> ks = u::signing_keys();
   EXPECT(ks.size() == 2 && ks[0] == std::string(64, 'a') && ks[1] == std::string(64, 'b'));
   EXPECT(u::takes_unsigned_sums("https://gh.example.org/r/mech3-re/releases") && !u::takes_unsigned_sums("https://other.example.org/r/"));
+  // Revoked (a signed catalog's revoked_keys): a shipped key and a learned one gone from the keys, the learned one
+  // dropped, and neither learned again.
+  u::revoke_keys({std::string(64, 'A'), std::string(64, 'b')});
+  u::learn_keys({std::string(64, 'b'), std::string(64, 'd')});
+  const std::vector<std::string> left = u::signing_keys();
+  EXPECT(left.size() == 1 && left[0] == std::string(64, 'd'));
+  EXPECT(u::learned_keys() == std::vector<std::string>{std::string(64, 'd')} && u::revoked_keys().size() == 2 && u::revoked_keys()[0] == std::string(64, 'a'));
+  u::forget_keys();
+  EXPECT(u::signing_keys() == std::vector<std::string>{std::string(64, 'a')});
   u::use_sources(keep);
 }

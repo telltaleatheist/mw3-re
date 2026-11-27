@@ -598,8 +598,17 @@ where to look, each trusted for what it holds:
   learned (kept in `<write dir>/catalog/keys.txt`, read at each start), so
   a later catalog signed only by the next key is taken (key rotation; a
   launcher that never saw the vouching catalog needs its sources.json to
-  list the new key). The cache itself is trusted: it is written only after
-  a verified fetch.
+  list the new key). A signed catalog may also name `revoked_keys` (up to 8,
+  shipped or learned): once it is taken they never verify again, are
+  dropped from the learned keys and never learned again, and are kept in
+  keys.txt as `revoked <key>`, so a leaked key cannot mint itself
+  successors through `next_keys`. Sign a revoking catalog with a key that
+  stays. The cache counts only while its stored `games.json.sig` checks
+  against the keys in use: a cache an older launcher fetched unsigned
+  (1.7.1 and before, same write dir), or one signed by a key since
+  revoked, is not used at the start (`catalog: the cache is not signed: not
+  used`, the built-in catalog then), its `catalog_sources` are not asked,
+  and a signed catalog of any revision replaces it.
 - **Release sums.** A release may carry `SHA256SUMS.sig` beside
   `SHA256SUMS`. Signed sums are taken from any home; unsigned ones only
   from a list sources.json names in `unsigned_sums` (GitHub's), so a
@@ -627,7 +636,10 @@ for GitHub's file), `sdl_program_launcher_takes_only_a_signed_catalog` (the
 order with each address failing in turn, the newest winning, unsigned,
 another key's, a changed text, a bad .sig, a key learned and used, refused
 in a fresh write dir, signed by both; `catalog_sources` asked first on the
-next start; sources.json missing: the built-in copy, nothing taken, its real
+next start; 1.7.1's unsigned cache at revision 3 and 5 not used, then
+replaced by a signed revision 3; the shipped key revoked, a catalog by it
+refused and its successor not learned, a learned key revoked, its successor
+taken; sources.json missing: the built-in copy, nothing taken, its real
 addresses not asked) and `sdl_program_launcher_checks_for_updates` (an
 unsigned newest on the backup: shown, not downloaded). Tests not about
 signing have their catalogs signed by test key 1 (`spawn_launcher`); test

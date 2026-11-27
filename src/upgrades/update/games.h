@@ -61,7 +61,7 @@ struct CatalogHome {
   std::string key, releases;
   int order = 0;
 };
-constexpr int kMaxHomes = 4, kMaxCatalogSources = 6, kMaxNextKeys = 4;
+constexpr int kMaxHomes = 4, kMaxCatalogSources = 6, kMaxNextKeys = 4, kMaxRevokedKeys = 8;
 struct Catalog {
   int version = 0;   // "catalog": 1, the format
   int revision = 0;  // "revision": which wins, the built-in or a fetched one (the higher)
@@ -73,8 +73,9 @@ struct Catalog {
   std::vector<CatalogHome> homes;
   // "catalog_sources": the catalog's own further addresses, asked first at the next start (before sources.json's);
   // "next_keys": public keys a signed catalog vouches for, learned for the next catalogs (key rotation). A fetched
-  // catalog's only: the built-in one's are not used.
-  std::vector<std::string> catalog_sources, next_keys;
+  // catalog's only: the built-in one's are not used. "revoked_keys": keys (shipped or learned) that never verify
+  // again once a signed catalog naming them is taken (a leaked key cannot mint itself successors).
+  std::vector<std::string> catalog_sources, next_keys, revoked_keys;
 };
 // A catalog's JSON read and checked: every key once, each game's family listed, a known state, the fields the
 // launcher needs present. False and `why` (the entry and what is wrong) when not.

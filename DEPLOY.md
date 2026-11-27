@@ -174,7 +174,10 @@ and such a build takes no fetched catalog. The private key is kept by the
 lead outside every repo, with a backup. To move to a new key: list it in a
 signed catalog's `next_keys` and in sources.json at the next launcher
 release, sign with both (`MW3_SIGNING_KEY=old:new`) until every launcher in
-use has it, then drop the old one.
+use has it, then drop the old one. A leaked key: publish a catalog signed by
+a key that stays (with that key in `next_keys` of an earlier catalog, or in
+sources.json) whose `revoked_keys` names the leaked one; every launcher that
+takes it stops trusting the leaked key for good.
 
 After a release: issue replies announcing it are the project owner's to
 approve.

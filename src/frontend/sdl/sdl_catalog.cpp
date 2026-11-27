@@ -25,6 +25,18 @@ namespace {
 
 std::string read_file(const fs::path& p);
 
+// The cached catalog's text when its stored games.json.sig checks against the keys in use (shipped and learned, less
+// the revoked), else empty: a cache an older launcher fetched unsigned (1.7.1 and before), or one signed by a key
+// since revoked, counts as no cache.
+std::string signed_cache(const std::string& write_dir, bool* unsigned_there = nullptr) {
+  const fs::path dir = fs::path(write_dir) / "catalog";
+  std::string text = read_file(dir / "games.json");
+  if (unsigned_there) *unsigned_there = false;
+  if (text.empty() || !rekit::signed_by(text, read_file(dir / "games.json.sig"), u::signing_keys()).empty()) return text;
+  if (unsigned_there) *unsigned_there = true;
+  return std::string();
+}
+
 // The catalog's addresses in the order asked: MW3_CATALOG_URL's in checks ("A|B"), else the cached catalog's own
 // (catalog_sources: read from the cache, which a check run's fetch asks before the cache is in use) and then
 // sources.json's, each once.
@@ -38,7 +50,7 @@ std::vector<std::string> sources(const std::string& write_dir) {
   u::Catalog cached;
   std::vector<std::string> ignored;
   std::string why;
-  const std::string text = write_dir.empty() ? std::string() : read_file(fs::path(write_dir) / "catalog" / "games.json");
+  const std::string text = write_dir.empty() ? std::string() : signed_cache(write_dir);
   if (text.empty() || !u::read_fetched_catalog(text, "unknown", &cached, &ignored, &why)) cached.catalog_sources.clear();
   return addresses(cached.catalog_sources, u::active_sources().catalog);
 }
@@ -54,31 +66,36 @@ void say_in_use(const std::string& write_dir) {
     if (!g.original.empty()) std::printf("mw3: launcher: catalog: %s names an original download\n", g.key.c_str());
 }
 
-// The keys learned from signed catalogs' next_keys (<cache>/keys.txt, a key a line), read and added to.
+// The keys signed catalogs changed (<cache>/keys.txt): a key a line learned from next_keys, "revoked <key>" one
+// revoked by revoked_keys (shipped or learned, kept revoked across starts). Read at the start, before the cache is
+// checked.
 fs::path keys_file(const std::string& write_dir) { return fs::path(cache_dir(write_dir)) / "keys.txt"; }
 void read_learned(const std::string& write_dir) {
-  std::vector<std::string> keys;
+  std::vector<std::string> keys, revoked;
   std::ifstream f(keys_file(write_dir));
   for (std::string line; std::getline(f, line);) {
     while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
-    if (!line.empty()) keys.push_back(line);
+    if (line.rfind("revoked ", 0) == 0) revoked.push_back(line.substr(8));
+    else if (!line.empty()) keys.push_back(line);
   }
+  u::revoke_keys(revoked);
   u::learn_keys(keys);
 }
-void write_learned(const std::string& write_dir, const std::vector<std::string>& next) {
-  if (next.empty()) return;
+// A taken catalog's revoked_keys honored, then its next_keys learned (a revoked one is not), and keys.txt rewritten.
+void write_learned(const std::string& write_dir, const std::vector<std::string>& next, const std::vector<std::string>& revoked) {
+  if (next.empty() && revoked.empty()) return;
+  u::revoke_keys(revoked);
   u::learn_keys(next);
-  std::vector<std::string> have = u::signing_keys();
-  const std::vector<std::string>& shipped = u::active_sources().keys;
   std::string text;
-  for (const std::string& k : have)
-    if (std::find(shipped.begin(), shipped.end(), k) == shipped.end()) text += k + "\n";
+  for (const std::string& k : u::learned_keys()) text += k + "\n";
+  for (const std::string& k : u::revoked_keys()) text += "revoked " + k + "\n";
   std::error_code ec;
   const fs::path file = keys_file(write_dir), part = file.string() + ".part";
   { std::ofstream(part, std::ios::binary) << text; }
   fs::rename(part, file, ec);
   if (ec) fs::remove(part, ec);
-  else std::printf("mw3: launcher: catalog: its next keys learned (%d)\n", static_cast<int>(next.size()));
+  else
+    std::printf("mw3: launcher: catalog: its keys taken (%d next, %d revoked)\n", static_cast<int>(next.size()), static_cast<int>(revoked.size()));
 }
 
 std::string read_file(const fs::path& p) {
@@ -257,7 +274,7 @@ bool fetch(const Here& h, bool allow_file) {
   std::error_code ec;
   fs::create_directories(dir, ec);
   u::Catalog cached;
-  const std::string had = read_file(dir / "games.json");
+  const std::string had = signed_cache(h.write_dir);  // an unsigned cache is replaced by a signed catalog of any revision
   std::vector<std::string> ignored;
   std::string why;
   if (!had.empty() && u::read_fetched_catalog(had, h.version, &cached, &ignored, &why) && cached.revision >= best.revision) {
@@ -272,7 +289,7 @@ bool fetch(const Here& h, bool allow_file) {
     fs::rename(part, dir / name, ec);
     if (ec) return fs::remove(part, ec), false;
   }
-  write_learned(h.write_dir, best.next_keys);
+  write_learned(h.write_dir, best.next_keys, best.revoked_keys);
   std::printf("mw3: launcher: catalog: revision %d cached\n", best.revision);
   return true;
 }
@@ -289,7 +306,9 @@ void at_start(const Here& h, bool check_run) {
   if (check_run && (std::getenv("MW3_CATALOG_URL") || std::getenv("MW3_SOURCES_FILE"))) fetch(h, true);
   else if (check_run) std::printf("mw3: launcher: catalog: not asked in a check run\n");
   const u::Catalog& builtin = u::builtin_catalog();
-  const std::string text = h.write_dir.empty() ? std::string() : read_file(fs::path(cache_dir(h.write_dir)) / "games.json");
+  bool not_signed = false;
+  const std::string text = h.write_dir.empty() ? std::string() : signed_cache(h.write_dir, &not_signed);
+  if (not_signed) std::printf("mw3: launcher: catalog: the cache is not signed: not used\n");
   u::Catalog fetched, c = builtin;
   bool from_cache = false;
   if (text.empty() || !read(text, h.version, "the cache", &fetched)) {

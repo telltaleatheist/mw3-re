@@ -1383,7 +1383,7 @@ TEST(sdl_program_launcher_takes_only_a_signed_catalog) {
   put("a", 2, {1}, ", \"next_keys\": [\"" + test_keys::public_key(2) + "\"]");
   const std::string rot = wd();
   log = run("rotate-1", rot);
-  EXPECT(cached(rot) == read(src("a")) && has(log, "catalog: its next keys learned (1)") && read(rot + "/catalog/keys.txt") == test_keys::public_key(2) + "\n");
+  EXPECT(cached(rot) == read(src("a")) && has(log, "catalog: its keys taken (1 next, 0 revoked)") && read(rot + "/catalog/keys.txt") == test_keys::public_key(2) + "\n");
   put("a", 3, {2});
   log = run("rotate-2", rot);
   EXPECT(cached(rot) == read(src("a")) && has(log, "catalog: revision 3 cached"));
@@ -1400,6 +1400,46 @@ TEST(sdl_program_launcher_takes_only_a_signed_catalog) {
   put("d", 4, {1});
   log = run("follow-2", follow);
   EXPECT(cached(follow) == read(src("d")) && log.find("catalog at " + url("d")) < log.find("catalog at " + url("a")));
+  // An older launcher's cache (1.7.1 and before fetched it unsigned, no games.json.sig): not used at the start, and
+  // replaced by a signed catalog of the same revision, or a lower one.
+  fs::remove(src("d"), ec), fs::remove(src("a"), ec);
+  for (int old_rev : {3, 5}) {
+    const std::string old = wd();
+    fs::create_directories(old + "/catalog", ec);
+    put("old", old_rev, {});
+    fs::copy_file(src("old"), old + "/catalog/games.json", fs::copy_options::overwrite_existing, ec);
+    fs::remove(src("a"), ec);
+    log = run(("unsigned-cache-" + std::to_string(old_rev)).c_str(), old);
+    EXPECT(has(log, "catalog: the cache is not signed: not used\n") && has(log, "catalog: the built-in one (revision 1)") && cached(old) == read(src("old")));
+    put("a", 3, {1});
+    log = run(("unsigned-cache-" + std::to_string(old_rev) + "-signed").c_str(), old);
+    EXPECT(cached(old) == read(src("a")) && read(old + "/catalog/games.json.sig") == read(src("a") + ".sig") && has(log, "catalog: revision 3 cached") &&
+           has(log, "catalog: revision 3, fetched"));
+  }
+  // Revocation: a (key 1) names key 2; a (key 2) revokes key 1, the shipped one: a catalog by key 1 alone is then
+  // refused there, and key 1 can no longer vouch for a key 3. Then a (keys 2 and 3, the next named) revokes key 2,
+  // a learned one: key 2 alone refused, key 3 taken. The revocations kept across starts (keys.txt).
+  const std::string rev = wd();
+  put("a", 2, {1}, ", \"next_keys\": [\"" + test_keys::public_key(2) + "\"]");
+  run("revoke-1", rev);
+  put("a", 3, {2}, ", \"revoked_keys\": [\"" + test_keys::public_key(1) + "\"]");
+  log = run("revoke-2", rev);
+  EXPECT(cached(rev) == read(src("a")) && has(log, "catalog: its keys taken (0 next, 1 revoked)"));
+  EXPECT(read(rev + "/catalog/keys.txt") == test_keys::public_key(2) + "\nrevoked " + test_keys::public_key(1) + "\n");
+  const std::string by_two = read(src("a"));
+  put("a", 4, {1}, ", \"next_keys\": [\"" + test_keys::public_key(3) + "\"]");  // the leaked key minting a successor
+  log = run("revoke-3", rev);
+  EXPECT(cached(rev) == by_two && has(log, ("catalog at " + url("a") + ": not used: its signature does not check").c_str()));
+  EXPECT(read(rev + "/catalog/keys.txt") == test_keys::public_key(2) + "\nrevoked " + test_keys::public_key(1) + "\n");
+  put("a", 4, {2, 3}, ", \"next_keys\": [\"" + test_keys::public_key(3) + "\"], \"revoked_keys\": [\"" + test_keys::public_key(2) + "\"]");
+  log = run("revoke-4", rev);
+  EXPECT(cached(rev) == read(src("a")) && has(log, "catalog: its keys taken (1 next, 1 revoked)") && !has(log, "the cache is not signed"));
+  put("a", 5, {2});
+  log = run("revoke-5", rev);
+  EXPECT(!has(log, "catalog: revision 5 cached") && has(log, "catalog: revision 4, fetched"));  // its cache, signed by key 3, still in use
+  put("a", 5, {3});
+  log = run("revoke-6", rev);
+  EXPECT(has(log, "catalog: revision 5 cached"));
   // sources.json missing: the built-in copy, no key, nothing taken, its real addresses not asked.
   w = wd(), log = run("builtin", w, (dir + "/missing-sources.json").c_str());
   EXPECT(has(log, ("launcher: sources: the built-in copy (" + dir + "/missing-sources.json: it is not there)\n").c_str()));

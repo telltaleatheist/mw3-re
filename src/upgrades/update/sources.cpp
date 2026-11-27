@@ -20,7 +20,7 @@ using detail::Json;
 
 std::mutex g_mutex;
 Sources* g_active = nullptr;
-std::vector<std::string> g_learned;
+std::vector<std::string> g_learned, g_revoked;
 
 bool plain_host(const std::string& h) {
   if (h.empty() || h.size() > 253 || h.find('.') == std::string::npos || h.find("..") != std::string::npos || h.front() == '.' ||
@@ -134,16 +134,44 @@ void learn_keys(const std::vector<std::string>& keys) {
   std::lock_guard<std::mutex> lock(g_mutex);
   for (std::string k : keys)
     if (is_key_hex(&k) && g_learned.size() < static_cast<size_t>(kMaxKeys) &&
-        std::find(g_learned.begin(), g_learned.end(), k) == g_learned.end())
+        std::find(g_learned.begin(), g_learned.end(), k) == g_learned.end() &&
+        std::find(g_revoked.begin(), g_revoked.end(), k) == g_revoked.end())
       g_learned.push_back(k);
 }
 
-std::vector<std::string> signing_keys() {
-  std::vector<std::string> out = active_sources().keys;
+void revoke_keys(const std::vector<std::string>& keys) {
   std::lock_guard<std::mutex> lock(g_mutex);
-  for (const std::string& k : g_learned)
-    if (std::find(out.begin(), out.end(), k) == out.end()) out.push_back(k);
+  for (std::string k : keys) {
+    if (!is_key_hex(&k)) continue;
+    g_learned.erase(std::remove(g_learned.begin(), g_learned.end(), k), g_learned.end());
+    if (std::find(g_revoked.begin(), g_revoked.end(), k) == g_revoked.end()) g_revoked.push_back(k);
+  }
+}
+
+std::vector<std::string> signing_keys() {
+  std::vector<std::string> out;
+  const std::vector<std::string> shipped = active_sources().keys;
+  std::lock_guard<std::mutex> lock(g_mutex);
+  for (const std::vector<std::string>* l : {&shipped, static_cast<const std::vector<std::string>*>(&g_learned)})
+    for (const std::string& k : *l)
+      if (std::find(out.begin(), out.end(), k) == out.end() && std::find(g_revoked.begin(), g_revoked.end(), k) == g_revoked.end())
+        out.push_back(k);
   return out;
+}
+
+std::vector<std::string> learned_keys() {
+  std::lock_guard<std::mutex> lock(g_mutex);
+  return g_learned;
+}
+
+std::vector<std::string> revoked_keys() {
+  std::lock_guard<std::mutex> lock(g_mutex);
+  return g_revoked;
+}
+
+void forget_keys() {
+  std::lock_guard<std::mutex> lock(g_mutex);
+  g_learned.clear(), g_revoked.clear();
 }
 
 bool takes_unsigned_sums(const std::string& list_url) {

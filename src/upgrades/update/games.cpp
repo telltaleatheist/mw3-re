@@ -147,7 +147,8 @@ bool read_catalog(const std::string& json, Catalog* out, std::string* why, std::
   }
   // The catalog's own addresses and the keys it vouches for: a bad list refused whole (strict) or left out.
   for (const auto& [key, list, most, address] : {std::tuple<const char*, std::vector<std::string>*, int, bool>{"catalog_sources", &out->catalog_sources, kMaxCatalogSources, true},
-                                                 {"next_keys", &out->next_keys, kMaxNextKeys, false}}) {
+                                                 {"next_keys", &out->next_keys, kMaxNextKeys, false},
+                                                 {"revoked_keys", &out->revoked_keys, kMaxRevokedKeys, false}}) {
     const Json* v = root.at(key);
     if (!v) continue;
     std::string bad;
@@ -372,7 +373,7 @@ Catalog merged_catalog(const Catalog& builtin, const Catalog& fetched, std::vect
   Catalog out = builtin;
   out.revision = fetched.revision;
   if (fetched.has_homes) out.has_homes = true, out.homes = fetched.homes;
-  out.catalog_sources = fetched.catalog_sources, out.next_keys = fetched.next_keys;
+  out.catalog_sources = fetched.catalog_sources, out.next_keys = fetched.next_keys, out.revoked_keys = fetched.revoked_keys;
   for (const CatalogFamily& f : fetched.families) {
     auto at = std::find_if(out.families.begin(), out.families.end(), [&](const CatalogFamily& o) { return o.key == f.key; });
     if (at != out.families.end()) *at = f;

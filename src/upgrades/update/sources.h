@@ -26,11 +26,17 @@ const std::string& builtin_sources_text();  // sources.json as built in
 Sources load_sources(const std::string& path, bool allow_file, std::string* said);
 
 // The sources in use this run (the built-in copy until use_sources), and the keys learned from signed catalogs'
-// next_keys (docs/launcher.md, Signed data): signing_keys() is both, deduplicated, the shipped ones first.
+// next_keys (docs/launcher.md, Signed data): signing_keys() is both, deduplicated, the shipped ones first, less
+// every revoked one (a signed catalog's revoked_keys). A revoked key is dropped from the learned ones and never
+// learned again. learned_keys()/revoked_keys(): what <cache>/keys.txt keeps.
 void use_sources(const Sources& s);
 const Sources& active_sources();
 void learn_keys(const std::vector<std::string>& keys);
+void revoke_keys(const std::vector<std::string>& keys);
 std::vector<std::string> signing_keys();
+std::vector<std::string> learned_keys();
+std::vector<std::string> revoked_keys();
+void forget_keys();  // learned and revoked both cleared (tests)
 // A releases list (its address) whose unsigned SHA256SUMS is taken.
 bool takes_unsigned_sums(const std::string& list_url);
 
