@@ -500,6 +500,21 @@ catalog in use is fixed for the run once a game is looked up
 `MW3_CATALOG_URL` (one address, or `A|B`; `file://` there) or
 `MW3_SOURCES_FILE` is set, and never from an address that is not file://.
 
+**A live check** (`MW3_LIVE_CHECK=1`, 2026-11-27) lifts that one rule, so
+a release is checked without a window: a check run then asks the real
+addresses, as a player's start does: the catalog's (https only, its `.sig`
+checked; "catalog: a live check: the real addresses asked"), each game's
+releases and the launcher's own, on every home. Every other check-run rule
+holds: only folders it is given (its own games folder), no picker, no
+trash, `MW3_SOURCES_FILE` still read. Run it with a scratch write dir:
+
+    MW3_LIVE_CHECK=1 MW3_LAUNCHER_FRAMES=600 mw3launcher --hidden --nosound --write-dir <scratch>
+
+and read the log: each catalog address "answered, signed", the revision in
+use, each game's "at <home>: answered", and the update check's verdict.
+Test: `sdl_program_launcher_live_check_asks_the_real_addresses` (every
+real address there is `https://127.0.0.1/`, refused at once: no network).
+
 What an entry does:
 
 - `released`: its repo is asked and its panel shown, as before.
@@ -1439,7 +1454,8 @@ program files are replaced.
    one or a failed check show no button; the verdict goes to the
    log only ("update check at the start: ..."). A check run (`--hidden`, or
    a `--launcher-shot`) without `MW3_UPDATE_API` asks nothing, so tests never
-   reach GitHub or git.owenmorgan.com; a shot with it asks before drawing.
+   reach GitHub or git.owenmorgan.com (unless it is a live check,
+   `MW3_LIVE_CHECK=1`); a shot with it asks before drawing.
    `MW3_LAUNCHER_NAV_LATE=1` (checks) runs `MW3_LAUNCHER_NAV`'s steps once
    that check has answered. Test:
    `sdl_program_launcher_offers_its_own_update_at_start` (newer: the footer
@@ -1711,7 +1727,8 @@ release.
   prerelease, with this platform's file, is the answer
   (`upgrades::update::newest_game`). A check run (`--hidden`, or a
   `--launcher-shot` since 2026-11-23) asks only `MW3_GAMES_API` (a URL with
-  `{repo}`, `file://` allowed), never GitHub or git.owenmorgan.com; without
+  `{repo}`, `file://` allowed), never GitHub or git.owenmorgan.com (a live
+  check, `MW3_LIVE_CHECK=1`, asks the real homes); without
   it the log says "games: not asked in a check run" and the cards show what
   they show with no answer ("Can't reach the server").
   **A quit never waits on the network (lead, 2026-11-23).** Both start checks

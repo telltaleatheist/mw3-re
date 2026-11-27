@@ -101,6 +101,11 @@ bool wait_quiet(SDL_Process* p, bool block, int* code) {
   return true;
 }
 
+bool live_check() {
+  const char* v = std::getenv("MW3_LIVE_CHECK");
+  return v && std::string(v) == "1";
+}
+
 bool curl_get(const std::string& url, int seconds, std::string* out, std::string* error, bool allow_file, bool fresh) {
   out->clear();
   if (g_stop_asking) return *error = "not asked: the launcher is closing", false;

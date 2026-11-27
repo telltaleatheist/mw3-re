@@ -332,8 +332,14 @@ void at_start(const Here& h, bool check_run) {
     if (u::active_sources().keys.empty()) std::printf("mw3: launcher: catalog: sources.json lists no key: no fetched catalog is taken\n");
     if (!h.write_dir.empty()) read_learned(h.write_dir);
   }
-  if (check_run && (std::getenv("MW3_CATALOG_URL") || std::getenv("MW3_SOURCES_FILE"))) fetch(h, true);
-  else if (check_run) std::printf("mw3: launcher: catalog: not asked in a check run\n");
+  if (check_run && sdlfe::live_check()) {  // a release checked without a window: the real addresses, https only
+    std::printf("mw3: launcher: catalog: a live check: the real addresses asked\n");
+    fetch(h, false);
+  } else if (check_run && (std::getenv("MW3_CATALOG_URL") || std::getenv("MW3_SOURCES_FILE"))) {
+    fetch(h, true);
+  } else if (check_run) {
+    std::printf("mw3: launcher: catalog: not asked in a check run\n");
+  }
   const u::Catalog& builtin = u::builtin_catalog();
   bool not_signed = false;
   const std::string text = h.write_dir.empty() ? std::string() : signed_cache(h.write_dir, &not_signed);

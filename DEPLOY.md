@@ -144,7 +144,10 @@ Releases are cut by the lead session when the project owner clears them.
    files, `SHA256SUMS` and `SHA256SUMS.sig`, not a draft or a prerelease.
 7. **Check it live:** download every asset again and check its checksum, then
    run the previous release's launcher, press its update, and confirm it
-   finds the new one.
+   finds the new one. Without a window: `MW3_LIVE_CHECK=1 MW3_LAUNCHER_FRAMES=600
+   mw3launcher --hidden --nosound --write-dir <scratch>` asks the real
+   catalog and releases, and its log says what each answered
+   (docs/launcher.md, A live check).
 
 **A game release** is built and published in the game's own repo, by its
 own checklist (mech3-re's `docs/release.md`), with its files and their lines

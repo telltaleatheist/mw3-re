@@ -19,6 +19,11 @@ namespace sdlfe {
 // catalog and its .sig: the site's server marks its static files as good for years).
 bool curl_get(const std::string& url, int seconds, std::string* out, std::string* error, bool allow_file = false, bool fresh = false);
 
+// MW3_LIVE_CHECK=1: a check run (hidden, a shot) asks the real addresses, the catalog's, the games' and the
+// launcher's own releases, as a player's start does, so a release is checked without a window. Only that rule is
+// lifted: the run still reads only folders it is given, opens no picker and touches no trash (docs/launcher.md).
+bool live_check();
+
 // The launcher closing (lead 2026-11-23: a quit never waits on the network): every curl_get or curl_download running
 // is stopped at once (curl killed, the call failing with "the launcher is closing") and any later one fails at once,
 // so the checks' threads end and are joined in moments. `false` asks again: each Launcher's start (a process may

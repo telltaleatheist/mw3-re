@@ -1267,6 +1267,68 @@ TEST(sdl_program_launcher_keeps_an_installed_games_entry) {
   if (!check::failures) fs::remove_all(dir, ec);
 }
 
+// A live check (MW3_LIVE_CHECK=1, 2026-11-27): a hidden run asks the real addresses, as a player's start does, so a
+// release is checked without a window. Here every real address is https://127.0.0.1/ (nothing listens: refused at
+// once, no network): a signed catalog naming that home cached by a first run, and a sources file naming a catalog
+// there. The same hidden run without the flag asks none of them (curl never started for them); with it, the
+// catalog's, a game's and the launcher's own releases are asked. The other check-run rules hold: its own games folder.
+TEST(sdl_program_launcher_live_check_asks_the_real_addresses) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_live";
+  fs::remove_all(dir, ec);
+  for (const char* d : {"/games", "/wd/music"}) fs::create_directories(dir + d, ec);
+  std::ofstream(dir + "/wd/music/track02.wav") << "x";
+  std::ofstream(dir + "/local.json")
+      << "{\"catalog\": 1, \"revision\": 9, \"homes\": [{\"key\": \"lo\", \"releases\": \"https://127.0.0.1/{repo}.json\", \"order\": 1}], "
+         "\"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": [{\"key\": \"btech\", \"family\": \"bt\", "
+         "\"order\": 7, \"state\": \"released\", \"name\": \"BattleTech Rebuild\", \"title\": \"BATTLETECH\", \"heading\": \"BATTLETECH\", "
+         "\"button\": \"BATTLETECH\", \"description\": \"A line.\", \"repo\": \"battletech-re\", \"tag_prefix\": \"btech-v\", \"program\": "
+         "\"btech\", \"assets\": {\"windows\": \"BT-{tag}-win64.zip\", \"mac\": \"BT-{tag}-mac.dmg\", \"linux\": \"BT-{tag}-x86_64.AppImage\"}, "
+         "\"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\"}]}";
+  const std::string sources = dir + "/sources.json";
+  write_sources(sources, {"https://127.0.0.1/catalog.json"}, {1});
+  struct Got {
+    std::string log, asked;
+  };
+  auto run = [&](const char* name, std::vector<std::pair<std::string, std::string>> env) {
+    const std::string args = dir + "/" + name + ".args";
+    env.insert(env.end(), {{"MW3_LAUNCHER_FRAMES", "60"}, {"MW3_NO_IMPORT", "1"}, {"MW3_CURL_ARGS_TO", args}, {"MW3_PM_BIN", ""},
+                           {"MW3_MW1_BIN", ""}, {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}});
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/" + name + ".log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(dir + "/" + std::string(name) + ".log"), a(args);
+    Got g{std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>()),
+          std::string((std::istreambuf_iterator<char>(a)), std::istreambuf_iterator<char>())};
+    for (size_t at = 0; (at = g.log.find("127.0.0.1", at)) != std::string::npos; at = g.log.find('\n', at)) {
+      const size_t from = g.log.rfind('\n', at) + 1;
+      std::printf("  %s: %s\n", name, g.log.substr(from, g.log.find('\n', at) - from).c_str());
+    }
+    return g;
+  };
+  // The fixture catalog cached (a stand-in's file://, signed by test key 1 as spawn_launcher does).
+  const Got cache = run("cache", {{"MW3_CATALOG_URL", "file://" + dir + "/local.json"}, {"MW3_GAMES_DIR", dir + "/games"}});
+  EXPECT(has(cache.log, "catalog: revision 9, fetched") && has(cache.log, "catalog: homes: lo\n"));
+  const auto asked = [](const Got& g, const std::string& url) { return g.asked.find("\n" + url + "\n") != std::string::npos; };
+  // A check run as before: nothing real asked.
+  const Got plain = run("plain", {{"MW3_SOURCES_FILE", sources}, {"MW3_GAMES_DIR", dir + "/games"}});
+  EXPECT(has(plain.log, "catalog: homes: lo\n") && has(plain.log, "catalog at https://127.0.0.1/catalog.json: not asked in a check run\n"));
+  EXPECT(has(plain.log, "games: not asked in a check run\n") && has(plain.log, "update check at the start: not asked in a check run\n"));
+  EXPECT(plain.asked.find("127.0.0.1") == std::string::npos && !has(plain.log, "a live check"));
+  // A live check: the catalog, a game's releases and the launcher's own asked at their real addresses; its own games
+  // folder still (none given: never the computer's).
+  const Got live = run("live", {{"MW3_SOURCES_FILE", sources}, {"MW3_LIVE_CHECK", "1"}});
+  EXPECT(has(live.log, "catalog: a live check: the real addresses asked\n") && has(live.log, "catalog: homes: lo\n"));
+  EXPECT(asked(live, "https://127.0.0.1/catalog.json") && !has(live.log, "not asked in a check run"));
+  EXPECT(asked(live, "https://127.0.0.1/mech3-pm-re.json"));  // a game's own (the games' thread may close before the last)
+  EXPECT(asked(live, "https://127.0.0.1/mw3-re.json") && asked(live, "https://127.0.0.1/mech3-re.json"));
+  EXPECT(live.log.find("BattleTech/games/") == std::string::npos);
+  if (!check::failures) fs::remove_all(dir, ec);
+}
+
 // The homes in use (2026-11-26, docs/launcher.md, Where the launcher looks), said at the start: the built-in list with
 // no catalog fetched; a fetched one's (revision 4, a stand-in host) once cached; a later one with a bad list leaves the
 // built-in one in force. A game's "original" is said, and fetched only after its DOWNLOAD (not here).

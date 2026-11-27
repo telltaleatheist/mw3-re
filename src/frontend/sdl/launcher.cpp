@@ -1083,10 +1083,10 @@ void Launcher::uninstall_go(bool files) {
 }
 
 // Each game's repo asked on a thread of its own, the cards saying "asking" meanwhile; a check run (hidden, or a shot)
-// asks only a stand-in (MW3_GAMES_API), never GitHub or git.owenmorgan.com.
+// asks only a stand-in (MW3_GAMES_API), never GitHub or git.owenmorgan.com, unless it is a live check (MW3_LIVE_CHECK).
 void Launcher::start_games_check() {
   if (!games_on_) return;
-  if ((o_.hidden || !o_.shot.empty()) && !SDL_getenv("MW3_GAMES_API")) {  // a shot is a check run too
+  if ((o_.hidden || !o_.shot.empty()) && !SDL_getenv("MW3_GAMES_API") && !sdlfe::live_check()) {  // a shot is a check run too
     for (auto& c : checks_) c.kind = upgrades::update::GameCheck::kFailed, c.words = "not asked in a check run";
     std::printf("mw3: launcher: games: not asked in a check run\n");
     return;
@@ -1110,9 +1110,10 @@ void Launcher::start_games_check() {
 
 // The launcher's own update asked at the start (2026-11-23), quietly: a thread, the main screen never waiting
 // on it, nothing said on screen unless it is newer. A check run (hidden, or a shot) asks only a stand-in
-// (MW3_UPDATE_API), never GitHub or git.owenmorgan.com; a shot with one asks first, so it is drawn.
+// (MW3_UPDATE_API), never GitHub or git.owenmorgan.com, unless it is a live check (MW3_LIVE_CHECK); a shot with one
+// asks first, so it is drawn.
 void Launcher::start_self_check() {
-  if ((o_.hidden || !o_.shot.empty()) && !SDL_getenv("MW3_UPDATE_API")) {
+  if ((o_.hidden || !o_.shot.empty()) && !SDL_getenv("MW3_UPDATE_API") && !sdlfe::live_check()) {
     std::printf("mw3: launcher: update check at the start: not asked in a check run\n");
     return;
   }
