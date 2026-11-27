@@ -1929,6 +1929,25 @@ follows (decided 2026-11-26). Only the progress and the usual CANCEL show.
   source, the temp folder's name taken by someone's own folder, and a game
   that has its files already. Each checks that the temp file is gone.
 
+### Offline (2026-11-27)
+
+The launcher counts as offline when every game's repo was asked and none answered (each game's check `kFailed`).
+Then only the installed games are listed, so nothing on the list needs the network to work. When nothing is installed
+either, the list's place says "Can't connect to the internet, and no game is installed yet. Check your connection or
+firewall, then press CHECK FOR UPDATES to try again." CHECK FOR UPDATES asks the catalog and every repo again, and the
+first answer brings the whole list back. There is no sign-in of any kind. A check run never asks the network and so
+never counts as offline; `MW3_LAUNCHER_OFFLINE` makes one, for shots and tests.
+
+### A dropped download (2026-11-27)
+
+`curl_download` (and the kit's `fetch_url`, which the games' own setup uses) tries again after 5 s when the connection
+drops: curl's codes 6, 7, 18, 28, 35, 52, 55 and 56, or a file of known size that came short. Each try resumes from the
+`.part` file's end (`--continue-at -`), up to 5 tries, as long as each try gets further. A server that will not resume
+(curl 33, HTTP 416) starts it over once. The finished file is still checked whole (size and SHA-256) by the caller,
+so a resume can never install a bad file. Test: `launcher_download_resumes_after_a_dropped_connection`, where a
+stand-in server on this computer (plain http, allowed only for 127.0.0.1 under `MW3_DOWNLOAD_LOCAL_HTTP`) drops a 3 MB
+file halfway.
+
 ## Where a game goes (2026-11-22)
 
 "Everything can be installed in the same location the user picks", and

@@ -63,7 +63,8 @@ using DownloadFn = std::function<bool(double fraction, uint64_t got, bool checki
 
 // `url` into the file `to` (written as `to`.part, renamed once complete), `progress` told the fraction of `size`
 // bytes (0 when unknown) and the bytes in, and stopping it with false; no overall time limit, but a minute without
-// data ends it.
+// data ends it. A dropped connection is tried again after 5 s from where it stopped (2026-11-27: while each try gets
+// further, at most 5; a server that will not resume starts it over once).
 bool curl_download(const std::string& url, const std::string& to, uint64_t size, const DownloadFn& progress,
                    std::string* error, bool* cancelled, bool allow_file = false);
 

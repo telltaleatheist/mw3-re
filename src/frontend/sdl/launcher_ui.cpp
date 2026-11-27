@@ -287,6 +287,7 @@ struct LauncherUi::Impl {
     c.Bind("notes_size", &m.notes_size), c.Bind("notes_width", &m.notes_width);
     c.Bind("notes_gap", &m.notes_gap), c.Bind("notes_line", &m.notes_line);
     c.Bind("lines", &m.lines), c.Bind("notes", &m.notes), c.Bind("panels", &m.panels), c.Bind("rows", &m.rows);
+    c.Bind("empty", &m.empty);
     model = c.GetModelHandle();
     return true;
   }

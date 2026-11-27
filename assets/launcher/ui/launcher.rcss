@@ -35,6 +35,9 @@ p { margin: 0; }
 
 #view { flex: 1; position: relative; min-height: 0; width: 768dp; margin: 0 auto; }
 #list { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden auto; padding-right: 0; }
+/* Offline with nothing installed (2026-11-27): the words in the list's place. */
+#empty { position: absolute; top: 120dp; left: 104dp; width: 560dp; font-family: body; font-size: 16dp; line-height: 22dp;
+         color: #f5c27a; text-align: center; white-space: pre-wrap; }
 #more_up, #more_down { display: none; position: absolute; left: 0; width: 758dp; height: 18dp; pointer-events: none; }
 #more_up { top: 0; decorator: vertical-gradient(#06070adc #06070a00); }
 #more_down { bottom: 0; decorator: vertical-gradient(#06070a00 #06070adc); }

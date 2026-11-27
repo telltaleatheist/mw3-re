@@ -16,8 +16,11 @@
 #include <csignal>
 #include <thread>
 #if !defined(_WIN32)
+#include <arpa/inet.h>
 #include <fcntl.h>
+#include <netinet/in.h>
 #include <spawn.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -2919,3 +2922,71 @@ TEST(launcher_job_one_bar_for_a_press) {
   EXPECT(sdlfe::job::left_words(30) == "less than a minute left" && sdlfe::job::left_words(4800) == "about 1 h 20 min left" &&
          sdlfe::job::speed_words(850000) == "850 KB/s" && sdlfe::job::mb(624970304) == "625 MB");
 }
+
+#if !defined(_WIN32)
+// A dropped download continues where it stopped (2026-11-27): a stand-in server on this computer sends half of a
+// 3 MB file and closes the connection; the download asks again 5 s later with a Range from the part's end, gets the
+// rest (206), and the whole file arrives byte for byte, in two requests.
+TEST(launcher_download_resumes_after_a_dropped_connection) {
+  std::string body(3 * 1000 * 1000, '\0');
+  for (size_t i = 0; i < body.size(); ++i) body[i] = static_cast<char>((i * 131 + i / 7) & 0xff);
+  const int srv = socket(AF_INET, SOCK_STREAM, 0);
+  sockaddr_in a{};
+  a.sin_family = AF_INET, a.sin_addr.s_addr = htonl(INADDR_LOOPBACK), a.sin_port = 0;
+  EXPECT(srv >= 0 && bind(srv, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0 && listen(srv, 4) == 0);
+  socklen_t al = sizeof a;
+  getsockname(srv, reinterpret_cast<sockaddr*>(&a), &al);
+  const int port = ntohs(a.sin_port);
+  std::vector<std::string> asked;
+  std::thread server([&] {
+    for (int n = 0; n < 2; ++n) {
+      const int c = accept(srv, nullptr, nullptr);
+      if (c < 0) return;
+      std::string req;
+      char buf[2048];
+      while (req.find("\r\n\r\n") == std::string::npos) {
+        const ssize_t got = recv(c, buf, sizeof buf, 0);
+        if (got <= 0) break;
+        req.append(buf, static_cast<size_t>(got));
+      }
+      asked.push_back(req);
+      size_t from = 0;
+      if (const size_t r = req.find("Range: bytes="); r != std::string::npos) from = std::strtoull(req.c_str() + r + 13, nullptr, 10);
+      std::string head, data;
+      if (from == 0) {  // the first: all promised, half sent, then closed
+        head = "HTTP/1.1 200 OK\r\nContent-Length: " + std::to_string(body.size()) + "\r\nAccept-Ranges: bytes\r\n\r\n";
+        data = body.substr(0, body.size() / 2);
+      } else {
+        head = "HTTP/1.1 206 Partial Content\r\nContent-Length: " + std::to_string(body.size() - from) + "\r\nContent-Range: bytes " +
+               std::to_string(from) + "-" + std::to_string(body.size() - 1) + "/" + std::to_string(body.size()) + "\r\n\r\n";
+        data = body.substr(from);
+      }
+      const std::string out = head + data;
+      for (size_t at = 0; at < out.size();) {
+        const ssize_t sent = send(c, out.data() + at, out.size() - at, 0);
+        if (sent <= 0) break;
+        at += static_cast<size_t>(sent);
+      }
+      close(c);
+    }
+  });
+  const std::string dir = std::string(MW3_TEST_TMP) + "/resume";
+  std::error_code ec;
+  std::filesystem::remove_all(dir, ec);
+  std::filesystem::create_directories(dir, ec);
+  setenv("MW3_DOWNLOAD_LOCAL_HTTP", "1", 1);
+  std::string error;
+  bool cancelled = false;
+  const bool ok = sdlfe::curl_download("http://127.0.0.1:" + std::to_string(port) + "/game.zip", dir + "/game.zip", body.size(),
+                                       [](double, uint64_t, bool) { return true; }, &error, &cancelled);
+  unsetenv("MW3_DOWNLOAD_LOCAL_HTTP");
+  shutdown(srv, SHUT_RDWR), close(srv);
+  server.join();
+  std::ifstream f(dir + "/game.zip", std::ios::binary);
+  const std::string got((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  std::printf("resume: %s, %zu requests, %zu bytes%s%s\n", ok ? "whole" : "failed", asked.size(), got.size(), error.empty() ? "" : ": ", error.c_str());
+  EXPECT(ok && !cancelled && got == body);
+  EXPECT(asked.size() == 2 && asked[1].find("Range: bytes=" + std::to_string(body.size() / 2) + "-") != std::string::npos);
+  EXPECT(!std::filesystem::exists(dir + "/game.zip.part"));
+}
+#endif

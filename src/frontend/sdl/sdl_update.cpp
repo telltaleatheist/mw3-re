@@ -183,45 +183,88 @@ bool curl_download(const std::string& url, const std::string& to, uint64_t size,
   if (curl.empty()) return *error = "this computer has no curl to download with", false;
   const bool file = url.rfind("file://", 0) == 0;
   if (file && !allow_file) return *error = "not an https address", false;
+  // MW3_DOWNLOAD_LOCAL_HTTP (checks): plain http to this computer only, a stand-in server that drops the connection.
+  const bool local = SDL_getenv("MW3_DOWNLOAD_LOCAL_HTTP") && url.rfind("http://127.0.0.1:", 0) == 0;
   std::error_code ec;
   const std::string part = to + ".part";
   fs::remove(part, ec);
-  const std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--connect-timeout", "20",
-                                         "--speed-limit", "1024", "--speed-time", "60", "--proto", file ? "=file" : "=https",
-                                         "--proto-redir", "=https", "--user-agent", "MW3-Rebuild-launcher", "--output", part, url};
-  std::vector<const char*> argv;
-  for (const std::string& a : args) argv.push_back(a.c_str());
-  argv.push_back(nullptr);
-  const SDL_PropertiesID props = SDL_CreateProperties();
-  SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, argv.data());
-  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
-  SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
-  SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
-  SDL_Process* p = start_quiet(props);
-  SDL_DestroyProperties(props);
-  if (!p) return *error = std::string("curl could not be started (") + SDL_GetError() + ")", false;
+  const auto got_bytes = [&]() { return fs::exists(part, ec) ? static_cast<uint64_t>(fs::file_size(part, ec)) : uint64_t{0}; };
+  const auto stop = [&]() {  // a cancel, or the launcher closing
+    return g_stop_asking || (progress && !progress(size ? std::min(1.0, static_cast<double>(got_bytes()) / static_cast<double>(size)) : 0.0, got_bytes(), false));
+  };
+  // One curl run, from the part's end when `resume` (curl's --continue-at -): its exit code, -2 for a cancel.
+  const auto attempt = [&](bool resume, std::string* said) {
+    std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--connect-timeout", "20",
+                                     "--speed-limit", "1024", "--speed-time", "60", "--proto", file ? "=file" : local ? "=http" : "=https",
+                                     "--proto-redir", "=https", "--user-agent", "MW3-Rebuild-launcher", "--output", part};
+    if (resume) args.push_back("--continue-at"), args.push_back("-");
+    args.push_back(url);
+    std::vector<const char*> argv;
+    for (const std::string& a : args) argv.push_back(a.c_str());
+    argv.push_back(nullptr);
+    const SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, argv.data());
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetBooleanProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, true);
+    SDL_Process* p = start_quiet(props);
+    SDL_DestroyProperties(props);
+    if (!p) return *said = std::string("curl could not be started (") + SDL_GetError() + ")", -1;
+    int code = -1;
+    SDL_IOStream* io = SDL_GetProcessOutput(p);
+    for (;;) {  // the bar (and a cancel) asked before each wait, so even a quick copy can be stopped
+      if (stop()) {
+        SDL_KillProcess(p, true);
+        wait_quiet(p, true, &code);
+        SDL_DestroyProcess(p);
+        return -2;
+      }
+      if (wait_quiet(p, false, &code)) break;
+      char buf[256];
+      const size_t n = io ? SDL_ReadIO(io, buf, sizeof buf) : 0;
+      said->append(buf, n);
+      if (n == 0) SDL_Delay(50);
+    }
+    if (io)
+      for (char buf[256]; const size_t n = SDL_ReadIO(io, buf, sizeof buf);) said->append(buf, n);
+    SDL_DestroyProcess(p);
+    return code;
+  };
+  // A dropped connection (2026-11-27): tried again after 5 s from where the part ends, while each try gets further
+  // (at most 5, the first retry always); a server that will not resume (curl 33, or HTTP 416) starts it over once.
+  // Whatever arrives is still checked whole by the caller (size, SHA-256), so a resume never installs a bad file.
   std::string said;
   int code = -1;
-  SDL_IOStream* io = SDL_GetProcessOutput(p);
-  for (;;) {  // the bar (and a cancel) asked before each wait, so even a quick copy can be stopped
-    const uint64_t got = fs::exists(part, ec) ? static_cast<uint64_t>(fs::file_size(part, ec)) : 0;
-    if (g_stop_asking || (progress && !progress(size ? std::min(1.0, static_cast<double>(got) / static_cast<double>(size)) : 0.0, got, false))) {  // a cancel, or the launcher closing
-      SDL_KillProcess(p, true);
-      wait_quiet(p, true, &code);
-      SDL_DestroyProcess(p);
-      fs::remove(part, ec);
-      *cancelled = true;
-      return *error = "canceled", false;
+  bool resume = false, restarted = false;
+  uint64_t before = 0;
+  for (int tries = 1;; ++tries) {
+    said.clear();
+    code = attempt(resume, &said);
+    if (code == -2) return fs::remove(part, ec), *cancelled = true, *error = "canceled", false;
+    const bool came_short = code == 0 && size > 0 && got_bytes() < size;  // whatever curl said: as its partial file
+    if (code == 0 && !came_short) break;
+    if (code == -1 || file) break;
+    if (came_short) code = 18;
+    const bool no_resume = code == 33 || (code == 22 && said.find("416") != std::string::npos);
+    const bool dropped = code == 6 || code == 7 || code == 18 || code == 28 || code == 35 || code == 52 || code == 55 || code == 56;
+    if (resume && no_resume && !restarted) {  // the server will not continue it: once more from the start
+      restarted = true, resume = false, fs::remove(part, ec);
+      std::printf("mw3: launcher: download: %s will not resume; starting it over\n", url.c_str());
+      continue;
     }
-    if (wait_quiet(p, false, &code)) break;
-    char buf[256];
-    const size_t n = io ? SDL_ReadIO(io, buf, sizeof buf) : 0;
-    said.append(buf, n);
-    if (n == 0) SDL_Delay(50);
+    const uint64_t now = got_bytes();
+    if (!dropped || tries >= 5 || (tries > 1 && now <= before)) {
+      if (came_short) code = 0;  // kept: the caller says how short (its size check)
+      break;
+    }
+    before = now, resume = now > 0;
+    std::printf("mw3: launcher: download: %s stopped at %llu bytes (curl %d); trying again in 5 s\n", url.c_str(),
+                static_cast<unsigned long long>(now), code);
+    for (int w = 0; w < 50; ++w) {  // 5 s, a cancel still heard
+      if (stop()) return fs::remove(part, ec), *cancelled = true, *error = "canceled", false;
+      SDL_Delay(100);
+    }
   }
-  if (io)
-    for (char buf[256]; const size_t n = SDL_ReadIO(io, buf, sizeof buf);) said.append(buf, n);
-  SDL_DestroyProcess(p);
   if (code != 0) {
     fs::remove(part, ec);
     while (!said.empty() && (said.back() == '\n' || said.back() == '\r')) said.pop_back();

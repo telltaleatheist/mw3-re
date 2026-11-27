@@ -496,6 +496,11 @@ class Launcher {
   void recheck();
   void recheck_done();
   bool rechecking_ = false, update_box_ = false, nav_late_ = false;
+  // Offline (2026-11-27): every game's repo asked and none answered (a check run's unasked ones never count;
+  // MW3_LAUNCHER_OFFLINE in checks). Only the installed games are listed; with none, the status says what to do.
+  bool offline_ = false;
+  std::string empty_words_;  // the list's place, when it has no panel
+  void offline_words();
   upgrades::update::Verdict::Kind self_kind_ = upgrades::update::Verdict::kFailed;  // the last answer about the launcher
   std::string self_words_ = "Could not check for updates";
   std::vector<int> game_updates() const;  // the games whose UPDATE is there
@@ -1135,6 +1140,7 @@ void Launcher::start_games_check() {
   if ((o_.hidden || !o_.shot.empty()) && !SDL_getenv("MW3_GAMES_API") && !sdlfe::live_check()) {  // a shot is a check run too
     for (auto& c : checks_) c.kind = upgrades::update::GameCheck::kFailed, c.words = "not asked in a check run";
     std::printf("mw3: launcher: games: not asked in a check run\n");
+    if (SDL_getenv("MW3_LAUNCHER_OFFLINE")) offline_ = true, offline_words(), std::printf("mw3: launcher: offline: only the installed games listed\n");  // checks
     return;
   }
   if (!o_.shot.empty()) {  // a shot is drawn once: its answers first
@@ -1358,7 +1364,19 @@ void Launcher::take_games_check() {
       checks_[i].kind = tag_of(i).empty() || upgrades::update::compare_game(now.release.tag, tag_of(i)) > 0 ? GC::kNewer : GC::kUpToDate;
     std::printf("mw3: launcher: games: %s: %s\n", upgrades::update::game_info(upgrades::update::game_at(i)).key, checks_[i].words.c_str());
   }
+  {
+    bool any = false, answered = false;
+    for (int i = 0; i < upgrades::update::game_count(); ++i) {
+      if (beside_[i]) continue;
+      any = true;
+      answered = answered || checks_[i].kind != upgrades::update::GameCheck::kFailed;
+    }
+    const bool was = offline_;
+    offline_ = any && !answered;
+    if (offline_ != was) std::printf("mw3: launcher: %s\n", offline_ ? "offline: only the installed games listed" : "online again: every game listed");
+  }
   games_check_.reset();
+  offline_words();
   if (screen_ == kMain) layout();
   recheck_done();
   if (const char* k = SDL_getenv("MW3_LAUNCHER_GAME_INSTALL"); k && !std::exchange(game_install_pressed_, true))  // checks: a card's INSTALL or UPDATE pressed once it can be
@@ -1384,6 +1402,18 @@ void Launcher::recheck() {
   recheck_done();
 }
 
+// Offline with nothing installed: the one thing the player can do, said (2026-11-27). Back online, it goes.
+void Launcher::offline_words() {
+  static const char* const kOffline =
+      "Can't connect to the internet, and no game is installed yet.\n\nCheck your connection or firewall, then press CHECK FOR UPDATES to try again.";
+  bool installed = false;
+  for (int i = 0; i < upgrades::update::game_count(); ++i) installed = installed || !game_bin(i).empty();
+  const std::string was = empty_words_;
+  empty_words_ = offline_ && !installed ? kOffline : "";
+  if (empty_words_ != was && !empty_words_.empty()) std::printf("mw3: launcher: %s\n", kOffline);
+  if (offline_ && !installed && status_.rfind("Couldn't check", 0) == 0) status_.clear();  // said once, in the middle
+}
+
 void Launcher::recheck_done() {
   if (!rechecking_ || games_check_ || self_check_) return;
   rechecking_ = false;
@@ -1399,6 +1429,7 @@ void Launcher::recheck_done() {
   else if (self_update_) status_.clear();
   else if (unasked.empty()) status_ = "Everything is up to date.", status_good_ = true;
   else status_ = "Couldn't check " + unasked + ". Check your connection and try again.", status_good_ = false;
+  offline_words();  // offline with nothing installed: that, not "up to date"
   std::printf("mw3: launcher: updates: %s\n", status_.c_str());
   if (screen_ != kMain || work_) return;
   update_box_ = self_update_ != nullptr;
@@ -2597,6 +2628,7 @@ void Launcher::layout() {
         if (!upgrades::update::game_of_key(e.key, &g)) continue;  // past kMaxGames
         const int i = static_cast<int>(g);
         if (e.state == upgrades::update::CatalogGame::kRemoved && game_bin(i).empty()) continue;
+        if (offline_ && game_bin(i).empty()) continue;  // offline: the installed games only (2026-11-27)
         if (e.state == upgrades::update::CatalogGame::kComingSoon && !e.panel_before_release &&
             (pn[i].soon || !(checks_[i].kind == GC::kNewer || checks_[i].kind == GC::kUpToDate || !game_bin(i).empty())))
           continue;
@@ -2919,6 +2951,7 @@ UiModel Launcher::model() {
   for (UiPanel& p : m.rows)
     for (UiLine& l : p.lines) l.text = body_.fit(l.text, 12, kRowWidth, l.keep);
   m.panels = panels_;  // kept on the other screens: the list stays as it was scrolled
+  m.empty = panels_.empty() ? empty_words_ : std::string();
   m.status = status_, m.status_kind = status_good_ ? "good" : "bad";
   // A game's own setup (mw3 or mw3pm started without the launcher): headed with that game, its badge and name (the kit
   // names no game). In the launcher every screen is headed BATTLETECH, the game a screen is for named under it
