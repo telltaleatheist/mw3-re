@@ -616,6 +616,22 @@ where to look, each trusted for what it holds:
   or when GitHub's line vouches for it (`sdlfe::download_checked`). A
   refusal is said: `The release's SHA256SUMS could not be trusted (its
   SHA256SUMS is not signed), so nothing was downloaded.`
+- **Art.** The badges are fetched beside the catalog (`art/<name>`), so
+  the signed catalog vouches for them: each game's `badge_sha256` (and
+  `heading_badge_sha256`, `card_sha256`; 64 hex digits, a bad one leaving
+  the entry out) is the art's SHA-256. A fetched PNG is kept only when it
+  matches (`catalog: art <name> not kept: not the catalog's sha256`), and
+  art with no sum is never fetched (the carried file, or none). At each
+  start the cached art the catalog in use names is checked the same way
+  and removed when it is not its sum, or has none (art an older launcher
+  fetched unchecked into the same write dir). Families carry no art.
+  Launchers 1.7.1 and older ignore the fields. `publish_catalog.py` writes
+  the sums from `catalog/art` before signing and refuses a named art that
+  is not there.
+- **Fresh copies.** The catalog and its `.sig` are asked with
+  `Cache-Control: no-cache` and `Pragma: no-cache` (`curl_get`'s `fresh`;
+  the kit's `fetch_url` the same), so a proxy between serves no stale copy:
+  the site's server marks its static files good for years.
 - **Signing** (`tools/package/sign.py`, Python's `cryptography`): the
   private key never goes in a repo; `MW3_SIGNING_KEY` names its file
   (several, `:`-separated, sign with each). `sign.py <file>` writes

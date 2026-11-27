@@ -156,9 +156,12 @@ the hub.
 **The catalog** (a change to `catalog/games.json`, its `revision` raised):
 
 1. `MW3_SIGNING_KEY=<key file> python3 -I tools/package/publish_catalog.py <folder>`
-   checks that it reads as a catalog, writes `catalog/games.json.sig` beside
-   it, and stages `catalog.json`, `catalog.json.sig` and `art/` in `<folder>`.
-2. Commit `catalog/games.json` and `catalog/games.json.sig` together on the
+   checks that it reads as a catalog, writes each art's SHA-256 into it from
+   `catalog/art` (`badge_sha256`; a stale one corrected and said; a named art
+   missing from `catalog/art` refused), writes `catalog/games.json.sig`
+   beside it, and stages `catalog.json`, `catalog.json.sig` and `art/` in
+   `<folder>`. A badge's file changed means a new sum, so run it again.
+2. Commit `catalog/games.json` (with its sums) and `catalog/games.json.sig` together on the
    hub's main (GitHub's raw copy and the mirror's then carry both).
 3. Copy `<folder>` to the site's `/launcher/` path, served as plain files by
    the web server (`MW3_CATALOG_DEST`, an rsync destination, does it in

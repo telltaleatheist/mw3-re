@@ -895,6 +895,14 @@ TEST(sdl_program_launcher_takes_a_fetched_catalog) {
       << ", " << entry("btech", "bt", 7, "released", "BattleTech Rebuild", "BATTLETECH", "BATTLETECH", "battletech-re", "btech-v", "btech", "BT", "badge_bt.png")
       << ", " << entry("evil", "bt", 8, "released", "E", "E", "EVIL", "someoneelse/evil-re", "e-v", "e", "E", "badge_bt.png")
       << ", " << entry("future", "bt", 9, "released", "F", "F", "FUTURE", "future-re", "f-v", "f", "F", "badge_bt.png", "99.0.0") << "]}";
+  {  // its badge vouched for by the catalog (badge_sha256): fetched only then
+    std::ifstream in(dir + "/cat/games.json");
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    in.close();
+    const std::string at = "\"badge\": \"badge_bt.png\"";
+    text.replace(text.find(at), at.size(), at + ", \"badge_sha256\": \"" + rekit::sha256_file_hex(dir + "/cat/art/badge_bt.png") + "\"");
+    std::ofstream(dir + "/cat/games.json") << text;
+  }
   {
     std::ofstream sh(dir + "/chi");
     sh << "#!/bin/sh\nif [ \"$1\" = --status ]; then echo '{\"kit\": 1, \"game\": \"inception\", \"version\": \"0.1.0\", "
@@ -1440,6 +1448,51 @@ TEST(sdl_program_launcher_takes_only_a_signed_catalog) {
   put("a", 5, {3});
   log = run("revoke-6", rev);
   EXPECT(has(log, "catalog: revision 5 cached"));
+  // Art (2026-11-26): a badge the launcher does not carry is fetched from art/ beside the catalog only with the
+  // catalog's badge_sha256, and kept only when it is that; a wrong PNG not kept, one with no sum never asked for; art
+  // an older launcher cached unchecked removed at the start. The catalog and .sig asked with no-cache headers.
+  fs::remove(src("b"), ec), fs::remove(src("c"), ec), fs::remove(src("d"), ec);
+  fs::create_directories(dir + "/src/art", ec);
+  const std::string good_png = std::string(MW3_ASSETS_FOR_TESTS) + "/launcher/badge_mw3.png", other_png = std::string(MW3_ASSETS_FOR_TESTS) + "/launcher/badge_pm.png";
+  const std::string good_sum = rekit::sha256_file_hex(good_png);
+  const auto put_badge = [&](int revision, const std::string& sum) {
+    put("a", revision, {});
+    std::string text = read(src("a"));
+    const std::string at = "\"badge\": \"badge_mw3.png\"";
+    text.replace(text.find(at), at.size(), "\"badge\": \"badge_new.png\"" + (sum.empty() ? std::string() : ", \"badge_sha256\": \"" + sum + "\""));
+    std::ofstream(src("a"), std::ios::binary) << text;
+    sign_fixture(src("a"), {1});
+  };
+  fs::copy_file(good_png, dir + "/src/art/badge_new.png", fs::copy_options::overwrite_existing, ec);
+  put_badge(2, good_sum);
+  const std::string art = wd();
+  const std::string args_file = dir + "/curl-args.txt";
+  setenv("MW3_CURL_ARGS_TO", args_file.c_str(), 1);
+  log = run("art-good", art);
+  unsetenv("MW3_CURL_ARGS_TO");
+  EXPECT(rekit::sha256_file_hex(art + "/catalog/badge_new.png") == good_sum && !has(log, "art badge_new.png"));
+  {
+    const std::string a = read(args_file);
+    const auto asked_fresh = [&](const std::string& u) {  // each request's arguments end with its address
+      const size_t at = a.find("\n" + u + "\n");
+      const size_t from = at == std::string::npos ? at : a.rfind("\nMW3-Rebuild-launcher\n", at);
+      return at != std::string::npos && from != std::string::npos &&
+             a.substr(from, at - from).find("\n--header\nCache-Control: no-cache\n--header\nPragma: no-cache\n") != std::string::npos;
+    };
+    EXPECT(asked_fresh(url("a")) && asked_fresh(url("a") + ".sig") && !asked_fresh("file://" + dir + "/src/art/badge_new.png"));
+  }
+  fs::copy_file(other_png, dir + "/src/art/badge_new.png", fs::copy_options::overwrite_existing, ec);  // another PNG served
+  w = wd(), log = run("art-wrong", w);
+  EXPECT(has(log, "catalog: art badge_new.png not kept: not the catalog's sha256") && !fs::exists(w + "/catalog/badge_new.png") &&
+         has(log, "catalog: revision 2 cached"));
+  put_badge(2, "");
+  w = wd(), log = run("art-no-sum", w);
+  EXPECT(has(log, "catalog: art badge_new.png not fetched: the catalog gives no sha256 for it") && !fs::exists(w + "/catalog/badge_new.png"));
+  put_badge(3, good_sum);
+  fs::copy_file(other_png, art + "/catalog/badge_new.png", fs::copy_options::overwrite_existing, ec);  // an unchecked one in the cache
+  fs::remove(dir + "/src/art/badge_new.png", ec);
+  log = run("art-cached", art);
+  EXPECT(has(log, "catalog: art badge_new.png in the cache: not its sha256: removed") && !fs::exists(art + "/catalog/badge_new.png"));
   // sources.json missing: the built-in copy (the release key; no test key), nothing taken, its real addresses not
   // asked.
   w = wd(), log = run("builtin", w, (dir + "/missing-sources.json").c_str());

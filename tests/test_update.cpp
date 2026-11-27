@@ -697,6 +697,33 @@ TEST(games_catalog_sources_and_next_keys) {
   EXPECT(!u::parse_catalog(text, &c, &why) && why.find("catalog_sources") != std::string::npos);
 }
 
+// The art's sums (2026-11-26, docs/launcher.md, Signed data): badge_sha256 (and heading_badge_sha256, card_sha256)
+// read and lower-cased; one not 64 hex digits, or a sum for art the entry does not name, leaves the entry out.
+TEST(games_catalog_art_sums) {
+  const auto with = [](const std::string& fields) {
+    std::string c = fetched_catalog(2);
+    const std::string at = "\"badge\": \"badge_btech.png\"";
+    return c.replace(c.find(at), at.size(), at + ", " + fields);
+  };
+  const auto btech = [](const u::Catalog& c) -> const u::CatalogGame* {
+    for (const u::CatalogGame& g : c.games)
+      if (g.key == "btech") return &g;
+    return nullptr;
+  };
+  u::Catalog f;
+  std::vector<std::string> ignored;
+  std::string why;
+  EXPECT(u::read_fetched_catalog(with("\"badge_sha256\": \"" + std::string(64, 'E') + "\""), "v1.5.2", &f, &ignored, &why));
+  EXPECT(btech(f) && btech(f)->badge_sha256 == std::string(64, 'e') && btech(f)->heading_badge_sha256.empty() && ignored.size() == 4);
+  for (const std::string& bad : {"\"badge_sha256\": \"" + std::string(63, 'e') + "\"", "\"badge_sha256\": \"" + std::string(64, 'g') + "\"",
+                                 "\"heading_badge_sha256\": \"" + std::string(64, 'e') + "\"", "\"card_sha256\": \"" + std::string(64, 'e') + "\""}) {
+    EXPECT(u::read_fetched_catalog(with(bad), "v1.5.2", &f, &ignored, &why) && !btech(f) && ignored.size() == 5);
+    for (const std::string& i : ignored)
+      if (i.rfind("games (btech)", 0) == 0) std::printf("  %s\n", i.c_str());
+  }
+  for (const u::CatalogGame& g : u::builtin_catalog().games) EXPECT(g.badge_sha256.empty());  // carried art: no sum needed
+}
+
 // "original" (2026-11-26): a list of sources of the original game's files. Read and checked (https, a 64-hex sha256,
 // lower-cased, a size, a plain file name); a bad one left out with its game kept.
 namespace {

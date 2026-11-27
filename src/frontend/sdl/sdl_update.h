@@ -15,7 +15,9 @@ namespace sdlfe {
 
 // `url`'s body into `out` (HTTPS only; file:// as well when `allow_file`, for checks); false with `error` in plain
 // words (curl's own reason, or that curl is missing or timed out).
-bool curl_get(const std::string& url, int seconds, std::string* out, std::string* error, bool allow_file = false);
+// `fresh`: "Cache-Control: no-cache" and "Pragma: no-cache" sent, so a proxy between serves no stale copy (the
+// catalog and its .sig: the site's server marks its static files as good for years).
+bool curl_get(const std::string& url, int seconds, std::string* out, std::string* error, bool allow_file = false, bool fresh = false);
 
 // The launcher closing (lead 2026-11-23: a quit never waits on the network): every curl_get or curl_download running
 // is stopped at once (curl killed, the call failing with "the launcher is closing") and any later one fails at once,

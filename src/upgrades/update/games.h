@@ -40,6 +40,9 @@ struct CatalogGame {
   std::string badge;        // its panel's art (assets/launcher/ui)
   std::string heading_badge;  // its own setup's header art; "" the badge
   std::string card;         // a card's art, none yet
+  // Each art's SHA-256 (64 hex, lower case; 2026-11-26): fetched art is kept only when it matches, and art with no
+  // sum is never fetched (the carried file or none). The signed catalog vouches for the art this way.
+  std::string badge_sha256, heading_badge_sha256, card_sha256;
   std::vector<std::string> needs;  // other games' keys it needs to play
   std::string min_launcher;  // the oldest launcher version that reads the entry ("1.5.2")
   bool panel_before_release = true;  // false: no panel until a release is found or it is installed

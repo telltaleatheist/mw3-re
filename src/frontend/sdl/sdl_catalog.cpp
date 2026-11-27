@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "frontend/sdl/sdl_update.h"
+#include "rekit/hash.h"
 #include "rekit/sign.h"
 #include "upgrades/update/games.h"
 #include "upgrades/update/sources.h"
@@ -120,18 +121,32 @@ bool is_png(const std::string& s) { return s.size() > 8 && s.compare(0, 8, "\x89
 
 // The art a catalog names that the launcher does not carry, fetched beside it (the catalog's address
 // with games.json replaced by art/<name>), kept only when it is a PNG; none already carried or cached.
+// Each art a game names with its sum (the badge, the heading badge, the card).
+std::vector<std::pair<std::string, std::string>> art_of(const u::CatalogGame& g) {
+  return {{g.badge, g.badge_sha256}, {g.heading_badge, g.heading_badge_sha256}, {g.card, g.card_sha256}};
+}
+
 void fetch_art(const u::Catalog& c, const std::string& url, const fs::path& dir, const std::string& carried_dir, bool allow_file) {
   const size_t slash = url.rfind('/');
   if (slash == std::string::npos) return;
   const std::string base = url.substr(0, slash + 1) + "art/";
   const fs::path carried = carried_dir;
   for (const u::CatalogGame& g : c.games)
-    for (const std::string& name : {g.badge, g.heading_badge, g.card}) {
+    for (const auto& [name, sum] : art_of(g)) {
       std::error_code ec;
-      if (name.empty() || fs::exists(carried / name, ec) || fs::exists(dir / name, ec)) continue;
+      if (name.empty() || fs::exists(carried / name, ec)) continue;
+      if (sum.empty()) {  // not vouched for by the signed catalog: never fetched
+        std::printf("mw3: launcher: catalog: art %s not fetched: the catalog gives no sha256 for it\n", name.c_str());
+        continue;
+      }
+      if (fs::exists(dir / name, ec) && rekit::sha256_file_hex((dir / name).string()) == sum) continue;
       std::string png, error;
       if (!sdlfe::curl_get(base + name, 15, &png, &error, allow_file) || !is_png(png)) {
         std::printf("mw3: launcher: catalog: art %s not fetched: %s\n", name.c_str(), error.empty() ? "not a PNG" : error.c_str());
+        continue;
+      }
+      if (rekit::sha256_hex(reinterpret_cast<const uint8_t*>(png.data()), png.size()) != sum) {
+        std::printf("mw3: launcher: catalog: art %s not kept: not the catalog's sha256\n", name.c_str());
         continue;
       }
       const fs::path part = dir / (name + ".part");
@@ -253,11 +268,11 @@ bool fetch(const Here& h, bool allow_file) {
       std::printf("mw3: launcher: catalog at %s: not asked in a check run\n", url.c_str());
       continue;
     }
-    if (!sdlfe::curl_get(url, 15, &text, &error, allow_file)) {
+    if (!sdlfe::curl_get(url, 15, &text, &error, allow_file, true)) {
       std::printf("mw3: launcher: catalog at %s: %s\n", url.c_str(), error.c_str());
       continue;
     }
-    if (!sdlfe::curl_get(url + ".sig", 15, &sig, &error, allow_file)) {
+    if (!sdlfe::curl_get(url + ".sig", 15, &sig, &error, allow_file, true)) {
       std::printf("mw3: launcher: catalog at %s: not used: no signature (%s)\n", url.c_str(), error.c_str());
       continue;
     }
@@ -292,6 +307,20 @@ bool fetch(const Here& h, bool allow_file) {
   write_learned(h.write_dir, best.next_keys, best.revoked_keys);
   std::printf("mw3: launcher: catalog: revision %d cached\n", best.revision);
   return true;
+}
+
+// The cached art the catalog in use names (not carried) kept only while it is that catalog's sha256: art an older
+// launcher fetched unchecked into the same write dir, or one with no sum, removed (drawn as none).
+void check_cached_art(const Here& h) {
+  const fs::path dir = cache_dir(h.write_dir), carried = h.carried;
+  for (const u::CatalogGame& g : u::active_catalog().games)
+    for (const auto& [name, sum] : art_of(g)) {
+      std::error_code ec;
+      if (name.empty() || fs::exists(carried / name, ec) || !fs::exists(dir / name, ec)) continue;
+      if (!sum.empty() && rekit::sha256_file_hex((dir / name).string()) == sum) continue;
+      fs::remove(dir / name, ec);
+      std::printf("mw3: launcher: catalog: art %s in the cache: %s: removed\n", name.c_str(), sum.empty() ? "no sha256 for it" : "not its sha256");
+    }
 }
 
 void at_start(const Here& h, bool check_run) {
@@ -334,6 +363,7 @@ void at_start(const Here& h, bool check_run) {
     if (from_cache) std::printf("mw3: launcher: catalog: revision %d, fetched (%d games)\n", fetched.revision, u::game_count());
     else std::printf("mw3: launcher: catalog: the built-in one and the kept entries (%d games)\n", u::game_count());
   }
+  if (!h.write_dir.empty()) check_cached_art(h);
   say_in_use(h.write_dir);
 }
 

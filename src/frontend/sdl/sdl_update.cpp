@@ -101,7 +101,7 @@ bool wait_quiet(SDL_Process* p, bool block, int* code) {
   return true;
 }
 
-bool curl_get(const std::string& url, int seconds, std::string* out, std::string* error, bool allow_file) {
+bool curl_get(const std::string& url, int seconds, std::string* out, std::string* error, bool allow_file, bool fresh) {
   out->clear();
   if (g_stop_asking) return *error = "not asked: the launcher is closing", false;
   const std::string curl = curl_path();
@@ -111,10 +111,14 @@ bool curl_get(const std::string& url, int seconds, std::string* out, std::string
   std::error_code ec;
   const fs::path body = fs::temp_directory_path(ec) / ("mw3-update-" + unique_part() + ".json");
   const std::string limit = std::to_string(seconds);
-  const std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--max-time", limit,
-                                         "--proto", file ? "=file" : "=https", "--proto-redir", "=https",
-                                         "--header", "Accept: application/vnd.github+json", "--user-agent", "MW3-Rebuild-launcher",
-                                         "--output", body.string(), url};
+  std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--max-time", limit,
+                                   "--proto", file ? "=file" : "=https", "--proto-redir", "=https",
+                                   "--header", "Accept: application/vnd.github+json", "--user-agent", "MW3-Rebuild-launcher"};
+  if (fresh) args.insert(args.end(), {"--header", "Cache-Control: no-cache", "--header", "Pragma: no-cache"});
+  args.insert(args.end(), {"--output", body.string(), url});
+  if (const char* to = std::getenv("MW3_CURL_ARGS_TO"))  // checks: the arguments written, a line each
+    if (std::ofstream f(to, std::ios::app); f)
+      for (const std::string& a : args) f << a << "\n";
   std::vector<const char*> argv;
   for (const std::string& a : args) argv.push_back(a.c_str());
   argv.push_back(nullptr);
