@@ -103,6 +103,11 @@ Every release's full notes are on the [Releases](../../releases) page, and
 [CHANGES.md](https://github.com/telltaleatheist/mech3-re/blob/main/CHANGES.md) lists everything the rebuild changes from the
 original.
 
+**1.7.1 (2026-11-26)** (the full notes are in
+[docs/release-notes-1.7.1.md](docs/release-notes-1.7.1.md)): the launcher no
+longer calls a current game "older than the launcher" when the game was slow
+to answer or could not be asked (MechWarrior 1 Remake issue #2).
+
 **1.7.0 (2026-11-26)** (the full notes are in
 [docs/release-notes-1.7.0.md](docs/release-notes-1.7.0.md)): the launcher stays
 open while a game runs, its button saying RUNNING, and an update for a running
