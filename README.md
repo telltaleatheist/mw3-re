@@ -558,8 +558,15 @@ Your MechWarrior 3 files are only ever read, never changed.
 The original played its music from the CD's audio tracks, which an
 installed copy does not have. Two ways to get it back:
 
-- With a disc image (a `.cue` and its `.bin`): **Add from my disc** on the
-  notes before your first game (installing from the `.cue` takes it at once).
+- From a disc image that kept the CD audio (a `.cue` with its `.bin`
+  files): in the launcher, the gear beside MechWarrior 3, **GAME FILES**,
+  then **ADD FROM MY DISC** (there while the music is missing), and pick the
+  `.cue`, or the `.zip` that holds it with its `.bin` files. Its audio
+  tracks become the music. Installing the game from the `.cue` (**PICK A
+  FILE** on the same screen) brings the music in at once. An `.iso` has no
+  music: it keeps only the data track. The Internet Archive has MechWarrior
+  3 disc images in `.cue`/`.bin` with the original music
+  ([archive.org](https://archive.org/search?query=mechwarrior+3)).
 - Your own rip: put the tracks in the rebuild's `music` folder (below) as
   `track02.ogg`, `track03.ogg` and so on (or `.flac`, `.wav`, `.mp3`),
   numbered as on the CD.
