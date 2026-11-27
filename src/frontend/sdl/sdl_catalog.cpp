@@ -1,8 +1,10 @@
 // The games catalog fetched and cached (launcher split b7); sdl_catalog.h.
 #include "frontend/sdl/sdl_catalog.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <mutex>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -76,7 +78,99 @@ void fetch_art(const u::Catalog& c, const std::string& url, const fs::path& dir,
     }
 }
 
+std::mutex g_used_mutex;
+std::string g_used_text;  // the fetched catalog put in use at the start, as cached: what keep() copies
+
+fs::path kept_dir(const std::string& write_dir) { return fs::path(cache_dir(write_dir)) / "kept"; }
+
+bool holds(const u::Catalog& c, const std::string& key) {
+  return std::any_of(c.games.begin(), c.games.end(), [&](const u::CatalogGame& g) { return g.key == key; });
+}
+
+// A plain key only: it names a file.
+bool plain_key(const std::string& key) {
+  return !key.empty() && key.size() < 64 && std::all_of(key.begin(), key.end(), [](char c) {
+    return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_';
+  });
+}
+
+// `text` (a fetched catalog that holds `key`) as <kept>/<key>.json, when not so already.
+void write_kept(const std::string& write_dir, const std::string& key, const std::string& text) {
+  if (!plain_key(key)) return;
+  const fs::path dir = kept_dir(write_dir), file = dir / (key + ".json");
+  if (read_file(file) == text) return;
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  const fs::path part = dir / (key + ".json.part");
+  { std::ofstream(part, std::ios::binary) << text; }
+  fs::rename(part, file, ec);
+  if (ec) fs::remove(part, ec);
+  else std::printf("mw3: launcher: catalog: %s's entry kept beside the cache\n", key.c_str());
+}
+
+// The kept entries of games still here put back in `c` where it lacks their key (their family too, when missing);
+// those of games gone forgotten. True when one was put back.
+bool put_back_kept(const Here& h, u::Catalog* c) {
+  bool added = false;
+  std::error_code ec;
+  const fs::path dir = kept_dir(h.write_dir);
+  if (h.write_dir.empty() || !fs::is_directory(dir, ec)) return false;
+  std::vector<fs::path> files;
+  for (const auto& e : fs::directory_iterator(dir, ec))
+    if (e.path().extension() == ".json") files.push_back(e.path());
+  std::sort(files.begin(), files.end());
+  for (const fs::path& f : files) {
+    const std::string key = f.stem().string();
+    if (holds(*c, key)) continue;
+    const std::string why = h.here ? h.here(key) : std::string();
+    if (why.empty()) {
+      fs::remove(f, ec);
+      std::printf("mw3: launcher: catalog: %s forgotten: not in the catalog, and not installed or linked here\n", key.c_str());
+      continue;
+    }
+    u::Catalog k;
+    if (!read(read_file(f), h.version, "kept " + key, &k)) continue;
+    const auto g = std::find_if(k.games.begin(), k.games.end(), [&](const u::CatalogGame& x) { return x.key == key; });
+    if (g == k.games.end()) continue;
+    const bool family = std::any_of(c->families.begin(), c->families.end(), [&](const u::CatalogFamily& x) { return x.key == g->family; });
+    if (!family) {
+      const auto fam = std::find_if(k.families.begin(), k.families.end(), [&](const u::CatalogFamily& x) { return x.key == g->family; });
+      if (fam == k.families.end()) continue;
+      c->families.push_back(*fam);
+    }
+    c->games.push_back(*g);
+    added = true;
+    std::printf("mw3: launcher: catalog: %s kept: %s\n", key.c_str(), why.c_str());
+  }
+  if (added) {
+    std::stable_sort(c->games.begin(), c->games.end(), [](const u::CatalogGame& a, const u::CatalogGame& b) { return a.order < b.order; });
+    std::stable_sort(c->families.begin(), c->families.end(), [](const u::CatalogFamily& a, const u::CatalogFamily& b) { return a.order < b.order; });
+  }
+  return added;
+}
+
+// The fetched catalog in use copied for each of its own games (not the built-in's) installed or linked here.
+void refresh_kept(const Here& h, const u::Catalog& fetched, const std::string& text) {
+  if (h.write_dir.empty() || !h.here) return;
+  for (const u::CatalogGame& g : fetched.games)
+    if (!holds(u::builtin_catalog(), g.key) && !h.here(g.key).empty()) write_kept(h.write_dir, g.key, text);
+}
+
 }  // namespace
+
+void keep(const std::string& write_dir, const std::string& key) {
+  if (write_dir.empty() || holds(u::builtin_catalog(), key)) return;
+  std::string text;
+  {
+    std::lock_guard<std::mutex> lock(g_used_mutex);
+    text = g_used_text;
+  }
+  u::Catalog c;
+  std::vector<std::string> ignored;
+  std::string why;
+  if (text.empty() || !u::read_fetched_catalog(text, "unknown", &c, &ignored, &why) || !holds(c, key)) return;  // kept already
+  write_kept(write_dir, key, text);
+}
 
 std::string cache_dir(const std::string& write_dir) {
   return write_dir.empty() ? std::string() : (fs::path(write_dir) / "catalog").string();
@@ -125,23 +219,31 @@ void at_start(const Here& h, bool check_run) {
   else if (check_run) std::printf("mw3: launcher: catalog: not asked in a check run\n");
   const u::Catalog& builtin = u::builtin_catalog();
   const std::string text = h.write_dir.empty() ? std::string() : read_file(fs::path(cache_dir(h.write_dir)) / "games.json");
-  u::Catalog fetched;
+  u::Catalog fetched, c = builtin;
+  bool from_cache = false;
   if (text.empty() || !read(text, h.version, "the cache", &fetched)) {
     std::printf("mw3: launcher: catalog: the built-in one (revision %d)\n", builtin.revision);
-    return;
-  }
-  if (fetched.revision <= builtin.revision) {
+  } else if (fetched.revision <= builtin.revision) {
     std::printf("mw3: launcher: catalog: the cache's revision %d is not newer than the built-in %d: the built-in one\n", fetched.revision, builtin.revision);
-    return;
+  } else {
+    std::vector<std::string> ignored;
+    c = u::merged_catalog(builtin, fetched, &ignored);
+    for (const std::string& i : ignored) std::printf("mw3: launcher: catalog: the cache: left out: %s\n", i.c_str());
+    from_cache = true;
   }
-  std::vector<std::string> ignored;
-  const u::Catalog merged = u::merged_catalog(builtin, fetched, &ignored);
-  for (const std::string& i : ignored) std::printf("mw3: launcher: catalog: the cache: left out: %s\n", i.c_str());
-  if (!u::use_catalog(merged)) {
+  if (from_cache) refresh_kept(h, fetched, text);
+  const bool put_back = put_back_kept(h, &c);
+  if (!from_cache && !put_back) return;
+  if (!u::use_catalog(c)) {
     std::printf("mw3: launcher: catalog: the built-in one (the games were looked up already)\n");
     return;
   }
-  std::printf("mw3: launcher: catalog: revision %d, fetched (%d games)\n", fetched.revision, u::game_count());
+  if (from_cache) {
+    std::lock_guard<std::mutex> lock(g_used_mutex);
+    g_used_text = text;
+  }
+  if (from_cache) std::printf("mw3: launcher: catalog: revision %d, fetched (%d games)\n", fetched.revision, u::game_count());
+  else std::printf("mw3: launcher: catalog: the built-in one and the kept entries (%d games)\n", u::game_count());
 }
 
 }  // namespace sdlfe::catalog

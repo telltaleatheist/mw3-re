@@ -911,6 +911,7 @@ void Launcher::find_link(int i) {
     if (f.program == skip) continue;
     linked_[i] = f.program, linked_tag_[i] = f.version;
     own::save_config_value(o_.write_dir, "link_" + key, f.program);
+    catalog::keep(o_.write_dir, key);
     std::printf("mw3: launcher: games: %s: found %s (%s), linked\n", key.c_str(), f.program.c_str(), f.how.c_str());
     return;
   }
@@ -1004,6 +1005,7 @@ void Launcher::link_picked(const std::string& path) {
     return layout();
   }
   own::save_config_value(o_.write_dir, "link_" + key, prog), own::save_config_value(o_.write_dir, "unlinked_" + key, "");
+  catalog::keep(o_.write_dir, key);  // its entry kept should a catalog drop it
   resolve_game(i, true);
   const std::string shown = upgrades::update::game_version(v);
   status_ = source_[i] == kLinked ? "Linked " + shown + ": PLAY starts it."
@@ -1325,6 +1327,7 @@ void Launcher::game_installed(const sdlfe::games::Done& d) {
   place_game_ = -1;
   std::string prog;
   has_installed_[i] = sdlfe::games::installed(game_root(i), d.game, &installed_[i], &prog);
+  if (has_installed_[i]) catalog::keep(o_.write_dir, game_info(d.game).key);  // its entry kept should a catalog drop it
   if (beside_[i]) {
     status_ += " This package's own copy beside the launcher is still the one PLAY starts.";
   } else if (has_installed_[i]) {
@@ -4176,8 +4179,26 @@ LauncherChoice Launcher::run() {
 
 // The games catalog (b7): the cached fetched one in use from the start, before any game is looked up; a newer one
 // fetched meanwhile, on a thread, for the next start (a check run fetches first, from a stand-in only).
+// Why game `key` is on this computer, for the catalog's kept entries: its record in its folder (the games folder's, or
+// the one its INSTALL picked), or a link to a program still there.
+static std::string game_here(const std::string& write_dir, const std::string& games_root, const std::string& key) {
+  std::error_code ec;
+  const std::string place = cfg_path(write_dir, "games_" + key);
+  const std::string root = place.empty() ? games_root : place;
+  if (!root.empty()) {
+    std::ifstream f(fs::path(root) / key / upgrades::update::kInstalledName);
+    const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    upgrades::update::InstalledGame rec;
+    if (!text.empty() && upgrades::update::parse_installed(text, &rec) && rec.game == key) return "installed here";
+  }
+  const std::string link = cfg_path(write_dir, "link_" + key);
+  return !link.empty() && fs::is_regular_file(link, ec) ? "linked here" : "";
+}
+
 LauncherChoice run_launcher(const LauncherOptions& o) {
-  const catalog::Here here{o.write_dir, MW3_VERSION, assets_dir()};
+  const std::string games_root = sdlfe::games::root(o.hidden);
+  const catalog::Here here{o.write_dir, MW3_VERSION, assets_dir(),
+                           [w = o.write_dir, games_root](const std::string& key) { return game_here(w, games_root, key); }};
   const bool check_run = o.hidden || !o.shot.empty();
   catalog::at_start(here, check_run);
   std::thread fetch;

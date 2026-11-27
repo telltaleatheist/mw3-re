@@ -164,7 +164,9 @@ approve.
   `removed`. A removed game's panel stays for players who have it installed
   or linked (it plays and updates as before) and is hidden from everyone else.
   A deleted entry of a game that is only in the fetched catalog (not built
-  into the launcher) makes installed launchers forget that game entirely.
+  into the launcher) is forgotten everywhere it is not on the computer;
+  launchers from the next release on keep it where it is installed or
+  linked (docs/launcher.md, The games catalog), older ones forget it.
 - No original game files, ever, in a repo or a package.
 - Launcher changes go to the hub; game changes go to the game repos.
 

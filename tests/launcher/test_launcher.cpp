@@ -1144,6 +1144,67 @@ TEST(sdl_program_launcher_says_an_unknown_status_is_not_older) {
   if (!check::failures) fs::remove_all(root, ec);
 }
 
+// A game installed here keeps its catalog entry when a later fetched catalog drops it (2026-11-26; DEPLOY.md: entries
+// are set to removed, never deleted, but a deletion by mistake must not take an installed game's panel away). Catalog
+// revision 2 adds BattleTech (fetched only), installed in the games folder; revision 3 leaves it out: its panel stays
+// and plays, from <cache>/kept/btech.json. Once it is not installed any more, its kept entry is forgotten.
+TEST(sdl_program_launcher_keeps_an_installed_games_entry) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_kept";
+  fs::remove_all(dir, ec);
+  for (const char* d : {"/api", "/games/btech", "/wd/music"}) fs::create_directories(dir + d, ec);
+  std::ofstream(dir + "/wd/music/track02.wav") << "x";
+  for (const char* repo : {"mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-re", "inception-remake-re", "battletech-re"})
+    std::ofstream(dir + "/api/" + repo + ".json") << "[]";
+  std::ofstream(dir + "/v2.json")
+      << "{\"catalog\": 1, \"revision\": 2, \"families\": [{\"key\": \"bt\", \"name\": \"BattleTech\", \"order\": 4}], \"games\": [{\"key\": "
+         "\"btech\", \"family\": \"bt\", \"order\": 7, \"state\": \"released\", \"name\": \"BattleTech Rebuild\", \"title\": \"BATTLETECH\", "
+         "\"heading\": \"BATTLETECH\", \"button\": \"BATTLETECH\", \"description\": \"A line.\", \"repo\": \"battletech-re\", \"tag_prefix\": "
+         "\"btech-v\", \"program\": \"btech\", \"assets\": {\"windows\": \"BT-{tag}-win64.zip\", \"mac\": \"BT-{tag}-mac.dmg\", \"linux\": "
+         "\"BT-{tag}-x86_64.AppImage\"}, \"badge\": \"badge_mw3.png\", \"min_launcher\": \"1.5.2\"}]}";
+  std::ofstream(dir + "/v3.json") << "{\"catalog\": 1, \"revision\": 3, \"families\": [], \"games\": []}";
+  std::ofstream(dir + "/games/btech/rebuild-game.txt") << "game=btech\ntag=btech-v0.1.0\nfrom=github\n";
+  {
+    std::ofstream sh(dir + "/games/btech/btech");
+    sh << "#!/bin/sh\nif [ \"$1\" = --status ]; then echo '{\"kit\": 1, \"game\": \"btech\", \"version\": \"0.1.0\", \"files\": {\"state\": "
+          "\"ready\", \"where\": \"/games/btech\"}, \"first_run\": {\"pending\": []}, \"needs\": []}'; exit 0; fi\n"
+       << ": > \"" << dir << "/btech-ran\"\nexit 0\n";
+  }
+  fs::permissions(dir + "/games/btech/btech", fs::perms::owner_all, ec);
+  auto run = [&](const char* name, const char* catalog, const std::string& nav) {
+    const std::vector<std::pair<std::string, std::string>> env{
+        {"MW3_GAMES_API", "file://" + dir + "/api/{repo}.json"}, {"MW3_GAMES_DIR", dir + "/games"}, {"MW3_CATALOG_URL", "file://" + dir + "/" + catalog},
+        {"MW3_LAUNCHER_FRAMES", "240"}, {"MW3_LAUNCHER_NAV", nav}, {"MW3_NO_IMPORT", "1"}, {"MW3_PM_BIN", ""}, {"MW3_MW1_BIN", ""},
+        {"MW3_MW1R_BIN", ""}, {"MW3_CHI_BIN", ""}, {"MW3_CHIRM_BIN", ""}};
+    for (const auto& [k, v] : env) setenv(k.c_str(), v.c_str(), 1);
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--window", "640x480", "--nosound", "--hidden"}, dir + "/" + name + ".log");
+    for (const auto& [k, v] : env) unsetenv(k.c_str());
+    int status = 0;
+    EXPECT(waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    std::ifstream f(dir + "/" + std::string(name) + ".log");
+    const std::string log((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    const size_t at = log.find("screen main: ");
+    std::printf("kept entry, %s: %s\n", name, at == std::string::npos ? "no main screen" : log.substr(at, log.find('\n', at) - at).c_str());
+    for (const char* what : {"catalog: ", "focus ", "BattleTech Rebuild "})
+      for (size_t a = 0; (a = log.find(what, a)) != std::string::npos; ++a)
+        std::printf("    %s\n", log.substr(a, log.find('\n', a) - a).c_str());
+    return log;
+  };
+  const std::string kept = dir + "/wd/catalog/kept/btech.json";
+  const std::string a = run("v2", "v2.json", "");  // installed under revision 2: its entry copied beside the cache
+  EXPECT(has(a, "catalog: revision 2, fetched") && has(a, "catalog: btech's entry kept beside the cache") && fs::exists(kept, ec));
+  EXPECT(has(a, "entry BATTLETECH: "));
+  const std::string b = run("v3", "v3.json", "next,press");  // left out under revision 3: kept, and its PLAY starts it
+  EXPECT(has(b, "catalog: revision 3 cached") && has(b, "catalog: btech kept: installed here"));
+  EXPECT(has(b, "entry BATTLETECH: ") && has(b, "focus BATTLETECH\n") && has(b, "BattleTech Rebuild exited (0)") &&
+         fs::exists(dir + "/btech-ran", ec));
+  fs::remove(dir + "/games/btech/rebuild-game.txt", ec);  // uninstalled: forgotten, no panel
+  const std::string c = run("gone", "v3.json", "");
+  EXPECT(has(c, "catalog: btech forgotten") && !has(c, "entry BATTLETECH") && !fs::exists(kept, ec));
+  if (!check::failures) fs::remove_all(dir, ec);
+}
+
 // A present that does not wait for the display (macOS: a window not on screen) does not run away: 1.5.0 drew some 950
 // frames a second behind a fullscreen game, and its drawables took tens of gigabytes. MW3_LAUNCHER_UNPACED stands in.
 TEST(sdl_program_launcher_never_runs_away) {

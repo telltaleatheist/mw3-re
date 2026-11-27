@@ -511,6 +511,18 @@ What an entry does:
 - A new game (up to `kMaxGames`, 10 in all) is a game on the setup kit's
   contract: DOWNLOAD from its repo (still checked against SHA256SUMS),
   then PLAY, its page and its links as the kit's games have them.
+- Deleted by mistake (2026-11-26): a game only the fetched catalog has
+  (not built in) that is installed or linked here keeps its last-known
+  entry. At each start, and at its install or link (`catalog::keep`), the
+  fetched catalog in use is copied to `<write dir>/catalog/kept/<key>.json`
+  for each such game; a catalog in use without that key (a later fetch, or
+  a newer built-in one) gets the entry back, its family too when missing,
+  logged `catalog: <key> kept: installed here` (or `linked here`). It then
+  plays and updates as before. Once the game is neither installed (its
+  folder's `rebuild-game.txt`, in the games folder or the folder its
+  INSTALL picked) nor linked (`link_<key>=` to a program still there), the
+  kept file is removed at the next start (`catalog: <key> forgotten`). An
+  entry set to `removed` is in the catalog, so it is not replaced.
 
 Trust: an entry whose `repo` names another owner (`owner/repo`) is left
 out, so is one whose `min_launcher` is newer than this launcher (a build's
@@ -524,7 +536,9 @@ Checked: `games_catalog_fetched_leaves_out_bad_entries`,
 `sdl_program_launcher_takes_a_fetched_catalog` (a stand-in adds a game with
 its badge, flips Inception's remake to released, removes MechWarrior 1
 Rebuild and an installed Inception, which still plays; offline with the
-cache; offline with none). `tools/launcher/shots.sh` takes every screen for
+cache; offline with none), `sdl_program_launcher_keeps_an_installed_games_entry`
+(revision 2 adds a game, installed; revision 3 leaves it out: kept, and it
+plays; uninstalled: forgotten). `tools/launcher/shots.sh` takes every screen for
 the byte-for-byte check: the built-in catalog's 66 shots are as before.
 
 ## The launcher's own small copies (2026-11-26, launcher-split.md b1)
