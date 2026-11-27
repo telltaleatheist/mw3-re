@@ -1,6 +1,6 @@
 {
   "catalog": 1,
-  "revision": 7,
+  "revision": 8,
   "homes": [
     {"key": "gh", "releases": "https://api.github.com/repos/telltaleatheist/{repo}/releases?per_page={count}", "order": 1},
     {"key": "om", "releases": "https://git.owenmorgan.com/api/v1/repos/telltaleatheist/{repo}/releases?limit=40", "order": 2}
@@ -44,7 +44,7 @@
       ]
     },
     {
-      "key": "mw1r", "family": "mw1", "order": 3, "state": "released",
+      "key": "mw1r", "family": "mw1", "order": 4, "state": "released",
       "name": "MechWarrior 1 Rebuild", "title": "MECHWARRIOR 1: REVERSE ENGINEERED", "heading": "MECHWARRIOR 1",
       "button": "MECHWARRIOR 1 ORIGINAL",
       "description": "MechWarrior (1989), reverse engineered and rebuilt. Built on Elthial's SDL port. Bring your own DOS copy.",
@@ -58,7 +58,7 @@
       ]
     },
     {
-      "key": "mw1", "family": "mw1", "order": 4, "state": "released",
+      "key": "mw1", "family": "mw1", "order": 3, "state": "released",
       "name": "MechWarrior 1 Remake", "title": "MECHWARRIOR 1 REMAKE", "heading": "MECHWARRIOR 1 REMAKE", "button": "MECHWARRIOR 1",
       "description": "MechWarrior (1989)'s campaign, fought with MechWarrior 3's combat.",
       "repo": "mech1-remake-re", "tag_prefix": "mw1-v", "program": "mw1",
