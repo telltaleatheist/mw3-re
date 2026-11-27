@@ -160,6 +160,11 @@ approve.
   the hub's releases carry them.
 - `catalog/games.json` stays on the hub's main (released launchers fetch it
   from there), its revision above the built-in one's when it should be used.
+- Never delete a game's entry from `catalog/games.json`: set its `state` to
+  `removed`. A removed game's panel stays for players who have it installed
+  or linked (it plays and updates as before) and is hidden from everyone else.
+  A deleted entry of a game that is only in the fetched catalog (not built
+  into the launcher) makes installed launchers forget that game entirely.
 - No original game files, ever, in a repo or a package.
 - Launcher changes go to the hub; game changes go to the game repos.
 
