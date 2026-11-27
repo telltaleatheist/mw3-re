@@ -486,10 +486,11 @@ Each game alone, without the launcher, is on its own repo's Releases
 [Pirate's Moon](https://github.com/telltaleatheist/mech3-pm-re/releases),
 [MechWarrior 1 Remake](https://github.com/telltaleatheist/mech1-remake-re/releases)).
 
-**On a Mac:** the launcher is signed and notarized by Apple from 1.7.0, so it
-opens like any other app. The games' own downloads are not signed yet: the
-first time you open one of those, macOS stops it ("Not Opened"; click
-**Done**, not Move to Trash).
+**On a Mac:** the launcher is signed and notarized by Apple from 1.7.0, and
+the games' own downloads from MechWarrior 3 1.6.1, Pirate's Moon 1.2.12 and
+MechWarrior 1 Remake 1.1.4, so they open like any other app. An older copy
+you downloaded yourself is not signed: the first time you open it, macOS
+stops it ("Not Opened"; click **Done**, not Move to Trash).
 
 - **macOS 15 Sequoia and later:** open **System Settings > Privacy &
   Security**, scroll down to the line about the app, click **Open
