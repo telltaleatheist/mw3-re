@@ -2,6 +2,7 @@
 // stand-in script answering as the game would (docs/launcher-split.md, The tests that start mw3 beside the launcher).
 #include <sstream>
 #include "frontend/sdl/launcher_job.h"
+#include "frontend/sdl/launcher_settings.h"
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -2918,4 +2919,91 @@ TEST(launcher_job_one_bar_for_a_press) {
   }
   EXPECT(sdlfe::job::left_words(30) == "less than a minute left" && sdlfe::job::left_words(4800) == "about 1 h 20 min left" &&
          sdlfe::job::speed_words(850000) == "850 KB/s" && sdlfe::job::mb(624970304) == "625 MB");
+}
+
+
+// The launcher's settings file (2026-11-27, docs/launcher-config.md): the shipped file is the table's text (every key at
+// its default; MW3_WRITE_SETTINGS=1 writes it); a player's values clamped to their ranges, wrong types and unknown keys
+// falling back with a line each, a broken file changing nothing, and nothing of trust read from it.
+TEST(launcher_settings_shipped_file_is_the_table) {
+  namespace st = sdlfe::settings;
+  const std::string path = std::string(MW3_ASSETS_FOR_TESTS) + "/launcher/" + st::kFileName;
+  if (std::getenv("MW3_WRITE_SETTINGS")) std::ofstream(path, std::ios::binary) << st::shipped_text();
+  std::ifstream f(path, std::ios::binary);
+  const std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+  EXPECT(text == st::shipped_text());
+  st::reset();
+  std::vector<std::string> lines;
+  st::apply(text, "shipped", &lines);
+  EXPECT(lines.size() == 1 && lines[0] == "settings: shipped: " + std::to_string(st::keys().size()) + " read");
+  for (const st::Key& k : st::keys()) EXPECT(st::get(k.id) == k.def && k.def >= k.min && k.def <= k.max);
+  EXPECT(static_cast<int>(st::keys().size()) == st::kCount);
+  for (int i = 0; i < st::kCount; ++i) EXPECT(st::keys()[i].id == i);
+  // Today's values, as launcher-config.md lists them.
+  EXPECT(st::get(st::kCatalogEveryHours) == 4 && st::get(st::kReleasesCount) == 20 && st::get(st::kUpdateCount) == 40 &&
+         st::get(st::kSlowBytesPerSecond) == 1024 && st::get(st::kWindowWidth) == 1280 && st::get(st::kWindowHeight) == 720 &&
+         st::get(st::kSetupShare) == 0.15 && st::get(st::kHoverGain) == 0.7 && sdlfe::job::Job::stall() == 10);
+}
+
+TEST(launcher_settings_clamp_and_fall_back) {
+  namespace st = sdlfe::settings;
+  const auto said = [](const std::vector<std::string>& lines, const std::string& what) {
+    for (const std::string& l : lines)
+      if (l.find(what) != std::string::npos) return true;
+    return false;
+  };
+  st::reset();
+  std::vector<std::string> l;
+  st::apply(R"({"version": 1, "_note": "skipped", "catalog_every_hours": 1, "releases_count": 500, "bar_setup_share": -2,
+                "download_connect_seconds": 30.6, "vsync": false, "sound_hover_volume": "loud", "catalog_url": "https://x.example",
+                "signing_keys": ["k"], "https_only": false, "window_width": 1e9})",
+            "mine", &l);
+  for (const std::string& s : l) std::printf("  %s\n", s.c_str());
+  EXPECT(st::get(st::kCatalogEveryHours) == 4 && said(l, "catalog_every_hours 1 is outside 4 to 168 (or 0): 4 used"));
+  EXPECT(st::get(st::kReleasesCount) == 40 && said(l, "releases_count 500 is outside 10 to 40: 40 used"));
+  EXPECT(st::get(st::kSetupShare) == 0 && said(l, "bar_setup_share -2 is outside 0 to 0.5: 0 used"));
+  EXPECT(st::get(st::kConnectSeconds) == 31 && said(l, "download_connect_seconds 30.6 is a whole number: 31 used"));
+  EXPECT(st::get(st::kVsync) == 0);
+  EXPECT(st::get(st::kHoverGain) == 0.7 && said(l, "sound_hover_volume is not a number: 0.7 used"));
+  EXPECT(st::get(st::kWindowWidth) == 7680);
+  EXPECT(said(l, "catalog_url is not a setting: ignored") && said(l, "signing_keys is not a setting: ignored") &&
+         said(l, "https_only is not a setting: ignored") && !said(l, "_note") && said(l, "mine: 6 read"));
+  // 0 turns the catalog's refetch off; 2 does not go under the servers' 4 h floor.
+  l.clear(), st::apply(R"({"catalog_every_hours": 0})", "mine", &l);
+  EXPECT(st::get(st::kCatalogEveryHours) == 0 && l.size() == 1);
+  // A file that does not read changes nothing; a newer version is read for the keys this launcher knows.
+  st::reset(), l.clear();
+  st::apply(R"({"vsync": 0,)", "broken", &l);
+  EXPECT(st::get(st::kVsync) == 1 && l.size() == 1 && said(l, "broken does not read") && said(l, "nothing in it used"));
+  l.clear(), st::apply(R"([1, 2])", "list", &l);
+  EXPECT(said(l, "list does not read (not an object)"));
+  l.clear(), st::apply(R"({"version": 2, "vsync": 0})", "newer", &l);
+  EXPECT(st::get(st::kVsync) == 0 && said(l, "version 2 is newer than this launcher's 1"));
+  // load: the shipped then the player's, a missing file silent; what differs from the defaults listed.
+  const std::string d = std::string(MW3_TEST_TMP) + "/launcher_settings";
+  std::filesystem::remove_all(d), std::filesystem::create_directories(d + "/shipped"), std::filesystem::create_directories(d + "/mine");
+  std::ofstream(d + "/shipped/" + st::kFileName) << st::shipped_text();
+  std::ofstream(d + "/mine/" + st::kFileName) << R"({"frames_without_vsync": 30})";
+  l = st::load(d + "/shipped", d + "/mine");
+  for (const std::string& s : l) std::printf("  %s\n", s.c_str());
+  EXPECT(l.size() == 3 && said(l, "frames_without_vsync 30 (default 60)") && st::get(st::kFramesWithoutVsync) == 30);
+  EXPECT(st::load(d + "/none", "").empty() && st::get(st::kFramesWithoutVsync) == 60);
+  st::reset();
+}
+
+// The program reads the player's file from its data folder at the start: vsync off and 30 frames a second, a value
+// clamped, an address ignored; the log says each.
+TEST(sdl_program_launcher_reads_its_settings) {
+  const LauncherRun r = run_launcher_with("launcher_settings_run", "READY", nullptr, {{"MW3_LAUNCHER_FRAMES", "20"}},
+                                          [](const std::string& dir) {
+                                            std::filesystem::create_directories(dir + "/wd");
+                                            std::ofstream(dir + "/wd/launcher-settings.json")
+                                                << R"({"vsync": 0, "frames_without_vsync": 30, "game_first_frame_seconds": 9999, "catalog_url": "https://x.example"})";
+                                          },
+                                          false);
+  EXPECT(r.exited);
+  EXPECT(has(r.log, "settings: ") && has(r.log, "launcher-settings.json: 3 read") && has(r.log, "catalog_url is not a setting: ignored"));
+  EXPECT(has(r.log, "game_first_frame_seconds 9999 is outside 5 to 300: 300 used"));
+  EXPECT(has(r.log, "paced by a timed sleep to 30 a second"));
+  if (!r.exited) std::printf("%s\n", r.log.c_str());
 }

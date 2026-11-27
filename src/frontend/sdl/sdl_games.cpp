@@ -1,4 +1,5 @@
 #include "frontend/sdl/sdl_games.h"
+#include "frontend/sdl/launcher_settings.h"
 
 #include "frontend/sdl/sdl_update.h"
 #include "rekit/game_folder.h"  // kGameFolderMark
@@ -184,7 +185,7 @@ bool from_dmg(const std::string& file, const fs::path& into, std::string* error)
   const fs::path mnt = fs::temp_directory_path(ec) / ("MW3-Rebuild-game-mount-" + unique_part());
   fs::create_directories(mnt, ec);
   std::string said;
-  if (run_program({"/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mnt.string(), file}, 120, &said) != 0) {
+  if (run_program({"/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mnt.string(), file}, sdlfe::settings::whole(sdlfe::settings::kDmgMountSeconds), &said) != 0) {
     fs::remove(mnt, ec);
     return *error = "the disk image could not be opened", false;
   }
@@ -215,7 +216,7 @@ bool from_appimage(const std::string& file, const fs::path& into, std::string* e
   if (ec) return *error = "the AppImage could not be copied (" + ec.message() + ")", false;
   fs::permissions(copy, fs::perms::owner_exec | fs::perms::owner_read, fs::perm_options::add, ec);
   std::string said;
-  const int code = run_in({copy.string(), "--appimage-extract"}, into.string(), 600, &said);
+  const int code = run_in({copy.string(), "--appimage-extract"}, into.string(), sdlfe::settings::whole(sdlfe::settings::kAppImageSeconds), &said);
   fs::remove(copy, ec);
   if (code != 0 || !fs::is_directory(into / "squashfs-root", ec)) {
     while (!said.empty() && (said.back() == '\n' || said.back() == '\r')) said.pop_back();
@@ -388,7 +389,7 @@ std::string program_version(const std::string& bin) {
 
 u::GameCheck check(u::Game g, const std::string& installed_tag) {
   // Both homes (2026-11-22): git.owenmorgan.com, then GitHub; the newest on either (release_lists).
-  const std::vector<u::Answer> answers = ask_lists(release_lists(std::getenv("MW3_GAMES_API"), u::game_info(g).repo, 20), 15, allow_file(),
+  const std::vector<u::Answer> answers = ask_lists(release_lists(std::getenv("MW3_GAMES_API"), u::game_info(g).repo, sdlfe::settings::whole(sdlfe::settings::kReleasesCount)), sdlfe::settings::whole(sdlfe::settings::kReleasesSeconds), allow_file(),
                                                    std::string("games: ") + u::game_info(g).key);
   return u::judge_game(g, installed_tag, answers, u::this_platform());
 }
@@ -975,7 +976,7 @@ bool remove_linked(const std::string& prog, u::Game g, const Removal& r, std::st
     x.cbSize = sizeof x, x.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC, x.lpVerb = L"open", x.lpFile = exe.c_str();
     x.lpParameters = L"/SILENT /NORESTART", x.lpDirectory = cwd.c_str(), x.nShow = SW_SHOWNORMAL;
     if (!ShellExecuteExW(&x)) return *error = GetLastError() == ERROR_CANCELLED ? "Windows was not allowed to" : "its uninstaller did not start", false;
-    if (x.hProcess) WaitForSingleObject(x.hProcess, 300000), CloseHandle(x.hProcess);
+    if (x.hProcess) WaitForSingleObject(x.hProcess, static_cast<DWORD>(sdlfe::settings::whole(sdlfe::settings::kUninstallerSeconds)) * 1000), CloseHandle(x.hProcess);
     for (int i = 0; i < 300 && fs::exists(prog, ec); ++i) SDL_Delay(100);  // Inno's works on from a copy of itself
 #else
     return *error = "its uninstaller is for Windows", false;

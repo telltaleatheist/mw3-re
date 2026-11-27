@@ -61,6 +61,7 @@ copy /y assets\launcher\click.wav "%DIST%\assets\launcher\" >nul || exit /b 1
 copy /y assets\launcher\hover.wav "%DIST%\assets\launcher\" >nul || exit /b 1
 rem Where the launcher looks (docs\launcher.md): the catalog's addresses and the signing keys.
 copy /y assets\launcher\sources.json "%DIST%\assets\launcher\" >nul || exit /b 1
+copy /y assets\launcher\launcher-settings.json "%DIST%\assets\launcher\" >nul || exit /b 1
 copy /y tools\windows\dist\THIRD-PARTY.txt "%DIST%\" >nul || exit /b 1
 if exist LICENSE copy /y LICENSE "%DIST%\LICENSE.txt" >nul
 rem libarchive, zlib and liblzma: linked into mw3launcher.exe, their licences from

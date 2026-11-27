@@ -1,5 +1,6 @@
 // The games catalog fetched and cached (launcher split b7); sdl_catalog.h.
 #include "frontend/sdl/sdl_catalog.h"
+#include "frontend/sdl/launcher_settings.h"
 
 #include <algorithm>
 #include <atomic>
@@ -145,7 +146,7 @@ void fetch_art(const u::Catalog& c, const std::string& url, const fs::path& dir,
       }
       if (fs::exists(dir / name, ec) && rekit::sha256_file_hex((dir / name).string()) == sum) continue;
       std::string png, error;
-      if (!sdlfe::curl_get(base + name, 15, &png, &error, allow_file) || !is_png(png)) {
+      if (!sdlfe::curl_get(base + name, sdlfe::settings::whole(sdlfe::settings::kArtSeconds), &png, &error, allow_file) || !is_png(png)) {
         std::printf("mw3: launcher: catalog: art %s not fetched: %s\n", name.c_str(), error.empty() ? "not a PNG" : error.c_str());
         continue;
       }
@@ -273,11 +274,11 @@ bool fetch(const Here& h, bool allow_file) {
       std::printf("mw3: launcher: catalog at %s: not asked in a check run\n", url.c_str());
       continue;
     }
-    if (!sdlfe::curl_get(url, 15, &text, &error, allow_file, true)) {
+    if (!sdlfe::curl_get(url, sdlfe::settings::whole(sdlfe::settings::kCatalogSeconds), &text, &error, allow_file, true)) {
       std::printf("mw3: launcher: catalog at %s: %s\n", url.c_str(), error.c_str());
       continue;
     }
-    if (!sdlfe::curl_get(url + ".sig", 15, &sig, &error, allow_file, true)) {
+    if (!sdlfe::curl_get(url + ".sig", sdlfe::settings::whole(sdlfe::settings::kCatalogSeconds), &sig, &error, allow_file, true)) {
       std::printf("mw3: launcher: catalog at %s: not used: no signature (%s)\n", url.c_str(), error.c_str());
       continue;
     }

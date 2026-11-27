@@ -69,6 +69,7 @@ mkdir -p "$APP/Contents/Resources/assets/launcher/ui"
 cp assets/launcher/ui/* "$APP/Contents/Resources/assets/launcher/ui/"
 cp assets/launcher/*.png assets/launcher/font.ttf assets/launcher/font_body.ttf assets/launcher/click.wav assets/launcher/hover.wav "$APP/Contents/Resources/assets/launcher/"
 cp assets/launcher/sources.json "$APP/Contents/Resources/assets/launcher/"  # where it looks (docs/launcher.md)
+cp assets/launcher/launcher-settings.json "$APP/Contents/Resources/assets/launcher/"  # its settings' defaults (docs/launcher-config.md)
 
 # Every library outside the system, followed through the ones they load:
 # copied by their real file, named by their install name's file, and every

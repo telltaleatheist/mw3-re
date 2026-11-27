@@ -1,9 +1,9 @@
 # The launcher's settings file: an inventory (step 1)
 
 Every number or setting compiled into the launcher (2026-11-27, on v1.9.0), as
-input for a settings file that ships with it. Nothing has moved yet; this page
-says what is there, what each does, a proposed safe range, and who a bad value
-could hurt. Step 2's design notes are at the end.
+input for a settings file that ships with it: what is there, what each does, a
+safe range, and who a bad value could hurt. Step 2 (approved 2026-11-27, the
+layout of the notes at the end) is built: see Step 2, built, at the end.
 
 "Hurts" means who pays for a bad value:
 - **player**: only the person who edited the file (a long wait, a download
@@ -159,3 +159,53 @@ than today. Agreed, with these points:
    back with its line; a broken file gives the defaults; nothing in section F
    is read from it (a file naming keys, https or a catalog address changes
    nothing).
+
+## Step 2, built (2026-11-27)
+
+The layout as approved: `assets/launcher/launcher-settings.json` ships with
+the launcher (every package copies it beside `sources.json`; Windows'
+`check_dist.ps1` checks it is there) and holds every key at its default, a
+`"_<key>"` line beside each giving its range, unit and use (JSON has no
+comments; keys starting with `_` are skipped). The player's own
+`launcher-settings.json` in the launcher's data folder is read over it. Both
+are read once at the start (`run_launcher`), and the log lists each file
+read, each value clamped or ignored, and every value not at its default.
+
+One table, `kKeys` in `src/frontend/sdl/launcher_settings.cpp`, gives each
+key's name, default, range, unit and line. The loader clamps by it, the
+shipped file is its text (`shipped_text()`), and
+`launcher_settings_shipped_file_is_the_table` fails when the file and the
+table differ (`MW3_WRITE_SETTINGS=1` rewrites the file from the table). The
+defaults are today's values.
+
+The rules: out of range, the nearest end, with a line; a whole-number key
+given a fraction is rounded, with a line; a wrong type, the default, with a
+line; an unknown key, ignored, with a line (so a typo shows); a file that does
+not read, nothing in it used, with one line; a `"version"` newer than 1, its
+known keys read, with a line. `catalog_every_hours` takes 0 (off) or 4 to 168,
+so the servers are never asked more often than today. Section F has no key,
+and `launcher_settings_clamp_and_fall_back` checks that a file naming an
+address, keys or https changes nothing. The checks' `MW3_*` variables still
+win where they existed (`MW3_LAUNCHER_READY_MS`, `MW3_STATUS_SECONDS`,
+`MW3_CATALOG_EVERY_S`, `MW3_LAUNCHER_NOVSYNC`), and `--window WxH` wins over
+the window keys.
+
+The keys, by the sections above: A `catalog_every_hours`, `catalog_at_start`,
+`catalog_seconds` (the catalog and its .sig), `art_seconds`,
+`releases_seconds`, `releases_count`, `update_check_seconds`,
+`update_check_count`, `sums_seconds`, `sums_signature_seconds`,
+`download_connect_seconds`, `download_slow_bytes_per_second`,
+`download_slow_seconds`; B `game_first_frame_seconds`, `game_status_seconds`,
+`game_status_press_seconds`, `game_setup_describe_seconds`,
+`game_setup_search_seconds`, `mac_disk_image_seconds` (an update's and a
+game's), `linux_appimage_seconds`, `windows_uninstaller_seconds` (the wait for
+the uninstaller; the 30 s for Inno's copy after it stays); C `bar_setup_share`,
+`bar_speed_seconds`, `bar_starting_seconds`, `bar_waiting_seconds`,
+`log_progress_seconds`; D `window_width`, `window_height`, `vsync`,
+`frames_without_vsync`, `hidden_wake_ms`, `sound_hover_volume`,
+`sound_select_volume`. Everything marked no or never above stays compiled in.
+
+Checked: `launcher_settings_shipped_file_is_the_table`,
+`launcher_settings_clamp_and_fall_back`, `sdl_program_launcher_reads_its_settings`
+(the program with a player's file: vsync off at 30 frames a second, a first
+frame wait clamped to 300 s, an address ignored, each in its log).

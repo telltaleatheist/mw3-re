@@ -36,6 +36,7 @@ $game = Get-ChildItem -LiteralPath $Dist -Recurse -File |
                  ($_.Extension -ieq '.ttf' -and $_.Name -cnotin $ours) }
 # Where the launcher looks (docs\launcher.md): without it, only the built-in copy.
 if (-not (Test-Path -LiteralPath (Join-Path $Dist 'assets\launcher\sources.json'))) { $missing += 'assets\launcher\sources.json' }
+if (-not (Test-Path -LiteralPath (Join-Path $Dist 'assets\launcher\launcher-settings.json'))) { $missing += 'assets\launcher\launcher-settings.json' }
 # The launcher (the main shortcut) and no game program.
 foreach ($exe in 'mw3.exe', 'mw3pm.exe', 'mw1.exe', 'mw3import.exe', 'mw3indeo.exe') {
   if (Test-Path -LiteralPath (Join-Path $Dist $exe)) { $missing += "$exe should not be in the launcher's package" }
