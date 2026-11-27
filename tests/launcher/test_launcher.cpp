@@ -123,6 +123,25 @@ TEST(sdl_no_picker_opens_in_a_hands_off_run) {
 
 
 
+// On every system: the signed release lists' tests below run on Windows too.
+namespace {
+// Signed fixtures (test keys only, test_keys.h): <file>.sig by the test keys `seeds`, one line each.
+void sign_fixture(const std::string& file, std::initializer_list<uint8_t> seeds) {
+  std::ifstream in(file, std::ios::binary);
+  const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::string sig;
+  for (uint8_t s : seeds) sig += test_keys::sign(text, s);
+  std::ofstream(file + ".sig", std::ios::binary) << sig;
+}
+// A sources.json (docs/launcher.md, Where the launcher looks) at `file`: the catalog's addresses and the test keys.
+void write_sources(const std::string& file, const std::vector<std::string>& catalog, std::initializer_list<uint8_t> seeds) {
+  std::string c, k;
+  for (const std::string& s : catalog) c += (c.empty() ? "\"" : ", \"") + s + "\"";
+  for (uint8_t s : seeds) k += (k.empty() ? "\"" : ", \"") + test_keys::public_key(s) + "\"";
+  std::ofstream(file) << "{\"sources\": 1, \"catalog\": [" << c << "], \"keys\": [" << k << "]}\n";
+}
+}  // namespace
+
 #if !defined(_WIN32)  // posix_spawn (ours, not on Windows)
 // No screen goes black unseen (after item 21's lab, resolution.md section 9):
 // the program itself, one run a screen, all at once, each shot through the
@@ -174,21 +193,6 @@ const std::string kVersionLine = std::string("# MW3-PROGRAM") + "-VERSION:v0.0.0
 // mw3launcher, the launcher's own program (docs/launcher.md, The two programs).
 // A stale mw3pm beside the build's launcher would make PIRATE'S MOON a live
 // entry and move every key walk: none, unless a test names its stand-in.
-// Signed fixtures (test keys only, test_keys.h): <file>.sig by the test keys `seeds`, one line each.
-void sign_fixture(const std::string& file, std::initializer_list<uint8_t> seeds) {
-  std::ifstream in(file, std::ios::binary);
-  const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-  std::string sig;
-  for (uint8_t s : seeds) sig += test_keys::sign(text, s);
-  std::ofstream(file + ".sig", std::ios::binary) << sig;
-}
-// A sources.json (docs/launcher.md, Where the launcher looks) at `file`: the catalog's addresses and the test keys.
-void write_sources(const std::string& file, const std::vector<std::string>& catalog, std::initializer_list<uint8_t> seeds) {
-  std::string c, k;
-  for (const std::string& s : catalog) c += (c.empty() ? "\"" : ", \"") + s + "\"";
-  for (uint8_t s : seeds) k += (k.empty() ? "\"" : ", \"") + test_keys::public_key(s) + "\"";
-  std::ofstream(file) << "{\"sources\": 1, \"catalog\": [" << c << "], \"keys\": [" << k << "]}\n";
-}
 // A check run asking MW3_CATALOG_URL's catalogs (tests that are not about signing) has them signed by test key 1
 // and a sources file naming that key, unless the test gives its own MW3_SOURCES_FILE.
 pid_t spawn_launcher(const std::vector<std::string>& args, const std::string& log) {
@@ -1975,7 +1979,8 @@ TEST(sdl_update_download_falls_back_to_the_second_home) {
   const std::string ours = names[u::this_platform() == u::Platform::kWindows ? 0 : u::this_platform() == u::Platform::kMac ? 1 : 2];
   const std::string bytes(150000, 'h');
   const std::string sum = rekit::sha256_hex(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
-  const auto url = [&](const char* home, const std::string& n) { return "file://" + (dir / home / n).string(); };
+  // Forward slashes: Windows' backslashes in the JSON list below would be bad escapes.
+  const auto url = [&](const char* home, const std::string& n) { return "file://" + (dir / home / n).generic_string(); };
   const auto list = [&](const char* home) {
     return "[{\"tag_name\": \"v9.0.0\", \"draft\": false, \"prerelease\": false, \"body\": \"x\", \"assets\": [{\"name\": \"" + ours +
            "\", \"size\": " + std::to_string(bytes.size()) + ", \"browser_download_url\": \"" + url(home, ours) +

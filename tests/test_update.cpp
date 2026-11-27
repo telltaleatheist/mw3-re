@@ -271,10 +271,21 @@ TEST(update_swaps_the_program_in_or_keeps_the_old) {
          text(root / "bin" / "MW3-Rebuild-x86_64.AppImage") == "new image");
   EXPECT(!u::swap_in((root / "dl" / "MW3-Rebuild-1.2.0-x86_64.AppImage").string(), (root / "bin" / "gone").string(), &error));
   put(root / "ro" / "MW3-Rebuild-x86_64.AppImage", "kept");
+  error.clear();
+#if defined(_WIN32)
+  // Windows ignores a folder's read-only mark; what stops it is the program held open (no delete sharing), as a
+  // running one is.
+  std::ifstream held(root / "ro" / "MW3-Rebuild-x86_64.AppImage");
+#else
   fs::permissions(root / "ro", fs::perms::owner_read | fs::perms::owner_exec, ec);  // a folder it may not write in
+#endif
   const bool done = u::swap_in((root / "dl" / "MW3-Rebuild-1.2.0-x86_64.AppImage").string(), (root / "ro" / "MW3-Rebuild-x86_64.AppImage").string(), &error);
-  std::printf("  read-only folder: %s\n", error.c_str());
+  std::printf("  cannot be replaced: %s\n", error.c_str());
+#if defined(_WIN32)
+  held.close();
+#else
   fs::permissions(root / "ro", fs::perms::owner_all, ec);
+#endif
   EXPECT(!done && text(root / "ro" / "MW3-Rebuild-x86_64.AppImage") == "kept" && !fs::exists(root / "ro" / "MW3-Rebuild-x86_64.AppImage.new"));
   fs::remove_all(root, ec);
 }

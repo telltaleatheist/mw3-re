@@ -77,7 +77,8 @@ TEST(log_start_never_empties_the_last_log) {
           return e ? static_cast<unsigned long>(e.value()) : 0;
         },
         nullptr);
-    if (std::FILE* f = std::fopen(log.string().c_str(), sdlfe::log_start_mode(s))) {
+    // Bytes as written ("b"): Windows' text mode writes \r\n, and the lines are compared as bytes.
+    if (std::FILE* f = std::fopen(log.string().c_str(), (std::string(sdlfe::log_start_mode(s)) + "b").c_str())) {
       if (s.append) std::fprintf(f, "\n%s\n", sdlfe::log_start_note(s, "mw3.old.log").c_str());
       std::fprintf(f, "%s\n", line);
       std::fclose(f);
