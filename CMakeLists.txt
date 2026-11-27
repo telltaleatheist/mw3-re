@@ -143,6 +143,7 @@ set(LAUNCHER_SOURCES
   src/frontend/sdl/launcher_ui.cpp
   src/frontend/sdl/launcher_own.cpp
   src/frontend/sdl/launcher_job.cpp
+  src/frontend/sdl/launcher_settings.cpp
   src/frontend/sdl/launcher_folder.cpp
   src/frontend/sdl/sdl_update.cpp
   src/frontend/sdl/sdl_games.cpp

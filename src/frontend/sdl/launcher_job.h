@@ -42,10 +42,11 @@ class Job {
   uint64_t total() const;  // the known sizes of the parts left in
   uint64_t got() const;    // their bytes in
 
-  static constexpr double kSetupShare = 0.15;  // a setup's share of the bar, when the job has one
-  static constexpr double kWindow = 5;         // seconds the speed is taken over
-  static constexpr double kSettle = 2;         // "starting..." until the bytes have come this long
-  static constexpr double kStall = 10;         // "waiting for the server..." after this long without a byte
+  // The launcher's settings (launcher_settings.h; defaults 0.15, 5 s, 2 s, 10 s):
+  static double setup_share();  // a setup's share of the bar, when the job has one
+  static double window();       // seconds the speed is taken over
+  static double settle();       // "starting..." until the bytes have come this long
+  static double stall();        // "waiting for the server..." after this long without a byte
 
  private:
   struct State {
@@ -66,7 +67,7 @@ class Job {
     double t;
     uint64_t got;
   };
-  std::vector<Sample> samples_;  // the last kWindow seconds of the total in
+  std::vector<Sample> samples_;  // the last window() seconds of the total in
   double first_byte_ = -1, last_change_ = -1;
 };
 

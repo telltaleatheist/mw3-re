@@ -2,6 +2,7 @@
 #include "frontend/sdl/vulkan_check.h"
 #include "frontend/sdl/launcher.h"
 #include "frontend/sdl/launcher_ui.h"
+#include "frontend/sdl/launcher_settings.h"
 #include "frontend/sdl/log_start.h"
 #include "frontend/sdl/sdl_focus.h"
 #include "frontend/sdl/launcher_folder.h"
@@ -35,10 +36,10 @@ namespace sdlfe {
 
 namespace {
 // How long the launcher waits for the game's first frame before it says so
-// on its status line: 20 s (MW3_LAUNCHER_READY_MS for the checks).
+// on its status line: the settings' (20 s), MW3_LAUNCHER_READY_MS for the checks.
 double ready_wait_ms() {
   const char* e = SDL_getenv("MW3_LAUNCHER_READY_MS");
-  return e ? std::atof(e) : 20000.0;
+  return e ? std::atof(e) : settings::get(settings::kFirstFrameSeconds) * 1000.0;
 }
 namespace fs = std::filesystem;
 // 16:9 (2026-11-08): a shot's size, and the layout's units (launcher_ui.h).
@@ -203,7 +204,7 @@ struct Sounds {
   }
   bool load(const std::string& dir) {
     static const char* const kFiles[2] = {"hover.wav", "click.wav"};
-    static const float kGain[2] = {0.7f, 1.0f};
+    const float kGain[2] = {static_cast<float>(settings::get(settings::kHoverGain)), static_cast<float>(settings::get(settings::kSelectGain))};
     int got = 0;
     if (dir.empty() || !(device = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, nullptr))) return false;
     SDL_AudioSpec out{};
@@ -1217,11 +1218,14 @@ void Launcher::self_verdict(const upgrades::update::Verdict& v) {
   std::printf("mw3: launcher: header UPDATE AVAILABLE %s\n", upgrades::update::plain_version(v.release.tag).c_str());
 }
 
-// How often the catalog is fetched again while open: every 4 hours (MW3_CATALOG_EVERY_S, checks).
+// How often the catalog is fetched again while open: the settings' (every 4 hours, never under 4; 0 never),
+// MW3_CATALOG_EVERY_S for the checks.
 static Uint64 catalog_every_ms() {
   const char* s = SDL_getenv("MW3_CATALOG_EVERY_S");
   const long v = s ? std::strtol(s, nullptr, 10) : 0;
-  return v > 0 ? static_cast<Uint64>(v) * 1000 : Uint64{4} * 3600 * 1000;
+  if (v > 0) return static_cast<Uint64>(v) * 1000;
+  const double h = settings::get(settings::kCatalogEveryHours);
+  return h > 0 ? static_cast<Uint64>(h * 3600 * 1000) : Uint64{1} << 62;
 }
 
 // A catalog fetch on its thread (one at a time): at the start (a player's; the list on screen meanwhile), on CHECK
@@ -1288,8 +1292,8 @@ job::Part Launcher::game_part(int i, const char* words) const {
 void Launcher::add_original_parts(int i, std::vector<job::Part>* parts) const {
   using namespace upgrades::update;
   const CatalogGame& e = catalog_game(game_at(i));
-  if (e.original.empty()) return;
-  const CatalogGame::Original& o = e.original.front();
+  if (e.original.empty() && e.compact.empty()) return;
+  const CatalogGame::Original& o = e.original.empty() ? e.compact.front() : e.original.front();
   std::string from = o.note;
   if (from.empty()) {
     const size_t at = o.url.find("://");
@@ -1340,7 +1344,7 @@ void Launcher::job_tick() {
     job_->stage(work_->setup_key, p.stage, (p.fraction - sdlfe::games::kOriginalSetupFrom) / (1 - sdlfe::games::kOriginalSetupFrom), now);
   const job::View v = job_->view(now);
   const Uint64 ms = SDL_GetTicks();
-  if (v.part != job_said_ || ms >= job_logged_ms_ + 1000) {
+  if (v.part != job_said_ || ms >= job_logged_ms_ + settings::get(settings::kProgressLogSeconds) * 1000) {
     std::printf("mw3: launcher: job: %s | %s (%.3f)\n", v.line.c_str(), v.part.c_str(), v.fraction);
     job_said_ = v.part, job_logged_ms_ = ms;
   }
@@ -1573,7 +1577,7 @@ bool Launcher::get_original(int i) {
   using namespace upgrades::update;
   if (i < 0 || i >= game_count() || game_bin(i).empty()) return false;
   const CatalogGame& e = catalog_game(game_at(i));
-  if (e.original.empty()) return false;
+  if (e.original.empty() && e.compact.empty()) return false;
   rekit::Status s;
   std::string why;
   if (!sdlfe::games::kit_status(game_bin(i), &s, status_args(i), 10, &why)) {
@@ -1588,7 +1592,13 @@ bool Launcher::get_original(int i) {
     std::printf("mw3: launcher: original: %s: not fetched: its setup is not one the launcher drives\n", e.key.c_str());
     return job_drop(i, e.name + " sets its game files up itself: GAME FILES on its page"), false;
   }
-  std::printf("mw3: launcher: original: %s: getting its original game files (%d sources)\n", e.key.c_str(), static_cast<int>(e.original.size()));
+  const std::vector<CatalogGame::Original> sources = original_sources(e, s.version);
+  if (sources.empty()) {
+    std::printf("mw3: launcher: original: %s: not fetched: its compact copies need a newer game than %s\n", e.key.c_str(), s.version.c_str());
+    return job_drop(i, e.name + " needs updating before its game files can be downloaded"), false;
+  }
+  std::printf("mw3: launcher: original: %s: getting its original game files (%d sources: %d original, %d compact)\n", e.key.c_str(),
+              static_cast<int>(sources.size()), static_cast<int>(e.original.size()), static_cast<int>(sources.size() - e.original.size()));
   work_ = std::make_unique<Work>();
   work_->kind = Work::kOriginal;
   work_game_ = i;
@@ -1596,7 +1606,6 @@ bool Launcher::get_original(int i) {
   done->game = game_at(i);
   const std::string bin = game_bin(i), folder = games_place_[i];
   const std::vector<std::string> more = status_args(i);
-  const std::vector<CatalogGame::Original> sources = e.original;
   work_->job_key = "original:" + e.key, work_->setup_key = "setup:" + e.key;
   Work* w = work_.get();
   work_->start("GETTING THE ORIGINAL GAME FILES", [done, bin, sources, more, folder, w](const own::ProgressFn& f) {
@@ -1786,10 +1795,11 @@ void Launcher::older_game(int i, int play) {
 // status_collect takes the answers.
 namespace {
 const char kNotOurs[] = "not asked: its program file carries no version of ours";
-// An ask's limit: 10 s where the launcher waits on it, 30 s on its own thread; MW3_STATUS_SECONDS (checks) for both.
-int status_seconds(int usual) {
+// An ask's limit: the settings' (10 s where the launcher waits on it, 30 s on its own thread); MW3_STATUS_SECONDS
+// (checks) for both.
+int status_seconds(settings::Id which) {
   const char* env = SDL_getenv("MW3_STATUS_SECONDS");
-  return env && std::atoi(env) > 0 ? std::atoi(env) : usual;
+  return env && std::atoi(env) > 0 ? std::atoi(env) : settings::whole(which);
 }
 }  // namespace
 
@@ -1808,12 +1818,12 @@ void Launcher::kit_refresh(int i) {
     if (status_ask_[i].joinable()) status_ask_[i].join();
     status_ask_[i] = std::thread([this, i, may, bin = game_bin(i), args = status_args(i)] {
       status_said_[i] = {}, status_why_[i] = may ? "" : kNotOurs;
-      status_ok_[i] = may && sdlfe::games::kit_status(bin, &status_said_[i], args, status_seconds(10), &status_why_[i]);
+      status_ok_[i] = may && sdlfe::games::kit_status(bin, &status_said_[i], args, status_seconds(settings::kStatusSecondsStart), &status_why_[i]);
     });
     return;
   }
   std::string why = may ? "" : kNotOurs;
-  kit_known_[i] = may && sdlfe::games::kit_status(game_bin(i), &kit_status_[i], status_args(i), status_seconds(10), &why);
+  kit_known_[i] = may && sdlfe::games::kit_status(game_bin(i), &kit_status_[i], status_args(i), status_seconds(settings::kStatusSecondsStart), &why);
   status_fresh_[i] = true;
   if (!kit_known_[i]) kit_why_[i] = why.empty() ? "no status" : why;
   if (i == 2) mw1_game_ = mw1_served() ? (kit_set_up(2) ? kit_status_[2].where : std::string()) : o_.cfg_mw1_game;
@@ -1857,7 +1867,7 @@ bool Launcher::ask_later(int i, int play, bool said) {
   if (checking(i)) return true;
   kit_known_[i] = false, kit_status_[i] = {}, kit_why_[i].clear(), status_fresh_[i] = false;
   if (i == 2) mw1_game_ = o_.cfg_mw1_game;  // as an unknown Remake's
-  const int secs = status_seconds(30);
+  const int secs = status_seconds(settings::kStatusSecondsPress);
   auto a = std::make_shared<LaterAsk>();
   a->bin = game_bin(i);
   const bool may = may_ask(i);
@@ -2022,7 +2032,7 @@ void Launcher::track(int i, SDL_Process* p, const std::string& name, bool kit) {
 void Launcher::open_kit_files(int i, bool play) {
   const std::string name = upgrades::update::game_info(upgrades::update::game_at(i)).name;
   rekit::SetupMessage m;
-  if (!sdlfe::games::kit_setup(game_bin(i), {"--describe"}, 10, [](const rekit::SetupMessage&) { return true; }, &m) || !m.ok) {
+  if (!sdlfe::games::kit_setup(game_bin(i), {"--describe"}, settings::whole(settings::kDescribeSeconds), [](const rekit::SetupMessage&) { return true; }, &m) || !m.ok) {
     status_ = name + ": " + (m.summary.empty() ? "its setup did not answer." : m.summary), status_good_ = false;
     std::printf("mw3: launcher: %s\n", status_.c_str());
     screen_ = kMain;
@@ -2048,7 +2058,7 @@ void Launcher::kit_look(const std::string& pick) {
     own::Result r;
     bool said = true;
     if (at.empty()) {
-      said = sdlfe::games::kit_setup(bin, {"--search"}, 120, step, answer.get());
+      said = sdlfe::games::kit_setup(bin, {"--search"}, settings::whole(settings::kSearchSeconds), step, answer.get());
       at = answer->path;
     }
     if (said && !at.empty()) said = sdlfe::games::kit_setup(bin, {"--look", at}, 0, step, answer.get());
@@ -3630,7 +3640,7 @@ void Launcher::search() {
   }
   if (files_served()) {  // the game's search (its copy, else a disc in a drive); its copy is the status's, so a disc
     rekit::SetupMessage found;
-    if (sdlfe::games::kit_setup(game_bin(files_pm_ ? 1 : 0), served_args({"--search"}), 120, [](const rekit::SetupMessage&) { return true; }, &found) &&
+    if (sdlfe::games::kit_setup(game_bin(files_pm_ ? 1 : 0), served_args({"--search"}), settings::whole(settings::kSearchSeconds), [](const rekit::SetupMessage&) { return true; }, &found) &&
         found.ok && !found.path.empty())
       return look_at(found.path);
   }
@@ -4206,7 +4216,7 @@ LauncherChoice Launcher::run() {
   {  // the catalog: a player's start fetches on a thread, the list on screen meanwhile (a check run fetched first, but
      // MW3_CATALOG_START=late leaves it to this, as a player's start)
     const char* start = SDL_getenv("MW3_CATALOG_START");
-    if (!check_run_ || (start && std::strcmp(start, "late") == 0)) start_catalog_fetch("the start");
+    if ((!check_run_ && settings::on(settings::kCatalogAtStart)) || (start && std::strcmp(start, "late") == 0)) start_catalog_fetch("the start");
     else catalog_next_ms_ = SDL_GetTicks() + catalog_every_ms();
   }
   std::printf("mw3: launcher: art %.0f ms, font %.0f ms, the statuses and the install search %.0f ms\n", ms(t0, t_art),
@@ -4319,7 +4329,7 @@ LauncherChoice Launcher::run() {
   // Paced by the display ("pretty slow"): a fixed SDL_Delay(15) was
   // 16 to 31 ms on Windows' 15.6 ms timer, and no vsync let frames tear.
   // MW3_LAUNCHER_NOVSYNC (checks): the timed sleep instead, to compare.
-  vsync_ = !SDL_getenv("MW3_LAUNCHER_NOVSYNC") && SDL_SetRenderVSync(ren_, 1);
+  vsync_ = !SDL_getenv("MW3_LAUNCHER_NOVSYNC") && settings::on(settings::kVsync) && SDL_SetRenderVSync(ren_, 1);
   if (vsync_ && SDL_getenv("MW3_LAUNCHER_UNPACED")) SDL_SetRenderVSync(ren_, 0);  // checks: a present that does not wait, as a window not on screen
   SDL_InitSubSystem(SDL_INIT_GAMEPAD);  // a pad steps through the plates too (nav)
   if (o_.play) auto_ok_ = true, activate(kMw3);  // its notes' OK pressed too
@@ -4482,24 +4492,25 @@ LauncherChoice Launcher::run() {
     mouse_steps();
     ++frames_, draw_ms_ += ms(ta, tb), present_ms_ += ms(tb, tc);
     if (quit_after_ > 0 && frames_ >= quit_after_ && !any_checking()) done_ = true;  // MW3_LAUNCHER_FRAMES (checks)
-    // No vsync: the rest of a 60th of a second, to the nanosecond. With it, never faster than a little over the display:
+    // No vsync: the rest of a frame at the settings' rate (60 a second), to the nanosecond. With it, never faster than a little over the display:
     // macOS does not hold a present back for a window not on screen (behind a fullscreen game), and at some 950 frames a
     // second its drawables piled up to tens of gigabytes (2026-11-25, docs/launcher.md, Pacing).
-    const Uint64 spent = SDL_GetTicksNS() - ta, frame = vsync_ ? display_frame() : 1000000000ull / 60;
+    const Uint64 spent = SDL_GetTicksNS() - ta, frame = vsync_ ? display_frame() : static_cast<Uint64>(1e9 / settings::get(settings::kFramesWithoutVsync));
     if (spent < frame) SDL_DelayPrecise(frame - spent);
     // Covered or minimised: a few frames a second, any event at once.
     // A game running and this window not the one in use (2026-11-26: the launcher stays open beside the games): the
     // same, wherever the system does not say a full-screen game covers it.
     if (!o_.hidden && (SDL_GetWindowFlags(win_) & (SDL_WINDOW_OCCLUDED | SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN) ||
                        (any_running() && !(SDL_GetWindowFlags(win_) & SDL_WINDOW_INPUT_FOCUS))))
-      SDL_WaitEventTimeout(nullptr, 100);
+      SDL_WaitEventTimeout(nullptr, settings::whole(settings::kHiddenWakeMs));
   }
   if (const char* path = SDL_getenv("MW3_LAUNCHER_FRAME_SHOT")) save_frame(path);  // checks: the last frame, as this renderer draws it
   if (frames_) {
     const double secs = ms(t0, SDL_GetTicksNS()) / 1000.0;
     std::printf("mw3: launcher: %d frames, %.1f a second; the draw %.2f ms, the present %.2f ms a frame (%s)\n", frames_,
                 frames_ / std::max(secs, 0.001), draw_ms_ / frames_, present_ms_ / frames_, ren_ ? SDL_GetRendererName(ren_) : "-");
-    std::printf("mw3: launcher: paced by %s\n", vsync_ ? "vsync" : "a timed sleep to 60 a second");
+    std::printf("mw3: launcher: paced by %s%s\n", vsync_ ? "vsync" : "a timed sleep to ",
+                vsync_ ? "" : (std::to_string(settings::whole(settings::kFramesWithoutVsync)) + " a second").c_str());
   }
   if (work_) work_->cancel = true;
   for (Run& r : runs_) {  // quit while a game runs: it goes on, we stop watching
@@ -4544,7 +4555,13 @@ static std::string game_here(const std::string& write_dir, const std::string& ga
   return !link.empty() && fs::is_regular_file(link, ec) ? "linked here" : "";
 }
 
-LauncherChoice run_launcher(const LauncherOptions& o) {
+LauncherChoice run_launcher(const LauncherOptions& given) {
+  // The settings file (docs/launcher-config.md): the shipped one (every key at its default), then the player's in the
+  // data folder.
+  for (const std::string& line : settings::load(assets_dir(), given.write_dir))
+    std::printf("mw3: launcher: %s\n", line.c_str());
+  LauncherOptions o = given;
+  if (!o.window_given) o.win_w = settings::whole(settings::kWindowWidth), o.win_h = settings::whole(settings::kWindowHeight);
   const std::string games_root = sdlfe::games::root(o.hidden);
   const catalog::Here here{o.write_dir, MW3_VERSION, assets_dir(),
                            [w = o.write_dir, games_root](const std::string& key) { return game_here(w, games_root, key); }};

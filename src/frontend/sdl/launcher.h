@@ -25,7 +25,8 @@ struct LauncherOptions {
   std::vector<std::string> more_installs;  // a development build's copy
   bool fullscreen = false;  // windowed (launcher_main.cpp: macOS Game Mode)
   bool sound = true;  // the main menu's rollover and select sounds from the install (off with --nosound)
-  int win_w = 1280, win_h = 720;  // 16:9, as the canvas
+  int win_w = 1280, win_h = 720;  // 16:9, as the canvas; the settings' at the start when --window gave none
+  bool window_given = false;      // --window WxH
   // The window's size from the program's --window, when one was given: else
   // the 16:9 above (2026-11-10: 16:9 everywhere by default), not the
   // game's own 4:3 default, which letterboxed the canvas.

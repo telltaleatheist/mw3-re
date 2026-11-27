@@ -100,7 +100,7 @@ bool kit_setup(const std::string& bin, const std::vector<std::string>& args, int
                const std::function<void(const rekit::SetupMessage&)>& each = nullptr);
 
 // Ours (2026-11-26, docs/launcher.md, Games on demand): a game's original files from its catalog entry's "original",
-// after its DOWNLOAD, when its status says they are missing. Each source in turn is downloaded into the launcher's own
+// then its "compact" (u::original_sources, 2026-11-27), after its DOWNLOAD, when its status says they are missing. Each source in turn is downloaded into the launcher's own
 // marked folder (temp/MW3-Rebuild-originals, kOriginalMark), its size and SHA-256 checked, then handed to the game's
 // served setup as a pick (`--setup --look`, then `--install`, `more` after each, `--folder` when given), as PICK A
 // FILE does: the game's own import puts its files where it expects them. The file is removed afterwards, whatever

@@ -30,6 +30,7 @@ EXES="-e $APPDIR/usr/bin/mw3launcher"
 cp assets/launcher/ui/* "$APPDIR/usr/bin/assets/launcher/ui/"
 cp assets/launcher/*.png assets/launcher/font.ttf assets/launcher/font_body.ttf assets/launcher/click.wav assets/launcher/hover.wav "$APPDIR/usr/bin/assets/launcher/"
 cp assets/launcher/sources.json "$APPDIR/usr/bin/assets/launcher/"  # where it looks (docs/launcher.md)
+cp assets/launcher/launcher-settings.json "$APPDIR/usr/bin/assets/launcher/"  # its settings' defaults (docs/launcher-config.md)
 mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed"
 cp assets/launcher/font-OFL.txt "$APPDIR/usr/share/doc/mw3/licenses/saira-condensed/OFL.txt"
 mkdir -p "$APPDIR/usr/share/doc/mw3/licenses/rmlui"

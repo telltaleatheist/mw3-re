@@ -1,11 +1,17 @@
 // One bar for a press (2026-11-27; launcher_job.h, docs/launcher.md, One bar for a press).
 #include "frontend/sdl/launcher_job.h"
+#include "frontend/sdl/launcher_settings.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 
 namespace sdlfe::job {
+
+double Job::setup_share() { return settings::get(settings::kSetupShare); }
+double Job::window() { return settings::get(settings::kSpeedWindowSeconds); }
+double Job::settle() { return settings::get(settings::kSettleSeconds); }
+double Job::stall() { return settings::get(settings::kStallSeconds); }
 
 namespace {
 const char* const kDot = " \xc2\xb7 ";  // " · "
@@ -63,7 +69,7 @@ void Job::sample(double now) {
     last_change_ = now;
   }
   samples_.push_back({now, g});
-  while (samples_.size() > 2 && samples_[1].t <= now - kWindow) samples_.erase(samples_.begin());
+  while (samples_.size() > 2 && samples_[1].t <= now - window()) samples_.erase(samples_.begin());
 }
 
 void Job::bytes(const std::string& key, uint64_t got, double now) {
@@ -127,11 +133,11 @@ View Job::view(double now) const {
     ++downloads, downloads_in += s.in || (s.part.bytes && s.got >= s.part.bytes);
     all_known = all_known && s.part.bytes;
   }
-  const double share = any_setup ? 1.0 - kSetupShare : 1.0;
+  const double share = any_setup ? 1.0 - setup_share() : 1.0;
   const uint64_t t = total(), g = got();
   const double bytes_part = all_known && t ? static_cast<double>(g) / static_cast<double>(t)
                                            : downloads ? static_cast<double>(downloads_in) / downloads : 1.0;
-  v.fraction = std::clamp(share * bytes_part + (any_setup ? kSetupShare * setup : 0.0), 0.0, 1.0);
+  v.fraction = std::clamp(share * bytes_part + (any_setup ? setup_share() * setup : 0.0), 0.0, 1.0);
 
   const State* cur = at_ >= 0 ? &parts_[at_] : nullptr;
   if (cur && cur->dropped) cur = nullptr;
@@ -141,9 +147,9 @@ View Job::view(double now) const {
   } else {
     v.line = name_ + ": " + (all_known && t ? mb(g).substr(0, mb(g).size() - 3) + " of " + mb(t) : mb(g));
     if (all_known && t) {
-      if (last_change_ >= 0 && now - last_change_ >= kStall) {
+      if (last_change_ >= 0 && now - last_change_ >= stall()) {
         v.line += std::string(kDot) + "waiting for the server...";
-      } else if (first_byte_ < 0 || now - first_byte_ < kSettle || samples_.size() < 2 || samples_.back().t - samples_.front().t <= 0) {
+      } else if (first_byte_ < 0 || now - first_byte_ < settle() || samples_.size() < 2 || samples_.back().t - samples_.front().t <= 0) {
         v.line += std::string(kDot) + "starting...";
       } else {
         const double dt = samples_.back().t - samples_.front().t;
@@ -151,7 +157,7 @@ View Job::view(double now) const {
         if (rate <= 0) v.line += std::string(kDot) + "starting...";
         else v.line += kDot + speed_words(rate) + kDot + left_words(static_cast<double>(t - g) / rate);
       }
-    } else if (last_change_ >= 0 && now - last_change_ >= kStall) {
+    } else if (last_change_ >= 0 && now - last_change_ >= stall()) {
       v.line += std::string(kDot) + "waiting for the server...";
     }
   }

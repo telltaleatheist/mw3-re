@@ -1,5 +1,6 @@
 // The games catalog fetched and cached (launcher split b7); sdl_catalog.h.
 #include "frontend/sdl/sdl_catalog.h"
+#include "frontend/sdl/launcher_settings.h"
 
 #include <algorithm>
 #include <atomic>
@@ -65,8 +66,10 @@ void say_in_use(const std::string& write_dir) {
   for (const std::string& s : sources(write_dir)) where += (where.empty() ? "" : ", ") + s;
   std::printf("mw3: launcher: catalog: homes: %s\n", homes.empty() ? "(none)" : homes.c_str());
   std::printf("mw3: launcher: catalog: asked at %s\n", where.c_str());
-  for (const u::CatalogGame& g : u::active_catalog().games)
+  for (const u::CatalogGame& g : u::active_catalog().games) {
     if (!g.original.empty()) std::printf("mw3: launcher: catalog: %s names an original download\n", g.key.c_str());
+    if (!g.compact.empty()) std::printf("mw3: launcher: catalog: %s names a compact download\n", g.key.c_str());
+  }
 }
 
 // The keys signed catalogs changed (<cache>/keys.txt): a key a line learned from next_keys, "revoked <key>" one
@@ -143,7 +146,7 @@ void fetch_art(const u::Catalog& c, const std::string& url, const fs::path& dir,
       }
       if (fs::exists(dir / name, ec) && rekit::sha256_file_hex((dir / name).string()) == sum) continue;
       std::string png, error;
-      if (!sdlfe::curl_get(base + name, 15, &png, &error, allow_file) || !is_png(png)) {
+      if (!sdlfe::curl_get(base + name, sdlfe::settings::whole(sdlfe::settings::kArtSeconds), &png, &error, allow_file) || !is_png(png)) {
         std::printf("mw3: launcher: catalog: art %s not fetched: %s\n", name.c_str(), error.empty() ? "not a PNG" : error.c_str());
         continue;
       }
@@ -271,11 +274,11 @@ bool fetch(const Here& h, bool allow_file) {
       std::printf("mw3: launcher: catalog at %s: not asked in a check run\n", url.c_str());
       continue;
     }
-    if (!sdlfe::curl_get(url, 15, &text, &error, allow_file, true)) {
+    if (!sdlfe::curl_get(url, sdlfe::settings::whole(sdlfe::settings::kCatalogSeconds), &text, &error, allow_file, true)) {
       std::printf("mw3: launcher: catalog at %s: %s\n", url.c_str(), error.c_str());
       continue;
     }
-    if (!sdlfe::curl_get(url + ".sig", 15, &sig, &error, allow_file, true)) {
+    if (!sdlfe::curl_get(url + ".sig", sdlfe::settings::whole(sdlfe::settings::kCatalogSeconds), &sig, &error, allow_file, true)) {
       std::printf("mw3: launcher: catalog at %s: not used: no signature (%s)\n", url.c_str(), error.c_str());
       continue;
     }

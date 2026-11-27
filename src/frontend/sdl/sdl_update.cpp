@@ -1,4 +1,5 @@
 #include "frontend/sdl/sdl_update.h"
+#include "frontend/sdl/launcher_settings.h"
 
 #include "rekit/hash.h"
 #include "rekit/sign.h"
@@ -194,8 +195,10 @@ bool curl_download(const std::string& url, const std::string& to, uint64_t size,
   };
   // One curl run, from the part's end when `resume` (curl's --continue-at -): its exit code, -2 for a cancel.
   const auto attempt = [&](bool resume, std::string* said) {
-    std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--connect-timeout", "20",
-                                     "--speed-limit", "1024", "--speed-time", "60", "--proto", file ? "=file" : local ? "=http" : "=https",
+    std::vector<std::string> args = {curl, "--silent", "--show-error", "--fail", "--location", "--connect-timeout",
+                                     std::to_string(settings::whole(settings::kConnectSeconds)), "--speed-limit",
+                                     std::to_string(settings::whole(settings::kSlowBytesPerSecond)), "--speed-time",
+                                     std::to_string(settings::whole(settings::kSlowSeconds)), "--proto", file ? "=file" : local ? "=http" : "=https",
                                      "--proto-redir", "=https", "--user-agent", "MW3-Rebuild-launcher", "--output", part};
     if (resume) args.push_back("--continue-at"), args.push_back("-");
     args.push_back(url);
@@ -318,12 +321,12 @@ Fetched download_checked(const upgrades::update::Release& r, const std::string& 
     const u::Asset* sums = find(*homes[k], "SHA256SUMS");
     std::string list;
     if (!sums) l.why = Fetched::kNoSums;
-    else if (!curl_get(sums->url, 60, &list, &l.error, allow_file)) l.why = Fetched::kSumsFailed;
+    else if (!curl_get(sums->url, sdlfe::settings::whole(sdlfe::settings::kSumsSeconds), &list, &l.error, allow_file)) l.why = Fetched::kSumsFailed;
     else if ((l.line = u::sums_line(list, name)).empty()) l.why = Fetched::kNoLine;
     if (!l.line.empty()) {  // signed (SHA256SUMS.sig, any home), or unsigned from a home sources.json allows that of
       const u::Asset* sig = find(*homes[k], "SHA256SUMS.sig");
       std::string sig_text, sig_error;
-      const bool signed_ok = sig && curl_get(sig->url, 30, &sig_text, &sig_error, allow_file) && !rekit::signed_by(list, sig_text, u::signing_keys()).empty();
+      const bool signed_ok = sig && curl_get(sig->url, sdlfe::settings::whole(sdlfe::settings::kSumsSigSeconds), &sig_text, &sig_error, allow_file) && !rekit::signed_by(list, sig_text, u::signing_keys()).empty();
       if (!signed_ok && !unsigned_ok[k]) {
         l.why = Fetched::kUnsigned, l.line.clear();
         l.error = sig ? "its SHA256SUMS.sig does not check against the launcher's keys" : "its SHA256SUMS is not signed";
@@ -528,7 +531,7 @@ Installed install_update(const std::string& download) {
   const fs::path mnt = fs::temp_directory_path(ec) / ("MW3-Rebuild-update-mount-" + unique_part());
   fs::create_directories(mnt, ec);
   std::string said;
-  if (run_tool({"/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mnt.string(), download}, 120, &said) != 0) {
+  if (run_tool({"/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mnt.string(), download}, sdlfe::settings::whole(sdlfe::settings::kDmgMountSeconds), &said) != 0) {
     fs::remove(mnt, ec);
     return in.words = "The downloaded disk image could not be opened, so nothing was installed.", in;
   }
@@ -605,10 +608,10 @@ upgrades::update::Verdict check_for_updates(const std::string& current) {
   const char* api = std::getenv("MW3_UPDATE_API");
   std::vector<upgrades::update::Answer> answers;
   if (api) {
-    answers = ask_lists(release_lists(api, "", 40), 20, true, "update check");
+    answers = ask_lists(release_lists(api, "", sdlfe::settings::whole(sdlfe::settings::kUpdateCount)), sdlfe::settings::whole(sdlfe::settings::kUpdateSeconds), true, "update check");
   } else {
     for (const char* repo : {"mw3-re", "mech3-re"})
-      for (upgrades::update::Answer& a : ask_lists(release_lists(nullptr, repo, 40), 20, false, "update check")) answers.push_back(std::move(a));
+      for (upgrades::update::Answer& a : ask_lists(release_lists(nullptr, repo, sdlfe::settings::whole(sdlfe::settings::kUpdateCount)), sdlfe::settings::whole(sdlfe::settings::kUpdateSeconds), false, "update check")) answers.push_back(std::move(a));
   }
   return upgrades::update::judge(current, answers);
 }

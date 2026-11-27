@@ -820,6 +820,73 @@ TEST(games_catalog_original_read_and_unused) {
   }
 }
 
+// "compact" (2026-11-27): the same checks as "original" plus game_min, an entry with compact and no original, and the
+// sources a download tries: the originals, then the compacts the game's own version reaches (unknown: none with a min).
+TEST(games_catalog_compact_and_game_min) {
+  auto with = [](const std::string& more) {
+    std::string c = fetched_catalog(2);
+    const std::string at = "\"key\": \"btech\"";
+    return c.replace(c.find(at), at.size(), at + more);
+  };
+  const std::string sha(64, 'b');
+  const auto src = [&](const std::string& url, const std::string& more = "") {
+    return "{\"url\": \"" + url + "\", \"sha256\": \"" + sha + "\", \"size\": 99, \"name\": \"mw3-compact-1.0.tar.xz\"" + more + "}";
+  };
+  u::Catalog f;
+  std::vector<std::string> ignored;
+  std::string why;
+  const auto btech = [&]() -> const u::CatalogGame* {
+    for (const u::CatalogGame& g : f.games)
+      if (g.key == "btech") return &g;
+    return nullptr;
+  };
+  // Compact alone, two sources, one with game_min.
+  EXPECT(u::read_fetched_catalog(with(", \"compact\": [" + src("https://a.example.org/c.tar.xz", ", \"game_min\": \"1.7.0\"") + ", " +
+                                      src("https://b.example.org/c.tar.xz") + "]"),
+                                 "v1.5.2", &f, &ignored, &why));
+  const u::CatalogGame* bt = btech();
+  EXPECT(bt && bt->original.empty() && bt->compact.size() == 2 && bt->compact[0].game_min == "1.7.0" && bt->compact[1].game_min.empty() &&
+         bt->compact[0].size == 99 && ignored.size() == 4);
+  for (const u::CatalogGame& g : u::builtin_catalog().games) EXPECT(g.compact.empty());
+  const auto urls = [](const std::vector<u::CatalogGame::Original>& v) {
+    std::string s;
+    for (const auto& o : v) s += (s.empty() ? "" : " ") + o.url.substr(8, 1);
+    return s;
+  };
+  // game_min against the game's own version, number by number, its prefix and a build's tail read past.
+  EXPECT(urls(u::original_sources(*bt, "v1.7.0")) == "a b");
+  EXPECT(urls(u::original_sources(*bt, "v1.10.0")) == "a b");
+  EXPECT(urls(u::original_sources(*bt, "v1.7.0-4-gabc1234-dirty")) == "a b");
+  EXPECT(urls(u::original_sources(*bt, "v1.6.9")) == "b");
+  EXPECT(urls(u::original_sources(*bt, "pm-v1.2.12")) == "b");
+  EXPECT(urls(u::original_sources(*bt, "unknown")) == "b");
+  EXPECT(urls(u::original_sources(*bt, "")) == "b");
+  // Originals first, then the compacts.
+  EXPECT(u::read_fetched_catalog(with(", \"original\": [" + src("https://o.example.org/x.zip") + "], \"compact\": [" +
+                                      src("https://c.example.org/c.tar.xz", ", \"game_min\": \"1.7\"") + "]"),
+                                 "v1.5.2", &f, &ignored, &why));
+  bt = btech();
+  EXPECT(bt && urls(u::original_sources(*bt, "v1.7.1")) == "o c" && urls(u::original_sources(*bt, "v1.6.1")) == "o");
+  // A bad compact is left out with the game kept, as a bad original is; the original beside it stays.
+  const std::string bad[] = {
+      "[]",
+      "[" + src("http://c.example.org/c.tar.xz") + "]",
+      "[" + src("https://c.example.org/c.tar.xz", ", \"game_min\": \"new\"") + "]",
+      "[" + src("https://c.example.org/c.tar.xz", ", \"game_min\": 1.7") + "]",
+      "[" + src("https://c.example.org/c.tar.xz", ", \"game_min\": \"v1.7.0\"") + "]",
+  };
+  for (const std::string& c : bad) {
+    EXPECT(u::read_fetched_catalog(with(", \"original\": [" + src("https://o.example.org/x.zip") + "], \"compact\": " + c), "v1.5.2", &f,
+                                   &ignored, &why));
+    bt = btech();
+    std::string said;
+    for (const std::string& i : ignored)
+      if (i.find("(left out, the game kept)") != std::string::npos) said = i;
+    std::printf("  %s\n", said.c_str());
+    EXPECT(bt && bt->compact.empty() && bt->original.size() == 1 && ignored.size() == 5 && said.find("games[2] (btech): its compact") == 0);
+  }
+}
+
 // Where the launcher looks (2026-11-26, docs/launcher.md, Where the launcher looks): sources.json read and checked;
 // the shipped file used when it reads, the built-in copy (the same file, built in) when it is missing or bad; the keys
 // learned from signed catalogs added after the shipped ones; the releases lists whose unsigned SHA256SUMS are taken.

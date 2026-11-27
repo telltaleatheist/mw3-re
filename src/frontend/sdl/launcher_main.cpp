@@ -180,6 +180,7 @@ int main(int argc, char** argv) {
   if (write_dir_given || pointer) o.game_args.push_back("--write-dir"), o.game_args.push_back(o.write_dir);
   o.game_args.insert(o.game_args.end(), o.pm_args.begin(), o.pm_args.end());
   o.quit_after_game = o.play;
+  o.window_given = window_given;
   sdlfe::run_launcher(o);
   SDL_Quit();
   return 0;

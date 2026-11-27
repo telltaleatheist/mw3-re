@@ -7,11 +7,11 @@ in Contents/Resources/licenses/<library>/. Each was built unmodified from its
 official release source. Thank you to all of their authors.
 
 
-SDL 3 (libSDL3), version 3.4.12
+SDL 3 (libSDL3), version 3.4.20
 -------------------------------
 Simple DirectMedia Layer, https://www.libsdl.org/
 Copyright (C) 1997-2026 Sam Lantinga and others. zlib license
-(licenses/SDL3-3.4.12/LICENSE.txt).
+(licenses/SDL3-3.4.20/LICENSE.txt).
 
 
 FreeType 2.14.3 (built into the launcher)
