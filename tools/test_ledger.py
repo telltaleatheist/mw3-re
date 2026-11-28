@@ -285,8 +285,10 @@ def cmd_run(args):
     env = dict(os.environ)
     env.pop('MW3_TEST', None)
     env.pop('MW3_SKIP', None)
+    env.pop('REKIT_TEST', None)
     if set(to_run) != set(names):
         env['MW3_TEST'] = ','.join(to_run)
+        env['REKIT_TEST'] = env['MW3_TEST']  # the setup kit's rekit_tests read this name (same substring rule, no skip)
         # MW3_TEST matches by substring: the binary's other tests holding a requested name are skipped, unless
         # one of them is itself inside a requested name (MW3_SKIP is by substring too).
         extra = [n for n in names if n not in to_run and any(t in n for t in to_run)]
