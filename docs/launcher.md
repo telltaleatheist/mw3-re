@@ -893,6 +893,45 @@ development build not linked, a wrong pick, LINK, UNLINK, every uninstall and
 `removal_of`'s answers; the game files there are links to game/pm, which
 stays whole). `MW3_LAUNCHER_TRASH=<dir>` is the checks' trash.
 
+### WHAT'S NEW (2.2.0, 2026-11-27)
+
+The page has two tabs at its top, SETTINGS (its rows, above) and WHAT'S NEW
+(`page_notes_`, `kPageTabGame` / `kPageTabNotes`), last in the keys' order after
+BACK so the rows' steps are as before. WHAT'S NEW shows the installed version's
+release notes; with an update waiting, every version after the installed one up
+to the newest, newest first, each under VERSION x.y.z (`notes_to_show`). Someone
+three versions behind sees all three. Not installed: the newest's.
+
+- **Where the notes come from:** the releases lists the games' check already
+  reads (both homes; `GameCheck::notes`, `collect_notes`: the game's own tags, no
+  drafts or prereleases, one a tag, the first home with words). No new requests.
+  Each check's notes are cached in `<write dir>/whats-new/<key>.json` (a releases
+  list's JSON, read back by `parse_releases`) for an offline start; with no
+  cache, "Notes need a connection."
+- **The Markdown, done simply** (`whats_new_lines`): headings, items (nested ones
+  indented), a paragraph's or item's wrapped lines joined, marks dropped, a link
+  as its text. Left out for every repo alike, no per-repo rules: a section headed
+  "Download..." or "Before you install" (to the next heading as high), a
+  paragraph naming SHA256SUMS, a "Reporting a bug" paragraph. The wheel scrolls
+  the notes; Up and Down, Page Up and Page Down, Home and End and the d-pad's up
+  and down do too (`notes_scroll`, `LauncherUi::scroll_notes`); Left and Right
+  step through the buttons.
+- **Once after an update** (`land_on_whats_new`): `whats-new/seen.txt` keeps the
+  version each page last knew installed. A page opened with a newer version than
+  that lands on WHAT'S NEW, once; a first install, or the first open after the
+  launcher learnt of WHAT'S NEW, records the version without landing. An update
+  by the launcher records the version it updates from first when the page never
+  knew one, so an update made before the page was ever opened still lands.
+- **The launcher's own notes:** its UPDATE box shows every launcher version after
+  this one up to the newest, each under VERSION x.y.z, through the same
+  `whats_new_lines` (`Verdict::notes`, `read_update_notes`).
+- Checks: `--launcher-screen game:<key>:notes` opens a page on WHAT'S NEW; the
+  log says "page <key>: WHAT'S NEW, updated from A to B" and each line as
+  "whats new: <kind>: <text>". Tests: `whats_new_picks_the_versions_between`,
+  `whats_new_reads_release_markdown`, `whats_new_cache_reads_back`,
+  `whats_new_lands_once_after_an_update`,
+  `sdl_program_launcher_whats_new_after_an_update`.
+
 ## The family cards (2026-11-22, replaced by the panels 2026-11-24)
 
 2026-11-22, from four mockups (the canvas "Launcher Families"): option

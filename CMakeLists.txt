@@ -94,6 +94,7 @@ file(CONFIGURE OUTPUT ${CMAKE_BINARY_DIR}/sources_builtin.cpp
 add_library(mw3update STATIC
   src/upgrades/update/update.cpp
   src/upgrades/update/games.cpp
+  src/upgrades/update/whats_new.cpp
   src/upgrades/update/sources.cpp
   ${CMAKE_BINARY_DIR}/games_catalog.cpp
   ${CMAKE_BINARY_DIR}/sources_builtin.cpp)

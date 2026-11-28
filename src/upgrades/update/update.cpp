@@ -1,6 +1,7 @@
 #include "upgrades/update/update.h"
 
 #include "upgrades/update/json_reader.h"
+#include "upgrades/update/whats_new.h"
 
 #include <cctype>
 #include <filesystem>
@@ -310,6 +311,7 @@ Verdict judge(const std::string& current, const std::vector<Answer>& answers, Pl
     return v;
   }
   v.release = with_homes(h, newest->tag, [p](const Release& r) { return platform_asset(r, p) != nullptr; });
+  v.notes = collect_notes(h.releases, [p](const Release& r) { return package_tag(r.tag) && platform_asset(r, p) != nullptr; });
   if (numbers(current).empty() || compare_versions(newest->tag, current) > 0) {
     v.kind = Verdict::kNewer;
     v.words = "MechWarrior 3 Rebuild " + plain_version(newest->tag) + " is out (this is " + plain_version(current) + ").";

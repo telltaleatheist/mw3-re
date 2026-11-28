@@ -184,6 +184,7 @@ struct GameCheck {
   const Asset* asset() const;  // its file for this platform (from `release`)
   Platform platform = this_platform();
   std::string words;  // for the log and the status line
+  std::vector<Notes> notes;  // every release's notes the homes gave, newest first (2.2.0, WHAT'S NEW)
 };
 // Over every home's answer for its repo (2026-11-22: git.owenmorgan.com and GitHub): the newest release on
 // either; failed only when no answer reads, saying the first one's reason. `release` carries the other home's copy

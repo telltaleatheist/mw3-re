@@ -287,6 +287,7 @@ struct LauncherUi::Impl {
     c.Bind("notes_size", &m.notes_size), c.Bind("notes_width", &m.notes_width);
     c.Bind("notes_gap", &m.notes_gap), c.Bind("notes_line", &m.notes_line);
     c.Bind("lines", &m.lines), c.Bind("notes", &m.notes), c.Bind("panels", &m.panels), c.Bind("rows", &m.rows);
+    c.Bind("page_notes", &m.page_notes);
     c.Bind("empty", &m.empty);
     model = c.GetModelHandle();
     return true;
@@ -471,9 +472,10 @@ bool LauncherUi::update() {
     for (const auto& [id, on] : {std::pair<const char*, bool>{"more_up", at > 0.5f}, {"more_down", at < most - 0.5f}})
       if (Rml::Element* e = p_->doc->GetElementById(id)) e->SetClass("on", on);
   }
-  if (Rml::Element* n = p_->doc->GetElementById("update_notes"))
-    if (Rml::Element* e = p_->doc->GetElementById("update_more"))
-      e->SetClass("on", n->GetScrollTop() < n->GetScrollHeight() - n->GetClientHeight() - 0.5f);
+  for (const auto& [notes, more] : {std::pair<const char*, const char*>{"update_notes", "update_more"}, {"page_notes", "page_more"}})
+    if (Rml::Element* n = p_->doc->GetElementById(notes))
+      if (Rml::Element* e = p_->doc->GetElementById(more))
+        e->SetClass("on", n->GetScrollTop() < n->GetScrollHeight() - n->GetClientHeight() - 0.5f);
   return p_->rescaled;
 }
 
@@ -512,6 +514,14 @@ void LauncherUi::into_view(int b) {
   Rml::Element* e = p_->button(b);
   Rml::Element* panel = e ? e->Closest(".panel") : nullptr;
   if (panel) panel->ScrollIntoView({Rml::ScrollAlignment::Nearest, Rml::ScrollAlignment::Nearest, Rml::ScrollBehavior::Instant, Rml::ScrollParentage::Closest});
+}
+void LauncherUi::scroll_notes(float lines) {
+  update();
+  if (Rml::Element* n = p_->doc ? p_->doc->GetElementById("page_notes") : nullptr) {
+    const float most = std::max(0.0f, n->GetScrollHeight() - n->GetClientHeight());
+    n->SetScrollTop(std::clamp(n->GetScrollTop() + lines * 18.0f * p_->renderer.scale, 0.0f, most));
+  }
+  update();
 }
 void LauncherUi::scroll_list(float y) {
   update();

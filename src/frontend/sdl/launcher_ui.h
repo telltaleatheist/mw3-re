@@ -49,8 +49,9 @@ struct UiModel {
   std::vector<UiPanel> panels;
   std::string empty;  // said in the list's place when there is no panel ("": nothing)
   std::vector<UiPanel> rows;              // a game's page: its game files, its copies
+  std::vector<UiLine> page_notes;         // its WHAT'S NEW (2.2.0): kind version, heading, item, text or blank
   std::map<std::string, std::vector<UiButton>> buttons;  // by group: <x buttons="group"> in the document
-  bool operator==(const UiModel& o) const { return std::tie(screen, head, heading, heading_kind, game, badge, title, words, text, path, status, status_kind, package, stage, message, percent, picker, variant, fraction, notes_size, notes_width, notes_gap, notes_line, lines, notes, panels, rows, buttons) == std::tie(o.screen, o.head, o.heading, o.heading_kind, o.game, o.badge, o.title, o.words, o.text, o.path, o.status, o.status_kind, o.package, o.stage, o.message, o.percent, o.picker, o.variant, o.fraction, o.notes_size, o.notes_width, o.notes_gap, o.notes_line, o.lines, o.notes, o.panels, o.rows, o.buttons); }
+  bool operator==(const UiModel& o) const { return std::tie(screen, head, heading, heading_kind, game, badge, title, words, text, path, status, status_kind, package, stage, message, percent, picker, variant, fraction, notes_size, notes_width, notes_gap, notes_line, lines, notes, panels, rows, page_notes, buttons) == std::tie(o.screen, o.head, o.heading, o.heading_kind, o.game, o.badge, o.title, o.words, o.text, o.path, o.status, o.status_kind, o.package, o.stage, o.message, o.percent, o.picker, o.variant, o.fraction, o.notes_size, o.notes_width, o.notes_gap, o.notes_line, o.lines, o.notes, o.panels, o.rows, o.page_notes, o.buttons); }
 };
 
 class LauncherUi {
@@ -79,6 +80,7 @@ class LauncherUi {
   int over() const;              // the button under the mouse, -1 none
   void into_view(int button);    // its panel scrolled into the list
   void scroll_list(float y);     // the panels' list, in dp (checks)
+  void scroll_notes(float lines);  // a game page's WHAT'S NEW, by lines (2.2.0: the keys and the d-pad)
   bool reload();                 // the document and its styles read again
 
  private:

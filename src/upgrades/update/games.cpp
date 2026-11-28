@@ -1,4 +1,5 @@
 #include "upgrades/update/games.h"
+#include "upgrades/update/whats_new.h"
 
 #include <algorithm>
 #include <atomic>
@@ -598,6 +599,7 @@ GameCheck judge_game(Game g, const std::string& installed, const std::vector<Ans
     else c.words = "Could not reach the releases of " + name + (h.failed->fetch_error.empty() ? std::string(".") : ": " + h.failed->fetch_error + ".");
     return c;
   }
+  c.notes = collect_notes(h.releases, [g](const Release& r) { return game_tag(g, r.tag); });
   const Release* newest = newest_game(g, h.releases, p);
   if (!newest) {
     c.kind = GameCheck::kNoRelease;

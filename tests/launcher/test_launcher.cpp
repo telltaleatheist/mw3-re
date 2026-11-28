@@ -60,6 +60,7 @@ int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include "frontend/sdl/sdl_games.h"
 #include "frontend/sdl/sdl_catalog.h"
 #include "upgrades/update/sources.h"
+#include "upgrades/update/whats_new.h"
 #include <archive.h>
 #include <archive_entry.h>
 #include "frontend/sdl/sdl_update.h"
@@ -1080,7 +1081,7 @@ TEST(sdl_program_launcher_sets_a_kit_game_up) {
     const LauncherRun g = run(e, ("launcher_kit_ready_run" + std::to_string(which)).c_str(), nav,
                               {{"MW3_LAUNCHER_GO", "1"}, {"MW3_LAUNCHER_PICKER", "path:" + e + "/CHI.zip"}});
     const std::string asked_e = read(e + "/asked");
-    EXPECT(g.exited && has(g.log, which ? "screen game: GAME FILES, UNINSTALL, LINK A COPY ALREADY INSTALLED, INSTALL FROM A DOWNLOADED FILE, BACK\n" : "screen game: GAME FILES, BACK\n") && has(g.log, "screen find: PICK A FILE, PICK A FOLDER, BACK\n"));
+    EXPECT(g.exited && has(g.log, which ? "screen game: GAME FILES, UNINSTALL, LINK A COPY ALREADY INSTALLED, INSTALL FROM A DOWNLOADED FILE, BACK, SETTINGS, WHAT'S NEW\n" : "screen game: GAME FILES, BACK, SETTINGS, WHAT'S NEW\n") && has(g.log, "screen find: PICK A FILE, PICK A FOLDER, BACK\n"));
     EXPECT(has(g.log, "the file picker asked for") && !has(asked_e, "--search") && has(asked_e, ("--setup --install " + e + "/CHI.zip\n").c_str()));
     EXPECT(has(g.log, "Inception is set up."));
     ++which;
@@ -3514,4 +3515,158 @@ TEST(sdl_program_launcher_reads_its_settings) {
   EXPECT(has(r.log, "game_first_frame_seconds 9999 is outside 5 to 300: 300 used"));
   EXPECT(has(r.log, "paced by a timed sleep to 30 a second"));
   if (!r.exited) std::printf("%s\n", r.log.c_str());
+}
+
+// WHAT'S NEW (2.2.0, docs/launcher.md, A game's page): the versions the page shows. One a tag over both homes (the
+// first with words), a game's own tags only, no drafts or prereleases, newest first; with an update waiting, every
+// version after the installed one up to the newest; else the installed one's, or the newest's when none is.
+TEST(whats_new_picks_the_versions_between) {
+  namespace u = upgrades::update;
+  auto rel = [](const char* tag, const char* notes, bool draft = false, bool pre = false) {
+    u::Release r;
+    r.tag = tag, r.notes = notes, r.draft = draft, r.prerelease = pre;
+    return r;
+  };
+  const std::vector<u::Release> homes = {
+      rel("pm-v1.2.0", ""),  // the mirror's copy without words: GitHub's below has them
+      rel("pm-v1.3.0", "three"), rel("pm-v1.2.10", "two ten"), rel("pm-v1.2.9", "two nine"),
+      rel("pm-v1.4.0", "draft", true), rel("pm-v1.4.0-rc1", "rc", false, true), rel("v9.0.0", "the launcher's"),
+      rel("pm-v1.2.0", "two"), rel("pm-v1.2.10", "the second home's")};
+  const std::vector<u::Notes> all = u::collect_notes(homes, [](const u::Release& r) { return u::game_tag(u::Game::kPm, r.tag); });
+  std::string tags;
+  for (const u::Notes& n : all) tags += n.tag + "=" + n.text + " ";
+  std::printf("  collected: %s\n", tags.c_str());
+  EXPECT(tags == "pm-v1.3.0=three pm-v1.2.10=two ten pm-v1.2.9=two nine pm-v1.2.0=two ");
+  auto show = [&](const char* installed, const char* newest) {
+    std::string s;
+    for (const u::Notes& n : u::notes_to_show(all, installed, newest)) s += n.tag + " ";
+    return s;
+  };
+  EXPECT(show("pm-v1.2.0", "pm-v1.3.0") == "pm-v1.3.0 pm-v1.2.10 pm-v1.2.9 ");  // three behind: all three
+  EXPECT(show("pm-v1.2.9", "pm-v1.2.10") == "pm-v1.2.10 ");
+  EXPECT(show("pm-v1.3.0", "pm-v1.3.0") == "pm-v1.3.0 ");  // up to date: its own
+  EXPECT(show("pm-v1.2.10", "") == "pm-v1.2.10 ");           // offline: its own
+  EXPECT(show("", "pm-v1.3.0") == "pm-v1.3.0 ");             // not installed: the newest
+  EXPECT(show("pm-v1.1.0", "") == "" && show("", "") == "");  // not known
+  EXPECT(show("pm-v1.3.0-12-gabc-dirty", "pm-v1.3.0") == "pm-v1.3.0 ");  // a build after a release counts as it
+}
+
+// WHAT'S NEW's lines from a release's Markdown, as the repos write it (no repo's own rules): headings, items (a
+// nested one indented), a wrapped paragraph or item joined, marks dropped, links as their text; the Download and
+// Before you install sections, the SHA256SUMS paragraph and the bug-report one left out; no blank under a heading.
+TEST(whats_new_reads_release_markdown) {
+  namespace u = upgrades::update;
+  const std::string md =
+      "MechWarrior 3 on its own.\r\n\r\n"
+      "## Download\n\n- **Windows:** `MW3-alone-Setup-v1.7.0.exe`\n\n### For Macs\n\nthe dmg\n\n"
+      "## What's new\n\n"
+      "- **A dropped download picks up** where it\n  stopped, see [the notes](https://x.example/n.md).\n"
+      "  - a nested one\n"
+      "* A star item with a_name kept\n\n"
+      "A paragraph wrapped\nover two lines.\n\n"
+      "## Before you install\n\n- **Upgrading:** press UPDATE.\n\n"
+      "## Fixes\n\nNothing in play changes.\n\n"
+      "Full notes: [release-notes-1.7.0.md](https://x.example). `SHA256SUMS` and `SHA256SUMS.sig` are under Assets.\n\n"
+      "**Reporting a bug:** attach `mw3launcher.log`.\n\n";
+  const std::vector<u::NoteLine> lines = u::whats_new_lines(md);
+  static const char* const kinds = "THIB";
+  std::string got;
+  for (const u::NoteLine& l : lines) got += std::string(1, kinds[l.kind]) + "|" + l.text + "\n";
+  std::printf("%s", got.c_str());
+  EXPECT(got ==
+         "T|MechWarrior 3 on its own.\n"
+         "B|\n"
+         "H|What's new\n"
+         "I|\xe2\x80\xa2 A dropped download picks up where it stopped, see the notes.\n"
+         "I|    \xe2\x80\xa2 a nested one\n"
+         "I|\xe2\x80\xa2 A star item with a_name kept\n"
+         "B|\n"
+         "T|A paragraph wrapped over two lines.\n"
+         "B|\n"
+         "H|Fixes\n"
+         "T|Nothing in play changes.\n");
+  EXPECT(u::whats_new_lines("").empty() && u::whats_new_lines("\n\n## Download\n\n- x\n").empty());
+}
+
+// The notes cached for an offline start read back as they were written: quotes, backslashes, new lines, tabs, a
+// control character and UTF-8 alike.
+TEST(whats_new_cache_reads_back) {
+  namespace u = upgrades::update;
+  const std::vector<u::Notes> in = {{"mw1-v1.1.5", "## A \"quoted\" C:\\path\n\n- tab\there\r\n\x01 end \xe2\x80\xa2"}, {"mw1-v1.1.4", ""}};
+  std::vector<u::Notes> out;
+  EXPECT(u::read_notes_cache(u::notes_cache(in), &out));
+  EXPECT(out.size() == 2 && out[0].tag == in[0].tag && out[0].text == in[0].text && out[1].tag == in[1].tag && out[1].text.empty());
+  EXPECT(!u::read_notes_cache("{not a list", &out));
+}
+
+// The page lands on WHAT'S NEW once after an update: only from a version it knew to a newer one.
+TEST(whats_new_lands_once_after_an_update) {
+  namespace u = upgrades::update;
+  EXPECT(u::land_on_whats_new("pm-v1.2.0", "pm-v1.3.0"));
+  EXPECT(!u::land_on_whats_new("pm-v1.3.0", "pm-v1.3.0"));  // seen: once
+  EXPECT(!u::land_on_whats_new("", "pm-v1.3.0"));           // first known (a first install, or the first 2.2.0 start)
+  EXPECT(!u::land_on_whats_new("pm-v1.3.0", ""));           // uninstalled
+  EXPECT(!u::land_on_whats_new("pm-v1.3.0", "pm-v1.2.0"));  // an older copy linked
+}
+
+// Through the launcher: Inception installed at chi-v1.0.0, its page last seen at chi-v0.9.0, a release list with
+// chi-v1.1.0 newer. The gear lands on WHAT'S NEW (the update to 1.0.0), showing 1.1.0's notes over nothing else
+// (an update waiting: the versions after the installed one), and seen.txt now says 1.0.0. Opened again, it does
+// not land; the notes are cached for an offline start.
+TEST(sdl_program_launcher_whats_new_after_an_update) {
+  namespace fs = std::filesystem;
+  const std::string list =
+      R"([{"tag_name": "chi-v1.1.0", "body": "## What's new\n\n- **Faster maps.**\n\n## Download\n\n- chi.zip", "assets": [)"
+      R"({"name": "CHI-Rebuild-chi-v1.1.0-mac.dmg", "browser_download_url": "https://x.example/a", "size": 1},)"
+      R"({"name": "CHI-Rebuild-chi-v1.1.0-x86_64.AppImage", "browser_download_url": "https://x.example/b", "size": 1},)"
+      R"({"name": "CHI-Rebuild-chi-v1.1.0-win64.zip", "browser_download_url": "https://x.example/c", "size": 1}]},)"
+      R"( {"tag_name": "chi-v1.0.0", "body": "The first release.", "assets": []},)"
+      R"( {"tag_name": "chi-v0.9.0", "body": "A test release.", "assets": []}])";
+  const std::string dir = std::string(MW3_TEST_TMP) + "/launcher_whats_new";
+  auto read = [](const std::string& f) {
+    std::ifstream in(f);
+    return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  };
+  std::error_code ec;
+  fs::remove_all(dir, ec);
+  fs::create_directories(dir + "/api"), fs::create_directories(dir + "/games/chi"), fs::create_directories(dir + "/wd/whats-new");
+  for (const char* repo : {"mech3-re", "mech3-pm-re", "mech1-remake-re", "mech1-re", "inception-remake-re"}) std::ofstream(dir + "/api/" + repo + ".json") << "[]";
+  std::ofstream(dir + "/api/inception-re.json") << list;
+  {
+    std::ofstream sh(dir + "/games/chi/chi");
+    sh << "#!/bin/sh\ncase \"$1\" in --status) echo '{\"kit\": 1, \"game\": \"inception\", \"version\": \"1.0.0\", \"files\": {\"state\": \"ready\"}, "
+          "\"first_run\": {\"pending\": []}, \"needs\": [], \"setup\": 1}';; esac\nexit 0\n";
+  }
+  fs::permissions(dir + "/games/chi/chi", fs::perms::owner_all);
+  std::ofstream(dir + "/games/chi/rebuild-game.txt") << "# x\ngame=chi\ntag=chi-v1.0.0\nfile=x\nsha256=x\nfrom=github\n";
+  std::ofstream(dir + "/games/rebuild-games.txt") << "# x\n";
+  std::ofstream(dir + "/wd/whats-new/seen.txt") << "chi\tchi-v0.9.0\nmw3\tv1.0.0\n";
+  setenv("MW3_GAMES_API", ("file://" + dir + "/api/{repo}.json").c_str(), 1);
+  setenv("MW3_GAMES_DIR", (dir + "/games").c_str(), 1);
+  for (const char* other : {"MW3_GAME_BIN", "MW3_MW1_BIN", "MW3_MW1R_BIN", "MW3_CHI_BIN", "MW3_CHIRM_BIN"}) setenv(other, "", 1);
+  auto shot = [&](const char* name) {  // the gear's page drawn once, the checks answered first (a shot's way)
+    const std::string log = dir + "/" + name + ".log";
+    int status = 0;
+    const pid_t pid = spawn_launcher({"--write-dir", dir + "/wd", "--launcher-shot", dir + "/" + name + ".bmp", "--launcher-screen", "game:chi"}, log);
+    const bool ok = waited(pid, &status) && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    return std::make_pair(ok, read(log));
+  };
+  const auto [a_ok, a] = shot("first");
+  const std::string seen = read(dir + "/wd/whats-new/seen.txt"), cache = read(dir + "/wd/whats-new/chi.json");
+  std::printf("  seen after: %s", seen.c_str());
+  EXPECT(a_ok && has(a, "page chi: WHAT'S NEW, updated from chi-v0.9.0 to chi-v1.0.0\n"));
+  EXPECT(has(a, "screen game: BACK, SETTINGS, WHAT'S NEW\n"));
+  EXPECT(has(a, "whats new: version: VERSION 1.1.0\n") && has(a, "whats new: item: \xe2\x80\xa2 Faster maps.\n"));
+  EXPECT(!has(a, "VERSION 1.0.0") && !has(a, "chi.zip"));
+  EXPECT(seen == "chi\tchi-v1.0.0\nmw3\tv1.0.0\n" && has(cache, "\"tag_name\": \"chi-v1.1.0\""));
+  if (!a_ok || !has(a, "VERSION 1.1.0"))  // what the page and the checks said
+    for (size_t at = 0; at < a.size();) {
+      const size_t nl = std::min(a.find('\n', at), a.size());
+      const std::string line = a.substr(at, nl - at);
+      if (has(line, "whats new") || has(line, "games:") || has(line, "page chi")) std::printf("    %s\n", line.c_str());
+      at = nl + 1;
+    }
+  const auto [b_ok, b] = shot("again");
+  for (const char* k : {"MW3_GAMES_API", "MW3_GAMES_DIR", "MW3_GAME_BIN", "MW3_MW1_BIN", "MW3_MW1R_BIN", "MW3_CHI_BIN", "MW3_CHIRM_BIN"}) unsetenv(k);
+  EXPECT(b_ok && !has(b, "WHAT'S NEW, updated") && has(b, "screen game: GAME FILES"));
 }

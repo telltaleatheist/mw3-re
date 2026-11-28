@@ -187,8 +187,8 @@ btn.seg.off .divider { background: #5a616a; }
 .copies .foot { position: relative; bottom: auto; margin-top: 8dp; }
 
 /* a game's page: a row each for its game files and its copies, as the games' panels */
-.gamepage .rows { position: absolute; top: 11dp; left: 0; width: 640dp; text-align: left; }
-.gamepage .row { display: flex; align-items: center; width: 640dp; height: 62dp; margin-bottom: 7dp; padding: 0 12dp 0 14dp; border: 1dp #3c424b; border-radius: 2dp; decorator: vertical-gradient(#2c313ac4 #1a1d22c4); }
+.gamepage .rows { position: absolute; top: 40dp; left: 0; width: 640dp; text-align: left; }
+.gamepage .row { display: flex; align-items: center; width: 640dp; height: 58dp; margin-bottom: 5dp; padding: 0 12dp 0 14dp; border: 1dp #3c424b; border-radius: 2dp; decorator: vertical-gradient(#2c313ac4 #1a1d22c4); }
 .gamepage .row .about { flex: 1; min-width: 0; }
 .gamepage .row .title { color: #ffb040; font-size: 14dp; line-height: 19dp; }
 .gamepage .row .text, .gamepage .row .path { font-family: body; font-size: 12dp; line-height: 16dp; white-space: nowrap; color: #e4e6e8; }
@@ -206,7 +206,22 @@ btn.seg.off .divider { background: #5a616a; }
 .gamepage.ask .lines { top: 40dp; }
 .gamepage.ask .plates { top: 129dp; }
 .part > .status.over { top: 251dp; }
-.gamepage > .status.over { left: 0; width: 640dp; top: 254dp; line-height: 17dp; }
+.gamepage > .status.over { left: 0; width: 640dp; top: 262dp; line-height: 17dp; }
+/* its tabs (2.2.0): SETTINGS and WHAT'S NEW, and WHAT'S NEW's notes, scrolling */
+.gamepage .tabs { position: absolute; top: 4dp; left: 0; width: 640dp; display: flex; column-gap: 8dp; }
+.gamepage .tabs.empty { display: none; }
+.gamepage .tabs btn { width: 150dp; height: 28dp; flex: none; }
+.gamepage .tabs btn .label { font-size: 15dp; }
+btn.flat.tab.current { border-color: #ffb040; color: #ffb040; }
+#page_notes { position: absolute; top: 40dp; left: 0; width: 640dp; height: 200dp; overflow: hidden auto; text-align: left; padding: 6dp 12dp 6dp 14dp;
+  border: 1dp #3c424b; border-radius: 2dp; decorator: vertical-gradient(#2c313ac4 #1a1d22c4); }
+#page_notes .n { font-family: body; font-size: 12dp; line-height: 17dp; color: #e4e6e8; }
+#page_notes .n.version { font-family: title; color: #ffb040; font-size: 15dp; line-height: 21dp; }
+#page_notes .n.heading { font-family: title; color: #ffb040; font-size: 13dp; line-height: 19dp; }
+#page_notes .n.item { padding-left: 10dp; margin-bottom: 3dp; }
+#page_notes .n.blank { height: 8dp; }
+#page_more { display: none; position: absolute; top: 258dp; right: 6dp; font-size: 11dp; color: #787c82; }
+#page_more.on { display: block; }
 
 .data .words { position: absolute; top: 20dp; left: 80dp; width: 480dp; font-size: 16dp; }
 .data .path { position: absolute; top: 68dp; left: 80dp; width: 480dp; }

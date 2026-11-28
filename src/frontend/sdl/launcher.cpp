@@ -32,6 +32,7 @@
 #include "frontend/sdl/launcher_job.h"
 #include "frontend/sdl/sdl_games.h"
 #include "upgrades/update/games.h"
+#include "upgrades/update/whats_new.h"
 
 namespace sdlfe {
 
@@ -264,6 +265,7 @@ enum Id {
   kKitPlay = 150,  // + the game: PLAY for a game on the setup kit's contract (MW1 Rebuild, Inception's two)
   kCopy = 160,      // + the row (up to kCopyRows): GAME FILES' list of the copies on this computer (2026-11-24), one taken
   kCopyPick = 168,
+  kPageTabGame = 200, kPageTabNotes,  // a game's page's tabs (2.2.0): SETTINGS, WHAT'S NEW
   kGear = 170,       // + the game: a panel's gear, its game's page (2026-11-24, docs/launcher.md, A game's page)
   kGameLink = 180,   // the page's LINK AN INSTALL (a picker), UNLINK, UNINSTALL, BACK
   kGameUnlink, kGameUninstall, kGameFilesPick, kGameBack,
@@ -663,6 +665,33 @@ class Launcher {
   bool remove_linked_ = false;   // ... of the linked copy, not the launcher's
   sdlfe::games::Removal removal_[upgrades::update::kMaxGames];  // how the linked copy would go (open_game_page)
   std::vector<UiPanel> rows_;    // the page's rows
+  // WHAT'S NEW (2.2.0, docs/launcher.md, A game's page): the page's tab; each game's notes (its check's, else the
+  // cache's, <write dir>/whats-new/<key>.json); the version each page last knew installed (whats-new/seen.txt), for
+  // the one landing on the tab after an update.
+  bool page_notes_ = false, notes_read_ = false, seen_read_ = false;
+  std::vector<upgrades::update::Notes> game_notes_[upgrades::update::kMaxGames];
+  std::map<std::string, std::string> seen_;
+  std::string notes_dir() const { return (fs::path(o_.write_dir) / "whats-new").string(); }
+  void read_notes_caches();
+  void keep_notes(int i, const std::vector<upgrades::update::Notes>& n);
+  std::string& seen(const std::string& key);
+  void write_seen();
+  std::vector<UiLine> page_notes_lines(int i);
+  // A key's or the d-pad's scroll of WHAT'S NEW in lines (a page 8, Home and End all the way); 0 none.
+  float notes_scroll(const SDL_Event& e) const {
+    if (screen_ != kGamePage || !page_notes_ || page_confirm_) return 0;
+    if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN)
+      return e.gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_UP ? -1.0f : e.gbutton.button == SDL_GAMEPAD_BUTTON_DPAD_DOWN ? 1.0f : 0.0f;
+    switch (e.key.key) {
+      case SDLK_UP: return -1;
+      case SDLK_DOWN: return 1;
+      case SDLK_PAGEUP: return -8;
+      case SDLK_PAGEDOWN: return 8;
+      case SDLK_HOME: return -1e4f;
+      case SDLK_END: return 1e4f;
+      default: return 0;
+    }
+  }
   int files_page_ = -1;          // the game page whose GAME FILES opened the find screen: its BACK
   bool can_open_files(int i) const;
   void open_files(int i);
@@ -999,7 +1028,82 @@ void Launcher::find_link(int i) {
 // A game's page, from its panel's gear (2026-11-24, docs/launcher.md, A game's page).
 void Launcher::open_game_page(int i) {
   page_game_ = i, page_confirm_ = false, files_page_ = -1, status_.clear(), screen_ = kGamePage;
+  // WHAT'S NEW once after an update (2.2.0): the version the page last knew installed against the one now.
+  const std::string key = upgrades::update::game_info(upgrades::update::game_at(i)).key, now = tag_of(i);
+  std::string& was = seen(key);
+  page_notes_ = upgrades::update::land_on_whats_new(was, now);
+  if (page_notes_) std::printf("mw3: launcher: page %s: WHAT'S NEW, updated from %s to %s\n", key.c_str(), was.c_str(), now.c_str());
+  if (!now.empty() && was != now) was = now, write_seen();
   layout();
+}
+
+// The notes of every game cached by an earlier start (offline, the page shows them).
+void Launcher::read_notes_caches() {
+  if (std::exchange(notes_read_, true)) return;
+  for (int i = 0; i < upgrades::update::game_count(); ++i) {
+    std::ifstream f(fs::path(notes_dir()) / (std::string(upgrades::update::game_info(upgrades::update::game_at(i)).key) + ".json"), std::ios::binary);
+    if (!f) continue;
+    const std::string json((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    if (!upgrades::update::read_notes_cache(json, &game_notes_[i])) game_notes_[i].clear();
+  }
+}
+
+// A check's notes in use, and cached when they changed.
+void Launcher::keep_notes(int i, const std::vector<upgrades::update::Notes>& n) {
+  if (n.empty()) return;
+  const auto same = [](const upgrades::update::Notes& a, const upgrades::update::Notes& b) { return a.tag == b.tag && a.text == b.text; };
+  if (n.size() == game_notes_[i].size() && std::equal(n.begin(), n.end(), game_notes_[i].begin(), same)) return;
+  game_notes_[i] = n;
+  std::error_code ec;
+  fs::create_directories(notes_dir(), ec);
+  const fs::path to = fs::path(notes_dir()) / (std::string(upgrades::update::game_info(upgrades::update::game_at(i)).key) + ".json");
+  std::ofstream f(to.string() + ".part", std::ios::binary | std::ios::trunc);
+  f << upgrades::update::notes_cache(n);
+  f.close();
+  if (f) fs::rename(to.string() + ".part", to, ec);
+}
+
+std::string& Launcher::seen(const std::string& key) {
+  if (!std::exchange(seen_read_, true)) {
+    std::ifstream f(fs::path(notes_dir()) / "seen.txt");
+    for (std::string line; std::getline(f, line);)
+      if (const size_t t = line.find('\t'); t != std::string::npos) seen_[line.substr(0, t)] = line.substr(t + 1);
+  }
+  return seen_[key];
+}
+
+void Launcher::write_seen() {
+  std::error_code ec;
+  fs::create_directories(notes_dir(), ec);
+  std::ofstream f(fs::path(notes_dir()) / "seen.txt", std::ios::trunc);
+  for (const auto& [key, tag] : seen_)
+    if (!tag.empty()) f << key << '\t' << tag << '\n';
+}
+
+// WHAT'S NEW's lines: the installed version's notes, or with an update waiting every version after it up to the
+// newest, newest first, each under its version.
+std::vector<UiLine> Launcher::page_notes_lines(int i) {
+  using namespace upgrades::update;
+  const GameCheck& c = checks_[i];
+  const std::string installed = tag_of(i);
+  const bool known = c.kind == GameCheck::kNewer || c.kind == GameCheck::kUpToDate;
+  std::vector<Notes> show = notes_to_show(game_notes_[i], installed, known ? c.release.tag : std::string());
+  if (show.empty() && installed.empty() && !game_notes_[i].empty()) show = {game_notes_[i].front()};  // offline: the newest cached
+  std::vector<UiLine> out;
+  if (show.empty()) {
+    if (game_notes_[i].empty() && !known && c.kind != GameCheck::kNoRelease) out.push_back({"Notes need a connection.", "text"});
+    else if (game_notes_[i].empty()) out.push_back({"No release notes yet.", "text"});
+    else out.push_back({"No notes for version " + game_version(installed) + ".", "text"});
+  }
+  static const char* const kKinds[] = {"text", "heading", "item", "blank"};
+  for (const Notes& n : show) {
+    if (!out.empty()) out.push_back({"", "blank"});
+    out.push_back({"VERSION " + game_version(n.tag) + (n.tag == installed ? " (INSTALLED)" : ""), "version"});
+    const std::vector<NoteLine> lines = whats_new_lines(n.text);
+    if (lines.empty()) out.push_back({"(No notes with this release.)", "text"});
+    for (const NoteLine& l : lines) out.push_back({l.text, kKinds[l.kind]});
+  }
+  return out;
 }
 
 // A game's GAME FILES (2026-11-24: on its page; before, a button for whichever game was last clicked): the player's own
@@ -1163,6 +1267,7 @@ void Launcher::uninstall_go(bool files) {
 // asks only a stand-in (MW3_GAMES_API), never GitHub or git.owenmorgan.com, unless it is a live check (MW3_LIVE_CHECK).
 void Launcher::start_games_check() {
   if (!games_on_) return;
+  read_notes_caches();
   if ((o_.hidden || !o_.shot.empty()) && !SDL_getenv("MW3_GAMES_API") && !sdlfe::live_check()) {  // a shot is a check run too
     for (auto& c : checks_) c.kind = upgrades::update::GameCheck::kFailed, c.words = "not asked in a check run";
     std::printf("mw3: launcher: games: not asked in a check run\n");
@@ -1171,7 +1276,7 @@ void Launcher::start_games_check() {
   }
   if (!o_.shot.empty()) {  // a shot is drawn once: its answers first
     for (int i = 0; i < upgrades::update::game_count(); ++i)
-      if (!beside_[i] && !removed_away(i)) checks_[i] = sdlfe::games::check(upgrades::update::game_at(i), tag_of(i));
+      if (!beside_[i] && !removed_away(i)) checks_[i] = sdlfe::games::check(upgrades::update::game_at(i), tag_of(i)), keep_notes(i, checks_[i].notes);
     return;
   }
   games_check_ = std::make_unique<GamesCheck>();
@@ -1414,6 +1519,7 @@ void Launcher::take_games_check() {
     const GC& now = games_check_->result[i];
     if (now.kind == GC::kFailed && (checks_[i].kind == GC::kNewer || checks_[i].kind == GC::kUpToDate)) continue;  // asked again, not answered: as known
     checks_[i] = now;
+    keep_notes(i, now.notes);
     if ((now.kind == GC::kNewer || now.kind == GC::kUpToDate) && !now.release.tag.empty())  // installed or updated while it was asked
       checks_[i].kind = tag_of(i).empty() || upgrades::update::compare_game(now.release.tag, tag_of(i)) > 0 ? GC::kNewer : GC::kUpToDate;
     std::printf("mw3: launcher: games: %s: %s\n", upgrades::update::game_info(upgrades::update::game_at(i)).key, checks_[i].words.c_str());
@@ -1616,6 +1722,7 @@ void Launcher::install_game_now(int i) {
   auto done = game_done_ = std::make_shared<sdlfe::games::Done>();
   const Release r = checks_[i].release;
   count_from_ = update ? tag_of(i) : std::string(), count_to_ = update ? r.tag : std::string();  // an install counts nothing
+  if (std::string& was = seen(game_info(g).key); update && was.empty() && !tag_of(i).empty()) was = tag_of(i), write_seen();  // WHAT'S NEW lands after it
   const std::string root = place_game_ == i ? (place_.empty() ? games_root_ : place_) : game_root(i);
   work_game_ = i;
   std::string title = std::string(update ? "UPDATING " : "DOWNLOADING ") + game_info(g).name;
@@ -2889,6 +2996,17 @@ void Launcher::layout() {
         buttons_.back().name = "KEEP IT";
         break;
       }
+      // The tabs (2.2.0): SETTINGS (the rows below) and WHAT'S NEW (the release notes, page_notes_lines); drawn at
+      // the top, last in the keys' order (after BACK), so the rows' order is as before.
+      auto tabs = [&] {
+        add(kPageTabGame, "tabs", "SETTINGS").kind = page_notes_ ? "flat tab" : "flat tab current";
+        add(kPageTabNotes, "tabs", "WHAT'S NEW").kind = page_notes_ ? "flat tab current" : "flat tab";
+      };
+      if (page_notes_) {
+        add(kBack, "foot", "BACK");
+        tabs();
+        break;
+      }
       auto row = [&](const char* title, const std::string& text, const std::string& path) {
         UiPanel p;
         p.title = title, p.buttons = "r" + std::to_string(rows_.size());
@@ -2935,6 +3053,7 @@ void Launcher::layout() {
         add(kInstallFile, "links", "INSTALL FROM A DOWNLOADED FILE", "", !work_).kind = "flat";
       }
       add(kBack, "foot", "BACK");
+      tabs();
       break;
     }
     case kDataScreen:
@@ -3141,6 +3260,13 @@ UiModel Launcher::model() {
       if (m.lines.size() > 3) m.lines.resize(3);
       for (UiLine& l : m.lines) l.text = text_.fit(l.text, 13, 480);
       m.status = text_.fit(status_, 13, 480);
+      if (page_notes_ && !page_confirm_) {
+        m.variant = "notes", m.page_notes = page_notes_lines(i);
+        static std::string logged;  // the lines in the log once a change (the checks read them)
+        std::string all;
+        for (const UiLine& l : m.page_notes) all += "mw3: launcher: whats new: " + l.kind + ": " + l.text + "\n";
+        if (all != logged) logged = all, std::fputs(all.c_str(), stdout);
+      }
       break;
     }
     case kCopies:
@@ -3479,9 +3605,19 @@ void Launcher::show_update() {
 
 void Launcher::read_update_notes() {
   update_lines_.clear();
-  for (const std::string& line : upgrades::update::notes_lines(update_->release.notes)) {
-    update_lines_.push_back(line);
-    for (const std::string& w : text_.wrap(line, 13, kUpdateWidth)) std::printf("mw3: launcher: update notes: %s\n", w.c_str());
+  // 2.2.0: every version after this one up to the newest, newest first, each under its version (WHAT'S NEW's lines).
+  using namespace upgrades::update;
+  std::vector<Notes> show = notes_to_show(update_->notes, MW3_VERSION, update_->release.tag);
+  if (show.empty()) show.push_back({update_->release.tag, update_->release.notes});
+  for (const Notes& n : show) {
+    std::vector<std::string> lines;
+    if (!update_lines_.empty()) lines.emplace_back();
+    if (show.size() > 1) lines.push_back("VERSION " + plain_version(n.tag));
+    for (const NoteLine& l : whats_new_lines(n.text)) lines.push_back(l.text);
+    for (const std::string& line : lines) {
+      update_lines_.push_back(line);
+      for (const std::string& w : text_.wrap(line, 13, kUpdateWidth)) std::printf("mw3: launcher: update notes: %s\n", w.c_str());
+    }
   }
   if (update_lines_.empty()) update_lines_.push_back("(No notes with this release.)");
 }
@@ -3982,6 +4118,8 @@ void Launcher::activate(int id) {
       case kGameRemove: page_confirm_ = true, remove_linked_ = id == kGameRemove, status_.clear(); return layout();
       case kInstallFile: break;
       case kUninstallBack: page_confirm_ = false; return layout();
+      case kPageTabGame:
+      case kPageTabNotes: page_notes_ = id == kPageTabNotes; return layout();
       case kUninstallGo:
       case kUninstallAll: return uninstall_go(id == kUninstallAll);
       default: return;
@@ -4417,8 +4555,10 @@ LauncherChoice Launcher::run() {
       files_pm_ = o_.screen == "pmcopies", from_files_ = true, find_copies(), screen_ = kCopies;
     for (int i = 0; i < upgrades::update::game_count(); ++i)  // a game's page (its gear): game:<key>, game:<key>:uninstall
       if (const std::string k = std::string("game:") + upgrades::update::game_info(upgrades::update::game_at(i)).key;
-          o_.screen == k || o_.screen == k + ":uninstall")
-        open_game_page(i), page_confirm_ = o_.screen != k;
+          o_.screen == k || o_.screen == k + ":uninstall" || o_.screen == k + ":notes") {
+        if (screen_ != kGamePage || page_game_ != i) open_game_page(i);  // once (the loop above opens game:<key>): WHAT'S NEW lands once
+        page_confirm_ = o_.screen == k + ":uninstall", page_notes_ = page_notes_ || o_.screen == k + ":notes";
+      }
     if (o_.screen == "work") {
       screen_ = kWorking;
       work_ = std::make_unique<Work>();
@@ -4567,6 +4707,8 @@ LauncherChoice Launcher::run() {
         follow_ = screen_ == kMain;
       } else if (e.type == SDL_EVENT_GAMEPAD_ADDED) {
         SDL_OpenGamepad(e.gdevice.which);  // closed with the subsystem
+      } else if ((e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) && notes_scroll(e) != 0) {
+        ui_.scroll_notes(notes_scroll(e));  // WHAT'S NEW (2.2.0): up and down scroll the notes, left and right the buttons
       } else if (e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
         // Keys and a pad alike: the arrows (and Tab) or the d-pad step through
         // the plates, Enter or A presses, Escape or B goes back.

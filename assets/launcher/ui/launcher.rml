@@ -87,7 +87,10 @@
       <div class="foot" buttons="foot"/>
     </div>
 
-    <div class="part gamepage" data-if="screen == 'game'" data-class-ask="variant == 'ask'">
+    <div class="part gamepage" data-if="screen == 'game'" data-class-ask="variant == 'ask'" data-class-notes="variant == 'notes'">
+      <div class="tabs" buttons="tabs"/>
+      <div id="page_notes" data-if="variant == 'notes'"><div data-for="l : page_notes" data-attr-class="'n ' + l.kind">{{l.text}}</div></div>
+      <div id="page_more" data-if="variant == 'notes'">Scroll  for  more</div>
       <fit class="title" data-if="title != ''" data-attr-text="title"/>
       <div class="lines"><div class="line" data-for="l : lines" data-attr-class="'line ' + l.kind">{{l.text}}</div></div>
       <div class="rows">

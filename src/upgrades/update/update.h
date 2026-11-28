@@ -28,6 +28,12 @@ struct Release {
   bool first_home = false;  // `assets` are GitHub's (the list a download asks first); false: another home's (2.1.0, counts)
 };
 
+// A release's notes (2.2.0, WHAT'S NEW; whats_new.h).
+struct Notes {
+  std::string tag;   // "pm-v1.2.3", "v2.2.0"
+  std::string text;  // its release's body (Markdown)
+};
+
 // GitHub's JSON for the releases list (an array of releases): false with `error` when it is not one.
 bool parse_releases(const std::string& json, std::vector<Release>* out, std::string* error);
 
@@ -49,6 +55,7 @@ struct Verdict {
   enum Kind { kNewer, kUpToDate, kFailed } kind = kFailed;
   Release release;
   std::string words;
+  std::vector<Notes> notes;  // every package release's notes, newest first (2.2.0: the UPDATE box's versions between)
 };
 // From what the fetch gave: `json` (empty when it failed, `fetch_error` saying why) against `current` (MW3_VERSION).
 Verdict judge(const std::string& current, const std::string& json, const std::string& fetch_error);
