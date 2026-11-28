@@ -213,14 +213,14 @@ btn.seg.off .divider { background: #5a616a; }
 .gamepage .tabs btn { width: 150dp; height: 28dp; flex: none; }
 .gamepage .tabs btn .label { font-size: 15dp; }
 btn.flat.tab.current { border-color: #ffb040; color: #ffb040; }
-#page_notes { position: absolute; top: 40dp; left: 0; width: 640dp; height: 200dp; overflow: hidden auto; text-align: left; padding: 6dp 12dp 6dp 14dp;
+#page_notes { position: absolute; top: 40dp; left: 0; width: 640dp; height: 226dp; overflow: hidden auto; text-align: left; padding: 6dp 12dp 6dp 14dp;
   border: 1dp #3c424b; border-radius: 2dp; decorator: vertical-gradient(#2c313ac4 #1a1d22c4); }
 #page_notes .n { font-family: body; font-size: 12dp; line-height: 17dp; color: #e4e6e8; }
 #page_notes .n.version { font-family: title; color: #ffb040; font-size: 15dp; line-height: 21dp; }
 #page_notes .n.heading { font-family: title; color: #ffb040; font-size: 13dp; line-height: 19dp; }
 #page_notes .n.item { padding-left: 10dp; margin-bottom: 3dp; }
 #page_notes .n.blank { height: 8dp; }
-#page_more { display: none; position: absolute; top: 258dp; right: 6dp; font-size: 11dp; color: #787c82; }
+#page_more { display: none; position: absolute; top: 268dp; right: 6dp; font-size: 11dp; color: #787c82; }
 #page_more.on { display: block; }
 
 .data .words { position: absolute; top: 20dp; left: 80dp; width: 480dp; font-size: 16dp; }
